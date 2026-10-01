@@ -158,7 +158,10 @@ function states one convention.
   deleted editor function leaves without a caller. `performance-no-automatic-move` does not apply
   to a `string_view` return.
 
-### 3. The reference and the fallback (D1, D5, D6). Medium; the core.
+### 3. DONE: the reference and the fallback (D1, D5, D6). Medium; the core.
+
+As built: the quantizer divides by `inputCalibrationGainStepsPerDb()` (10) rather than
+multiplying by a 0.1 step, so a quantized 11.2 dB equals the literal 11.2.
 
 - `input_calibration.h`: add the two constants and the derived target above; delete
   `inputCalibrationTargetRmsDb`, `inputCalibrationReferencePeakPercentile` (becomes

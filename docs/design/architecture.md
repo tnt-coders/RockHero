@@ -478,7 +478,9 @@ the only authority for calibration: the shared `LiveInputMonitor` reads it at ea
 keeps no copy, and every failure recovers by running the gate again. Calibration targets the
 interface, not the guitar, because players swap guitars without recalibrating: an interface's
 documented gain is the primary path, and the strum measurement the fallback for interfaces with
-no published figure.
+no published figure. Everything derives from one reference, `inputLevelReferenceDbu()`: +12 dBu
+reads 0 dBFS, so an interface's gain is its dBu at 0 dBFS less 12, and the fallback sets the gain
+so the player's hardest playing lands where a 1 V peak source would.
 
 **Analysis thread** (pitch detection, `rock-hero-game`): Reads guitar input from the ring buffer.
 Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86

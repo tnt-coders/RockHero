@@ -1,7 +1,9 @@
 \page user_input_calibration Input Calibration
 
-Input calibration sets the pre-effects guitar input gain used by Rock Hero. The calibration target
-is **-12 dBFS average** with peaks no higher than **-6 dBFS**.
+Input calibration sets the pre-effects guitar input gain used by Rock Hero. It calibrates your audio
+interface, not your guitar: Rock Hero's reference is **+12 dBu reads 0 dBFS**, the level most
+interfaces and amp simulators are built around, so a hot pickup drives the rig harder, exactly as it
+would a real amp.
 
 Live input stays off until the selected input is calibrated, so every player hears their guitar at
 the same level. The editor opens input calibration by itself the first time it sees an input
@@ -10,11 +12,18 @@ restarts; the Calibrate button under the input meter opens it again at any time.
 
 # Recommended Method
 
-Use manual calibration when the exact specifications for the device are known. Set the input gain
-so the specified device level maps to the target level in Rock Hero.
+Use your interface's published figure when it has one: the table below gives the gain for the
+interfaces whose input level is known, and the formula gives it for any other interface whose
+manual states the dBu level its instrument input reaches at 0 dBFS.
 
-Use automatic calibration when the device does not provide reliable gain specifications or when
-using a Windows audio device such as a Real Tone cable.
+Use the automatic measurement when the interface publishes no figure. It listens to you play and
+estimates the reference from your hardest playing, so it is only as good as that playing is close
+to a typical guitar's: about 6 dB either way across passive pickups, active pickups land hot, and
+repeated runs agree to about 2 dB (these last figures are estimates awaiting measurement).
+
+If you own a multimeter, you can measure your interface exactly: play a 1 kHz sine at 0 dBFS out of
+the interface, read its voltage across tip and sleeve, then loop it into the instrument input and
+read the level. Measured figures are welcome additions to the table.
 
 # Known Unity-Gain Device Settings
 
@@ -23,18 +32,16 @@ minimum or `0.0 dB`, the guitar is connected to the instrument or Hi-Z input, an
 compressor, vintage mode, Air mode, or operating-system input boost is off unless the row says
 otherwise.
 
-The table targets Rock Hero's **-12 dBFS** input reference. NAM calibration metadata expresses
-interface input calibration as the dBu level of a 1 kHz sine wave that reaches `0 dBFS` peak.
-A 1 V peak sine wave is 0.707 V RMS, which is `-0.79 dBu`, so a 1 V peak sine wave reading
-`-12 dBFS` means the equivalent `0 dBFS` input calibration level is `+11.21 dBu`. The manual
-Rock Hero gain is therefore:
+NAM calibration metadata, like most interface manuals, expresses an input's calibration as the dBu
+level of a 1 kHz sine wave that reaches `0 dBFS` peak. Rock Hero's reference is `+12 dBu`, so the
+gain is:
 
 ```text
-Rock Hero gain = device level at 0 dBFS (dBu) - 11.21 dB
+Rock Hero gain = device level at 0 dBFS (dBu) - 12 dB
 ```
 
 The Quad Cortex, for example, reaches `0 dBFS` at `+14.3 dBu`, so its gain is
-`14.3 - 11.21 = +3.1 dB`.
+`14.3 - 12 = +2.3 dB`, the figure Neural DSP itself gives for its plugins.
 
 Use the exact model and generation. Interface families reuse names, but their instrument input
 headroom can change between generations. Rows based on manufacturer maximum-input specifications
@@ -42,26 +49,26 @@ are higher confidence than rows inferred from measured dBFS behavior.
 
 | Device | Unity input mode | Device level at 0 dBFS | 1V peak sine reads | Rock Hero gain | Basis |
 |--------|------------------|------------------------|--------------------|----------------|-------|
-| Focusrite Scarlett Solo 3rd Gen | Instrument input, minimum gain | +12.5 dBu | -13.3 dBFS | +1.3 dB | Manufacturer spec |
-| Focusrite Scarlett 2i2 3rd Gen | Instrument input, minimum gain | +12.5 dBu | -13.3 dBFS | +1.3 dB | Manufacturer spec |
-| Focusrite Scarlett Solo 4th Gen | Instrument input, minimum gain | +12.0 dBu | -12.8 dBFS | +0.8 dB | Manufacturer spec |
-| Focusrite Scarlett 2i2 4th Gen | Instrument input, minimum gain | +12.0 dBu | -12.8 dBFS | +0.8 dB | Manufacturer spec |
-| MOTU M2, M4, M6 | Combo TRS guitar input, minimum gain | +16.0 dBu | -16.8 dBFS | +4.8 dB | Manufacturer spec |
-| Neural DSP Quad Cortex | Instrument input, 1 MOhm, 0.0 dB input level | +14.3 dBu | -15.1 dBFS | +3.1 dB | Inferred; not published in public specs |
-| Neural DSP Quad Cortex mini | Input 1 or input 2 TRS, 1 MOhm, minimum gain | +14.5 dBu | -15.3 dBFS | +3.3 dB | Inferred; not published in public specs |
-| Neural DSP Nano Cortex | Instrument or capture input, minimum gain | +10.0 dBu | -10.8 dBFS | -1.2 dB | Inferred; not published in public specs |
-| Universal Audio Volt desktop interfaces | Instrument input, minimum gain | +12.5 dBu | -13.3 dBFS | +1.3 dB | Manufacturer spec |
-| Arturia MiniFuse interfaces | Instrument input, minimum gain | +11.5 dBu | -12.3 dBFS | +0.3 dB | Manufacturer spec |
-| Audient iD4 MKII | D.I. / instrument input, minimum gain | +12.0 dBu | -12.8 dBFS | +0.8 dB | Manufacturer spec |
-| Audient iD4 MKI | D.I. input, minimum gain | +12.0 dBu | -12.8 dBFS | +0.8 dB | Manufacturer spec |
-| Solid State Logic SSL 2 / SSL 2+ MKII | Instrument input, minimum gain | +15.0 dBu | -15.8 dBFS | +3.8 dB | Manufacturer spec |
-| PreSonus Studio 24c | Instrument input, minimum gain | +19.0 dBu | -19.8 dBFS | +7.8 dB | Manufacturer spec |
-| Behringer U-Phoria UMC22 | Instrument input, minimum gain | +2.0 dBu | -2.8 dBFS | -9.2 dB | Manufacturer spec |
-| Behringer UMC202HD / UMC204HD / UMC404HD | Instrument input, pad off, minimum gain | -3.0 dBu | +2.2 dBFS (clips) | -14.2 dB | Manufacturer spec |
+| Focusrite Scarlett Solo 3rd Gen | Instrument input, minimum gain | +12.5 dBu | -13.3 dBFS | +0.5 dB | Manufacturer spec |
+| Focusrite Scarlett 2i2 3rd Gen | Instrument input, minimum gain | +12.5 dBu | -13.3 dBFS | +0.5 dB | Manufacturer spec |
+| Focusrite Scarlett Solo 4th Gen | Instrument input, minimum gain | +12.0 dBu | -12.8 dBFS | 0.0 dB | Manufacturer spec |
+| Focusrite Scarlett 2i2 4th Gen | Instrument input, minimum gain | +12.0 dBu | -12.8 dBFS | 0.0 dB | Manufacturer spec |
+| MOTU M2, M4, M6 | Combo TRS guitar input, minimum gain | +16.0 dBu | -16.8 dBFS | +4.0 dB | Manufacturer spec |
+| Neural DSP Quad Cortex | Instrument input, 1 MOhm, 0.0 dB input level | +14.3 dBu | -15.1 dBFS | +2.3 dB | Inferred; not published in public specs |
+| Neural DSP Quad Cortex mini | Input 1 or input 2 TRS, 1 MOhm, minimum gain | +14.5 dBu | -15.3 dBFS | +2.5 dB | Inferred; not published in public specs |
+| Neural DSP Nano Cortex | Instrument or capture input, minimum gain | +10.0 dBu | -10.8 dBFS | -2.0 dB | Inferred; not published in public specs |
+| Universal Audio Volt desktop interfaces | Instrument input, minimum gain | +12.5 dBu | -13.3 dBFS | +0.5 dB | Manufacturer spec |
+| Arturia MiniFuse interfaces | Instrument input, minimum gain | +11.5 dBu | -12.3 dBFS | -0.5 dB | Manufacturer spec |
+| Audient iD4 MKII | D.I. / instrument input, minimum gain | +12.0 dBu | -12.8 dBFS | 0.0 dB | Manufacturer spec |
+| Audient iD4 MKI | D.I. input, minimum gain | +12.0 dBu | -12.8 dBFS | 0.0 dB | Manufacturer spec |
+| Solid State Logic SSL 2 / SSL 2+ MKII | Instrument input, minimum gain | +15.0 dBu | -15.8 dBFS | +3.0 dB | Manufacturer spec |
+| PreSonus Studio 24c | Instrument input, minimum gain | +19.0 dBu | -19.8 dBFS | +7.0 dB | Manufacturer spec |
+| Behringer U-Phoria UMC22 | Instrument input, minimum gain | +2.0 dBu | -2.8 dBFS | -10.0 dB | Manufacturer spec |
+| Behringer UMC202HD / UMC204HD / UMC404HD | Instrument input, pad off, minimum gain | -3.0 dBu | +2.2 dBFS (clips) | -15.0 dB | Manufacturer spec |
 
 The "1V peak sine reads" column shows where a 1 V peak 1 kHz sine wave (-0.79 dBu) naturally
-lands on each device at unity gain. Rock Hero gain is the offset needed to bring that reading to
--12 dBFS.
+lands on each device at unity gain. Rock Hero gain brings that reading to -12.8 dBFS, where a 1 V
+peak sine sits against the +12 dBu reference.
 
 Sources for the table:
 
@@ -88,12 +95,11 @@ Sources for the table:
 
 1. Select the correct input device and input channel in the audio settings.
 2. Open input calibration and press **Calibrate**.
-3. Strum all strings open at a steady, moderate volume until the measurement completes.
-4. Retry if the input clips, is too quiet, or varies too much during the measurement.
+3. Play as hard as you play in a song, on all strings, until the countdown ends.
+4. Retry if the input clips or nothing is heard.
 
-Rock Hero waits for a usable input signal before measuring. During measurement, it uses steady
-active input, rejects clipping, and rejects input levels that are too inconsistent to produce a
-stable gain.
+Rock Hero waits up to ten seconds for you to start, then listens for ten seconds from your first
+strum and sets the gain from the loudest of your playing, ignoring a single stray spike.
 
 ## Best Results
 

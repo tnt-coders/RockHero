@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <compare>
+#include <cstddef>
 #include <string>
 #include <utility>
 #include <variant>
@@ -47,16 +48,20 @@ namespace
     return "Live input stays off until this input is calibrated.";
 }
 
-// Status text shown while the capture is waiting for the first usable signal.
+// Status text shown while the capture waits for the player to start.
 [[nodiscard]] std::string inputCalibrationWaitingText()
 {
-    return "Waiting for input... Strum all open strings at a steady, moderate volume.";
+    return "Play as hard as you play in a song, on all strings.";
 }
 
-// Status text shown during the fixed active measurement window.
-[[nodiscard]] std::string inputCalibrationMeasuringText()
+// Status text shown while the capture listens, counting down the whole seconds it has left.
+[[nodiscard]] std::string inputCalibrationMeasuringText(std::size_t windows_remaining)
 {
-    return "Keep strumming all open strings at a steady, moderate volume.";
+    const auto windows_per_second =
+        static_cast<std::size_t>(common::audio::inputCalibrationSampleRateHz());
+    const std::size_t seconds_left =
+        (windows_remaining + windows_per_second - 1) / windows_per_second;
+    return "Keep playing that hard. " + std::to_string(seconds_left) + " s left.";
 }
 
 // Formats a one-decimal gain value without depending on JUCE formatting in editor core. Rounds to
@@ -192,10 +197,11 @@ void InputCalibrationController::onSampleTick()
     }
 
     const common::audio::InputCalibrationProgress& progress = *sample.measurement;
-    if (const auto* const stage = std::get_if<common::audio::InputCalibrationStage>(&progress))
+    if (const auto* const stage =
+            std::get_if<common::audio::InputCalibrationStageProgress>(&progress))
     {
-        m_state.status_message = *stage == common::audio::InputCalibrationStage::Measuring
-                                     ? inputCalibrationMeasuringText()
+        m_state.status_message = stage->stage == common::audio::InputCalibrationStage::Measuring
+                                     ? inputCalibrationMeasuringText(stage->windows_remaining)
                                      : inputCalibrationWaitingText();
         publishState();
         return;

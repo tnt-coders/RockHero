@@ -72,7 +72,7 @@ struct Harness
     harness.live_input.raw_input_meter_level = AudioMeterLevel{.peak_db = peak_db};
     constexpr std::size_t longest_measurement = inputCalibrationSettleSampleCount() +
                                                 inputCalibrationWaitSampleCount() +
-                                                inputCalibrationMeasurementSampleCount();
+                                                inputCalibrationListenSampleCount();
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         const LiveInputSample reading = harness.monitor.sample(g_ready);
@@ -80,7 +80,7 @@ struct Harness
         {
             return InputCalibrationFailed{"The measurement was not running."};
         }
-        if (!std::holds_alternative<InputCalibrationStage>(*reading.measurement))
+        if (!std::holds_alternative<InputCalibrationStageProgress>(*reading.measurement))
         {
             return *reading.measurement;
         }
@@ -259,11 +259,11 @@ TEST_CASE("LiveInputMonitor commits a finished measurement", "[audio][live-input
 
     const auto* const committed = std::get_if<InputCalibrationCommitted>(&progress);
     REQUIRE(committed != nullptr);
-    CHECK_THAT(committed->gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    CHECK_THAT(committed->gain.db, Catch::Matchers::WithinULP(6.7, 0));
     REQUIRE(harness.store.input_calibrations.size() == 1);
     CHECK(harness.store.input_calibrations.front().input_device_identity == harness.route);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
-    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(6.7, 0));
 }
 
 // A measurement can never calibrate a route it did not measure.

@@ -171,9 +171,9 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
     }
 
     InputCalibrationStep step = m_measurement->capture.pushSample(raw_level);
-    if (const auto* const stage = std::get_if<InputCalibrationStage>(&step))
+    if (const auto* const progress = std::get_if<InputCalibrationStageProgress>(&step))
     {
-        return LiveInputSample{.raw_level = raw_level, .measurement = *stage};
+        return LiveInputSample{.raw_level = raw_level, .measurement = *progress};
     }
 
     // The measurement ends here by its own result, so it is reset before the gate takes the route.

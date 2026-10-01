@@ -34,16 +34,15 @@ void requireSaveInputCalibration(
 }
 
 // Samples the calibration prompt at a steady raw level until its measurement ends, as the prompt's
-// timer would. A steady level L calibrates to -12 - L dB, the RMS target less the level.
+// timer would. A steady level L calibrates to the target peak less L.
 template <typename LiveInput>
 [[nodiscard]] common::audio::InputCalibrationProgress runCalibrationMeasurement(
     EditorController& controller, LiveInput& live_input, double peak_db)
 {
     live_input.raw_input_meter_level = common::audio::AudioMeterLevel{.peak_db = peak_db};
-    constexpr std::size_t longest_measurement =
-        common::audio::inputCalibrationSettleSampleCount() +
-        common::audio::inputCalibrationWaitSampleCount() +
-        common::audio::inputCalibrationMeasurementSampleCount();
+    constexpr std::size_t longest_measurement = common::audio::inputCalibrationSettleSampleCount() +
+                                                common::audio::inputCalibrationWaitSampleCount() +
+                                                common::audio::inputCalibrationListenSampleCount();
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         const common::audio::LiveInputSample reading = controller.onInputCalibrationSampled();
@@ -51,7 +50,8 @@ template <typename LiveInput>
         {
             return common::audio::InputCalibrationFailed{"The measurement was not running."};
         }
-        if (!std::holds_alternative<common::audio::InputCalibrationStage>(*reading.measurement))
+        if (!std::holds_alternative<common::audio::InputCalibrationStageProgress>(
+                *reading.measurement))
         {
             return *reading.measurement;
         }
@@ -288,7 +288,7 @@ TEST_CASE(
     CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK(final_state->signal_chain.disabled_message.empty());
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 
@@ -298,7 +298,7 @@ TEST_CASE(
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.7, 0));
         CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
     }
 }
@@ -338,7 +338,7 @@ TEST_CASE(
     REQUIRE(
         std::holds_alternative<common::audio::InputCalibrationCommitted>(
             runCalibrationMeasurement(controller, transport, -19.5)));
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto* const prompt_state = stateOrNull(view.last_state);
@@ -353,7 +353,7 @@ TEST_CASE(
 
     controller.onInputCalibrationDismissed();
 
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
@@ -1402,14 +1402,14 @@ TEST_CASE(
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.0, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.2, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto stored_calibration = inputCalibrationFor(store, identity);
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.0, 0));
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(5.2, 0));
     }
 }
 
@@ -1558,7 +1558,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         setCalibrationInputMonitoringCall(true),
         // The measurement finishing: disable calibration audition, apply gain, enable monitoring.
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(7.5),
+        setInputGainCall(6.7),
         setLiveInputMonitoringCall(true),
         // onInputCalibrationDismissed: no setters (commit cleared the active measurement).
     };
@@ -1833,7 +1833,7 @@ TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]
             runCalibrationMeasurement(controller, live_input, -18.0)));
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(6.0),
+        setInputGainCall(5.2),
         setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
@@ -1892,12 +1892,12 @@ TEST_CASE("Live input commit reports refused monitoring", "[core][editor-control
             runCalibrationMeasurement(controller, live_input, -18.0)));
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(6.0),
+        setInputGainCall(5.2),
         setLiveInputMonitoringCall(true),
         setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(6.0, 0));
+    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(5.2, 0));
     CHECK(
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Unavailable,

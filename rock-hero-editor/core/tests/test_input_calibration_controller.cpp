@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/input/live_input_sample.h>
@@ -151,14 +152,40 @@ TEST_CASE("Input calibration controller follows a running measurement", "[core][
     controller.attachView(view);
 
     controller.onMeasurementStartRequested();
-    host.sample = sampleWith(common::audio::InputCalibrationStage::Measuring);
+    host.sample = sampleWith(
+        common::audio::InputCalibrationStageProgress{
+            .stage = common::audio::InputCalibrationStage::Measuring,
+            .windows_remaining = common::audio::inputCalibrationListenSampleCount() - 1,
+        });
     controller.onSampleTick();
 
     CHECK(host.start_count == 1);
     CHECK(view.lastState().measuring);
-    CHECK(
-        view.lastState().status_message ==
-        "Keep strumming all open strings at a steady, moderate volume.");
+    CHECK(view.lastState().status_message == "Keep playing that hard. 10 s left.");
+}
+
+// The countdown reads the capture's own windows and changes only when a whole second passes.
+TEST_CASE("Input calibration controller counts down whole seconds", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(2.0)};
+    controller.attachView(view);
+    controller.onMeasurementStartRequested();
+
+    const auto status_at = [&host, &controller, &view](std::size_t windows_remaining) {
+        host.sample = sampleWith(
+            common::audio::InputCalibrationStageProgress{
+                .stage = common::audio::InputCalibrationStage::Measuring,
+                .windows_remaining = windows_remaining,
+            });
+        controller.onSampleTick();
+        return view.lastState().status_message;
+    };
+
+    CHECK(status_at(271) == "Keep playing that hard. 10 s left.");
+    CHECK(status_at(270) == "Keep playing that hard. 9 s left.");
+    CHECK(status_at(1) == "Keep playing that hard. 1 s left.");
 }
 
 // A measurement the monitor committed moves the popup into its completed state.

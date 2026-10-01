@@ -24,13 +24,6 @@ constexpr int g_input_calibration_preferred_width{
     g_input_calibration_meter_width + (g_input_calibration_content_margin * 2)
 };
 
-[[nodiscard]] juce::String inputCalibrationTargetText()
-{
-    return juce::String{"Target: "} +
-           juce::String{common::audio::inputCalibrationTargetRmsDb(), 0} + " dBFS average, " +
-           juce::String{common::audio::inputCalibrationTargetPeakDb(), 0} + " dBFS peak";
-}
-
 // Resolves installed docs from the executable location and falls back to build-tree docs.
 [[nodiscard]] juce::File inputCalibrationDocumentationFile()
 {
@@ -78,6 +71,10 @@ void configureManualInputGainSlider(juce::Slider& slider)
     slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
     slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 22);
     slider.setTextValueSuffix(" dB");
+    // The one place a player meets the reference: the player typing a gain needs the formula.
+    slider.setTooltip(
+        "Gain = your interface's dBu at 0 dBFS, minus " +
+        juce::String{common::audio::inputLevelReferenceDbu(), 0} + ".");
 }
 
 } // namespace
@@ -97,11 +94,6 @@ public:
         , m_calibration_controller(*this, prompt)
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
-        m_target_label.setComponentID("input_calibration_target");
-        m_target_label.setText(inputCalibrationTargetText(), juce::dontSendNotification);
-        m_target_label.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(m_target_label);
-
         m_help_icon =
             juce::Drawable::createFromImageData(BinaryData::help_svg, BinaryData::help_svgSize);
         m_help_button.setComponentID("input_calibration_help_button");
@@ -175,10 +167,8 @@ public:
     void resized() override
     {
         auto area = getLocalBounds().reduced(g_input_calibration_content_margin);
-        auto target_row = area.removeFromTop(28);
-        m_help_button.setBounds(target_row.removeFromRight(28).reduced(2));
-        target_row.removeFromRight(8);
-        m_target_label.setBounds(target_row);
+        auto help_row = area.removeFromTop(28);
+        m_help_button.setBounds(help_row.removeFromRight(28).reduced(2));
         area.removeFromTop(8);
         m_status.setBounds(area.removeFromTop(48));
         area.removeFromTop(10);
@@ -280,7 +270,6 @@ private:
     core::IEditorController& m_editor_controller;
     core::InputCalibrationController m_calibration_controller;
     AudioLevelMeter m_input_meter;
-    juce::Label m_target_label;
     std::unique_ptr<juce::Drawable> m_help_icon;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
     juce::Label m_manual_label;

@@ -31,7 +31,7 @@ struct [[nodiscard]] InputCalibrationFailed
 
 /*! \brief Where a running measurement is after one sample. */
 using InputCalibrationProgress =
-    std::variant<InputCalibrationStage, InputCalibrationCommitted, InputCalibrationFailed>;
+    std::variant<InputCalibrationStageProgress, InputCalibrationCommitted, InputCalibrationFailed>;
 
 /*! \brief One reading of the raw input meter, and what it did to a measurement in progress. */
 struct [[nodiscard]] LiveInputSample

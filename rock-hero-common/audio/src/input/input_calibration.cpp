@@ -19,8 +19,7 @@ namespace
         {
             return InputCalibrationError{
                 .code = code,
-                .message = "No usable input signal was detected. Check the input, strum steadily "
-                           "and try again.",
+                .message = "No usable input signal was detected. Check the input and try again.",
             };
         }
         case InputCalibrationErrorCode::InputClipped:
@@ -30,20 +29,13 @@ namespace
                 .message = "Input clipped. Lower the interface input gain and try again.",
             };
         }
-        case InputCalibrationErrorCode::InputInconsistent:
-        {
-            return InputCalibrationError{
-                .code = code,
-                .message = "Input level varied too much. Use steady moderate strums and try again.",
-            };
-        }
     }
     return InputCalibrationError{.code = code, .message = "Input calibration failed."};
 }
 
 } // namespace
 
-// Records raw input level and maintains the active-window RMS incrementally.
+// Records the loudest level and keeps every window loud enough to count as playing.
 void InputCalibrationAccumulator::pushSample(AudioMeterLevel level)
 {
     m_measurement.loudest_level.peak_db =
@@ -55,16 +47,11 @@ void InputCalibrationAccumulator::pushSample(AudioMeterLevel level)
         return;
     }
 
-    const double linear_amplitude = decibelsToLinearAmplitude(level.peak_db);
-    m_active_square_sum += linear_amplitude * linear_amplitude;
     m_active_peak_db.push_back(level.peak_db);
     m_measurement.active_sample_count += 1;
-    const double active_mean_square =
-        m_active_square_sum / static_cast<double>(m_measurement.active_sample_count);
-    m_measurement.active_rms_db = linearAmplitudeToDecibels(std::sqrt(active_mean_square));
 }
 
-// Builds the final measurement with percentile-trimmed RMS and consistency data.
+// Reads the playing's ceiling from the sorted active peaks.
 InputCalibrationMeasurement InputCalibrationAccumulator::measurement() const
 {
     InputCalibrationMeasurement measurement = m_measurement;
@@ -75,15 +62,8 @@ InputCalibrationMeasurement InputCalibrationAccumulator::measurement() const
 
     std::vector<double> sorted_peak_db = m_active_peak_db;
     std::ranges::sort(sorted_peak_db);
-    const std::size_t reference_index =
-        percentileIndex(sorted_peak_db, inputCalibrationReferencePeakPercentile());
-    const std::size_t low_index =
-        percentileIndex(sorted_peak_db, inputCalibrationConsistencyLowPercentile());
-
-    measurement.reference_peak_db = sorted_peak_db[reference_index];
-    measurement.active_rms_db = rmsDbForSortedRange(sorted_peak_db, low_index, reference_index);
-    measurement.active_peak_spread_db =
-        std::max(0.0, measurement.reference_peak_db - sorted_peak_db[low_index]);
+    measurement.ceiling_peak_db =
+        sorted_peak_db[percentileIndex(sorted_peak_db, inputCalibrationCeilingPercentile())];
     return measurement;
 }
 
@@ -104,57 +84,10 @@ std::size_t InputCalibrationAccumulator::percentileIndex(
     return static_cast<std::size_t>(clamped_index);
 }
 
-// Converts a dBFS meter level into linear amplitude for RMS accumulation.
-double InputCalibrationAccumulator::decibelsToLinearAmplitude(double db) noexcept
-{
-    return std::pow(10.0, db / 20.0);
-}
-
-// Converts a positive linear RMS amplitude back to a bounded dBFS value.
-double InputCalibrationAccumulator::linearAmplitudeToDecibels(double linear_amplitude) noexcept
-{
-    if (linear_amplitude <= 0.0)
-    {
-        return minimumAudioMeterDb();
-    }
-
-    return std::clamp(20.0 * std::log10(linear_amplitude), minimumAudioMeterDb(), 12.0);
-}
-
-// Computes RMS from a sorted inclusive dB range after percentile trimming.
-double InputCalibrationAccumulator::rmsDbForSortedRange(
-    const std::vector<double>& sorted_peak_db, std::size_t first_index,
-    std::size_t last_index) noexcept
-{
-    if (sorted_peak_db.empty())
-    {
-        return minimumAudioMeterDb();
-    }
-
-    first_index = std::min(first_index, sorted_peak_db.size() - 1);
-    last_index = std::min(last_index, sorted_peak_db.size() - 1);
-    if (last_index < first_index)
-    {
-        std::swap(first_index, last_index);
-    }
-
-    double square_sum = 0.0;
-    std::size_t sample_count = 0;
-    for (std::size_t index = first_index; index <= last_index; ++index)
-    {
-        const double linear_amplitude = decibelsToLinearAmplitude(sorted_peak_db[index]);
-        square_sum += linear_amplitude * linear_amplitude;
-        ++sample_count;
-    }
-
-    const double mean_square = square_sum / static_cast<double>(sample_count);
-    return linearAmplitudeToDecibels(std::sqrt(mean_square));
-}
-
 // Every window must hold a sample, or a stage would end before it began.
 static_assert(inputCalibrationSettleSampleCount() > 0);
 static_assert(inputCalibrationWaitSampleCount() > 0);
-static_assert(inputCalibrationMeasurementSampleCount() > 0);
+static_assert(inputCalibrationListenSampleCount() > 0);
 
 // Advances the deterministic capture state machine by one raw meter sample.
 InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
@@ -167,7 +100,7 @@ InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
             {
                 m_stage = InputCalibrationStage::WaitingForInput;
             }
-            return m_stage;
+            return progress();
         }
         case InputCalibrationStage::WaitingForInput:
         {
@@ -176,34 +109,35 @@ InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
                 return inputCalibrationError(InputCalibrationErrorCode::InputClipped);
             }
 
+            // The first window the player is heard ends the wait and is the first one listened to.
             if (level.peak_db >= minimumInputCalibrationSignalDb())
             {
                 m_stage = InputCalibrationStage::Measuring;
-                return pushMeasurementSample(level);
+                return pushListenSample(level);
             }
 
             if (--m_wait_samples_remaining == 0)
             {
                 return inputCalibrationError(InputCalibrationErrorCode::NoUsableSignal);
             }
-            return m_stage;
+            return progress();
         }
         case InputCalibrationStage::Measuring:
         {
-            return pushMeasurementSample(level);
+            return pushListenSample(level);
         }
     }
 
-    return m_stage;
+    return progress();
 }
 
-// Adds one sample to the fixed measurement window and finalizes it when the window ends.
-InputCalibrationStep InputCalibrationCapture::pushMeasurementSample(AudioMeterLevel level)
+// Adds one sample to the fixed listen and finalizes the measurement when the listen ends.
+InputCalibrationStep InputCalibrationCapture::pushListenSample(AudioMeterLevel level)
 {
     m_accumulator.pushSample(level);
-    if (--m_measurement_samples_remaining > 0)
+    if (--m_listen_samples_remaining > 0)
     {
-        return m_stage;
+        return progress();
     }
 
     auto result = calculateInputCalibration(m_accumulator.measurement());
@@ -214,7 +148,29 @@ InputCalibrationStep InputCalibrationCapture::pushMeasurementSample(AudioMeterLe
     return *result;
 }
 
-// Calculates the gain that moves the measured input toward the project calibration targets.
+// Reports the current stage with the windows it still needs.
+InputCalibrationStageProgress InputCalibrationCapture::progress() const noexcept
+{
+    switch (m_stage)
+    {
+        case InputCalibrationStage::Settling:
+        {
+            return {.stage = m_stage, .windows_remaining = m_settle_samples_remaining};
+        }
+        case InputCalibrationStage::WaitingForInput:
+        {
+            return {.stage = m_stage, .windows_remaining = m_wait_samples_remaining};
+        }
+        case InputCalibrationStage::Measuring:
+        {
+            return {.stage = m_stage, .windows_remaining = m_listen_samples_remaining};
+        }
+    }
+
+    return {.stage = m_stage, .windows_remaining = 0};
+}
+
+// Sets the gain that puts the playing's ceiling on the target peak.
 std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalibration(
     const InputCalibrationMeasurement& measurement)
 {
@@ -224,28 +180,15 @@ std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalib
         return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::InputClipped)};
     }
 
-    if (measurement.active_sample_count == 0 ||
-        measurement.active_sample_count < minimumInputCalibrationActiveSampleCount() ||
-        measurement.loudest_level.peak_db < minimumInputCalibrationSignalDb())
+    if (measurement.active_sample_count < minimumInputCalibrationActiveSampleCount())
     {
         return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::NoUsableSignal)};
     }
 
-    if (measurement.active_peak_spread_db > maximumInputCalibrationActivePeakSpreadDb())
-    {
-        return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::InputInconsistent)};
-    }
-
-    const double reference_peak_db =
-        measurement.reference_peak_db >= minimumInputCalibrationSignalDb()
-            ? measurement.reference_peak_db
-            : measurement.loudest_level.peak_db;
-    const double rms_gain_db = inputCalibrationTargetRmsDb() - measurement.active_rms_db;
-    const double peak_limited_gain_db = inputCalibrationTargetPeakDb() - reference_peak_db;
-
     return InputCalibrationResult{
         .calibration_gain = clampGain(
-            Gain{quantizeInputCalibrationGainDb(std::min(rms_gain_db, peak_limited_gain_db))}),
+            Gain{quantizeInputCalibrationGainDb(
+                inputCalibrationTargetPeakDb() - measurement.ceiling_peak_db)}),
     };
 }
 

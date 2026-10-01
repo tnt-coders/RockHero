@@ -48,7 +48,6 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     REQUIRE(window.getContentComponent() != nullptr);
-    auto& target_label = findRequiredDescendant<juce::Label>(window, "input_calibration_target");
     auto& help_button =
         findRequiredDescendant<juce::DrawableButton>(window, "input_calibration_help_button");
     auto& status = findRequiredDescendant<juce::Label>(window, "input_calibration_status");
@@ -60,7 +59,9 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
 
-    CHECK(target_label.getText() == "Target: -12 dBFS average, -6 dBFS peak");
+    // The reference reaches the player only as the formula behind the gain slider.
+    CHECK(findDescendant(window, "input_calibration_target") == nullptr);
+    CHECK(slider.getTooltip() == "Gain = your interface's dBu at 0 dBFS, minus 12.");
     CHECK(
         status.getText() ==
         "Click \"Calibrate\" to run automatic calibration, or adjust gain manually and click "
@@ -82,9 +83,7 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
     CHECK(findDescendant(window, "input_calibration_recommendation") == nullptr);
     CHECK(findDescendant(window, "input_calibration_docs_link") == nullptr);
-    CHECK(target_label.getBounds().getRight() <= help_button.getBounds().getX());
-    CHECK(help_button.getBounds().getCentreY() == target_label.getBounds().getCentreY());
-    CHECK(target_label.getBounds().getBottom() <= status.getBounds().getY());
+    CHECK(help_button.getBounds().getBottom() <= status.getBounds().getY());
     CHECK(status.getBounds().getBottom() <= meter.getBounds().getY());
     CHECK(slider.getBounds().getY() >= meter.getBounds().getBottom());
     CHECK(manual_label.getBounds().getY() == slider.getBounds().getY());

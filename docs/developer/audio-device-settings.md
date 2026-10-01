@@ -78,7 +78,12 @@ input-device selection, since a missing property reads as absence rather than an
 
 Both products run the strum measurement the same way: `LiveInputMonitor::beginMeasurement`, then
 `sample()` once per tick at `inputCalibrationSampleRateHz()`. Each sample returns the raw level and,
-while a measurement runs, an `InputCalibrationProgress`: a stage, a committed gain, or a failure. A
+while a measurement runs, an `InputCalibrationProgress`: a stage with the windows it has left (the
+editor's countdown reads them, never a count of its own), a committed gain, or a failure. The
+measurement listens to the player's hardest playing for a fixed span from the first window it
+hears and sets the gain so the playing's ceiling, a high percentile of the window peaks, lands on
+`inputCalibrationTargetPeakDb()`; that target and every interface gain derive from the one
+reference, `inputLevelReferenceDbu()` (`input/input_calibration.h`). A
 measurement a gate run ended (a device change, a session closing) reports itself as a failure at
 the next sample, once, so neither driver keeps its own record of having started one.
 
