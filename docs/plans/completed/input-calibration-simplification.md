@@ -2,8 +2,9 @@
 
 Status: COMPLETED 2026-10-01. Steps 1-7 landed (`bad52c5b` … `13e74c2d`); step 8's analysis and
 its companion research produced the six decisions that
-`docs/plans/in-progress/input-calibration-rework.md` carries forward. Ruled 2026-10-01 (user); captured from a Fable review on 2026-10-01 (at commit
-`15432e1d`). Citations below describe the code as it was at each step.
+`docs/plans/completed/input-calibration-rework.md` carried forward. Ruled 2026-10-01 (user);
+captured from a Fable review on 2026-10-01 (at commit `15432e1d`). Citations below describe the
+code as it was at each step.
 
 ## What calibration is for
 
@@ -113,7 +114,7 @@ placement, emphasis and words.
    status-to-text authority, `refresh()` idempotence), with its companion
    `docs/tracking/2026-10-01-input-level-calibration-research.md` (what the rest of the world
    does, with sources). The user took all six recommendations; the plan is
-   `docs/plans/in-progress/input-calibration-rework.md`.
+   `docs/plans/completed/input-calibration-rework.md`.
 
 ## Decisions for the user (ruled 2026-10-01)
 

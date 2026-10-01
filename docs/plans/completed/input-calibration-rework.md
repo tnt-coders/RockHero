@@ -1,7 +1,11 @@
 # Input Calibration Rework
 
-Status: in progress since 2026-10-01 (user: "Take all six recommendations and write the plan";
-then "start executing it").
+Status: COMPLETED 2026-10-01. Steps 1-5 landed (`ce8e110d` … `316f18a8`), each reviewed by the
+Fable guide and step 5's window verified by the UI expert against 1:1 renders. Ruled by the user
+("Take all six recommendations and write the plan"; then "start executing it"). Still owed, both the
+user's: a sighting of the whole flow on real hardware (auto-prompt, chooser, Apply, live input on;
+Later and a route change; "Measure by playing" with its countdown), and the hardware checklist
+below, whose only code consequence is restoring the withheld Behringer row.
 Written from `docs/tracking/2026-10-01-input-calibration-analysis.md` (what the code does) and
 `docs/tracking/2026-10-01-input-level-calibration-research.md` (what the rest of the world does),
 after `docs/plans/completed/input-calibration-simplification.md` landed (`8cd9c55d` … `13e74c2d`).

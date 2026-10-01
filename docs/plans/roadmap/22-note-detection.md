@@ -293,7 +293,10 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
 2. **Technique detectability matrix** (draft below) — co-authored with plan 24 Phase 1; the
    normative scored/lenient semantics live in 24, the acoustic-feasibility judgment lives here.
 3. **Dry-signal tap specification**: tap is mono, post-input-gain (so plan 13's gain calibration
-   normalizes detection input level), pre-plugin-chain, read-only.
+   normalizes detection input level), pre-plugin-chain, read-only. The calibrated domain is
+   normalized per interface, not per guitar (`docs/plans/completed/input-calibration-rework.md`
+   D8): a hot pickup still arrives several dB hotter than a weak one, so detection uses relative
+   or adaptive thresholds (a per-session noise floor, onset ratios), never an absolute dBFS gate.
 4. **Latency budget** (below) and **accuracy metric definitions** (below) adopted as the contract.
 
 **Draft detectability matrix (v1)** — Scored = detected and affects score; Lenient = detected with

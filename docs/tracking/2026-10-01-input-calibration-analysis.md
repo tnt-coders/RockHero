@@ -204,4 +204,4 @@ All three were fixed in the commit that added this file.
 
 The user took all five decisions plus the research snapshot's sixth (the reference stated as
 "+12 dBu reads 0 dBFS", `docs/tracking/2026-10-01-input-level-calibration-research.md`). The
-plan is `docs/plans/in-progress/input-calibration-rework.md`.
+plan is `docs/plans/completed/input-calibration-rework.md`.

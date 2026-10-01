@@ -1137,7 +1137,7 @@ churn the backend, since `Engine::Impl::setMonitoringChannelEnabled` (`engine_li
 returns without touching the graph when neither flag changes, leaving one store read and one gain
 parameter write. `GameplaySession::playRefusal()` now re-runs the gate at every play, so the
 refusal is never stale and the game needs no device listener for it
-(`docs/plans/in-progress/input-calibration-rework.md` step 1). The history below stands as it was
+(`docs/plans/completed/input-calibration-rework.md` step 1). The history below stands as it was
 written.
 
 `GameplaySession` refuses `play()` with `LiveInputOff` by reading `LiveInputMonitor::status()`, and
