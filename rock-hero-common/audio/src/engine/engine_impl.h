@@ -425,8 +425,9 @@ private:
     // Repairs Tracktion's device cache and notifies editor listeners after JUCE has changed routes.
     void handleAudioDeviceConfigurationRefresh();
 
-    // Undoes JUCE's disconnect fallback (closing the substitute device) and re-applies the saved
-    // route when its device is replugged, so the open device is only ever the user's choice.
+    // Undoes JUCE's disconnect fallback by closing the substitute device, so the open device is
+    // only ever the user's choice. It never reopens one: a replugged device stays closed until the
+    // user applies the saved route again.
     void enforceNoFallbackDevicePolicy();
 
     // THE one predicate for "the device callback can move the playhead": a current device that is
