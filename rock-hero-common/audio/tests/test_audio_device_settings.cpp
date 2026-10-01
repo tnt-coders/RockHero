@@ -9,6 +9,7 @@
 #include <optional>
 #include <rock_hero/common/audio/device/audio_device_settings.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
+#include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <string>
 #include <utility>
 
@@ -409,7 +410,8 @@ TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-dev
     addMockAudioType(audio_devices.device_manager, "Windows Audio (Low Latency Mode)");
     addMockAudioType(audio_devices.device_manager, "ASIO");
 
-    const AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    const AudioDeviceSettings settings{audio_devices, store};
     const AudioDeviceSettingsState state = settings.state();
 
     CHECK(
@@ -434,7 +436,8 @@ TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-d
     openInitialRoute(audio_devices);
     REQUIRE(hardwareDeviceOpen(audio_devices.device_manager));
 
-    const AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    const AudioDeviceSettings settings{audio_devices, store};
     const AudioDeviceSettingsState state = settings.state();
 
     CHECK(state.selected_audio_system_id == 1);
@@ -460,7 +463,8 @@ TEST_CASE("AudioDeviceSettings stages output device", "[audio][audio-device-sett
     restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     const auto staging_setup = audio_devices.device_manager.getAudioDeviceSetup();
     settings.selectOutputDevice(2);
 
@@ -468,16 +472,18 @@ TEST_CASE("AudioDeviceSettings stages output device", "[audio][audio-device-sett
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == staging_setup);
 }
 
-// OK/apply commits the staged route through the public settings service. The device should be
-// open with the staged setup after apply() returns successfully.
+// OK/apply commits the staged route through the public settings service: the device is open with
+// the staged setup, and the route is saved as the user's choice.
 TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
     restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
+    audio_devices.serialized_device_state = "applied-route";
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     settings.selectOutputDevice(2);
     const auto result = settings.apply();
 
@@ -486,6 +492,32 @@ TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-sett
     CHECK(applied_setup.inputDeviceName == g_input_a);
     CHECK(applied_setup.outputDeviceName == g_output_b);
     CHECK(hardwareDeviceOpen(audio_devices.device_manager));
+    CHECK(store.activeDeviceRoute() == std::optional<std::string>{"applied-route"});
+}
+
+// A route that opened but could not be saved keeps the window open with the store's reason: the
+// next launch would not restore it.
+TEST_CASE(
+    "AudioDeviceSettings reports an applied route it could not save",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
+    openInitialRoute(audio_devices);
+    audio_devices.serialized_device_state = "applied-route";
+
+    testing::InMemoryAudioConfigStore store;
+    store.next_set_active_device_route_error =
+        AudioConfigError{AudioConfigErrorCode::CouldNotSave, "disk full"};
+    AudioDeviceSettings settings{audio_devices, store};
+    settings.selectOutputDevice(2);
+    const auto result = settings.apply();
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == AudioDeviceSettingsErrorCode::StorePersistFailed);
+    CHECK(settings.state().error_message == "disk full");
+    CHECK_FALSE(store.activeDeviceRoute().has_value());
 }
 
 // Switching audio systems should avoid JUCE's fixed 1.5 second type-switch sleep.
@@ -497,7 +529,8 @@ TEST_CASE("AudioDeviceSettings avoids JUCE type-switch delay", "[audio][audio-de
     openInitialRoute(audio_devices);
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     settings.selectAudioSystem(2);
 
     const auto started_at = std::chrono::steady_clock::now();
@@ -522,7 +555,8 @@ TEST_CASE(
     restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices, juce::StringArray{g_output_b});
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     settings.selectOutputDevice(2);
     const auto result = settings.apply();
     REQUIRE_FALSE(result.has_value());
@@ -541,7 +575,8 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
     restoreLikeTheEngine(audio_devices);
     auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
-    const AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    const AudioDeviceSettings settings{audio_devices, store};
     const int initial_scan_count = audio_type.scanCallCount();
     REQUIRE(initial_scan_count > 0);
 
@@ -561,7 +596,8 @@ TEST_CASE(
     restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices, juce::StringArray{g_output_b});
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     settings.selectOutputDevice(2);
     const auto result = settings.apply();
 
@@ -589,7 +625,9 @@ TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-sett
     openInitialRoute(audio_devices);
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    REQUIRE(store.setActiveDeviceRoute("saved-route").has_value());
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     settings.selectOutputDevice(2);
 
@@ -597,6 +635,8 @@ TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-sett
 
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
     CHECK(hardwareDeviceOpen(audio_devices.device_manager));
+    // Cancel reopens the route it found; it saves nothing as a choice.
+    CHECK(store.activeDeviceRoute() == std::optional<std::string>{"saved-route"});
 }
 
 // Cancel leaves the hardware closed when the settings edit was opened without it running.
@@ -609,7 +649,8 @@ TEST_CASE("AudioDeviceSettings cancel preserves closed route", "[audio][audio-de
     audio_devices.device_manager.closeAudioDevice();
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     settings.selectOutputDevice(2);
 
@@ -630,7 +671,8 @@ TEST_CASE("AudioDeviceSettings restores device on destruction", "[audio][audio-d
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     {
-        AudioDeviceSettings settings{audio_devices};
+        testing::InMemoryAudioConfigStore store;
+        AudioDeviceSettings settings{audio_devices, store};
         settings.selectOutputDevice(2);
         REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     }
@@ -651,7 +693,8 @@ TEST_CASE(
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     {
-        AudioDeviceSettings settings{audio_devices};
+        testing::InMemoryAudioConfigStore store;
+        AudioDeviceSettings settings{audio_devices, store};
         settings.selectOutputDevice(2);
         REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     }
@@ -668,7 +711,8 @@ TEST_CASE("AudioDeviceSettings defaults staged sample rate", "[audio][audio-devi
     restoreLikeTheEngine(audio_devices);
     addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
-    const AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    const AudioDeviceSettings settings{audio_devices, store};
     const AudioDeviceSettingsState state = settings.state();
 
     CHECK(state.sample_rates == std::vector<double>{44100.0, 48000.0, 96000.0});
@@ -689,7 +733,8 @@ TEST_CASE(
     const auto& audio_type = addMockAudioType(
         audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, true, false);
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE(settings.state().control_panel_supported);
     REQUIRE_FALSE(settings.state().staged_device_error.has_value());
 
@@ -712,7 +757,8 @@ TEST_CASE(
     const auto& audio_type = addMockAudioType(
         audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, false);
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE_FALSE(settings.state().control_panel_supported);
 
     const auto opened = settings.openControlPanel();
@@ -743,7 +789,8 @@ TEST_CASE(
         true,
         juce::StringArray{g_output_a});
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE(settings.state().control_panel_supported);
     REQUIRE(settings.state().staged_device_error.has_value());
     CHECK(
@@ -777,7 +824,8 @@ TEST_CASE(
         true,
         juce::StringArray{g_output_a});
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE(settings.state().staged_device_error.has_value());
 
     const auto applied = settings.apply();
@@ -812,7 +860,8 @@ TEST_CASE(
         juce::StringArray{g_output_b});
     REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(initialRouteSetup(), true).isEmpty());
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     settings.selectInputDevice(2);
     settings.selectOutputDevice(2);
     REQUIRE(settings.state().staged_device_error.has_value());
@@ -848,7 +897,8 @@ TEST_CASE(
         juce::StringArray{g_output_a});
     audio_type.setDriverInitErrorText("Driver failed to initialise");
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE(settings.state().staged_device_error.has_value());
     // The pinned JUCE placeholder passes through like any other backend text, with the one
     // boundary translation being its spelling (Rock Hero's user-facing text is American English).
@@ -884,7 +934,8 @@ TEST_CASE(
     saved.setAttribute("audioOutputDeviceName", "Output Z");
     REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 
     audio_type.setDeviceNames(
@@ -917,7 +968,8 @@ TEST_CASE(
     saved.setAttribute("audioOutputDeviceName", "Output Z");
     REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     settings.selectOutputDevice(2);
     REQUIRE_FALSE(settings.apply().has_value());
 
@@ -954,7 +1006,8 @@ TEST_CASE(
     REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     REQUIRE(audio_devices.device_manager.getAudioDeviceSetup().inputDeviceName.isEmpty());
 
-    const AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    const AudioDeviceSettings settings{audio_devices, store};
     const AudioDeviceSettingsState state = settings.state();
 
     CHECK(state.input_devices == std::vector<std::string>{g_input_a, g_input_b, "Input Z"});
@@ -987,7 +1040,8 @@ TEST_CASE(
     saved.setAttribute("audioOutputDeviceName", "Output Z");
     REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
 
-    const AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    const AudioDeviceSettings settings{audio_devices, store};
     REQUIRE(settings.state().staged_device_error.has_value());
 
     audio_type.setDeviceNames(
@@ -1012,7 +1066,8 @@ TEST_CASE("AudioDeviceSettings resets format on system change", "[audio][audio-d
     addMockAudioType(audio_devices.device_manager, g_asio_type_name);
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     settings.selectSampleRate(3);
     settings.selectBufferSize(2);
     REQUIRE(settings.state().selected_sample_rate_id == 3);
@@ -1034,7 +1089,8 @@ TEST_CASE("AudioDeviceSettings forwards backend refresh", "[audio][audio-device-
     restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
 
-    AudioDeviceSettings settings{audio_devices};
+    testing::InMemoryAudioConfigStore store;
+    AudioDeviceSettings settings{audio_devices, store};
     FakeAudioDeviceSettingsListener listener;
     settings.addListener(listener);
 

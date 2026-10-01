@@ -57,6 +57,10 @@ constexpr double g_sample_rate_match_tolerance{0.001};
         {
             return "The selected audio device has no control panel.";
         }
+        case AudioDeviceSettingsErrorCode::StorePersistFailed:
+        {
+            return "Could not save the audio device settings.";
+        }
     }
 
     return "Could not complete the audio device settings operation.";
@@ -335,8 +339,9 @@ AudioDeviceSettingsError::AudioDeviceSettingsError(
 
 struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 {
-    explicit Impl(IAudioDeviceConfiguration& audio_devices)
+    Impl(IAudioDeviceConfiguration& audio_devices, IAudioConfigStore& audio_config_store)
         : m_audio_devices(audio_devices)
+        , m_audio_config_store(audio_config_store)
         , m_device_manager(audio_devices.deviceManager())
         , m_configuration_listener(audio_devices, *this)
     {
@@ -555,8 +560,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             // Staged route is now the active route. The captured previous route is no longer
             // meaningful, so destruction should not try to restore it.
             m_restore_pending = false;
-            refreshState({});
-            return {};
+            return saveAppliedRoute();
         }
 
         // A staged device whose driver cannot initialize is the designed no-fallback outcome, not
@@ -566,8 +570,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         if (opened.has_value() && stagedDeviceErrorDetail(m_staged_device.get()).has_value())
         {
             m_restore_pending = false;
-            refreshState({});
-            return {};
+            return saveAppliedRoute();
         }
 
         // Every other failure leaves the window open with the backend's diagnostic. The restore
@@ -580,6 +583,25 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         };
         refreshState(error.message);
         return std::unexpected{std::move(error)};
+    }
+
+    // Saves the applied route as the user's choice. A store failure keeps the window open: the
+    // route runs, but the next launch would not restore it.
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> saveAppliedRoute()
+    {
+        auto saved =
+            m_audio_config_store.setActiveDeviceRoute(m_audio_devices.serializedDeviceState());
+        if (!saved.has_value())
+        {
+            AudioDeviceSettingsError error{
+                AudioDeviceSettingsErrorCode::StorePersistFailed, std::move(saved.error().message)
+            };
+            refreshState(error.message);
+            return std::unexpected{std::move(error)};
+        }
+
+        refreshState({});
+        return {};
     }
 
     // Reopens the captured route when there is one to give back: the hardware that ran when the
@@ -1175,6 +1197,9 @@ private:
     // no-fallback restore, so its diagnostic reaches the port's status snapshot.
     IAudioDeviceConfiguration& m_audio_devices;
 
+    // Where an applied route is saved as the user's choice.
+    IAudioConfigStore& m_audio_config_store;
+
     // Audio device manager owned by the shared backend.
     juce::AudioDeviceManager& m_device_manager;
 
@@ -1216,8 +1241,9 @@ private:
         m_configuration_listener;
 };
 
-AudioDeviceSettings::AudioDeviceSettings(IAudioDeviceConfiguration& audio_devices)
-    : m_impl(std::make_unique<Impl>(audio_devices))
+AudioDeviceSettings::AudioDeviceSettings(
+    IAudioDeviceConfiguration& audio_devices, IAudioConfigStore& audio_config_store)
+    : m_impl(std::make_unique<Impl>(audio_devices, audio_config_store))
 {}
 
 AudioDeviceSettings::~AudioDeviceSettings() = default;

@@ -878,7 +878,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void finishBusyOperation();
     void detachView();
     void restoreAudioDeviceState();
-    void persistAudioDeviceState();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(

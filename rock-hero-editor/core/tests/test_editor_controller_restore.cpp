@@ -62,16 +62,18 @@ TEST_CASE(
     CHECK_FALSE(store.activeDeviceRoute().has_value());
 }
 
-// Device-change notifications persist the device blob to the store.
-TEST_CASE("EditorController persists serialized audio device state", "[core][editor-controller]")
+// A device change is not a choice: only the settings window's apply saves a route. A change the
+// engine made by itself, such as a fallback or a reopen, leaves the saved route as it was.
+TEST_CASE("EditorController saves no route on a device change", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"serialized_audio_device_persist"};
+    const ScopedControllerFiles files{"device_change_saves_nothing"};
     EditorSettings settings{files.settingsFile()};
     common::audio::testing::InMemoryAudioConfigStore store;
+    REQUIRE(store.setActiveDeviceRoute("saved-route").has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
-    audio_devices.serialized_device_state = "updated-serialized-device-state";
+    audio_devices.serialized_device_state = "some-other-route";
     const EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings, store),
@@ -80,34 +82,7 @@ TEST_CASE("EditorController persists serialized audio device state", "[core][edi
 
     audio_devices.notifyChanged();
 
-    CHECK(audio_devices.serialized_device_state_call_count == 1);
-    CHECK(
-        store.activeDeviceRoute() == std::optional<std::string>{"updated-serialized-device-state"});
-}
-
-// Empty capture results clear the stored route instead of preserving stale device state.
-TEST_CASE(
-    "EditorController clears serialized audio device state when capture is empty",
-    "[core][editor-controller]")
-{
-    const ScopedControllerFiles files{"empty_serialized_audio_device_persist"};
-    EditorSettings settings{files.settingsFile()};
-    common::audio::testing::InMemoryAudioConfigStore store;
-    REQUIRE(store.setActiveDeviceRoute("old-serialized-device-state").has_value());
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    ConfigurableAudioDeviceConfiguration audio_devices;
-    audio_devices.serialized_device_state = std::nullopt;
-    const EditorController controller{
-        audioPorts(transport, audio, audio_devices),
-        controllerServices(settings, store),
-        noopExitFunction()
-    };
-
-    audio_devices.notifyChanged();
-
-    CHECK(audio_devices.serialized_device_state_call_count == 1);
-    CHECK_FALSE(store.activeDeviceRoute().has_value());
+    CHECK(store.activeDeviceRoute() == std::optional<std::string>{"saved-route"});
 }
 
 // Missing restore paths are cleared without asking project IO to open anything.

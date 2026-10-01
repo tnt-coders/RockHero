@@ -12,10 +12,12 @@ are worth knowing before touching anything device-shaped.
 (`IAudioDeviceConfiguration`) as a **staged-edit transaction**: constructing it captures the
 user's route (the live hardware setup, else the saved choice) and *hands the engine to the silent
 device* so the user edits routing without holding hardware; a staged preview device probes
-capabilities; then exactly one of `apply()` (open the staged route) or `cancel()` (reopen the
-captured route) ends the transaction — with a destructor backstop restore for native window
-closes. Every route it opens goes through the port's
-no-fallback `restoreSerializedDeviceState`, never `setCurrentAudioDeviceType()`. Its listener chain
+capabilities; then exactly one of `apply()` (open the staged route and save it as the user's
+choice) or `cancel()` (reopen the captured route, saving nothing) ends the transaction — with a
+destructor backstop restore for native window closes. `apply()` is the one place a device route
+is saved, in the shared `IAudioConfigStore`: a device change the engine makes by itself (a
+fallback, a reopen) is never a choice. Every route it opens goes through the port's no-fallback
+`restoreSerializedDeviceState`, never `setCurrentAudioDeviceType()`. Its listener chain
 re-broadcasts hardware-port changes upward: port → `AudioDeviceSettings` → the settings
 controller → `updateView()`.
 
@@ -70,9 +72,9 @@ input-device selection, since a missing property reads as absence rather than an
 
 `NativeAudioSetupMachine` (`game/core/src/audio/native_audio_setup.cpp`) is a pure state machine
 (`Idle → SelectingDevice → CalibratingGain → Ready`, terminal `Failed`) with a side-effecting
-driver. On device apply it writes **two records in one step**: the device blob into the shared
-store, and the game-private `GameAudioConfig` mapping the resolved input route to player slot 0.
-This route→player-slot mapping is the seed of future multiplayer input plumbing.
+driver. The settings apply saves the device route; the driver then writes the game-private
+`GameAudioConfig` mapping the resolved input route to player slot 0. This route→player-slot
+mapping is the seed of future multiplayer input plumbing.
 
 # Extending this area — silent steps
 

@@ -389,6 +389,7 @@ constexpr int g_track_viewport_min_height{80};
 EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_ports)
     : m_controller(controller)
     , m_audio_devices(audio_ports.audio_devices)
+    , m_audio_config_store(audio_ports.audio_config_store)
     , m_audio_meters(audio_ports.meter_source)
     , m_transport(audio_ports.transport)
     , m_playback_clock(audio_ports.playback_clock)
@@ -3220,6 +3221,7 @@ void EditorView::showAudioDeviceSettingsWindow()
     m_audio_device_settings_window_reset_pending = false;
     m_audio_device_settings_window = AudioDeviceSettingsWindow::show(
         m_audio_devices,
+        m_audio_config_store,
         m_audio_device_button,
         [safe_this](std::function<void()> operation, std::function<void()> after_cleared) {
             if (auto* view = safe_this.getComponent())

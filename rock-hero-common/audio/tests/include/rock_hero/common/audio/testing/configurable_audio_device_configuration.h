@@ -74,7 +74,6 @@ public:
     */
     [[nodiscard]] std::optional<std::string> serializedDeviceState() const override
     {
-        serialized_device_state_call_count += 1;
         return serialized_device_state;
     }
 
@@ -165,9 +164,6 @@ public:
 
     /*! \brief Number of serialized restore requests received. */
     int restore_serialized_device_state_call_count{0};
-
-    /*! \brief Number of serialized capture requests received. */
-    mutable int serialized_device_state_call_count{0};
 };
 
 } // namespace rock_hero::common::audio::testing

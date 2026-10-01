@@ -30,6 +30,7 @@
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
+#include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -97,6 +98,9 @@ public:
 
         /*! \brief Audio-device configuration port hosted by the settings window. */
         common::audio::IAudioDeviceConfiguration& audio_devices;
+
+        /*! \brief Store the settings window saves an applied route to. */
+        common::audio::IAudioConfigStore& audio_config_store;
 
         /*! \brief Meter source sampled for continuous level display. */
         const common::audio::IAudioMeterSource& meter_source;
@@ -620,6 +624,9 @@ private:
 
     // Audio-device configuration backend hosted by the settings window.
     common::audio::IAudioDeviceConfiguration& m_audio_devices;
+
+    // Store the settings window saves an applied route to.
+    common::audio::IAudioConfigStore& m_audio_config_store;
 
     // Read-only meter source sampled at display cadence.
     const common::audio::IAudioMeterSource& m_audio_meters;

@@ -63,6 +63,7 @@ Editor::Editor(
                                 .playback_clock = audio_ports.playback_clock,
                                 .thumbnail_factory = audio_ports.thumbnail_factory,
                                 .audio_devices = audio_ports.audio_devices,
+                                .audio_config_store = services.audio_config_store,
                                 .meter_source = audio_ports.meter_source,
                                 .tone_automation = audio_ports.tone_automation,
                             }))

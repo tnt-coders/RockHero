@@ -31,11 +31,10 @@ void EditorController::Impl::onAudioDeviceChangeRequested(
         std::move(after_busy_cleared));
 }
 
-// Persists the new device manager state and re-derives view state after a configuration change,
-// a mid-session disconnect included: the status text and Play's availability follow the device.
+// Re-runs the live-input gate and re-derives view state after a configuration change, a
+// mid-session disconnect included: the status text and Play's availability follow the device.
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
-    persistAudioDeviceState();
     m_live_input_monitor.refresh(monitoringContext());
     if (m_live_input_monitor.route() != m_calibration_prompt_route)
     {
@@ -101,15 +100,6 @@ void EditorController::Impl::restoreAudioDeviceState()
             "open saved audio device",
             "saved device unavailable; the audio device stays closed and the saved choice is kept");
     }
-}
-
-// Stores the current device route so the next launch restores the user's selection; an empty
-// capture clears the stored route rather than keeping a stale one.
-void EditorController::Impl::persistAudioDeviceState()
-{
-    recordAudioConfigResultBestEffort(
-        m_audio_config_store.setActiveDeviceRoute(m_audio_devices.serializedDeviceState()),
-        "persist serialized audio-device state");
 }
 
 } // namespace rock_hero::editor::core

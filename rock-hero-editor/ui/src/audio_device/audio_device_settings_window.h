@@ -16,8 +16,9 @@ class Component;
 
 namespace rock_hero::common::audio
 {
+class IAudioConfigStore;
 class IAudioDeviceConfiguration;
-}
+} // namespace rock_hero::common::audio
 
 namespace rock_hero::editor::ui
 {
@@ -49,6 +50,7 @@ public:
     /*!
     \brief Opens the modal window around the top-level component that owns the launcher.
     \param audio_devices Audio-device configuration backend; must outlive the window.
+    \param audio_config_store Store an applied route is saved to; must outlive the window.
     \param anchor Launcher component used to find the owning editor window.
     \param dispatcher Optional operation hook supplied by the editor composition layer; receives
            device-manager work plus a post-clear continuation.
@@ -56,7 +58,8 @@ public:
     \return The opened window. The caller owns it and should clear it from the close callback.
     */
     [[nodiscard]] static std::unique_ptr<juce::DocumentWindow> show(
-        common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
+        common::audio::IAudioDeviceConfiguration& audio_devices,
+        common::audio::IAudioConfigStore& audio_config_store, juce::Component& anchor,
         Dispatcher dispatcher = {}, ClosedCallback closed_callback = {});
 
 private:

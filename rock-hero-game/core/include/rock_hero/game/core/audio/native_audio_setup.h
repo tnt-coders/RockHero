@@ -13,7 +13,6 @@
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/input/live_input_monitoring_status.h>
-#include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/game/core/audio/game_audio_config.h>
 #include <rock_hero/game/core/settings/i_game_settings.h>
 #include <string>
@@ -63,7 +62,7 @@ enum class NativeAudioSetupErrorCode : std::uint8_t
     /*! \brief The applied device did not resolve a usable mono input route to calibrate. */
     DeviceRouteUnresolved,
 
-    /*! \brief Persisting the device route or the player-slot config failed. */
+    /*! \brief Persisting the player-slot config failed. */
     StorePersistFailed,
 
     /*!
@@ -171,15 +170,13 @@ private:
 \brief Headless adapter sequencing device selection then gain calibration for the game.
 
 The driver is the thin side-effecting adapter over a pure NativeAudioSetupMachine: it drives the
-shared staged device-settings workflow, writes the applied route's opaque restore blob into the
-shared audio-config store and its resolved input identity as the slot-0 player-to-route mapping
-through game/core settings, and then drives the shared calibrate-first
-LiveInputMonitor to measure and persist the route's input gain. Reaching Ready is the state a later
-GameplaySession Ready transition (plan 14 Phase 4) needs to arm live-input monitoring.
+shared staged device-settings workflow (whose apply saves the route in the shared audio-config
+store), writes the resolved input identity as the slot-0 player-to-route mapping through game/core
+settings, and then drives the shared calibrate-first LiveInputMonitor to measure and persist the
+route's input gain. Reaching Ready is the state a later GameplaySession Ready transition (plan 14
+Phase 4) needs to arm live-input monitoring.
 
-All operations are message-thread operations, matching the ports they drive. The store injected
-here must be the same instance the LiveInputMonitor writes calibration through, so the persisted
-route and calibration land in one store.
+All operations are message-thread operations, matching the ports they drive.
 */
 class NativeAudioSetup final
 {
@@ -189,14 +186,12 @@ public:
     \param device_settings Shared staged device-settings workflow the picker drives.
     \param device_configuration Device-configuration port sampled for the applied blob and identity.
     \param live_input_monitor Shared calibrate-first monitor that measures and stores the gain.
-    \param audio_config_store The shared store the applied device route is written to.
     \param game_settings The game's persistence port the slot-0 player config is written to.
     */
     NativeAudioSetup(
         common::audio::IAudioDeviceSettings& device_settings,
         common::audio::IAudioDeviceConfiguration& device_configuration,
-        common::audio::LiveInputMonitor& live_input_monitor,
-        common::audio::IAudioConfigStore& audio_config_store, IGameSettings& game_settings);
+        common::audio::LiveInputMonitor& live_input_monitor, IGameSettings& game_settings);
 
     /*! \brief Copying is disabled because the driver holds injected port references. */
     NativeAudioSetup(const NativeAudioSetup&) = delete;
@@ -241,12 +236,11 @@ public:
     [[nodiscard]] common::audio::IAudioDeviceSettings& deviceSettings() noexcept;
 
     /*!
-    \brief Applies the staged device route, persists it, and advances to gain calibration.
+    \brief Applies the staged device route and advances to gain calibration.
 
-    On a successful apply the opaque restore blob is written into the shared audio-config store
-    and the resolved mono input identity becomes the slot-0 player-to-route mapping written
-    through game/core settings. A failed apply, an unresolved route, or a persistence failure is
-    terminal.
+    The apply saves the route in the shared audio-config store; the resolved mono input identity
+    then becomes the slot-0 player-to-route mapping written through game/core settings. A failed
+    apply, an unresolved route, or a persistence failure is terminal.
 
     \return Empty success, or the typed reason the apply failed.
     */
@@ -285,7 +279,6 @@ private:
     common::audio::IAudioDeviceSettings& m_device_settings;
     common::audio::IAudioDeviceConfiguration& m_device_configuration;
     common::audio::LiveInputMonitor& m_live_input_monitor;
-    common::audio::IAudioConfigStore& m_audio_config_store;
     IGameSettings& m_game_settings;
 };
 

@@ -142,11 +142,10 @@ struct SetupHarness
     explicit SetupHarness(const std::filesystem::path& settings_file)
         : game_settings(settings_file)
         , monitor(live_input, device_configuration, store)
-        , setup(device_settings, device_configuration, monitor, store, game_settings)
+        , setup(device_settings, device_configuration, monitor, game_settings)
     {
-        // After a successful apply the fake device resolves this route and blob.
+        // After a successful apply the fake device resolves this route.
         device_configuration.current_input_identity = guitarRoute();
-        device_configuration.serialized_device_state = "device-restore-blob";
     }
 
     FakeAudioDeviceSettings device_settings;
@@ -191,12 +190,10 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
     const TemporarySettingsDirectory directory;
     SetupHarness harness{directory.settingsFile()};
 
-    // Device selection: apply persists the blob to the shared store.
+    // Device selection: the apply resolves the slot-0 route.
     harness.setup.beginDeviceSelection();
     REQUIRE(harness.setup.applySelectedDevice().has_value());
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::CalibratingGain);
-
-    CHECK(harness.store.activeDeviceRoute() == std::optional<std::string>{"device-restore-blob"});
 
     // The resolved input identity becomes the slot-0 player-to-route mapping in game/core.
     const GameAudioConfig persisted = harness.game_settings.gameAudioConfig();
@@ -251,7 +248,6 @@ TEST_CASE("Native setup device-apply failure writes nothing", "[core][audio][set
         CHECK(failure->code == NativeAudioSetupErrorCode::DeviceApplyFailed);
     }
 
-    CHECK(harness.store.activeDeviceRoute() == std::nullopt);
     CHECK(harness.game_settings.gameAudioConfig().players.empty());
 }
 
@@ -268,7 +264,6 @@ TEST_CASE("Native setup unresolved route fails and writes nothing", "[core][audi
     REQUIRE(!applied.has_value());
     CHECK(applied.error().code == NativeAudioSetupErrorCode::DeviceRouteUnresolved);
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::Failed);
-    CHECK(harness.store.activeDeviceRoute() == std::nullopt);
     CHECK(harness.game_settings.gameAudioConfig().players.empty());
 }
 
@@ -291,8 +286,7 @@ TEST_CASE(
 
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::CalibratingGain);
 
-    // The applied device route is still persisted; no calibration was written for it.
-    CHECK(harness.store.activeDeviceRoute().has_value());
+    // No calibration was written for the applied route.
     const auto stored_calibration = harness.store.inputCalibrationFor(guitarRoute());
     REQUIRE(stored_calibration.has_value());
     CHECK(!stored_calibration->has_value());
@@ -316,12 +310,9 @@ TEST_CASE("Native setup re-run overwrites the previous device cleanly", "[core][
     second_route.input_device_name = "Behringer UMC ASIO";
     second_route.input_channel_index = 1;
     harness.device_configuration.current_input_identity = second_route;
-    harness.device_configuration.serialized_device_state = "second-device-blob";
 
     REQUIRE(harness.setup.applySelectedDevice().has_value());
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::CalibratingGain);
-
-    CHECK(harness.store.activeDeviceRoute() == std::optional<std::string>{"second-device-blob"});
 
     const GameAudioConfig persisted = harness.game_settings.gameAudioConfig();
     REQUIRE(persisted.players.size() == 1);

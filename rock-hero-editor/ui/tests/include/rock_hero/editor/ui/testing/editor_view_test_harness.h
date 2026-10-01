@@ -23,6 +23,7 @@
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
+#include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
@@ -211,6 +212,17 @@ defaultAudioDevices() noexcept
 }
 
 /*!
+\brief Supplies a default audio-config store for editor-view tests.
+\return Process-lifetime in-memory store.
+*/
+[[nodiscard]] inline common::audio::testing::InMemoryAudioConfigStore&
+defaultAudioConfigStore() noexcept
+{
+    static common::audio::testing::InMemoryAudioConfigStore g_audio_config_store;
+    return g_audio_config_store;
+}
+
+/*!
 \brief Supplies a default audio-meter source for editor-view tests.
 \return Process-lifetime fake audio-meter source.
 */
@@ -310,6 +322,7 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         .playback_clock = defaultPlaybackClock(),
         .thumbnail_factory = thumbnail_factory,
         .audio_devices = defaultAudioDevices(),
+        .audio_config_store = defaultAudioConfigStore(),
         .meter_source = defaultAudioMeterSource(),
         .tone_automation = defaultToneAutomation(),
     };
@@ -331,6 +344,7 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         .playback_clock = defaultPlaybackClock(),
         .thumbnail_factory = thumbnail_factory,
         .audio_devices = defaultAudioDevices(),
+        .audio_config_store = defaultAudioConfigStore(),
         .meter_source = meter_source,
         .tone_automation = defaultToneAutomation(),
     };

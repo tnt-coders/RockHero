@@ -20,12 +20,10 @@ constexpr common::audio::LiveInputMonitoringContext g_setup_menu_context{.sessio
 NativeAudioSetup::NativeAudioSetup(
     common::audio::IAudioDeviceSettings& device_settings,
     common::audio::IAudioDeviceConfiguration& device_configuration,
-    common::audio::LiveInputMonitor& live_input_monitor,
-    common::audio::IAudioConfigStore& audio_config_store, IGameSettings& game_settings)
+    common::audio::LiveInputMonitor& live_input_monitor, IGameSettings& game_settings)
     : m_device_settings(device_settings)
     , m_device_configuration(device_configuration)
     , m_live_input_monitor(live_input_monitor)
-    , m_audio_config_store(audio_config_store)
     , m_game_settings(game_settings)
 {}
 
@@ -75,24 +73,13 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
             })};
     }
 
-    // Capture the opaque restore blob and the resolved input identity from the one apply.
-    std::optional<std::string> serialized_state = m_device_configuration.serializedDeviceState();
+    // The apply saved the route; the player maps onto the input route it resolved to.
     const std::optional<common::audio::InputDeviceIdentity> identity =
         m_device_configuration.currentInputDeviceIdentity();
-    if (!serialized_state.has_value() || serialized_state->empty() || !identity.has_value() ||
-        !common::audio::isValidInputDeviceIdentity(*identity))
+    if (!identity.has_value() || !common::audio::isValidInputDeviceIdentity(*identity))
     {
         return std::unexpected{failAndRecord(
             NativeAudioSetupError{NativeAudioSetupErrorCode::DeviceRouteUnresolved})};
-    }
-
-    if (const auto stored = m_audio_config_store.setActiveDeviceRoute(std::move(serialized_state));
-        !stored.has_value())
-    {
-        return std::unexpected{failAndRecord(
-            NativeAudioSetupError{
-                NativeAudioSetupErrorCode::StorePersistFailed, stored.error().message
-            })};
     }
 
     // The game-private slot-0 player-to-route mapping.

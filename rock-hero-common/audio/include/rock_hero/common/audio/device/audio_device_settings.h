@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,9 @@ enum class AudioDeviceSettingsErrorCode : std::uint8_t
 
     /*! \brief The selected route has no backend control panel to open. */
     ControlPanelUnavailable,
+
+    /*! \brief The applied route opened but could not be saved as the user's choice. */
+    StorePersistFailed,
 };
 
 /*!
@@ -315,7 +319,9 @@ protected:
 \brief JUCE-backed shared audio-device settings workflow.
 
 Construction captures the current route, closes the active audio device when one is open, and
-builds staged settings from that captured route. apply() opens the staged setup; cancel()
+builds staged settings from that captured route. apply() opens the staged setup and saves it as
+the user's choice, in the engine and in the audio-config store, the only place a route is saved;
+cancel()
 reopens the captured previous setup only when there was an open device to restore. Destruction
 without an explicit cancel() also attempts that restore so a native window close does not leave
 an originally-open backend silent.
@@ -326,8 +332,10 @@ public:
     /*!
     \brief Creates a settings edit around an existing audio-device configuration port.
     \param audio_devices Audio-device configuration backend; must outlive this object.
+    \param audio_config_store Store an applied route is saved to; must outlive this object.
     */
-    explicit AudioDeviceSettings(IAudioDeviceConfiguration& audio_devices);
+    AudioDeviceSettings(
+        IAudioDeviceConfiguration& audio_devices, IAudioConfigStore& audio_config_store);
 
     /*!
     \brief Releases listener registration and restores the captured route when needed.

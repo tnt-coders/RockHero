@@ -239,10 +239,11 @@ class AudioDeviceSettingsWindowContent final : public juce::Component
 public:
     AudioDeviceSettingsWindowContent(
         common::audio::IAudioDeviceConfiguration& audio_devices,
+        common::audio::IAudioConfigStore& audio_config_store,
         core::AudioDeviceSettingsDispatcher dispatcher,
         AudioDeviceSettingsView::ApplyingCallback applying_callback,
         AudioDeviceSettingsView::CloseCallback close_callback)
-        : m_settings(audio_devices)
+        : m_settings(audio_devices, audio_config_store)
         , m_controller(m_settings, std::move(dispatcher))
         , m_view(m_controller, std::move(applying_callback), std::move(close_callback))
     {
@@ -278,7 +279,8 @@ private:
 
 // Launches the audio settings window centered on the editor window that owns the launcher.
 std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
-    common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
+    common::audio::IAudioDeviceConfiguration& audio_devices,
+    common::audio::IAudioConfigStore& audio_config_store, juce::Component& anchor,
     Dispatcher dispatcher, ClosedCallback closed_callback)
 {
     // getTopLevelComponent() walks the parent chain and returns the anchor itself when it has no
@@ -288,6 +290,7 @@ std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
     const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> safe_window{window.get()};
     auto content = std::make_unique<AudioDeviceSettingsWindowContent>(
         audio_devices,
+        audio_config_store,
         std::move(dispatcher),
         [safe_window](bool applying) {
             if (auto* target_window = safe_window.getComponent())

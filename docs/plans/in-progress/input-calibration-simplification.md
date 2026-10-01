@@ -93,15 +93,15 @@ placement, emphasis and words.
 6. Editor auto-prompt, Input-column cue, shared wording, the architecture paragraph. Medium, after
    the UI expert. The popup seeds its committed gain once from the prompt, so the auto-prompt must
    build a fresh popup for each route (or read the gain from `monitor.calibration()`).
-6a. The audio-settings window whenever the saved device is not running (D7, widened twice): at
-    startup unless the saved route was restored and opened (no saved route, an unavailable device, an
-    invalid route), and mid-session on the hardware-loss edge after the pause -- the window shows the
-    device as not found, and OK reopens it once it is back.
-    It shares the auto-prompt's open-a-window mechanism. Decide which window wins when the device
-    drops while the calibration prompt is open: `onAudioDeviceChangeRequested` refuses device work
-    while the prompt is up, measuring included. Verify first whether the engine's startup
-    open of the OS default persists a route by itself; if it does, "Cancel writes nothing" needs it
-    not to.
+6a. When the saved device is not running (D7, revised): a notice with Audio Settings and Close
+    buttons on the mid-session hardware-loss edge (after the pause) and at a startup whose saved
+    route did not open; a true first run with no saved route opens the settings window directly.
+    Windows open from view state, the one mechanism the auto-prompt also uses. When the device
+    drops with the calibration prompt open, the notice wins: the gate run ends the measurement
+    and the prompt closes with its route. "Cancel writes nothing" holds since the route is saved
+    only by the settings window's apply: JUCE's startup open never wrote a route (it passes
+    treatAsChosenDevice=false), but a settings Cancel did, through the editor's old listener
+    persist.
 7. The game wizard with the hard gate. Large; its own plan. `GainCalibrationProgress` copies
    `InputCalibrationStage` one-to-one: return the monitor's `InputCalibrationProgress` instead, and
    report a measurement a gate run ended as ended rather than as an invalid request. (`--import-editor-audio` is already
@@ -124,11 +124,14 @@ placement, emphasis and words.
   measurement did not give consistent results, and many interfaces have a documented gain that
   sets the level exactly (the Neural DSP Quad Cortex: +3.1 dB); typing it dials the route in
   perfectly and repeatably. Step 5's capture move must not weaken it.
-- **D7 — YES, widened:** open the audio-device settings window whenever the saved device is not
-  running: at startup unless the saved route was restored and opened (no saved route, over the
-  running OS default; an unavailable device; an invalid route), and the moment the hardware drops
-  mid-session, after the pause. A plain popup was weighed; the window wins because it is the fix and
-  already names what happened. Cancel writes nothing.
+- **D7 — YES, widened, then revised (2026-10-01):** when the saved device is not running, the
+  editor says so in a notice with two buttons, one opening the audio-device settings window and one
+  closing the notice, rather than opening the window itself: "a popup letting the user clearly know
+  the device disconnected ... might actually be clearer". It covers the moment the hardware drops
+  mid-session (after the pause) and a startup whose saved route did not open (an unavailable
+  device, an invalid route). A true first run with no saved route has nothing to report, so it
+  opens the settings window directly over the running OS default. Neither path writes anything on
+  Cancel or Close.
 - **Scope — YES:** steps 1-6 now; step 7 (the game wizard) is its own plan.
 - **D8 — the INTERFACE:** players swap guitars without recalibrating, so the interface is the
   closest stable thing to calibrate. The documented per-interface gain is the primary path; the strum
