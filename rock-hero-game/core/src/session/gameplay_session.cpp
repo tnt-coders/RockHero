@@ -459,8 +459,9 @@ void GameplaySession::onTransportStateChanged(common::audio::TransportState stat
 }
 
 // Rationale lives on the declaration in gameplay_session.h.
-std::optional<GameplaySessionError> GameplaySession::playRefusal() const
+std::optional<GameplaySessionError> GameplaySession::playRefusal()
 {
+    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = true});
     common::audio::AudioDeviceStatus status = m_audio_devices.currentDeviceStatus();
     if (!status.open)
     {

@@ -32,7 +32,7 @@ the user picks which way the two surfaces reconcile.
 
 - **Input-calibration review: DONE 2026-10-01**; its findings, the prompt-to-calibrate design and
   the user's decisions D1-D8 are in `docs/plans/completed/input-calibration-simplification.md`;
-  the rework its step 8 ruled is `docs/plans/todo/input-calibration-rework.md`.
+  the rework its step 8 ruled is `docs/plans/in-progress/input-calibration-rework.md`.
 
 ## Found by the 2026-09-25 derived-width build
 

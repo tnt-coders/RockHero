@@ -445,7 +445,9 @@ ports (constraint (b); docs/design/architectural-principles.md "Ports and Adapte
   `AudioDeviceStatus::open` still means the user's hardware, so this rule stands unchanged.
   *2026-10-01 (D1):* with a device open, `play()` / `restart()` also refuse with `LiveInputOff`
   while the live-input gate is off for any reason, the message saying which: a song never starts
-  with the guitar silent. Both refusals come from the session's one `playRefusal()`.
+  with the guitar silent. Both refusals come from the session's one `playRefusal()`, which
+  re-runs the gate at every play, so a route or calibration changed since Ready is judged as it
+  is.
 - `Loading`: extract the `.rock` via `readRockSongPackage` into a **per-session scratch
   workspace under per-user app data** (never next to the package; deleted on session close),
   select the arrangement, run `ISongAudio::prepareSong` + `setActiveArrangement`. The package

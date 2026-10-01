@@ -272,8 +272,10 @@ private:
 
     // The refusal play() and restart() return when a song cannot start: AudioDeviceClosed with the
     // backend's reason while no device is open, else LiveInputOff saying why the guitar would be
-    // silent. Empty when the song may start. It reads the gate's last run, made at the Ready edge.
-    [[nodiscard]] std::optional<GameplaySessionError> playRefusal() const;
+    // silent. Empty when the song may start. It re-runs the live-input gate first, so a route or
+    // calibration that changed since Ready is judged as it is now; while live input is already on,
+    // that costs one store read.
+    [[nodiscard]] std::optional<GameplaySessionError> playRefusal();
 
     // Fails the load pipeline: records the error, transitions to Failed, and returns the same
     // error so start() can propagate it.

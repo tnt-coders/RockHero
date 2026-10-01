@@ -1,6 +1,7 @@
 # Input Calibration Rework
 
-Status: deferred, ruled 2026-10-01 (user: "Take all six recommendations and write the plan").
+Status: in progress since 2026-10-01 (user: "Take all six recommendations and write the plan";
+then "start executing it").
 Written from `docs/tracking/2026-10-01-input-calibration-analysis.md` (what the code does) and
 `docs/tracking/2026-10-01-input-level-calibration-research.md` (what the rest of the world does),
 after `docs/plans/completed/input-calibration-simplification.md` landed (`8cd9c55d` … `13e74c2d`).
@@ -116,9 +117,9 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
   "Live input is not ready.";
   NoInputDevice "No audio input device."; MissingCalibration "Input calibration required.";
   BackendUnavailable "Live input backend unavailable."
-- Editor: delete `inputCalibrationDisabledMessageFor`
-  (`editor/core/src/input_calibration/input_calibration_text.{h,cpp}` — if the header then holds
-  nothing, delete the file pair and its CMake entry).
+- Editor: delete `inputCalibrationDisabledMessageFor` with its file pair
+  (`editor/core/src/input_calibration/input_calibration_text.{h,cpp}`) and its test; an emptied
+  file is not kept as a placeholder for step 5, which gives the gain formatter a public home.
   `makeInputCalibrationProjection` (`input_calibration_projection.cpp:34-41`) keeps its four-way
   reduction (it exists because the ordered gate reports `SessionNotReady` before it looks at the
   route or the calibration, so the editor derives those two facts from `route()` and
@@ -176,20 +177,44 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
   `NoUsableSignal`; else
   `clampGain(Gain{quantize(inputCalibrationTargetPeakDb() − ceiling_peak_db)})`.
   The capture's `Measuring` stage now runs `inputCalibrationListenSampleCount` windows; the stage
-  names (`Settling`, `WaitingForInput`, `Measuring`) are kept so nothing outside the capture
-  changes.
-- Words: `input_calibration_controller.cpp:45-54` — waiting: "Play as hard as you will play,
-  across all strings."; measuring: "Keep playing hard; listening for ten seconds."; the error
-  words in `inputCalibrationError` lose "steadily"/"moderate". The popup's target line
-  (`input_calibration_window.cpp:27-32`, `inputCalibrationTargetText`) becomes
-  "Reference: +12 dBu reads 0 dBFS" from `inputLevelReferenceDbu()`; it no longer names an
-  average or an RMS.
+  names (`Settling`, `WaitingForInput`, `Measuring`) are kept.
+- **Progress carries the windows left** (UI ruling: a whole-second countdown while measuring).
+  The capture already counts its windows; the popup must not count them a second time, so the
+  stage alternative of `InputCalibrationStep` / `InputCalibrationProgress`
+  (`input_calibration.h`, `live_input_sample.h`) becomes
+  ```cpp
+  /*! \brief Where a running measurement is, and how many meter windows its stage has left. */
+  struct InputCalibrationStageProgress
+  {
+      InputCalibrationStage stage;
+      std::size_t windows_remaining;
+  };
+  ```
+  in place of the bare enum. `windows_remaining` is meaningful for every stage (settle, wait and
+  listen windows left), so the type carries no optional. This is the one piece of common
+  machinery the UI rulings add; the alternative — the popup counting its own ticks against
+  `inputCalibrationListenSampleCount()` — is the same count stated twice. Sites: the capture's
+  `pushSample`, `LiveInputMonitor::sample`, the editor controller's `std::get_if<InputCalibrationStage>`
+  (`input_calibration_controller.cpp`), the game driver's `holds_alternative` and its tests, and
+  the common tests. The editor derives the countdown as
+  `ceil(windows_remaining / inputCalibrationSampleRateHz())` seconds and rewrites the status only
+  when the whole second changes.
+- Words (UI ruling; `input_calibration_controller.cpp:45-54`): waiting "Play as hard as you play
+  in a song, on all strings."; measuring "Keep playing that hard. N s left." (no countdown while
+  waiting); the error words in `inputCalibrationError` lose "steadily"/"moderate". **The popup's
+  target line is deleted** (`input_calibration_window.cpp:27-32,101`, `inputCalibrationTargetText`
+  and `m_target_label`; its RMS constant is gone anyway). The gain slider gets a tooltip in its
+  place: "Gain = your interface's dBu at 0 dBFS, minus 12.", the 12 formatted from
+  `inputLevelReferenceDbu()` so the sentence can never drift from the constant.
 - Tests: `test_input_calibration.cpp` rewritten around the ceiling: a steady level L yields
   `target − L`; P95 ignores a single spike; a decaying pattern's quiet windows do not count; the
   listen count is 300 from the first active window; the wait timeout; the 12-window minimum;
   clipping. `test_live_input_monitor.cpp`, `test_editor_controller_input_calibration.cpp` and
   `test_native_audio_setup.cpp` compute their "longest measurement" from the renamed constants
   (settle + wait + listen). Any test that pinned `InputInconsistent` is deleted, not rewritten.
+  Progress: a capture test asserts `windows_remaining` counts down to 0 across each stage; the
+  popup controller test asserts "10 s left" at the first measuring sample and that the text
+  changes only on whole seconds.
 - Docs: `docs/user/input-calibration.md` top: the reference in D6's words, the two paths, the
   automatic method's instruction and its bar (±6 dB passive, actives hot, ±2 dB run to run,
   marked as awaiting measurement), and two sentences on the multimeter method as the way to
@@ -200,8 +225,11 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
 - CI: `-Wswitch-enum` — removing `InputInconsistent` deletes a case, never adds one, but
   `rg "InputCalibrationErrorCode::"` across tests for pinned enumerators; `-Wfloat-equal` — the
   capture compares peaks with `<`/`>=` only, and tests use `WithinULP`/`Approx` as today;
-  `-Wmissing-designated-field-initializers` at every `InputCalibrationMeasurement{` (tests);
-  `-Wunused-function` for `rmsDbForSortedRange` if a stub survives.
+  `-Wmissing-designated-field-initializers` at every `InputCalibrationMeasurement{` and every
+  `InputCalibrationStageProgress{` (no DMIs; list both fields; sweep tests by `.stage =`);
+  `-Wunused-function` for `rmsDbForSortedRange` if a stub survives, and for the window's
+  `inputCalibrationTargetText` if its label goes but the function stays; `-Wsign-conversion` in
+  the seconds derivation (`std::size_t` windows over an `int` rate — convert once, explicitly).
 
 ### 4. The known-interface table (D2 data, D6 numbers). Medium.
 
@@ -220,7 +248,7 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
   struct KnownInterface
   {
       std::string_view model;             // "Neural DSP Quad Cortex"
-      std::string_view unity_input;       // "Instrument input, 1 MOhm, 0.0 dB input level"
+      std::string_view unity_input;       // "instrument input, 1 MOhm, 0.0 dB input level"
       double level_at_0dbfs_dbu;          // authored: +14.3
       KnownInterfaceBasis basis;
       std::string_view source;            // the URL the user doc cites today
@@ -230,7 +258,12 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
   [[nodiscard]] Gain knownInterfaceGain(const KnownInterface& interface) noexcept; // level − ref
   ```
   Rows: the sixteen in `docs/user/input-calibration.md:38-53` minus one (below), each with the
-  basis the doc states today and its source link. Derived gains after D6: Scarlett 3rd Gen +0.5,
+  basis the doc states today and its source link. **`unity_input` phrasing rule (UI ruling, a
+  correctness point):** a figure is true only at the setting it was measured at, so the popup
+  shows it — "Set the interface to <unity_input>, then click Apply." Every `unity_input` is
+  therefore a lower-case phrase, no trailing period, that completes "Set the interface to ___":
+  "instrument input, 1 MOhm, 0.0 dB input level", "combo TRS guitar input, minimum gain",
+  "instrument input, pad off, minimum gain". Derived gains after D6: Scarlett 3rd Gen +0.5,
   4th Gen 0.0, MOTU M +4.0, Quad Cortex +2.3, Quad Cortex mini +2.5, Nano Cortex -2.0, UA Volt
   +0.5, Arturia MiniFuse -0.5, Audient iD4 0.0, SSL 2 +3.0, PreSonus 24c +7.0, Behringer UMC22
   -10.0.
@@ -247,8 +280,9 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
   rows' `source` fields, so the doc can link to the sources without restating any number), and a
   sentence saying the Interface list in the calibration window carries the figure and its basis.
 - Tests: `test_known_interfaces.cpp` (new): rows sorted and unique by model; every row has a
-  model, a unity-input note and a source; every dBu within [-10, +30]; every derived gain inside
-  the ±24 clamp; the Quad Cortex derives +2.3 (pins the D6 reference through the one function).
+  model, a unity-input phrase that starts lower-case and ends without a period, and a source;
+  every dBu within [-10, +30]; every derived gain inside the ±24 clamp; the Quad Cortex derives
+  +2.3 (pins the D6 reference through the one function).
 - Docs: `docs/developer/audio-device-settings.md` — a short "Known interfaces" paragraph: data
   in code, gain derived, basis first-class, the doc never copies a number; the silent step
   "adding a row" (model, unity input, dBu, basis, source; nothing else to update).
@@ -260,31 +294,74 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
 
 ### 5. The Interface chooser in the editor popup (D2 Phase 1). Medium.
 
-- `editor/core/include/.../input_calibration/input_calibration_view_state.h`: add
-  `std::optional<std::size_t> selected_interface` (an index into `knownInterfaces()`; the view
-  and the controller read the same span, and the index is the contract) — and extend the
-  hand-written `operator==`, as its comment requires. The choices themselves are static data the
-  view reads from `knownInterfaces()`; they are not view state.
-- `InputCalibrationController` (`input_calibration_controller.{h,cpp}`): new intent
-  `onInterfaceSelected(std::size_t index)` — sets the displayed gain to
-  `knownInterfaceGain(row).db` and the status to "<model>: +2.3 dB (manufacturer spec). Click
-  Apply." with the basis spelled from one small file-local function; the `IInputCalibrationView`
-  contract is unchanged (it already receives the whole view state). Apply is unchanged: it commits
-  the displayed gain through the host. Dragging the slider afterwards clears
-  `selected_interface` (the gain is no longer the row's).
-- `input_calibration_window.cpp`: a `juce::ComboBox` ("Interface", first item "Not listed")
-  above the manual gain row, items from `knownInterfaces()`, emitting `onInterfaceSelected`. The
-  "?" button stays: the doc now explains the reference and the multimeter method.
-- Tests: controller — selecting a row shows its gain and basis, Apply commits that gain, moving
-  the slider clears the selection; UI wiring — the combo emits the intent with the right index.
-  Test names ≤ 78 characters.
-- Docs: `docs/user/input-calibration.md` "Recommended method": pick the interface, check the
-  basis, Apply; `docs/developer/audio-device-settings.md` names the chooser as the popup's
-  primary path. Plan 26 Phase 8's wizard bullet: "renders `knownInterfaces()`; the game has no
-  manual path otherwise".
+The popup's look and words follow the UI expert's rulings of 2026-10-01 (the player calibrates
+once and reads carefully; every sentence says what to do next). Each ruling below is adopted as
+stated unless marked otherwise.
+
+- **Layout** (top to bottom): the Interface row (label, combo, the "?" at its end); the Gain row
+  (label, the slider — the one gain control for every path — its signed text box, Apply); the
+  status box, two lines, full width; the input meter; then "Measure by playing" bottom-left and
+  "Later" bottom-right. Both labels share the existing 60 px column.
+- **View state** (`input_calibration_view_state.h`): add `std::optional<std::size_t>
+  selected_interface` (an index into `knownInterfaces()`; the view and the controller read the
+  same span, and the index is the contract) and extend the hand-written `operator==`, as its
+  comment requires. The choices are static data the view reads from `knownInterfaces()`, not
+  view state.
+- **Chooser**: a `juce::ComboBox`, label "Interface:", `setTextWhenNothingSelected("Choose your
+  interface")`, items from `knownInterfaces()` in table order (sorted by model; no manufacturer
+  groups below about 30 rows). **No "Not listed" item**: a placeholder is true in every cleared
+  state, an item would be a claim. A slider drag after choosing clears the selection and returns
+  the status to the ready text. A measurement clears the selection when it starts, disables the
+  combo along with the slider and Apply while it runs, and leaves the selection cleared on
+  success and failure.
+- **Controller** (`input_calibration_controller.{h,cpp}`): new intent
+  `onInterfaceSelected(std::size_t index)` — sets the displayed gain to `knownInterfaceGain(row).db`
+  and the status to `<basis sentence> Set the interface to <unity_input>, then click Apply.`
+  with the basis from one file-local function over `KnownInterfaceBasis`: "Manufacturer's
+  figure." / "Community-measured figure." / "Estimated figure." The model and the gain are left
+  out: the combo and the slider already show them. The `IInputCalibrationView` contract is
+  unchanged; Apply is unchanged and commits the displayed gain through the host.
+- **Words**: the Calibrate button becomes "Measure by playing" (no ellipsis), so a player with no
+  listed interface finds the second path unaided. Idle, uncalibrated: "Live input stays off until
+  you calibrate. Choose your interface, or click Measure by playing." (the earlier one-button
+  sentence carried no fix clause because one button was the fix; with two paths the sentence
+  names both). Idle, calibrated: "Calibrated. Choose an interface or change the gain to
+  recalibrate." Success has one shape, replacing the two sentences at
+  `input_calibration_controller.cpp:81,87`: "Saved: +2.3 dB for the Neural DSP Quad Cortex." /
+  "Saved: +2.3 dB." / "Saved: +4.1 dB, measured from your playing." The docs-missing text becomes
+  "The calibration guide is not installed."
+- **One gain formatter**: gains are signed everywhere. The controller's file-local `gainText`
+  (`:65`) moves to a PUBLIC editor-core header (`editor/core/include/.../input_calibration/`,
+  since the slider in `editor/ui` calls it and cannot include core's `src/`) as
+  `signedGainText(double) -> std::string`
+  ("+2.3", "-0.5", "0.0"), and the slider's text box prints through the same function via
+  `textFromValueFunction` — the status line and the slider can never disagree on a sign or a
+  decimal.
+- **Theme**: the status label's own colours (`input_calibration_window.cpp:139-142`: an RGB
+  background, `whitesmoke`, a black outline) bypass `EditorTheme`, the one colour seam. Use
+  `panel_background` and `primary_text`, no outline; the basis sentence is normal text — no badge,
+  icon, tooltip, muted grey or red.
+- **Tests**: controller — selecting a row shows its gain and the basis-plus-unity sentence; Apply
+  commits that gain and reports the one success shape with the model; a slider drag clears the
+  selection and restores the ready text; starting a measurement clears it; `signedGainText` on
+  +2.3 / -0.5 / 0.0. UI wiring — the combo emits the intent with the right index; the combo is
+  disabled while measuring. Test names ≤ 78 characters.
+- **Sighting** (1:1 screenshot, before the step closes): the longest model and the longest
+  `unity_input` fit the two-line box — if not, the basis sentence shrinks to one word; "Estimated
+  figure." does not read as an error; a player without a listed interface finds "Measure by
+  playing" unaided. **Open for the user at the sighting:** whether clearing the selection on a
+  nudge feels punishing; the alternative is a "(modified)" suffix. Clearing is the simpler model
+  (the placeholder is always true) and ships first.
+- Docs: `docs/user/input-calibration.md` "Recommended method": choose the interface, set it as
+  the sentence says, Apply; `docs/developer/audio-device-settings.md` names the chooser as the
+  popup's primary path and the status-sentence rule. Plan 26 Phase 8's wizard bullet: "renders
+  `knownInterfaces()` with the same basis-plus-unity sentence; the game has no manual path
+  otherwise".
 - CI: `-Wshadow` in the combo's `onChange` lambda; `bugprone-unchecked-optional-access` on
   `selected_interface` (bind once, guard with `if`); `-Wsign-conversion` between the combo's
-  `int` ids and `std::size_t` (convert explicitly once at the boundary).
+  `int` ids and `std::size_t` (convert explicitly once at the boundary); `-Wswitch-enum` on the
+  basis-sentence switch (three enumerators, no `default`); `-Wunused-function` for the two
+  deleted success-text helpers.
 
 ## Hardware checklist (for the user; nothing in the steps waits on it except the Behringer row)
 

@@ -939,6 +939,38 @@ TEST_CASE("Gameplay session refuses to play without an input device", "[core][se
     CHECK(played.error().message == "No audio input device");
 }
 
+// Every play re-runs the live-input gate, so a calibration saved after Ready lets the song start.
+TEST_CASE("Gameplay session plays once calibrated after Ready", "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.devices.current_input_identity = makeInputDeviceIdentity();
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+    REQUIRE_FALSE(harness.session.play().has_value());
+
+    harness.seedMatchingCalibration(5.0);
+
+    REQUIRE(harness.session.play().has_value());
+    CHECK(harness.session.stage() == GameplaySessionStage::Playing);
+    CHECK(harness.live_input.live_input_monitoring_enabled);
+}
+
+// The inverse: a calibration gone after Ready refuses the next play instead of starting silent.
+TEST_CASE("Gameplay session refuses play once uncalibrated", "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.seedMatchingCalibration(5.0);
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+
+    harness.config_store.input_calibrations.clear();
+
+    const auto played = harness.session.play();
+    REQUIRE_FALSE(played.has_value());
+    CHECK(played.error().code == GameplaySessionErrorCode::LiveInputOff);
+    CHECK(harness.transport.play_call_count == 0);
+}
+
 // A device lost mid-song pauses the song rather than finishing it: the engine pauses the
 // transport, and the session reads that stop by the device, so the player resumes from where the
 // song stood once a device is back.

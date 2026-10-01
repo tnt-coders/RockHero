@@ -1130,7 +1130,15 @@ choose to proceed with default tones instead of being blocked — a PINNED opt-i
 never an automatic substitution. (Referenced from `docs/tracking/backlog.md`'s standard-tones item
 and `docs/plans/roadmap/00-roadmap.md`'s 21-Q1 answer.)
 
-### The game's live-input status goes stale after Ready — trigger: plan 26 Phase 8 starts
+### ~~The game's live-input status goes stale after Ready~~ — RETIRED 2026-10-01: the gate re-runs at every play
+
+**Retired 2026-10-01.** The premise below was false: a `refresh()` while live input is on does not
+churn the backend, since `Engine::Impl::setMonitoringChannelEnabled` (`engine_live_input.cpp`)
+returns without touching the graph when neither flag changes, leaving one store read and one gain
+parameter write. `GameplaySession::playRefusal()` now re-runs the gate at every play, so the
+refusal is never stale and the game needs no device listener for it
+(`docs/plans/in-progress/input-calibration-rework.md` step 1). The history below stands as it was
+written.
 
 `GameplaySession` refuses `play()` with `LiveInputOff` by reading `LiveInputMonitor::status()`, and
 the game runs the gate only at the session's Ready edge. A device closed later is still caught (the
