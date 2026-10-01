@@ -13,7 +13,9 @@ users and charts is the point, not loudness alone.
 
 The invariant, enforced today by `LiveInputMonitor::applyGateInternal`: processed live monitoring
 is on only while a one-channel input route is current, a stored calibration matches that route,
-and the backend accepted the gain and the route. `docs/design/architecture.md` states only latency
+and the backend accepted the gain and the route. **User ruling, 2026-10-01: the editor never
+outputs the live rig without a calibration**, because tones can only be authored properly on a
+clean, calibrated input. Every refactor below must keep this gate exactly. `docs/design/architecture.md` states only latency
 calibration; this invariant should get a short "Live input" paragraph there.
 
 ## Findings, most structural first
