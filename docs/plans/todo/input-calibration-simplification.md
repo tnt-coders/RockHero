@@ -1,7 +1,8 @@
 # Input Calibration Simplification
 
-Status: deferred; captured from a Fable review on 2026-10-01 (at commit `15432e1d`). Re-verify every
-citation against the current code before acting on it. The user's decisions D1-D6 below come first.
+Status: ruled 2026-10-01 (user); steps 1-6 run next, step 7 is its own plan. Captured from a Fable
+review on 2026-10-01 (at commit `15432e1d`). Re-verify every citation against the current code before
+acting on it.
 
 ## What calibration is for
 
@@ -26,7 +27,10 @@ calibration; this invariant should get a short "Live input" paragraph there.
    memo while the store still holds the record. Shape: the store is the authority, the monitor keeps
    a memo invalidated only by its own save or an identity change, a commit goes backend first, then
    store, then memo, and any failure re-runs the gate. Deletes `InputCalibrationWorkflow` as a class
-   and its restore machinery: roughly 1,000 lines become 350.
+   and its restore machinery: roughly 1,000 lines become 350. **Amended 2026-10-01:** the editor and
+   the game now share one store file, so a memo invalidated only by its own save goes stale when the
+   other product calibrates. Keep no memo: read the store when the gate is evaluated (route changes
+   and commits, not per block), which the store's per-operation fresh read already supports.
 2. **The measurement session is written twice**, once in the editor
    (`input_calibration_controller.cpp`) and once in the game (`native_audio_setup_driver.cpp`), with
    duplicate `CaptureSettings` and the capture policy living only in editor UI. Shape: the monitor
@@ -84,16 +88,34 @@ placement, emphasis and words.
 5. Capture, meter read and policy inside the monitor (findings 2, 9, 10). Medium-large.
 6. Editor auto-prompt, Input-column cue, shared wording, the architecture paragraph. Medium, after
    the UI expert.
-7. The game wizard with the hard gate, deleting `--import-editor-audio`. Large; its own plan.
+6a. The first-run audio-settings window (D7), sharing the auto-prompt's open-a-window mechanism.
+7. The game wizard with the hard gate. Large; its own plan. (`--import-editor-audio` is already
+   deleted.)
 
-## Decisions for the user
+## Decisions for the user (ruled 2026-10-01)
 
-- **D1:** hard-gate song start in the game on calibration (recommended: yes).
-- **D2:** the editor auto-opens the calibration window on an uncalibrated route, with a per-route
-  "Later" (recommended: yes).
-- **D3:** drop `input_channel_name` from the identity and the on-disk format now, pre-release
-  (recommended: yes).
-- **D4:** whether note detection taps the input before or after the calibration gain (plan 22);
-  this decides how much scoring depends on calibration.
-- **D5:** cue placement and wording — RESOLVED 2026-10-01 by the UI expert (above).
-- **D6:** keep the manual-gain path (recommended: yes; the user doc relies on it).
+- **D1 — YES:** hard-gate song start in the game on calibration.
+- **D2 — YES:** the editor auto-opens the calibration window on an uncalibrated route, with a
+  per-route "Later" until the route changes or the app restarts.
+- **D3 — YES:** drop `input_channel_name` from the identity and the on-disk format now, pre-release.
+- **D4 — after the gain, deferred to plan 22:** note detection taps the calibrated signal, so its
+  thresholds hold in one level domain for every player. Nothing in steps 1-6 depends on it.
+- **D5 — RESOLVED** by the UI expert (above).
+- **D6 — KEEP manual gain as a first-class path, not a demoted "Adjust".** Repeated strum
+  measurement did not give consistent results, and many interfaces have a documented gain that
+  sets the level exactly (the Neural DSP Quad Cortex: +3.1 dB); typing it dials the route in
+  perfectly and repeatably. Step 5's capture move must not weaken it.
+- **D7 — YES:** on first run with no saved route, open the audio-device settings window over the
+  running OS default; Cancel writes nothing.
+- **Scope — YES:** steps 1-6 now; step 7 (the game wizard) is its own plan.
+- **D8 — OPEN:** what calibration calibrates; see below.
+
+## D8: the interface, or the guitar?
+
+A documented per-interface gain is a constant of the interface's input sensitivity: it maps a given
+instrument voltage to a fixed dBFS. A strum measurement instead folds in the guitar's pickup output
+and how hard that strum was played, which is one likely reason it does not repeat. The two also
+disagree on what "consistent" means: interface calibration lets a hot pickup drive the rig harder,
+as it would a real amp; strum calibration levels every guitar to the same loudness. Decide which
+the product wants before step 5 moves the capture into the monitor, because the answer may make the
+documented gain primary and the strum measurement a fallback for undocumented interfaces.
