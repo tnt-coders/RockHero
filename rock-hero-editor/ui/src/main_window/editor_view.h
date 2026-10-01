@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "audio_device/audio_device_failure_overlay.h"
 #include "busy/busy_overlay.h"
 #include "main_window/menu_bar_button.h"
 #include "main_window/menu_look_and_feel.h"
@@ -744,10 +743,6 @@ private:
 
     // True once the settings window has reported close and is waiting for deferred destruction.
     bool m_audio_device_settings_window_reset_pending{false};
-
-    // Editor-wide blocking overlay shown while no audio device is open, beneath the busy overlay
-    // so a Retry reopen paints its busy presentation on top.
-    AudioDeviceFailureOverlay m_audio_device_failure_overlay;
 
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;

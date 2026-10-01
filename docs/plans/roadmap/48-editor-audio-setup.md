@@ -9,6 +9,14 @@ User-directed redesign of how a closed audio device is surfaced (the app realist
 function without one). This section is authoritative over the rule-1 phrasing below wherever they
 conflict; the game-audio ruleset itself is unchanged.
 
+**Superseded in part 2026-09-30 (user):** the blocking overlay is removed — the editor works
+without a device. A closed device disables Play through action availability and shows its reason
+in the menu-bar status text; everything else, scrubbing included, keeps working, and the engine
+never reports playing without a device (it pauses on a mid-play loss). The no-fallback,
+no-auto-reopen engine policy, the recorded `unavailable_reason`, the single
+`applyAudioSourceAndRoute` path and the bullets after the first stand; the first bullet is
+withdrawn.
+
 - **Any closed-audio-device state raises an editor-wide blocking overlay** (not a JUCE modal): it
   shares the busy overlay's presentation language — a dim layer over the whole editor with a
   centered surface — but is its own standing state, driven directly by

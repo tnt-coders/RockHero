@@ -531,15 +531,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
     m_busy_overlay.setCancelCallback([this] { onBusyCancelRequested(); });
 
-    m_audio_device_failure_overlay.setComponentID("audio_device_failure_overlay");
-    m_audio_device_failure_overlay.setRetryCallback([this] {
-        m_controller.onAudioDeviceFailureDecision(core::AudioDeviceFailureDecision::Retry);
-    });
-    m_audio_device_failure_overlay.setOpenSettingsCallback([this] {
-        m_controller.onAudioDeviceFailureDecision(core::AudioDeviceFailureDecision::OpenSettings);
-        showAudioDeviceSettingsWindow();
-    });
-
     m_arrangement_view.setThumbnailFactory(audio_ports.thumbnail_factory);
 
     addAndMakeVisible(m_menu_bar);
@@ -573,9 +564,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     // The history inspector floats above the track stack but below the busy overlay; it starts
     // hidden and the user reveals it on demand.
     addChildComponent(m_undo_history_overlay);
-    // The failure overlay sits above the editor content; the busy overlay is added after it so a
-    // Retry reopen paints its busy presentation on top.
-    addChildComponent(m_audio_device_failure_overlay);
+    // The busy overlay is added last, so it paints above everything.
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
     // The ruler's chips raise intents this view answers: two of them need a prompt, which is this
@@ -607,8 +596,6 @@ EditorView::~EditorView()
     m_audio_device_settings_window_reset_pending = false;
     m_busy_overlay.setPaintCallback({});
     m_busy_overlay.setCancelCallback({});
-    m_audio_device_failure_overlay.setRetryCallback({});
-    m_audio_device_failure_overlay.setOpenSettingsCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
 
@@ -859,7 +846,6 @@ void EditorView::setState(const core::EditorViewState& state)
     presentGridSnapWarningIfNeeded(m_state.grid_snap_warning_prompt);
     presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
-    m_audio_device_failure_overlay.setPrompt(m_state.audio_device_failure_prompt);
     m_busy_overlay.setBusyState(m_state.busy);
     // An undo or redo that brought its change into focus keeps it in sight: centred when it landed
     // off screen. Judged here, once every surface holds the new state, so the glyph asked about is
@@ -1031,7 +1017,6 @@ void EditorView::resized()
     }
     m_track_viewport->setBounds(bottom_area);
     m_signal_chain_panel.setBounds(signal_chain_panel_bounds);
-    m_audio_device_failure_overlay.setBounds(getLocalBounds());
     m_busy_overlay.setBounds(getLocalBounds());
 
     // Pin the history inspector to the top-right, below the transport strip, tall enough to list a
@@ -3099,9 +3084,8 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
     GameAudioRecommendationDialog::show(
         *this, [this](core::GameAudioRecommendationDecision decision, bool suppress_future) {
             // The decline button reads "Open Audio Settings", so it lands the user in the audio
-            // device settings window. The window opens BEFORE the decision is reported: the
-            // settings-open state then suppresses the closed-device failure prompt that the
-            // decision handler would otherwise stage under the opening window.
+            // device settings window. The window opens BEFORE the decision is reported, so the
+            // decision lands with the window already open.
             if (decision == core::GameAudioRecommendationDecision::UseCustomSettings)
             {
                 showAudioDeviceSettingsWindow();
@@ -3350,9 +3334,7 @@ void EditorView::showAudioDeviceSettingsWindow()
 }
 
 // Clears the owner-held settings window after JUCE and view callbacks have unwound. Destroying
-// the window content runs the staged edit's cancel backstop synchronously, so once the reset has
-// finished the device state is settled and the controller can trustworthily evaluate whether the
-// editor ended up without an open device.
+// the window content runs the staged edit's cancel backstop synchronously.
 void EditorView::scheduleAudioDeviceSettingsWindowReset()
 {
     const juce::Component::SafePointer<EditorView> safe_this{this};
@@ -3361,7 +3343,6 @@ void EditorView::scheduleAudioDeviceSettingsWindowReset()
         {
             view->m_audio_device_settings_window.reset();
             view->m_audio_device_settings_window_reset_pending = false;
-            view->m_controller.onAudioDeviceSettingsTeardownComplete();
         }
     });
 }

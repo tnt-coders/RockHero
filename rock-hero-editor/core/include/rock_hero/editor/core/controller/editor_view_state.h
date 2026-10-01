@@ -253,40 +253,6 @@ struct GameAudioUnavailablePrompt
     }
 };
 
-/*!
-\brief Standing failure notice that no audio device is open, when raised.
-
-Staged whenever the editor ends up without an open audio device outside the flows that
-legitimately close it (a staging settings edit, an in-flight device operation, an unresolved
-startup game-audio prompt). The view renders it as the editor-wide blocking failure overlay,
-which follows this state directly: it appears while the prompt is staged, live-updates its text,
-and retracts when a device opens or the audio settings window takes over.
-*/
-struct AudioDeviceFailurePrompt
-{
-    /*! \brief Reason no device is open: the backend's diagnostic, or "Disconnected". */
-    std::string message;
-
-    /*!
-    \brief Compares two failure prompt requests by their stored values.
-    \param lhs Left-hand prompt request.
-    \param rhs Right-hand prompt request.
-    \return True when both prompt requests store equal values.
-    */
-    friend bool operator==(
-        const AudioDeviceFailurePrompt& lhs, const AudioDeviceFailurePrompt& rhs) = default;
-};
-
-/*! \brief User decisions available on the audio-device failure overlay. */
-enum class AudioDeviceFailureDecision : std::uint8_t
-{
-    /*! \brief Re-apply the active source's saved route. */
-    Retry,
-
-    /*! \brief Open the audio device settings window to fix the route by hand. */
-    OpenSettings,
-};
-
 /*! \brief Describes an active input calibration prompt requested by the controller. */
 struct InputCalibrationPrompt
 {
@@ -1073,16 +1039,6 @@ struct EditorViewState
     through IEditorController::onGameAudioRecommendationDecision.
     */
     bool game_audio_recommendation_prompt{false};
-
-    /*!
-    \brief Standing notice that no audio device is open, when raised.
-
-    Present whenever the editor runs without an open audio device and no other flow owns the
-    situation (settings window open, busy device operation in flight, startup game-audio prompt
-    unresolved). The view renders the blocking failure overlay while present and answers through
-    IEditorController::onAudioDeviceFailureDecision.
-    */
-    std::optional<AudioDeviceFailurePrompt> audio_device_failure_prompt{};
 
     /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.

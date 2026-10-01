@@ -122,8 +122,7 @@ chords. Everything else is plumbing that keeps focus in the right place:
   (`ui/src/preview/preview_surface.cpp`) — without it the native child swallows every key. That
   focus-bounce is a recorded watch item; treat it as an invariant of the preview port.
 - **Modal overlays own their keys.** `BusyOverlay::keyPressed` grabs focus and swallows
-  everything while a busy operation runs; the themed message box and the audio-device failure
-  overlay handle Return/Esc themselves. A key that "does nothing" during busy is the overlay
+  everything while a busy operation runs; the themed message box handles Return/Esc itself. A key that "does nothing" during busy is the overlay
   working as designed.
 - **Hosted plugin windows** are the special case — see the seam section below.
 

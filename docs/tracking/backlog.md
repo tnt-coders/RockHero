@@ -284,8 +284,6 @@ rest, each verified against the code, each a fix rather than a question unless m
 - Evaluate gating `audioMeterSnapshot()` on `m_audio_device_configuration_refresh_pending` the
   way `currentInputDeviceIdentity()` already is (H4 from the same investigation; largely
   mitigated by the stable structural meter plugins).
-- Decide UX for the audio-device failure popup vs. the input-calibration prompt appearing
-  together (device disconnect while the calibration prompt is up) — modals currently just stack.
 - Move section names in the 3D view to the upper-left corner instead of inline with the
   scrolling tab.
 - Evaluate per-(project, arrangement) resume-marker records: the marker settings family is
@@ -395,9 +393,7 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 - **~30 color literals outside the theme seam** (full census in the review) — a sweep once made.
   Whether the theme also grows font/size roles is a design call, moved to
   `docs/plans/todo/design-calls-from-the-2026-08-10-review.md`.
-- Smaller: `busy_overlay` and `audio_device_failure_overlay` each compute their centered geometry
-  twice and are near-duplicates of one another with a comment admitting the hand-maintained
-  agreement; `signal_chain_view::paint()` re-walks `resized()`'s layout arithmetic. CONFIRMED:
+- Smaller: `busy_overlay` computes its centered geometry twice; `signal_chain_view::paint()` re-walks `resized()`'s layout arithmetic. CONFIRMED:
   `keymap_editor_view.cpp` removes a key press before removing the stored indices, and
   `juce::Array::remove` compacts (invalidating them), so rebinding Redo to a chord it already owns
   can keep the chord it was asked to replace.
@@ -425,8 +421,6 @@ suite:
 - `test_plugin_browser_window.cpp`: double-click now honors `add_enabled`; assert the refusal.
 - A game-settings case asserting a setter's value is on disk before any explicit save (the shared
   options' zero save-delay is what fixed the silently-armed three-second timer).
-- The audio-device failure overlay's Escape is now swallowed silently (it used to open Audio
-  Settings); no test guards either contract.
 - Test-data sweep: several editor test fixtures still spell rates as `48kHz` inside opaque status
   strings; inert, but they read against the spelled-out-hertz ruling.
 

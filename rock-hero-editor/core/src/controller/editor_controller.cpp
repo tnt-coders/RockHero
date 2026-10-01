@@ -1480,16 +1480,6 @@ void EditorController::onAudioDeviceSettingsClosed()
     m_impl->onAudioDeviceSettingsClosed();
 }
 
-void EditorController::onAudioDeviceSettingsTeardownComplete()
-{
-    m_impl->onAudioDeviceSettingsTeardownComplete();
-}
-
-void EditorController::onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision)
-{
-    m_impl->onAudioDeviceFailureDecision(decision);
-}
-
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
 // to production project IO where an optional project operation is omitted.
 EditorController::Impl::Impl(
@@ -1528,15 +1518,7 @@ EditorController::Impl::Impl(
     , m_audio_config_store(services.audio_config_store)
     , m_editor_audio_config_store(services.editor_audio_config_store)
     , m_live_input_monitor(services.live_input_monitor)
-    // Busy transitions re-evaluate the failure prompt: staging is suppressed while a device
-    // operation is in flight, so the busy-clear callback is what surfaces a still-closed device
-    // after a staged apply, toggle flip, or Retry.
-    , m_busy(
-          services.message_thread_scheduler,
-          [this] {
-              refreshAudioDeviceFailurePrompt();
-              updateView();
-          })
+    , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
     , m_message_thread_scheduler(services.message_thread_scheduler)
     , m_transport_listener(transport, *this)
@@ -2820,7 +2802,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_editor_audio_config_store != nullptr && m_editor_audio_config_store->usingGameSource();
     state.game_audio_unavailable_prompt = m_game_audio_unavailable_prompt;
     state.game_audio_recommendation_prompt = m_game_audio_recommendation_prompt;
-    state.audio_device_failure_prompt = m_audio_device_failure_prompt;
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
     // Song-level, so they resolve here rather than in the per-arrangement tab projection; the

@@ -31,7 +31,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.transport.stop_enabled == false);
     CHECK(empty_state.transport.play_pause_shows_pause_icon == false);
     CHECK(empty_state.audio_device_status_text == "[audio device closed]");
-    CHECK_FALSE(empty_state.audio_device_failure_prompt.has_value());
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK(empty_state.grid_note_value == g_default_tempo_grid_note_value);
     CHECK_FALSE(empty_state.arrangement.hasAudio());

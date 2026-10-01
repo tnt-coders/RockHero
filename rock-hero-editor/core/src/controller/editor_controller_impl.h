@@ -662,8 +662,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::function<void()> change_audio_device, std::function<void()> after_busy_cleared);
     [[nodiscard]] bool onAudioDeviceSettingsOpenRequested();
     void onAudioDeviceSettingsClosed();
-    void onAudioDeviceSettingsTeardownComplete();
-    void onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
 
@@ -905,19 +903,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         Current,   // Touch neither the toggle nor the source; (re)apply the active route.
     };
 
-    // The one route-application path shared by startup, the settings-window toggle, the startup
-    // recommendation decision, and the failure prompt's Retry: optional source flip (validated
+    // The one route-application path shared by startup, the settings-window toggle, and the
+    // startup recommendation decision: optional source flip (validated
     // fresh for Game so a persisted on always means adoption succeeded), then the saved route of
     // the now-active source is applied either inline or behind the OpeningAudioDevice busy
     // overlay (a non-empty set_applying requests the overlay for a genuine device re-open).
     [[nodiscard]] std::expected<void, GameAudioSourceError> applyAudioSourceAndRoute(
         AudioSourceSelection selection, const std::function<void(bool)>& set_applying);
 
-    // The one evaluation deciding whether the audio-device failure prompt should be staged; the
-    // blocking overlay rendering it follows the staged value directly, so the prompt is simply
-    // re-derived (and its reason text live-updated) whenever the editor is deviceless and no
-    // other flow owns the situation.
-    void refreshAudioDeviceFailurePrompt();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(
@@ -1044,11 +1037,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Startup recommendation staged when the toggle is off, a calibrated game configuration exists,
     // and the user has not suppressed the prompt; cleared when the view reports a decision.
     bool m_game_audio_recommendation_prompt{false};
-
-    // Standing failure notice staged by refreshAudioDeviceFailurePrompt() while the editor runs
-    // without an open audio device and no other flow owns the situation. Cleared when a device
-    // opens, when the settings window takes over, or when the user answers the overlay.
-    std::optional<AudioDeviceFailurePrompt> m_audio_device_failure_prompt{};
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

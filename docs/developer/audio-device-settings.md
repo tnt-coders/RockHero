@@ -35,10 +35,10 @@ the editor's busy overlay. With no dispatcher supplied, the controller runs sync
 is exactly how its tests drive it. Reach for this shape when a modal feature owns a genuine
 multi-step transaction of its own; reach for the ordinary action pipeline otherwise.
 
-Around the dialog sit three main-MVC pieces: `AudioDeviceFailureOverlay` (the editor-wide
-blocking overlay whenever no device is open, driven by view state, offering Retry / Open
-Settings), `GameAudioRecommendationDialog` (the startup suggestion to adopt the game's settings),
-and `audioDeviceStatusText` (the menu-bar status line).
+Around the dialog sit two main-MVC pieces: `GameAudioRecommendationDialog` (the startup
+suggestion to adopt the game's settings) and `audioDeviceStatusText` (the menu-bar status line).
+The editor never blocks itself on a closed device: editing, saving and scrubbing keep working,
+and the engine refuses to play. The settings window is the repair path.
 
 # Persistence: two stores, one of them untouchable
 
@@ -90,8 +90,8 @@ input plumbing.
    `toViewState()` projection in the controller `.cpp` — the sub-MVC's own triple, not the main
    editor's.
 2. Device actions in the main editor land in `audio_device_handlers.cpp`; anything that reopens
-   a device goes through `applyAudioSourceAndRoute(...)` so it paints the busy overlay and
-   re-evaluates the failure prompt exactly once.
+   a device goes through `applyAudioSourceAndRoute(...)` so it paints the busy overlay once and
+   refreshes the view when it clears.
 3. New persisted config belongs in `AudioConfigStore` behind `IAudioConfigStore` — with strict
    parsing that treats corrupt values as absence, and setters that respect the read-only gate. A
    property name two files must agree on is declared beside the type it belongs to, never once per

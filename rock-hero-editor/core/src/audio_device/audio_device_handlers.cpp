@@ -23,9 +23,6 @@ namespace
     };
 }
 
-// Reason shown by the failure prompt when the engine has no more specific diagnostic to offer.
-constexpr const char* g_generic_device_failure_reason{"The audio device could not be opened."};
-
 } // namespace
 
 // Wraps the supplied audio-device open work in the editor's busy overlay paint fence so the
@@ -50,14 +47,12 @@ void EditorController::Impl::onAudioDeviceChangeRequested(
         std::move(after_busy_cleared));
 }
 
-// Persists the new device manager state and re-derives view state after a configuration change.
-// This is where a mid-session disconnect (the engine's no-fallback policy closing JUCE's
-// substitute) surfaces, so the failure-prompt evaluation runs on every configuration change.
+// Persists the new device manager state and re-derives view state after a configuration change,
+// a mid-session disconnect included: the status text and Play's availability follow the device.
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
     persistAudioDeviceState();
     static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
-    refreshAudioDeviceFailurePrompt();
     updateView();
 }
 
@@ -76,102 +71,15 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
     }
 
     m_live_input_monitor.openAudioDeviceSettings();
-    refreshAudioDeviceFailurePrompt();
     updateView();
     return true;
 }
 
-// Re-applies the route gate after settings closes or restores its previous route. The failure
-// prompt is deliberately NOT evaluated here: on the native-close path the staged edit's cancel
-// backstop runs one message hop later (inside the view's window-reset callAsync), so the device
-// can be transiently closed at this moment. onAudioDeviceSettingsTeardownComplete() evaluates
-// once the teardown has settled.
+// Re-applies the route gate after settings closes or restores its previous route.
 void EditorController::Impl::onAudioDeviceSettingsClosed()
 {
     static_cast<void>(m_live_input_monitor.closeAudioDeviceSettings(monitoringContext()));
     updateView();
-}
-
-// Runs after the settings window object is fully torn down: any staged-edit rollback (including
-// the native-close cancel backstop) has settled the device synchronously by now, so this is the
-// first trustworthy moment to evaluate whether the editor ended up without an open device.
-void EditorController::Impl::onAudioDeviceSettingsTeardownComplete()
-{
-    refreshAudioDeviceFailurePrompt();
-    updateView();
-}
-
-// Applies the user's answer to the audio-device failure overlay. Retry re-applies the active
-// source's saved route; the no-op applying presentation routes the genuine reopen through the
-// busy overlay, and the busy-clear evaluation re-stages the prompt when the device is still
-// closed. OpenSettings clears the prompt only: the view follows by opening the settings window,
-// whose suppression owns the prompt until teardown. Exiting needs no decision of its own -- the
-// overlay is not a modal, so the main window's close controls keep working above it.
-void EditorController::Impl::onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision)
-{
-    m_audio_device_failure_prompt.reset();
-
-    if (decision == AudioDeviceFailureDecision::Retry)
-    {
-        static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::Current, [](bool) {}));
-        return;
-    }
-
-    updateView();
-}
-
-// The one evaluation deciding whether the audio-device failure prompt should be staged. The
-// blocking overlay follows the staged value directly, so past the ownership gates the prompt is
-// simply re-derived from the current status -- a repeat device event with a fresher reason
-// live-updates the overlay's text, and an opened device retracts it.
-void EditorController::Impl::refreshAudioDeviceFailurePrompt()
-{
-    const common::audio::AudioDeviceStatus status = m_audio_devices.currentDeviceStatus();
-    if (status.open)
-    {
-        m_audio_device_failure_prompt.reset();
-        return;
-    }
-
-    // A missing saved route means there is nothing to retry (a fresh install before any device
-    // was chosen, or a composition without a device backend); the settings window is the
-    // resolution path and the standing "[audio device closed]" status covers presentation.
-    const std::optional<common::audio::ActiveDeviceRoute> route =
-        m_audio_config_store.activeDeviceRoute();
-    if (!route.has_value() || route->serialized_state.empty())
-    {
-        m_audio_device_failure_prompt.reset();
-        return;
-    }
-
-    // The settings window deliberately stages with the device closed; the prompt resumes at
-    // teardown when the window leaves the device closed for real.
-    if (m_live_input_monitor.audioDeviceSettingsOpen())
-    {
-        m_audio_device_failure_prompt.reset();
-        return;
-    }
-
-    // A device operation is mid-flight (staged apply, toggle flip, Retry itself); the busy
-    // workflow's state callback re-evaluates once it clears, so nothing can flash under the busy
-    // overlay.
-    if (isBusy())
-    {
-        return;
-    }
-
-    // Startup precedence: the plan-48 game-audio prompts resolve first (never two modals at
-    // once); their decision handlers and the settings teardown re-evaluate afterwards.
-    if (m_game_audio_unavailable_prompt.has_value() || m_game_audio_recommendation_prompt)
-    {
-        return;
-    }
-
-    m_audio_device_failure_prompt = AudioDeviceFailurePrompt{
-        .message = !status.unavailable_reason.empty()
-                       ? status.unavailable_reason
-                       : std::string{g_generic_device_failure_reason},
-    };
 }
 
 // Applies a "use game audio settings" toggle change through the shared application path. This is
@@ -186,8 +94,8 @@ std::expected<void, GameAudioSourceError> EditorController::Impl::
         enabled ? AudioSourceSelection::Game : AudioSourceSelection::EditorOwn, set_applying);
 }
 
-// The one route-application path shared by startup, the settings-window toggle, the startup
-// recommendation decision, and the failure prompt's Retry.
+// The one route-application path shared by startup, the settings-window toggle, and the startup
+// recommendation decision.
 std::expected<void, GameAudioSourceError> EditorController::Impl::applyAudioSourceAndRoute(
     AudioSourceSelection selection, const std::function<void(bool)>& set_applying)
 {
@@ -235,8 +143,7 @@ std::expected<void, GameAudioSourceError> EditorController::Impl::applyAudioSour
     {
         // Reuse the OK/Cancel apply presentation: the dialog hides itself for the duration of
         // the blocking re-open (set_applying true, then false once the overlay clears) while
-        // the editor's busy overlay paints "Opening audio device..." in its place. The failure
-        // prompt is evaluated by the busy workflow's state callback once the overlay clears.
+        // the editor's busy overlay paints "Opening audio device..." in its place.
         set_applying(true);
         m_busy.runMessageThreadBusyOperation(
             BusyOperation::OpeningAudioDevice,
@@ -254,7 +161,6 @@ std::expected<void, GameAudioSourceError> EditorController::Impl::applyAudioSour
     // own staged-device rollback supersede its token and drop the re-open.
     restoreAudioDeviceState();
     static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
-    refreshAudioDeviceFailurePrompt();
     updateView();
     return {};
 }
@@ -270,8 +176,7 @@ GameAudioSourceState EditorController::Impl::gameAudioSourceState() const
 
 // Clears the startup unavailable-game notice once the view has shown it. The view follows the
 // dismissal by opening the audio device settings window, landing the user directly in the editable
-// editor-own flow the fallback selected (the settings-open suppression owns the failure prompt
-// from there).
+// editor-own flow the fallback selected.
 void EditorController::Impl::onGameAudioUnavailablePromptDismissed()
 {
     m_game_audio_unavailable_prompt.reset();
@@ -316,8 +221,7 @@ void EditorController::Impl::onGameAudioRecommendationDecision(
             // The same application path as every other source decision: persists the toggle off
             // and re-applies the editor's own route (a no-op when it is already active). The view
             // has already opened the audio device settings window for this decision ("Open
-            // Settings"), so the settings-open suppression keeps the failure-prompt evaluation
-            // below quiet until that window tears down.
+            // Settings").
             static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::EditorOwn, {}));
             break;
         }
@@ -327,9 +231,6 @@ void EditorController::Impl::onGameAudioRecommendationDecision(
         }
     }
 
-    // The recommendation prompt was the failure prompt's startup suppressor; with a decision
-    // landed, a deferred closed-device notice can surface now.
-    refreshAudioDeviceFailurePrompt();
     updateView();
 }
 
@@ -405,8 +306,8 @@ void EditorController::Impl::restoreAudioDeviceState()
     if (*restored == common::audio::DeviceRestoreOutcome::DeviceUnavailable)
     {
         // A designed outcome, not a failure: the saved device is absent or in use, so the route was
-        // applied closed and the saved choice retained. The failure-prompt evaluation surfaces the
-        // recorded reason; logged so a headless run is explainable too.
+        // applied closed and the saved choice retained. The status text surfaces the recorded
+        // reason; logged so a headless run is explainable too.
         logEditorControllerBestEffortFailure(
             "open saved audio device",
             "saved device unavailable; the audio device stays closed and the saved choice is kept");
