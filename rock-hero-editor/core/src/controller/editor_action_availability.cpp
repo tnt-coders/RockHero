@@ -236,7 +236,12 @@ namespace
             return (conditions.has_project || conditions.tone_designer_active) &&
                    conditions.redo_available;
         }
+        // Play needs an open device, since only its callback moves the playhead; seeking, the grid
+        // and the arrangement verbs do not, so they keep working without one.
         case EditorAction::Id::PlayPause:
+        {
+            return conditions.has_loaded_arrangement && conditions.audio_device_open;
+        }
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:

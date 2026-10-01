@@ -37,8 +37,10 @@ multi-step transaction of its own; reach for the ordinary action pipeline otherw
 
 Around the dialog sit two main-MVC pieces: `GameAudioRecommendationDialog` (the startup
 suggestion to adopt the game's settings) and `audioDeviceStatusText` (the menu-bar status line).
-The editor never blocks itself on a closed device: editing, saving and scrubbing keep working,
-and the engine refuses to play. The settings window is the repair path.
+The editor never blocks itself on a closed device: while it is closed the status line carries the
+backend's reason (`[audio device closed: <reason>]`), Play is unavailable through action
+availability (`ActionConditions::audio_device_open`), and everything else — editing, saving,
+scrubbing — keeps working. The settings window is the repair path.
 
 # Persistence: two stores, one of them untouchable
 

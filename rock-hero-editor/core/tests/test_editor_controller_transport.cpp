@@ -72,6 +72,38 @@ TEST_CASE("EditorController ignores play intent without audio", "[core][editor-c
     CHECK(transport.pause_call_count == 0);
 }
 
+// Without an open audio device nothing could move the playhead, so Play is unavailable — the view
+// is told so and the intent is a no-op — while the loaded song stays editable.
+TEST_CASE(
+    "EditorController refuses play intent while the audio device is closed",
+    "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+
+    controller.onPlayPausePressed();
+
+    CHECK(transport.play_call_count == 0);
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        CHECK_FALSE(view.last_state->transport.play_pause_enabled);
+    }
+}
+
 // The stop intent respects the same gate the view publishes.
 TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-controller]")
 {

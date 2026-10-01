@@ -42,8 +42,9 @@ surfaces can disagree and no 0.001 tolerance is restated in two different units.
 
 The bracketed format mirrors REAPER's status idiom so users coming from REAPER recognize the
 fields at a glance; per-rule comments inside the implementation explain only the deviations.
-Closed device states render as `g_closed_audio_device_text`. Open devices render their sample
-rate, bit depth, active channels, buffer size, latency, and backend type.
+Closed device states render as `g_closed_audio_device_text`, or as
+`[audio device closed: <reason>]` when the status carries the backend's reason. Open devices render
+their sample rate, bit depth, active channels, buffer size, latency, and backend type.
 
 \param status Audio-device status snapshot to display.
 \return Bracketed status text for the editor menu bar.

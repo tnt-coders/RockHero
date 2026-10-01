@@ -482,6 +482,10 @@ namespace
             return "not-busy";
         }
         case EditorAction::Id::PlayPause:
+        {
+            return conditions.has_loaded_arrangement ? "audio-device-closed"
+                                                     : "no-loaded-arrangement";
+        }
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
@@ -2622,6 +2626,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_loaded_arrangement = hasLoadedArrangement(),
         .tone_designer_active = m_tone_designer.active,
         .can_stop_transport = canStopTransport(transport_state),
+        .audio_device_open = m_audio_devices.currentDeviceStatus().open,
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
         .has_plugin_insert_capacity = m_signal_chain.hasInsertCapacity(),
         .has_loaded_plugins = m_signal_chain.hasPlugins(),

@@ -121,10 +121,15 @@ TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-ac
 
     conditions.has_loaded_arrangement = true;
 
-    CHECK(isActionAvailable(ActionId::PlayPause, conditions));
+    // Without an open device only Play is off: nothing would move the playhead, while seeking
+    // and the grid work as ever.
+    CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
     CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
     CHECK(isActionAvailable(ActionId::SetGridNoteValue, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::Stop, conditions));
+
+    conditions.audio_device_open = true;
+    CHECK(isActionAvailable(ActionId::PlayPause, conditions));
 
     conditions.can_stop_transport = true;
 
@@ -341,6 +346,7 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
         .live_input_audition_available = true,
         .has_project = true,
         .has_loaded_arrangement = true,
+        .audio_device_open = true,
         .has_loaded_plugins = true,
         .has_armed_caret = true,
     };

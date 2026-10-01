@@ -60,9 +60,13 @@ std::string sampleRateText(double sample_rate_hz)
 // Produces the menu-bar text consumed by EditorView without leaking formatting rules into UI code.
 std::string audioDeviceStatusText(const common::audio::AudioDeviceStatus& status)
 {
+    // A closed device names why when the backend said so: this line, beside the button that opens
+    // the audio settings, is where the editor reports a closed device.
     if (!status.open)
     {
-        return std::string{g_closed_audio_device_text};
+        return status.unavailable_reason.empty()
+                   ? std::string{g_closed_audio_device_text}
+                   : std::format("[audio device closed: {}]", status.unavailable_reason);
     }
 
     return std::format(

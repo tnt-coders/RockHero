@@ -66,6 +66,9 @@ struct ActionConditions
     /*! \brief True when Stop should reset playback or the playhead. */
     bool can_stop_transport{false};
 
+    /*! \brief True when an audio device is open, so the device callback can move the playhead. */
+    bool audio_device_open{false};
+
     /*! \brief True when the plugin catalog has candidates that can be inserted. */
     bool has_plugin_candidates{false};
 

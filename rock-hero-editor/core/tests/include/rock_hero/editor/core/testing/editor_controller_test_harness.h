@@ -1173,12 +1173,42 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 };
 
 /*!
+\brief An open audio device's status: what a device that can play reports.
+\return Open status snapshot for a typical interface.
+*/
+[[nodiscard]] inline common::audio::AudioDeviceStatus openAudioDeviceStatus()
+{
+    return common::audio::AudioDeviceStatus{
+        .open = true,
+        .device_name = "Interface A",
+        .backend_name = "ASIO",
+        .sample_rate_hz = 48000.0,
+        .bit_depth = 24,
+        .input_channels = 1,
+        .output_channels = 2,
+        .buffer_size_samples = 128,
+        .input_latency_ms = 4.5,
+        .output_latency_ms = 7.5,
+        .unavailable_reason = {},
+    };
+}
+
+/*!
 \brief Supplies a default audio-device port for tests that do not care about hardware state.
+
+It reports a device OPEN, because Play is only available with one: a test about the closed state
+builds its own port.
+
 \return Process-lifetime configurable audio-device fake.
 */
 [[nodiscard]] inline ConfigurableAudioDeviceConfiguration& defaultAudioDevices() noexcept
 {
-    static ConfigurableAudioDeviceConfiguration g_audio_devices;
+    static ConfigurableAudioDeviceConfiguration& g_audio_devices =
+        []() -> ConfigurableAudioDeviceConfiguration& {
+        static ConfigurableAudioDeviceConfiguration devices;
+        devices.current_status = openAudioDeviceStatus();
+        return devices;
+    }();
     return g_audio_devices;
 }
 

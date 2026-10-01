@@ -11,6 +11,16 @@ TEST_CASE("Audio device status text maps closed device", "[core][audio-device-st
     CHECK(audioDeviceStatusText(common::audio::AudioDeviceStatus{}) == "[audio device closed]");
 }
 
+// A closed device names the backend's reason when it gave one: the status line is where the editor
+// reports a closed device, beside the button that opens the audio settings.
+TEST_CASE("Audio device status text names why a device is closed", "[core][audio-device-status]")
+{
+    common::audio::AudioDeviceStatus status;
+    status.unavailable_reason = "driver init failed";
+
+    CHECK(audioDeviceStatusText(status) == "[audio device closed: driver init failed]");
+}
+
 // Open device text keeps the low-latency route details without REAPER's recording-format token.
 TEST_CASE("Audio device status text formats open device", "[core][audio-device-status]")
 {
