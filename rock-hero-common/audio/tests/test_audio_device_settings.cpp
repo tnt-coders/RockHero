@@ -731,10 +731,10 @@ TEST_CASE(
 
 // OK onto a device whose driver cannot initialize re-applies THAT route through the port's
 // no-fallback restore: JUCE's own updateXml() runs only after a successful open, so without the
-// re-application the previous route would silently remain the saved choice -- and the editor's
-// failure prompt would name and Retry the old device instead of the one the user just chose.
-// Routing through the port (rather than a bare initialise) also records the backend's own
-// diagnostic for the prompt, so the first popup and a failed Retry read the same reason.
+// re-application the previous route would silently remain the saved choice -- and the status text
+// would name the old device instead of the one the user just chose. Routing through the port
+// (rather than a bare initialise) also records the backend's own diagnostic, so the status text
+// names the real cause after this apply exactly as after a later one.
 TEST_CASE(
     "AudioDeviceSettings apply re-applies an unopenable staged route through the restore port",
     "[audio][audio-device-settings]")

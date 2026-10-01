@@ -582,14 +582,13 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         {
             // "The route stays the user's explicit choice" needs help here: a failed
             // setAudioDeviceSetup never reaches updateXml(), so JUCE's saved state still names the
-            // PREVIOUS route -- the closed-device failure prompt would report and Retry the old
-            // device instead of the one just chosen. Re-applying through the port's no-fallback
-            // restore (the same path startup and the failure prompt's Retry use) stores the
-            // serialized route regardless of the open outcome AND records the backend's own
-            // diagnostic for the prompt -- a direct initialise() would cement the route but drop
-            // the reason, leaving the first popup with the composed disconnect notice while a
-            // Retry suddenly shows the driver's text. The repeated open attempt fails the same
-            // way, or wins the race if the driver recovered.
+            // PREVIOUS route -- the closed-device status would report the old device instead of
+            // the one just chosen. Re-applying through the port's no-fallback restore (the same
+            // path startup uses) stores the serialized route regardless of the open outcome AND
+            // records the backend's own diagnostic for the status text -- a direct initialise()
+            // would cement the route but drop the reason, leaving the composed disconnect notice
+            // where the driver's own text belongs. The repeated open attempt fails the same way,
+            // or wins the race if the driver recovered.
             const std::unique_ptr<juce::XmlElement> staged_xml =
                 serializeDeviceSetupToXml(m_staged_device_type, m_staged_setup);
             static_cast<void>(

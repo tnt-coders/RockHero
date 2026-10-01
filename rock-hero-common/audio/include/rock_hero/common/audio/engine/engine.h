@@ -118,7 +118,7 @@ public:
     */
     Engine& operator=(Engine&&) = delete;
 
-    /*! \brief Starts transport playback. */
+    /*! \brief Starts transport playback; with no open audio device the transport stays stopped. */
     void play() override;
 
     /*! \brief Stops playback, clears backend playback state, and resets the position. */

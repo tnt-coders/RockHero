@@ -250,8 +250,8 @@ private:
 
     // Why no device is open, when known: the backend's open-failure text recorded by a failed
     // restore, or the plain "Disconnected" notice set by the no-fallback policy. Cleared whenever
-    // a device is observed open. Published through currentDeviceStatus() so the editor's failure
-    // prompt can name the real cause.
+    // a device is observed open. Published through currentDeviceStatus() so status consumers can
+    // name the real cause.
     std::string m_device_unavailable_reason;
 
     // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
@@ -428,6 +428,11 @@ private:
     // Undoes JUCE's disconnect fallback (closing the substitute device) and re-applies the saved
     // route when its device is replugged, so the open device is only ever the user's choice.
     void enforceNoFallbackDevicePolicy();
+
+    // THE one predicate for "the device callback can move the playhead": a current device that is
+    // open at a real sample rate. play(), the configuration refresh and currentDeviceStatus() all
+    // ask it, so "playing implies an open device" is stated once.
+    [[nodiscard]] bool audioDeviceOpen() const noexcept;
 
     // Tracktion publishes playhead movement through the transport ValueTree. The coarse state
     // surface ignores ordinary movement, but this hook still detects automatic end-of-file stops.
@@ -718,6 +723,10 @@ private:
 
     // Pauses Rock Hero playback without resetting the transport position.
     void pauseTransport();
+
+    // Pauses and publishes the stop: the shared body of Engine::pause() and the pause the
+    // configuration refresh makes when the device closes mid-play.
+    void pausePlayback();
 
     // Stops Tracktion and tears down the active playback graph for graph mutation or shutdown.
     void stopTransportAndReleaseContext();

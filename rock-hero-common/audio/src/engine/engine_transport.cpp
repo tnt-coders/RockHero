@@ -150,9 +150,15 @@ void Engine::removeListener(ITransport::Listener& listener)
     m_impl->m_transport_listeners.remove(&listener);
 }
 
-// Starts Tracktion transport playback from the current edit position.
+// Starts Tracktion transport playback from the current edit position. With no open device nothing
+// would advance the playhead, yet Tracktion would still flag the transport playing, so it is left
+// stopped and the state tells the truth; callers gate Play on the device status.
 void Engine::play()
 {
+    if (!m_impl->audioDeviceOpen())
+    {
+        return;
+    }
     auto& transport = m_impl->m_edit->getTransport();
     if (m_impl->m_loaded_length_seconds > 0.0 &&
         transport.getPosition().inSeconds() >= m_impl->m_loaded_length_seconds)
@@ -177,11 +183,17 @@ void Engine::stop()
 // Pauses playback without resetting position so the user can resume from the same point.
 void Engine::pause()
 {
-    m_impl->pauseTransport();
-    m_impl->updateTransportState();
-    m_impl->publishClockBoundary(
-        common::core::TimePosition{m_impl->clampToLoadedRange(
-            m_impl->m_edit->getTransport().getPosition().inSeconds())});
+    m_impl->pausePlayback();
+}
+
+// Rationale lives on the declaration in engine_impl.h.
+void Engine::Impl::pausePlayback()
+{
+    pauseTransport();
+    updateTransportState();
+    publishClockBoundary(
+        common::core::TimePosition{clampToLoadedRange(
+            m_edit->getTransport().getPosition().inSeconds())});
 }
 
 // Moves Tracktion transport to the requested timeline position. Position-only motion is observed

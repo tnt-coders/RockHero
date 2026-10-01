@@ -76,7 +76,12 @@ public:
     /*! \brief Destroys the transport interface. */
     virtual ~ITransport() = default;
 
-    /*! \brief Starts playback from the current transport position. */
+    /*!
+    \brief Starts playback from the current transport position.
+
+    With no open audio device the transport stays stopped, since nothing could advance the
+    playhead; callers gate Play on IAudioDeviceConfiguration::currentDeviceStatus().
+    */
     virtual void play() = 0;
 
     /*! \brief Pauses playback without resetting the current transport position. */

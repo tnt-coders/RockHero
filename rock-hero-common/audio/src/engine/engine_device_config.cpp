@@ -123,6 +123,14 @@ void Engine::Impl::scheduleAudioDeviceConfigurationRefresh()
 void Engine::Impl::handleAudioDeviceConfigurationRefresh()
 {
     enforceNoFallbackDevicePolicy();
+    // Tracktion keeps the transport flagged playing through a device loss, and would resume it on
+    // the next device start (DeviceManager::prepareToStart restarts every playback context), so
+    // pause here, before the listeners hear of the change: the playhead has stopped moving, and
+    // the state must say so.
+    if (!audioDeviceOpen() && m_edit->getTransport().isPlaying())
+    {
+        pausePlayback();
+    }
     m_live_input_monitoring_enabled = false;
     m_calibration_input_monitoring_enabled = false;
     detachInstrumentMonitoringRoute();
@@ -139,9 +147,9 @@ void Engine::Impl::handleAudioDeviceConfigurationRefresh()
 // Nothing here (or anywhere else in the engine) reopens a device automatically: automatic
 // reopening required a speculative driver probe and a reopen inside the policy pass, both of
 // which crashed flaky ASIO drivers mid-enumeration. Every reopen is an explicit user-driven
-// application of the saved route (the editor surfaces a closed device through its failure
-// prompt). While the route is closed this policy keeps m_device_unavailable_reason populated so
-// the status snapshot can explain why.
+// application of the saved route (the products surface a closed device through their status text
+// and a disabled Play). While the route is closed this policy keeps m_device_unavailable_reason
+// populated so the status snapshot can explain why.
 void Engine::Impl::enforceNoFallbackDevicePolicy()
 {
     juce::AudioDeviceManager& device_manager = m_engine->getDeviceManager().deviceManager;
@@ -257,8 +265,8 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
     {
         // The route was applied but the device stayed closed -- the designed no-fallback outcome,
         // reported in the value channel rather than as an error so callers keep the saved choice.
-        // The backend's own diagnostic is recorded for the status snapshot, so the editor's
-        // failure prompt can name the real cause. The failed initialise() already posted a
+        // The backend's own diagnostic is recorded for the status snapshot, so the status text
+        // can name the real cause. The failed initialise() already posted a
         // device-change message, which drives the same async monitoring teardown a mid-session
         // disconnect does, so the synchronous monitoring rebuild below is correctly skipped on
         // this branch.
@@ -307,25 +315,28 @@ bool Engine::deviceStateMatchesActive(const std::string& serialized_state) const
         m_impl->m_engine->getDeviceManager().deviceManager, *xml);
 }
 
+// Rationale lives on the declaration in engine_impl.h.
+bool Engine::Impl::audioDeviceOpen() const noexcept
+{
+    // Not a pointer to const: JUCE's device getters are not const-qualified.
+    auto* const device = m_engine->getDeviceManager().deviceManager.getCurrentAudioDevice();
+    return device != nullptr && device->isOpen() && device->getCurrentSampleRate() > 0.0;
+}
+
 // Captures open-device timing and route details through the JUCE device manager. A closed
 // snapshot carries the recorded unavailable reason so status consumers can explain the closure.
 AudioDeviceStatus Engine::currentDeviceStatus() const
 {
-    AudioDeviceStatus closed_status;
-    closed_status.unavailable_reason = m_impl->m_device_unavailable_reason;
+    if (!m_impl->audioDeviceOpen())
+    {
+        AudioDeviceStatus closed_status;
+        closed_status.unavailable_reason = m_impl->m_device_unavailable_reason;
+        return closed_status;
+    }
 
     auto* const current_device =
         m_impl->m_engine->getDeviceManager().deviceManager.getCurrentAudioDevice();
-    if (current_device == nullptr || !current_device->isOpen())
-    {
-        return closed_status;
-    }
-
     const double sample_rate_hz = current_device->getCurrentSampleRate();
-    if (sample_rate_hz <= 0.0)
-    {
-        return closed_status;
-    }
 
     return AudioDeviceStatus{
         .open = true,

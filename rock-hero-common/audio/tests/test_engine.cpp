@@ -935,8 +935,8 @@ TEST_CASE(
         [&] {
             // The refresh ran between steps: the policy closed the fallback device, and the saved
             // route still names device A for the next launch. The closed status snapshot reports
-            // the plain disconnect reason so the editor's failure overlay can explain the closure
-            // in the same shape as a failed open.
+            // the plain disconnect reason so the status text can explain the closure in the same
+            // shape as a failed open.
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
             CHECK(audio_devices.currentDeviceStatus().unavailable_reason == "Disconnected");
             const std::optional<std::string> saved = audio_devices.serializedDeviceState();
@@ -946,10 +946,42 @@ TEST_CASE(
     });
 }
 
+// A device lost mid-song pauses playback. Tracktion alone would keep the transport flagged playing
+// on a frozen playhead and resume it on the next device start, so the engine pauses in its
+// configuration refresh, through Engine::pause()'s own path: the state and the clock both say
+// stopped. Played on an empty edit, since the fake device's callbacks are not a wave clip's
+// rendering host — the flags are what is under test, not the audio.
+TEST_CASE("Engine pauses playback when the open device disconnects", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    FakeAudioDeviceType& fake_type = installOnlyFakeAudioDeviceType(
+        audio_devices.deviceManager(), {g_fake_device_a_name, g_fake_device_b_name});
+    const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+    REQUIRE(restored.has_value());
+    REQUIRE(*restored == DeviceRestoreOutcome::Opened);
+
+    harness.engine.play();
+    REQUIRE(harness.engine.state().playing);
+
+    juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
+    runMessageThreadSteps({
+        [&] {
+            fake_type.simulateDeviceListChange({g_fake_device_b_name});
+            device_manager.dispatchPendingMessages();
+        },
+        [&] {
+            CHECK_FALSE(audio_devices.currentDeviceStatus().open);
+            CHECK_FALSE(harness.engine.state().playing);
+            CHECK_FALSE(harness.engine.snapshot().playing);
+        },
+    });
+}
+
 // Nothing reopens a device automatically: after a disconnect close, the saved device returning
 // produces no reopen (the automatic path crashed flaky ASIO drivers mid-enumeration and was
 // removed), and the closed status snapshot explains why the route is closed. The only reopen path
-// is an explicit application of the saved route -- the editor's failure-prompt Retry.
+// is an explicit application of the saved route from the settings window.
 TEST_CASE(
     "Engine leaves a closed device closed when its hardware returns",
     "[audio][engine][integration]")
@@ -2733,7 +2765,9 @@ TEST_CASE("Engine clock publishes clamped seek positions", "[audio][engine][cloc
 // position write, which rewinds the transport to zero. The clock has to report where the transport
 // actually is: publishing the requested end position instead would strand the clock -- and the
 // tone rack a boundary publish drags with it -- on end-of-song values with the playhead at the
-// origin. Guarded on the transport actually entering play, which a headless device may refuse.
+// origin. Guarded on the transport actually entering play: the harness opens the machine's real
+// default device on a developer box and finds none on a CI runner, where play() leaves the
+// transport stopped.
 TEST_CASE("Engine clock follows the auto-stop on a seek to the end", "[audio][engine][clock]")
 {
     EngineTestHarness harness;
@@ -2751,15 +2785,24 @@ TEST_CASE("Engine clock follows the auto-stop on a seek to the end", "[audio][en
     }
 }
 
-// After each transport verb the clock's playing flag must agree with the listener-facing coarse
-// state — robust to headless transport behavior, where play() may not actually start.
-TEST_CASE("Engine clock playing flag matches coarse transport state", "[audio][engine][clock]")
+// With no open device nothing can advance the playhead, so play() leaves the transport stopped:
+// Tracktion would otherwise flag it playing on a frozen playhead, and the clock would claim a song
+// that never moves. The device is closed explicitly, since the harness opens the machine's real
+// default device where there is one. The clock's playing flag agrees with the coarse state after
+// every verb.
+TEST_CASE(
+    "Engine play with no open audio device leaves the transport stopped", "[audio][engine][clock]")
 {
     EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    (void)installOnlyFakeAudioDeviceType(audio_devices.deviceManager(), {});
+    audio_devices.deviceManager().closeAudioDevice();
+    REQUIRE_FALSE(audio_devices.currentDeviceStatus().open);
     (void)requireLoadedFixtureAudio(harness.engine);
 
     harness.engine.play();
-    CHECK(harness.engine.snapshot().playing == harness.engine.state().playing);
+    REQUIRE_FALSE(harness.engine.state().playing);
+    CHECK_FALSE(harness.engine.snapshot().playing);
 
     harness.engine.pause();
     CHECK(harness.engine.snapshot().playing == harness.engine.state().playing);
