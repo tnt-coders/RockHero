@@ -1584,8 +1584,8 @@ EditorController::Impl::Impl(
         });
     resolveGameAudioSourceAtStartup();
     // Startup route application: applies the resolved source's saved route inline (no busy
-    // presentation exists yet), refreshes the live-input monitor, and stages the failure prompt
-    // when the saved device cannot open.
+    // presentation exists yet) and refreshes the live-input monitor; a saved device that cannot
+    // open leaves the device closed, which the status text and Play's availability report.
     static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::Current, {}));
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
     m_tab_minimum_displayed_strings = std::clamp(
@@ -2868,6 +2868,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
         .move_plugins_enabled = isActionAvailable(EditorAction::Id::MovePlugin, action_conditions),
         .remove_plugins_enabled =
             isActionAvailable(EditorAction::Id::RemovePlugin, action_conditions),
+        .open_plugins_enabled = isActionAvailable(EditorAction::Id::OpenPlugin, action_conditions),
+        .display_type_override_enabled =
+            isActionAvailable(EditorAction::Id::SetPluginDisplayTypeOverride, action_conditions),
         .plugins = m_signal_chain.plugins(),
         .input_calibration_status = input_calibration.status,
         .input_calibrate_enabled = input_calibration.calibrate_enabled,

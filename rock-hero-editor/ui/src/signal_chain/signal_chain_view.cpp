@@ -1,12 +1,14 @@
 #include "signal_chain_view.h"
 
 #include "shared/editor_theme.h"
+#include "shared/text_metrics.h"
 #include "signal_chain/insert_slot_view.h"
 #include "signal_chain/plugin_drag.h"
 #include "signal_chain/plugin_tile_view.h"
 #include "signal_chain/signal_chain_view_metrics.h"
 
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
 #include <rock_hero/common/audio/shared/gain.h>
@@ -44,6 +46,13 @@ const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
 const juce::Colour g_signal_path_slot_marker{juce::Colours::white.withAlpha(0.12f)};
+
+// The chain's opacity while no chain verb is available: still the user's tone, readable, but
+// visibly not touchable — the alpha the menu bar's disabled text uses.
+constexpr float g_inert_chain_alpha{0.5f};
+
+// Space between the header title and the status message after it.
+constexpr int g_header_message_gap{24};
 
 // Width of the break the signal line leaves at each fixed cell centre, sized to clear the 28 px
 // "+" insert affordance (insert_slot_view.cpp) with a little air so the glyph reads against the
@@ -373,7 +382,14 @@ void SignalChainView::applyState()
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain.db, juce::dontSendNotification);
-    m_chain_viewport.setVisible(m_state.disabled_message.empty());
+    // The chain always shows — hiding it would read as a lost tone — and dims as ONE layer while
+    // no chain verb is available, so the rail never shows through a translucent tile. Inertness is
+    // read off the verbs the view is told about, never off the message, which says something else.
+    const bool chain_inert =
+        !(m_state.insert_plugin_enabled || m_state.move_plugins_enabled ||
+          m_state.remove_plugins_enabled || m_state.open_plugins_enabled ||
+          m_state.display_type_override_enabled);
+    m_chain_content->setAlpha(chain_inert ? g_inert_chain_alpha : 1.0f);
     m_chain_content->setBlockCount(m_block_layout.blockCount());
     rebuildPluginTiles();
     resized();
@@ -428,24 +444,25 @@ void SignalChainView::paint(juce::Graphics& g)
                   juce::String{m_tone_designer.dirty ? "*" : ""}
             : (m_tone_name.empty() ? juce::String{"Signal Chain"}
                                    : juce::String{"Signal Chain - "} + juce::String{m_tone_name});
+    const juce::Font title_font{juce::FontOptions{16.0f, juce::Font::bold}};
+    g.setFont(title_font);
     g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
 
-    area.removeFromTop(g_panel_inset);
-    const auto chain_area = area;
+    // Why live input is off, as the panel's status line: one line after the title, elided rather
+    // than squashed where the header buttons leave little room.
     if (!m_state.disabled_message.empty())
     {
-        g.setColour(juce::Colours::lightgrey);
+        const int message_left =
+            header.getX() + 8 + textWidth(title_font, header_title) + g_header_message_gap;
+        const juce::Rectangle<int> message_area =
+            m_header_message_area.withLeft(std::max(message_left, m_header_message_area.getX()));
+        g.setColour(editorTheme().primary_text);
         g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText(m_state.disabled_message, area, juce::Justification::centredLeft, 2);
-        return;
-    }
-
-    if (m_state.plugins.empty())
-    {
-        g.setColour(juce::Colours::lightgrey);
-        g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText("No plugins loaded", chain_area, juce::Justification::centred, 1);
-        return;
+        g.drawText(
+            juce::String{m_state.disabled_message},
+            message_area,
+            juce::Justification::centredLeft,
+            true);
     }
 }
 
@@ -504,6 +521,24 @@ void SignalChainView::resized()
     };
     place_project_button(m_tone_export_button, 100);
     place_project_button(m_tone_import_button, 100);
+
+    // The status message takes what the visible header buttons leave of the band.
+    int buttons_left = header.getRight();
+    for (const juce::Component* button : std::array<const juce::Component*, 6>{
+             &m_tone_save_as_button,
+             &m_tone_save_button,
+             &m_tone_open_button,
+             &m_tone_new_button,
+             &m_tone_export_button,
+             &m_tone_import_button,
+         })
+    {
+        if (button->isVisible())
+        {
+            buttons_left = std::min(buttons_left, button->getX() - tone_button_gap);
+        }
+    }
+    m_header_message_area = header.withRight(std::max(header.getX(), buttons_left));
 
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);
@@ -738,16 +773,18 @@ void SignalChainView::rebuildPluginTiles()
 
     m_insert_slots.clear();
     m_plugin_tiles.clear();
-    if (!m_state.disabled_message.empty())
-    {
-        return;
-    }
 
     m_plugin_tiles.reserve(m_state.plugins.size());
     for (const core::PluginViewState& plugin : m_state.plugins)
     {
         auto tile = std::make_unique<PluginTileView>(plugin, *this, m_listener);
-        tile->setEditEnabled(m_state.move_plugins_enabled, m_state.remove_plugins_enabled);
+        tile->setEditEnabled(
+            PluginTileView::EditEnabled{
+                .move = m_state.move_plugins_enabled,
+                .remove = m_state.remove_plugins_enabled,
+                .open = m_state.open_plugins_enabled,
+                .display_type_override = m_state.display_type_override_enabled,
+            });
         m_chain_content->addAndMakeVisible(*tile);
         m_plugin_tiles.push_back(std::move(tile));
     }

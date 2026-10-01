@@ -14,10 +14,10 @@ TEST_CASE(
     CHECK(inputCalibrationDisabledMessageFor(InputCalibrationStatus::Calibrated).empty());
     CHECK(
         inputCalibrationDisabledMessageFor(InputCalibrationStatus::NoActiveInputDevice) ==
-        "Live input disabled: no audio input device selected.");
+        "Live input disabled: no audio input device. Choose an audio device.");
     CHECK(
         inputCalibrationDisabledMessageFor(InputCalibrationStatus::MissingCalibration) ==
-        "Live input disabled: input calibration required.");
+        "Live input disabled: input calibration required. Press Calibrate.");
     CHECK(
         inputCalibrationDisabledMessageFor(InputCalibrationStatus::Unavailable) ==
         "Live input disabled: live input backend unavailable.");

@@ -65,7 +65,9 @@ void MenuBarButton::paintButton(
     // Mirrors the height-based font sizing JUCE uses for its default menu-bar font, so the label
     // matches the menu titles as long as both share the strip height.
     graphics.setFont(juce::Font{juce::FontOptions{static_cast<float>(getHeight()) * 0.7f}});
-    graphics.drawFittedText(getButtonText(), bounds.reduced(4, 0), juce::Justification::centred, 1);
+    // Elided, never squashed: squashed glyphs in a menu bar read as broken, and a label too long
+    // for its button ends in "..." instead.
+    graphics.drawText(getButtonText(), bounds.reduced(4, 0), juce::Justification::centred, true);
 }
 
 } // namespace rock_hero::editor::ui

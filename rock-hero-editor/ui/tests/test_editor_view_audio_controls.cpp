@@ -39,7 +39,7 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .message = "Live input disabled: input calibration required.",
+        .message = "Live input disabled: input calibration required. Press Calibrate.",
         .input_gain_db = 2.0,
     };
     view.setState(state);
@@ -102,7 +102,7 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .message = "Live input disabled: input calibration required.",
+        .message = "Live input disabled: input calibration required. Press Calibrate.",
         .input_gain_db = -0.04,
     };
     view.setState(state);
@@ -134,7 +134,7 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     // "use game audio settings" toggle on (its default) the popup is a read-only game reflection.
     state.use_game_audio_settings = false;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .message = "Live input disabled: input calibration required.",
+        .message = "Live input disabled: input calibration required. Press Calibrate.",
         .input_gain_db = 2.0,
     };
     view.setState(state);

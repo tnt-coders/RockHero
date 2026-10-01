@@ -1353,7 +1353,8 @@ TEST_CASE("Signal-chain cramped panel scrolls overflowing tiles", "[ui][editor-v
     CHECK(listener.insert_call_count == 0);
 }
 
-// Verifies tile clicks still open plugin windows independently of tile edit buttons.
+// Verifies a tile click opens the plugin window when opening is available, independently of the
+// tile's edit buttons.
 TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1365,6 +1366,7 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
+                .open_plugins_enabled = true,
                 .plugins = {makePlugin("amp", 0)},
             },
         });
@@ -1376,6 +1378,50 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
 
     CHECK(controller.open_plugin_request_count == 1);
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"amp"});
+}
+
+// While no chain verb is available — live input cannot be auditioned, so nothing done to the
+// chain could be heard — the chain still SHOWS: hiding it read as a lost tone. Its tiles stay,
+// dimmed as one layer, and a click opens nothing; the reason is the header's status message.
+TEST_CASE(
+    "Signal-chain shows its tiles inert while no chain verb is available", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .plugins = {makePlugin("amp", 0)},
+                .disabled_message =
+                    "Live input disabled: no audio input device. Choose an audio device.",
+            },
+        });
+
+    auto& tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
+    REQUIRE(tile.getParentComponent() != nullptr);
+    CHECK(tile.isVisible());
+    CHECK(tile.getParentComponent()->getAlpha() < 1.0f);
+
+    const juce::MouseEvent event = testing::makeMouseDownEvent(tile, 8.0f, 8.0f);
+    tile.mouseDown(event);
+    tile.mouseUp(event);
+    CHECK(controller.open_plugin_request_count == 0);
+
+    // The moment a verb is available again the chain is at full strength.
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .open_plugins_enabled = true,
+                .plugins = {makePlugin("amp", 0)},
+            },
+        });
+    auto& live_tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
+    REQUIRE(live_tile.getParentComponent() != nullptr);
+    CHECK(live_tile.getParentComponent()->getAlpha() >= 1.0f);
 }
 
 } // namespace rock_hero::editor::ui

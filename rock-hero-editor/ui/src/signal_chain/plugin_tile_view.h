@@ -75,16 +75,32 @@ public:
     */
     PluginTileView(core::PluginViewState plugin, SignalChainView& view, Listener& listener);
 
+    /*! \brief Which of the tile's verbs the controller makes available. */
+    struct EditEnabled
+    {
+        /*! \brief The tile can initiate drag-based reordering. */
+        bool move{false};
+
+        /*! \brief The remove button accepts clicks. */
+        bool remove{false};
+
+        /*! \brief A click opens the plugin's editor. */
+        bool open{false};
+
+        /*! \brief A right-click offers the display-type menu. */
+        bool display_type_override{false};
+    };
+
     /*!
     \brief Applies controller-derived edit availability.
 
-    The move gate governs drag-to-reorder rather than discrete buttons, so it toggles no child
-    control.
+    Each interaction answers only to its own verb. A tile with none available is inert: no
+    pointing cursor, no hover highlight, and a click or right-click does nothing — JUCE delivers
+    mouse events to a disabled component, so the tile gates them itself.
 
-    \param move_enabled True when the tile can initiate drag-based reordering.
-    \param remove_enabled True when the remove button should accept clicks.
+    \param enabled The verbs available on this tile.
     */
-    void setEditEnabled(bool move_enabled, bool remove_enabled);
+    void setEditEnabled(EditEnabled enabled);
 
     /*!
     \brief Draws the icon-only block, primary name, and secondary maker line.
@@ -167,6 +183,8 @@ private:
 
     void handleDisplayTypeMenuSelection(int selected_id);
 
+    [[nodiscard]] bool interactive() const noexcept;
+
     void updateHoverAffordance();
 
     // Owning view used to preview and emit block-location drops.
@@ -190,8 +208,8 @@ private:
     // True while the pointer is over the tile, driving the hover accent and remove reveal.
     bool m_is_hovered{false};
 
-    // True when the tile can initiate drag-based reordering.
-    bool m_move_enabled{false};
+    // The verbs the controller makes available on this tile.
+    EditEnabled m_enabled{};
 
     // Prevents repeated startDragging() calls during one mouse drag sequence.
     bool m_drag_started{false};

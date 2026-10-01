@@ -352,7 +352,6 @@ SignalChainView::PluginTileView::PluginTileView(
     , m_accent(iconAccentColor(m_icon_type))
 {
     setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
-    setMouseCursor(juce::MouseCursor::PointingHandCursor);
 
     m_remove_button.setComponentID(
         juce::String{"remove_plugin_button_"} + juce::String{m_plugin.instance_id});
@@ -369,10 +368,19 @@ SignalChainView::PluginTileView::PluginTileView(
     addAndMakeVisible(m_remove_button);
 }
 
-void SignalChainView::PluginTileView::setEditEnabled(bool move_enabled, bool remove_enabled)
+void SignalChainView::PluginTileView::setEditEnabled(const EditEnabled enabled)
 {
-    m_move_enabled = move_enabled;
-    m_remove_button.setEnabled(remove_enabled);
+    m_enabled = enabled;
+    m_remove_button.setEnabled(enabled.remove);
+    setMouseCursor(
+        interactive() ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
+    updateHoverAffordance();
+}
+
+// True while any of the tile's verbs is available, so the tile invites the pointer.
+bool SignalChainView::PluginTileView::interactive() const noexcept
+{
+    return m_enabled.move || m_enabled.remove || m_enabled.open || m_enabled.display_type_override;
 }
 
 void SignalChainView::PluginTileView::paint(juce::Graphics& g)
@@ -427,7 +435,7 @@ void SignalChainView::PluginTileView::mouseDown(const juce::MouseEvent& /*event*
 
 void SignalChainView::PluginTileView::mouseDrag(const juce::MouseEvent& event)
 {
-    if (!m_move_enabled || m_drag_started || !event.mouseWasDraggedSinceMouseDown())
+    if (!m_enabled.move || m_drag_started || !event.mouseWasDraggedSinceMouseDown())
     {
         return;
     }
@@ -460,11 +468,17 @@ void SignalChainView::PluginTileView::mouseUp(const juce::MouseEvent& event)
 
     if (event.mods.isPopupMenu())
     {
-        showDisplayTypeMenu();
+        if (m_enabled.display_type_override)
+        {
+            showDisplayTypeMenu();
+        }
         return;
     }
 
-    m_listener.onOpenPluginPressed(m_plugin.instance_id);
+    if (m_enabled.open)
+    {
+        m_listener.onOpenPluginPressed(m_plugin.instance_id);
+    }
 }
 
 bool SignalChainView::PluginTileView::isInterestedInDragSource(
@@ -510,7 +524,7 @@ void SignalChainView::PluginTileView::mouseExit(const juce::MouseEvent& /*event*
 std::optional<SignalChainBlockLayout::DropIntent> SignalChainView::PluginTileView::dropIntent(
     const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
 {
-    if (!m_move_enabled)
+    if (!m_enabled.move)
     {
         return std::nullopt;
     }
@@ -614,7 +628,8 @@ void SignalChainView::PluginTileView::handleDisplayTypeMenuSelection(int selecte
 // remove button has the pointer.
 void SignalChainView::PluginTileView::updateHoverAffordance()
 {
-    const bool is_hovered = isMouseOver(true);
+    // An inert tile never highlights: hover is an invitation, and there is nothing to invite.
+    const bool is_hovered = interactive() && isMouseOver(true);
     m_is_hovered = is_hovered;
     m_remove_button.setAlpha(is_hovered ? 1.0f : g_idle_remove_affordance_alpha);
     repaint();

@@ -783,6 +783,7 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
         .remove_plugins_enabled = true,
+        .open_plugins_enabled = true,
         .plugins = {
             core::PluginViewState{
                 .instance_id = "instance",

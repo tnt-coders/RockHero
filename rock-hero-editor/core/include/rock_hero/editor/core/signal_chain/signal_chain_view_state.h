@@ -42,6 +42,12 @@ struct SignalChainViewState
     /*! \brief Enables or disables plugin removal commands. */
     bool remove_plugins_enabled{false};
 
+    /*! \brief Enables or disables opening a plugin's editor. */
+    bool open_plugins_enabled{false};
+
+    /*! \brief Enables or disables the plugin display-type override menu. */
+    bool display_type_override_enabled{false};
+
     /*! \brief Current linear plugin chain. */
     std::vector<PluginViewState> plugins{};
 
