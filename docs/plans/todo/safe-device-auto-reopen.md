@@ -69,27 +69,64 @@ Two mechanisms match the code. Either one may have caused the crashes.
 
 ## The direction chosen: fix it in JUCE
 
-The user's preference is to understand and remove the unsafety at its source rather than route
-around it. Questions to answer, in order:
+The user's preference is to remove the unsafety at its source rather than route around it. A
+source-level analysis of the vendored JUCE (2026-09-30; `juce_ASIO_windows.cpp` matches upstream on
+every path below) found:
 
-1. **Reproduce.** On real ASIO hardware (RME, Focusrite, Behringer, ASIO4ALL) with
-   `JUCE_ASIO_DEBUGGING` on, find which mechanism above actually crashes and capture a dump. Until
-   then, every fix below is a guess.
-2. **Make the ASIO probe survivable.** Guard `initDriver` / `IASIO::init()` the way `loadDriver`
-   is already guarded, so a faulting driver produces an error instead of ending the process.
-3. **Give ASIO real presence.** Let an ASIO type report presence without loading the driver. For
-   example, it could match the driver's device against the OS device list (SetupAPI or MMDevice)
-   and notify its listeners when that changes, so the edge rule covers ASIO like any other backend.
-4. **Close an unplugged ASIO device.** Today `AudioDeviceManager::audioDeviceListChanged` keeps it
-   current because its name is still listed. Decide whether the manager should close it, so the
-   status stops reading open while no callbacks run.
-5. **Upstream.** Offer each patch to JUCE, and keep any that is not accepted as a documented
-   commit in the fork.
+- **JUCE's own ASIO reset path is defective, with no RockHero code involved.** When a driver asks
+  for a reset (typically on unplug), `timerCallback` closes and reopens the device. The reopen
+  ignores `loadDriver()`'s result and then dereferences a null `asioObject` in `getSampleRate()`.
+  When `init()` fails it logs and carries on driving an uninitialised driver. Afterwards it calls
+  `reloadChannelNames()` and `start(oldCallback)` even when the reopen failed. JUCE forum threads
+  report crashes at exactly these sites (Focusrite, Yamaha/Steinberg USB).
+- **The old RockHero probe made it worse.** After a failed reset the dead device object stays
+  current, still holding its driver. The `createDevice` probe then loaded a *second* instance of
+  the same driver, and the probe fully opens the driver (`init`, `createBuffers`, `start`, an
+  80 ms sleep, `stop`). The old reopen also reused that stale device object instead of creating a
+  fresh one.
+- **ASIO has no hot-plug model.** Its name list comes from the registry, and no OS datum maps an
+  ASIO driver to a hardware node. A presence test without loading the driver is impossible, apart
+  from name heuristics that fail for wrappers such as ASIO4ALL.
+- **Tracktion needs no change.** Its suspend/`prepareToStart` model makes a reopen safe at any
+  message-thread point, provided the reopen runs on its own turn after the refresh pass.
 
-Open uncertainties: whether ASIO drivers send `kAsioResetRequest` on replug; how often a first
-WASAPI open fails on real interfaces (exclusive-mode contention, firmware still booting); whether
-an endpoint keeps its name in a different USB port; and whether `setAudioDeviceSetup`'s equal-setup
-early return can report a closed but current device as opened.
+The patch set, in order:
+
+1. **P0 (JUCE, upstreamable).** Make the reset path honest. When `loadDriver` or `init` fails,
+   release the driver and return the error, and in `timerCallback` start only after a successful
+   reopen. Bound the channel counts `reloadChannelNames` trusts.
+2. **RockHero: close a dead device.** In `enforceNoFallbackDevicePolicy`, call `closeAudioDevice()`
+   when the current device is not open. That destroys the stale object and its driver instance
+   before any later open. Doing this inside `AudioDeviceManager` instead would trigger its built-in
+   fallback, which is the very probe being removed.
+3. **P1 (JUCE).** SEH-guard `IASIO::init` and the first calls `openDevice` makes into the driver,
+   through a helper beside `tryCreatingDriver`. On a caught fault, set an error and treat that
+   driver as poisoned until restart. SEH only contains a fault on the calling thread. It cannot
+   contain one on a driver-owned thread, and it does not undo heap damage the driver did first.
+   Out-of-process probing is the only full containment.
+4. **P2 (JUCE, fork-only).** Give the ASIO device type a `DeviceChangeDetector`, so a hardware
+   change at least *signals* ASIO. That makes the probe rare, one attempt per arrival, rather than
+   impossible.
+5. **RockHero reopen on top.** Reopen only on an edge: the saved name going from absent to
+   present for WASAPI, DirectSound and CoreAudio, or the hardware-arrival signal for ASIO, after a
+   2-3 s settle delay. Make at most one attempt per edge, on its own message-thread turn, and never
+   while the settings window is staging. Always call `closeAudioDevice()` before
+   `initialise(...)`. The attempt *is* the probe: no `createDevice`, no `scanForDevices`.
+
+Experiments come first, because each fix is a guess until one dump exists:
+
+- Build `relwithdebinfo` with `JUCE_ASIO_DEBUGGING=1`.
+- Capture dumps through WER `LocalDumps` (`DumpType=2`) or `procdump -ma -e`.
+- With today's no-reopen build, play on ASIO, unplug, read the log, and replug. Repeat with the
+  settings window open, and plug/unplug five times quickly.
+- The dump's faulting thread decides whether P1 can contain the fault: a fault in the driver on
+  the message thread can be contained; one on a driver-owned thread or in heap code cannot.
+
+Open uncertainties: which drivers send `kAsioResetRequest` on unplug; whether the July crashes
+came from JUCE's reset path or from the probe's double driver instance (only a dump tells); whether
+a faulting driver leaves locks that make the process unusable after a caught fault; how often a
+first WASAPI open fails on real interfaces; and whether an endpoint keeps its name in a different
+USB port.
 
 ## Manual hardware checklist (for whichever version ships)
 
