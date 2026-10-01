@@ -83,7 +83,7 @@ public:
 [[nodiscard]] InputCalibrationPrompt prompt(double input_gain_db = 2.0)
 {
     return InputCalibrationPrompt{
-        .message = "Live input disabled: input calibration required. Press Calibrate.",
+        .message = "Live input disabled: input calibration required.",
         .input_gain_db = input_gain_db,
     };
 }

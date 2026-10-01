@@ -8,7 +8,6 @@
 #include "signal_chain/signal_chain_view_metrics.h"
 
 #include <algorithm>
-#include <array>
 #include <optional>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
 #include <rock_hero/common/audio/shared/gain.h>
@@ -51,8 +50,12 @@ const juce::Colour g_signal_path_slot_marker{juce::Colours::white.withAlpha(0.12
 // visibly not touchable — the alpha the menu bar's disabled text uses.
 constexpr float g_inert_chain_alpha{0.5f};
 
-// Space between the header title and the status message after it.
-constexpr int g_header_message_gap{24};
+// The live-input message's plate over the dimmed chain: padding around the text and the plate's
+// surface-coloured fill (paintOverChildren).
+constexpr int g_disabled_message_padding_x{16};
+constexpr int g_disabled_message_padding_y{10};
+constexpr float g_disabled_message_plate_alpha{0.9f};
+constexpr float g_disabled_message_plate_radius{4.0f};
 
 // Width of the break the signal line leaves at each fixed cell centre, sized to clear the 28 px
 // "+" insert affordance (insert_slot_view.cpp) with a little air so the glyph reads against the
@@ -444,26 +447,37 @@ void SignalChainView::paint(juce::Graphics& g)
                   juce::String{m_tone_designer.dirty ? "*" : ""}
             : (m_tone_name.empty() ? juce::String{"Signal Chain"}
                                    : juce::String{"Signal Chain - "} + juce::String{m_tone_name});
-    const juce::Font title_font{juce::FontOptions{16.0f, juce::Font::bold}};
-    g.setFont(title_font);
+    g.setFont(juce::FontOptions{16.0f, juce::Font::bold});
     g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
+}
 
-    // Why live input is off, as the panel's status line: one line after the title, elided rather
-    // than squashed where the header buttons leave little room.
-    if (!m_state.disabled_message.empty())
+// Why live input is off, centred over the dimmed chain where the eye goes for the content, on a
+// plate the colour of the surface around it, sized to the text. No scrim, border or buttons —
+// those are the busy overlay's marks of "blocked", and the rest of the panel stays live.
+void SignalChainView::paintOverChildren(juce::Graphics& g)
+{
+    if (m_state.disabled_message.empty())
     {
-        const int message_left =
-            header.getX() + 8 + textWidth(title_font, header_title) + g_header_message_gap;
-        const juce::Rectangle<int> message_area =
-            m_header_message_area.withLeft(std::max(message_left, m_header_message_area.getX()));
-        g.setColour(editorTheme().primary_text);
-        g.setFont(juce::FontOptions{14.0f});
-        g.drawText(
-            juce::String{m_state.disabled_message},
-            message_area,
-            juce::Justification::centredLeft,
-            true);
+        return;
     }
+
+    const juce::String message{m_state.disabled_message};
+    const juce::Font font{juce::FontOptions{16.0f, juce::Font::bold}};
+    const juce::Rectangle<int> well = m_chain_viewport.getBounds();
+    const int plate_width =
+        std::min(textWidth(font, message) + (2 * g_disabled_message_padding_x), well.getWidth());
+    const juce::Rectangle<int> plate = well.withSizeKeepingCentre(
+        plate_width, juce::roundToInt(font.getHeight()) + (2 * g_disabled_message_padding_y));
+
+    g.setColour(editorTheme().panel_header.withAlpha(g_disabled_message_plate_alpha));
+    g.fillRoundedRectangle(plate.toFloat(), g_disabled_message_plate_radius);
+    g.setColour(editorTheme().primary_text);
+    g.setFont(font);
+    g.drawText(
+        message,
+        plate.reduced(g_disabled_message_padding_x, 0),
+        juce::Justification::centred,
+        true);
 }
 
 // Keeps gain sliders on the sides and plugin tiles in the center.
@@ -521,24 +535,6 @@ void SignalChainView::resized()
     };
     place_project_button(m_tone_export_button, 100);
     place_project_button(m_tone_import_button, 100);
-
-    // The status message takes what the visible header buttons leave of the band.
-    int buttons_left = header.getRight();
-    for (const juce::Component* button : std::array<const juce::Component*, 6>{
-             &m_tone_save_as_button,
-             &m_tone_save_button,
-             &m_tone_open_button,
-             &m_tone_new_button,
-             &m_tone_export_button,
-             &m_tone_import_button,
-         })
-    {
-        if (button->isVisible())
-        {
-            buttons_left = std::min(buttons_left, button->getX() - tone_button_gap);
-        }
-    }
-    m_header_message_area = header.withRight(std::max(header.getX(), buttons_left));
 
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);

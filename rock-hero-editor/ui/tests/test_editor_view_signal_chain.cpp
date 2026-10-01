@@ -1382,7 +1382,7 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
 
 // While no chain verb is available — live input cannot be auditioned, so nothing done to the
 // chain could be heard — the chain still SHOWS: hiding it read as a lost tone. Its tiles stay,
-// dimmed as one layer, and a click opens nothing; the reason is the header's status message.
+// dimmed as one layer, and a click opens nothing; the reason is centred over the chain.
 TEST_CASE(
     "Signal-chain shows its tiles inert while no chain verb is available", "[ui][editor-view]")
 {
@@ -1396,8 +1396,7 @@ TEST_CASE(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
                 .plugins = {makePlugin("amp", 0)},
-                .disabled_message =
-                    "Live input disabled: no audio input device. Choose an audio device.",
+                .disabled_message = "Live input disabled: no audio input device.",
             },
         });
 

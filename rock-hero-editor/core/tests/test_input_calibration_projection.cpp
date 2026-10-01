@@ -153,9 +153,7 @@ TEST_CASE(
     REQUIRE(projection.prompt.has_value());
     if (projection.prompt.has_value())
     {
-        CHECK(
-            projection.prompt->message ==
-            "Live input disabled: input calibration required. Press Calibrate.");
+        CHECK(projection.prompt->message == "Live input disabled: input calibration required.");
         CHECK_THAT(
             projection.prompt->input_gain_db,
             Catch::Matchers::WithinULP(common::audio::defaultGainDb(), 0));

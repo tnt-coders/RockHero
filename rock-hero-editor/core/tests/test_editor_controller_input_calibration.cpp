@@ -66,7 +66,7 @@ TEST_CASE(
     CHECK_FALSE(final_state->signal_chain.input_calibrate_enabled);
     CHECK(
         final_state->signal_chain.disabled_message ==
-        "Live input disabled: no audio input device. Choose an audio device.");
+        "Live input disabled: no audio input device.");
 }
 
 // Calibration is device-level, not project-level: with an input route up it is available with no
@@ -146,7 +146,7 @@ TEST_CASE(
         InputCalibrationStatus::MissingCalibration);
     CHECK(
         gated_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required. Press Calibrate.");
+        "Live input disabled: input calibration required.");
 
     controller.onInputCalibrationRequested();
     CHECK(transport.pause_call_count == 1);
@@ -813,7 +813,7 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
         InputCalibrationStatus::MissingCalibration);
     CHECK(
         final_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required. Press Calibrate.");
+        "Live input disabled: input calibration required.");
 }
 
 // Verifies a saved calibration for the new physical route is applied after a route switch.
@@ -1124,7 +1124,7 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
         InputCalibrationStatus::MissingCalibration);
     CHECK(
         final_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required. Press Calibrate.");
+        "Live input disabled: input calibration required.");
 }
 
 // Verifies that dismissing manual recalibration restores the previous matching calibration.
@@ -1478,7 +1478,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         settledCalibrationState(view) ==
         SettledCalibrationState{
             .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required. Press Calibrate.",
+            .disabled_message = "Live input disabled: input calibration required.",
             .prompt_present = false,
         });
 
@@ -1491,7 +1491,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         settledCalibrationState(view) ==
         SettledCalibrationState{
             .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required. Press Calibrate.",
+            .disabled_message = "Live input disabled: input calibration required.",
             .prompt_present = true,
         });
 
@@ -1651,7 +1651,7 @@ TEST_CASE("Live input start rollback on disable failure", "[core][editor-control
         settledCalibrationState(view) ==
         SettledCalibrationState{
             .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required. Press Calibrate.",
+            .disabled_message = "Live input disabled: input calibration required.",
             .prompt_present = false,
         });
 }
@@ -1992,8 +1992,7 @@ TEST_CASE("Live input device change to none re-gates view", "[core][editor-contr
         settledCalibrationState(view) ==
         SettledCalibrationState{
             .status = InputCalibrationStatus::NoActiveInputDevice,
-            .disabled_message =
-                "Live input disabled: no audio input device. Choose an audio device.",
+            .disabled_message = "Live input disabled: no audio input device.",
             .prompt_present = false,
         });
 }
@@ -2049,7 +2048,7 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
         settledCalibrationState(view) ==
         SettledCalibrationState{
             .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required. Press Calibrate.",
+            .disabled_message = "Live input disabled: input calibration required.",
             .prompt_present = false,
         });
 }
