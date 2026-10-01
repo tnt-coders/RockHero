@@ -54,7 +54,6 @@ Editor::Editor(
               .message_thread_scheduler = services.message_thread_scheduler,
               .audio_config_store = services.audio_config_store,
               .live_input_monitor = services.live_input_monitor,
-              .editor_audio_config_store = services.editor_audio_config_store,
           },
           std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(

@@ -5,12 +5,9 @@
 
 #pragma once
 
-#include <expected>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
-#include <rock_hero/editor/core/audio/game_audio_source_error.h>
-#include <rock_hero/editor/core/audio/game_audio_source_state.h>
 
 namespace juce
 {
@@ -24,18 +21,6 @@ class IAudioDeviceConfiguration;
 
 namespace rock_hero::editor::ui
 {
-
-/*!
-\brief Resolved "use game audio settings" toggle state at an audio-device settings window open.
-*/
-struct GameAudioSettings final
-{
-    /*! \brief True when the toggle is on and the panel opens read-only. */
-    bool use_game_settings{false};
-
-    /*! \brief Adoption-readiness of the game's configuration, read fresh at window open. */
-    core::GameAudioSourceState source_state{core::GameAudioSourceState::NotConfigured};
-};
 
 /*!
 \brief Opens the audio-device settings window.
@@ -62,35 +47,17 @@ public:
     using ClosedCallback = std::function<void()>;
 
     /*!
-    \brief Called when the "use game audio settings" toggle changes.
-
-    Receives the requested toggle value plus the dialog's applying presentation (empty on the
-    cancel-time restore). The composition layer forwards both to the editor controller, which
-    brackets a genuine blocking device re-open with the presentation -- hiding the dialog like the
-    OK/Cancel apply path -- and never invokes it for an instant same-device flip. A declined enable
-    (the game's configuration is not adoptable) returns the typed reason with nothing persisted;
-    the dialog reverts its checkbox and reports the carried canonical message.
-    */
-    using GameAudioSettingsChangedCallback =
-        std::function<std::expected<void, core::GameAudioSourceError>(
-            bool enabled, std::function<void(bool)> set_applying)>;
-
-    /*!
     \brief Opens the modal window around the top-level component that owns the launcher.
     \param audio_devices Audio-device configuration backend; must outlive the window.
     \param anchor Launcher component used to find the owning editor window.
     \param dispatcher Optional operation hook supplied by the editor composition layer; receives
            device-manager work plus a post-clear continuation.
     \param closed_callback Called when the window reaches a final close path.
-    \param game_settings Resolved "use game audio settings" toggle/availability state at open.
-    \param on_game_settings_changed Called when the user changes the toggle inside the window.
     \return The opened window. The caller owns it and should clear it from the close callback.
     */
     [[nodiscard]] static std::unique_ptr<juce::DocumentWindow> show(
         common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-        Dispatcher dispatcher = {}, ClosedCallback closed_callback = {},
-        GameAudioSettings game_settings = {},
-        GameAudioSettingsChangedCallback on_game_settings_changed = {});
+        Dispatcher dispatcher = {}, ClosedCallback closed_callback = {});
 
 private:
     AudioDeviceSettingsWindow() = default;

@@ -20,7 +20,8 @@ never through AlertWindow::showAsync, whose LookAndFeel_V4::createAlertWindow fa
 content-derived bounds by a hard-coded 50 px and shifts the buttons 40 px down, leaving a band of
 empty space under short messages — and delete themselves once dismissed. The message boxes below
 cover the fixed-shape dialogs; a dialog that needs custom content subclasses juce::AlertWindow to
-own its extra components (see GameAudioRecommendationDialog) and launches through this function.
+own its extra components (see KeyCaptureDialog in keymap_editor_view.cpp) and launches through
+this function.
 
 \param window The fully populated alert window; ownership transfers to the modal system.
 \param owner The component that requested this dialog, used as a liveness anchor. A self-deleting

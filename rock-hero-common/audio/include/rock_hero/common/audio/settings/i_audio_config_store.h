@@ -1,6 +1,6 @@
 /*!
 \file i_audio_config_store.h
-\brief Per-app persistence contract for audio device route and input calibration.
+\brief Persistence contract for the audio device route and input calibration.
 */
 
 #pragma once
@@ -15,10 +15,10 @@ namespace rock_hero::common::audio
 {
 
 /*!
-\brief Stores one application's audio configuration outside project packages and tone documents.
+\brief Stores the user's audio configuration outside project packages and tone documents.
 
-Each product instantiates a concrete store over its own file: there is no shared file and no
-inter-process lock, so every file has exactly one writer. The store holds the active device route
+The editor and the game share one configuration: the same hardware, and the same calibrated
+level for the same guitar, in both products. The store holds the active device route
 (opaque restore blob paired with the resolved input route) and a route-keyed input-calibration set.
 Fallible operations return std::expected so a corrupt persisted history surfaces as a typed failure
 rather than silent absence; bare std::optional is used only where absence is the sole non-error
@@ -46,7 +46,7 @@ public:
         std::optional<ActiveDeviceRoute> route) = 0;
 
     /*!
-    \brief Reads app-local input calibration for one physical input route.
+    \brief Reads input calibration for one physical input route.
     \param identity Physical input route to look up.
     \return Calibration state, absence, or a typed store failure.
     */
@@ -54,7 +54,7 @@ public:
     inputCalibrationFor(const InputDeviceIdentity& identity) const = 0;
 
     /*!
-    \brief Stores or replaces app-local input calibration for its physical route.
+    \brief Stores or replaces input calibration for its physical route.
     \param calibration_state Calibration state to save.
     \return Empty success, or a typed store failure.
     */
@@ -62,7 +62,7 @@ public:
         InputCalibrationState calibration_state) = 0;
 
     /*!
-    \brief Removes app-local input calibration for one physical input route.
+    \brief Removes input calibration for one physical input route.
     \param identity Physical input route to remove.
     \return Empty success, or a typed store failure.
     */

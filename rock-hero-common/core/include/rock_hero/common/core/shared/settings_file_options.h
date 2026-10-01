@@ -15,11 +15,11 @@ namespace rock_hero::common::core
 /*!
 \brief Builds the properties-file options every Rock Hero settings file shares.
 
-Editor workflow state, game profile state, and each app's audio config are separate files that
-deliberately sit side by side in one per-user folder under one naming scheme, so that policy is
-stated here once rather than restated per store. Callers vary only the application name, which
-names the file inside the folder, plus doNotSave when the store is a read-only view of a file
-another application owns.
+Editor workflow state, game profile state, and the audio config both products share are separate
+files that deliberately sit side by side in one per-user folder under one naming scheme, so that
+policy is stated here once rather than restated per store. Callers vary only the application
+name, which names the file inside the folder; the audio-config store additionally sets
+processLock, because both products write that one file.
 
 millisecondsBeforeSaving is zero deliberately, and is the one field a caller must never relax:
 settings writes are acknowledged to the user, so they have to reach disk at the write rather than
@@ -29,8 +29,8 @@ Case-sensitive key names and XML storage are part of the on-disk contract, so th
 explicitly below even though JUCE's defaults currently agree — a durable format guarantee must not
 ride a framework default that could move. The remaining fields are left at JUCE's own defaults,
 which match this project's policy without being contractual: per-user rather than all-users
-(commonToAllUsers), saving enabled, and no interprocess lock, because every settings file has
-exactly one writing application.
+(commonToAllUsers), saving enabled, and no interprocess lock: the editor and game workflow files
+each have exactly one writing application.
 
 \param application_name Application name that names the file inside the shared folder.
 \return Properties-file options for that application's settings file.

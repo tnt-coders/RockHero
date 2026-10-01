@@ -6,7 +6,6 @@
 #pragma once
 
 #include <filesystem>
-#include <rock_hero/editor/core/settings/editor_settings.h>
 #include <string_view>
 #include <system_error>
 
@@ -23,8 +22,7 @@ namespace rock_hero::editor::core::testing
 \brief Owns one build-local settings file so each test starts and ends with clean persisted state.
 
 Removal happens on construction as well as destruction, so a file left behind by an aborted run
-cannot seed the next one. An EditorSettings store opens an audio-config file beside its settings
-file, so that sibling is removed too — otherwise calibration state outlives the test that wrote it.
+cannot seed the next one.
 */
 class ScopedSettingsFile final
 {
@@ -60,12 +58,11 @@ public:
     }
 
 private:
-    // Removes the settings file and its audio-config sibling on a best-effort basis.
+    // Removes the settings file on a best-effort basis.
     void removeFiles() const
     {
         std::error_code error;
         std::filesystem::remove(m_path, error);
-        std::filesystem::remove(EditorSettings::audioConfigFileFor(m_path), error);
     }
 
     // Build-local settings path owned by this fixture.

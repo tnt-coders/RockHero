@@ -11,7 +11,6 @@
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/active_device_route.h>
-#include <rock_hero/common/audio/settings/audio_config_identity.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
@@ -223,77 +222,12 @@ try
     const juce::ScopedJuceInitialiser_GUI juce_runtime;
     rock_hero::common::audio::Engine audio_engine;
 
-    // The game owns its own audio-config store (its own file, sole writer). Restore the game's own
-    // saved input route before the session starts so the calibrate-first gate lands on the route
-    // the game's native config selected; an absent route keeps the engine's initialise(1, 2)
+    // The audio settings both products share. Restore the saved route before the session starts so
+    // the calibrate-first gate lands on it; an absent route keeps the engine's initialise(1, 2)
     // default. This runs on the message thread, matching the engine's own device init.
-    rock_hero::common::audio::AudioConfigStore game_audio_config_store{
-        rock_hero::common::audio::gameAudioConfigApplicationName(),
-        rock_hero::common::audio::AudioConfigStore::Access::ReadWrite
-    };
-
-    // DEV/TEST (--import-editor-audio): copy the editor's saved device route + its calibration into
-    // the game's own store so the game can be smoke-tested with real audio before the native
-    // setup UI (plan 26 Phase 8) exists. editorAudioConfigApplicationName() is a common/audio
-    // constant, so this reads the editor's own .settings file with no dependency on editor code.
-    // Throwaway scaffolding; delete once the in-game audio-setup wizard lands.
-    if (rock_hero::game::app::hasFlag("--import-editor-audio", argc, argv))
-    {
-        const rock_hero::common::audio::AudioConfigStore editor_audio_config_store{
-            rock_hero::common::audio::editorAudioConfigApplicationName(),
-            rock_hero::common::audio::AudioConfigStore::Access::ReadOnly
-        };
-        if (const std::optional<rock_hero::common::audio::ActiveDeviceRoute> editor_route =
-                editor_audio_config_store.activeDeviceRoute();
-            editor_route.has_value())
-        {
-            if (const auto stored = game_audio_config_store.setActiveDeviceRoute(editor_route);
-                !stored.has_value())
-            {
-                RH_LOG_WARNING(
-                    "game.app",
-                    "--import-editor-audio: route copy failed: {}",
-                    stored.error().message);
-            }
-            if (editor_route->identity.has_value())
-            {
-                if (const auto calibration =
-                        editor_audio_config_store.inputCalibrationFor(*editor_route->identity);
-                    calibration.has_value() && calibration->has_value())
-                {
-                    if (const auto saved =
-                            game_audio_config_store.saveInputCalibration(**calibration);
-                        !saved.has_value())
-                    {
-                        RH_LOG_WARNING(
-                            "game.app",
-                            "--import-editor-audio: calibration copy failed: {}",
-                            saved.error().message);
-                    }
-                }
-                else
-                {
-                    RH_LOG_WARNING(
-                        "game.app",
-                        "--import-editor-audio: the editor route has no matching calibration; the "
-                        "gate will stay silent until the device is calibrated in the game.");
-                }
-            }
-            RH_LOG_INFO(
-                "game.app",
-                "--import-editor-audio: imported editor audio config into the game store.");
-        }
-        else
-        {
-            RH_LOG_WARNING(
-                "game.app",
-                "--import-editor-audio: the editor has no saved device route to import (configure "
-                "audio in the editor first).");
-        }
-    }
-
+    rock_hero::common::audio::AudioConfigStore audio_config_store;
     if (const std::optional<rock_hero::common::audio::ActiveDeviceRoute> active_device_route =
-            game_audio_config_store.activeDeviceRoute();
+            audio_config_store.activeDeviceRoute();
         active_device_route.has_value() && !active_device_route->serialized_state.empty())
     {
         const auto restored =
@@ -315,10 +249,10 @@ try
         }
     }
 
-    // The engine implements both ILiveInput and IAudioDeviceConfiguration; the store is the
-    // swappable IAudioConfigStore& (the game reads and writes its own file, never the editor's).
+    // The engine implements both ILiveInput and IAudioDeviceConfiguration; the monitor reads the
+    // one store both products share.
     rock_hero::common::audio::LiveInputMonitor live_input_monitor{
-        audio_engine, audio_engine, game_audio_config_store
+        audio_engine, audio_engine, audio_config_store
     };
 
     rock_hero::game::core::GameplaySession gameplay_session{

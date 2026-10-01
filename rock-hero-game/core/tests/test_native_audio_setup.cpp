@@ -71,11 +71,6 @@ public:
         return {};
     }
 
-    [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> commit() override
-    {
-        return {};
-    }
-
     [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> openControlPanel()
         override
     {

@@ -38,7 +38,6 @@ class LiveInputMonitor;
 namespace rock_hero::editor::core
 {
 
-class EditorAudioConfigStore;
 class IEditorSettings;
 class IEditorTaskRunner;
 class IEditorView;
@@ -142,21 +141,11 @@ public:
         /*! \brief Message-thread scheduler used for busy-presentation ordering. */
         IMessageThreadScheduler& message_thread_scheduler;
 
-        /*! \brief Per-app audio-config store used for device-route persist and restore. */
+        /*! \brief The audio-config store both products share: device route and calibration. */
         common::audio::IAudioConfigStore& audio_config_store;
 
         /*! \brief Shared calibrate-first live-input monitoring service driven by the controller. */
         common::audio::LiveInputMonitor& live_input_monitor;
-
-        /*!
-        \brief Editor audio-config store driven by the "use game audio settings" toggle.
-
-        Optional and null in tests that do not exercise the toggle: when supplied it is the same
-        object as \ref audio_config_store, injected concretely here so the controller can re-select
-        its active source (own store vs. the game's file) on toggle change. When null the toggle
-        only persists its workflow bit and applies no source switch or engine adoption.
-        */
-        EditorAudioConfigStore* editor_audio_config_store{nullptr};
 
         /*!
         \brief Monotonic millisecond clock used to coalesce multi-digit fret entry.
@@ -664,20 +653,6 @@ public:
     \param instance_id Opaque plugin instance ID selected by the user.
     */
     void onOpenPluginRequested(std::string instance_id) override;
-
-    /*! \copydoc IEditorController::onUseGameAudioSettingsChangeRequested */
-    [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
-        bool enabled, const std::function<void(bool)>& set_applying) override;
-
-    /*! \copydoc IEditorController::gameAudioSourceState */
-    [[nodiscard]] GameAudioSourceState gameAudioSourceState() const override;
-
-    /*! \copydoc IEditorController::onGameAudioUnavailablePromptDismissed */
-    void onGameAudioUnavailablePromptDismissed() override;
-
-    /*! \copydoc IEditorController::onGameAudioRecommendationDecision */
-    void onGameAudioRecommendationDecision(
-        GameAudioRecommendationDecision decision, bool suppress_future) override;
 
     /*! \brief Handles a request to manually calibrate the current input route. */
     void onInputCalibrationRequested() override;

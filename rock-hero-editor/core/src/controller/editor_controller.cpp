@@ -1158,28 +1158,6 @@ void EditorController::onOpenPluginRequested(std::string instance_id)
     m_impl->onOpenPluginRequested(std::move(instance_id));
 }
 
-std::expected<void, GameAudioSourceError> EditorController::onUseGameAudioSettingsChangeRequested(
-    bool enabled, const std::function<void(bool)>& set_applying)
-{
-    return m_impl->onUseGameAudioSettingsChangeRequested(enabled, set_applying);
-}
-
-GameAudioSourceState EditorController::gameAudioSourceState() const
-{
-    return m_impl->gameAudioSourceState();
-}
-
-void EditorController::onGameAudioUnavailablePromptDismissed()
-{
-    m_impl->onGameAudioUnavailablePromptDismissed();
-}
-
-void EditorController::onGameAudioRecommendationDecision(
-    GameAudioRecommendationDecision decision, bool suppress_future)
-{
-    m_impl->onGameAudioRecommendationDecision(decision, suppress_future);
-}
-
 void EditorController::onInputCalibrationRequested()
 {
     m_impl->onInputCalibrationRequested();
@@ -1276,7 +1254,6 @@ EditorController::Impl::Impl(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
     , m_audio_config_store(services.audio_config_store)
-    , m_editor_audio_config_store(services.editor_audio_config_store)
     , m_live_input_monitor(services.live_input_monitor)
     , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
@@ -1338,11 +1315,11 @@ EditorController::Impl::Impl(
                 onPluginStateEditCompleted(std::move(edit));
             },
         });
-    resolveGameAudioSourceAtStartup();
-    // Startup route application: applies the resolved source's saved route inline (no busy
-    // presentation exists yet) and refreshes the live-input monitor; a saved device that cannot
-    // open leaves the device closed, which the status text and Play's availability report.
-    static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::Current, {}));
+    // Startup route application: applies the saved route inline (no busy presentation exists yet)
+    // and refreshes the live-input monitor; a saved device that cannot open leaves the silent
+    // device running, which the status text reports.
+    restoreAudioDeviceState();
+    static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
     m_tab_minimum_displayed_strings = std::clamp(
         m_settings.tabMinimumDisplayedStrings().value_or(0), 0, common::core::g_max_chart_strings);
@@ -2556,13 +2533,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.transport.play_pause_shows_pause_icon = transport_state.playing;
     state.audio_device_settings_enabled = input_calibration.audio_device_settings_enabled;
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
-    // The live routing truth, not a re-read of the persisted toggle: the store pointer is what
-    // every audio-config read actually flows through, and it can only be set by a successful
-    // adoption.
-    state.use_game_audio_settings =
-        m_editor_audio_config_store != nullptr && m_editor_audio_config_store->usingGameSource();
-    state.game_audio_unavailable_prompt = m_game_audio_unavailable_prompt;
-    state.game_audio_recommendation_prompt = m_game_audio_recommendation_prompt;
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
     // Song-level, so they resolve here rather than in the per-arrangement tab projection; the

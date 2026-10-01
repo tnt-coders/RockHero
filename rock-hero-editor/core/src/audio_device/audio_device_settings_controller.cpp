@@ -70,13 +70,8 @@ namespace
 }
 
 // Converts common/audio state into the editor view model consumed by the settings view.
-//
-// uses_game_audio_settings is the editor-side toggle: with it on the device fields are read-only
-// reflections of the game's route, nothing was staged here, and the live route is already open, so
-// OK is always available (it commits that route). It is the one input to ok_enabled that does not
-// come from the settings backend.
 [[nodiscard]] AudioDeviceSettingsViewState toViewState(
-    const common::audio::AudioDeviceSettingsState& state, bool uses_game_audio_settings)
+    const common::audio::AudioDeviceSettingsState& state)
 {
     std::vector<std::string> stereo_pair_labels;
     stereo_pair_labels.reserve(state.stereo_output_pairs.size());
@@ -105,11 +100,11 @@ namespace
         .selected_buffer_size_id = state.selected_buffer_size_id,
         .control_panel_supported = state.control_panel_supported,
         .staged_device_error = state.staged_device_error,
-        .ok_enabled = uses_game_audio_settings || (state.selected_audio_system_id > 0 &&
-                                                   (state.uses_separate_input_output_devices
-                                                        ? state.selected_input_device_id > 0 &&
-                                                              state.selected_output_device_id > 0
-                                                        : state.selected_device_id > 0)),
+        .ok_enabled =
+            state.selected_audio_system_id > 0 &&
+            (state.uses_separate_input_output_devices
+                 ? state.selected_input_device_id > 0 && state.selected_output_device_id > 0
+                 : state.selected_device_id > 0),
         .error_message = state.error_message,
     };
 }
@@ -216,23 +211,7 @@ void AudioDeviceSettingsController::onOkRequested()
         return;
     }
 
-    // While the game source is active the live toggle already opened the desired device and nothing
-    // was staged here, so OK commits that route (keeping it, not restoring the captured previous
-    // one). Commit blocks the message thread the same way apply and cancel do, so both arms run
-    // behind the same fence.
-    if (m_uses_game_audio_settings)
-    {
-        runFinishingOperation([this] { return m_settings.commit(); });
-        return;
-    }
-
     runFinishingOperation([this] { return m_settings.apply(); });
-}
-
-void AudioDeviceSettingsController::onUseGameAudioSettingsChanged(bool enabled)
-{
-    m_uses_game_audio_settings = enabled;
-    updateView();
 }
 
 void AudioDeviceSettingsController::onCancelRequested()
@@ -307,7 +286,7 @@ void AudioDeviceSettingsController::onAudioDeviceSettingsChanged()
 // Pulls the shared state and sends an editor-specific state to the view.
 void AudioDeviceSettingsController::updateView()
 {
-    m_last_state = toViewState(m_settings.state(), m_uses_game_audio_settings);
+    m_last_state = toViewState(m_settings.state());
     if (m_view != nullptr)
     {
         m_view->setState(m_last_state);

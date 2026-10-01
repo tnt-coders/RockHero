@@ -21,6 +21,10 @@ namespace rock_hero::common::audio
 namespace
 {
 
+// The shared audio-config file's name inside the Rock Hero settings folder. The inter-process lock
+// that guards the file carries the same name.
+constexpr const char* g_audio_config_application_name{"Rock Hero Audio"};
+
 constexpr const char* g_active_device_route_key{"activeDeviceRoute"};
 constexpr const char* g_active_device_route_tag{"ACTIVE_DEVICE_ROUTE"};
 constexpr const char* g_serialized_state_property{"serializedState"};
@@ -29,15 +33,23 @@ constexpr const char* g_identity_tag{"IDENTITY"};
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
 
-// Takes the shared settings-file location policy and applies the one variation this store owns.
-// The application name is empty for the explicit-path constructor because the file is supplied
-// directly and the name only matters when JUCE derives the default per-user path.
-[[nodiscard]] juce::PropertiesFile::Options audioConfigOptions(
-    std::string_view application_name, AudioConfigStore::Access access)
+// Takes the shared settings-file location policy and names the store's lock as the file's process
+// lock, so JUCE's own loads and saves hold it too. JUCE's lock is re-entrant within one process, so
+// those nest inside a write that already holds it.
+[[nodiscard]] juce::PropertiesFile::Options audioConfigOptions(juce::InterProcessLock& lock)
 {
-    juce::PropertiesFile::Options options = common::core::settingsFileOptions(application_name);
-    options.doNotSave = access == AudioConfigStore::Access::ReadOnly;
+    juce::PropertiesFile::Options options =
+        common::core::settingsFileOptions(g_audio_config_application_name);
+    options.processLock = &lock;
     return options;
+}
+
+// The failure a write reports when the inter-process lock cannot be taken.
+[[nodiscard]] std::unexpected<AudioConfigError> couldNotLock()
+{
+    return std::unexpected{AudioConfigError{
+        AudioConfigErrorCode::CouldNotSave, "Could not lock the audio settings file."
+    }};
 }
 
 // Reads an XML attribute as an integer without accepting JUCE's permissive partial parsing.
@@ -313,31 +325,29 @@ using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 
 } // namespace
 
-// Opens the store at the standard per-user location for an application name.
-AudioConfigStore::AudioConfigStore(std::string_view application_name, Access access)
-    : m_read_only(access == Access::ReadOnly)
-    , m_properties(audioConfigOptions(application_name, access))
+// Opens the shared file at its standard per-user location.
+AudioConfigStore::AudioConfigStore()
+    : AudioConfigStore(
+          common::core::settingsFileOptions(g_audio_config_application_name).getDefaultFile())
 {}
 
 // Opens an explicit store file so lifecycle behavior can be exercised in isolation.
-AudioConfigStore::AudioConfigStore(const std::filesystem::path& settings_file, Access access)
-    : m_read_only(access == Access::ReadOnly)
-    , m_properties(common::core::juceFileFromPath(settings_file), audioConfigOptions({}, access))
+AudioConfigStore::AudioConfigStore(const std::filesystem::path& settings_file)
+    : AudioConfigStore(common::core::juceFileFromPath(settings_file))
 {}
 
-// Composition roots need the per-user path of another application's audio-config file (the editor's
-// read-only view of the game's) without restating the location policy this store opens files with.
-std::filesystem::path AudioConfigStore::fileFor(std::string_view application_name)
-{
-    return common::core::pathFromJuceFile(
-        common::core::settingsFileOptions(application_name).getDefaultFile());
-}
+// Owns the member initialization both public constructors share.
+AudioConfigStore::AudioConfigStore(juce::File file)
+    : m_lock(g_audio_config_application_name)
+    , m_options(audioConfigOptions(m_lock))
+    , m_file(std::move(file))
+{}
 
 // Reads the paired device blob and resolved identity, treating unreadable state as absence.
 std::optional<ActiveDeviceRoute> AudioConfigStore::activeDeviceRoute() const
 {
-    const std::unique_ptr<juce::XmlElement> xml =
-        m_properties.getXmlValue(g_active_device_route_key);
+    const juce::PropertiesFile properties{m_file, m_options};
+    const std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_active_device_route_key);
     if (xml == nullptr || !hasCurrentXmlFormat(*xml, g_active_device_route_tag))
     {
         return std::nullopt;
@@ -364,16 +374,16 @@ std::optional<ActiveDeviceRoute> AudioConfigStore::activeDeviceRoute() const
 std::expected<void, AudioConfigError> AudioConfigStore::setActiveDeviceRoute(
     std::optional<ActiveDeviceRoute> route)
 {
-    if (m_read_only)
+    // Held across the read-modify-write, so the other product cannot write between them.
+    const juce::InterProcessLock::ScopedLockType held{m_lock};
+    if (!held.isLocked())
     {
-        return std::unexpected{
-            AudioConfigError{AudioConfigErrorCode::CouldNotSave, "store opened read-only"}
-        };
+        return couldNotLock();
     }
-
+    juce::PropertiesFile properties{m_file, m_options};
     if (!route.has_value() || route->serialized_state.empty())
     {
-        m_properties.removeValue(g_active_device_route_key);
+        properties.removeValue(g_active_device_route_key);
     }
     else
     {
@@ -387,10 +397,10 @@ std::expected<void, AudioConfigError> AudioConfigStore::setActiveDeviceRoute(
                 *route_xml.createNewChildElement(g_identity_tag), *route->identity);
         }
 
-        m_properties.setValue(g_active_device_route_key, &route_xml);
+        properties.setValue(g_active_device_route_key, &route_xml);
     }
 
-    if (m_properties.save())
+    if (properties.save())
     {
         return {};
     }
@@ -409,8 +419,9 @@ std::expected<std::optional<InputCalibrationState>, AudioConfigError> AudioConfi
         return std::nullopt;
     }
 
+    const juce::PropertiesFile properties{m_file, m_options};
     auto states = InputCalibrationStore::readOrError(
-        m_properties, "Saved input calibration history is not valid XML.");
+        properties, "Saved input calibration history is not valid XML.");
     if (!states.has_value())
     {
         return std::unexpected{std::move(states.error())};
@@ -434,13 +445,6 @@ std::expected<std::optional<InputCalibrationState>, AudioConfigError> AudioConfi
 std::expected<void, AudioConfigError> AudioConfigStore::saveInputCalibration(
     InputCalibrationState calibration_state)
 {
-    if (m_read_only)
-    {
-        return std::unexpected{
-            AudioConfigError{AudioConfigErrorCode::CouldNotSave, "store opened read-only"}
-        };
-    }
-
     if (!isValidInputDeviceIdentity(calibration_state.input_device_identity))
     {
         return std::unexpected{AudioConfigError{
@@ -449,17 +453,23 @@ std::expected<void, AudioConfigError> AudioConfigStore::saveInputCalibration(
         }};
     }
 
+    // Held across the read-modify-write, so the other product cannot write between them.
+    const juce::InterProcessLock::ScopedLockType held{m_lock};
+    if (!held.isLocked())
+    {
+        return couldNotLock();
+    }
+    juce::PropertiesFile properties{m_file, m_options};
     auto states = InputCalibrationStore::readOrError(
-        m_properties,
-        "Cannot save input calibration because saved calibration history is invalid.");
+        properties, "Cannot save input calibration because saved calibration history is invalid.");
     if (!states.has_value())
     {
         return std::unexpected{std::move(states.error())};
     }
 
     InputCalibrationStore::replace(*states, std::move(calibration_state));
-    InputCalibrationStore::write(m_properties, *states);
-    if (m_properties.save())
+    InputCalibrationStore::write(properties, *states);
+    if (properties.save())
     {
         return {};
     }
@@ -473,13 +483,6 @@ std::expected<void, AudioConfigError> AudioConfigStore::saveInputCalibration(
 std::expected<void, AudioConfigError> AudioConfigStore::removeInputCalibration(
     const InputDeviceIdentity& identity)
 {
-    if (m_read_only)
-    {
-        return std::unexpected{
-            AudioConfigError{AudioConfigErrorCode::CouldNotSave, "store opened read-only"}
-        };
-    }
-
     if (!isValidInputDeviceIdentity(identity))
     {
         return std::unexpected{AudioConfigError{
@@ -488,8 +491,15 @@ std::expected<void, AudioConfigError> AudioConfigStore::removeInputCalibration(
         }};
     }
 
+    // Held across the read-modify-write, so the other product cannot write between them.
+    const juce::InterProcessLock::ScopedLockType held{m_lock};
+    if (!held.isLocked())
+    {
+        return couldNotLock();
+    }
+    juce::PropertiesFile properties{m_file, m_options};
     auto states = InputCalibrationStore::readOrError(
-        m_properties,
+        properties,
         "Cannot remove input calibration because saved calibration history is invalid.");
     if (!states.has_value())
     {
@@ -502,8 +512,8 @@ std::expected<void, AudioConfigError> AudioConfigStore::removeInputCalibration(
     });
     if (states->size() != original_size)
     {
-        InputCalibrationStore::write(m_properties, *states);
-        if (!m_properties.save())
+        InputCalibrationStore::write(properties, *states);
+        if (!properties.save())
         {
             return std::unexpected{AudioConfigError{
                 AudioConfigErrorCode::CouldNotSave, "Could not save input calibration removal."

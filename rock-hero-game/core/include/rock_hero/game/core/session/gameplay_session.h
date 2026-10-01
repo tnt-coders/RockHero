@@ -294,8 +294,8 @@ private:
     const common::audio::IAudioDeviceConfiguration& m_audio_devices;
 
     // Shared calibrate-first live-input monitoring gate. The session is a thin driver: it arms the
-    // gate at Ready and disables it on close; the gate stays silent unless this app's own store
-    // holds a calibration matching the active input route.
+    // gate at Ready and disables it on close; the gate stays silent unless the shared store holds
+    // a calibration matching the active input route.
     common::audio::LiveInputMonitor& m_live_input_monitor;
 
     // Current lifecycle stage; every transition happens on the message thread.

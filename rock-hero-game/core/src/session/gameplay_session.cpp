@@ -495,7 +495,7 @@ void GameplaySession::onRigLoadCompleted(
     // committed -- the game's readiness edge, the exact analogue of the editor's project-ready
     // gate. This completion runs on the JUCE message thread (loadLiveRig refuses off-thread and
     // marshals its continuations back via callAsync), so driving the message-thread-only live-input
-    // port from here is contract-correct. The gate stays silent unless this app's own store holds a
+    // port from here is contract-correct. The gate stays silent unless the shared store holds a
     // calibration matching the active input route; a disabled result is non-fatal and never blocks
     // readiness. The status.reason is retained for a future SDL "monitoring off because X" surface
     // (plan 26).

@@ -111,10 +111,8 @@ silent step is the three-way sync: a new pure virtual also lands in `GameSetting
 production store) and the test double `NullGameSettings`
 (`core/tests/include/.../testing/null_game_settings.h`).
 
-Audio device configuration is deliberately *not* here: the game keeps its **own**
-`AudioConfigStore` file (sole writer), while the editor's store is opened read-only and only by
-the throwaway `--import-editor-audio` dev path — the two-store split and its fail-loudly rule
-are covered in \ref guide_audio_device.
+Audio device configuration is deliberately *not* here: the game and the editor share one
+`AudioConfigStore` file, covered in \ref guide_audio_device.
 
 # Packaged resources and the deploy contract
 

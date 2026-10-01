@@ -70,7 +70,7 @@ public:
     }
 
     /*!
-    \brief Reads app-local input calibration for one physical input route.
+    \brief Reads input calibration for one physical input route.
     \param identity Physical input route to look up.
     \return Calibration state, absence, or the injected one-shot failure.
     */
@@ -104,7 +104,7 @@ public:
     }
 
     /*!
-    \brief Stores or replaces app-local input calibration for its physical route.
+    \brief Stores or replaces input calibration for its physical route.
     \param calibration_state Calibration state to save.
     \return Empty success, an invalid-route failure, or the injected one-shot failure.
     */
@@ -136,7 +136,7 @@ public:
     }
 
     /*!
-    \brief Removes app-local input calibration for one physical input route.
+    \brief Removes input calibration for one physical input route.
     \param identity Physical input route to remove.
     \return Empty success, an invalid-route failure, or the injected one-shot failure.
     */

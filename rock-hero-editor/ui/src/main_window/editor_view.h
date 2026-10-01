@@ -353,14 +353,6 @@ private:
     void presentRestoreInterruptedPromptIfNeeded(
         const std::optional<core::RestoreInterruptedPrompt>& prompt);
 
-    // Presents the startup unavailable-game-audio notice once per prompt request, opening the
-    // audio device settings window on dismissal.
-    void presentGameAudioUnavailablePromptIfNeeded(
-        const std::optional<core::GameAudioUnavailablePrompt>& prompt);
-
-    // Opens or releases the startup game-audio recommendation dialog from controller state.
-    void presentGameAudioRecommendationIfNeeded(bool prompt_requested);
-
     // Opens or releases the warning that precedes turning grid snap off, from controller state.
     void presentGridSnapWarningIfNeeded(bool prompt_requested);
 
@@ -729,8 +721,7 @@ private:
     // Optional top-level plugin browser window.
     std::unique_ptr<PluginBrowserWindow> m_plugin_browser_window;
 
-    // Optional top-level input calibration window. Concrete type so its read-only game-reflection
-    // mode can be re-scoped live when the "use game audio settings" toggle flips while it is open.
+    // Optional top-level input calibration window.
     std::unique_ptr<InputCalibrationWindow> m_input_calibration_window;
 
     // Optional top-level audio-device settings window.
@@ -774,13 +765,6 @@ private:
 
     // Last restore-interrupted prompt shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::RestoreInterruptedPrompt> m_last_presented_restore_interrupted_prompt{};
-
-    // Last unavailable-game-audio notice shown to avoid re-opening dialogs on repeated pushes.
-    std::optional<core::GameAudioUnavailablePrompt> m_last_game_audio_unavailable_prompt{};
-
-    // True while the controller's current recommendation request has been presented; the
-    // self-deleting standard alert owns its own teardown, so only the dedup flag lives here.
-    bool m_game_audio_recommendation_presented{false};
 
     // Same dedup flag for the controller's current grid-snap warning request.
     bool m_grid_snap_warning_presented{false};

@@ -3,9 +3,8 @@
 *Applies to: Editor + game — the staged-settings and persistence layers are shared.*
 
 Audio-device routing is the one editor feature built as a **self-contained sub-MVC beside the
-main editor MVC**, plus a persistence design that lets the editor mirror the game's audio
-configuration without ever being able to corrupt it. Both ideas are worth knowing before touching
-anything device-shaped.
+main editor MVC**, plus one audio-settings store that the editor and the game share. Both ideas
+are worth knowing before touching anything device-shaped.
 
 # The staged-settings transaction (`common/audio`)
 
@@ -13,9 +12,9 @@ anything device-shaped.
 (`IAudioDeviceConfiguration`) as a **staged-edit transaction**: constructing it captures the
 user's route (the live hardware setup, else the saved choice) and *hands the engine to the silent
 device* so the user edits routing without holding hardware; a staged preview device probes
-capabilities; then exactly one of `apply()` (open the staged route), `cancel()` (reopen the
-captured route), or `commit()` (keep whatever is live) ends the transaction — with a destructor
-backstop restore for native window closes. Every route it opens goes through the port's
+capabilities; then exactly one of `apply()` (open the staged route) or `cancel()` (reopen the
+captured route) ends the transaction — with a destructor backstop restore for native window
+closes. Every route it opens goes through the port's
 no-fallback `restoreSerializedDeviceState`, never `setCurrentAudioDeviceType()`. Its listener chain
 re-broadcasts hardware-port changes upward: port → `AudioDeviceSettings` → the settings
 controller → `updateView()`.
@@ -37,8 +36,7 @@ the editor's busy overlay. With no dispatcher supplied, the controller runs sync
 is exactly how its tests drive it. Reach for this shape when a modal feature owns a genuine
 multi-step transaction of its own; reach for the ordinary action pipeline otherwise.
 
-Around the dialog sit two main-MVC pieces: `GameAudioRecommendationDialog` (the startup
-suggestion to adopt the game's settings) and `audioDeviceStatusText` (the menu-bar status line).
+Beside the dialog sits one main-MVC piece, `audioDeviceStatusText` (the menu-bar status line).
 The editor never blocks itself without hardware: the engine runs its silent device
 (`null_audio_device.h`), so playback, the chain and every edit keep working with the audio going
 nowhere, and the status line reads `[audio device closed - playback silent]`. Only live input
@@ -46,29 +44,22 @@ needs the hardware. The settings window is the repair path; while it stages, it 
 the silent device so the hardware is free, and every route it opens goes through the engine's
 no-fallback restore.
 
-# Persistence: two stores, one of them untouchable
+# Persistence: one shared store
 
-`AudioConfigStore` (`common/audio`, `src/settings/audio_config_store.cpp`) is a
-`juce::PropertiesFile`-backed per-app store for the active device route and route-keyed input
-calibration. It opens `ReadWrite` or **`ReadOnly`**, and every setter checks that mode first,
-failing with a typed `CouldNotSave` before touching the file.
+`AudioConfigStore` (`common/audio`, `src/settings/audio_config_store.cpp`) holds the device
+route and the route-keyed input calibrations in one file, `Rock Hero/Rock Hero Audio.settings`,
+which the editor and the game both read and write: the same hardware, and the same calibrated
+level for the same guitar, in both products. Each composition root constructs its own
+`AudioConfigStore` and injects it as `IAudioConfigStore&`.
 
-The editor composes stores through `EditorAudioConfigStore`
-(`editor/core/src/audio/editor_audio_config_store.cpp`): its own read-write store, plus — when
-"use game audio settings" is on — a **fresh read-only view of the game's file** as the active
-source. Reads mirror the game; any write while mirroring fails loudly instead of silently
-redirecting into the editor's file. That read-only store *is* the design: a mechanism that fails
-loudly was chosen over a flag someone could forget to check (see "no code that lies" in the
-project's conventions). `gameSourceState()` reports `Available` only when the game's route has a
-resolved input identity *and* a matching calibration.
-
-Both stores — and the editor's and game's own settings files beside them — open through one
-settings-file location policy, `common::core::settingsFileOptions` (`common/core`
-`shared/settings_file_options.h`): the shared per-user folder, the `.settings` suffix, and a
-write-through save with no timer, so an acknowledged write is on disk before the call returns. The
-editor's composition root does not rebuild the game's path either; it asks
-`AudioConfigStore::fileFor(gameAudioConfigApplicationName())`, so the read-only view can only ever
-target the file the game writes.
+Both products may run at once, so every operation opens a fresh `juce::PropertiesFile` rather
+than trusting an in-memory copy, and the store names one `juce::InterProcessLock` as the file's
+process lock. A write holds that lock across its whole read-modify-write, so neither product
+clobbers a key the other just wrote; JUCE's lock is re-entrant, so its own load and save nest
+inside. The options come from the one settings-file location policy,
+`common::core::settingsFileOptions` (`common/core` `shared/settings_file_options.h`) — the shared
+per-user folder, the `.settings` suffix, and a write-through save with no timer, so an
+acknowledged write is on disk before the call returns — plus that `processLock`.
 
 The four persisted property names for one input route (`backendName`, `inputDeviceName`,
 `inputChannelIndex`, `inputChannelName`) are declared beside `InputDeviceIdentity` itself
@@ -76,31 +67,26 @@ The four persisted property names for one input route (`backendName`, `inputDevi
 settings file's JSON write them: a rename in one file alone would silently drop the user's saved
 input-device selection, since a missing property reads as absence rather than an error.
 
-The calibration UI reflects the same source split: when mirroring the game, the input-calibration
-window shows controls visible-but-disabled ("derived from game settings"), and the signal chain
-surfaces `InputCalibrationStatus` in its view state.
-
 # The game's first-run setup
 
 `NativeAudioSetupMachine` (`game/core/src/audio/native_audio_setup.cpp`) is a pure state machine
 (`Idle → SelectingDevice → CalibratingGain → Ready`, terminal `Failed`) with a side-effecting
 driver. On device apply it writes **two records in one step**: the shared store's
-`ActiveDeviceRoute` (serialized state + resolved input identity) and the game-private
-`GameAudioConfig` mapping that route to player slot 0 — written together so the shared mirror and
-the slot mapping cannot drift. This route→player-slot mapping is the seed of future multiplayer
-input plumbing.
+`ActiveDeviceRoute` and the game-private `GameAudioConfig` mapping that route to player slot 0.
+This route→player-slot mapping is the seed of future multiplayer input plumbing.
 
 # Extending this area — silent steps
 
 1. New dialog rows/intents extend `IAudioDeviceSettingsController` + the view state + the
    `toViewState()` projection in the controller `.cpp` — the sub-MVC's own triple, not the main
    editor's.
-2. Device actions in the main editor land in `audio_device_handlers.cpp`; anything that reopens
-   a device goes through `applyAudioSourceAndRoute(...)` so it paints the busy overlay once and
-   refreshes the view when it clears.
+2. Device actions in the main editor land in `audio_device_handlers.cpp`; blocking device work
+   goes through `onAudioDeviceChangeRequested` so it paints the busy overlay once, and the saved
+   route is applied by `restoreAudioDeviceState()`.
 3. New persisted config belongs in `AudioConfigStore` behind `IAudioConfigStore` — with strict
-   parsing that treats corrupt values as absence, and setters that respect the read-only gate. A
-   property name two files must agree on is declared beside the type it belongs to, never once per
-   store; a new settings *file* takes its options from `settingsFileOptions`, never its own copy.
+   parsing that treats corrupt values as absence, and setters that take the inter-process lock
+   across their read-modify-write. A property name two files must agree on is declared beside the
+   type it belongs to, never once per store; a new settings *file* takes its options from
+   `settingsFileOptions`, never its own copy.
 4. Tests: the controller runs dispatcher-less and synchronous; the store fakes are
    `ConfigurableAudioDeviceConfiguration` and `InMemoryAudioConfigStore`.

@@ -230,7 +230,7 @@ common::audio::LiveInputMonitoringContext NativeAudioSetup::calibrationContext()
 std::expected<void, NativeAudioSetupError> NativeAudioSetup::commitMeasuredGain(double gain_db)
 {
     // commitCalibration persists the InputCalibrationState for the active route through the store
-    // the monitor was composed with (the game's own store).
+    // the monitor was composed with (the shared store).
     const auto committed = m_live_input_monitor.commitCalibration(gain_db, m_active_route_identity);
     m_capture.reset();
     if (!committed.has_value())

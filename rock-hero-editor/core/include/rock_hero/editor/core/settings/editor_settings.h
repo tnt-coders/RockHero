@@ -8,8 +8,6 @@
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
-#include <rock_hero/common/audio/settings/audio_config_store.h>
-#include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <string>
@@ -23,12 +21,8 @@ namespace rock_hero::editor::core
 EditorSettings is the JUCE-backed implementation of IEditorSettings used by production app
 composition. Scalar values and XML-valued histories are stored in the app properties file. These
 settings are per-user application state, not `.rhp` project data and not `.rock` package data.
-
-The editor's audio configuration (active device route and input calibration) lives on a separate
-per-app AudioConfigStore that EditorSettings owns, so it partitions cleanly from workflow state. App
-composition injects that store, via audioConfigStore(), into the controller for device-route
-persist/restore and into the shared LiveInputMonitor for calibration read/write; EditorSettings no
-longer exposes calibration accessors of its own.
+The audio configuration is not editor state: it lives in the AudioConfigStore both products
+share, which app composition owns.
 */
 class EditorSettings final : public IEditorSettings
 {
@@ -37,10 +31,8 @@ public:
     EditorSettings();
 
     /*!
-    \brief Opens editor settings at an explicit native path.
-
-    The owned audio-config store opens at a sibling of the settings file (see audioConfigFileFor)
-    so lifecycle behavior can be exercised in isolation without a shared writer.
+    \brief Opens editor settings at an explicit native path, so lifecycle behavior can be exercised
+    in isolation.
 
     \param settings_file Settings file path used for persisted editor state.
     */
@@ -116,34 +108,6 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> setToneFileDirectory(
         std::filesystem::path directory) override;
-
-    /*!
-    \brief Reads whether the editor sources the game's audio configuration instead of its own.
-    \return Stored choice, or empty when the user has never set it.
-    */
-    [[nodiscard]] std::optional<bool> useGameAudioSettings() const override;
-
-    /*!
-    \brief Stores whether the editor sources the game's audio configuration instead of its own.
-    \param enabled True to source the game's audio configuration, false to source the editor's own.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> setUseGameAudioSettings(
-        bool enabled) override;
-
-    /*!
-    \brief Reads whether the startup game-audio recommendation prompt is suppressed.
-    \return Stored suppression, or empty when the user has never suppressed the prompt.
-    */
-    [[nodiscard]] std::optional<bool> suppressGameAudioRecommendation() const override;
-
-    /*!
-    \brief Stores whether the startup game-audio recommendation prompt is suppressed.
-    \param suppressed True to stop showing the startup recommendation prompt.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> setSuppressGameAudioRecommendation(
-        bool suppressed) override;
 
     /*!
     \brief Reads the app-wide minimum number of tablature string lanes to display.
@@ -241,30 +205,8 @@ public:
     [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectSelectedArrangement(
         const std::filesystem::path& project_file, std::string arrangement_id) override;
 
-    /*!
-    \brief Returns the editor's owned audio-config store for device-route persist/restore.
-
-    App composition injects this into the controller so the device route and this settings object's
-    delegated calibration share one file with exactly one writer.
-
-    \return Audio-config store backing this editor's device route and input calibration.
-    */
-    [[nodiscard]] common::audio::IAudioConfigStore& audioConfigStore() noexcept;
-
-    /*!
-    \brief Derives the audio-config file path a settings file's owned store opens.
-    \param settings_file Editor settings file path.
-    \return Sibling audio-config file path used by the owned AudioConfigStore.
-    */
-    [[nodiscard]] static std::filesystem::path audioConfigFileFor(
-        const std::filesystem::path& settings_file);
-
 private:
     juce::PropertiesFile m_properties;
-
-    // Owned per-app audio-config store holding this editor's device route and input calibration.
-    // Constructed after m_properties so both files open before any delegated access occurs.
-    common::audio::AudioConfigStore m_audio_config_store;
 };
 
 } // namespace rock_hero::editor::core

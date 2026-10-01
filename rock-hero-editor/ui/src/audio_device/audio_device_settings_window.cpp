@@ -125,46 +125,20 @@ public:
         }
     }
 
-    // Installs the callback that restores the editor-side "use game audio settings" toggle when the
-    // window is dismissed through a path that bypasses the Cancel button (Escape or the native
-    // title-bar close). Both are semantically a cancel, so the toggle must be restored the same way
-    // the Cancel button does; the device itself is restored by the controller-destructor backstop.
-    void setBypassCloseToggleRestore(std::function<void()> restore)
-    {
-        m_bypass_close_toggle_restore = std::move(restore);
-    }
-
     // Routes native title-bar close through the same final disposal path as controller close.
     void closeButtonPressed() override
     {
-        restoreToggleForBypassClose();
         requestClose();
     }
 
     // Keeps Escape from using DialogWindow's default hide-only behavior.
     bool escapeKeyPressed() override
     {
-        restoreToggleForBypassClose();
         requestClose();
         return true;
     }
 
 private:
-    // Restores the editor-side toggle before a bypass close tears the window down. Guarded on
-    // m_close_requested so a repeated close cannot re-fire the toggle change callback.
-    void restoreToggleForBypassClose()
-    {
-        if (m_close_requested)
-        {
-            return;
-        }
-
-        if (m_bypass_close_toggle_restore)
-        {
-            m_bypass_close_toggle_restore();
-        }
-    }
-
     // The dialog owns settings state that references the audio backend. Ask the external owner
     // to release the window if the component that launched it is being torn down.
     void componentBeingDeleted(juce::Component& component) override
@@ -257,10 +231,6 @@ private:
 
     // Set once the workflow has requested final disposal.
     bool m_close_requested{false};
-
-    // Restores the editor-side toggle on Escape / native title-bar close (paths that bypass the
-    // Cancel button). Empty until show() wires it to the window content.
-    std::function<void()> m_bypass_close_toggle_restore;
 };
 
 // Owns the shared settings service, editor controller, and passive view for one modal window.
@@ -271,18 +241,12 @@ public:
         common::audio::IAudioDeviceConfiguration& audio_devices,
         core::AudioDeviceSettingsDispatcher dispatcher,
         AudioDeviceSettingsView::ApplyingCallback applying_callback,
-        AudioDeviceSettingsView::CloseCallback close_callback,
-        AudioDeviceSettingsView::GameAudioSettingsState game_settings,
-        AudioDeviceSettingsView::GameAudioSettingsChangedCallback on_game_settings_changed)
+        AudioDeviceSettingsView::CloseCallback close_callback)
         : m_settings(audio_devices)
         , m_controller(m_settings, std::move(dispatcher))
         , m_view(m_controller, std::move(applying_callback), std::move(close_callback))
     {
         m_controller.attachView(m_view);
-        // Install the toggle callback before pushing the initial toggle state so the read-only
-        // presentation is applied for the first paint without emitting a spurious change.
-        m_view.setGameAudioSettingsChangedCallback(std::move(on_game_settings_changed));
-        m_view.setGameAudioSettings(game_settings);
         addAndMakeVisible(m_view);
         setSize(AudioDeviceSettingsView::preferredWidth(), m_view.preferredContentHeight());
     }
@@ -299,14 +263,6 @@ public:
         return m_view.preferredContentHeight();
     }
 
-    // Restores the "use game audio settings" toggle to its open-time value when the window is
-    // closed through Escape or the native title-bar close. Forwards to the view, which owns the
-    // toggle and its change callback, so bypass closes match the Cancel button's restore behavior.
-    void restoreOriginalGameAudioSettings()
-    {
-        m_view.restoreOriginalGameAudioSettings();
-    }
-
 private:
     // Shared backend that owns one staged route edit.
     common::audio::AudioDeviceSettings m_settings;
@@ -316,14 +272,6 @@ private:
 
     // Passive JUCE controls rendered inside this window content.
     AudioDeviceSettingsView m_view;
-
-    // A single application-wide tooltip window (created on first use, shared across all windows)
-    // renders the "derived from game settings" hover text on the locked device fields. Using
-    // SharedResourcePointer instead of a per-window instance is JUCE's documented fix for the
-    // duplicate-tooltip artifact: two live TooltipWindow instances each register a global mouse
-    // listener and can paint overlaid tips. Default (desktop) parent gives the native soft-corner
-    // drop-shadow window.
-    juce::SharedResourcePointer<juce::TooltipWindow> m_tooltip_window;
 };
 
 } // namespace
@@ -331,8 +279,7 @@ private:
 // Launches the audio settings window centered on the editor window that owns the launcher.
 std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
     common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-    Dispatcher dispatcher, ClosedCallback closed_callback, GameAudioSettings game_settings,
-    GameAudioSettingsChangedCallback on_game_settings_changed)
+    Dispatcher dispatcher, ClosedCallback closed_callback)
 {
     // getTopLevelComponent() walks the parent chain and returns the anchor itself when it has no
     // parent, so the centering target is never null.
@@ -353,20 +300,9 @@ std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
             {
                 target_window->requestClose();
             }
-        },
-        AudioDeviceSettingsView::GameAudioSettingsState{
-            .use_game_settings = game_settings.use_game_settings,
-            .source_state = game_settings.source_state,
-        },
-        std::move(on_game_settings_changed));
+        });
     const int content_height = content->preferredContentHeight();
-
-    // The window owns the content once installed, so this raw pointer stays valid for every
-    // bypass-close callback (Escape / native close only fire on a live window).
-    auto* content_ptr = content.get();
     window->installContent(std::move(content), content_height);
-    window->setBypassCloseToggleRestore(
-        [content_ptr] { content_ptr->restoreOriginalGameAudioSettings(); });
     window->showModal();
     return std::unique_ptr<juce::DocumentWindow>{std::move(window)};
 }

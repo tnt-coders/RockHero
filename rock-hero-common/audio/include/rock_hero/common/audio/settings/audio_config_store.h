@@ -1,78 +1,49 @@
 /*!
 \file audio_config_store.h
-\brief JUCE-backed per-app audio-config store over one properties file.
+\brief JUCE-backed audio-config store over the one file both products share.
 */
 
 #pragma once
 
-#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
-#include <string_view>
 
 namespace rock_hero::common::audio
 {
 
 /*!
-\brief Stores one application's audio configuration in a per-user JUCE properties file.
+\brief Stores the user's audio configuration in the per-user JUCE properties file both products
+share.
 
-The store is instantiated per app over that app's own file: the application name partitions the
-file (see audio_config_identity.h) and processLock is always null because each file has exactly one
-writer. Opening a store ReadOnly disables saving, so a stray write can never mutate the file; this
-lets one app read another app's file without risk of clobbering it.
+Both the editor and the game may run at once, so every operation opens the file fresh rather
+than trusting an in-memory copy, and every write holds an inter-process lock across its
+read-modify-write: neither product clobbers a key the other just wrote.
 */
 class AudioConfigStore final : public IAudioConfigStore
 {
 public:
-    /*! \brief Whether the store may write its backing file. */
-    enum class Access : std::uint8_t
-    {
-        /*! \brief The store reads and writes its own file. */
-        ReadWrite,
-
-        /*! \brief The store reads only; every setter is a no-op that reports CouldNotSave. */
-        ReadOnly,
-    };
-
-    /*!
-    \brief Opens the store at the standard per-user location for an application name.
-    \param application_name Application name that partitions the audio-config file.
-    \param access Whether the store may write its backing file.
-    */
-    AudioConfigStore(std::string_view application_name, Access access);
+    /*! \brief Opens the shared audio-config file at its standard per-user location. */
+    AudioConfigStore();
 
     /*!
     \brief Opens the store at an explicit native path so lifecycle behavior can be tested.
     \param settings_file Audio-config file path used for persisted state.
-    \param access Whether the store may write its backing file.
     */
-    AudioConfigStore(const std::filesystem::path& settings_file, Access access);
+    explicit AudioConfigStore(const std::filesystem::path& settings_file);
 
-    /*!
-    \brief Resolves the per-user file this store opens for one application name.
-
-    Lets a composition root point a read-only store at another application's audio-config file —
-    the editor's read-only view of the game's — by asking the store where that file is instead of
-    rebuilding the location policy at the call site.
-
-    \param application_name Application name that partitions the audio-config file.
-    \return Native path of that application's audio-config file.
-    */
-    [[nodiscard]] static std::filesystem::path fileFor(std::string_view application_name);
-
-    /*! \brief Copying is disabled because juce::PropertiesFile is stateful file IO. */
+    /*! \brief Copying is disabled because the store owns an inter-process lock. */
     AudioConfigStore(const AudioConfigStore&) = delete;
 
-    /*! \brief Copy assignment is disabled because juce::PropertiesFile is stateful file IO. */
+    /*! \brief Copy assignment is disabled because the store owns an inter-process lock. */
     AudioConfigStore& operator=(const AudioConfigStore&) = delete;
 
-    /*! \brief Moving is disabled because the store owns runtime file state. */
+    /*! \brief Moving is disabled because the store's options point at its own lock. */
     AudioConfigStore(AudioConfigStore&&) = delete;
 
-    /*! \brief Move assignment is disabled because the store owns runtime file state. */
+    /*! \brief Move assignment is disabled because the store's options point at its own lock. */
     AudioConfigStore& operator=(AudioConfigStore&&) = delete;
 
     /*! \brief Destroys the store. */
@@ -93,7 +64,7 @@ public:
         std::optional<ActiveDeviceRoute> route) override;
 
     /*!
-    \brief Reads app-local input calibration for one physical input route.
+    \brief Reads input calibration for one physical input route.
     \param identity Physical input route to look up.
     \return Calibration state, absence, or a typed store failure.
     */
@@ -101,7 +72,7 @@ public:
     inputCalibrationFor(const InputDeviceIdentity& identity) const override;
 
     /*!
-    \brief Stores or replaces app-local input calibration for its physical route.
+    \brief Stores or replaces input calibration for its physical route.
     \param calibration_state Calibration state to save.
     \return Empty success, or a typed store failure.
     */
@@ -109,7 +80,7 @@ public:
         InputCalibrationState calibration_state) override;
 
     /*!
-    \brief Removes app-local input calibration for one physical input route.
+    \brief Removes input calibration for one physical input route.
     \param identity Physical input route to remove.
     \return Empty success, or a typed store failure.
     */
@@ -117,11 +88,23 @@ public:
         const InputDeviceIdentity& identity) override;
 
 private:
-    /*! \brief True when the store was opened read-only and must reject every write. */
-    bool m_read_only;
+    /*!
+    \brief Opens the store at a resolved file; both public constructors delegate here.
+    \param file Audio-config file used for persisted state.
+    */
+    explicit AudioConfigStore(juce::File file);
 
-    /*! \brief JUCE properties file backing this application's audio config. */
-    juce::PropertiesFile m_properties;
+    /*!
+    \brief Serializes access to the file across both products. Mutable because a read takes it
+    too: JUCE's reload() locks through m_options.
+    */
+    mutable juce::InterProcessLock m_lock;
+
+    /*! \brief Properties-file options naming m_lock as the file's process lock. */
+    juce::PropertiesFile::Options m_options;
+
+    /*! \brief The audio-config file both products read and write. */
+    juce::File m_file;
 };
 
 } // namespace rock_hero::common::audio

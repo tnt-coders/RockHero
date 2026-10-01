@@ -7,8 +7,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/settings/audio_config_error.h>
-#include <rock_hero/common/audio/settings/audio_config_identity.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/settings_file_options.h>
@@ -29,8 +27,6 @@ constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_waveform_visible_key{"waveformVisible"};
 constexpr const char* g_tone_file_directory_key{"toneFileDirectory"};
-constexpr const char* g_use_game_audio_settings_key{"useGameAudioSettings"};
-constexpr const char* g_suppress_game_audio_recommendation_key{"suppressGameAudioRecommendation"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
 constexpr const char* g_keymap_xml_key{"keymapXml"};
 
@@ -169,23 +165,16 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
 
 } // namespace
 
-// Opens the JUCE properties file plus the owned per-app audio-config store. The store uses the
-// editor audio-config application name so it partitions from the workflow-state file.
+// Opens the JUCE properties file at the editor's standard per-user location.
 EditorSettings::EditorSettings()
     : m_properties(common::core::settingsFileOptions(common::core::editorApplicationName()))
-    , m_audio_config_store(
-          common::audio::editorAudioConfigApplicationName(),
-          common::audio::AudioConfigStore::Access::ReadWrite)
 {}
 
-// Opens an explicit settings file so lifecycle behavior can be exercised in isolation. The owned
-// store opens at a sibling path so the two files never share a writer.
+// Opens an explicit settings file so lifecycle behavior can be exercised in isolation.
 EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
     : m_properties(
           common::core::juceFileFromPath(settings_file),
           common::core::settingsFileOptions(common::core::editorApplicationName()))
-    , m_audio_config_store(
-          audioConfigFileFor(settings_file), common::audio::AudioConfigStore::Access::ReadWrite)
 {}
 
 // Reads the last editor project path stored by a previous allowed editor exit.
@@ -320,45 +309,6 @@ std::expected<void, EditorSettingsError> EditorSettings::setToneFileDirectory(
     }
 
     return saveIfNeeded(m_properties, "Could not save tone file directory setting.");
-}
-
-// Reads whether the editor sources the game's audio configuration instead of its own. Absence is
-// preserved so useGameAudioSettingsOrDefault can apply the off default rather than a stored value.
-std::optional<bool> EditorSettings::useGameAudioSettings() const
-{
-    if (!m_properties.containsKey(g_use_game_audio_settings_key))
-    {
-        return std::nullopt;
-    }
-
-    return m_properties.getBoolValue(g_use_game_audio_settings_key);
-}
-
-// Stores whether the editor sources the game's audio configuration instead of its own.
-std::expected<void, EditorSettingsError> EditorSettings::setUseGameAudioSettings(bool enabled)
-{
-    m_properties.setValue(g_use_game_audio_settings_key, enabled);
-    return saveIfNeeded(m_properties, "Could not save use-game-audio-settings preference.");
-}
-
-// Reads whether the startup game-audio recommendation prompt is suppressed.
-std::optional<bool> EditorSettings::suppressGameAudioRecommendation() const
-{
-    if (!m_properties.containsKey(g_suppress_game_audio_recommendation_key))
-    {
-        return std::nullopt;
-    }
-
-    return m_properties.getBoolValue(g_suppress_game_audio_recommendation_key);
-}
-
-// Stores whether the startup game-audio recommendation prompt is suppressed.
-std::expected<void, EditorSettingsError> EditorSettings::setSuppressGameAudioRecommendation(
-    bool suppressed)
-{
-    m_properties.setValue(g_suppress_game_audio_recommendation_key, suppressed);
-    return saveIfNeeded(
-        m_properties, "Could not save game-audio recommendation suppression preference.");
 }
 
 // Reads the app-wide minimum number of tablature string lanes to display.
@@ -612,22 +562,6 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectSelectedArra
 
     m_properties.setValue(key, juce::String::fromUTF8(arrangement_id.c_str()));
     return saveNow(m_properties, "Could not save project selected-arrangement setting.");
-}
-
-// Exposes the owned store so app composition can inject it into the controller's device-route path.
-common::audio::IAudioConfigStore& EditorSettings::audioConfigStore() noexcept
-{
-    return m_audio_config_store;
-}
-
-// Derives the sibling audio-config file for an explicit settings path, mirroring the production
-// "Rock Hero Editor" -> "Rock Hero Editor Audio" partition so the two files never share a writer.
-std::filesystem::path EditorSettings::audioConfigFileFor(const std::filesystem::path& settings_file)
-{
-    std::filesystem::path file_name = settings_file.stem();
-    file_name += " Audio";
-    file_name += settings_file.extension();
-    return settings_file.parent_path() / file_name;
 }
 
 } // namespace rock_hero::editor::core

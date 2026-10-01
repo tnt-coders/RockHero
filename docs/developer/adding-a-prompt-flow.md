@@ -7,7 +7,7 @@ proceeding — a confirmation, a decision between destructive options, a blockin
 editor has two prompt shapes; pick the right one first:
 
 - **A simple decision prompt** — the operation raises a question, the answer resolves it
-  (tone-import confirmation, game-audio-unavailable notice).
+  (tone-import confirmation, restore-interrupted prompt).
 - **A deferred lifecycle action** — an action that must first settle unsaved changes (open,
   import, new, exit). These do *not* hand-roll prompts: they ride the stash-and-replay machine,
   `DeferredProjectActionState`.
@@ -22,8 +22,7 @@ the world may have changed while the dialog sat open.
 1. **Prompt struct + decision enum** in `editor_view_state.h` (exemplars: `ToneImportPrompt` +
    `ToneImportDecision`; `UnsavedChangesPrompt` + `UnsavedChangesDecision`). If the prompt
    should present once per distinct cause rather than per derivation, hand-write `operator==`
-   over the identity fields only — `GameAudioUnavailablePrompt` compares its reason code alone,
-   and that choice is what makes present-once tracking work.
+   over the identity fields only, which is what makes present-once tracking work.
 2. **`std::optional<Prompt>` field on `EditorViewState`**, populated in `deriveViewState()` —
    a forgotten derivation means the prompt silently never appears.
 3. **Pending state on the controller** (`editor_controller_impl.h`): stash whatever the resolve

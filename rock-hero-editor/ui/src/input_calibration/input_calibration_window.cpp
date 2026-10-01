@@ -36,10 +36,6 @@ constexpr int g_input_calibration_preferred_width{
     g_input_calibration_meter_width + (g_input_calibration_content_margin * 2)
 };
 
-// Hover text shown on the disabled calibration controls while the popup reflects the game's audio
-// configuration read-only, explaining why they cannot be operated. Cleared in the editable flow.
-constexpr const char* g_input_calibration_game_tooltip{"Derived from game settings"};
-
 [[nodiscard]] juce::String inputCalibrationTargetText()
 {
     return juce::String{"Target: "} +
@@ -107,8 +103,7 @@ class InputCalibrationWindow::Content final : public juce::Component,
 public:
     Content(
         InputCalibrationWindow& owner, core::IEditorController& controller,
-        const common::audio::ILiveInput* live_input, const core::InputCalibrationPrompt& prompt,
-        bool read_only)
+        const common::audio::ILiveInput* live_input, const core::InputCalibrationPrompt& prompt)
         : m_owner(owner)
         , m_editor_controller(controller)
         , m_live_input(live_input)
@@ -179,8 +174,6 @@ public:
         addAndMakeVisible(m_cancel_button);
 
         setSize(g_input_calibration_preferred_width, preferredHeight());
-        // Seed the source mode before attaching, so the first push already carries it.
-        m_calibration_controller.onReadOnlyChanged(read_only);
         m_calibration_controller.attachView(*this);
         startTimerHz(g_input_calibration_meter_hz);
     }
@@ -217,22 +210,12 @@ public:
         auto buttons = area.removeFromBottom(28);
         m_cancel_button.setBounds(buttons.removeFromRight(96));
         buttons.removeFromRight(8);
-        // The Calibrate button always occupies its row: in the read-only game reflection it stays
-        // visible but disabled (grayed out) rather than yielding its space to a notice.
         m_calibrate_button.setBounds(buttons.removeFromRight(96));
     }
 
     void requestDismissal()
     {
         m_calibration_controller.onDismissRequested();
-    }
-
-    // Re-scopes the popup live between the editable flow and the read-only game reflection. The
-    // controller carries the mode in its view state, so the flip re-renders through setState() --
-    // the one authority for control enablement -- in both directions.
-    void setReadOnly(bool read_only)
-    {
-        m_calibration_controller.onReadOnlyChanged(read_only);
     }
 
 private:
@@ -258,27 +241,17 @@ private:
         setSize(g_input_calibration_preferred_width, preferredHeight());
     }
 
-    // The single authority for control enablement. The read-only game reflection is a hard override
-    // on the capture-owned availability flags: the Calibrate button, manual Apply button, and gain
-    // slider all stay visible but disabled (grayed out) so the game's calibrated value is displayed
-    // read-only, each carrying a tooltip explaining why. Resolving both inputs here is what lets a
-    // flip back to the editable flow re-enable them.
+    // Renders the pushed state; the controller owns every enablement flag.
     void setState(const core::InputCalibrationViewState& state) override
     {
-        const bool editable = !state.read_only;
         m_input_meter.setLevel(state.input_meter_level);
         m_manual_gain_slider.setValue(state.input_gain_db, juce::dontSendNotification);
         m_manual_gain_slider.updateText();
         m_status.setText(juce::String{state.status_message}, juce::dontSendNotification);
-        m_calibrate_button.setEnabled(editable && state.start_measurement_enabled);
-        m_manual_gain_slider.setEnabled(editable && state.manual_gain_controls_enabled);
-        m_manual_apply_button.setEnabled(editable && state.manual_gain_controls_enabled);
+        m_calibrate_button.setEnabled(state.start_measurement_enabled);
+        m_manual_gain_slider.setEnabled(state.manual_gain_controls_enabled);
+        m_manual_apply_button.setEnabled(state.manual_gain_controls_enabled);
         m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
-
-        const juce::String control_tooltip{editable ? "" : g_input_calibration_game_tooltip};
-        m_calibrate_button.setTooltip(control_tooltip);
-        m_manual_apply_button.setTooltip(control_tooltip);
-        m_manual_gain_slider.setTooltip(control_tooltip);
         syncPreferredSize();
     }
 
@@ -366,7 +339,7 @@ private:
     juce::TextButton m_cancel_button;
 
     // A single application-wide tooltip window (created on first use, shared across all windows)
-    // renders the hover text on the disabled controls. Using SharedResourcePointer instead of a
+    // renders the help button's hover text. Using SharedResourcePointer instead of a
     // per-window instance is JUCE's documented fix for the duplicate-tooltip artifact: two live
     // TooltipWindow instances each register a global mouse listener and can paint overlaid tips.
     // Default (desktop) parent gives the native soft-corner drop-shadow window.
@@ -375,8 +348,7 @@ private:
 
 InputCalibrationWindow::InputCalibrationWindow(
     core::IEditorController& controller, const common::audio::ILiveInput* live_input,
-    const core::InputCalibrationPrompt& prompt, juce::Component* centering_component,
-    bool read_only_game_reflection)
+    const core::InputCalibrationPrompt& prompt, juce::Component* centering_component)
     : juce::DocumentWindow(
           "Input Calibration", editorTheme().bar_background, juce::DocumentWindow::closeButton)
 {
@@ -384,8 +356,7 @@ InputCalibrationWindow::InputCalibrationWindow(
     setUsingNativeTitleBar(true);
     setResizable(false, false);
     setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
-    auto content =
-        std::make_unique<Content>(*this, controller, live_input, prompt, read_only_game_reflection);
+    auto content = std::make_unique<Content>(*this, controller, live_input, prompt);
     m_content = content.get();
     setContentOwned(content.release(), true);
     centreAroundComponent(centering_component, getWidth(), getHeight());
@@ -401,14 +372,6 @@ void InputCalibrationWindow::closeButtonPressed()
         m_content->requestDismissal();
     }
     setVisible(false);
-}
-
-void InputCalibrationWindow::setReadOnlyGameReflection(bool read_only_game_reflection)
-{
-    if (m_content != nullptr)
-    {
-        m_content->setReadOnly(read_only_game_reflection);
-    }
 }
 
 } // namespace rock_hero::editor::ui

@@ -1,7 +1,6 @@
 #include "editor_view.h"
 
 #include "audio_device/audio_device_settings_window.h"
-#include "audio_device/game_audio_recommendation_dialog.h"
 #include "input_calibration/input_calibration_window.h"
 #include "keybinds/actions_window.h"
 #include "keybinds/editor_command_registry.h"
@@ -840,8 +839,6 @@ void EditorView::setState(const core::EditorViewState& state)
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
     presentToneImportPromptIfNeeded(m_state.tone_import_prompt);
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
-    presentGameAudioUnavailablePromptIfNeeded(m_state.game_audio_unavailable_prompt);
-    presentGameAudioRecommendationIfNeeded(m_state.game_audio_recommendation_prompt);
     presentGridSnapWarningIfNeeded(m_state.grid_snap_warning_prompt);
     presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
@@ -3042,63 +3039,6 @@ void EditorView::presentRestoreInterruptedPromptIfNeeded(
         });
 }
 
-// Shows each distinct unavailable-game-audio notice once, then opens the audio device settings
-// window so the user lands directly in the editable editor-own flow the startup fallback selected.
-void EditorView::presentGameAudioUnavailablePromptIfNeeded(
-    const std::optional<core::GameAudioUnavailablePrompt>& prompt)
-{
-    if (!prompt.has_value())
-    {
-        m_last_game_audio_unavailable_prompt.reset();
-        return;
-    }
-
-    if (m_last_game_audio_unavailable_prompt == prompt)
-    {
-        return;
-    }
-
-    m_last_game_audio_unavailable_prompt = prompt;
-    showThemedWarningBox(
-        this,
-        "Game audio settings unavailable",
-        juce::String::fromUTF8(prompt->error.message.c_str()),
-        [this] {
-            m_controller.onGameAudioUnavailablePromptDismissed();
-            showAudioDeviceSettingsWindow();
-        });
-}
-
-// Opens the startup game-audio recommendation alert once per controller request and routes its
-// single decision back; the self-deleting alert owns its own teardown, so the view only tracks
-// whether the current request has been presented.
-void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
-{
-    if (!prompt_requested)
-    {
-        m_game_audio_recommendation_presented = false;
-        return;
-    }
-
-    if (m_game_audio_recommendation_presented)
-    {
-        return;
-    }
-
-    m_game_audio_recommendation_presented = true;
-    GameAudioRecommendationDialog::show(
-        *this, [this](core::GameAudioRecommendationDecision decision, bool suppress_future) {
-            // The decline button reads "Open Audio Settings", so it lands the user in the audio
-            // device settings window. The window opens BEFORE the decision is reported, so the
-            // decision lands with the window already open.
-            if (decision == core::GameAudioRecommendationDecision::UseCustomSettings)
-            {
-                showAudioDeviceSettingsWindow();
-            }
-            m_controller.onGameAudioRecommendationDecision(decision, suppress_future);
-        });
-}
-
 // Opens the grid-snap warning once per controller request and routes its single decision back.
 // The dialog belongs to the main editor window even when the toggle was pressed in the 3D preview
 // (which forwards the command here), because this window is where the mode's consequences show.
@@ -3146,26 +3086,14 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
         return;
     }
 
-    // The "use game audio settings" toggle governs both surfaces: while it is on, the calibration
-    // popup is read-only -- the game's calibration value with a notice and no measure action -- to
-    // match the device window's lock, which keys off the toggle alone. The toggle is only ever on
-    // while a calibrated game configuration is adopted, so the reflected value always exists;
-    // unchecking the toggle is the one way back to the editable editor-own flow.
-    const bool read_only_game_reflection = m_state.use_game_audio_settings;
-
     if (m_input_calibration_window != nullptr)
     {
-        m_input_calibration_window->setReadOnlyGameReflection(read_only_game_reflection);
         m_input_calibration_window->toFront(true);
         return;
     }
 
     m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
-        m_controller,
-        &m_live_input,
-        *prompt,
-        isShowing() ? this : nullptr,
-        read_only_game_reflection);
+        m_controller, &m_live_input, *prompt, isShowing() ? this : nullptr);
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.
@@ -3318,23 +3246,6 @@ void EditorView::showAudioDeviceSettingsWindow()
                 view->m_controller.onAudioDeviceSettingsClosed();
                 view->scheduleAudioDeviceSettingsWindowReset();
             }
-        },
-        GameAudioSettings{
-            .use_game_settings = m_state.use_game_audio_settings,
-            // Fresh one-shot read at open: NotConfigured disables the toggle with its tooltip.
-            .source_state = m_controller.gameAudioSourceState(),
-        },
-        [safe_this](bool enabled, const std::function<void(bool)>& set_applying)
-            -> std::expected<void, core::GameAudioSourceError> {
-            if (auto* view = safe_this.getComponent())
-            {
-                return view->m_controller.onUseGameAudioSettingsChangeRequested(
-                    enabled, set_applying);
-            }
-
-            // A torn-down view has no editor to switch, so there is no failure to report to the
-            // closing dialog.
-            return {};
         });
 }
 

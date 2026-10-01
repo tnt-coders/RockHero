@@ -1006,7 +1006,7 @@ TEST_CASE("Gameplay session forwards speed and loop to the transport", "[core][s
     CHECK_FALSE(harness.transport.loop_region.has_value());
 }
 
-// Verifies the wired-but-silent gate arms at Ready when the game's own store holds a calibration
+// Verifies the wired-but-silent gate arms at Ready when the shared store holds a calibration
 // matching the active input route: the rig completion (a message-thread edge) drives the shared
 // monitor, which sets the calibrated gain and enables processed monitoring in the pinned order.
 TEST_CASE("Gameplay session arms live-input monitoring at Ready", "[core][session][live-input]")

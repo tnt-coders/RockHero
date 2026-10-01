@@ -864,68 +864,12 @@ TEST_CASE(
     CHECK(settings.state().error_message.empty());
 }
 
-// commit() finishes the edit on whichever route is live at commit time. When no hardware opened
-// while the window was open, that is the captured pre-edit route construction released for
-// staging, so commit reopens it: a plain OK on an untouched window must never leave audio dead.
-TEST_CASE("AudioDeviceSettings commit reopens the captured route", "[audio][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    testing::ConfigurableAudioDeviceConfiguration audio_devices;
-    restoreLikeTheEngine(audio_devices);
-    openInitialRoute(audio_devices);
-    const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
-
-    {
-        AudioDeviceSettings settings{audio_devices};
-        // Construction releases the hardware for editing.
-        REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
-
-        const auto committed = settings.commit();
-        REQUIRE(committed.has_value());
-        CHECK(hardwareDeviceOpen(audio_devices.device_manager));
-        CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
-    }
-
-    // The reopen belongs to commit(); destruction must not run a second restore or close.
-    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
-}
-
-// commit() keeps a route opened out of band during the edit -- the editor's live "use game audio
-// settings" toggle opens the adopted device while the window is still up -- and must not restore
-// the captured pre-edit route over it.
-TEST_CASE(
-    "AudioDeviceSettings commit keeps the out-of-band route", "[audio][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    testing::ConfigurableAudioDeviceConfiguration audio_devices;
-    restoreLikeTheEngine(audio_devices);
-    openInitialRoute(audio_devices);
-
-    AudioDeviceSettings settings{audio_devices};
-    REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
-
-    juce::AudioDeviceManager::AudioDeviceSetup adopted = initialRouteSetup();
-    adopted.inputDeviceName = g_input_b;
-    adopted.outputDeviceName = g_output_b;
-    const auto adopted_opened = audio_devices.restoreSerializedDeviceState(
-        serializeDeviceSetupToXml(g_asio_type_name, adopted)->toString().toStdString());
-    REQUIRE(adopted_opened.has_value());
-    REQUIRE(*adopted_opened == DeviceRestoreOutcome::Opened);
-
-    const auto committed = settings.commit();
-    REQUIRE(committed.has_value());
-    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
-    CHECK(
-        audio_devices.device_manager.getAudioDeviceSetup().outputDeviceName ==
-        juce::String{g_output_b});
-}
-
 // An edit can begin on a closed, disconnected device (the startup restore fell back nowhere by
-// design), so there is no pending restore. When the hardware returns while the window is open, OK
-// is an explicit confirmation of the shown route and must finish with the device open -- the
-// restore-pending gate only guards cancel's "don't start audio that was not running".
+// design), so there is no pending restore. The edit is seeded from the saved route, so when the
+// hardware returns while the window is open, OK applies that shown route and opens the device --
+// the restore-pending gate only guards cancel's "don't start audio that was not running".
 TEST_CASE(
-    "AudioDeviceSettings commit opens the saved route once its device returns",
+    "AudioDeviceSettings apply opens the saved route once its device returns",
     "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -949,38 +893,12 @@ TEST_CASE(
     audio_devices.notifyChanged();
     REQUIRE_FALSE(settings.state().staged_device_error.has_value());
 
-    const auto committed = settings.commit();
-    REQUIRE(committed.has_value());
+    const auto applied = settings.apply();
+    REQUIRE(applied.has_value());
     CHECK(hardwareDeviceOpen(audio_devices.device_manager));
     CHECK(
         audio_devices.device_manager.getAudioDeviceSetup().outputDeviceName ==
         juce::String{"Output Z"});
-}
-
-// When the chosen device is still missing at OK time, the reopen attempt fails as the designed
-// no-fallback outcome: commit succeeds so the window closes, the device stays closed, and the
-// route remains the user's explicit choice for the next replug or launch.
-TEST_CASE(
-    "AudioDeviceSettings commit leaves a still-missing device closed",
-    "[audio][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    testing::ConfigurableAudioDeviceConfiguration audio_devices;
-    restoreLikeTheEngine(audio_devices);
-    openInitialRoute(audio_devices);
-
-    juce::XmlElement saved{"DEVICESETUP"};
-    saved.setAttribute("deviceType", g_asio_type_name);
-    saved.setAttribute("audioInputDeviceName", "Input Z");
-    saved.setAttribute("audioOutputDeviceName", "Output Z");
-    REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
-
-    AudioDeviceSettings settings{audio_devices};
-
-    const auto committed = settings.commit();
-    REQUIRE(committed.has_value());
-    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
-    CHECK(settings.state().staged_device_error.has_value());
 }
 
 // Cancel after a failed apply puts the previous choice back even when its device is still

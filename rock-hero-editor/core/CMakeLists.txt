@@ -5,9 +5,7 @@ add_library(rock_hero::editor::core ALIAS rock_hero_editor_core)
 # Sources are grouped by feature folder; root files are the cross-feature hub contract.
 target_sources(
     rock_hero_editor_core
-    PRIVATE src/audio/editor_audio_config_store.cpp
-            src/audio/game_audio_source_error.cpp
-            src/audio_device/audio_device_handlers.cpp
+    PRIVATE src/audio_device/audio_device_handlers.cpp
             src/chart/chart_edits.cpp
             src/chart/chart_edits.h
             src/chart/chart_handlers.cpp

@@ -5,12 +5,10 @@
 #include <memory>
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
-#include <rock_hero/common/audio/settings/audio_config_identity.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
-#include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/tasks/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
@@ -41,15 +39,6 @@ constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 
             .getChildFile(juce::String{folder_name.data(), folder_name.size()})
             .getChildFile("Rock Hero Editor.log");
     return common::core::pathFromJuceFile(log_file);
-}
-
-// Asks the store where the game's audio-config file lives, so the editor's read-only view targets
-// exactly the file the game writes without restating the location policy. Named by the game's
-// audio-config application name only, with zero game-code linkage.
-[[nodiscard]] std::filesystem::path gameAudioConfigFile()
-{
-    return rock_hero::common::audio::AudioConfigStore::fileFor(
-        rock_hero::common::audio::gameAudioConfigApplicationName());
 }
 
 // Maps the concrete Tracktion-backed engine into the editor's narrow audio-port bundle. This
@@ -132,22 +121,13 @@ public:
         m_message_thread_scheduler =
             std::make_unique<rock_hero::editor::core::JuceMessageThreadScheduler>();
 
-        // Editor audio-config store: reads and writes delegate to the editor's own read-write store
-        // or a read-only view of the game's file, per the active source. Injected everywhere the
-        // editor's audio config is read so the device route and
-        // calibration follow the active source.
-        m_editor_audio_config_store =
-            std::make_unique<rock_hero::editor::core::EditorAudioConfigStore>(
-                m_editor_settings->audioConfigStore(), gameAudioConfigFile());
+        // The audio settings both products share: the device route and the input calibrations.
+        m_audio_config_store = std::make_unique<rock_hero::common::audio::AudioConfigStore>();
 
-        // The controller resolves the "use game audio settings" toggle itself at startup
-        // (selecting the game source, or staging the unavailable/recommendation prompts) before it
-        // restores the device route, so composition only builds and injects the store.
-
-        // The engine implements both ILiveInput and IAudioDeviceConfiguration; the store is the
-        // swappable IAudioConfigStore& the shared monitor and the controller both read through.
+        // The engine implements both ILiveInput and IAudioDeviceConfiguration; the shared monitor
+        // and the controller both read the audio settings through the one store.
         m_live_input_monitor = std::make_unique<rock_hero::common::audio::LiveInputMonitor>(
-            *m_audio_engine, *m_audio_engine, *m_editor_audio_config_store);
+            *m_audio_engine, *m_audio_engine, *m_audio_config_store);
 
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
             makeEditorAudioPorts(*m_audio_engine),
@@ -155,9 +135,8 @@ public:
                 .settings = *m_editor_settings,
                 .task_runner = *m_editor_task_runner,
                 .message_thread_scheduler = *m_message_thread_scheduler,
-                .audio_config_store = *m_editor_audio_config_store,
+                .audio_config_store = *m_audio_config_store,
                 .live_input_monitor = *m_live_input_monitor,
-                .editor_audio_config_store = m_editor_audio_config_store.get(),
             },
             &juce::JUCEApplicationBase::quit);
 
@@ -173,7 +152,7 @@ public:
     {
         m_main_window.reset();
         m_live_input_monitor.reset();
-        m_editor_audio_config_store.reset();
+        m_audio_config_store.reset();
         m_message_thread_scheduler.reset();
         m_editor_task_runner.reset();
         m_editor_settings.reset();
@@ -211,14 +190,13 @@ private:
     // Owns app-local editor settings persistence used by controller restore policy.
     std::unique_ptr<rock_hero::editor::core::EditorSettings> m_editor_settings;
 
-    // Owns the editor audio-config store over the editor's own store and a read-only view of the
-    // game's audio-config file. Constructed after the settings it wraps and released after the
-    // monitor and editor that read through it but before those settings.
-    std::unique_ptr<rock_hero::editor::core::EditorAudioConfigStore> m_editor_audio_config_store;
+    // Owns the audio-config store both products share. Released after the monitor and editor that
+    // read through it.
+    std::unique_ptr<rock_hero::common::audio::AudioConfigStore> m_audio_config_store;
 
     // Owns the shared calibrate-first live-input monitoring service the controller drives. Composed
-    // over the engine's live-input/device ports and the editor audio-config store, and released
-    // before the store, settings, and engine it references during shutdown.
+    // over the engine's live-input/device ports and the audio-config store, and released before
+    // the store and engine it references during shutdown.
     std::unique_ptr<rock_hero::common::audio::LiveInputMonitor> m_live_input_monitor;
 
     // Owns the JUCE-backed editor task runner used for background project IO. Outlives the

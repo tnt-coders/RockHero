@@ -5,11 +5,8 @@
 
 #pragma once
 
-#include <expected>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/editor/core/audio/game_audio_source_error.h>
-#include <rock_hero/editor/core/audio/game_audio_source_state.h>
 #include <rock_hero/editor/core/audio_device/audio_device_settings_view_state.h>
 #include <rock_hero/editor/core/audio_device/i_audio_device_settings_controller.h>
 #include <rock_hero/editor/core/audio_device/i_audio_device_settings_view.h>
@@ -31,40 +28,6 @@ public:
 
     /*! \brief Host callback used when the controller requests that the window close. */
     using CloseCallback = std::function<void()>;
-
-    /*!
-    \brief Host callback fired when the user changes the "use game audio settings" toggle.
-
-    Fires with the requested toggle value plus an applying presentation. The interactive toggle
-    binds the presentation to this view's setApplying(), so a flip that needs a blocking device
-    re-open hides the dialog exactly like the OK/Cancel apply path; the cancel-time restore passes
-    an empty presentation instead because its window is already closing, which runs the re-open
-    inline. The host forwards both to the editor controller, which owns the source switch and
-    engine adoption and declines an enable when the game's configuration is not adoptable; on a
-    declined enable the view reverts its checkbox and reports the carried canonical reason, and
-    only an accepted flip updates the local read-only presentation.
-    */
-    using GameAudioSettingsChangedCallback =
-        std::function<std::expected<void, core::GameAudioSourceError>(
-            bool enabled, std::function<void(bool)> set_applying)>;
-
-    /*!
-    \brief Governs whether the panel reflects the game's audio config or edits the editor's own.
-    */
-    struct GameAudioSettingsState final
-    {
-        /*! \brief True when the "use game audio settings" toggle is on. */
-        bool use_game_settings{false};
-
-        /*!
-        \brief Adoption-readiness of the game's configuration, read fresh at window open.
-
-        NotConfigured disables the toggle with an explanatory tooltip — with no game configuration
-        at all there is nothing a click could adopt or explain. Uncalibrated keeps the toggle
-        clickable so the click can report the calibrate-in-game reason.
-        */
-        core::GameAudioSourceState source_state{core::GameAudioSourceState::NotConfigured};
-    };
 
     /*!
     \brief Creates the audio settings view around an editor settings controller.
@@ -127,36 +90,6 @@ public:
     */
     void setState(const core::AudioDeviceSettingsViewState& state) override;
 
-    /*!
-    \brief Sets the host callback fired when the "use game audio settings" toggle changes.
-    \param callback Callback invoked with the requested toggle value.
-    */
-    void setGameAudioSettingsChangedCallback(GameAudioSettingsChangedCallback callback);
-
-    /*!
-    \brief Applies the "use game audio settings" toggle state and re-scopes the panel.
-
-    When the toggle is on the device fields render read-only, reflecting the game's route, and carry
-    a "Derived from game settings" tooltip that explains why they cannot be edited. When off the
-    panel is the full editable device flow and the tooltip is cleared.
-
-    \param state Resolved toggle state.
-    */
-    void setGameAudioSettings(GameAudioSettingsState state);
-
-    /*!
-    \brief Restores the "use game audio settings" toggle to its open-time value.
-
-    Extends the existing cancel flow: the common settings service restores the audio device
-    byte-exact, but it knows nothing about the editor-side toggle (persisted flag plus store
-    source). This re-applies the toggle value captured when the window opened and re-fires the
-    change callback so the editor controller re-persists the flag, flips the store source back, and
-    reopens the original source's device. It is a no-op when the toggle already matches its
-    open-time value, so it is safe on cancel paths that never touched the toggle and on repeated
-    disposal calls.
-    */
-    void restoreOriginalGameAudioSettings();
-
     /*! \brief Requests modal shutdown from the host DialogWindow. */
     void requestClose() override;
 
@@ -175,15 +108,6 @@ private:
 
     // Populates every control from the current view state.
     void applyStateToControls();
-
-    // Mirrors the resolved toggle value onto the checkbox and hands it to the controller, which
-    // owns OK's availability and routing. The read-only field enablement and the derived-from-game
-    // tooltip are applied alongside the other control state in applyStateToControls().
-    void applyGameAudioSettings();
-
-    // True while the toggle is on, which renders the device fields read-only. The toggle can only
-    // be on while the game's configuration is adopted, so the lock always reflects a real route.
-    [[nodiscard]] bool gameSettingsLockActive() const noexcept;
 
     // Resizes the view and host window to match the current form rows.
     void syncWindowHeightToContent();
@@ -206,26 +130,6 @@ private:
     // Host callback that owns final window disposal.
     CloseCallback m_close_callback;
 
-    // Host callback fired when the user changes the "use game audio settings" toggle.
-    GameAudioSettingsChangedCallback m_on_use_game_settings_changed;
-
-    // Resolved "use game audio settings" toggle state governing read-only mode.
-    GameAudioSettingsState m_game_settings{};
-
-    // Toggle value captured on the first setGameAudioSettings() call (window open time). Cancel and
-    // bypass-close paths restore the toggle to this value so the window lands back on its exact
-    // pre-open state.
-    bool m_original_use_game_settings{false};
-
-    // True once the open-time toggle value has been captured, so restore is a no-op before the
-    // first game-settings push.
-    bool m_captured_original_game_settings{false};
-
-    juce::ToggleButton m_use_game_settings_toggle;
-
-    // Non-interactive row label paired with the checkbox-only toggle so only the box square toggles
-    // the setting; clicks on the text fall through rather than flipping the toggle.
-    juce::Label m_use_game_settings_label;
     juce::Label m_device_type_label;
     juce::ComboBox m_device_type_combo;
     juce::Label m_device_label;

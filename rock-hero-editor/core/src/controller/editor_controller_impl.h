@@ -56,7 +56,6 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -641,12 +640,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPluginDisplayTypeOverrideChanged(
         std::string instance_id, std::optional<PluginDisplayType> display_type);
     void onOpenPluginRequested(std::string instance_id);
-    [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
-        bool enabled, const std::function<void(bool)>& set_applying);
-    [[nodiscard]] GameAudioSourceState gameAudioSourceState() const;
-    void onGameAudioUnavailablePromptDismissed();
-    void onGameAudioRecommendationDecision(
-        GameAudioRecommendationDecision decision, bool suppress_future);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted();
@@ -888,29 +881,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void detachView();
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
-    // Resolves the persisted "use game audio settings" toggle against a fresh read of the game's
-    // configuration before the startup route application (plan 48 amended ruleset): on + adoptable
-    // selects the game source so the application adopts the game route; on + broken writes the
-    // toggle off and stages the unavailable-game prompt; off + adoptable + unsuppressed stages the
-    // recommendation prompt; anything else leaves the editor silently on its own settings.
-    void resolveGameAudioSourceAtStartup();
-
-    // Which audio-config source the editor should be running on after applyAudioSourceAndRoute.
-    enum class AudioSourceSelection : std::uint8_t
-    {
-        EditorOwn, // Persist the toggle off and select the editor's own store, then apply.
-        Game,      // Validate adoptability fresh; persist the toggle on and select the game view.
-        Current,   // Touch neither the toggle nor the source; (re)apply the active route.
-    };
-
-    // The one route-application path shared by startup, the settings-window toggle, and the
-    // startup recommendation decision: optional source flip (validated
-    // fresh for Game so a persisted on always means adoption succeeded), then the saved route of
-    // the now-active source is applied either inline or behind the OpeningAudioDevice busy
-    // overlay (a non-empty set_applying requests the overlay for a genuine device re-open).
-    [[nodiscard]] std::expected<void, GameAudioSourceError> applyAudioSourceAndRoute(
-        AudioSourceSelection selection, const std::function<void(bool)>& set_applying);
-
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(
@@ -1019,23 +989,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // App-local settings used to restore startup state and persist exit state.
     IEditorSettings& m_settings;
 
-    // Per-app audio-config store used to persist and restore the active device route.
+    // The audio-config store both products share, used to persist and restore the device route.
     common::audio::IAudioConfigStore& m_audio_config_store;
-
-    // Editor audio-config store the "use game audio settings" toggle re-selects; null in tests that
-    // do not exercise the toggle. When set it is the same object as m_audio_config_store, held
-    // concretely so onUseGameAudioSettingsChangeRequested can switch its active source.
-    EditorAudioConfigStore* m_editor_audio_config_store{nullptr};
-
-    // Startup unavailable-game notice staged by resolveGameAudioSourceAtStartup when the persisted
-    // toggle asked for the game's configuration but it regressed; cleared when the view reports the
-    // prompt dismissed. Transient by design — the toggle is already written off at staging time, so
-    // no standing on-but-broken state exists for any window to render.
-    std::optional<GameAudioUnavailablePrompt> m_game_audio_unavailable_prompt{};
-
-    // Startup recommendation staged when the toggle is off, a calibrated game configuration exists,
-    // and the user has not suppressed the prompt; cleared when the view reports a decision.
-    bool m_game_audio_recommendation_prompt{false};
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

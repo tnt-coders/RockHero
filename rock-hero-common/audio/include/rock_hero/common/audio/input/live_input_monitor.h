@@ -206,7 +206,7 @@ private:
     InputCalibrationWorkflow m_workflow;
     ILiveInput& m_live_input;
     IAudioDeviceConfiguration& m_device_configuration;
-    IAudioConfigStore& m_audio_config_store; // swappable: app's own store, or plan 48's facade
+    IAudioConfigStore& m_audio_config_store; // the store both products share
     LiveInputMonitoringStatus m_status{};
 
     // Latest session facts supplied by a context-taking driver call. commitCalibration() and

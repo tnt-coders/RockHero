@@ -1,6 +1,6 @@
 /*!
 \file audio_config_error.h
-\brief Typed errors returned by the per-app audio-config store.
+\brief Typed errors returned by the audio-config store.
 */
 
 #pragma once
@@ -11,7 +11,7 @@
 namespace rock_hero::common::audio
 {
 
-/*! \brief Stable failure reasons for per-app audio-config store operations. */
+/*! \brief Stable failure reasons for audio-config store operations. */
 enum class AudioConfigErrorCode : std::uint8_t
 {
     /*! \brief A config value was not valid for persistence or lookup. */

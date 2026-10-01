@@ -27,7 +27,7 @@ namespace rock_hero::game::core
 \brief Observable phase of the native audio-setup flow.
 
 The flow is a strict progression: the player picks a device, the applied route is calibrated for
-gain, and the setup reaches Ready — the point at which the game's own store holds the device route
+gain, and the setup reaches Ready — the point at which the shared store holds the device route
 and a matching calibration, so a later GameplaySession Ready transition arms live-input monitoring
 and the guitar is audible through the tone. A device-apply or persistence failure is terminal
 (Failed); a signal-quality calibration failure is recoverable and leaves the flow in CalibratingGain
@@ -174,7 +174,7 @@ private:
 
 The driver is the thin side-effecting adapter over a pure NativeAudioSetupMachine: it drives the
 shared staged device-settings workflow, captures the applied route (opaque blob plus resolved
-identity) into the game's own audio-config store as one ActiveDeviceRoute, writes the slot-0
+identity) into the shared audio-config store as one ActiveDeviceRoute, writes the slot-0
 player-to-route mapping through game/core settings, and then drives the shared calibrate-first
 LiveInputMonitor to measure and persist the route's input gain. Reaching Ready is the state a later
 GameplaySession Ready transition (plan 14 Phase 4) needs to arm live-input monitoring.
@@ -205,7 +205,7 @@ public:
     \param device_configuration Device-configuration port sampled for the applied blob and identity.
     \param live_input_monitor Shared calibrate-first monitor driven to measure and persist gain.
     \param live_input Live-input port sampled for the raw calibration meter level.
-    \param audio_config_store The game's own store the applied device route is written to.
+    \param audio_config_store The shared store the applied device route is written to.
     \param game_settings The game's persistence port the slot-0 player config is written to.
     \param capture_settings Fixed meter-window counts for automatic gain capture.
     */

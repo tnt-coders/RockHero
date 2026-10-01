@@ -600,27 +600,6 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         return {};
     }
 
-    // Keeps the live route as final. A route opened out of band while the window was open (for
-    // example by the editor's live "use game audio settings" toggle) is already the one the user
-    // is keeping and survives untouched. When no hardware is open, OK is an explicit confirmation
-    // of the shown route, so commit reopens the captured one -- whether construction released it
-    // for staging or the edit began on an unavailable device whose hardware has since returned.
-    // This deliberately ignores the m_restore_pending gate, which exists for cancel's "don't start
-    // audio that was not running before the edit"; a reopen failure is the designed no-fallback
-    // outcome (the route stays chosen, the device stays closed behind the standing notice) and
-    // therefore does not fail the commit.
-    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> commit()
-    {
-        if (!hardwareDeviceOpen(m_device_manager))
-        {
-            openPreviousRouteBestEffort();
-        }
-
-        m_restore_pending = false;
-        refreshState({});
-        return {};
-    }
-
     // Opens the staged backend's control panel through the in-memory staged device so the panel
     // remains available even though the active audio device is closed during the settings
     // edit. ASIO drivers honor showControlPanel() against a non-open device because the type
@@ -694,7 +673,7 @@ private:
         }
 
         // A previous route whose device is now absent is restored as the choice all the same; the
-        // hardware staying closed is the designed no-fallback outcome, as it is for commit().
+        // hardware staying closed is the designed no-fallback outcome, as it is for apply().
         return {};
     }
 
@@ -708,21 +687,6 @@ private:
     {
         return m_audio_devices.restoreSerializedDeviceState(
             serializeDeviceSetupToXml(device_type, setup)->toString().toStdString());
-    }
-
-    // Best-effort reopen of the captured route for commit(). Unlike restorePreviousRoute() this
-    // ignores the m_restore_pending gate, and a failure -- the chosen device is still unavailable
-    // -- is swallowed as the designed no-fallback outcome: the restore keeps the route as the
-    // user's explicit choice, and the silent device runs behind the standing notice.
-    void openPreviousRouteBestEffort()
-    {
-        if (m_previous_device_type.isEmpty() || (m_previous_setup.inputDeviceName.isEmpty() &&
-                                                 m_previous_setup.outputDeviceName.isEmpty()))
-        {
-            return;
-        }
-
-        static_cast<void>(openRoute(m_previous_device_type, m_previous_setup));
     }
 
     // Destructor cleanup has no caller-visible channel, so restore failure is intentionally
@@ -1312,11 +1276,6 @@ std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::apply()
 std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::cancel()
 {
     return m_impl->cancel();
-}
-
-std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::commit()
-{
-    return m_impl->commit();
 }
 
 std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::openControlPanel()

@@ -101,43 +101,6 @@ public:
     }
 
     /*!
-    \brief Reports that no use-game-audio-settings choice is stored.
-    \return Always empty.
-    */
-    [[nodiscard]] std::optional<bool> useGameAudioSettings() const override
-    {
-        return std::nullopt;
-    }
-
-    /*!
-    \brief Ignores use-game-audio-settings writes.
-    \return Always empty success.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> setUseGameAudioSettings(bool) override
-    {
-        return {};
-    }
-
-    /*!
-    \brief Reports that no recommendation-suppression choice is stored.
-    \return Always empty.
-    */
-    [[nodiscard]] std::optional<bool> suppressGameAudioRecommendation() const override
-    {
-        return std::nullopt;
-    }
-
-    /*!
-    \brief Ignores recommendation-suppression writes.
-    \return Always empty success.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> setSuppressGameAudioRecommendation(
-        bool) override
-    {
-        return {};
-    }
-
-    /*!
     \brief Reports that no tablature string display minimum is stored.
     \return Always empty.
     */
