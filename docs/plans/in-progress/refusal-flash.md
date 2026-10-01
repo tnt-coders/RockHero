@@ -110,7 +110,7 @@ legato press that CLEARED, whose notes' refusals to set were never asked for.
 | # | Question | Recommendation |
 |---|---|---|
 | F1 | Pulse count and timing | BUILT at two pulses over 0.6 s (`g_refusal_flash_pulses`, `g_refusal_flash_seconds` in `tab_view.cpp`); sight and tune |
-| F2 | Drawn geometry: the selection ring turning red, or a glow around it | BUILT as the ring turning red, then made a GLOW (user, 2026-09-30: wider, closer to the accent's halo): reach 0.45 of the mark's size in four layers (`g_refusal_glow_*`, `tab_view.cpp`); sight it |
+| F2 | Drawn geometry: the selection ring turning red, or a glow around it | BUILT as the ring turning red, then made a GLOW (user, 2026-09-30: wider, closer to the accent's halo): reach 0.2 of the mark's size, the accent halo's, after 0.45 sighted too wide; four layers (`g_refusal_glow_*`, `tab_view.cpp`), drawn over the caret square (user, 2026-09-30) |
 | ~~F3~~ | ~~Key repeat~~ | BUILT as recommended: a refusal arriving mid-flash joins the running one on its clock, so a held key reads as one pulse train |
 | F8 | The fret shift at the neck's edge (`ShiftChartFrets` below fret 0 or past the last) flashes the selection, while a move stopping at the edge is silent | Sight it: the fret on screen already says why, so under the bound ruling it may belong with the silent bounds |
 | F9 | The move gesture's `Invalid` carries both visible bounds (neck edge, occupied slot) and a real refusal (a landing that would strand a point), so the gesture stays silent for both | If a real move refusal needs its flash, a bound should plan `NoChange` as the sustain clamp does, leaving `Invalid` for refusals only |

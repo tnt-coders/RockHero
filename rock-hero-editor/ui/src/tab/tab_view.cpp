@@ -44,10 +44,10 @@ struct MarkOutline
     float extent{0.0f};
 };
 
-// How far the refusal glow reaches past a mark's outline, as a fraction of the mark's size: wider
-// than the accent's halo (0.2 of a head), so the flash reads as a light rather than a ring. A
-// sighting value (refusal-flash.md F2).
-constexpr float g_refusal_glow_reach{0.45f};
+// How far the refusal glow reaches past a mark's outline, as a fraction of the mark's size: the
+// accent halo's own reach, which sighted better than a wider glow (user, 2026-09-30;
+// refusal-flash.md F2).
+constexpr float g_refusal_glow_reach{0.2f};
 
 // The glow's layers: nested strokes of the outline, each wider and each faint, which pile up to
 // nearly the full colour at the outline and thin to one faint layer at the reach.
@@ -669,13 +669,19 @@ void TabView::paint(juce::Graphics& g)
             .extent = layout.head_size,
         };
     };
+    // THE TRACES DRAW OVER THE CARET: the selection's rings and the refusal's glows are collected
+    // here, where the keyframe marks they trace are repainted, and drawn after the caret square, so
+    // neither is cut by it — a glow most of all, which must never be hidden. The marks stay
+    // repainted BEFORE the caret, so a redrawn linked head never covers the square it sits in.
+    std::vector<MarkOutline> selection_rings;
+    std::vector<MarkOutline> refusal_glows;
     if (!on_face)
     {
         for (const std::size_t index : m_edit.selected_notes)
         {
-            if (const std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
+            if (std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
             {
-                ring(*mark, accent);
+                selection_rings.push_back(std::move(*mark));
             }
         }
     }
@@ -765,24 +771,20 @@ void TabView::paint(juce::Graphics& g)
         [&](const common::core::NoteViewState& note,
             const common::core::KeyframeViewState& keyframe,
             const common::ui::TabKeyframeLayout& layout) {
-            if (const std::optional<MarkOutline> mark = keyframe_outline(note, keyframe, layout);
+            if (std::optional<MarkOutline> mark = keyframe_outline(note, keyframe, layout);
                 mark.has_value() && !on_face)
             {
-                ring(*mark, accent);
+                selection_rings.push_back(std::move(*mark));
             }
         });
-
-    // THE REFUSAL FLASH: the elements a refused edit turned down glow in the theme's red, the glow
-    // pulsing with the flash's level (refusal-flash.md).
+    // The elements a refused edit turned down, glowed below once the caret is drawn.
     if (m_refusal.has_value())
     {
-        const juce::Colour red =
-            editorTheme().invalid.withAlpha(static_cast<float>(refusalFlashLevel()));
         for (const std::size_t index : m_refusal->flash.notes)
         {
-            if (const std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
+            if (std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
             {
-                glowAround(g, *mark, red);
+                refusal_glows.push_back(std::move(*mark));
             }
         }
         for_each_drawn_keyframe(
@@ -790,11 +792,10 @@ void TabView::paint(juce::Graphics& g)
             [&](const common::core::NoteViewState& note,
                 const common::core::KeyframeViewState& keyframe,
                 const common::ui::TabKeyframeLayout& layout) {
-                if (const std::optional<MarkOutline> mark =
-                        keyframe_outline(note, keyframe, layout);
+                if (std::optional<MarkOutline> mark = keyframe_outline(note, keyframe, layout);
                     mark.has_value())
                 {
-                    glowAround(g, *mark, red);
+                    refusal_glows.push_back(std::move(*mark));
                 }
             });
     }
@@ -833,6 +834,11 @@ void TabView::paint(juce::Graphics& g)
         g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
     }
 
+    for (const MarkOutline& mark : selection_rings)
+    {
+        ring(mark, accent);
+    }
+
     // The selection's BEND CHIPS draw over the caret: a chip stands above its head, into the square
     // the caret draws there, and the amount it prints must stay readable. Each is repainted, and
     // wears the ring when the caret stands on the chips, the face the next key acts on.
@@ -869,6 +875,19 @@ void TabView::paint(juce::Graphics& g)
                 repaint_chip(common::ui::paintTabBendChip(g, metrics, note, *point, *chip));
             }
         });
+
+    // THE REFUSAL FLASH: the elements a refused edit turned down glow in the theme's red, pulsing
+    // with the flash's level (refusal-flash.md) — over the caret and the selection's chips, so a
+    // refusal is never hidden, and under the pending entry's box, whose value must stay readable.
+    if (!refusal_glows.empty())
+    {
+        const juce::Colour red =
+            editorTheme().invalid.withAlpha(static_cast<float>(refusalFlashLevel()));
+        for (const MarkOutline& mark : refusal_glows)
+        {
+            glowAround(g, mark, red);
+        }
+    }
 
     // The pending fret entry: the provisional value in its accent-bordered box over each
     // affected head (or at the empty insert slot), red when it cannot apply — every affected

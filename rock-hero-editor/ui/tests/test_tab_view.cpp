@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <cstdlib>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -812,6 +813,42 @@ TEST_CASE("TabView glows a refused head red until the projection changes", "[ui]
 
     setFixtureState(view);
     CHECK(render() == plain);
+}
+
+// The glow draws OVER the caret square, so a refusal at the caret's own slot is never cut by it:
+// where the square's white edge runs beside the head, the glow tints it red. Probed on the pixel
+// column the square's stroke covers just OUTSIDE the head, since the glow never paints the head.
+TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(timeline);
+    setFixtureState(view);
+    view.setVisibleContentLeft(180);
+    view.setEditState(
+        core::ChartEditViewState{.caret = core::ChartCaretViewState{.seconds = 1.0, .string = 1}});
+    const common::ui::TabLayoutRect square = common::ui::tabSlotHeadSquare(
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
+        1.0,
+        1);
+    const auto square_left = static_cast<int>(std::floor(square.x));
+    const int square_mid = juce::roundToInt(square.y + square.height / 2.0f);
+    const auto render = [&view, square_left, square_mid] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image.getPixelAt(square_left, square_mid);
+    };
+    const juce::Colour caret_only = render();
+
+    view.flashRefusal(core::ChartRefusalFlash{.notes = {0}, .keyframes = {}});
+    CHECK(render().getGreen() < caret_only.getGreen());
 }
 
 // A refusal reported again while a flash runs joins it as a UNION: the glow is painted once
@@ -1838,11 +1875,12 @@ TEST_CASE("TabView draws a selected note's bend chip over the caret square", "[u
 
     const juce::Image without = render(std::nullopt);
     const juce::Image with = render(core::ChartCaretViewState{.seconds = 2.0, .string = 3});
-    // The caret is drawn: its square's left edge, at mid-height, beside the head.
+    // The caret is drawn: its square's left edge, low on the side where the head curves away from
+    // it. Not at mid-height, where the selection ring — drawn over the caret — touches the square.
     const int square_left = juce::roundToInt(square.x);
-    const int square_mid = juce::roundToInt(square.y + square.height / 2.0f);
+    const int square_low = juce::roundToInt(square.y + square.height * 0.8f);
     REQUIRE(
-        with.getPixelAt(square_left, square_mid) != without.getPixelAt(square_left, square_mid));
+        with.getPixelAt(square_left, square_low) != without.getPixelAt(square_left, square_low));
     // The chip stands on the square's top edge, and the stroke straddling that edge reaches into
     // the plate's last row, so the plate's rows beside the edge are the probe.
     const int edge_y = juce::roundToInt(square.y);
