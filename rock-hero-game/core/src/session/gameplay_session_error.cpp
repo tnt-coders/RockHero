@@ -45,6 +45,10 @@ namespace
         {
             return "Tone switch schedule could not be prepared";
         }
+        case GameplaySessionErrorCode::AudioDeviceClosed:
+        {
+            return "No audio device is open";
+        }
         case GameplaySessionErrorCode::OperationUnavailable:
         {
             return "Operation is not available in the current session stage";

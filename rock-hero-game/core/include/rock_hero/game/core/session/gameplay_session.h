@@ -13,6 +13,7 @@
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
+#include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/mix/i_mix_controls.h>
@@ -105,6 +106,8 @@ public:
     \param tone_automation Automation boundary the persisted parameter curves are rebuilt through.
     \param mix_controls Master and backing-track gain boundary.
     \param clock Wait-free playback clock handed to gameplay consumers.
+    \param audio_devices Device boundary asked whether a device is open: a session plays only
+    with one, and a stop while one is closed is the engine's pause, not the song's end.
     \param live_input_monitor Shared calibrate-first live-input monitoring gate the session drives
     at its Ready and close edges.
     */
@@ -113,6 +116,7 @@ public:
         common::audio::ILiveRig& live_rig, common::audio::IToneTimelinePlayer& tone_timeline,
         common::audio::IToneAutomation& tone_automation, common::audio::IMixControls& mix_controls,
         const common::audio::IPlaybackClock& clock,
+        const common::audio::IAudioDeviceConfiguration& audio_devices,
         common::audio::LiveInputMonitor& live_input_monitor);
 
     /*! \brief Closes the session, releasing the arrangement and deleting the scratch workspace. */
@@ -140,9 +144,11 @@ public:
     /*!
     \brief Starts or resumes playback.
 
-    Legal from Ready, Paused, and Finished (Finished restarts from the top).
+    Legal from Ready, Paused, and Finished (Finished restarts from the top), and only while an
+    audio device is open: nothing else drives playback or captures the guitar.
 
-    \return Nothing on success, or OperationUnavailable outside those stages.
+    \return Nothing on success, OperationUnavailable outside those stages, or AudioDeviceClosed
+    while no audio device is open.
     */
     [[nodiscard]] std::expected<void, GameplaySessionError> play();
 
@@ -162,7 +168,8 @@ public:
 
     /*!
     \brief Instant restart: seek to the top and play, with no rig teardown or re-preload.
-    \return Nothing on success, or OperationUnavailable before the rig is ready.
+    \return Nothing on success, OperationUnavailable before the rig is ready, or AudioDeviceClosed
+    while no audio device is open.
     */
     [[nodiscard]] std::expected<void, GameplaySessionError> restart();
 
@@ -259,10 +266,13 @@ public:
     void close();
 
 private:
-    // Detects unsolicited playback stops: the engine's end-of-content auto-stop is the only
-    // transport state change the session does not initiate itself, so an unexpected
-    // playing -> stopped transition while Playing means the song finished.
+    // Detects unsolicited playback stops: the engine's end-of-content auto-stop, which finishes
+    // the song, and its pause on a device loss, which only pauses it.
     void onTransportStateChanged(common::audio::TransportState state) override;
+
+    // The refusal play() and restart() return while no audio device is open, carrying the
+    // backend's reason when known; empty while a device is open.
+    [[nodiscard]] std::optional<GameplaySessionError> audioDeviceClosedError() const;
 
     // Fails the load pipeline: records the error, transitions to Failed, and returns the same
     // error so start() can propagate it.
@@ -281,6 +291,7 @@ private:
     common::audio::IToneAutomation& m_tone_automation;
     common::audio::IMixControls& m_mix_controls;
     const common::audio::IPlaybackClock& m_clock;
+    const common::audio::IAudioDeviceConfiguration& m_audio_devices;
 
     // Shared calibrate-first live-input monitoring gate. The session is a thin driver: it arms the
     // gate at Ready and disables it on close; the gate stays silent unless this app's own store

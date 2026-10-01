@@ -330,8 +330,9 @@ public:
         std::erase(listeners, &listener);
     }
 
-    // Simulates the engine's end-of-content auto-stop: an unsolicited stop notification.
-    void simulateAutoStop()
+    // Simulates a stop the session did not ask for: the engine's end-of-content auto-stop, or its
+    // pause when the device closes mid-song.
+    void simulateUnsolicitedStop()
     {
         current_state.playing = false;
         notifyListeners();
@@ -636,6 +637,13 @@ public:
 // Bundles the fakes and the session under test with a loaded fixture package.
 struct SessionHarness
 {
+    // A session plays only with an open device, so the harness reports one; a test about the
+    // closed state closes it.
+    SessionHarness()
+    {
+        devices.current_status.open = true;
+    }
+
     TemporarySessionDirectory directory{};
     FakeSongAudio song_audio{};
     FakeSessionTransport transport{};
@@ -660,6 +668,7 @@ struct SessionHarness
         tone_automation,
         mix_controls,
         clock,
+        devices,
         live_input_monitor,
     };
 
@@ -851,14 +860,63 @@ TEST_CASE("Gameplay session drives playback transitions", "[core][session]")
     CHECK(harness.transport.last_seek_position == std::optional{common::core::TimePosition{}});
     CHECK(harness.live_rig.load_call_count == 1);
 
-    // The engine's end-of-content auto-stop is the only unsolicited stop: Playing -> Finished.
-    harness.transport.simulateAutoStop();
+    // With the device open, an unsolicited stop is the engine's end-of-content auto-stop:
+    // Playing -> Finished.
+    harness.transport.simulateUnsolicitedStop();
     CHECK(harness.session.stage() == GameplaySessionStage::Finished);
 
     // Playing again from Finished restarts from the top.
     REQUIRE(harness.session.play().has_value());
     CHECK(harness.session.stage() == GameplaySessionStage::Playing);
     CHECK(harness.live_rig.load_call_count == 1);
+}
+
+// A session cannot play without an audio device: nothing would drive playback or capture the
+// guitar. play() and restart() refuse with AudioDeviceClosed, carrying the backend's reason, and
+// never touch the transport; the session stays where it was, ready to play once a device opens.
+TEST_CASE("Gameplay session refuses to play while the audio device is closed", "[core][session]")
+{
+    SessionHarness harness;
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
+    harness.devices.current_status.open = false;
+    harness.devices.current_status.unavailable_reason = "Disconnected";
+
+    const auto played = harness.session.play();
+    REQUIRE_FALSE(played.has_value());
+    CHECK(played.error().code == GameplaySessionErrorCode::AudioDeviceClosed);
+    CHECK(played.error().message == "Disconnected");
+
+    const auto restarted = harness.session.restart();
+    REQUIRE_FALSE(restarted.has_value());
+    CHECK(restarted.error().code == GameplaySessionErrorCode::AudioDeviceClosed);
+
+    CHECK(harness.transport.play_call_count == 0);
+    CHECK(harness.session.stage() == GameplaySessionStage::Ready);
+
+    harness.devices.current_status.open = true;
+    REQUIRE(harness.session.play().has_value());
+    CHECK(harness.session.stage() == GameplaySessionStage::Playing);
+}
+
+// A device lost mid-song pauses the song rather than finishing it: the engine pauses the
+// transport, and the session reads that stop by the device, so the player resumes from where the
+// song stood once a device is back.
+TEST_CASE("Gameplay session pauses rather than finishes when the device closes", "[core][session]")
+{
+    SessionHarness harness;
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+    REQUIRE(harness.session.play().has_value());
+
+    harness.devices.current_status.open = false;
+    harness.transport.simulateUnsolicitedStop();
+    CHECK(harness.session.stage() == GameplaySessionStage::Paused);
+
+    harness.devices.current_status.open = true;
+    REQUIRE(harness.session.play().has_value());
+    CHECK(harness.session.stage() == GameplaySessionStage::Playing);
 }
 
 // Verifies the session refuses operations in stages that forbid them and never touches the
@@ -1057,7 +1115,7 @@ TEST_CASE("Gameplay session keeps monitoring armed across replay", "[core][sessi
     REQUIRE(harness.session.pause().has_value());
     REQUIRE(harness.session.play().has_value());
     REQUIRE(harness.session.restart().has_value());
-    harness.transport.simulateAutoStop();
+    harness.transport.simulateUnsolicitedStop();
     REQUIRE(harness.session.stage() == GameplaySessionStage::Finished);
 
     // No rig reload happened, so the gate was never re-driven and monitoring stayed enabled.

@@ -437,6 +437,11 @@ ports (constraint (b); docs/design/architectural-principles.md "Ports and Adapte
 - States: `Idle → Loading → PreparingRig → Ready → Playing ⇄ Paused → Finished`, plus a
   typed `Failed` terminal per stage. Store the stage's action inside each state so illegal
   states cannot exist (established editor-core pattern).
+- *2026-09-30:* `play()` / `restart()` refuse with `AudioDeviceClosed` while no audio device is
+  open — the game runs its menus and library without one, but a session needs a device to play and
+  to hear the guitar. A device lost mid-song PAUSES the session (the engine pauses the transport),
+  it does not finish it. Plan 26's onboarding owns the repair path; until then the UI logs the
+  refusal.
 - `Loading`: extract the `.rock` via `readRockSongPackage` into a **per-session scratch
   workspace under per-user app data** (never next to the package; deleted on session close),
   select the arrangement, run `ISongAudio::prepareSong` + `setActiveArrangement`. The package

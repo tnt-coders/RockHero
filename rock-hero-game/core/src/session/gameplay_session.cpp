@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <ranges>
 #include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
@@ -42,7 +43,9 @@ GameplaySession::GameplaySession(
     common::audio::ISongAudio& song_audio, common::audio::ITransport& transport,
     common::audio::ILiveRig& live_rig, common::audio::IToneTimelinePlayer& tone_timeline,
     common::audio::IToneAutomation& tone_automation, common::audio::IMixControls& mix_controls,
-    const common::audio::IPlaybackClock& clock, common::audio::LiveInputMonitor& live_input_monitor)
+    const common::audio::IPlaybackClock& clock,
+    const common::audio::IAudioDeviceConfiguration& audio_devices,
+    common::audio::LiveInputMonitor& live_input_monitor)
     : m_song_audio{song_audio}
     , m_transport{transport}
     , m_live_rig{live_rig}
@@ -50,10 +53,12 @@ GameplaySession::GameplaySession(
     , m_tone_automation{tone_automation}
     , m_mix_controls{mix_controls}
     , m_clock{clock}
+    , m_audio_devices{audio_devices}
     , m_live_input_monitor{live_input_monitor}
 {
-    // The session listens for the one transport transition it does not initiate itself: the
-    // engine's end-of-content auto-stop, which is how Playing becomes Finished.
+    // The session listens for the transport transitions it does not initiate itself: the
+    // engine's end-of-content auto-stop, which is how Playing becomes Finished, and its pause on a
+    // device loss.
     m_transport.addListener(*this);
 }
 
@@ -208,6 +213,10 @@ std::expected<void, GameplaySessionError> GameplaySession::play()
             GameplaySessionError{GameplaySessionErrorCode::OperationUnavailable}
         };
     }
+    if (std::optional<GameplaySessionError> closed = audioDeviceClosedError(); closed.has_value())
+    {
+        return std::unexpected{std::move(*closed)};
+    }
 
     // Stage moves first so the listener attributes the resulting transport transition to the
     // session's own request instead of misreading it.
@@ -258,6 +267,10 @@ std::expected<void, GameplaySessionError> GameplaySession::restart()
         return std::unexpected{
             GameplaySessionError{GameplaySessionErrorCode::OperationUnavailable}
         };
+    }
+    if (std::optional<GameplaySessionError> closed = audioDeviceClosedError(); closed.has_value())
+    {
+        return std::unexpected{std::move(*closed)};
     }
 
     // Instant restart is a seek plus play: no rig teardown, no re-preload (the pre-song preload
@@ -390,13 +403,33 @@ void GameplaySession::close()
 
 void GameplaySession::onTransportStateChanged(common::audio::TransportState state)
 {
-    // The session initiates every transport change except one: the engine's end-of-content
-    // auto-stop. Its own play/pause/restart calls move m_stage BEFORE touching the transport,
-    // so a stop observed while still Playing can only be the song finishing.
+    // The session initiates every transport change except two: the engine's end-of-content
+    // auto-stop, and the engine's pause when the device closes mid-song. Its own
+    // play/pause/restart calls move m_stage BEFORE touching the transport, so a stop observed
+    // while still Playing is one of those two, told apart by the device: with none open, the song
+    // was paused, not finished, and the player resumes once a device is back.
     if (m_stage == GameplaySessionStage::Playing && !state.playing)
     {
-        m_stage = GameplaySessionStage::Finished;
+        m_stage = m_audio_devices.currentDeviceStatus().open ? GameplaySessionStage::Finished
+                                                             : GameplaySessionStage::Paused;
     }
+}
+
+// Rationale lives on the declaration in gameplay_session.h.
+std::optional<GameplaySessionError> GameplaySession::audioDeviceClosedError() const
+{
+    common::audio::AudioDeviceStatus status = m_audio_devices.currentDeviceStatus();
+    if (status.open)
+    {
+        return std::nullopt;
+    }
+    if (status.unavailable_reason.empty())
+    {
+        return GameplaySessionError{GameplaySessionErrorCode::AudioDeviceClosed};
+    }
+    return GameplaySessionError{
+        GameplaySessionErrorCode::AudioDeviceClosed, std::move(status.unavailable_reason)
+    };
 }
 
 std::expected<void, GameplaySessionError> GameplaySession::failLoad(GameplaySessionError error)

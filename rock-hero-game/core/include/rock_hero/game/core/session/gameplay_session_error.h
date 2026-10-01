@@ -42,6 +42,13 @@ enum class GameplaySessionErrorCode : std::uint8_t
     /*! \brief The tone timeline could not bake the switch schedule. */
     ToneTimelineFailed,
 
+    /*!
+    \brief No audio device is open, so nothing can drive playback or capture the guitar.
+
+    The message carries the backend's reason when known.
+    */
+    AudioDeviceClosed,
+
     /*! \brief The requested operation is not legal in the session's current stage. */
     OperationUnavailable,
 };
