@@ -80,14 +80,6 @@ public:
     [[nodiscard]] std::expected<void, AudioConfigError> saveInputCalibration(
         InputCalibrationState calibration_state) override;
 
-    /*!
-    \brief Removes input calibration for one physical input route.
-    \param identity Physical input route to remove.
-    \return Empty success, or a typed store failure.
-    */
-    [[nodiscard]] std::expected<void, AudioConfigError> removeInputCalibration(
-        const InputDeviceIdentity& identity) override;
-
 private:
     /*!
     \brief Opens the store at a resolved file; both public constructors delegate here.

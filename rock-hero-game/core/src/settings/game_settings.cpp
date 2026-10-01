@@ -33,7 +33,6 @@ constexpr const char* g_player_slot_property = "playerSlot";
 // either file.
 using common::audio::g_identity_backend_name_property;
 using common::audio::g_identity_input_channel_index_property;
-using common::audio::g_identity_input_channel_name_property;
 using common::audio::g_identity_input_device_name_property;
 
 // Display name shown before the user ever sets one.
@@ -91,8 +90,6 @@ constexpr const char* g_default_profile_display_name = "Player";
                 {g_identity_input_device_name_property,
                  common::core::Json::makeString(player.route.input_device_name)},
                 {g_identity_input_channel_index_property, player.route.input_channel_index},
-                {g_identity_input_channel_name_property,
-                 common::core::Json::makeString(player.route.input_channel_name)},
             }));
     }
     return juce::JSON::toString(array);
@@ -126,8 +123,6 @@ constexpr const char* g_default_profile_display_name = "Player";
                         entry, g_identity_input_device_name_property),
                     .input_channel_index = common::core::Json::readOptionalInt(
                         entry, g_identity_input_channel_index_property, -1),
-                    .input_channel_name = common::core::Json::readOptionalString(
-                        entry, g_identity_input_channel_name_property),
                 },
             });
     }

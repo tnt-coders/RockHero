@@ -17,7 +17,6 @@ using testing::findRequiredDescendant;
 [[nodiscard]] core::InputCalibrationPrompt calibrationPrompt()
 {
     return core::InputCalibrationPrompt{
-        .message = "Calibrate your input",
         .input_gain_db = -6.0,
     };
 }

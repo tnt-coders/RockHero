@@ -117,10 +117,7 @@ InputCalibrationProjection makeInputCalibrationProjection(
 
     if (prompt_visible)
     {
-        projection.prompt = InputCalibrationPrompt{
-            .message = disabled_message,
-            .input_gain_db = promptGainDb(monitor),
-        };
+        projection.prompt = InputCalibrationPrompt{.input_gain_db = promptGainDb(monitor)};
     }
 
     return projection;

@@ -203,9 +203,6 @@ struct RestoreInterruptedPrompt
 /*! \brief Describes an active input calibration prompt requested by the controller. */
 struct InputCalibrationPrompt
 {
-    /*! \brief Message shown by the calibration prompt. */
-    std::string message;
-
     /*! \brief Input gain currently displayed by the calibration prompt. */
     double input_gain_db{0.0};
 
@@ -222,7 +219,7 @@ struct InputCalibrationPrompt
     */
     friend bool operator==(const InputCalibrationPrompt& lhs, const InputCalibrationPrompt& rhs)
     {
-        return lhs.message == rhs.message && std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db);
+        return std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db);
     }
 };
 

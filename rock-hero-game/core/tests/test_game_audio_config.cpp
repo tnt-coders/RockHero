@@ -101,7 +101,6 @@ TEST_CASE("Game audio config multi-slot round-trips", "[core][settings][audio]")
 
     common::audio::InputDeviceIdentity second_route = guitarRoute();
     second_route.input_channel_index = 1;
-    second_route.input_channel_name = "Input 2";
 
     const GameAudioConfig config{
         .players = {

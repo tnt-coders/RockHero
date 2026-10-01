@@ -39,7 +39,6 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .message = "Input calibration required.",
         .input_gain_db = 2.0,
     };
     view.setState(state);
@@ -102,7 +101,6 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .message = "Input calibration required.",
         .input_gain_db = -0.04,
     };
     view.setState(state);
@@ -131,7 +129,6 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .message = "Input calibration required.",
         .input_gain_db = 2.0,
     };
     view.setState(state);

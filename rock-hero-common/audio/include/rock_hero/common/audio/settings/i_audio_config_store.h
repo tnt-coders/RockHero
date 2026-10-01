@@ -60,14 +60,6 @@ public:
     [[nodiscard]] virtual std::expected<void, AudioConfigError> saveInputCalibration(
         InputCalibrationState calibration_state) = 0;
 
-    /*!
-    \brief Removes input calibration for one physical input route.
-    \param identity Physical input route to remove.
-    \return Empty success, or a typed store failure.
-    */
-    [[nodiscard]] virtual std::expected<void, AudioConfigError> removeInputCalibration(
-        const InputDeviceIdentity& identity) = 0;
-
 protected:
     /*! \brief Creates the audio-config store interface. */
     IAudioConfigStore() = default;

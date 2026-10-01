@@ -65,12 +65,6 @@ struct [[nodiscard]] InputCalibrationResult
 {
     /*! \brief Calibration gain to apply before the live guitar chain. */
     Gain calibration_gain;
-
-    /*! \brief Peak level used to limit the calibration gain. */
-    AudioMeterLevel measured_level;
-
-    /*! \brief Active-window RMS level used to derive the calibration gain. */
-    double measured_rms_db{minimumAudioMeterDb()};
 };
 
 /*!

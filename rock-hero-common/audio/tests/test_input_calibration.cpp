@@ -34,8 +34,6 @@ TEST_CASE("Input calibration derives gain from active RMS", "[audio][input-calib
     CHECK(measurement.active_rms_db == Catch::Approx(-24.0));
     CHECK(measurement.reference_peak_db == Catch::Approx(-24.0));
     CHECK(result->calibration_gain.db == Catch::Approx(12.0));
-    CHECK(result->measured_level.peak_db == Catch::Approx(-24.0));
-    CHECK(result->measured_rms_db == Catch::Approx(-24.0));
 }
 
 // Verifies quiet windows do not drag down the RMS of active playing.
@@ -69,7 +67,6 @@ TEST_CASE("Input calibration limits RMS gain by measured peak", "[audio][input-c
 
     REQUIRE(result.has_value());
     CHECK(result->calibration_gain.db == Catch::Approx(4.0));
-    CHECK(result->measured_rms_db == Catch::Approx(-24.0));
 }
 
 // Verifies one unusually loud window does not dominate the calibration reference.

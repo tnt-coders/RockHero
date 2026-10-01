@@ -81,34 +81,6 @@ TEST_CASE(
     CHECK(workflow.backendAvailable());
 }
 
-// Physical channels may be renamed by the OS while still representing the same input route.
-TEST_CASE(
-    "Input calibration workflow accepts renamed physical channel", "[audio][input-calibration]")
-{
-    InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity saved_identity =
-        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Input 1");
-    const InputDeviceIdentity current_identity =
-        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Mic/Inst 1");
-
-    REQUIRE(
-        workflow
-            .syncCommittedInputDeviceIdentity(saved_identity, calibrationFor(saved_identity, 5.0))
-            .empty());
-
-    const InputCalibrationWorkflow::Effects effects =
-        workflow.syncCommittedInputDeviceIdentity(current_identity, std::nullopt);
-
-    CHECK(effects.empty());
-    CHECK(workflow.calibrationMatches(current_identity));
-    const auto calibration_state = workflow.activeCalibrationState();
-    REQUIRE(calibration_state.has_value());
-    if (calibration_state.has_value())
-    {
-        CHECK(calibration_state->input_device_identity == current_identity);
-    }
-}
-
 // Switching to a different unsaved route clears prompt and measurement state together.
 TEST_CASE(
     "Input calibration workflow clears active state on unsaved route change",

@@ -346,18 +346,10 @@ std::optional<InputDeviceIdentity> Engine::currentInputDeviceIdentity() const
         return std::nullopt;
     }
 
-    const juce::StringArray input_channel_names = current_device->getInputChannelNames();
-    juce::String input_channel_name;
-    if (first_channel < input_channel_names.size())
-    {
-        input_channel_name = input_channel_names[first_channel];
-    }
-
     InputDeviceIdentity identity{
         .backend_name = device_manager.getCurrentAudioDeviceType().toStdString(),
         .input_device_name = setup.inputDeviceName.toStdString(),
         .input_channel_index = first_channel,
-        .input_channel_name = input_channel_name.toStdString(),
     };
     if (!isValidInputDeviceIdentity(identity))
     {

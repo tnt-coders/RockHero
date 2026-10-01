@@ -195,9 +195,9 @@ TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][c
         juce::String{
             R"(<INPUT_CALIBRATIONS formatVersion="1">)"
             R"(<CALIBRATION gainDb="2.0" backendName="ASIO" inputDeviceName="Interface A" )"
-            R"(inputChannelIndex="0" inputChannelName="Input 1"/>)"
+            R"(inputChannelIndex="0"/>)"
             R"(<CALIBRATION gainDb="7.0" backendName="ASIO" inputDeviceName="Interface A" )"
-            R"(inputChannelIndex="0" inputChannelName="Mic/Inst 1"/>)"
+            R"(inputChannelIndex="0"/>)"
             R"(</INPUT_CALIBRATIONS>)"
         });
 
@@ -207,27 +207,6 @@ TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][c
     if (stored.has_value())
     {
         CHECK_THAT(stored->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
-    }
-}
-
-// Removing one physical route leaves other saved route calibrations intact.
-TEST_CASE("AudioConfigStore removes one physical calibration", "[audio][config-store]")
-{
-    const ScopedSettingsFile settings_file{"config_store_remove_calibration.settings"};
-    const InputDeviceIdentity first_identity = makeInputDeviceIdentity("ASIO", "Interface A");
-    const InputDeviceIdentity second_identity = makeInputDeviceIdentity("ASIO", "Interface B");
-    AudioConfigStore store{settings_file.path()};
-    REQUIRE(store.saveInputCalibration(calibrationFor(first_identity, 3.0)).has_value());
-    REQUIRE(store.saveInputCalibration(calibrationFor(second_identity, 6.0)).has_value());
-
-    REQUIRE(store.removeInputCalibration(first_identity).has_value());
-
-    CHECK_FALSE(inputCalibrationFor(store, first_identity).has_value());
-    const auto preserved = inputCalibrationFor(store, second_identity);
-    REQUIRE(preserved.has_value());
-    if (preserved.has_value())
-    {
-        CHECK_THAT(preserved->calibration_gain.db, Catch::Matchers::WithinULP(6.0, 0));
     }
 }
 
@@ -248,8 +227,8 @@ TEST_CASE("AudioConfigStore clamps calibration gain", "[audio][config-store]")
     }
 }
 
-// Malformed calibration XML surfaces as a typed error rather than silent absence, and neither
-// lookup nor removal overwrites the unreadable state.
+// Malformed calibration XML surfaces as a typed error rather than silent absence, and a save does
+// not overwrite the unreadable state.
 TEST_CASE("AudioConfigStore preserves malformed calibration history", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_malformed_calibration.settings"};
@@ -262,10 +241,6 @@ TEST_CASE("AudioConfigStore preserves malformed calibration history", "[audio][c
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == AudioConfigErrorCode::InvalidInputCalibrationHistory);
     CHECK_FALSE(loaded.error().message.empty());
-
-    const auto removed = store.removeInputCalibration(identity);
-    REQUIRE_FALSE(removed.has_value());
-    CHECK(removed.error().code == AudioConfigErrorCode::InvalidInputCalibrationHistory);
 
     const auto saved = store.saveInputCalibration(
         calibrationFor(makeInputDeviceIdentity("ASIO", "Interface B"), 4.0));

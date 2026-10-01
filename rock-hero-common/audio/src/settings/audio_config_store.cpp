@@ -140,9 +140,6 @@ void writeIdentityAttributes(juce::XmlElement& element, const InputDeviceIdentit
         g_identity_input_device_name_property,
         juce::String::fromUTF8(identity.input_device_name.c_str()));
     element.setAttribute(g_identity_input_channel_index_property, identity.input_channel_index);
-    element.setAttribute(
-        g_identity_input_channel_name_property,
-        juce::String::fromUTF8(identity.input_channel_name.c_str()));
 }
 
 // Reads the physical-route identity attributes, dropping entries missing any field. The channel
@@ -155,11 +152,8 @@ void writeIdentityAttributes(juce::XmlElement& element, const InputDeviceIdentit
         readStringAttribute(element, g_identity_input_device_name_property);
     const std::optional<int> input_channel_index =
         parseIntAttribute(element, g_identity_input_channel_index_property);
-    const std::optional<std::string> input_channel_name =
-        readStringAttribute(element, g_identity_input_channel_name_property);
     if (!backend_name.has_value() || !input_device_name.has_value() ||
-        !input_channel_index.has_value() || !input_channel_name.has_value() ||
-        *input_channel_index < 0)
+        !input_channel_index.has_value() || *input_channel_index < 0)
     {
         return std::nullopt;
     }
@@ -168,7 +162,6 @@ void writeIdentityAttributes(juce::XmlElement& element, const InputDeviceIdentit
         .backend_name = *backend_name,
         .input_device_name = *input_device_name,
         .input_channel_index = *input_channel_index,
-        .input_channel_name = *input_channel_name,
     };
 }
 
@@ -451,51 +444,6 @@ std::expected<void, AudioConfigError> AudioConfigStore::saveInputCalibration(
     return std::unexpected{
         AudioConfigError{AudioConfigErrorCode::CouldNotSave, "Could not save input calibration."}
     };
-}
-
-// Removes one physical-route calibration without touching unrelated saved routes.
-std::expected<void, AudioConfigError> AudioConfigStore::removeInputCalibration(
-    const InputDeviceIdentity& identity)
-{
-    if (!isValidInputDeviceIdentity(identity))
-    {
-        return std::unexpected{AudioConfigError{
-            AudioConfigErrorCode::InvalidSettingValue,
-            "Cannot remove input calibration for an invalid input route."
-        }};
-    }
-
-    // Held across the read-modify-write, so the other product cannot write between them.
-    const juce::InterProcessLock::ScopedLockType held{m_lock};
-    if (!held.isLocked())
-    {
-        return couldNotLock();
-    }
-    juce::PropertiesFile properties{m_file, m_options};
-    auto states = InputCalibrationStore::readOrError(
-        properties,
-        "Cannot remove input calibration because saved calibration history is invalid.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    const std::size_t original_size = states->size();
-    std::erase_if(*states, [&identity](const InputCalibrationState& state) {
-        return inputCalibrationMatchesPhysicalRoute(state, identity);
-    });
-    if (states->size() != original_size)
-    {
-        InputCalibrationStore::write(properties, *states);
-        if (!properties.save())
-        {
-            return std::unexpected{AudioConfigError{
-                AudioConfigErrorCode::CouldNotSave, "Could not save input calibration removal."
-            }};
-        }
-    }
-
-    return {};
 }
 
 } // namespace rock_hero::common::audio

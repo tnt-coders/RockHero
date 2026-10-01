@@ -83,7 +83,6 @@ public:
 [[nodiscard]] InputCalibrationPrompt prompt(double input_gain_db = 2.0)
 {
     return InputCalibrationPrompt{
-        .message = "Input calibration required.",
         .input_gain_db = input_gain_db,
     };
 }

@@ -151,7 +151,6 @@ TEST_CASE(
     REQUIRE(projection.prompt.has_value());
     if (projection.prompt.has_value())
     {
-        CHECK(projection.prompt->message == "Input calibration required.");
         CHECK_THAT(
             projection.prompt->input_gain_db,
             Catch::Matchers::WithinULP(common::audio::defaultGainDb(), 0));

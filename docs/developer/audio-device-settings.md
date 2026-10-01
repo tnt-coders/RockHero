@@ -60,8 +60,8 @@ inside. The options come from the one settings-file location policy,
 per-user folder, the `.settings` suffix, and a write-through save with no timer, so an
 acknowledged write is on disk before the call returns — plus that `processLock`.
 
-The four persisted property names for one input route (`backendName`, `inputDeviceName`,
-`inputChannelIndex`, `inputChannelName`) are declared beside `InputDeviceIdentity` itself
+The three persisted property names for one input route (`backendName`, `inputDeviceName`,
+`inputChannelIndex`) are declared beside `InputDeviceIdentity` itself
 (`common/audio` `input/input_device_identity.h`) because both the shared store's XML and the game
 settings file's JSON write them: a rename in one file alone would silently drop the user's saved
 input-device selection, since a missing property reads as absence rather than an error.

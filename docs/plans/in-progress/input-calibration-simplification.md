@@ -89,8 +89,10 @@ placement, emphasis and words.
 5. Capture, meter read and policy inside the monitor (findings 2, 9, 10). Medium-large.
 6. Editor auto-prompt, Input-column cue, shared wording, the architecture paragraph. Medium, after
    the UI expert.
-6a. The startup audio-settings window (D7, widened): open it at startup unless the saved route was
-    restored and opened, so no saved route, an unavailable device and an invalid route are one rule.
+6a. The audio-settings window whenever the saved device is not running (D7, widened twice): at
+    startup unless the saved route was restored and opened (no saved route, an unavailable device, an
+    invalid route), and mid-session on the hardware-loss edge after the pause -- the window shows the
+    device as not found, and OK reopens it once it is back.
     It shares the auto-prompt's open-a-window mechanism. Verify first whether the engine's startup
     open of the OS default persists a route by itself; if it does, "Cancel writes nothing" needs it
     not to.
@@ -114,9 +116,11 @@ placement, emphasis and words.
   measurement did not give consistent results, and many interfaces have a documented gain that
   sets the level exactly (the Neural DSP Quad Cortex: +3.1 dB); typing it dials the route in
   perfectly and repeatably. Step 5's capture move must not weaken it.
-- **D7 — YES, widened:** at startup, open the audio-device settings window unless the saved route
-  was restored and opened: no saved route (over the running OS default), a saved device that is
-  unavailable, or an invalid route. Cancel writes nothing.
+- **D7 — YES, widened:** open the audio-device settings window whenever the saved device is not
+  running: at startup unless the saved route was restored and opened (no saved route, over the
+  running OS default; an unavailable device; an invalid route), and the moment the hardware drops
+  mid-session, after the pause. A plain popup was weighed; the window wins because it is the fix and
+  already names what happened. Cancel writes nothing.
 - **Scope — YES:** steps 1-6 now; step 7 (the game wizard) is its own plan.
 - **D8 — the INTERFACE:** players swap guitars without recalibrating, so the interface is the
   closest stable thing to calibrate. The documented per-interface gain is the primary path; the strum

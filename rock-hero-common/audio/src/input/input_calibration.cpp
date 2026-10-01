@@ -316,8 +316,6 @@ std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalib
     return InputCalibrationResult{
         .calibration_gain = clampGain(
             Gain{quantizeInputCalibrationGainDb(std::min(rms_gain_db, peak_limited_gain_db))}),
-        .measured_level = measurement.loudest_level,
-        .measured_rms_db = measurement.active_rms_db,
     };
 }
 

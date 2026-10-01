@@ -423,7 +423,6 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
         .backend_name = "Windows Audio",
         .input_device_name = "WASAPI Interface",
         .input_channel_index = 0,
-        .input_channel_name = "Input 1",
     };
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
@@ -907,59 +906,6 @@ TEST_CASE("Input route change restores saved calibration on return", "[core][edi
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     REQUIRE(inputCalibrationFor(store, initial_identity).has_value());
-    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
-}
-
-// Verifies channel-name drift does not hide a saved physical-route calibration.
-TEST_CASE("Input route return restores renamed physical channel", "[core][editor-controller]")
-{
-    common::audio::testing::InMemoryAudioConfigStore store;
-    const common::audio::InputDeviceIdentity initial_identity =
-        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Input 1");
-    const common::audio::InputDeviceIdentity renamed_identity =
-        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Mic/Inst 1");
-    const common::audio::InputDeviceIdentity next_identity =
-        makeInputDeviceIdentity("ASIO", "Interface B");
-    requireSaveInputCalibration(
-        store,
-        common::audio::InputCalibrationState{
-            .calibration_gain = common::audio::Gain{5.0},
-            .input_device_identity = initial_identity,
-        });
-
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    ConfigurableAudioDeviceConfiguration audio_devices;
-    audio_devices.current_input_identity = initial_identity;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    FakeProjectServices project_services;
-    FakeEditorView view;
-    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
-    EditorController controller{
-        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(nullEditorSettings(), store, monitor),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    controller.attachView(view);
-    REQUIRE(
-        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
-
-    audio_devices.current_input_identity = next_identity;
-    audio_devices.notifyChanged();
-    REQUIRE_FALSE(transport.live_input_monitoring_enabled);
-
-    audio_devices.current_input_identity = renamed_identity;
-    audio_devices.notifyChanged();
-
-    const auto* const final_state = stateOrNull(view.last_state);
-    REQUIRE(final_state != nullptr);
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
-    CHECK(transport.live_input_monitoring_enabled);
-    REQUIRE(inputCalibrationFor(store, renamed_identity).has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
 }
 

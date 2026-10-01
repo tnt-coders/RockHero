@@ -135,35 +135,6 @@ public:
         return {};
     }
 
-    /*!
-    \brief Removes input calibration for one physical input route.
-    \param identity Physical input route to remove.
-    \return Empty success, an invalid-route failure, or the injected one-shot failure.
-    */
-    [[nodiscard]] std::expected<void, AudioConfigError> removeInputCalibration(
-        const InputDeviceIdentity& identity) override
-    {
-        if (next_remove_input_calibration_error.has_value())
-        {
-            AudioConfigError error = std::move(*next_remove_input_calibration_error);
-            next_remove_input_calibration_error.reset();
-            return std::unexpected{std::move(error)};
-        }
-
-        if (!isValidInputDeviceIdentity(identity))
-        {
-            return std::unexpected{AudioConfigError{
-                AudioConfigErrorCode::InvalidSettingValue,
-                "Cannot remove input calibration for an invalid input route."
-            }};
-        }
-
-        std::erase_if(input_calibrations, [&identity](const InputCalibrationState& state) {
-            return inputCalibrationMatchesPhysicalRoute(state, identity);
-        });
-        return {};
-    }
-
     /*! \brief Active device route stored by the fake, or empty when none is set. */
     std::optional<std::string> active_device_route{};
 
@@ -178,9 +149,6 @@ public:
 
     /*! \brief One-shot failure injected before the next saveInputCalibration stores its value. */
     std::optional<AudioConfigError> next_save_input_calibration_error{};
-
-    /*! \brief One-shot failure injected before the next removeInputCalibration erases its value. */
-    std::optional<AudioConfigError> next_remove_input_calibration_error{};
 };
 
 } // namespace rock_hero::common::audio::testing

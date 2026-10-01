@@ -75,7 +75,7 @@ Sources for the table:
 ## Automatic Calibration
 
 1. Select the correct input device and input channel in the audio settings.
-2. Open input calibration and press **Start**.
+2. Open input calibration and press **Calibrate**.
 3. Strum all strings open at a steady, moderate volume until the measurement completes.
 4. Retry if the input clips, is too quiet, or varies too much during the measurement.
 

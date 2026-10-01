@@ -327,7 +327,6 @@ TEST_CASE("Native setup re-run overwrites the previous device cleanly", "[core][
     common::audio::InputDeviceIdentity second_route = guitarRoute();
     second_route.input_device_name = "Behringer UMC ASIO";
     second_route.input_channel_index = 1;
-    second_route.input_channel_name = "Input 2";
     harness.device_configuration.current_input_identity = second_route;
     harness.device_configuration.serialized_device_state = "second-device-blob";
 
