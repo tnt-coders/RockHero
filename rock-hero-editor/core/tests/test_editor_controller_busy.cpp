@@ -172,7 +172,7 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
@@ -405,7 +405,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),

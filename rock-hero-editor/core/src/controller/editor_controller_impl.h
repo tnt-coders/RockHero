@@ -651,7 +651,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onOutputGainChanged(double gain_db);
     void onAudioDeviceChangeRequested(
         std::function<void()> change_audio_device, std::function<void()> after_busy_cleared);
-    [[nodiscard]] bool onAudioDeviceSettingsOpenRequested();
+    void onAudioDeviceSettingsOpenRequested();
+    void openAudioDeviceSettings();
     void onAudioDeviceSettingsClosed();
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
@@ -877,7 +878,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
     void finishBusyOperation();
     void detachView();
-    void restoreAudioDeviceState();
+    [[nodiscard]] std::optional<common::audio::DeviceRestoreOutcome> restoreAudioDeviceState();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(

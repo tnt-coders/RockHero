@@ -37,6 +37,7 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setBounds(0, 0, 1280, 800);
+    showOnScreen(view);
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
@@ -100,6 +101,7 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    showOnScreen(view);
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
@@ -129,6 +131,7 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    showOnScreen(view);
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
@@ -246,6 +249,7 @@ TEST_CASE("Calibration prompt for another route retires the open window", "[ui][
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setBounds(0, 0, 1280, 800);
+    showOnScreen(view);
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
@@ -263,6 +267,34 @@ TEST_CASE("Calibration prompt for another route retires the open window", "[ui][
     view.setState(state);
 
     CHECK_FALSE(window.isVisible());
+}
+
+// The audio settings button only asks the controller; the window opens from state, and only once
+// the view is on screen to own it.
+TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+
+    auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
+    REQUIRE(audio_button.onClick);
+    audio_button.onClick();
+    CHECK(controller.audio_device_settings_open_count == 1);
+
+    core::EditorViewState state;
+    state.audio_device_settings_open = true;
+    view.setState(state);
+    CHECK_THROWS(
+        findRequiredTopLevelComponent<juce::DocumentWindow>("audio_device_settings_window"));
+
+    showOnScreen(view);
+    CHECK(
+        findRequiredTopLevelComponent<juce::DocumentWindow>("audio_device_settings_window")
+            .isVisible());
 }
 
 } // namespace rock_hero::editor::ui

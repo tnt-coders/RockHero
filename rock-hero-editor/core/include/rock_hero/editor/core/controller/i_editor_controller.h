@@ -1056,11 +1056,12 @@ public:
 
     /*!
     \brief Requests opening the audio-device settings window.
-    \return True when the caller may open the settings window and must later call
-    onAudioDeviceSettingsClosed() exactly once; false when the request is refused, e.g. while the
-    input calibration prompt is active, and the caller must not open the window.
+
+    The controller opens it through EditorViewState::audio_device_settings_open, or ignores the
+    request while settings are refused (e.g. while the input calibration prompt is active). The
+    view reports the window closing through onAudioDeviceSettingsClosed().
     */
-    [[nodiscard]] virtual bool onAudioDeviceSettingsOpenRequested() = 0;
+    virtual void onAudioDeviceSettingsOpenRequested() = 0;
 
     /*! \brief Handles the audio-device settings window closing. */
     virtual void onAudioDeviceSettingsClosed() = 0;

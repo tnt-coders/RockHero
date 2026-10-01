@@ -39,15 +39,23 @@ void EditorController::Impl::onAudioDeviceConfigurationChanged()
     updateView();
 }
 
-// Marks the audio settings window active so route transitions can be committed as one change.
-// Refuses while the calibration prompt is up so the two modal flows never overlap.
-bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
+// Opens the audio settings window on user request. Refused while the calibration prompt is up so
+// the two modal flows never overlap.
+void EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 {
     if (!inputCalibrationProjection().audio_device_settings_enabled)
     {
-        return false;
+        return;
     }
 
+    openAudioDeviceSettings();
+    updateView();
+}
+
+// Marks the audio settings window open, which the view presents from state. The window holds the
+// route so its transitions commit as one change: playback pauses and the live-input gate re-runs.
+void EditorController::Impl::openAudioDeviceSettings()
+{
     if (m_transport.state().playing)
     {
         m_transport.pause();
@@ -55,8 +63,6 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 
     m_audio_device_settings_open = true;
     refreshLiveInput();
-    updateView();
-    return true;
 }
 
 // Re-applies the route gate after settings closes or restores its previous route.
@@ -67,13 +73,15 @@ void EditorController::Impl::onAudioDeviceSettingsClosed()
     updateView();
 }
 
-// Applies the active device route stored by a previous session of either product, if any.
-void EditorController::Impl::restoreAudioDeviceState()
+// Applies the active device route stored by a previous session of either product. Returns the
+// restore's outcome, or nullopt when no usable route is saved: none at all, or one the backend
+// rejects, which is cleared as corrupt.
+std::optional<common::audio::DeviceRestoreOutcome> EditorController::Impl::restoreAudioDeviceState()
 {
     const std::optional<std::string> route = m_audio_config_store.activeDeviceRoute();
     if (!route.has_value())
     {
-        return;
+        return std::nullopt;
     }
 
     const auto restored = m_audio_devices.restoreSerializedDeviceState(*route);
@@ -84,7 +92,7 @@ void EditorController::Impl::restoreAudioDeviceState()
         recordAudioConfigResultBestEffort(
             m_audio_config_store.setActiveDeviceRoute(std::nullopt),
             "clear invalid serialized audio-device state");
-        return;
+        return std::nullopt;
     }
 
     if (*restored == common::audio::DeviceRestoreOutcome::DeviceUnavailable)
@@ -96,6 +104,7 @@ void EditorController::Impl::restoreAudioDeviceState()
             "open saved audio device",
             "saved device unavailable; the audio device stays closed and the saved choice is kept");
     }
+    return *restored;
 }
 
 } // namespace rock_hero::editor::core

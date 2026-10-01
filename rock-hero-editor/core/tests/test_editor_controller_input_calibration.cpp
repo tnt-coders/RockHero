@@ -72,7 +72,7 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
@@ -108,7 +108,7 @@ TEST_CASE("Input calibration is available without a loaded project", "[core][edi
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
@@ -141,7 +141,7 @@ TEST_CASE("Missing input calibration offers the prompt once per route", "[core][
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
@@ -189,7 +189,7 @@ TEST_CASE("Missing input calibration offers a new route again", "[core][editor-c
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
@@ -216,7 +216,7 @@ TEST_CASE("Missing input calibration offers a new route again", "[core][editor-c
 // A calibrated route is never offered.
 TEST_CASE("Calibrated input route is not offered calibration", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -248,7 +248,7 @@ TEST_CASE(
     "Input calibration success stores app-local gain and enables monitoring",
     "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -307,7 +307,7 @@ TEST_CASE(
 TEST_CASE(
     "Input calibration retry resets committed gain before measuring", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -361,7 +361,7 @@ TEST_CASE(
 // A refused gain reset hands the route back to the gate, which re-arms the stored calibration.
 TEST_CASE("Input calibration start restores route on gain failure", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -411,7 +411,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
 // calibration.
 TEST_CASE("Input calibration start restores route on monitor failure", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -461,7 +461,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
 TEST_CASE(
     "Manual input calibration stores gain and enables monitoring", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -509,7 +509,7 @@ TEST_CASE(
 // Verifies settings editing releases the calibrated route before JUCE closes the active device.
 TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -545,7 +545,7 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
     REQUIRE_FALSE(enabled_state->input_calibration_prompt.has_value());
     REQUIRE(enabled_state->audio_device_settings_enabled);
 
-    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+    controller.onAudioDeviceSettingsOpenRequested();
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -574,7 +574,7 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
 // Verifies settings close does not treat JUCE's temporary closed route as a device change.
 TEST_CASE("Audio settings close waits for settled input route", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -605,7 +605,7 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     REQUIRE(transport.live_input_monitoring_enabled);
 
-    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+    controller.onAudioDeviceSettingsOpenRequested();
     audio_devices.current_input_identity = std::nullopt;
     controller.onAudioDeviceSettingsClosed();
 
@@ -632,7 +632,7 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
 // Verifies startup with a disconnected calibrated device keeps calibration for reconnect.
 TEST_CASE("Stored input calibration waits for disconnected device", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -687,7 +687,7 @@ TEST_CASE(
     "Stored input calibration stays disabled until live rig load completes",
     "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -734,7 +734,7 @@ TEST_CASE(
 // Verifies backend arming failure does not erase calibration for the unchanged input route.
 TEST_CASE("Input calibration reports backend unavailable", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -784,7 +784,7 @@ TEST_CASE("Input calibration reports backend unavailable", "[core][editor-contro
 // Verifies temporary input route loss keeps calibration for a matching reconnect.
 TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -847,7 +847,7 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
 // Verifies route changes preserve prior calibration history while gating an unsaved route.
 TEST_CASE("Input route change preserves previous calibration history", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -904,7 +904,7 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
 // Verifies a saved calibration for the new physical route is applied after a route switch.
 TEST_CASE("Input route change applies saved route calibration", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     const common::audio::InputDeviceIdentity next_identity =
         makeInputDeviceIdentity("ASIO", "Interface B");
@@ -957,7 +957,7 @@ TEST_CASE("Input route change applies saved route calibration", "[core][editor-c
 // Verifies switching away and back restores the original physical-route calibration.
 TEST_CASE("Input route change restores saved calibration on return", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     const common::audio::InputDeviceIdentity next_identity =
         makeInputDeviceIdentity("ASIO", "Interface B");
@@ -1007,7 +1007,7 @@ TEST_CASE("Input route change restores saved calibration on return", "[core][edi
 // Verifies a different physical input channel is treated as a different route.
 TEST_CASE("Input route channel change requires its own calibration", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity channel_one =
         makeInputDeviceIdentity("ASIO", "Interface A", 0);
     const common::audio::InputDeviceIdentity channel_three =
@@ -1056,7 +1056,7 @@ TEST_CASE("Input route channel change requires its own calibration", "[core][edi
 // Verifies settings close selects a newly chosen concrete route even while the window was open.
 TEST_CASE("Audio settings close applies saved replacement route", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     const common::audio::InputDeviceIdentity next_identity =
         makeInputDeviceIdentity("ASIO", "Interface B");
@@ -1094,7 +1094,7 @@ TEST_CASE("Audio settings close applies saved replacement route", "[core][editor
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
-    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+    controller.onAudioDeviceSettingsOpenRequested();
     audio_devices.current_input_identity = next_identity;
     controller.onAudioDeviceSettingsClosed();
 
@@ -1108,7 +1108,7 @@ TEST_CASE("Audio settings close applies saved replacement route", "[core][editor
 // Verifies a route change during measurement closes the prompt and leaves monitoring disabled.
 TEST_CASE("Input route change during calibration closes prompt", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -1167,7 +1167,7 @@ TEST_CASE(
     "Manual input recalibration dismissal restores previous calibration",
     "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1232,7 +1232,7 @@ TEST_CASE(
 TEST_CASE(
     "Input recalibration dismissal restores previous calibration", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1289,7 +1289,7 @@ TEST_CASE(
     "Input recalibration dismissal preserves calibration on backend failure",
     "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1352,7 +1352,7 @@ TEST_CASE(
     "Input recalibration commit stores the new gain on backend failure",
     "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1494,7 +1494,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
         audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
@@ -1569,7 +1569,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
 // then gain, then live monitoring on. Captured over the project-lifecycle gate (no store re-read).
 TEST_CASE("Live input gate arms matching route in order", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1650,7 +1650,7 @@ TEST_CASE("Live input start rollback on disable failure", "[core][editor-control
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
         audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
@@ -1702,7 +1702,7 @@ TEST_CASE("Live input start rollback on gain failure", "[core][editor-controller
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
         audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
@@ -1750,7 +1750,7 @@ TEST_CASE("Live input start rollback on audition failure", "[core][editor-contro
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
         audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
@@ -1790,7 +1790,7 @@ TEST_CASE("Live input start rollback on audition failure", "[core][editor-contro
 // A commit whose gain the backend refuses is stored, then the gate reports the refused route.
 TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1849,7 +1849,7 @@ TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]
 // left off.
 TEST_CASE("Live input commit reports refused monitoring", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1910,7 +1910,7 @@ TEST_CASE("Live input commit reports refused monitoring", "[core][editor-control
 // prior calibration (audition off, gain, monitoring on) and closes the prompt.
 TEST_CASE("Live input dismissal restores previous calibration", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -1965,7 +1965,7 @@ TEST_CASE("Live input dismissal restores previous calibration", "[core][editor-c
 // both disable, and the controller pushes the settled no-device view-state.
 TEST_CASE("Live input device change to none re-gates view", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -2021,7 +2021,7 @@ TEST_CASE("Live input device change to none re-gates view", "[core][editor-contr
 // case, but the settled state distinguishes it as missing calibration.
 TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -2074,7 +2074,7 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
 // window is open disables monitoring but leaves the calibrated status intact with an empty message.
 TEST_CASE("Live input gate disables while settings open", "[core][editor-controller]")
 {
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
         store,
@@ -2103,7 +2103,7 @@ TEST_CASE("Live input gate disables while settings open", "[core][editor-control
     controller.attachView(view);
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
-    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+    controller.onAudioDeviceSettingsOpenRequested();
 
     live_input.calls.clear();
     audio_devices.notifyChanged();
@@ -2135,7 +2135,7 @@ TEST_CASE(
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
@@ -2143,7 +2143,7 @@ TEST_CASE(
         noopExitFunction(),
     };
     controller.attachView(view);
-    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+    controller.onAudioDeviceSettingsOpenRequested();
 
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     audio_devices.notifyChanged();

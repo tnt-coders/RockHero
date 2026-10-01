@@ -25,7 +25,11 @@ the world may have changed while the dialog sat open.
    over the identity fields only, which is what makes present-once tracking work. A prompt that
    opens a whole window follows the same law: `InputCalibrationPrompt` compares its route only,
    and `EditorView` retires the open calibration window and presents a fresh one when the route
-   changes, because the window seeds its state once.
+   changes, because the window seeds its state once. A window with no decision to report is the
+   same shape reduced to a flag: `audio_device_settings_open` opens the settings window, which
+   reports only its closing. `EditorView` opens such windows only while it is on screen, and opens
+   the ones the startup state asked for once it is, since a window opened before the main window
+   shows would sit behind it.
 2. **`std::optional<Prompt>` field on `EditorViewState`**, populated in `deriveViewState()` —
    a forgotten derivation means the prompt silently never appears.
 3. **Pending state on the controller** (`editor_controller_impl.h`): stash whatever the resolve

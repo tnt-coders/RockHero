@@ -30,6 +30,7 @@ public:
         , m_centering_component(centering_component)
         , m_closed(std::move(closed))
     {
+        setComponentID("audio_device_settings_window");
         setResizable(true, true);
         setUsingNativeTitleBar(true);
         setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());

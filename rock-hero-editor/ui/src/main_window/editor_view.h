@@ -381,8 +381,15 @@ private:
     // Samples the transport cursor position into the transport-strip time and musical readouts.
     void refreshTimeDisplay();
 
-    // Opens the audio-device settings window.
-    void showAudioDeviceSettingsWindow();
+    // Opens the audio-device settings window from controller state.
+    void presentAudioDeviceSettingsIfNeeded(bool open);
+
+    // Presents every top-level window the state asks for; the one list both setState() and the
+    // startup hierarchy hook run.
+    void presentTopLevelWindowsFromState();
+
+    // True once the main window has shown, so a new top-level window opens in front of it.
+    [[nodiscard]] bool canOwnTopLevelWindows() const;
 
     // Defers settings-window destruction until the current close callback stack unwinds.
     void scheduleAudioDeviceSettingsWindowReset();

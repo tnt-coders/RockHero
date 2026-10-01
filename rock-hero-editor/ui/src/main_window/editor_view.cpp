@@ -447,7 +447,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_master_output_meter.setComponentID("master_output_meter");
     m_audio_device_button.setComponentID("audio_device_button");
     m_audio_device_button.setText("Audio Device");
-    m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
+    m_audio_device_button.onClick = [this] { m_controller.onAudioDeviceSettingsOpenRequested(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_tab_view.setComponentID("tab_view");
     m_tab_view.setContextMenuCallback(
@@ -840,7 +840,7 @@ void EditorView::setState(const core::EditorViewState& state)
     presentToneImportPromptIfNeeded(m_state.tone_import_prompt);
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentGridSnapWarningIfNeeded(m_state.grid_snap_warning_prompt);
-    presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
+    presentTopLevelWindowsFromState();
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_busy_overlay.setBusyState(m_state.busy);
     // An undo or redo that brought its change into focus keeps it in sight: centred when it landed
@@ -1030,10 +1030,28 @@ void EditorView::visibilityChanged()
     requestInitialKeyboardFocusIfReady();
 }
 
-// Retries the startup focus request when JUCE attaches the editor under a window peer.
+// Retries the startup focus request when JUCE attaches the editor under a window peer, and opens
+// the windows the startup state asked for once the main window shows.
 void EditorView::parentHierarchyChanged()
 {
     requestInitialKeyboardFocusIfReady();
+    presentTopLevelWindowsFromState();
+}
+
+// setState() and parentHierarchyChanged() both call this: a window asked for before the main
+// window showed is opened once the editor is on screen to own it.
+void EditorView::presentTopLevelWindowsFromState()
+{
+    presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
+    presentAudioDeviceSettingsIfNeeded(m_state.audio_device_settings_open);
+}
+
+// A top-level window opened before the main window shows sits behind it. A minimised main window
+// still owns one, which is why this is not isShowing().
+bool EditorView::canOwnTopLevelWindows() const
+{
+    const juce::Component* const top = getTopLevelComponent();
+    return isVisible() && top->isVisible() && top->getPeer() != nullptr;
 }
 
 // Shows or hides the undo-history inspector, bringing it to the front when revealed.
@@ -3102,14 +3120,14 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
         return;
     }
 
-    if (!prompt.has_value())
+    if (!prompt.has_value() || !canOwnTopLevelWindows())
     {
         return;
     }
 
     m_presented_input_calibration_prompt = prompt;
-    m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
-        m_controller, *prompt, isShowing() ? this : nullptr);
+    m_input_calibration_window =
+        std::make_unique<InputCalibrationWindow>(m_controller, *prompt, this);
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.
@@ -3210,17 +3228,13 @@ void EditorView::refreshTimeDisplay()
     m_position_display.setText(juce::String{readout}, juce::dontSendNotification);
 }
 
-// Opens the audio-device settings window when a hardware-configuration backend is available.
-void EditorView::showAudioDeviceSettingsWindow()
+// Opens the audio-device settings window when the controller says it is open. The window closes
+// itself and reports that back, and a closed window still being released is re-presented from the
+// state current once it is gone.
+void EditorView::presentAudioDeviceSettingsIfNeeded(bool open)
 {
-    if (!m_state.audio_device_settings_enabled)
+    if (!open || m_audio_device_settings_window != nullptr || !canOwnTopLevelWindows())
     {
-        return;
-    }
-
-    if (m_audio_device_settings_window != nullptr)
-    {
-        m_audio_device_settings_window->toFront(true);
         return;
     }
 
@@ -3229,11 +3243,6 @@ void EditorView::showAudioDeviceSettingsWindow()
     // juce::AudioDeviceManager occupies the message thread, so the overlay's blocking
     // presentation paints once before the freeze rather than animating through it.
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    if (!m_controller.onAudioDeviceSettingsOpenRequested())
-    {
-        return;
-    }
-
     m_audio_device_settings_window_reset_pending = false;
     m_audio_device_settings_window = AudioDeviceSettingsWindow::show(
         m_audio_devices,
@@ -3276,6 +3285,7 @@ void EditorView::scheduleAudioDeviceSettingsWindowReset()
         {
             view->m_audio_device_settings_window.reset();
             view->m_audio_device_settings_window_reset_pending = false;
+            view->presentAudioDeviceSettingsIfNeeded(view->m_state.audio_device_settings_open);
         }
     });
 }

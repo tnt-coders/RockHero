@@ -110,7 +110,7 @@ struct CalibratedProjectHarness
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
-    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
     common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),

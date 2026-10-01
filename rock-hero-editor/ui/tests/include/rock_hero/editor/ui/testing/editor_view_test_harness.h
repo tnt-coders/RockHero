@@ -351,6 +351,16 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
 }
 
 /*!
+\brief Puts a view on screen, where EditorView presents its top-level windows.
+\param view View to show as its own desktop window.
+*/
+inline void showOnScreen(juce::Component& view)
+{
+    view.setVisible(true);
+    view.addToDesktop(0);
+}
+
+/*!
 \brief Returns a required desktop-level component by id and type for popups outside the view tree.
 \tparam ComponentType Expected top-level JUCE component type.
 \param id Component ID to find.

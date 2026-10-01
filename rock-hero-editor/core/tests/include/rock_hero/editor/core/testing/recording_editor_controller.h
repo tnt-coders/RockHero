@@ -784,14 +784,10 @@ public:
         audio_device_change_request_count += 1;
     }
 
-    /*!
-    \brief Counts accepted audio-device settings open requests.
-    \return Always true to accept the open request.
-    */
-    bool onAudioDeviceSettingsOpenRequested() override
+    /*! \brief Counts audio-device settings open requests. */
+    void onAudioDeviceSettingsOpenRequested() override
     {
         audio_device_settings_open_count += 1;
-        return true;
     }
 
     /*! \brief Counts audio-device settings close notifications. */

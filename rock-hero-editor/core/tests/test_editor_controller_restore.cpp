@@ -18,18 +18,96 @@ TEST_CASE("EditorController restores serialized audio device state", "[core][edi
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
+    FakeEditorView view;
 
-    const EditorController controller{
+    EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings, store),
         noopExitFunction()
     };
+    controller.attachView(view);
 
     CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
     CHECK(
         audio_devices.last_restored_serialized_device_state ==
         std::optional<std::string>{"serialized-device-state"});
     CHECK(store.activeDeviceRoute() == std::optional<std::string>{"serialized-device-state"});
+    const auto* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->audio_device_settings_open);
+}
+
+// With no saved route the audio settings window opens at startup for the user to choose one.
+// Closing it without applying saves nothing, so the next startup opens it again.
+TEST_CASE(
+    "EditorController opens audio settings without a saved route", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"first_run_audio_settings"};
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    FakeEditorView view;
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        controllerServices(settings, store),
+        noopExitFunction()
+    };
+    controller.attachView(view);
+
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 0);
+    const auto* const first_state = stateOrNull(view.last_state);
+    REQUIRE(first_state != nullptr);
+    CHECK(first_state->audio_device_settings_open);
+    CHECK_FALSE(first_state->audio_device_settings_enabled);
+
+    controller.onAudioDeviceSettingsClosed();
+    const auto* const closed_state = stateOrNull(view.last_state);
+    REQUIRE(closed_state != nullptr);
+    CHECK_FALSE(closed_state->audio_device_settings_open);
+    CHECK_FALSE(store.activeDeviceRoute().has_value());
+
+    FakeEditorView next_view;
+    EditorController next_controller{
+        audioPorts(transport, audio, audio_devices),
+        controllerServices(settings, store),
+        noopExitFunction()
+    };
+    next_controller.attachView(next_view);
+    const auto* const next_state = stateOrNull(next_view.last_state);
+    REQUIRE(next_state != nullptr);
+    CHECK(next_state->audio_device_settings_open);
+}
+
+// A saved device that is absent leaves the route saved and the window closed: the user chose a
+// route, so the editor reports the device is not running rather than asking for a new one.
+TEST_CASE(
+    "EditorController keeps audio settings closed for an unavailable saved device",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"unavailable_saved_device"};
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.restore_serialized_device_state_outcome =
+        common::audio::DeviceRestoreOutcome::DeviceUnavailable;
+    FakeEditorView view;
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        controllerServices(settings, store),
+        noopExitFunction()
+    };
+    controller.attachView(view);
+
+    const auto* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->audio_device_settings_open);
+    CHECK(store.activeDeviceRoute().has_value());
 }
 
 // Invalid serialized device state is discarded from the store so future launches do not retry it.
@@ -48,18 +126,24 @@ TEST_CASE(
             common::audio::AudioDeviceConfigurationErrorCode::InvalidSerializedState,
             "Serialized audio-device state is not XML.",
         };
+    FakeEditorView view;
 
-    const EditorController controller{
+    EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings, store),
         noopExitFunction()
     };
+    controller.attachView(view);
 
     CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
     CHECK(
         audio_devices.last_restored_serialized_device_state ==
         std::optional<std::string>{"invalid-serialized-device-state"});
     CHECK_FALSE(store.activeDeviceRoute().has_value());
+    // A cleared route is no saved route: the user is asked to choose one.
+    const auto* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->audio_device_settings_open);
 }
 
 // A device change is not a choice: only the settings window's apply saves a route. A change the

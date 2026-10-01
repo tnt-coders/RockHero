@@ -260,14 +260,29 @@ immediateMessageThreadScheduler() noexcept
 }
 
 /*!
+\brief Builds an audio-config store holding a saved device route, the state after a first run.
+
+With no saved route the editor opens the audio settings window at startup, so a test of anything
+else starts from this store.
+\return In-memory audio-config store fake with a saved device route.
+*/
+[[nodiscard]] inline common::audio::testing::InMemoryAudioConfigStore savedRouteAudioConfigStore()
+{
+    common::audio::testing::InMemoryAudioConfigStore store;
+    store.active_device_route = "saved-device-route";
+    return store;
+}
+
+/*!
 \brief Returns the shared in-memory audio-config store for tests that
        do not observe the device route.
-\return Process-lifetime in-memory audio-config store fake.
+\return Process-lifetime in-memory audio-config store fake holding a saved device route.
 */
 [[nodiscard]] inline common::audio::testing::InMemoryAudioConfigStore&
 defaultAudioConfigStore() noexcept
 {
-    static common::audio::testing::InMemoryAudioConfigStore g_audio_config_store;
+    static common::audio::testing::InMemoryAudioConfigStore g_audio_config_store =
+        savedRouteAudioConfigStore();
     return g_audio_config_store;
 }
 

@@ -960,6 +960,12 @@ struct EditorViewState
     bool audio_device_settings_enabled{true};
 
     /*!
+    \brief True while the audio-device settings window should be open; the view opens it from
+    this fact and reports its closing back.
+    */
+    bool audio_device_settings_open{false};
+
+    /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.
     */
     common::core::TimeRange visible_timeline{};

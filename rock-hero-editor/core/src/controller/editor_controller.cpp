@@ -1202,9 +1202,9 @@ void EditorController::onAudioDeviceChangeRequested(
         std::move(change_audio_device), std::move(after_busy_cleared));
 }
 
-bool EditorController::onAudioDeviceSettingsOpenRequested()
+void EditorController::onAudioDeviceSettingsOpenRequested()
 {
-    return m_impl->onAudioDeviceSettingsOpenRequested();
+    m_impl->onAudioDeviceSettingsOpenRequested();
 }
 
 void EditorController::onAudioDeviceSettingsClosed()
@@ -1311,9 +1311,16 @@ EditorController::Impl::Impl(
         });
     // Startup route application: applies the saved route inline (no busy presentation exists yet)
     // and refreshes the live-input monitor; a saved device that cannot open leaves the silent
-    // device running, which the status text reports.
-    restoreAudioDeviceState();
-    refreshLiveInput();
+    // device running, which the status text reports. With no usable saved route the settings
+    // window opens for the user to choose one.
+    if (!restoreAudioDeviceState().has_value())
+    {
+        openAudioDeviceSettings();
+    }
+    else
+    {
+        refreshLiveInput();
+    }
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
     m_tab_minimum_displayed_strings = std::clamp(
         m_settings.tabMinimumDisplayedStrings().value_or(0), 0, common::core::g_max_chart_strings);
@@ -2524,6 +2531,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             : std::nullopt;
     state.transport.play_pause_shows_pause_icon = transport_state.playing;
     state.audio_device_settings_enabled = input_calibration.audio_device_settings_enabled;
+    state.audio_device_settings_open = m_audio_device_settings_open;
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;

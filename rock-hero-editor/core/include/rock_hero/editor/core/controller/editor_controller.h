@@ -702,11 +702,8 @@ public:
         std::function<void()> change_audio_device,
         std::function<void()> after_busy_cleared) override;
 
-    /*!
-    \brief Requests opening the audio-device settings window.
-    \return True when the caller may open the window and must later report closure exactly once.
-    */
-    [[nodiscard]] bool onAudioDeviceSettingsOpenRequested() override;
+    /*! \brief Requests opening the audio-device settings window through view state. */
+    void onAudioDeviceSettingsOpenRequested() override;
 
     /*! \brief Handles the audio-device settings window closing. */
     void onAudioDeviceSettingsClosed() override;

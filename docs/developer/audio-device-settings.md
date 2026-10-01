@@ -44,6 +44,10 @@ The editor never blocks itself without hardware: the engine runs its silent devi
 nowhere, and the status line reads `[audio device closed]`. Only live input needs the hardware.
 The settings window is the repair path; while it stages, it hands the engine to the silent device
 so the hardware is free, and every route it opens goes through the engine's no-fallback restore.
+The editor opens it from view state (`EditorViewState::audio_device_settings_open`), like any
+prompt: the menu-bar button only asks the controller, and with no usable saved route (a first run,
+or a saved route that could not be read) the controller opens it at startup so the user chooses
+one.
 
 # Persistence: one shared store
 
@@ -91,11 +95,15 @@ mapping is the seed of future multiplayer input plumbing.
    editor's.
 2. Device actions in the main editor land in `audio_device_handlers.cpp`; blocking device work
    goes through `onAudioDeviceChangeRequested` so it paints the busy overlay once, and the saved
-   route is applied by `restoreAudioDeviceState()`.
+   route is applied by `restoreAudioDeviceState()`. Opening the window goes through
+   `openAudioDeviceSettings()`, never the view, so every opening pauses playback and re-runs the
+   live-input gate.
 3. New persisted config belongs in `AudioConfigStore` behind `IAudioConfigStore` — with strict
    parsing that treats corrupt values as absence, and setters that take the inter-process lock
    across their read-modify-write. A property name two files must agree on is declared beside the
    type it belongs to, never once per store; a new settings *file* takes its options from
    `settingsFileOptions`, never its own copy.
 4. Tests: the controller runs dispatcher-less and synchronous; the store fakes are
-   `ConfigurableAudioDeviceConfiguration` and `InMemoryAudioConfigStore`.
+   `ConfigurableAudioDeviceConfiguration` and `InMemoryAudioConfigStore`. An empty store is a first
+   run, which opens the settings window, so an editor test of anything else starts from
+   `savedRouteAudioConfigStore()`.
