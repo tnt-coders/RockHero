@@ -34,6 +34,21 @@ the user picks which way the two surfaces reconcile.
   the user's decisions D1-D8 are in `docs/plans/completed/input-calibration-simplification.md`;
   the rework its step 8 ruled is `docs/plans/completed/input-calibration-rework.md`.
 
+## Found while settling the calibration reference (2026-10-01)
+
+- **Turn on NAM's input calibration at the reference when a tone hosts the NAM plugin.** Every
+  calibrated player feeds the rack as if `inputLevelReferenceDbu()` (+12 dBu) reads 0 dBFS. The
+  NAM plugin (0.7.12+) compensates each model against its own `input_level_dbu`, so the capture
+  plays as the real amp would, but only with its "Calibrate Input" setting on and set to the
+  interface's dBu at 0 dBFS, here the reference. It is off by default, so a NAM tone built in the
+  editor plays every model at whatever level its capture happened to use. Remedy: when the editor
+  adds the NAM plugin to a tone, enable Calibrate Input at `inputLevelReferenceDbu()`, so the
+  number can never drift from the reference. Unverified: whether NAM exposes the setting as host
+  parameters or only in its saved state, which decides between a parameter write and a state
+  edit; no NAM-specific code exists yet. Sources: NAM model file spec (`input_level_dbu`) and the
+  plugin's v0.7.12 release notes, cited in
+  `docs/tracking/2026-10-01-input-level-calibration-research.md`.
+
 ## Found by the 2026-09-25 derived-width build
 
 - **The lone-open census row drifted 132 → 67 between 2026-09-20 and 09-24, unexplained.** The
