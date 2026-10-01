@@ -71,8 +71,8 @@ input-device selection, since a missing property reads as absence rather than an
 
 `NativeAudioSetupMachine` (`game/core/src/audio/native_audio_setup.cpp`) is a pure state machine
 (`Idle → SelectingDevice → CalibratingGain → Ready`, terminal `Failed`) with a side-effecting
-driver. On device apply it writes **two records in one step**: the shared store's
-`ActiveDeviceRoute` and the game-private `GameAudioConfig` mapping that route to player slot 0.
+driver. On device apply it writes **two records in one step**: the device blob into the shared
+store, and the game-private `GameAudioConfig` mapping the resolved input route to player slot 0.
 This route→player-slot mapping is the seed of future multiplayer input plumbing.
 
 # Extending this area — silent steps

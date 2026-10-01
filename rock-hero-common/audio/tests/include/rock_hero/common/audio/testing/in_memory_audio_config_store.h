@@ -10,10 +10,10 @@
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
-#include <rock_hero/common/audio/settings/active_device_route.h>
 #include <rock_hero/common/audio/settings/audio_config_error.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/shared/gain.h>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -35,20 +35,20 @@ class InMemoryAudioConfigStore final : public IAudioConfigStore
 public:
     /*!
     \brief Returns the stored active device route.
-    \return Active device route, or empty when none is stored.
+    \return Restore payload, or empty when none is stored.
     */
-    [[nodiscard]] std::optional<ActiveDeviceRoute> activeDeviceRoute() const override
+    [[nodiscard]] std::optional<std::string> activeDeviceRoute() const override
     {
         return active_device_route;
     }
 
     /*!
     \brief Stores or clears the active device route, mirroring the concrete empty-blob-clears rule.
-    \param route Route to store, or empty to clear the stored route.
+    \param route Restore payload to store; empty or an empty string clears the stored route.
     \return Empty success, or the injected one-shot failure.
     */
     [[nodiscard]] std::expected<void, AudioConfigError> setActiveDeviceRoute(
-        std::optional<ActiveDeviceRoute> route) override
+        std::optional<std::string> route) override
     {
         if (next_set_active_device_route_error.has_value())
         {
@@ -57,7 +57,7 @@ public:
             return std::unexpected{std::move(error)};
         }
 
-        if (!route.has_value() || route->serialized_state.empty())
+        if (!route.has_value() || route->empty())
         {
             active_device_route.reset();
         }
@@ -165,7 +165,7 @@ public:
     }
 
     /*! \brief Active device route stored by the fake, or empty when none is set. */
-    std::optional<ActiveDeviceRoute> active_device_route{};
+    std::optional<std::string> active_device_route{};
 
     /*! \brief Route-keyed calibration records held by the fake. */
     std::vector<InputCalibrationState> input_calibrations{};

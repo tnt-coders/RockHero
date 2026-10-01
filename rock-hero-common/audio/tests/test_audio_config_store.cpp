@@ -2,8 +2,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
+#include <memory>
 #include <optional>
-#include <rock_hero/common/audio/settings/active_device_route.h>
 #include <rock_hero/common/audio/settings/audio_config_error.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/audio/shared/gain.h>
@@ -119,46 +119,28 @@ TEST_CASE("AudioConfigStore starts empty", "[audio][config-store]")
     CHECK_FALSE(inputCalibrationFor(store, makeInputDeviceIdentity()).has_value());
 }
 
-// The store persists the device blob paired with its resolved input route identity.
-TEST_CASE(
-    "AudioConfigStore persists the active device route with identity", "[audio][config-store]")
+// JUCE stores an XML-shaped value as an element and re-emits it single-line without a header, so
+// the blob round-trips as XML, not as bytes; every reader parses it.
+TEST_CASE("AudioConfigStore persists the active device route", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_active_route.settings"};
-    const ActiveDeviceRoute route{
-        .serialized_state = R"(<DEVICESETUP deviceType="ASIO" audioOutputDeviceName="ASIO"/>)",
-        .identity = makeInputDeviceIdentity(),
-    };
+    juce::XmlElement expected{"DEVICESETUP"};
+    expected.setAttribute("deviceType", "ASIO");
+    expected.setAttribute("audioOutputDeviceName", "ASIO");
 
     {
         AudioConfigStore store{settings_file.path()};
-        REQUIRE(store.setActiveDeviceRoute(route).has_value());
+        REQUIRE(store.setActiveDeviceRoute(expected.toString().toStdString()).has_value());
     }
 
     const AudioConfigStore reloaded{settings_file.path()};
-    CHECK(reloaded.activeDeviceRoute() == std::optional{route});
-}
-
-// A route with no resolved identity round-trips as a bare blob with absent identity.
-TEST_CASE("AudioConfigStore persists an active route without identity", "[audio][config-store]")
-{
-    const ScopedSettingsFile settings_file{"config_store_active_route_no_identity.settings"};
-    const ActiveDeviceRoute route{
-        .serialized_state = "<DEVICESETUP deviceType=\"ASIO\"/>",
-        .identity = std::nullopt,
-    };
-
-    {
-        AudioConfigStore store{settings_file.path()};
-        REQUIRE(store.setActiveDeviceRoute(route).has_value());
-    }
-
-    const AudioConfigStore reloaded{settings_file.path()};
-    const auto stored = reloaded.activeDeviceRoute();
+    const std::optional<std::string> stored = reloaded.activeDeviceRoute();
     REQUIRE(stored.has_value());
     if (stored.has_value())
     {
-        CHECK(stored->serialized_state == route.serialized_state);
-        CHECK_FALSE(stored->identity.has_value());
+        const std::unique_ptr<juce::XmlElement> parsed = juce::parseXML(juce::String{*stored});
+        REQUIRE(parsed != nullptr);
+        CHECK(parsed->isEquivalentTo(&expected, false));
     }
 }
 
@@ -169,10 +151,7 @@ TEST_CASE("AudioConfigStore clears the active device route", "[audio][config-sto
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
     AudioConfigStore store{settings_file.path()};
-    REQUIRE(store
-                .setActiveDeviceRoute(
-                    ActiveDeviceRoute{.serialized_state = "<DEVICESETUP/>", .identity = identity})
-                .has_value());
+    REQUIRE(store.setActiveDeviceRoute("<DEVICESETUP/>").has_value());
     REQUIRE(store.saveInputCalibration(calibrationFor(identity, 5.0)).has_value());
 
     REQUIRE(store.setActiveDeviceRoute(std::nullopt).has_value());
@@ -299,10 +278,7 @@ TEST_CASE("AudioConfigStore keeps route and calibration independent", "[audio][c
 {
     const ScopedSettingsFile settings_file{"config_store_independence.settings"};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    const ActiveDeviceRoute route{
-        .serialized_state = "<DEVICESETUP deviceType=\"ASIO\"/>",
-        .identity = identity,
-    };
+    const std::string route{"<DEVICESETUP deviceType=\"ASIO\"/>"};
 
     {
         AudioConfigStore store{settings_file.path()};
@@ -349,9 +325,7 @@ TEST_CASE("AudioConfigStore write keeps another store's write", "[audio][config-
     AudioConfigStore game{settings_file.path()};
 
     REQUIRE(editor.saveInputCalibration(calibrationFor(identity, 3.0)).has_value());
-    REQUIRE(game.setActiveDeviceRoute(
-                    ActiveDeviceRoute{.serialized_state = "<DEVICESETUP/>", .identity = identity})
-                .has_value());
+    REQUIRE(game.setActiveDeviceRoute("<DEVICESETUP/>").has_value());
 
     CHECK(editor.activeDeviceRoute().has_value());
     CHECK(inputCalibrationFor(editor, identity).has_value());

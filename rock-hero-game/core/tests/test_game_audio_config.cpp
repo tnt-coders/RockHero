@@ -2,7 +2,6 @@
 #include <chrono>
 #include <filesystem>
 #include <juce_events/juce_events.h>
-#include <optional>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/game/core/audio/game_audio_config.h>
@@ -140,29 +139,6 @@ TEST_CASE("Game audio config setter replaces the previous config", "[core][setti
     // An empty config clears the stored value.
     REQUIRE(settings.setGameAudioConfig(GameAudioConfig{}).has_value());
     CHECK(settings.gameAudioConfig().players.empty());
-}
-
-// Verifies the pure primary-route mapping the P2 store mirror consumes selects slot 0's route.
-TEST_CASE("Primary player route selects slot 0", "[core][settings][audio]")
-{
-    CHECK(primaryPlayerRoute(GameAudioConfig{}) == std::nullopt);
-
-    common::audio::InputDeviceIdentity slot_one_route = guitarRoute();
-    slot_one_route.input_channel_index = 1;
-
-    // Slot 0 is selected regardless of stored order.
-    const GameAudioConfig config{
-        .players = {
-            PlayerInputConfig{.player_slot = 1, .route = slot_one_route},
-            PlayerInputConfig{.player_slot = 0, .route = guitarRoute()},
-        }
-    };
-    const auto primary = primaryPlayerRoute(config);
-    REQUIRE(primary.has_value());
-    if (primary.has_value())
-    {
-        CHECK(*primary == guitarRoute());
-    }
 }
 
 // Verifies the null fake satisfies the extended port with an empty config and accepting writes.

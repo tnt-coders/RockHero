@@ -10,7 +10,6 @@
 #include <rock_hero/common/audio/device/device_restore_outcome.h>
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
-#include <rock_hero/common/audio/settings/active_device_route.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
@@ -226,12 +225,11 @@ try
     // the calibrate-first gate lands on it; an absent route keeps the engine's initialise(1, 2)
     // default. This runs on the message thread, matching the engine's own device init.
     rock_hero::common::audio::AudioConfigStore audio_config_store;
-    if (const std::optional<rock_hero::common::audio::ActiveDeviceRoute> active_device_route =
+    if (const std::optional<std::string> active_device_route =
             audio_config_store.activeDeviceRoute();
-        active_device_route.has_value() && !active_device_route->serialized_state.empty())
+        active_device_route.has_value())
     {
-        const auto restored =
-            audio_engine.restoreSerializedDeviceState(active_device_route->serialized_state);
+        const auto restored = audio_engine.restoreSerializedDeviceState(*active_device_route);
         if (!restored.has_value())
         {
             RH_LOG_WARNING(

@@ -66,18 +66,16 @@ void EditorController::Impl::onAudioDeviceSettingsClosed()
     updateView();
 }
 
-// Applies the active device route stored by a previous editor session, if any. The route's resolved
-// identity is not needed to reopen the device; only the opaque blob feeds the device manager.
+// Applies the active device route stored by a previous session of either product, if any.
 void EditorController::Impl::restoreAudioDeviceState()
 {
-    const std::optional<common::audio::ActiveDeviceRoute> route =
-        m_audio_config_store.activeDeviceRoute();
-    if (!route.has_value() || route->serialized_state.empty())
+    const std::optional<std::string> route = m_audio_config_store.activeDeviceRoute();
+    if (!route.has_value())
     {
         return;
     }
 
-    const auto restored = m_audio_devices.restoreSerializedDeviceState(route->serialized_state);
+    const auto restored = m_audio_devices.restoreSerializedDeviceState(*route);
     if (!restored.has_value())
     {
         logEditorControllerBestEffortFailure(
@@ -99,27 +97,13 @@ void EditorController::Impl::restoreAudioDeviceState()
     }
 }
 
-// Stores the current device blob paired with its resolved input identity so the next launch can
-// restore the user's selection and answer availability questions offline.
+// Stores the current device route so the next launch restores the user's selection; an empty
+// capture clears the stored route rather than keeping a stale one.
 void EditorController::Impl::persistAudioDeviceState()
 {
-    std::optional<std::string> serialized_state = m_audio_devices.serializedDeviceState();
-    if (serialized_state.has_value() && !serialized_state->empty())
-    {
-        recordAudioConfigResultBestEffort(
-            m_audio_config_store.setActiveDeviceRoute(
-                common::audio::ActiveDeviceRoute{
-                    .serialized_state = std::move(*serialized_state),
-                    .identity = m_audio_devices.currentInputDeviceIdentity(),
-                }),
-            "persist serialized audio-device state");
-    }
-    else
-    {
-        recordAudioConfigResultBestEffort(
-            m_audio_config_store.setActiveDeviceRoute(std::nullopt),
-            "clear serialized audio-device state");
-    }
+    recordAudioConfigResultBestEffort(
+        m_audio_config_store.setActiveDeviceRoute(m_audio_devices.serializedDeviceState()),
+        "persist serialized audio-device state");
 }
 
 } // namespace rock_hero::editor::core

@@ -10,6 +10,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
+#include <string>
 
 namespace rock_hero::common::audio
 {
@@ -50,18 +51,18 @@ public:
     ~AudioConfigStore() override = default;
 
     /*!
-    \brief Reads the active device route stored by a previous successful device apply.
-    \return Stored route, or empty when none is stored or the stored value is unreadable.
+    \brief Reads the active device route stored by a previous device change.
+    \return The stored restore payload, never an empty string; absent when none is stored.
     */
-    [[nodiscard]] std::optional<ActiveDeviceRoute> activeDeviceRoute() const override;
+    [[nodiscard]] std::optional<std::string> activeDeviceRoute() const override;
 
     /*!
     \brief Stores or clears the active device route.
-    \param route Route to restore on next launch, or empty to clear the stored route.
+    \param route Restore payload for the next launch; empty or an empty string clears it.
     \return Empty success, or a typed store failure.
     */
     [[nodiscard]] std::expected<void, AudioConfigError> setActiveDeviceRoute(
-        std::optional<ActiveDeviceRoute> route) override;
+        std::optional<std::string> route) override;
 
     /*!
     \brief Reads input calibration for one physical input route.

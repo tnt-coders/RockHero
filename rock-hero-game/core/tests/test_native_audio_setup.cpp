@@ -200,33 +200,18 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
     const TemporarySettingsDirectory directory;
     SetupHarness harness{directory.settingsFile()};
 
-    // Device selection: apply captures the blob + identity and persists them as one route.
+    // Device selection: apply persists the blob to the shared store.
     harness.setup.beginDeviceSelection();
     REQUIRE(harness.setup.applySelectedDevice().has_value());
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::CalibratingGain);
 
-    const auto stored_route = harness.store.activeDeviceRoute();
-    REQUIRE(stored_route.has_value());
-    if (stored_route.has_value())
-    {
-        CHECK(stored_route->serialized_state == "device-restore-blob");
-        REQUIRE(stored_route->identity.has_value());
-        if (stored_route->identity.has_value())
-        {
-            CHECK(*stored_route->identity == guitarRoute());
-        }
-    }
+    CHECK(harness.store.activeDeviceRoute() == std::optional<std::string>{"device-restore-blob"});
 
-    // The slot-0 player-to-route mapping is persisted through game/core, and its primary route is
-    // the identity mirrored into the shared store above.
+    // The resolved input identity becomes the slot-0 player-to-route mapping in game/core.
     const GameAudioConfig persisted = harness.game_settings.gameAudioConfig();
     REQUIRE(persisted.players.size() == 1);
     CHECK(persisted.players.front().player_slot == 0);
     CHECK(persisted.players.front().route == guitarRoute());
-    if (stored_route.has_value())
-    {
-        CHECK(primaryPlayerRoute(persisted) == stored_route->identity);
-    }
 
     // Gain calibration: metering the steady strum completes and commits.
     REQUIRE(harness.setup.beginGainCalibration().has_value());
@@ -349,17 +334,7 @@ TEST_CASE("Native setup re-run overwrites the previous device cleanly", "[core][
     REQUIRE(harness.setup.applySelectedDevice().has_value());
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::CalibratingGain);
 
-    const auto stored_route = harness.store.activeDeviceRoute();
-    REQUIRE(stored_route.has_value());
-    if (stored_route.has_value())
-    {
-        CHECK(stored_route->serialized_state == "second-device-blob");
-        REQUIRE(stored_route->identity.has_value());
-        if (stored_route->identity.has_value())
-        {
-            CHECK(*stored_route->identity == second_route);
-        }
-    }
+    CHECK(harness.store.activeDeviceRoute() == std::optional<std::string>{"second-device-blob"});
 
     const GameAudioConfig persisted = harness.game_settings.gameAudioConfig();
     REQUIRE(persisted.players.size() == 1);

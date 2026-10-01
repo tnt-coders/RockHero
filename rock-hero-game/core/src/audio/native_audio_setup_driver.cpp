@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
-#include <rock_hero/common/audio/settings/active_device_route.h>
 #include <string>
 #include <utility>
 
@@ -72,8 +71,7 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
             })};
     }
 
-    // Capture the opaque restore blob and the resolved input identity together, so the persisted
-    // route and its mirrored identity come from one apply and can never drift apart.
+    // Capture the opaque restore blob and the resolved input identity from the one apply.
     std::optional<std::string> serialized_state = m_device_configuration.serializedDeviceState();
     const std::optional<common::audio::InputDeviceIdentity> identity =
         m_device_configuration.currentInputDeviceIdentity();
@@ -84,18 +82,7 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
             NativeAudioSetupError{NativeAudioSetupErrorCode::DeviceRouteUnresolved})};
     }
 
-    // The game-private slot-0 player-to-route mapping. Its primary route is mirrored into the
-    // shared store's ActiveDeviceRoute.identity through the plan-32 Phase 1 pure mapping.
-    const GameAudioConfig game_config{
-        .players = {PlayerInputConfig{.player_slot = 0, .route = *identity}}
-    };
-    const std::optional<common::audio::InputDeviceIdentity> primary_route =
-        primaryPlayerRoute(game_config);
-
-    common::audio::ActiveDeviceRoute route{
-        .serialized_state = std::move(*serialized_state), .identity = primary_route
-    };
-    if (const auto stored = m_audio_config_store.setActiveDeviceRoute(std::move(route));
+    if (const auto stored = m_audio_config_store.setActiveDeviceRoute(std::move(serialized_state));
         !stored.has_value())
     {
         return std::unexpected{failAndRecord(
@@ -104,6 +91,10 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
             })};
     }
 
+    // The game-private slot-0 player-to-route mapping.
+    const GameAudioConfig game_config{
+        .players = {PlayerInputConfig{.player_slot = 0, .route = *identity}}
+    };
     if (const auto saved = m_game_settings.setGameAudioConfig(game_config); !saved.has_value())
     {
         return std::unexpected{failAndRecord(

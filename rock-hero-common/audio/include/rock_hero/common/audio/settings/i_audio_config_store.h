@@ -8,8 +8,8 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
-#include <rock_hero/common/audio/settings/active_device_route.h>
 #include <rock_hero/common/audio/settings/audio_config_error.h>
+#include <string>
 
 namespace rock_hero::common::audio
 {
@@ -18,8 +18,8 @@ namespace rock_hero::common::audio
 \brief Stores the user's audio configuration outside project packages and tone documents.
 
 The editor and the game share one configuration: the same hardware, and the same calibrated
-level for the same guitar, in both products. The store holds the active device route
-(opaque restore blob paired with the resolved input route) and a route-keyed input-calibration set.
+level for the same guitar, in both products. The store holds the active device route (the
+opaque JUCE audio-device restore payload) and a route-keyed input-calibration set.
 Fallible operations return std::expected so a corrupt persisted history surfaces as a typed failure
 rather than silent absence; bare std::optional is used only where absence is the sole non-error
 outcome.
@@ -31,19 +31,18 @@ public:
     virtual ~IAudioConfigStore() = default;
 
     /*!
-    \brief Reads the active device route stored by a previous successful device apply.
-    \return Stored route, or empty when no route should be restored or
-            the stored value is unreadable.
+    \brief Reads the active device route stored by a previous device change.
+    \return The stored restore payload, never an empty string; absent when none is stored.
     */
-    [[nodiscard]] virtual std::optional<ActiveDeviceRoute> activeDeviceRoute() const = 0;
+    [[nodiscard]] virtual std::optional<std::string> activeDeviceRoute() const = 0;
 
     /*!
     \brief Stores or clears the active device route.
-    \param route Route to restore on next launch, or empty to clear the stored route.
+    \param route Restore payload for the next launch; empty or an empty string clears it.
     \return Empty success, or a typed store failure.
     */
     [[nodiscard]] virtual std::expected<void, AudioConfigError> setActiveDeviceRoute(
-        std::optional<ActiveDeviceRoute> route) = 0;
+        std::optional<std::string> route) = 0;
 
     /*!
     \brief Reads input calibration for one physical input route.

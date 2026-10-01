@@ -26,9 +26,6 @@ namespace
 constexpr const char* g_audio_config_application_name{"Rock Hero Audio"};
 
 constexpr const char* g_active_device_route_key{"activeDeviceRoute"};
-constexpr const char* g_active_device_route_tag{"ACTIVE_DEVICE_ROUTE"};
-constexpr const char* g_serialized_state_property{"serializedState"};
-constexpr const char* g_identity_tag{"IDENTITY"};
 
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
@@ -343,36 +340,23 @@ AudioConfigStore::AudioConfigStore(juce::File file)
     , m_file(std::move(file))
 {}
 
-// Reads the paired device blob and resolved identity, treating unreadable state as absence.
-std::optional<ActiveDeviceRoute> AudioConfigStore::activeDeviceRoute() const
+// Reads the stored restore payload; an empty value is no route.
+std::optional<std::string> AudioConfigStore::activeDeviceRoute() const
 {
     const juce::PropertiesFile properties{m_file, m_options};
-    const std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_active_device_route_key);
-    if (xml == nullptr || !hasCurrentXmlFormat(*xml, g_active_device_route_tag))
+    std::string route = properties.getValue(g_active_device_route_key).toStdString();
+    if (route.empty())
     {
         return std::nullopt;
-    }
-
-    const std::optional<std::string> serialized_state =
-        readStringAttribute(*xml, g_serialized_state_property);
-    if (!serialized_state.has_value() || serialized_state->empty())
-    {
-        return std::nullopt;
-    }
-
-    ActiveDeviceRoute route;
-    route.serialized_state = *serialized_state;
-    if (const juce::XmlElement* const identity_xml = xml->getChildByName(g_identity_tag))
-    {
-        route.identity = readIdentity(*identity_xml);
     }
 
     return route;
 }
 
-// Stores or clears the paired device blob and resolved identity as one XML-valued property.
+// Stores or clears the restore payload. JUCE owns its format, so it is kept as an opaque string,
+// and re-serializes the XML it recognizes: readers parse it, never compare bytes.
 std::expected<void, AudioConfigError> AudioConfigStore::setActiveDeviceRoute(
-    std::optional<ActiveDeviceRoute> route)
+    std::optional<std::string> route)
 {
     // Held across the read-modify-write, so the other product cannot write between them.
     const juce::InterProcessLock::ScopedLockType held{m_lock};
@@ -381,23 +365,13 @@ std::expected<void, AudioConfigError> AudioConfigStore::setActiveDeviceRoute(
         return couldNotLock();
     }
     juce::PropertiesFile properties{m_file, m_options};
-    if (!route.has_value() || route->serialized_state.empty())
+    if (!route.has_value() || route->empty())
     {
         properties.removeValue(g_active_device_route_key);
     }
     else
     {
-        juce::XmlElement route_xml{g_active_device_route_tag};
-        route_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
-        route_xml.setAttribute(
-            g_serialized_state_property, juce::String::fromUTF8(route->serialized_state.c_str()));
-        if (route->identity.has_value() && isValidInputDeviceIdentity(*route->identity))
-        {
-            writeIdentityAttributes(
-                *route_xml.createNewChildElement(g_identity_tag), *route->identity);
-        }
-
-        properties.setValue(g_active_device_route_key, &route_xml);
+        properties.setValue(g_active_device_route_key, juce::String::fromUTF8(route->c_str()));
     }
 
     if (properties.save())

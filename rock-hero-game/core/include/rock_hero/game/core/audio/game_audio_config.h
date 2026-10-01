@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <optional>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <vector>
 
@@ -60,28 +59,5 @@ struct [[nodiscard]] GameAudioConfig
     */
     friend bool operator==(const GameAudioConfig& lhs, const GameAudioConfig& rhs) = default;
 };
-
-/*!
-\brief Selects the primary player's route (slot 0) for the shared-store identity mirror.
-
-This is the pure mapping the P2 apply step feeds into the shared audio-config store's
-activeDeviceRoute().identity — the single route-level fact the editor's "use game settings" toggle
-reads. The store write itself is a P2 side effect; this function is only the contract.
-
-\param config Game audio config to inspect.
-\return Slot-0's route, or empty when no slot-0 player is configured.
-*/
-[[nodiscard]] inline std::optional<common::audio::InputDeviceIdentity> primaryPlayerRoute(
-    const GameAudioConfig& config)
-{
-    for (const PlayerInputConfig& player : config.players)
-    {
-        if (player.player_slot == 0)
-        {
-            return player.route;
-        }
-    }
-    return std::nullopt;
-}
 
 } // namespace rock_hero::game::core

@@ -173,9 +173,9 @@ private:
 \brief Headless adapter sequencing device selection then gain calibration for the game.
 
 The driver is the thin side-effecting adapter over a pure NativeAudioSetupMachine: it drives the
-shared staged device-settings workflow, captures the applied route (opaque blob plus resolved
-identity) into the shared audio-config store as one ActiveDeviceRoute, writes the slot-0
-player-to-route mapping through game/core settings, and then drives the shared calibrate-first
+shared staged device-settings workflow, writes the applied route's opaque restore blob into the
+shared audio-config store and its resolved input identity as the slot-0 player-to-route mapping
+through game/core settings, and then drives the shared calibrate-first
 LiveInputMonitor to measure and persist the route's input gain. Reaching Ready is the state a later
 GameplaySession Ready transition (plan 14 Phase 4) needs to arm live-input monitoring.
 
@@ -261,11 +261,10 @@ public:
     /*!
     \brief Applies the staged device route, persists it, and advances to gain calibration.
 
-    On a successful apply the resolved route (opaque restore blob plus mono input identity) is
-    captured and written as one ActiveDeviceRoute into the game's store, the slot-0 player-to-route
-    mapping is written through game/core settings, and the primary player's route is mirrored into
-    ActiveDeviceRoute.identity — all in this one apply so the mirror never drifts from the blob. A
-    failed apply, an unresolved route, or a persistence failure is terminal.
+    On a successful apply the opaque restore blob is written into the shared audio-config store
+    and the resolved mono input identity becomes the slot-0 player-to-route mapping written
+    through game/core settings. A failed apply, an unresolved route, or a persistence failure is
+    terminal.
 
     \return Empty success, or the typed reason the apply failed.
     */

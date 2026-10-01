@@ -1,6 +1,5 @@
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/audio/settings/active_device_route.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
@@ -15,12 +14,7 @@ TEST_CASE("EditorController restores serialized audio device state", "[core][edi
     const ScopedControllerFiles files{"serialized_audio_device_restore"};
     EditorSettings settings{files.settingsFile()};
     common::audio::testing::InMemoryAudioConfigStore store;
-    REQUIRE(store
-                .setActiveDeviceRoute(
-                    common::audio::ActiveDeviceRoute{
-                        .serialized_state = "serialized-device-state", .identity = std::nullopt
-                    })
-                .has_value());
+    REQUIRE(store.setActiveDeviceRoute("serialized-device-state").has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -35,12 +29,7 @@ TEST_CASE("EditorController restores serialized audio device state", "[core][edi
     CHECK(
         audio_devices.last_restored_serialized_device_state ==
         std::optional<std::string>{"serialized-device-state"});
-    const auto route = store.activeDeviceRoute();
-    REQUIRE(route.has_value());
-    if (route.has_value())
-    {
-        CHECK(route->serialized_state == "serialized-device-state");
-    }
+    CHECK(store.activeDeviceRoute() == std::optional<std::string>{"serialized-device-state"});
 }
 
 // Invalid serialized device state is discarded from the store so future launches do not retry it.
@@ -50,13 +39,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"invalid_serialized_audio_device_restore"};
     EditorSettings settings{files.settingsFile()};
     common::audio::testing::InMemoryAudioConfigStore store;
-    REQUIRE(
-        store
-            .setActiveDeviceRoute(
-                common::audio::ActiveDeviceRoute{
-                    .serialized_state = "invalid-serialized-device-state", .identity = std::nullopt
-                })
-            .has_value());
+    REQUIRE(store.setActiveDeviceRoute("invalid-serialized-device-state").has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -79,8 +62,7 @@ TEST_CASE(
     CHECK_FALSE(store.activeDeviceRoute().has_value());
 }
 
-// Device-change notifications persist the blob paired with the
-// resolved input identity to the store.
+// Device-change notifications persist the device blob to the store.
 TEST_CASE("EditorController persists serialized audio device state", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"serialized_audio_device_persist"};
@@ -90,7 +72,6 @@ TEST_CASE("EditorController persists serialized audio device state", "[core][edi
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.serialized_device_state = "updated-serialized-device-state";
-    audio_devices.current_input_identity = makeInputDeviceIdentity();
     const EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings, store),
@@ -100,13 +81,8 @@ TEST_CASE("EditorController persists serialized audio device state", "[core][edi
     audio_devices.notifyChanged();
 
     CHECK(audio_devices.serialized_device_state_call_count == 1);
-    const auto route = store.activeDeviceRoute();
-    REQUIRE(route.has_value());
-    if (route.has_value())
-    {
-        CHECK(route->serialized_state == "updated-serialized-device-state");
-        CHECK(route->identity == std::optional{makeInputDeviceIdentity()});
-    }
+    CHECK(
+        store.activeDeviceRoute() == std::optional<std::string>{"updated-serialized-device-state"});
 }
 
 // Empty capture results clear the stored route instead of preserving stale device state.
@@ -117,12 +93,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"empty_serialized_audio_device_persist"};
     EditorSettings settings{files.settingsFile()};
     common::audio::testing::InMemoryAudioConfigStore store;
-    REQUIRE(store
-                .setActiveDeviceRoute(
-                    common::audio::ActiveDeviceRoute{
-                        .serialized_state = "old-serialized-device-state", .identity = std::nullopt
-                    })
-                .has_value());
+    REQUIRE(store.setActiveDeviceRoute("old-serialized-device-state").has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
