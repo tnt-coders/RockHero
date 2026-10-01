@@ -91,6 +91,15 @@ Why live input is off is worded once, by `liveInputStatusText` beside `LiveInput
 (`common/audio` `input/live_input_monitoring_status.h`): the editor's signal-chain message and the
 game's `LiveInputOff` refusal both take their sentence from it, never their own copy.
 
+# Known interfaces
+
+The primary calibration path is the player's interface, not a measurement: `knownInterfaces()`
+(`common/audio` `input/known_interfaces.h`) is the table of interfaces whose instrument-input
+level at 0 dBFS is known. Each row authors that dBu figure, the input setting it holds for, how it
+was established (`KnownInterfaceBasis`) and its source; `knownInterfaceGain()` derives the gain
+from the one reference through the one quantizer, and `knownInterfaceBasisText()` words how far to
+trust it. No row stores a gain, and no document copies a figure.
+
 # The game's first-run setup
 
 `NativeAudioSetupMachine` (`game/core/src/audio/native_audio_setup.cpp`) is a pure state machine
@@ -118,3 +127,7 @@ mapping is the seed of future multiplayer input plumbing.
    `ConfigurableAudioDeviceConfiguration` and `InMemoryAudioConfigStore`. An empty store is a first
    run, which opens the settings window, so an editor test of anything else starts from
    `savedRouteAudioConfigStore()`.
+5. Adding a known interface is one row in `known_interfaces.cpp`, in model order, every field
+   named: the model as its maker spells it, the input setting as a lower-case phrase completing
+   "Set the interface to ___", the dBu at 0 dBFS, the basis and the source. The table test
+   enforces the order and the phrasing; nothing else needs updating.

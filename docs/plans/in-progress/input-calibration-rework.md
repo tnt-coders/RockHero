@@ -238,7 +238,14 @@ multiplying by a 0.1 step, so a quantized 11.2 dB equals the literal 11.2.
   `inputCalibrationTargetText` if its label goes but the function stays; `-Wsign-conversion` in
   the seconds derivation (`std::size_t` windows over an `int` rate — convert once, explicitly).
 
-### 4. The known-interface table (D2 data, D6 numbers). Medium.
+### 4. DONE: the known-interface table (D2 data, D6 numbers). Medium.
+
+As built (guide shape notes): the gain runs through `quantizeInputCalibrationGainDb`, so the
+Quad Cortex derives exactly 2.3; `knownInterfaceBasisText()` sits beside the table, not in the
+editor, since the game's wizard needs the same words; the rows are a `constexpr std::array` in
+model order; the scalar fields take `{}` initializers (Windows `pro-type-member-init` beside the
+`string_view` members), which hides nothing since every row names every field. The user doc's
+table stays until step 5, which lands the chooser it would otherwise point at.
 
 - New `rock-hero-common/audio/include/rock_hero/common/audio/input/known_interfaces.h` and
   `src/input/known_interfaces.cpp` (CMake source list):
@@ -281,7 +288,8 @@ multiplying by a 0.1 step, so a quantized 11.2 dB equals the literal 11.2.
   comment; Audient iD4 (+12.0, Audient's own sheet) ships as `ManufacturerSpec`; the Quad Cortex
   family (+14.3 / +14.5 / +10.0) ships as `Inferred`, as the doc says today, with GENOME's +14.8
   in the comment. The popup (step 5) shows the basis, so an inferred row says so.
-- The user doc: delete the table and the "1V peak sine reads" column arithmetic; keep the
+- The user doc (moved to step 5, which lands the chooser it points at): delete the table and the
+  "1V peak sine reads" column arithmetic; keep the
   reference, the formula `Rock Hero gain = level at 0 dBFS (dBu) − 12 dBu`, the unity-input
   assumptions (minimum gain, Hi-Z input, pads and boosts off), the sources list (moved into the
   rows' `source` fields, so the doc can link to the sources without restating any number), and a
@@ -324,7 +332,7 @@ stated unless marked otherwise.
 - **Controller** (`input_calibration_controller.{h,cpp}`): new intent
   `onInterfaceSelected(std::size_t index)` — sets the displayed gain to `knownInterfaceGain(row).db`
   and the status to `<basis sentence> Set the interface to <unity_input>, then click Apply.`
-  with the basis from one file-local function over `KnownInterfaceBasis`: "Manufacturer's
+  with the basis from `knownInterfaceBasisText()` (step 4, beside the table): "Manufacturer's
   figure." / "Community-measured figure." / "Estimated figure." The model and the gain are left
   out: the combo and the slider already show them. The `IInputCalibrationView` contract is
   unchanged; Apply is unchanged and commits the displayed gain through the host.

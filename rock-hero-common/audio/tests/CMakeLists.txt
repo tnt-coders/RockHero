@@ -28,6 +28,7 @@ add_executable(
     test_audio_transcode.cpp
     test_gain.cpp
     test_input_calibration.cpp
+    test_known_interfaces.cpp
     test_live_input_monitor.cpp
     test_live_input_monitoring_status.cpp
     test_live_rig_gain_plugin.cpp

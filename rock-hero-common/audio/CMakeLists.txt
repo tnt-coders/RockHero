@@ -29,6 +29,7 @@ target_sources(
             src/engine/engine_tone_timeline.cpp
             src/engine/engine_transport.cpp
             src/input/input_calibration.cpp
+            src/input/known_interfaces.cpp
             src/input/live_input_error.cpp
             src/input/live_input_monitor.cpp
             src/input/live_input_monitor_error.cpp
