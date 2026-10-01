@@ -3223,9 +3223,6 @@ void EditorView::updateAudioDeviceButton()
     if (m_audio_device_button.getText() != status_text)
     {
         m_audio_device_button.setText(status_text);
-        // The button's width is capped, and a closed device's reason can be long: the label elides
-        // and the tooltip carries the whole line.
-        m_audio_device_button.setTooltip(status_text);
         layoutMenuStrip();
     }
 
