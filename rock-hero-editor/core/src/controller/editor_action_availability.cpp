@@ -1,10 +1,34 @@
 #include "editor_action_availability.h"
 
+#include <initializer_list>
+
 namespace rock_hero::editor::core
 {
 
 namespace
 {
+
+using Reason = ActionUnavailableReason;
+using Verdict = std::optional<ActionUnavailableReason>;
+
+// One condition of an action: absent when it holds, else the reason it names.
+[[nodiscard]] constexpr Verdict require(bool satisfied, Reason reason) noexcept
+{
+    return satisfied ? std::nullopt : Verdict{reason};
+}
+
+// An action's conditions in reason-priority order: the first that fails is the reason.
+[[nodiscard]] constexpr Verdict firstFailure(std::initializer_list<Verdict> checks) noexcept
+{
+    for (const Verdict& check : checks)
+    {
+        if (check.has_value())
+        {
+            return check;
+        }
+    }
+    return std::nullopt;
+}
 
 // Names the action set hidden while the input calibration prompt owns the signal-chain flow.
 [[nodiscard]] bool actionBlockedByInputCalibrationPrompt(EditorAction::Id action) noexcept
@@ -96,7 +120,7 @@ namespace
 }
 
 // Applies idle-state action availability without querying controller-owned state.
-[[nodiscard]] bool actionAvailableWhenIdle(
+[[nodiscard]] Verdict whyUnavailableWhenIdle(
     EditorAction::Id action, const ActionConditions& conditions) noexcept
 {
     if (conditions.session_faulted)
@@ -109,15 +133,16 @@ namespace
             case EditorAction::Id::CloseProject:
             case EditorAction::Id::ExitApplication:
             {
-                return true;
+                return std::nullopt;
             }
             case EditorAction::Id::ResolveUnsavedChangesPrompt:
             {
-                return conditions.has_unsaved_changes_prompt;
+                return require(
+                    conditions.has_unsaved_changes_prompt, Reason::NoUnsavedChangesPrompt);
             }
             case EditorAction::Id::CancelSaveAsPrompt:
             {
-                return conditions.has_save_as_prompt;
+                return require(conditions.has_save_as_prompt, Reason::NoSaveAsPrompt);
             }
             case EditorAction::Id::SaveProject:
             case EditorAction::Id::SaveProjectAs:
@@ -184,18 +209,21 @@ namespace
             case EditorAction::Id::AuthorFretHandPositionAtCursor:
             case EditorAction::Id::ClearFretHandEnd:
             {
-                return false;
+                return Reason::SessionFaulted;
             }
         }
 
-        return false;
+        return Reason::SessionFaulted;
     }
 
     if (conditions.input_calibration_prompt_visible &&
         actionBlockedByInputCalibrationPrompt(action))
     {
-        return false;
+        return Reason::InputCalibrationPrompt;
     }
+
+    // Signal-chain verbs need a live chain: a loaded arrangement or the Tone Designer's.
+    const bool live_chain = conditions.has_loaded_arrangement || conditions.tone_designer_active;
 
     switch (action)
     {
@@ -204,50 +232,59 @@ namespace
         case EditorAction::Id::ImportSong:
         case EditorAction::Id::ExitApplication:
         {
-            return true;
+            return std::nullopt;
         }
         case EditorAction::Id::SaveProject:
         case EditorAction::Id::SaveProjectAs:
         case EditorAction::Id::ExportSong:
         case EditorAction::Id::CloseProject:
         {
-            return conditions.has_project;
+            return require(conditions.has_project, Reason::NoProject);
         }
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         {
-            return conditions.has_unsaved_changes_prompt;
+            return require(conditions.has_unsaved_changes_prompt, Reason::NoUnsavedChangesPrompt);
         }
         case EditorAction::Id::CancelSaveAsPrompt:
         {
-            return conditions.has_save_as_prompt;
+            return require(conditions.has_save_as_prompt, Reason::NoSaveAsPrompt);
         }
         case EditorAction::Id::CancelBusyOperation:
         {
-            return false;
+            return Reason::NotBusy;
         }
         case EditorAction::Id::Undo:
         {
             // The designer session owns its own history, so undo works there like in a project.
-            return (conditions.has_project || conditions.tone_designer_active) &&
-                   conditions.undo_available;
+            return firstFailure({
+                require(
+                    conditions.has_project || conditions.tone_designer_active, Reason::NoProject),
+                require(conditions.undo_available, Reason::HistoryUnavailable),
+            });
         }
         case EditorAction::Id::Redo:
         {
-            return (conditions.has_project || conditions.tone_designer_active) &&
-                   conditions.redo_available;
+            return firstFailure({
+                require(
+                    conditions.has_project || conditions.tone_designer_active, Reason::NoProject),
+                require(conditions.redo_available, Reason::HistoryUnavailable),
+            });
         }
         // Play needs an open device, since only its callback moves the playhead; seeking, the grid
         // and the arrangement verbs do not, so they keep working without one.
         case EditorAction::Id::PlayPause:
         {
-            return conditions.has_loaded_arrangement && conditions.audio_device_open;
+            return firstFailure({
+                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
+                require(conditions.audio_device_open, Reason::AudioDeviceClosed),
+            });
         }
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
         {
-            return conditions.has_loaded_arrangement;
+            return require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement);
         }
         // THE MARKER PLANE IS PAUSED-ONLY, selection included: while the transport plays the
         // PLAYHEAD owns the timeline, so a marker the charter picked or moved would be a second
@@ -267,29 +304,45 @@ namespace
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
         {
-            return conditions.has_loaded_arrangement && !conditions.transport_playing;
+            return firstFailure({
+                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
+                require(!conditions.transport_playing, Reason::TransportPlaying),
+            });
         }
         case EditorAction::Id::Stop:
         {
-            return conditions.can_stop_transport;
+            return firstFailure({
+                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
+                require(conditions.can_stop_transport, Reason::TransportAtStart),
+            });
         }
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         {
-            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
-                   conditions.live_input_audition_available &&
-                   conditions.has_plugin_insert_capacity;
+            return firstFailure({
+                require(live_chain, Reason::NoLoadedArrangement),
+                require(
+                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
+                require(conditions.has_plugin_insert_capacity, Reason::PluginChainFull),
+            });
         }
         case EditorAction::Id::ScanPluginCatalog:
         {
-            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
-                   conditions.live_input_audition_available;
+            return firstFailure({
+                require(live_chain, Reason::NoLoadedArrangement),
+                require(
+                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
+            });
         }
         case EditorAction::Id::InsertSelectedPlugin:
         {
-            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
-                   conditions.live_input_audition_available && conditions.has_plugin_candidates &&
-                   conditions.has_plugin_insert_capacity;
+            return firstFailure({
+                require(live_chain, Reason::NoLoadedArrangement),
+                require(
+                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
+                require(conditions.has_plugin_candidates, Reason::NoPluginCandidates),
+                require(conditions.has_plugin_insert_capacity, Reason::PluginChainFull),
+            });
         }
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
@@ -297,29 +350,37 @@ namespace
         case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
         {
-            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
-                   conditions.live_input_audition_available && conditions.has_loaded_plugins;
+            return firstFailure({
+                require(live_chain, Reason::NoLoadedArrangement),
+                require(
+                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
+                require(conditions.has_loaded_plugins, Reason::NoLoadedPlugins),
+            });
         }
         case EditorAction::Id::NewToneDocument:
         case EditorAction::Id::OpenToneFile:
         case EditorAction::Id::SaveToneFile:
         case EditorAction::Id::SaveToneFileAs:
         {
-            return conditions.tone_designer_active;
+            return require(conditions.tone_designer_active, Reason::ToneDesignerInactive);
         }
         case EditorAction::Id::ImportToneFile:
         {
             // Import replaces the live monitored chain, so it shares the chain-mutation gates.
-            return conditions.has_loaded_arrangement && conditions.live_input_audition_available;
+            return firstFailure({
+                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
+                require(
+                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
+            });
         }
         case EditorAction::Id::ExportToneFile:
         {
             // Export is a pure read of the active tone's rig.
-            return conditions.has_loaded_arrangement;
+            return require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement);
         }
         case EditorAction::Id::ResolveToneImportPrompt:
         {
-            return conditions.has_tone_import_prompt;
+            return require(conditions.has_tone_import_prompt, Reason::NoToneImportPrompt);
         }
         // The caret moves are paused-only: arming requires a paused transport (armed implies
         // paused is structural), and play clears the chart selection.
@@ -334,7 +395,10 @@ namespace
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
         case EditorAction::Id::ClearFretHandEnd:
         {
-            return conditions.has_chart && !conditions.transport_playing;
+            return firstFailure({
+                require(conditions.has_chart, Reason::NoChart),
+                require(!conditions.transport_playing, Reason::TransportPlaying),
+            });
         }
         // The armed caret is the gate; which ROW it rides is each verb's own question, since each
         // lane has its own thing to place. One condition rather than a second "armed on a lane"
@@ -344,8 +408,11 @@ namespace
         case EditorAction::Id::InsertAtCaret:
         case EditorAction::Id::InsertRingPoint:
         {
-            return conditions.has_loaded_arrangement && conditions.has_armed_caret &&
-                   !conditions.transport_playing;
+            return firstFailure({
+                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
+                require(!conditions.transport_playing, Reason::TransportPlaying),
+                require(conditions.has_armed_caret, Reason::NoArmedCaret),
+            });
         }
         // A digit inserts at an armed caret or retypes the selection; which, the verb decides. The
         // bend and technique verbs are the same shape — the selection, else what the armed caret's
@@ -356,7 +423,7 @@ namespace
         case EditorAction::Id::SetChartBend:
         case EditorAction::Id::ToggleChartTechnique:
         {
-            return conditions.has_chart;
+            return require(conditions.has_chart, Reason::NoChart);
         }
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
@@ -366,7 +433,10 @@ namespace
         // selected keyframe or head, however that selection was made.
         case EditorAction::Id::ToggleChartJunction:
         {
-            return conditions.has_chart && conditions.has_chart_selection;
+            return firstFailure({
+                require(conditions.has_chart, Reason::NoChart),
+                require(conditions.has_chart_selection, Reason::NoChartSelection),
+            });
         }
         // Sections are SONG-level, so they need a project rather than a loaded arrangement: the
         // list is the same under every tab and survives the arrangement switch. The tempo map is
@@ -378,11 +448,14 @@ namespace
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
         {
-            return conditions.has_project && !conditions.transport_playing;
+            return firstFailure({
+                require(conditions.has_project, Reason::NoProject),
+                require(!conditions.transport_playing, Reason::TransportPlaying),
+            });
         }
     }
 
-    return false;
+    return std::nullopt;
 }
 
 } // namespace
@@ -473,19 +546,122 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
 }
 
 // Combines natural action availability with the action's busy-state policy.
-bool isActionAvailable(EditorAction::Id action, const ActionConditions& conditions) noexcept
+std::optional<ActionUnavailableReason> whyUnavailable(
+    EditorAction::Id action, const ActionConditions& conditions) noexcept
 {
     if (conditions.busy)
     {
         if (action == EditorAction::Id::CancelBusyOperation)
         {
-            return conditions.busy_cancel_available;
+            return require(conditions.busy_cancel_available, Reason::BusyCancelUnavailable);
         }
 
-        return actionSupersedesBusy(action);
+        return require(actionSupersedesBusy(action), Reason::Busy);
     }
 
-    return actionAvailableWhenIdle(action, conditions);
+    return whyUnavailableWhenIdle(action, conditions);
+}
+
+bool isActionAvailable(EditorAction::Id action, const ActionConditions& conditions) noexcept
+{
+    return !whyUnavailable(action, conditions).has_value();
+}
+
+std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noexcept
+{
+    switch (reason)
+    {
+        case Reason::Busy:
+        {
+            return "busy";
+        }
+        case Reason::BusyCancelUnavailable:
+        {
+            return "busy-cancel-unavailable";
+        }
+        case Reason::NotBusy:
+        {
+            return "not-busy";
+        }
+        case Reason::SessionFaulted:
+        {
+            return "session-faulted";
+        }
+        case Reason::InputCalibrationPrompt:
+        {
+            return "input-calibration-prompt";
+        }
+        case Reason::NoProject:
+        {
+            return "no-project";
+        }
+        case Reason::NoLoadedArrangement:
+        {
+            return "no-loaded-arrangement";
+        }
+        case Reason::NoChart:
+        {
+            return "no-chart";
+        }
+        case Reason::NoChartSelection:
+        {
+            return "no-chart-selection";
+        }
+        case Reason::NoArmedCaret:
+        {
+            return "no-armed-caret";
+        }
+        case Reason::NoUnsavedChangesPrompt:
+        {
+            return "no-unsaved-changes-prompt";
+        }
+        case Reason::NoSaveAsPrompt:
+        {
+            return "no-save-as-prompt";
+        }
+        case Reason::NoToneImportPrompt:
+        {
+            return "no-tone-import-prompt";
+        }
+        case Reason::HistoryUnavailable:
+        {
+            return "history-unavailable";
+        }
+        case Reason::TransportPlaying:
+        {
+            return "transport-playing";
+        }
+        case Reason::TransportAtStart:
+        {
+            return "transport-at-start";
+        }
+        case Reason::AudioDeviceClosed:
+        {
+            return "audio-device-closed";
+        }
+        case Reason::LiveInputAuditionUnavailable:
+        {
+            return "live-input-audition-unavailable";
+        }
+        case Reason::ToneDesignerInactive:
+        {
+            return "tone-designer-inactive";
+        }
+        case Reason::PluginChainFull:
+        {
+            return "plugin-chain-full";
+        }
+        case Reason::NoPluginCandidates:
+        {
+            return "no-plugin-candidates";
+        }
+        case Reason::NoLoadedPlugins:
+        {
+            return "no-loaded-plugins";
+        }
+    }
+
+    return "unknown";
 }
 
 } // namespace rock_hero::editor::core

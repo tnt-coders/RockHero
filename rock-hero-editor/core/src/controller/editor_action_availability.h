@@ -7,6 +7,10 @@
 
 #include "editor_action.h"
 
+#include <cstdint>
+#include <optional>
+#include <string_view>
+
 namespace rock_hero::editor::core
 {
 
@@ -100,6 +104,38 @@ struct ActionConditions
 };
 
 /*!
+\brief Why an action is refused: the first of its conditions that fails, in stage order.
+
+Each enumerator names one failed condition, so the reason can never disagree with availability:
+an action is available exactly when whyUnavailable() returns no reason.
+*/
+enum class ActionUnavailableReason : std::uint8_t
+{
+    Busy,
+    BusyCancelUnavailable,
+    NotBusy,
+    SessionFaulted,
+    InputCalibrationPrompt,
+    NoProject,
+    NoLoadedArrangement,
+    NoChart,
+    NoChartSelection,
+    NoArmedCaret,
+    NoUnsavedChangesPrompt,
+    NoSaveAsPrompt,
+    NoToneImportPrompt,
+    HistoryUnavailable,
+    TransportPlaying,
+    TransportAtStart,
+    AudioDeviceClosed,
+    LiveInputAuditionUnavailable,
+    ToneDesignerInactive,
+    PluginChainFull,
+    NoPluginCandidates,
+    NoLoadedPlugins,
+};
+
+/*!
 \brief Reports whether an action intentionally takes over an active busy operation.
 \param action Action to evaluate.
 \return True when the action supersedes busy work.
@@ -114,5 +150,21 @@ struct ActionConditions
 */
 [[nodiscard]] bool isActionAvailable(
     EditorAction::Id action, const ActionConditions& conditions) noexcept;
+
+/*!
+\brief Reports why an action is refused, the one authority isActionAvailable() negates.
+\param action Action to evaluate.
+\param conditions Current editor conditions collected by the controller.
+\return The first failing condition, or no reason when the action may run.
+*/
+[[nodiscard]] std::optional<ActionUnavailableReason> whyUnavailable(
+    EditorAction::Id action, const ActionConditions& conditions) noexcept;
+
+/*!
+\brief Names a refusal reason for the action log.
+\param reason Reason to name.
+\return Stable kebab-case diagnostic tag.
+*/
+[[nodiscard]] std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noexcept;
 
 } // namespace rock_hero::editor::core

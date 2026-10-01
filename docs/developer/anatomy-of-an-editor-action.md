@@ -40,7 +40,8 @@ data, and the pipeline treats every operation identically.
 is allowed right now: is a session loaded, is a prompt already open, is a busy operation running
 and if so does this action supersede it (`isActionAvailable` / `actionSupersedesBusy`)? These are
 exhaustive switches over the action id — every action answers these questions at compile time. If
-the answer is no, the action is rejected with a stated reason (`actionUnavailableReason`) and
+the answer is no, the action is rejected with the typed reason `whyUnavailable` returns — the
+same table answers both questions, so availability is exactly the absence of a reason — and
 nothing happens.
 
 # Stage 4 — Dispatch to the feature handler

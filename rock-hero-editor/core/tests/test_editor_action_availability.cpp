@@ -1,6 +1,7 @@
 #include "controller/editor_action_availability.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <optional>
 
 namespace rock_hero::editor::core
 {
@@ -393,6 +394,95 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
     CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK(isActionAvailable(ActionId::PlayPause, conditions));
     CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
+}
+
+// The reason a refused action names is the first failing condition in stage order: busy, then a
+// faulted session, then the calibration prompt, then the action's own conditions in their order.
+TEST_CASE("Unavailable reasons follow the availability stages", "[core][editor-action]")
+{
+    ActionConditions conditions{
+        .has_loaded_arrangement = true,
+        .audio_device_open = true,
+    };
+    CHECK(whyUnavailable(ActionId::PlayPause, conditions) == std::nullopt);
+
+    conditions.audio_device_open = false;
+    CHECK(
+        whyUnavailable(ActionId::PlayPause, conditions) ==
+        ActionUnavailableReason::AudioDeviceClosed);
+
+    conditions.has_loaded_arrangement = false;
+    CHECK(
+        whyUnavailable(ActionId::PlayPause, conditions) ==
+        ActionUnavailableReason::NoLoadedArrangement);
+
+    conditions.input_calibration_prompt_visible = true;
+    CHECK(
+        whyUnavailable(ActionId::PlayPause, conditions) ==
+        ActionUnavailableReason::InputCalibrationPrompt);
+
+    conditions.session_faulted = true;
+    CHECK(
+        whyUnavailable(ActionId::PlayPause, conditions) == ActionUnavailableReason::SessionFaulted);
+
+    conditions.busy = true;
+    CHECK(whyUnavailable(ActionId::PlayPause, conditions) == ActionUnavailableReason::Busy);
+}
+
+// Cancel names why there is nothing to cancel: no busy work, or busy work that cannot be cancelled.
+TEST_CASE("Cancel names why it cannot run", "[core][editor-action]")
+{
+    ActionConditions conditions{};
+    CHECK(
+        whyUnavailable(ActionId::CancelBusyOperation, conditions) ==
+        ActionUnavailableReason::NotBusy);
+
+    conditions.busy = true;
+    CHECK(
+        whyUnavailable(ActionId::CancelBusyOperation, conditions) ==
+        ActionUnavailableReason::BusyCancelUnavailable);
+
+    conditions.busy_cancel_available = true;
+    CHECK(whyUnavailable(ActionId::CancelBusyOperation, conditions) == std::nullopt);
+}
+
+// The reason comes from the same table as availability, so a Tone Designer refusal names the
+// designer's own missing condition rather than a project it never needed.
+TEST_CASE("Tone Designer refusals name the designer's condition", "[core][editor-action]")
+{
+    const ActionConditions conditions{.tone_designer_active = true};
+
+    CHECK(
+        whyUnavailable(ActionId::Undo, conditions) == ActionUnavailableReason::HistoryUnavailable);
+    CHECK(
+        whyUnavailable(ActionId::ScanPluginCatalog, conditions) ==
+        ActionUnavailableReason::LiveInputAuditionUnavailable);
+}
+
+// Every action's availability is exactly the absence of a reason.
+TEST_CASE("Availability is the absence of a reason", "[core][editor-action]")
+{
+    const ActionConditions conditions{
+        .has_project = true,
+        .has_loaded_arrangement = true,
+        .can_stop_transport = true,
+        .has_chart = true,
+    };
+
+    for (const ActionId action : {
+             ActionId::PlayPause,
+             ActionId::Stop,
+             ActionId::Undo,
+             ActionId::SaveProject,
+             ActionId::InsertAtCaret,
+             ActionId::ShiftChartFrets,
+             ActionId::OpenPlugin,
+         })
+    {
+        CHECK(
+            isActionAvailable(action, conditions) ==
+            !whyUnavailable(action, conditions).has_value());
+    }
 }
 
 } // namespace rock_hero::editor::core

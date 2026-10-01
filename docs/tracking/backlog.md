@@ -1252,14 +1252,6 @@ against the tree on the date above.
   window lands; the sibling "verb on a selection" rule in `EditorView::perform` is untested the same
   way. Both want one glide hook (or a synchronous test path) and a test each.
 
-## Found while building bare `V` on a tail (2026-09-27)
-
-- **Action availability is stated twice.** `isActionAvailable` (`editor_action_availability.cpp`)
-  and `actionUnavailableReason` (`editor_controller.cpp`) are parallel exhaustive switches that must
-  agree by hand — moving `ToggleChartTechnique` to the caret-operand gate had to edit both. One
-  `actionBlocker(id, conditions) -> std::optional<std::string_view>` with
-  `isActionAvailable = !actionBlocker(...).has_value()` deletes one switch.
-
 ## Found in the simplicity review of the chip faces (2026-09-28)
 
 - **A keyframe's mark is a tag plus parallel fields, not a sum.** `TabKeyframeLayout` carries

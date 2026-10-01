@@ -25,11 +25,12 @@ The compiler then demands, in `rock-hero-editor/core/src/controller/`:
 
 - the id mapping arm in `idOfAlternative` (`editor_action.cpp`);
 - a case in each exhaustive availability switch in `editor_action_availability.cpp`
-  (`actionBlockedByInputCalibrationPrompt`, `actionAvailableWhenIdle`, `actionSupersedesBusy`) —
-  these force you to *decide* the action's gating, which is the point;
+  (`actionBlockedByInputCalibrationPrompt`, `whyUnavailableWhenIdle`, `actionSupersedesBusy`) —
+  these force you to *decide* the action's gating, which is the point. An idle case lists its
+  conditions in priority order with `firstFailure({require(condition, reason), ...})`, so the
+  reason a refusal names can never disagree with whether it was refused;
 - the `performActionImpl` overload declared in `editor_controller_impl.h`;
-- the exhaustive `actionIdText` switch and the two in `actionUnavailableReason`
-  (`editor_controller.cpp`: the log name, the calibration-prompt reason, the state reason);
+- the exhaustive `actionIdText` switch (`editor_controller.cpp`: the log name);
 - the two exhaustive `EditorActionId` switches in
   `rock-hero-editor/ui/src/main_window/editor_view.cpp` (the tone and project unsaved-changes
   prompt wording);
@@ -46,9 +47,10 @@ These are the loose ends. Check each one deliberately.
    `project_handlers.cpp`, `signal_chain_handlers.cpp`, `tone_designer_handlers.cpp`,
    `input_calibration_handlers.cpp`, `audio_device_handlers.cpp`) — never in
    `editor_controller.cpp` for convenience.
-2. **`actionUnavailableReason`** (`editor_controller.cpp`) — the rejection-logging text. Its
-   switches are exhaustive, so the compiler makes you name a reason; a WRONG one degrades
-   diagnostics without failing anything.
+2. **The refusal reason.** Each `require` in the action's idle case names an
+   `ActionUnavailableReason`; a WRONG one degrades the log and any tooltip that shows it
+   without failing anything. A genuinely new condition gets its own enumerator and its log tag
+   in `actionUnavailableReasonTag`.
 3. **Undo.** If the action mutates undoable state, write an `IEdit` in the feature's `*_edits.h`
    / `*_edits.cpp` pair, capture the before-state *before* mutating, and push exactly one entry
    per user gesture via `pushUndoEntry`. Nothing reminds you: an action without an edit simply
