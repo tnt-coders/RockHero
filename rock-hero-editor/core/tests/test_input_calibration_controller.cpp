@@ -4,9 +4,9 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/input/live_input_sample.h>
-#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
+#include <rock_hero/editor/core/testing/input_calibration_fixtures.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <string>
 #include <utility>
@@ -19,6 +19,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
+using testing::makeInputCalibrationPrompt;
 using testing::RecordingEditorController;
 
 // Records the controller's view-state pushes for direct assertions.
@@ -38,14 +39,6 @@ public:
 
     std::vector<InputCalibrationViewState> states;
 };
-
-[[nodiscard]] InputCalibrationPrompt prompt(double input_gain_db = 2.0)
-{
-    return InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = input_gain_db,
-    };
-}
 
 // A sample at a steady level carrying the given measurement progress.
 [[nodiscard]] common::audio::LiveInputSample sampleWith(
@@ -73,7 +66,7 @@ TEST_CASE("Input calibration controller opens idle", "[core][input-calibration]"
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController calibrated{editor, prompt(2.0)};
+    InputCalibrationController calibrated{editor, makeInputCalibrationPrompt(2.0)};
     calibrated.attachView(view);
 
     CHECK(view.lastState().gain_db == Catch::Approx(2.0));
@@ -82,10 +75,7 @@ TEST_CASE("Input calibration controller opens idle", "[core][input-calibration]"
 
     InputCalibrationController uncalibrated{
         editor,
-        InputCalibrationPrompt{
-            .route = common::audio::testing::makeInputDeviceIdentity(),
-            .stored_gain_db = std::nullopt,
-        },
+        makeInputCalibrationPrompt(std::nullopt),
     };
     uncalibrated.attachView(view);
     CHECK(view.lastState().gain_db == Catch::Approx(common::audio::defaultGainDb()));
@@ -97,7 +87,7 @@ TEST_CASE("Input calibration controller applies the shown gain", "[core][input-c
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(-0.04)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(-0.04)};
     controller.attachView(view);
 
     controller.onManualGainChanged(3.5);
@@ -115,7 +105,7 @@ TEST_CASE("Input calibration controller keeps a refused Apply open", "[core][inp
     editor.input_calibration_apply_result =
         std::unexpected{routeError("The calibration store is unavailable.")};
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(0.0)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(0.0)};
     controller.attachView(view);
 
     controller.onApplyRequested();
@@ -130,7 +120,7 @@ TEST_CASE("Input calibration controller follows a measurement", "[core][input-ca
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(2.0)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(2.0)};
     controller.attachView(view);
     controller.onPickupsSelected(common::audio::PickupClass::SingleCoil);
 
@@ -159,7 +149,7 @@ TEST_CASE("Input calibration controller fills in a measured gain", "[core][input
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(2.0)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(2.0)};
     controller.attachView(view);
     controller.onMeasureRequested();
 
@@ -183,7 +173,7 @@ TEST_CASE("Input calibration controller reports a failed measurement", "[core][i
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(2.0)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(2.0)};
     controller.attachView(view);
     controller.onMeasureRequested();
 
@@ -203,7 +193,7 @@ TEST_CASE("Input calibration controller reports start failure", "[core][input-ca
     editor.input_calibration_start_result =
         std::unexpected{routeError("No input route is selected.")};
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(2.0)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(2.0)};
     controller.attachView(view);
 
     controller.onMeasureRequested();
@@ -217,7 +207,7 @@ TEST_CASE("Input calibration controller stops and closes", "[core][input-calibra
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(2.0)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(2.0)};
     controller.attachView(view);
     controller.onMeasureRequested();
 
@@ -236,7 +226,7 @@ TEST_CASE("Input calibration controller meters the candidate gain", "[core][inpu
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, prompt(2.0)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(2.0)};
     controller.attachView(view);
 
     editor.input_calibration_sample = sampleWith(std::nullopt);

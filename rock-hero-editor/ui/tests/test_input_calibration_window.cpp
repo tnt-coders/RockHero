@@ -5,8 +5,8 @@
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
-#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
+#include <rock_hero/editor/core/testing/input_calibration_fixtures.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
@@ -20,14 +20,6 @@ namespace
 using core::testing::RecordingEditorController;
 using testing::findRequiredDescendant;
 
-[[nodiscard]] core::InputCalibrationPrompt calibrationPrompt()
-{
-    return core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = -6.0,
-    };
-}
-
 } // namespace
 
 // Measure starts a measurement and becomes Stop, the gain, the pickups and Apply waiting while it
@@ -36,7 +28,7 @@ TEST_CASE("InputCalibrationWindow measures at one size", "[ui][input-calibration
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingEditorController controller;
-    const core::InputCalibrationPrompt prompt = calibrationPrompt();
+    const core::InputCalibrationPrompt prompt = core::testing::makeInputCalibrationPrompt(-6.0);
 
     InputCalibrationWindow window{controller, prompt, nullptr};
 
@@ -73,7 +65,7 @@ TEST_CASE("InputCalibrationWindow marks the pickups' strum target", "[ui][input-
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingEditorController controller;
-    const core::InputCalibrationPrompt prompt = calibrationPrompt();
+    const core::InputCalibrationPrompt prompt = core::testing::makeInputCalibrationPrompt(-6.0);
 
     InputCalibrationWindow window{controller, prompt, nullptr};
 

@@ -10,11 +10,11 @@ add_library(rock_hero::editor::core_testing ALIAS rock_hero_editor_core_testing)
 target_include_directories(rock_hero_editor_core_testing
                            INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-# The chart fixtures here build on the shared domain fixtures (the standard tuning), so the
-# testing target carries that dependency for every suite that opts in.
+# The fixtures here build on the shared domain fixtures (the standard tuning, the test input route),
+# so the testing target carries those dependencies for every suite that opts in.
 target_link_libraries(
     rock_hero_editor_core_testing INTERFACE rock_hero::editor::core rock_hero::common::core_testing
-                                            Catch2::Catch2)
+                                            rock_hero::common::audio_testing Catch2::Catch2)
 
 # Keep controller, settings, and package workflow coverage in the headless core test target.
 add_executable(

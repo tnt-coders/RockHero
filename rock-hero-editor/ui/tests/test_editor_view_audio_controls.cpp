@@ -3,6 +3,7 @@
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
+#include <rock_hero/editor/core/testing/input_calibration_fixtures.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <string>
 #include <utility>
@@ -45,10 +46,7 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     showOnScreen(view);
 
     core::EditorViewState state;
-    state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = 2.0,
-    };
+    state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(2.0);
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
@@ -107,10 +105,7 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     showOnScreen(view);
 
     core::EditorViewState state;
-    state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = -0.04,
-    };
+    state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(-0.04);
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
@@ -137,10 +132,7 @@ TEST_CASE("Calibration Apply saves the shown gain and closes", "[ui][editor-view
     showOnScreen(view);
 
     core::EditorViewState state;
-    state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = 2.0,
-    };
+    state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(2.0);
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
@@ -251,18 +243,13 @@ TEST_CASE("Calibration prompt for another route retires the open window", "[ui][
     showOnScreen(view);
 
     core::EditorViewState state;
-    state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = 2.0,
-    };
+    state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(2.0);
     view.setState(state);
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     REQUIRE(window.isVisible());
 
-    state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity("ASIO", "Interface B"),
-        .stored_gain_db = std::nullopt,
-    };
+    state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(
+        std::nullopt, common::audio::testing::makeInputDeviceIdentity("ASIO", "Interface B"));
     view.setState(state);
 
     CHECK_FALSE(window.isVisible());
@@ -308,10 +295,7 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
     showOnScreen(view);
 
     core::EditorViewState state;
-    state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = std::nullopt,
-    };
+    state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(std::nullopt);
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
