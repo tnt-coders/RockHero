@@ -76,7 +76,7 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     CHECK_THAT(status.getMinimumHorizontalScale(), Catch::Matchers::WithinULP(1.0f, 0));
     CHECK_FALSE(status.getText().startsWith("Info:"));
     REQUIRE(help_button.onClick);
-    CHECK(help_button.getTooltip() == "Open the input calibration guide");
+    CHECK(help_button.getTooltip() == "Open the known audio devices table");
     CHECK(manual_label.getText() == "Gain");
     // The popup meter keeps the master meter's preferred 384px width. The live master meter can
     // flex narrower than that, because the window-centered playback transport has layout

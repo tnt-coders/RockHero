@@ -105,4 +105,28 @@ target_link_libraries(
             rock_hero::tracktion_graph
             libebur128::ebur128)
 
+# The user guide's table of known audio devices is generated from knownInterfaces(), so the guide
+# never restates a figure the code owns. The table needs none of the library's dependencies, so
+# its one source file compiles a second time into a small tool the docs targets run first.
+if(TARGET docs)
+    add_executable(rock_hero_known_interfaces_doc tools/known_interfaces_doc_main.cpp
+                                                  src/input/known_interfaces.cpp)
+    target_include_directories(rock_hero_known_interfaces_doc
+                               PRIVATE include include/rock_hero/common/audio src)
+    target_link_libraries(rock_hero_known_interfaces_doc PRIVATE rock_hero::build_policy)
+
+    set(ROCK_HERO_KNOWN_INTERFACES_DOC "${CMAKE_BINARY_DIR}/docs/generated/known_interfaces.md")
+    add_custom_command(
+        OUTPUT "${ROCK_HERO_KNOWN_INTERFACES_DOC}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/docs/generated"
+        COMMAND rock_hero_known_interfaces_doc "${ROCK_HERO_KNOWN_INTERFACES_DOC}"
+        DEPENDS rock_hero_known_interfaces_doc
+        COMMENT "Generating the known audio devices table"
+        VERBATIM)
+    add_custom_target(rock_hero_known_interfaces_doc_fragment
+                      DEPENDS "${ROCK_HERO_KNOWN_INTERFACES_DOC}")
+    add_dependencies(docs rock_hero_known_interfaces_doc_fragment)
+    add_dependencies(project_config_docs_for_development rock_hero_known_interfaces_doc_fragment)
+endif()
+
 add_subdirectory(tests)

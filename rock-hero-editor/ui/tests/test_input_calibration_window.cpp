@@ -62,7 +62,7 @@ TEST_CASE("InputCalibrationWindow keeps measuring behind its header", "[ui][inpu
     const int closed_height = content->getHeight();
     CHECK(later.getBottom() + margin == closed_height);
 
-    CHECK(disclosure.getButtonText() == "Audio device not listed? Calibrate by playing");
+    CHECK(disclosure.getButtonText() == "Device not listed? Calibrate by playing");
     CHECK(disclosure.isEnabled());
     CHECK_FALSE(pickups.isVisible());
     CHECK_FALSE(calibrate.isVisible());

@@ -1123,7 +1123,7 @@ EXCLUDE_SYMBOLS        =
 # that contain example code fragments that are included (see the \include
 # command).
 
-EXAMPLE_PATH           =
+EXAMPLE_PATH           = @CMAKE_BINARY_DIR@/docs/generated
 
 # If the value of the EXAMPLE_PATH tag contains directories, you can use the
 # EXAMPLE_PATTERNS tag to specify one or more wildcard pattern (like *.cpp and
@@ -1463,7 +1463,9 @@ HTML_EXTRA_STYLESHEET  = project-config/doxygen-awesome-css/doxygen-awesome.css
 # files will be copied as-is; there are no commands or markers available.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_EXTRA_FILES       = project-config/doxygen-mermaid/mermaid.min.js
+HTML_EXTRA_FILES       = project-config/doxygen-mermaid/mermaid.min.js \
+                         docs/redirects/user_pickup_types.html \
+                         docs/redirects/user_known_audio_devices.html
 
 # The HTML_COLORSTYLE tag can be used to specify if the generated HTML output
 # should be rendered with a dark or light theme.

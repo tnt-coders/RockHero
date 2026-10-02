@@ -67,9 +67,9 @@ constexpr int g_meter_height{26};
     return build_tree_documentation.existsAsFile() ? build_tree_documentation : juce::File{};
 }
 
-// Opens the local HTML file directly so Windows handles it as a normal filesystem document. Each
-// help target is a page of its own: the shell drops a #fragment from a file URL, so a page is the
-// finest target a help button can open.
+// Opens the local HTML file directly so Windows handles it as a normal filesystem document. The
+// shell drops a #fragment from a file URL, so a help target inside the guide is a forwarding page
+// of its own (docs/redirects) that refreshes to the section.
 [[nodiscard]] bool openDocumentation(const juce::String& documentation_file_name)
 {
     const juce::File documentation = documentationFile(documentation_file_name);
@@ -198,8 +198,8 @@ public:
         const std::unique_ptr<juce::Drawable> help_icon =
             juce::Drawable::createFromImageData(BinaryData::help_svg, BinaryData::help_svgSize);
         m_help_button.setComponentID("input_calibration_help_button");
-        configureHelpButton(m_help_button, help_icon.get(), "Open the input calibration guide");
-        m_help_button.onClick = [this] { openGuidePage("user_input_calibration.html"); };
+        configureHelpButton(m_help_button, help_icon.get(), "Open the known audio devices table");
+        m_help_button.onClick = [this] { openGuidePage("user_known_audio_devices.html"); };
         addAndMakeVisible(m_help_button);
 
         m_pickup_help_button.setComponentID("input_calibration_pickup_help_button");
@@ -460,7 +460,7 @@ private:
     juce::Slider m_manual_gain_slider;
     juce::TextButton m_manual_apply_button;
     juce::Label m_status;
-    DisclosureButton m_measure_disclosure{"Audio device not listed? Calibrate by playing"};
+    DisclosureButton m_measure_disclosure{"Device not listed? Calibrate by playing"};
     juce::TextButton m_calibrate_button;
     juce::TextButton m_cancel_button;
 
