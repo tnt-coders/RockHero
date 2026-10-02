@@ -84,7 +84,7 @@ namespace
     double gain_db, common::audio::PickupClass pickups)
 {
     return "Measured " + signedGainText(gain_db) + " dB with " +
-           std::string{common::audio::pickupClassText(pickups)} +
+           std::string{common::audio::pickupType(pickups).name} +
            " pickups. Click Apply to save it.";
 }
 

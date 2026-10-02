@@ -481,8 +481,8 @@ documented gain is the primary path, and the strum measurement the fallback for 
 no published figure. Everything derives from one reference, `inputLevelReferenceDbu()`: +12 dBu
 reads 0 dBFS, so an interface's gain is its dBu at 0 dBFS less 12, and the fallback sets the gain
 so the player's hardest playing lands where a hard strum on the pickups they state would: about
-2 V for a humbucker, 1 V for a single coil, with P-90, mini-humbucker and active values between
-(`hardStrumPeakVolts()`).
+2 V for a humbucker and 1 V for a single coil; each kind's figure is a row of `pickupTypes()`
+(`input/pickup_types.h`).
 
 **Analysis thread** (pitch detection, `rock-hero-game`): Reads guitar input from the ring buffer.
 Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86

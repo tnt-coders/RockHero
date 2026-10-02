@@ -4,12 +4,12 @@
 #include "shared/editor_theme.h"
 
 #include <BinaryData.h>
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/known_interfaces.h>
+#include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
@@ -85,20 +85,6 @@ void configureHelpButton(
     button.setMouseClickGrabsKeyboardFocus(false);
     button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
     button.setImages(icon);
-}
-
-// The chooser's item index for a pickup class: its position in common::audio::pickupClasses().
-[[nodiscard]] int pickupClassIndex(common::audio::PickupClass pickups)
-{
-    const auto classes = common::audio::pickupClasses();
-    return static_cast<int>(std::ranges::find(classes, pickups) - classes.begin());
-}
-
-// The chooser's item text: the one class name, capitalized for a list.
-[[nodiscard]] juce::String pickupClassName(common::audio::PickupClass pickups)
-{
-    const juce::String name{std::string{common::audio::pickupClassText(pickups)}};
-    return name.substring(0, 1).toUpperCase() + name.substring(1);
 }
 
 void configureManualInputGainSlider(juce::Slider& slider)
@@ -235,21 +221,22 @@ public:
         m_pickup_label.setJustificationType(juce::Justification::centredLeft);
         addChildComponent(m_pickup_label);
 
-        // The items are common::audio::pickupClasses() in order, so an item's index is its class.
+        // The items are common::audio::pickupTypes() in order, so an item's index is its row.
         m_pickup_chooser.setComponentID("input_calibration_pickup");
         int pickup_id = 1;
-        for (const common::audio::PickupClass pickups : common::audio::pickupClasses())
+        for (const common::audio::PickupType& row : common::audio::pickupTypes())
         {
-            m_pickup_chooser.addItem(pickupClassName(pickups), pickup_id);
+            m_pickup_chooser.addItem(
+                juce::String{common::audio::pickupTypeLabel(row.pickups)}, pickup_id);
             ++pickup_id;
         }
         m_pickup_chooser.onChange = [this] {
             const int chosen_index = m_pickup_chooser.getSelectedItemIndex();
-            const auto classes = common::audio::pickupClasses();
-            if (chosen_index >= 0 && static_cast<std::size_t>(chosen_index) < classes.size())
+            const auto rows = common::audio::pickupTypes();
+            if (chosen_index >= 0 && static_cast<std::size_t>(chosen_index) < rows.size())
             {
                 m_calibration_controller.onPickupsSelected(
-                    classes[static_cast<std::size_t>(chosen_index)]);
+                    rows[static_cast<std::size_t>(chosen_index)].pickups);
             }
         };
         addChildComponent(m_pickup_chooser);
@@ -394,7 +381,7 @@ private:
             selected.has_value() ? static_cast<int>(*selected) + 1 : 0, juce::dontSendNotification);
         m_interface_chooser.setEnabled(!state.measuring);
         m_pickup_chooser.setSelectedItemIndex(
-            pickupClassIndex(state.pickups), juce::dontSendNotification);
+            static_cast<int>(std::to_underlying(state.pickups)), juce::dontSendNotification);
         m_pickup_chooser.setEnabled(!state.measuring);
         m_calibrate_button.setEnabled(!state.measuring);
         m_measure_disclosure.setEnabled(!state.measuring);

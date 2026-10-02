@@ -87,16 +87,25 @@ gate; storing it is the driver's decision, through the one store path `commitCal
 editor's window on Apply, the game's setup at once. The measurement listens to the player's hardest
 playing for a fixed span from the first window it hears and sets the gain so the playing's
 ceiling, a high percentile of the window peaks, lands on `inputCalibrationTargetPeakDb(pickups)`:
-where a hard strum on the stated `PickupClass` lands, from the authored `hardStrumPeakVolts()` (one value per type, its evidence beside it;
-`docs/tracking/2026-10-01-hard-strum-peak-research.md`) and the one reference,
-`inputLevelReferenceDbu()` (`input/input_calibration.h`). `LiveInputMonitor::beginMeasurement`
+where a hard strum on the stated `PickupClass` lands, from that kind's authored
+`hard_strum_peak_volts` and the one reference, `inputLevelReferenceDbu()`
+(`input/input_calibration.h`).
+
+The pickup kinds are one table, `pickupTypes()` (`common/audio` `input/pickup_types.h`): each row
+states the kind's name, what it covers, its peak and the evidence for the peak
+(`docs/tracking/2026-10-01-hard-strum-peak-research.md`), and sits at its `PickupClass` index.
+A `static_assert` sizes the table through `Active`, the last kind, so a new kind goes after it and
+becomes the last kind named there; a consteval check holds each row to its index and its sentences
+to their periods. Every surface reads the rows: the calibration window's chooser, the measured
+sentence, the monitor's log line and, through `rock_hero_calibration_doc`, the guide's Pickup Types
+table. `LiveInputMonitor::beginMeasurement`
 takes the pickups and keeps them with the measurement, and each finished measurement logs
 `pickups`, the raw `ceiling_peak_db` and the gain. The log states facts, not volts: volts need the
 interface's true full scale, which is what the measurement estimates. On an interface with a known
 figure, volts = its full-scale peak volts x 10^(ceiling_peak_db / 20), which is how a run re-centres
-`hardStrumPeakVolts()`. A
-measurement a gate run ended (a device change, a session closing) reports itself as a failure at
-the next sample, once, so neither driver keeps its own record of having started one.
+a row's `hard_strum_peak_volts`. A measurement a gate run ended (a device change, a session
+closing) reports itself as a failure at the next sample, once, so neither driver keeps its own
+record of having started one.
 
 Why live input is off is worded once, by `liveInputStatusText` beside `LiveInputMonitoringStatus`
 (`common/audio` `input/live_input_monitoring_status.h`): the editor's signal-chain message and the
@@ -110,8 +119,8 @@ level at 0 dBFS is known. Each row authors that dBu figure, the input setting it
 was established (`KnownInterfaceBasis`) and its source; `knownInterfaceGain()` derives the gain
 from the one reference through the one quantizer, and `knownInterfaceBasisText()` words how far to
 trust it. No row stores a gain, and no document copies a figure: the user guide's Known Audio
-Devices table is generated from the rows by `rock_hero_known_interfaces_doc`
-(`common/audio` `tools/known_interfaces_doc_main.cpp`), which the docs targets build and run before
+Devices table is generated from the rows by `rock_hero_calibration_doc`
+(`common/audio` `tools/calibration_doc_main.cpp`), which the docs targets build and run before
 Doxygen includes its output.
 
 The editor's calibration popup offers the table as its primary path: an **Audio device** chooser

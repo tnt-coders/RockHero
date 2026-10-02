@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <rock_hero/common/audio/input/input_calibration.h>
+#include <rock_hero/common/audio/input/pickup_types.h>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -74,25 +75,32 @@ TEST_CASE("Input calibration target derives from the pickups", "[audio][input-ca
         inputCalibrationTargetPeakDb(PickupClass::Active), Catch::Matchers::WithinAbs(-6.35, 0.01));
 }
 
-// Each pickup class has one name, so every surface words it the same, and every listed class has
-// its own.
-TEST_CASE("Pickup class words every class once", "[audio][input-calibration]")
+// The pickup table states each kind once: one row per kind, looked up by its kind, each with its
+// own name. The rows' completeness is a compile-time check in pickup_types.cpp.
+TEST_CASE("Pickup types state every kind once", "[audio][input-calibration]")
 {
     std::vector<std::string_view> names;
-    for (const PickupClass pickups : pickupClasses())
+    for (const PickupType& row : pickupTypes())
     {
-        const std::string_view name = pickupClassText(pickups);
-        CHECK_FALSE(name.empty());
-        CHECK(std::ranges::find(names, name) == names.end());
-        names.push_back(name);
+        CHECK(&pickupType(row.pickups) == &row);
+        CHECK(std::ranges::find(names, row.name) == names.end());
+        names.push_back(row.name);
     }
     CHECK(names.size() == 5);
 
-    CHECK(pickupClassText(PickupClass::Humbucker) == "humbucker");
-    CHECK(pickupClassText(PickupClass::SingleCoil) == "single-coil");
-    CHECK(pickupClassText(PickupClass::P90) == "P-90");
-    CHECK(pickupClassText(PickupClass::MiniHumbucker) == "mini-humbucker");
-    CHECK(pickupClassText(PickupClass::Active) == "active");
+    CHECK(pickupType(PickupClass::Humbucker).name == "humbucker");
+    CHECK(pickupType(PickupClass::SingleCoil).name == "single-coil");
+    CHECK(pickupType(PickupClass::P90).name == "P-90");
+    CHECK(pickupType(PickupClass::MiniHumbucker).name == "mini-humbucker");
+    CHECK(pickupType(PickupClass::Active).name == "active");
+}
+
+// A list shows each name capitalized, and a name that is already capitalized stays as it is.
+TEST_CASE("Pickup type labels capitalize the name", "[audio][input-calibration]")
+{
+    CHECK(pickupTypeLabel(PickupClass::Humbucker) == "Humbucker");
+    CHECK(pickupTypeLabel(PickupClass::SingleCoil) == "Single-coil");
+    CHECK(pickupTypeLabel(PickupClass::P90) == "P-90");
 }
 
 // A gain that rounds to zero is stored and shown as zero, never as negative zero.

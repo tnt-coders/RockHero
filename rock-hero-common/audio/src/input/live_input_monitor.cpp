@@ -200,7 +200,7 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
     RH_LOG_INFO(
         "audio.live_input_monitor",
         "Input calibration measured pickups={} ceiling_peak_db={:.1f} gain_db={:+.1f}",
-        pickupClassText(measured_pickups),
+        pickupType(measured_pickups).name,
         result.ceiling_peak_db,
         gain.db);
     return LiveInputSample{

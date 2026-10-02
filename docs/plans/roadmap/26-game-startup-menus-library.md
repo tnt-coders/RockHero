@@ -504,7 +504,8 @@ forward and record it in both plans).
   renders `knownInterfaces()` with the same basis-plus-unity sentence as the editor's popup
   (`knownInterfaceBasisText`), the game's only manual path; "Calibrate by playing" is its fallback,
   and asks the pickup question first (`NativeAudioSetup::beginGainCalibration(PickupClass)`, with
-  `pickupClassText` for the names; the user guide's Pickup Types table for the descriptions).
+  `pickupTypes()` for the names and descriptions, the table the guide's Pickup Types is
+  generated from).
   The gate
   re-runs at every play, so the refusal is never stale; a live status display that must follow a
   device change before the next press would still want a device listener, the gate does not.

@@ -11,10 +11,9 @@
 #include <expected>
 #include <numbers>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/common/audio/shared/gain.h>
-#include <span>
 #include <string>
-#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -32,86 +31,6 @@ source reaches against it.
 [[nodiscard]] constexpr double inputLevelReferenceDbu() noexcept
 {
     return 12.0;
-}
-
-/*!
-\brief The guitar's pickups, as far as the peak of a hard strum cares.
-
-Only kinds whose hard strum differs by about 4 dB or more, or that a player would otherwise file
-under the wrong kind, get their own value; finer distinctions (output tiers, Strat against Tele)
-sit inside the spread every guitar has. See docs/user/input-calibration.md for what each covers.
-*/
-enum class PickupClass : std::uint8_t
-{
-    /*!
-    \brief Passive humbuckers of any size: full-size, Filter'Trons, and single-coil-sized rail or
-    side-by-side humbuckers.
-    */
-    Humbucker,
-
-    /*!
-    \brief Passive single coils: Strat, Tele, Jazzmaster, Jaguar, lipstick, and stacked noiseless
-    pickups, which measure like single coils.
-    */
-    SingleCoil,
-
-    /*! \brief P-90s: single coils by construction that peak like humbuckers. */
-    P90,
-
-    /*! \brief Mini-humbuckers, as on a Firebird or a Les Paul Deluxe. */
-    MiniHumbucker,
-
-    /*! \brief Battery-powered active pickups, capped by their own preamp's supply. */
-    Active,
-};
-
-/*!
-\brief Returns every pickup class, in the order a chooser lists them: the one place the set is
-spelled out.
-\return The classes; the list lives for the program's lifetime.
-*/
-[[nodiscard]] std::span<const PickupClass> pickupClasses() noexcept;
-
-/*!
-\brief Returns the true sample peak a hard strum on these pickups typically reaches.
-
-The authored datum behind the automatic measurement; every guitar sits within about 6 dB of it.
-Sources: docs/tracking/2026-10-01-hard-strum-peak-research.md and
-docs/tracking/2026-10-01-pickup-type-output-research.md.
-\param pickups The pickups the player measures with.
-\return Peak voltage, as the peak of the equivalent sine.
-*/
-[[nodiscard]] constexpr double hardStrumPeakVolts(PickupClass pickups) noexcept
-{
-    switch (pickups)
-    {
-        case PickupClass::Humbucker:
-        {
-            // Six calibrated measurements.
-            return 2.0;
-        }
-        case PickupClass::SingleCoil:
-        {
-            // Three calibrated measurements, about 6 dB under humbuckers on three scales.
-            return 1.0;
-        }
-        case PickupClass::P90:
-        {
-            // Inferred: level with PAF-class humbuckers on the makers' output scales.
-            return 2.0;
-        }
-        case PickupClass::MiniHumbucker:
-        {
-            // Inferred: 4.5 dB under full-size humbuckers on two makers' scales.
-            return 1.2;
-        }
-        case PickupClass::Active:
-        {
-            // One measurement, flat-topped at the 9 V preamp's rail.
-            return 2.1;
-        }
-    }
-    return 2.0;
 }
 
 /*!
@@ -133,16 +52,8 @@ measurement puts the playing's ceiling on.
 */
 [[nodiscard]] inline double inputCalibrationTargetPeakDb(PickupClass pickups) noexcept
 {
-    return peakVoltsToDbu(hardStrumPeakVolts(pickups)) - inputLevelReferenceDbu();
+    return peakVoltsToDbu(pickupType(pickups).hard_strum_peak_volts) - inputLevelReferenceDbu();
 }
-
-/*!
-\brief Returns the one name of a pickup class, for logs and every surface in both products.
-\param pickups The pickup class.
-\return "humbucker", "single-coil", "P-90", "mini-humbucker" or "active", in lower case except
-        where the name itself is capitalized, so it reads inside a sentence.
-*/
-[[nodiscard]] std::string_view pickupClassText(PickupClass pickups) noexcept;
 
 /*! \brief Stable failure reasons for input calibration measurement. */
 enum class InputCalibrationErrorCode : std::uint8_t
