@@ -1630,3 +1630,16 @@ section 2026-09-05.
   **Trigger:** a sighting of a chord slide followed by a tap with no later member sounding, where
   the reader cannot tell what the tap is held over. **Remedy:** a span-furniture question (where a
   landing-opened span's mark draws), not a return of the note satellite.
+
+- **An arpeggio that opens on a single onset lights its whole box at that first note
+  (2026-10-02).** The fretting-hand light marks where the hand is, not what it plays
+  (`docs/plans/in-progress/one-floor-light.md`): any held note lights the hand's whole window, and
+  a box's sides are that window, so the first lone note of an arpeggio lights every edge of the
+  box rather than its own fret. The user sighted it as a bit odd, and as possibly right since the
+  box is drawn there, and ruled to leave it. A general reversal (lighting only struck frets) is not
+  wanted.
+
+  **Trigger:** the look reads as wrong in further sightings, or players read the lit box edges as
+  frets to play. **Remedy:** a special case for exactly this moment, a lone onset at the start of
+  an arpeggio, weighed with the fretting-hand expert; never a change to the general rule that the
+  light shows the hand's window.
