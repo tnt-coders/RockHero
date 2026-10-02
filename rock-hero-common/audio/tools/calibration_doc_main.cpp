@@ -35,6 +35,7 @@ using rock_hero::common::audio::KnownInterfaceBasis;
 using rock_hero::common::audio::knownInterfaceBasisText;
 using rock_hero::common::audio::knownInterfaceGain;
 using rock_hero::common::audio::knownInterfaces;
+using rock_hero::common::audio::peakTargetMeaningText;
 using rock_hero::common::audio::PickupType;
 using rock_hero::common::audio::pickupTypeLabel;
 using rock_hero::common::audio::pickupTypes;
@@ -102,6 +103,7 @@ void writeFigures(std::ostream& out, const KnownInterface& example)
         std::format("{:.0f}%", (1.0 - inputCalibrationCeilingPercentile()) * 100.0));
     alias("guitarSetupInstruction", guitarSetupInstructionText());
     alias("hardStrumInstruction", hardStrumInstructionText());
+    alias("peakTargetMeaning", peakTargetMeaningText());
     alias(
         "calibrationGainExample",
         std::format(

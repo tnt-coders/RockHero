@@ -65,8 +65,8 @@ listed.
 1. Select the correct input device and input channel in the audio settings.
 2. In the calibration window, set **Pickup type** to the pickups you will play; hovering the list
    describes the chosen kind.
-3. \guitarSetupInstruction Where the input offers a choice of impedance, set it to 1 MOhm. Then
-   click **Measure**.
+3. Plug the guitar straight into the device's instrument (Hi-Z) input, with no pedals in between,
+   set to 1 MOhm where the input offers a choice. \guitarSetupInstruction Then click **Measure**.
 4. \hardStrumInstruction Keep strumming until the countdown ends. The measured gain fills in;
    click **Apply** to save it.
 5. If the input clips, the window says so at once: lower the device's input gain and measure
@@ -99,19 +99,20 @@ The sources and the arithmetic are in `docs/tracking/2026-10-01-hard-strum-peak-
 
 # Checking a Gain with the Mark
 
-The meter in the calibration window previews your input at the gain on the slider, with a
-**Peak target** mark where your hardest strums should peak. To check a gain before you apply it,
-typed or measured, set **Pickup type** to your pickups and set the guitar up as for a measurement:
-\guitarSetupInstruction Then play the way the mark assumes:
+The meter in the calibration window previews your input at the gain on the slider, with a target
+mark, the line the arrow above the meter points at; hovering the meter explains it.
+\peakTargetMeaning
 
-- **How hard:** \hardStrumInstruction Not harder than you ever play, and not single notes, which
-  peak well below chords.
+To check a gain before you apply it, typed or measured, set **Pickup type** to your pickups and set
+the guitar up as for a measurement, plugged straight in with no pedals. \guitarSetupInstruction
+Then play the way the mark assumes:
+
+- **How hard:** \hardStrumInstruction Not single notes, which peak well below chords.
 - **What to watch:** the meter shows the peak of each moment, so it jumps on every strum. Watch
-  the top of those jumps, not where the meter sits on average: when the gain is right, your
-  hardest strums peak at the mark, and the rest of your playing peaks below it.
-- **Reading it:** if your hardest strums stop clearly short of the mark, the gain is too low; if
-  they regularly pass it, too high. An occasional strum a little past it is fine: the measurement
-  itself ignores the loudest \calibrationIgnoredPercent of moments.
+  the top of those jumps, not where the meter sits on average.
+- **Reading it:** if your hard strums stop clearly short of the mark, the gain is too low; if they
+  regularly pass it, too high. The measurement itself ignores the loudest
+  \calibrationIgnoredPercent of moments.
 
 The mark is hidden while a measurement runs, so you play the way you normally do rather than
 aiming at it.

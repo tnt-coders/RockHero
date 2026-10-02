@@ -148,8 +148,8 @@ Doxygen, writes the Known Audio Devices and Pickup Types tables as markdown the 
 and `calibration_figures.doxyfile`, Doxygen aliases for the figures and sentences its prose
 quotes: the reference (`\calibrationReference`), the gain formula (`\calibrationGainFormula`), the
 listen (`\calibrationListenSeconds`), the ignored share of peaks (`\calibrationIgnoredPercent`),
-the guitar setup (`\guitarSetupInstruction`), the strum (`\hardStrumInstruction`) and a worked
-gain example (`\calibrationGainExample`). `docs/Doxyfile.in` includes that file. A figure the guide
+the guitar setup (`\guitarSetupInstruction`), the strum (`\hardStrumInstruction`), what the
+meter's mark asks (`\peakTargetMeaning`) and a worked gain example (`\calibrationGainExample`). `docs/Doxyfile.in` includes that file. A figure the guide
 needs becomes a new alias there, never a number typed into the guide.
 
 How to set the guitar up and how to play while measuring or checking a gain are one sentence each,
@@ -177,8 +177,11 @@ ends the prompt for its route (the editor closes the popup; the popup asks for n
 The meter previews the shown gain, and shows the raw input, as the measurement hears it, while one
 runs. `InputCalibrationViewState::meter_target_db` is `inputCalibrationTargetPeakDb(pickups)`, where
 a hard strum on the chosen kind lands at the right gain, so a strum checks a typed or measured gain;
-the meter draws it as a mark under a **Peak target** caption whose arrow points at it
-(`AudioLevelMeter::setTargetDb` and `setTargetCaption`). It is empty while a measurement runs, so
+the meter draws it as a mark with an arrow pointing down at it from a line kept above the bar
+(`AudioLevelMeter::setTargetDb` and `reserveTargetArrow`; the window sizes the meter as its bar
+plus `targetArrowHeight()`). There is no caption: the arrow says "target", and the meter's tooltip,
+`peakTargetMeaningText()`, says what it asks: the tops of hard strums, not the average and not a
+ceiling. It is empty while a measurement runs, so
 the player does not play to it. The "?" is disabled, with a tooltip saying so, when the guide is not
 installed. The editor's composition resolves the guide once (`installedInputCalibrationGuide()`)
 and passes it through `EditorView` to each window, so a test chooses whether it exists. The pickup

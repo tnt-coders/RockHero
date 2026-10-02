@@ -31,8 +31,8 @@ constexpr int g_row_height{28};
 // Wide enough that "Pickup type" draws at full width rather than squeezed by the Label's scale.
 constexpr int g_label_width{96};
 constexpr int g_gap{8};
-// The meter's bar and, above it, the band its peak target caption and arrow sit in.
-constexpr int g_meter_height{46};
+// The meter's bar alone; the meter adds its arrow's line above it (targetArrowHeight()).
+constexpr int g_meter_bar_height{26};
 constexpr int g_button_width{96};
 constexpr int g_pickup_chooser_width{150};
 
@@ -194,7 +194,7 @@ public:
         addAndMakeVisible(m_message);
 
         m_input_meter.setComponentID("input_calibration_meter");
-        m_input_meter.setTargetCaption("Peak target");
+        m_input_meter.reserveTargetArrow();
         addAndMakeVisible(m_input_meter);
 
         m_apply_button.setComponentID("input_calibration_apply_button");
@@ -273,9 +273,11 @@ private:
             message_row.removeFromRight(g_row_height).removeFromTop(g_row_height).reduced(2));
         message_row.removeFromRight(g_gap);
         m_message.setBounds(message_row);
+
         area.removeFromTop(g_gap);
 
-        m_input_meter.setBounds(area.removeFromTop(g_meter_height));
+        m_input_meter.setBounds(
+            area.removeFromTop(g_meter_bar_height + m_input_meter.targetArrowHeight()));
         area.removeFromTop(g_gap * 2);
 
         auto pickup_row = area.removeFromTop(g_row_height);
@@ -315,8 +317,9 @@ private:
         m_input_meter.setLevel(state.input_meter_level);
         m_input_meter.setTargetDb(state.meter_target_db);
         m_input_meter.setTooltip(
-            state.meter_target_db.has_value() ? juce::String{core::peakTargetText(state.pickups)}
-                                              : juce::String{});
+            state.meter_target_db.has_value()
+                ? juce::String{std::string{common::audio::peakTargetMeaningText()}}
+                : juce::String{});
     }
 
     // Opens the local HTML file directly so Windows handles it as a normal filesystem document; a

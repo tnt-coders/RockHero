@@ -164,7 +164,19 @@ the meter's mark: how the strums the pickup types' peaks come from were played.
 */
 [[nodiscard]] constexpr std::string_view hardStrumInstructionText() noexcept
 {
-    return "Strum full chords with a pick, as hard as the loudest part of a song you play.";
+    return "Strum full chords with a pick as hard as you will reasonably play in a song.";
+}
+
+/*!
+\brief Returns the one sentence saying what the meter's peak target mark asks of the player: the
+tops of hard strums, not the average level and not a ceiling never to pass.
+\return Sentences ending in a period.
+*/
+[[nodiscard]] constexpr std::string_view peakTargetMeaningText() noexcept
+{
+    return "At the right gain, the tops of your hard strums reach this mark. It is not your "
+           "average "
+           "level, and an occasional strum a little past it is fine.";
 }
 
 /*!
@@ -174,8 +186,7 @@ against the meter's mark: the setup the pickup types' peaks assume.
 */
 [[nodiscard]] constexpr std::string_view guitarSetupInstructionText() noexcept
 {
-    return "Plug the guitar straight into the instrument (Hi-Z) input, with no pedals in between. "
-           "Turn its volume and tone all the way up and select one pickup.";
+    return "Set volume and tone to max, with one pickup selected.";
 }
 
 /*!

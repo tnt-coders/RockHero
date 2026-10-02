@@ -26,13 +26,6 @@ namespace rock_hero::editor::core
 [[nodiscard]] std::string guideUnavailableText();
 
 /*!
-\brief Words what the meter's peak target means for the chosen pickups.
-\param pickups The chosen pickups.
-\return The sentence for the meter's tooltip.
-*/
-[[nodiscard]] std::string peakTargetText(common::audio::PickupClass pickups);
-
-/*!
 \brief Words what a running measurement asks of the player.
 \param running The capture's report.
 \return The setup and the playing until the first strum, then a countdown in whole seconds.

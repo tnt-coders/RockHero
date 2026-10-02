@@ -53,11 +53,17 @@ public:
     void setTargetDb(std::optional<double> target_db);
 
     /*!
-    \brief Names the mark with a caption above the meter and an arrow down to it. A meter with a
-    caption keeps the caption's band whether or not a mark shows, so its bar never moves.
-    \param caption The caption; empty for none.
+    \brief Points an arrow down at the mark from a line kept above the bar. The meter keeps that
+    line whether or not a mark shows, so its bar never moves as the mark comes and goes.
     */
-    void setTargetCaption(juce::String caption);
+    void reserveTargetArrow();
+
+    /*!
+    \brief Returns the height the arrow's line takes above the bar, so an owner can size the meter
+    as its bar height plus this.
+    \return The line's height in pixels, or 0 for a meter that keeps no arrow line.
+    */
+    [[nodiscard]] int targetArrowHeight() const noexcept;
 
     /*!
     \brief Returns the level the meter marks.
@@ -84,8 +90,8 @@ private:
     // The level the owner wants the signal to reach, drawn as a mark across the meter.
     std::optional<double> m_target_db;
 
-    // The mark's name, drawn above the meter with an arrow down to the mark.
-    juce::String m_target_caption;
+    // True when the meter keeps a line above the bar for the target's arrow.
+    bool m_reserves_target_arrow{false};
 
     // Clip indicator remains visible briefly so a single clipped block is noticeable.
     bool m_clip_indicator_active{false};

@@ -18,13 +18,6 @@ std::string guideUnavailableText()
     return "The calibration guide could not be opened.";
 }
 
-std::string peakTargetText(common::audio::PickupClass pickups)
-{
-    return std::format(
-        "A hard strum on {} pickups peaks at the target when the gain is right.",
-        common::audio::pickupType(pickups).name);
-}
-
 std::string measuringText(const common::audio::InputCalibrationRunning& running)
 {
     const auto* const listening = std::get_if<common::audio::InputCalibrationListening>(&running);
