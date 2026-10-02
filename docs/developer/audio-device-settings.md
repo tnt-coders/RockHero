@@ -142,15 +142,16 @@ window") and left in `98b22cf8` ("Made input calibration one fixed-size screen")
 find the commits if history is rewritten. Bringing a chooser back starts from that commit and
 moves the table back into `common/audio` `input/`.
 
-The user guide copies no figure the code owns. `rock_hero_calibration_doc`
-(`common/audio` `tools/calibration_doc_main.cpp`), which the docs targets build and run before
-Doxygen, writes the Known Audio Devices and Pickup Types tables as markdown the guide includes,
-and `calibration_figures.doxyfile`, Doxygen aliases for the figures and sentences its prose
-quotes: the reference (`\calibrationReference`), the gain formula (`\calibrationGainFormula`), the
-listen (`\calibrationListenSeconds`), the ignored share of peaks (`\calibrationIgnoredPercent`),
-the guitar setup (`\guitarSetupInstruction`), the strum (`\hardStrumInstruction`), what the
-meter's mark asks (`\peakTargetMeaning`) and a worked gain example (`\calibrationGainExample`). `docs/Doxyfile.in` includes that file. A figure the guide
-needs becomes a new alias there, never a number typed into the guide.
+The user guide copies no figure the code owns. `rock_hero_calibration_doc` (`common/audio`
+`tools/calibration_doc_main.cpp`), which the docs targets build and run before Doxygen, writes the
+Known Audio Devices and Pickup Types tables as markdown the guide includes, and
+`calibration_figures.doxyfile`, Doxygen aliases for the figures and sentences its prose quotes: the
+reference (`\calibrationReference`), the gain formula (`\calibrationGainFormula`), the listen
+(`\calibrationListenSeconds`), the ignored share of peaks (`\calibrationIgnoredPercent`), the guitar
+setup (`\guitarSetupInstruction`), the strum (`\hardStrumInstruction`), what the meter's mark asks
+(`\peakTargetMeaning`) and a worked gain example (`\calibrationGainExample`). `docs/Doxyfile.in`
+includes that file. A figure the guide needs becomes a new alias there, never a number typed into
+the guide.
 
 How to set the guitar up and how to play while measuring or checking a gain are one sentence each,
 `guitarSetupInstructionText()` and `hardStrumInstructionText()` (`input/input_calibration.h`):
