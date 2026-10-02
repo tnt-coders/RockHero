@@ -6,9 +6,13 @@ walk that carries it. The maintained plain-English spec for readers outside this
 10 to 12b of `docs/developer/the-project-lifecycle.md`, which `chart_shapes.h` points at rather
 than restating.
 
-Pending amendment: a tap at a claimed stop lifts the hand and splits the span (RULED 2026-09-25,
-UNBUILT), which amends rule 2 and the evidence table's "without ever moving a close" — see
-`chart-ruleset.md`, Open, carried forward.
+Amendment BUILT 2026-09-29 (`60da2db8`): THE TAP'S FLOOR — a tap whose path reaches the standing
+grip's stop on its string, or below, lifts the hand and splits the span (RULED 2026-09-25;
+`chart_shapes.cpp`, "THE TAP'S FLOOR"; `chart-ruleset.md` R4). It amends rule 2 and the evidence
+table's "without ever moving a close". The CLAIM vocabulary below (rule 2's "participates fully in
+derivation as its claim", the claim rows of the evidence table) predates the 2026-09-29 retirement
+of the span-claim machinery (`5c7ed409`): a right-hand onset states no grip, and a tap's held stop
+is derived by `chartHeldStops` — read those passages as retired until this record is rewritten.
 
 ## THE LAW
 
