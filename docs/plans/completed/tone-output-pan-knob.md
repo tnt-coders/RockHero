@@ -87,8 +87,15 @@ Status: **BUILT 2026-10-02**, together with the Volume and Pan automation lanes 
    - Make level and pan real `AutomatableParameter`s, persisted from their explicit value and not
      an attached `CachedValue`: a playing curve writes back into an attached value
      (`tracktion_AutomatableParameter.cpp` ~1404-1408).
-   - Not `VolumeAndPanPlugin`: it takes a lock on the audio thread
-     (`tracktion_VolumeAndPan.cpp` ~200), and its volume tops out at +6 dB.
+   - Not `VolumeAndPanPlugin` (re-verified 2026-10-02 against the vendored source): its volume
+     range is the fixed fader position `{0, 1}` (`tracktion_VolumeAndPan.cpp:121`, clamped at
+     `:295`), whose top is +6 dB (`tracktion_AudioUtilities.cpp:145`); it has no balanced law
+     (`getGainsFromVolumeFaderPositionAndPan` offers linear or sine laws only); and its
+     parameters attach to `CachedValue`s (`:125-126`), so a playing curve writes back into its
+     state. The per-block `RealTimeSpinLock` in `getVCAPosDelta` (`:199`) is real but bounded
+     by message-thread pointer swaps and was never the decisive reason. `juce::dsp::Panner`
+     has exactly the balanced law, but keeps its gains private and hard-codes a 50 ms ramp
+     (`juce_Panner.cpp:78-79`), five times the tone-switch crossfade.
    - **FORMAT:** the tone document gains pan.
    - **NEEDS VERIFICATION FIRST:** does the mono guitar input reach the stereo rack as L = R, or
      left only? If left only, hard right would be silent under any pan law.

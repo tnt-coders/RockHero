@@ -95,8 +95,10 @@ private:
     return tracktion::AutomatableParameter::Ptr{parameter};
 }
 
-// The balanced pan law (juce::dsp::PannerRule::balanced, boosted to unity at centre): the near
-// channel stays at unity and the far one attenuates linearly to silence at full deflection.
+// Exactly juce::dsp::PannerRule::balanced (juce_Panner.cpp, Panner::update): the near channel
+// stays at unity and the far one attenuates linearly to silence at full deflection. Restated
+// because Panner keeps its gains private and hard-codes a 50 ms ramp in reset(), five times the
+// tone-switch crossfade this stage must settle inside.
 [[nodiscard]] constexpr float leftPanGain(float pan) noexcept
 {
     return std::min(1.0f, 1.0f - pan);
@@ -166,18 +168,6 @@ juce::String ToneOutputPlugin::getShortName(int suggested_length)
 juce::String ToneOutputPlugin::getSelectableDescription()
 {
     return getName();
-}
-
-// The output stage exists to live inside the multi-tone rack.
-bool ToneOutputPlugin::canBeAddedToRack()
-{
-    return true;
-}
-
-// Keeps structural plugin placement under the multi-tone rack adapter.
-bool ToneOutputPlugin::canBeMoved()
-{
-    return false;
 }
 
 // Avoids per-block CPU timing overhead for this tiny utility plugin.

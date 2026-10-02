@@ -90,12 +90,6 @@ bool LiveRigGainPlugin::canBeAddedToRack()
     return false;
 }
 
-// Keeps structural plugin placement under the live-rig adapter.
-bool LiveRigGainPlugin::canBeMoved()
-{
-    return false;
-}
-
 // Avoids per-block CPU timing overhead for this tiny utility plugin.
 bool LiveRigGainPlugin::shouldMeasureCpuUsage() const noexcept
 {

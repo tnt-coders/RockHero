@@ -108,18 +108,6 @@ juce::String ToneBranchGainPlugin::getSelectableDescription()
     return getName();
 }
 
-// The branch gain exists to terminate rack branches.
-bool ToneBranchGainPlugin::canBeAddedToRack()
-{
-    return true;
-}
-
-// Keeps structural plugin placement under the multi-tone rack adapter.
-bool ToneBranchGainPlugin::canBeMoved()
-{
-    return false;
-}
-
 // Avoids per-block CPU timing overhead for this tiny utility plugin.
 bool ToneBranchGainPlugin::shouldMeasureCpuUsage() const noexcept
 {

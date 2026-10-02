@@ -27,8 +27,8 @@ extending it:
   `moveWithinBranch`); the chain snapshot the UI renders is exactly that branch.
 
 `live_rig_gain_plugin.h` is the same hidden-plugin idea applied to the rig's input and monitor gain
-stages: a private `tracktion::Plugin` that cannot be moved or added to racks, applying a
-smoothed `common::audio::Gain`. A tone's own output stage is NOT one of these — it lives on that
+stages: a private `tracktion::Plugin` that cannot be added to racks, applying a smoothed
+`common::audio::Gain`. A tone's own output stage is NOT one of these — it lives on that
 tone's `ToneOutputPlugin`, so a switch carries it, and its two parameters are the only ones a lane
 can reach there (the switch gain is a separate plugin, so no lane can touch the crossfade). Hidden
 structural plugins like these are excluded from the user-visible `chain_index`.

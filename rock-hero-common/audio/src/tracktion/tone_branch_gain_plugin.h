@@ -86,18 +86,6 @@ public:
     [[nodiscard]] juce::String getSelectableDescription() override;
 
     /*!
-    \brief Allows the branch gain to terminate rack branches.
-    \return Always true; this plugin exists to live inside the multi-tone rack.
-    */
-    [[nodiscard]] bool canBeAddedToRack() override;
-
-    /*!
-    \brief Prevents user/plugin-list movement of the private structural plugin.
-    \return Always false.
-    */
-    [[nodiscard]] bool canBeMoved() override;
-
-    /*!
     \brief Avoids CPU timing overhead for this tiny always-present utility.
     \return Always false.
     */
