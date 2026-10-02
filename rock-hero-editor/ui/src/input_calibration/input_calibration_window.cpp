@@ -36,37 +36,6 @@ constexpr int g_meter_height{46};
 constexpr int g_button_width{96};
 constexpr int g_pickup_chooser_width{150};
 
-// The guide the "?" opens, resolved from the executable location, else from the build tree.
-[[nodiscard]] juce::File documentationFile()
-{
-    constexpr int maximum_directory_search_depth{8};
-    const juce::String documentation_file_name{"user_input_calibration.html"};
-    juce::File search_root =
-        juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
-
-    for (int depth = 0; depth < maximum_directory_search_depth; ++depth)
-    {
-        const juce::File candidate =
-            search_root.getChildFile(ROCK_HERO_INSTALLED_DOCS_RELATIVE_PATH)
-                .getChildFile(documentation_file_name);
-        if (candidate.existsAsFile())
-        {
-            return candidate;
-        }
-
-        const juce::File parent = search_root.getParentDirectory();
-        if (parent == search_root)
-        {
-            break;
-        }
-        search_root = parent;
-    }
-
-    const juce::File build_tree_documentation =
-        juce::File{ROCK_HERO_BUILD_DOCS_DIR}.getChildFile(documentation_file_name);
-    return build_tree_documentation.existsAsFile() ? build_tree_documentation : juce::File{};
-}
-
 // The height a label needs to show text wrapped at its width, read from the label's own font and
 // border, so the fixed window fits its longest message instead of a guessed line count. A Label
 // draws as many lines as whole font heights fit inside its border.
@@ -119,6 +88,38 @@ void configureGainSlider(juce::Slider& slider)
 
 } // namespace
 
+// The installed docs are searched upward from the executable, since a packaged build and a build
+// tree place it at different depths; the build tree's generated docs serve a development run.
+juce::File installedInputCalibrationGuide()
+{
+    constexpr int maximum_directory_search_depth{8};
+    const juce::String documentation_file_name{"user_input_calibration.html"};
+    juce::File search_root =
+        juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
+
+    for (int depth = 0; depth < maximum_directory_search_depth; ++depth)
+    {
+        const juce::File candidate =
+            search_root.getChildFile(ROCK_HERO_INSTALLED_DOCS_RELATIVE_PATH)
+                .getChildFile(documentation_file_name);
+        if (candidate.existsAsFile())
+        {
+            return candidate;
+        }
+
+        const juce::File parent = search_root.getParentDirectory();
+        if (parent == search_root)
+        {
+            break;
+        }
+        search_root = parent;
+    }
+
+    const juce::File build_tree_documentation =
+        juce::File{ROCK_HERO_BUILD_DOCS_DIR}.getChildFile(documentation_file_name);
+    return build_tree_documentation.existsAsFile() ? build_tree_documentation : juce::File{};
+}
+
 // The calibration prompt: one fixed-size screen, so nothing ever resizes its native window. The
 // player types a gain or measures one by playing, then Apply stores it.
 class InputCalibrationWindow::Content final : public juce::Component,
@@ -128,9 +129,9 @@ class InputCalibrationWindow::Content final : public juce::Component,
 public:
     Content(
         InputCalibrationWindow& owner, core::IEditorController& controller,
-        const core::InputCalibrationPrompt& prompt)
+        const core::InputCalibrationPrompt& prompt, juce::File guide)
         : m_owner(owner)
-        , m_guide(documentationFile())
+        , m_guide(std::move(guide))
         , m_calibration_controller(controller, prompt)
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
@@ -334,7 +335,7 @@ private:
     }
 
     InputCalibrationWindow& m_owner;
-    // The guide the "?" opens; a default File when the build has no docs.
+    // The guide the "?" opens; one that does not exist disables the "?".
     juce::File m_guide;
     core::InputCalibrationController m_calibration_controller;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
@@ -358,7 +359,7 @@ private:
 
 InputCalibrationWindow::InputCalibrationWindow(
     core::IEditorController& controller, const core::InputCalibrationPrompt& prompt,
-    juce::Component* centering_component)
+    juce::File guide, juce::Component* centering_component)
     : juce::DocumentWindow(
           "Input Calibration", editorTheme().bar_background, juce::DocumentWindow::closeButton)
 {
@@ -366,7 +367,7 @@ InputCalibrationWindow::InputCalibrationWindow(
     setUsingNativeTitleBar(true);
     setResizable(false, false);
     setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
-    auto content = std::make_unique<Content>(*this, controller, prompt);
+    auto content = std::make_unique<Content>(*this, controller, prompt, std::move(guide));
     m_content = content.get();
     setContentOwned(content.release(), true);
     centreAroundComponent(centering_component, getWidth(), getHeight());

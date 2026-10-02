@@ -16,7 +16,7 @@ TEST_CASE("PluginWindowShortcutSync mirrors the trio bindings", "[ui][keybinds]"
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     const PluginWindowShortcutSync sync{view.commandManager(), plugin_host};
     CHECK(plugin_host.window_shortcuts_set_count == 1);

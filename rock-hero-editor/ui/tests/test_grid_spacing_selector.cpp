@@ -355,7 +355,7 @@ TEST_CASE("EditorView grid selector forwards note values", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(4.0));
@@ -376,7 +376,7 @@ TEST_CASE("EditorView grid selector displays the state note value", "[ui][editor
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);

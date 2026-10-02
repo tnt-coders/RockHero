@@ -30,7 +30,7 @@ TEST_CASE("InputCalibrationWindow measures at one size", "[ui][input-calibration
     RecordingEditorController controller;
     const core::InputCalibrationPrompt prompt = core::testing::makeInputCalibrationPrompt(-6.0);
 
-    InputCalibrationWindow window{controller, prompt, nullptr};
+    InputCalibrationWindow window{controller, prompt, juce::File{}, nullptr};
 
     const juce::Component* const content = window.getContentComponent();
     REQUIRE(content != nullptr);
@@ -67,7 +67,7 @@ TEST_CASE("InputCalibrationWindow marks the pickups' strum target", "[ui][input-
     RecordingEditorController controller;
     const core::InputCalibrationPrompt prompt = core::testing::makeInputCalibrationPrompt(-6.0);
 
-    InputCalibrationWindow window{controller, prompt, nullptr};
+    InputCalibrationWindow window{controller, prompt, juce::File{}, nullptr};
 
     const auto& meter = findRequiredDescendant<AudioLevelMeter>(window, "input_calibration_meter");
     auto& pickups = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
@@ -88,6 +88,29 @@ TEST_CASE("InputCalibrationWindow marks the pickups' strum target", "[ui][input-
     REQUIRE(measure.onClick);
     measure.onClick();
     CHECK_FALSE(meter.targetDb().has_value());
+}
+
+// The "?" opens the guide it was given; a guide that is not there disables the "?", which then
+// says why instead of failing when clicked.
+TEST_CASE("InputCalibrationWindow offers the guide only when it exists", "[ui][input-calibration]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingEditorController controller;
+    const core::InputCalibrationPrompt prompt = core::testing::makeInputCalibrationPrompt(-6.0);
+    const juce::TemporaryFile guide{".html"};
+    REQUIRE(guide.getFile().create().wasOk());
+
+    InputCalibrationWindow installed{controller, prompt, guide.getFile(), nullptr};
+    auto& open_guide =
+        findRequiredDescendant<juce::DrawableButton>(installed, "input_calibration_help_button");
+    CHECK(open_guide.isEnabled());
+    CHECK(open_guide.getTooltip() == "Open the input calibration guide");
+
+    InputCalibrationWindow missing{controller, prompt, juce::File{}, nullptr};
+    auto& no_guide =
+        findRequiredDescendant<juce::DrawableButton>(missing, "input_calibration_help_button");
+    CHECK_FALSE(no_guide.isEnabled());
+    CHECK(no_guide.getTooltip() == "The input calibration guide is not installed.");
 }
 
 } // namespace rock_hero::editor::ui

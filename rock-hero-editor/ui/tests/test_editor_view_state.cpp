@@ -37,7 +37,7 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     constexpr common::core::GridPosition chorus{.measure = 3, .beat = 1};
     core::EditorViewState state{};
@@ -96,7 +96,7 @@ TEST_CASE("EditorView forwards the hand chord to the core", "[ui][editor-view]")
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::InsertFretHandPosition)};
     CHECK(view.perform(info));
@@ -113,7 +113,7 @@ TEST_CASE("EditorView forwards the hand end clear while a selection stands", "[u
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::ClearHandPositionEndFret)};
     CHECK(view.perform(info));
@@ -134,7 +134,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);
@@ -185,7 +185,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     const auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
     auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
@@ -642,7 +642,7 @@ TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][k
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
     REQUIRE(mappings != nullptr);
@@ -684,7 +684,7 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     constexpr int command_shift =
         juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
@@ -736,7 +736,7 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
@@ -777,7 +777,7 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
@@ -811,7 +811,7 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     const auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
 
     view.setState(core::EditorViewState{});
@@ -843,7 +843,7 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     const auto& selection_count_chip =
         findRequiredDescendant<juce::Label>(view, "chart_selection_count_display");
 

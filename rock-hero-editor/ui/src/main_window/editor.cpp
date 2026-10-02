@@ -1,5 +1,6 @@
 #include "main_window/editor.h"
 
+#include "input_calibration/input_calibration_window.h"
 #include "keybinds/editor_keymap_persistence.h"
 #include "keybinds/plugin_window_shortcut_sync.h"
 #include "main_window/editor_view.h"
@@ -58,15 +59,17 @@ Editor::Editor(
           std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(
           std::make_unique<EditorView>(
-              m_controller, EditorView::AudioPorts{
-                                .transport = audio_ports.transport,
-                                .playback_clock = audio_ports.playback_clock,
-                                .thumbnail_factory = audio_ports.thumbnail_factory,
-                                .audio_devices = audio_ports.audio_devices,
-                                .audio_config_store = services.audio_config_store,
-                                .meter_source = audio_ports.meter_source,
-                                .tone_automation = audio_ports.tone_automation,
-                            }))
+              m_controller,
+              EditorView::AudioPorts{
+                  .transport = audio_ports.transport,
+                  .playback_clock = audio_ports.playback_clock,
+                  .thumbnail_factory = audio_ports.thumbnail_factory,
+                  .audio_devices = audio_ports.audio_devices,
+                  .audio_config_store = services.audio_config_store,
+                  .meter_source = audio_ports.meter_source,
+                  .tone_automation = audio_ports.tone_automation,
+              },
+              installedInputCalibrationGuide()))
 {
     m_controller.attachView(*m_view);
     // After view construction so every command is registered before the stored keymap restores

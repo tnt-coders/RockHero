@@ -19,7 +19,7 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     view.setState(
         core::EditorViewState{
@@ -43,7 +43,7 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     view.setBounds(0, 0, 1280, 800);
     showOnScreen(view);
 
@@ -70,16 +70,6 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     // The reference reaches the player only as the formula behind the gain slider.
     CHECK(slider.getTooltip() == juce::String{common::audio::inputCalibrationGainFormulaText()});
     REQUIRE(help_button.onClick);
-    // The guide exists only where the docs were generated, which a build without the docs target
-    // never does, so the "?" is checked against whichever case this build tree is in.
-    const bool guide_built = juce::File{ROCK_HERO_BUILD_DOCS_DIR}
-                                 .getChildFile("user_input_calibration.html")
-                                 .existsAsFile();
-    CHECK(help_button.isEnabled() == guide_built);
-    const juce::String guide_tooltip = guide_built
-                                           ? "Open the input calibration guide"
-                                           : "The input calibration guide is not installed.";
-    CHECK(help_button.getTooltip() == guide_tooltip);
     CHECK(message.getText() == juce::String{core::idleText()});
     CHECK(calibrate.getButtonText() == "Measure");
     CHECK(apply_button.getButtonText() == "Apply");
@@ -112,7 +102,7 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     showOnScreen(view);
 
     core::EditorViewState state;
@@ -138,7 +128,7 @@ TEST_CASE("Calibration Apply sends the shown gain", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     showOnScreen(view);
 
     core::EditorViewState state;
@@ -172,7 +162,7 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     view.setState(
         core::EditorViewState{
@@ -202,7 +192,7 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
 
     view.setState(
         core::EditorViewState{
@@ -248,7 +238,7 @@ TEST_CASE("Calibration prompt for another route retires the open window", "[ui][
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     view.setBounds(0, 0, 1280, 800);
     showOnScreen(view);
 
@@ -273,7 +263,7 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     view.setBounds(0, 0, 1280, 800);
 
     auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
@@ -301,7 +291,7 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     showOnScreen(view);
 
     core::EditorViewState state;

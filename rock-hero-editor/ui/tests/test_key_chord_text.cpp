@@ -143,7 +143,7 @@ TEST_CASE("addEditorCommandItem renders shortcuts through the formatter", "[ui][
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     view.setState(core::EditorViewState{});
 
     juce::PopupMenu menu;
@@ -182,7 +182,7 @@ TEST_CASE("addEditorCommandItem dedupes display-equal chords", "[ui][keybinds]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     view.setState(core::EditorViewState{});
 
     juce::PopupMenu menu;
@@ -210,7 +210,7 @@ TEST_CASE("commandChordText names the live binding", "[ui][keybinds]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     view.setState(core::EditorViewState{});
 
     const juce::CommandID snap_command = toJuceCommandId(EditorCommandId::ToggleGridSnap);

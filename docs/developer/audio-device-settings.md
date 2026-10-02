@@ -180,7 +180,9 @@ a hard strum on the chosen kind lands at the right gain, so a strum checks a typ
 the meter draws it as a mark under a **Peak target** caption whose arrow points at it
 (`AudioLevelMeter::setTargetDb` and `setTargetCaption`). It is empty while a measurement runs, so
 the player does not play to it. The "?" is disabled, with a tooltip saying so, when the guide is not
-installed. The pickup chooser's tooltip is the chosen kind's `covers` text. The popup's own
+installed. The editor's composition resolves the guide once (`installedInputCalibrationGuide()`)
+and passes it through `EditorView` to each window, so a test chooses whether it exists. The pickup
+chooser's tooltip is the chosen kind's `covers` text. The popup's own
 sentences come from `editor/core` `input_calibration/input_calibration_text.h`, and refusal and
 failure reasons are passed through from `common/audio` as they are.
 

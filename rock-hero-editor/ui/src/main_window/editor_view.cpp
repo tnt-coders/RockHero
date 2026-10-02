@@ -386,13 +386,15 @@ constexpr int g_track_viewport_min_height{80};
 } // namespace
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
-EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_ports)
+EditorView::EditorView(
+    core::IEditorController& controller, AudioPorts audio_ports, juce::File input_calibration_guide)
     : m_controller(controller)
     , m_audio_devices(audio_ports.audio_devices)
     , m_audio_config_store(audio_ports.audio_config_store)
     , m_audio_meters(audio_ports.meter_source)
     , m_transport(audio_ports.transport)
     , m_playback_clock(audio_ports.playback_clock)
+    , m_input_calibration_guide(std::move(input_calibration_guide))
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_grid_spacing_selector(*this)
@@ -3155,8 +3157,8 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
     }
 
     m_presented_input_calibration_prompt = prompt;
-    m_input_calibration_window =
-        std::make_unique<InputCalibrationWindow>(m_controller, *prompt, this);
+    m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
+        m_controller, *prompt, m_input_calibration_guide, this);
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.

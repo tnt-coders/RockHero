@@ -113,8 +113,12 @@ public:
     \brief Creates the concrete editor view and installs the thumbnail factory.
     \param controller Controller that receives all user intents emitted by this view.
     \param audio_ports Required audio ports consumed directly by this view.
+    \param input_calibration_guide The guide the calibration window's "?" opens; one that does not
+           exist disables the "?".
     */
-    EditorView(core::IEditorController& controller, AudioPorts audio_ports);
+    EditorView(
+        core::IEditorController& controller, AudioPorts audio_ports,
+        juce::File input_calibration_guide);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
@@ -636,6 +640,9 @@ private:
 
     // Playback-time telemetry the 3D preview samples while playing.
     const common::audio::IPlaybackClock& m_playback_clock;
+
+    // The guide each calibration window's "?" opens.
+    juce::File m_input_calibration_guide;
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
