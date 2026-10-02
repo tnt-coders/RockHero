@@ -30,6 +30,16 @@ namespace rock_hero::common::audio
     return 0.0;
 }
 
+/*!
+\brief Returns the highest decibel value a meter reading holds, so a reading past clipping still
+says by how much.
+\return Maximum meter reading in decibels full scale.
+*/
+[[nodiscard]] constexpr double maximumAudioMeterDb() noexcept
+{
+    return 12.0;
+}
+
 /*! \brief Peak level and clipping state for a single meter. */
 struct AudioMeterLevel
 {

@@ -75,22 +75,6 @@ struct [[nodiscard]] InputCalibrationError
     std::string message;
 };
 
-/*! \brief What one automatic measurement heard of the player's hardest playing. */
-struct [[nodiscard]] InputCalibrationMeasurement
-{
-    /*! \brief Loudest raw input level observed during measurement, with any clipping. */
-    AudioMeterLevel loudest_level;
-
-    /*!
-    \brief The playing's ceiling: a high percentile of the active window peaks, so one stray spike
-    does not set the gain.
-    */
-    double ceiling_peak_db{minimumAudioMeterDb()};
-
-    /*! \brief Count of meter windows at or above the listening threshold. */
-    std::size_t active_sample_count{0};
-};
-
 /*! \brief Gain result produced from a successful input calibration measurement. */
 struct [[nodiscard]] InputCalibrationResult
 {
@@ -152,31 +136,6 @@ so a quantized 11.2 dB equals the literal 11.2.
             inputCalibrationGainStepsPerDb()) +
            0.0;
 }
-
-/*! \brief Accumulates raw input meter samples for one calibration measurement. */
-class InputCalibrationAccumulator final
-{
-public:
-    /*!
-    \brief Adds one raw input meter sample to the measurement.
-    \param level Meter level sampled from the raw input route.
-    */
-    void pushSample(AudioMeterLevel level);
-
-    /*!
-    \brief Returns the accumulated calibration measurement.
-    \return The loudest level, the playing's ceiling and the active window count so far.
-    */
-    [[nodiscard]] InputCalibrationMeasurement measurement() const;
-
-private:
-    // Reads one nearest-rank index from an already sorted active peak sequence.
-    [[nodiscard]] static std::size_t percentileIndex(
-        const std::vector<double>& sorted_peak_db, double percentile) noexcept;
-
-    InputCalibrationMeasurement m_measurement{};
-    std::vector<double> m_active_peak_db;
-};
 
 /*!
 \brief Returns how often a driver samples the raw input meter during a measurement.
@@ -253,7 +212,8 @@ using InputCalibrationStep =
 The player plays as hard as they will play in a song. The capture waits, with no limit, for the
 first window above the listening threshold (ignoring a short settle span first), then listens for a
 fixed span from it and sets the gain so the playing's ceiling lands on the target it was given. A
-capture is discarded once a sample returns a result or an error.
+clipped window after the settle span fails the capture at once, since no gain can undo a clip at
+the interface. A capture is discarded once a sample returns a result or an error.
 */
 class InputCalibrationCapture final
 {
@@ -273,10 +233,10 @@ public:
     [[nodiscard]] InputCalibrationStep pushSample(AudioMeterLevel level);
 
 private:
-    [[nodiscard]] InputCalibrationStep pushListenSample(AudioMeterLevel level);
     [[nodiscard]] InputCalibrationRunning progress() const noexcept;
 
-    InputCalibrationAccumulator m_accumulator;
+    // The peaks of the listened windows loud enough to count as playing.
+    std::vector<double> m_active_peak_db;
     std::size_t m_settle_samples_remaining{inputCalibrationSettleSampleCount()};
     std::size_t m_listen_samples_remaining{inputCalibrationListenSampleCount()};
     bool m_listening{false};
@@ -285,11 +245,15 @@ private:
 
 /*!
 \brief Calculates the gain that puts the playing's ceiling on a target.
-\param measurement The measurement the capture accumulated.
+
+The ceiling is the inputCalibrationCeilingPercentile() nearest-rank peak, so one stray spike does
+not set the gain.
+\param active_peak_db Peaks of the windows heard as playing, in any order.
 \param target_peak_db Where the ceiling should land after the gain.
-\return Calibration gain with the ceiling it was set from, or a typed measurement failure.
+\return Calibration gain with the ceiling it was set from, or NoUsableSignal when fewer than
+        minimumInputCalibrationActiveSampleCount() windows were heard.
 */
 [[nodiscard]] std::expected<InputCalibrationResult, InputCalibrationError>
-calculateInputCalibration(const InputCalibrationMeasurement& measurement, double target_peak_db);
+calculateInputCalibration(std::vector<double> active_peak_db, double target_peak_db);
 
 } // namespace rock_hero::common::audio

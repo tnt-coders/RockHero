@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::audio
 {
@@ -35,57 +37,15 @@ namespace
 
 } // namespace
 
-// Records the loudest level and keeps every window loud enough to count as playing.
-void InputCalibrationAccumulator::pushSample(AudioMeterLevel level)
-{
-    m_measurement.loudest_level.peak_db =
-        std::max(m_measurement.loudest_level.peak_db, level.peak_db);
-    m_measurement.loudest_level.clipping = m_measurement.loudest_level.clipping || level.clipping;
-
-    if (level.peak_db < minimumInputCalibrationSignalDb())
-    {
-        return;
-    }
-
-    m_active_peak_db.push_back(level.peak_db);
-    m_measurement.active_sample_count += 1;
-}
-
-// Reads the playing's ceiling from the sorted active peaks.
-InputCalibrationMeasurement InputCalibrationAccumulator::measurement() const
-{
-    InputCalibrationMeasurement measurement = m_measurement;
-    if (m_active_peak_db.empty())
-    {
-        return measurement;
-    }
-
-    std::vector<double> sorted_peak_db = m_active_peak_db;
-    std::ranges::sort(sorted_peak_db);
-    measurement.ceiling_peak_db =
-        sorted_peak_db[percentileIndex(sorted_peak_db, inputCalibrationCeilingPercentile())];
-    return measurement;
-}
-
-// Reads one nearest-rank index from an already sorted active peak sequence.
-std::size_t InputCalibrationAccumulator::percentileIndex(
-    const std::vector<double>& sorted_peak_db, double percentile) noexcept
-{
-    if (sorted_peak_db.empty())
-    {
-        return 0;
-    }
-
-    const double clamped_percentile = std::clamp(percentile, 0.0, 1.0);
-    const double raw_index =
-        std::ceil(clamped_percentile * static_cast<double>(sorted_peak_db.size())) - 1.0;
-    const double clamped_index =
-        std::clamp(raw_index, 0.0, static_cast<double>(sorted_peak_db.size() - 1));
-    return static_cast<std::size_t>(clamped_index);
-}
-
 // The listen must hold a sample, or it would end before it began.
 static_assert(inputCalibrationListenSampleCount() > 0);
+
+// A nearest rank of at least one needs a percentile above zero.
+static_assert(
+    inputCalibrationCeilingPercentile() > 0.0 && inputCalibrationCeilingPercentile() <= 1.0);
+
+// The ceiling's rank exists only once something was heard.
+static_assert(minimumInputCalibrationActiveSampleCount() > 0);
 
 InputCalibrationCapture::InputCalibrationCapture(double target_peak_db) noexcept
     : m_target_peak_db{target_peak_db}
@@ -94,11 +54,6 @@ InputCalibrationCapture::InputCalibrationCapture(double target_peak_db) noexcept
 // Advances the deterministic capture state machine by one raw meter sample.
 InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
 {
-    if (m_listening)
-    {
-        return pushListenSample(level);
-    }
-
     // The settle span is part of the wait: its windows neither start the listen nor clip it.
     if (m_settle_samples_remaining > 0)
     {
@@ -106,30 +61,32 @@ InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
         return progress();
     }
 
-    if (level.clipping || level.peak_db >= clippingAudioMeterDb())
+    if (level.clipping)
     {
         return inputCalibrationError(InputCalibrationErrorCode::InputClipped);
     }
 
-    // The first window the player is heard ends the wait and is the first one listened to.
-    if (level.peak_db >= minimumInputCalibrationSignalDb())
+    const bool heard = level.peak_db >= minimumInputCalibrationSignalDb();
+    if (!m_listening)
     {
+        // The first window the player is heard ends the wait and is the first one listened to.
+        if (!heard)
+        {
+            return progress();
+        }
         m_listening = true;
-        return pushListenSample(level);
     }
-    return progress();
-}
 
-// Adds one sample to the fixed listen and finalizes the measurement when the listen ends.
-InputCalibrationStep InputCalibrationCapture::pushListenSample(AudioMeterLevel level)
-{
-    m_accumulator.pushSample(level);
+    if (heard)
+    {
+        m_active_peak_db.push_back(level.peak_db);
+    }
     if (--m_listen_samples_remaining > 0)
     {
         return progress();
     }
 
-    auto result = calculateInputCalibration(m_accumulator.measurement(), m_target_peak_db);
+    auto result = calculateInputCalibration(std::move(m_active_peak_db), m_target_peak_db);
     if (!result.has_value())
     {
         return std::move(result.error());
@@ -147,25 +104,24 @@ InputCalibrationRunning InputCalibrationCapture::progress() const noexcept
     return InputCalibrationWaiting{};
 }
 
-// Sets the gain that puts the playing's ceiling on the target peak.
+// Sets the gain that puts the playing's ceiling, its nearest-rank percentile peak, on the target.
 std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalibration(
-    const InputCalibrationMeasurement& measurement, double target_peak_db)
+    std::vector<double> active_peak_db, double target_peak_db)
 {
-    if (measurement.loudest_level.clipping ||
-        measurement.loudest_level.peak_db >= clippingAudioMeterDb())
-    {
-        return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::InputClipped)};
-    }
-
-    if (measurement.active_sample_count < minimumInputCalibrationActiveSampleCount())
+    if (active_peak_db.size() < minimumInputCalibrationActiveSampleCount())
     {
         return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::NoUsableSignal)};
     }
 
+    const auto rank = static_cast<std::size_t>(std::ceil(
+        inputCalibrationCeilingPercentile() * static_cast<double>(active_peak_db.size())));
+    const auto ceiling = active_peak_db.begin() + static_cast<std::ptrdiff_t>(rank - 1);
+    std::ranges::nth_element(active_peak_db, ceiling);
+
     return InputCalibrationResult{
-        .calibration_gain = clampGain(
-            Gain{quantizeInputCalibrationGainDb(target_peak_db - measurement.ceiling_peak_db)}),
-        .ceiling_peak_db = measurement.ceiling_peak_db,
+        .calibration_gain =
+            clampGain(Gain{quantizeInputCalibrationGainDb(target_peak_db - *ceiling)}),
+        .ceiling_peak_db = *ceiling,
     };
 }
 

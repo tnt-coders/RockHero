@@ -94,7 +94,7 @@ public:
         }
 
         return AudioMeterLevel{
-            .peak_db = std::clamp(peak_db, minimumAudioMeterDb(), 12.0),
+            .peak_db = std::clamp(peak_db, minimumAudioMeterDb(), maximumAudioMeterDb()),
             .clipping = peak_db >= clippingAudioMeterDb(),
         };
     }

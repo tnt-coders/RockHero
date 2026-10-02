@@ -22,7 +22,10 @@ namespace
         return level;
     }
 
-    level.peak_db = std::clamp(level.peak_db + gain_db, common::audio::minimumAudioMeterDb(), 12.0);
+    level.peak_db = std::clamp(
+        level.peak_db + gain_db,
+        common::audio::minimumAudioMeterDb(),
+        common::audio::maximumAudioMeterDb());
     level.clipping = level.clipping || level.peak_db >= common::audio::clippingAudioMeterDb();
     return level;
 }

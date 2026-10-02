@@ -7,6 +7,7 @@
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -19,13 +20,11 @@ namespace
 // The single-coil target, -12.79 dBFS, the target the expected gains below were worked out for.
 const double g_single_coil_target = inputCalibrationTargetPeakDb(PickupClass::SingleCoil);
 
-// Adds enough identical active meter windows to satisfy the minimum window count.
-void pushSteadySamples(InputCalibrationAccumulator& accumulator, double peak_db)
+// Peaks of steady playing, by default just enough windows to calibrate from.
+[[nodiscard]] std::vector<double> steadyPeaks(
+    double peak_db, std::size_t count = minimumInputCalibrationActiveSampleCount())
 {
-    for (std::size_t sample = 0; sample < minimumInputCalibrationActiveSampleCount(); ++sample)
-    {
-        accumulator.pushSample(AudioMeterLevel{.peak_db = peak_db});
-    }
+    return std::vector<double>(count, peak_db);
 }
 
 // Reports whether a capture step is still waiting for the first strum.
@@ -114,49 +113,23 @@ TEST_CASE("Input calibration quantizes a near-zero gain to +0", "[audio][input-c
 // Steady playing at L puts its ceiling on the target: the gain is the target less L.
 TEST_CASE("Input calibration sets the ceiling on the target", "[audio][input-calibration]")
 {
-    InputCalibrationAccumulator accumulator;
-    pushSteadySamples(accumulator, -24.0);
-
-    const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
+    const auto result = calculateInputCalibration(steadyPeaks(-24.0), g_single_coil_target);
 
     REQUIRE(result.has_value());
-    CHECK(measurement.active_sample_count == minimumInputCalibrationActiveSampleCount());
-    CHECK(measurement.ceiling_peak_db == Catch::Approx(-24.0));
+    CHECK(result->ceiling_peak_db == Catch::Approx(-24.0));
     CHECK(result->calibration_gain.db == Catch::Approx(11.2));
-}
-
-// Windows below the listening threshold are not playing and do not count toward the ceiling.
-TEST_CASE("Input calibration ignores quiet windows", "[audio][input-calibration]")
-{
-    InputCalibrationAccumulator accumulator;
-    accumulator.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
-    pushSteadySamples(accumulator, -30.0);
-
-    const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
-
-    REQUIRE(result.has_value());
-    CHECK(measurement.active_sample_count == minimumInputCalibrationActiveSampleCount());
-    CHECK(result->calibration_gain.db == Catch::Approx(17.2));
 }
 
 // One stray spike above the playing does not set the gain: the ceiling is a high percentile.
 TEST_CASE("Input calibration ignores an isolated spike", "[audio][input-calibration]")
 {
-    InputCalibrationAccumulator accumulator;
-    for (std::size_t sample = 0; sample < 20; ++sample)
-    {
-        accumulator.pushSample(AudioMeterLevel{.peak_db = -24.0});
-    }
-    accumulator.pushSample(AudioMeterLevel{.peak_db = -6.0});
+    std::vector<double> peaks = steadyPeaks(-24.0, 20);
+    peaks.insert(peaks.begin() + 7, -6.0);
 
-    const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
+    const auto result = calculateInputCalibration(std::move(peaks), g_single_coil_target);
 
     REQUIRE(result.has_value());
-    CHECK(measurement.loudest_level.peak_db == Catch::Approx(-6.0));
-    CHECK(measurement.ceiling_peak_db == Catch::Approx(-24.0));
+    CHECK(result->ceiling_peak_db == Catch::Approx(-24.0));
     CHECK(result->calibration_gain.db == Catch::Approx(11.2));
 }
 
@@ -164,61 +137,26 @@ TEST_CASE("Input calibration ignores an isolated spike", "[audio][input-calibrat
 // attacks.
 TEST_CASE("Input calibration follows the hardest playing", "[audio][input-calibration]")
 {
-    InputCalibrationAccumulator accumulator;
+    std::vector<double> peaks;
     for (std::size_t strum = 0; strum < 5; ++strum)
     {
-        for (const double peak_db : {-12.0, -18.0, -24.0, -30.0})
-        {
-            accumulator.pushSample(AudioMeterLevel{.peak_db = peak_db});
-        }
+        peaks.insert(peaks.end(), {-12.0, -18.0, -24.0, -30.0});
     }
 
-    const InputCalibrationMeasurement measurement = accumulator.measurement();
+    const auto result = calculateInputCalibration(std::move(peaks), g_single_coil_target);
 
-    CHECK(measurement.ceiling_peak_db == Catch::Approx(-12.0));
+    REQUIRE(result.has_value());
+    CHECK(result->ceiling_peak_db == Catch::Approx(-12.0));
 }
 
 // Too few windows of playing produce no gain.
 TEST_CASE("Input calibration rejects sparse active input", "[audio][input-calibration]")
 {
-    InputCalibrationAccumulator accumulator;
-    accumulator.pushSample(AudioMeterLevel{.peak_db = -24.0});
-
-    const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
+    const auto result = calculateInputCalibration(
+        steadyPeaks(-24.0, minimumInputCalibrationActiveSampleCount() - 1), g_single_coil_target);
 
     REQUIRE_FALSE(result.has_value());
-    CHECK(measurement.active_sample_count == 1);
     CHECK(result.error().code == InputCalibrationErrorCode::NoUsableSignal);
-}
-
-// Silence or very quiet input fails without inventing a gain.
-TEST_CASE("Input calibration rejects missing usable signal", "[audio][input-calibration]")
-{
-    InputCalibrationAccumulator accumulator;
-    accumulator.pushSample(AudioMeterLevel{.peak_db = -42.0});
-
-    const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
-
-    REQUIRE_FALSE(result.has_value());
-    CHECK(measurement.active_sample_count == 0);
-    CHECK(result.error().code == InputCalibrationErrorCode::NoUsableSignal);
-}
-
-// Clipped input asks the player to lower the interface gain before calibrating.
-TEST_CASE("Input calibration rejects clipped input", "[audio][input-calibration]")
-{
-    const InputCalibrationMeasurement measurement{
-        .loudest_level = AudioMeterLevel{.peak_db = -3.0, .clipping = true},
-        .ceiling_peak_db = -6.0,
-        .active_sample_count = minimumInputCalibrationActiveSampleCount(),
-    };
-
-    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
-
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code == InputCalibrationErrorCode::InputClipped);
 }
 
 // The settle span is part of the wait: what it hears, even playing or a clip, neither starts the
@@ -272,18 +210,55 @@ TEST_CASE("Input capture listens a fixed span from the first strum", "[audio][in
     CHECK(result->calibration_gain.db == Catch::Approx(11.2));
 }
 
-// Clipped input stops the capture before it starts listening.
-TEST_CASE("Input capture rejects clipped waiting input", "[audio][input-calibration]")
+// Windows the listen hears below the listening threshold are not playing: they neither count
+// toward the minimum nor pull the ceiling down.
+TEST_CASE("Input capture counts only windows heard as playing", "[audio][input-calibration]")
 {
-    InputCalibrationCapture capture{g_single_coil_target};
-    REQUIRE(isWaiting(settle(capture, AudioMeterLevel{.peak_db = minimumAudioMeterDb()})));
+    // Feeds one whole listen whose first window is -30 dBFS and whose later ones alternate between
+    // silence and the given level.
+    const auto listen = [](double later_peak_db) {
+        InputCalibrationCapture capture{g_single_coil_target};
+        REQUIRE(isWaiting(settle(capture, AudioMeterLevel{.peak_db = minimumAudioMeterDb()})));
+        InputCalibrationStep step = capture.pushSample(AudioMeterLevel{.peak_db = -30.0});
+        for (std::size_t window = 1; window < inputCalibrationListenSampleCount(); ++window)
+        {
+            const double peak_db = window % 2 == 0 ? later_peak_db : minimumAudioMeterDb();
+            step = capture.pushSample(AudioMeterLevel{.peak_db = peak_db});
+        }
+        return step;
+    };
 
-    const InputCalibrationStep step =
-        capture.pushSample(AudioMeterLevel{.peak_db = -3.0, .clipping = true});
+    const InputCalibrationStep played = listen(-30.0);
+    const auto* const result = std::get_if<InputCalibrationResult>(&played);
+    REQUIRE(result != nullptr);
+    CHECK(result->calibration_gain.db == Catch::Approx(17.2));
 
-    const auto* const error = std::get_if<InputCalibrationError>(&step);
+    const InputCalibrationStep silent = listen(minimumAudioMeterDb());
+    const auto* const error = std::get_if<InputCalibrationError>(&silent);
     REQUIRE(error != nullptr);
-    CHECK(error->code == InputCalibrationErrorCode::InputClipped);
+    CHECK(error->code == InputCalibrationErrorCode::NoUsableSignal);
+}
+
+// A clip after the settle span fails the capture at once, before the listen and during it alike:
+// no gain undoes a clip at the interface, so listening on would waste the player's time.
+TEST_CASE("Input capture fails at the first clip", "[audio][input-calibration]")
+{
+    const AudioMeterLevel clip{.peak_db = 3.0, .clipping = true};
+    const auto fails = [](const InputCalibrationStep& step) {
+        const auto* const error = std::get_if<InputCalibrationError>(&step);
+        return error != nullptr && error->code == InputCalibrationErrorCode::InputClipped;
+    };
+
+    InputCalibrationCapture waiting{g_single_coil_target};
+    REQUIRE(isWaiting(settle(waiting, AudioMeterLevel{.peak_db = minimumAudioMeterDb()})));
+    CHECK(fails(waiting.pushSample(clip)));
+
+    InputCalibrationCapture listening{g_single_coil_target};
+    REQUIRE(isWaiting(settle(listening, AudioMeterLevel{.peak_db = minimumAudioMeterDb()})));
+    REQUIRE(isListening(
+        listening.pushSample(AudioMeterLevel{.peak_db = -24.0}),
+        inputCalibrationListenSampleCount() - 1));
+    CHECK(fails(listening.pushSample(clip)));
 }
 
 } // namespace rock_hero::common::audio
