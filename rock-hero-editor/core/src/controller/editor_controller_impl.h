@@ -647,6 +647,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationApplied(double gain_db);
     void onInputCalibrationClosed();
+    void onInputCalibrationMeasurementStopped();
     void onOutputGainPreviewChanged(double gain_db);
     void onOutputGainChanged(double gain_db);
     void onAudioDeviceChangeRequested(

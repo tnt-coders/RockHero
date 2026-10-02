@@ -376,6 +376,47 @@ TEST_CASE(
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
 
+// Stopping a measurement hands the route back to the gate and keeps the prompt open for a retry,
+// with nothing stored and nothing reported as interrupted at the next sample.
+TEST_CASE("Input calibration stop keeps the prompt open", "[core][editor-controller]")
+{
+    common::audio::testing::InMemoryAudioConfigStore store = savedRouteAudioConfigStore();
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    controller.onInputCalibrationRequested();
+    REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
+                .has_value());
+    REQUIRE(transport.calibration_input_monitoring_enabled);
+
+    controller.onInputCalibrationMeasurementStopped();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    REQUIRE(audio_devices.current_input_identity.has_value());
+    CHECK_FALSE(inputCalibrationFor(store, *audio_devices.current_input_identity).has_value());
+    CHECK_FALSE(controller.onInputCalibrationSampled().measurement.has_value());
+}
+
 // A refused gain reset hands the route back to the gate, which re-arms the stored calibration.
 TEST_CASE("Input calibration start restores route on gain failure", "[core][editor-controller]")
 {

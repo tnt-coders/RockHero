@@ -5,12 +5,11 @@
 
 #pragma once
 
-#include <cstddef>
 #include <expected>
-#include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_sample.h>
+#include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/input_calibration/i_input_calibration_view.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_view_state.h>
@@ -22,9 +21,10 @@ namespace rock_hero::editor::core
 /*!
 \brief Owns popup-local input calibration state without depending on JUCE widgets.
 
-The shared live-input monitor runs the measurement; this controller samples it through a narrow host
-boundary once per UI tick, projects the readings into InputCalibrationViewState, and emits the
-popup's intents through the same host.
+The player types a gain, or measures one by playing, then Apply stores it. A finished measurement
+fills the gain; nothing is stored until Apply. The shared live-input monitor runs the measurement;
+this controller samples it through a narrow host boundary once per UI tick and projects the
+readings into InputCalibrationViewState.
 */
 class InputCalibrationController final
 {
@@ -49,6 +49,9 @@ public:
         \return The raw level, and the measurement's progress if one was running.
         */
         [[nodiscard]] virtual common::audio::LiveInputSample sampleInputCalibration() = 0;
+
+        /*! \brief Ends a running measurement without a result, keeping the popup open. */
+        virtual void stopInputCalibrationMeasurement() = 0;
 
         /*!
         \brief Stores the shown calibration gain.
@@ -87,7 +90,8 @@ public:
     /*!
     \brief Creates a popup-local controller.
     \param host Boundary used for editor-runtime side effects.
-    \param prompt Initial prompt state supplied by the editor workflow.
+    \param prompt Initial prompt state supplied by the editor workflow; its stored gain, if any,
+           fills the slider.
     */
     InputCalibrationController(Host& host, const InputCalibrationPrompt& prompt);
 
@@ -119,42 +123,28 @@ public:
     void detachView(IInputCalibrationView& view) noexcept;
 
     /*!
-    \brief Updates manual gain preview state.
-    \param gain_db Gain in decibels selected by the user.
+    \brief Sets the gain by hand.
+    \param gain_db Gain in decibels.
     */
     void onManualGainChanged(double gain_db);
 
-    /*!
-    \brief Chooses a known interface: its derived gain fills the slider, and the status says how
-    far to trust the figure and how to set the interface up for it.
-    \param index Row of common::audio::knownInterfaces().
-    */
-    void onInterfaceSelected(std::size_t index);
+    /*! \brief Stores the shown gain and closes; a refused store stays open with the reason. */
+    void onApplyRequested();
 
     /*!
-    \brief Opens or closes the "Calibrate by playing" section. Opening shows the setup the
-    measurement needs; closing returns to the idle message. Ignored while measuring.
-    \param open True to open the section.
-    */
-    void onMeasurementSectionToggled(bool open);
-
-    /*!
-    \brief Chooses the pickups the automatic measurement assumes.
+    \brief Chooses the pickups the measurement assumes.
     \param pickups The pickups the player will measure with.
     */
     void onPickupsSelected(common::audio::PickupClass pickups);
 
     /*!
-    \brief Stores the shown gain through the host and closes the popup; a refused store keeps it
-    open with the reason.
+    \brief Starts a measurement, or stops the running one without a result. A refused start says
+    why.
     */
-    void onApplyRequested();
-
-    /*! \brief Starts an automatic measurement when the host can hand over the route. */
-    void onMeasurementStartRequested();
+    void onCalibrateRequested();
 
     /*!
-    \brief Samples the raw input once.
+    \brief Samples the raw input once, following a running measurement.
 
     The UI calls it at common::audio::inputCalibrationSampleRateHz() while the popup is open.
     */
@@ -167,20 +157,14 @@ public:
     void onCloseRequested();
 
 private:
-    void setDisplayedInputGain(double gain_db);
-    void finishMeasurementSuccess(const common::audio::InputCalibrationMeasured& measured);
-    void finishMeasurementError(std::string message);
-    void setRestingStatus(std::string text);
+    void setGain(double gain_db);
+    void finishMeasurement(std::string message);
     void publishState();
 
     Host& m_host;
     IInputCalibrationView* m_view{};
     InputCalibrationViewState m_state;
     common::audio::AudioMeterLevel m_last_raw_meter_level;
-    // The route's committed gain, absent until this input is calibrated.
-    std::optional<double> m_committed_input_gain_db;
-    // The status outside the measuring section's own texts (setup, waiting, countdown).
-    std::string m_resting_status;
 };
 
 } // namespace rock_hero::editor::core

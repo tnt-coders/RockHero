@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 
 namespace rock_hero::editor::ui
@@ -46,6 +47,18 @@ public:
     [[nodiscard]] common::audio::AudioMeterLevel level() const noexcept;
 
     /*!
+    \brief Marks a level the signal should reach, or clears the mark.
+    \param target_db The level to mark in dBFS, or empty for no mark.
+    */
+    void setTargetDb(std::optional<double> target_db);
+
+    /*!
+    \brief Returns the level the meter marks.
+    \return The marked level in dBFS, or empty when there is no mark.
+    */
+    [[nodiscard]] std::optional<double> targetDb() const noexcept;
+
+    /*!
     \brief Paints the meter body, level fill, and clipping indicator.
     \param g Graphics context used for drawing.
     */
@@ -60,6 +73,9 @@ private:
 
     // Most recent peak value.
     common::audio::AudioMeterLevel m_level{};
+
+    // The level the owner wants the signal to reach, drawn as a mark across the meter.
+    std::optional<double> m_target_db;
 
     // Clip indicator remains visible briefly so a single clipped block is noticeable.
     bool m_clip_indicator_active{false};

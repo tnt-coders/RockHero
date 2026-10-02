@@ -23,7 +23,7 @@ TEST_CASE("Known interfaces are sorted and unique by model", "[audio][known-inte
 }
 
 // Every row says what it is, how to set the interface up and where its figure comes from; the
-// setting completes "Set the interface to ___", so it starts lower-case and carries no period.
+// setting completes "Set it to ___", so it starts lower-case and carries no period.
 TEST_CASE("Known interface rows are complete and phrased to fit", "[audio][known-interfaces]")
 {
     for (const KnownInterface& row : knownInterfaces())

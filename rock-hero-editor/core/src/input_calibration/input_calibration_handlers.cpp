@@ -111,4 +111,11 @@ void EditorController::Impl::onInputCalibrationClosed()
     updateView();
 }
 
+// Stops a measurement the player gave up on; the prompt stays open for a retry.
+void EditorController::Impl::onInputCalibrationMeasurementStopped()
+{
+    m_live_input_monitor.cancelMeasurement(monitoringContext());
+    updateView();
+}
+
 } // namespace rock_hero::editor::core

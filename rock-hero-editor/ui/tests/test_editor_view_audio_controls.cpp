@@ -1,9 +1,9 @@
-#include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <rock_hero/common/audio/input/known_interfaces.h>
+#include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
-#include <string_view>
+#include <string>
 
 namespace rock_hero::editor::ui
 {
@@ -32,7 +32,7 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
 }
 
 // Verifies the calibration popup starts with target, status, and documentation controls.
-TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]")
+TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -53,54 +53,45 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     REQUIRE(window.getContentComponent() != nullptr);
     auto& help_button =
         findRequiredDescendant<juce::DrawableButton>(window, "input_calibration_help_button");
-    auto& status = findRequiredDescendant<juce::Label>(window, "input_calibration_status");
+    auto& message = findRequiredDescendant<juce::Label>(window, "input_calibration_message");
     auto& meter = findRequiredDescendant<juce::Component>(window, "input_calibration_meter");
-    auto& manual_label =
-        findRequiredDescendant<juce::Label>(window, "input_calibration_manual_label");
+    auto& pickups = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
+    auto& calibrate =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
     auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
-    auto& disclosure =
-        findRequiredDescendant<juce::Button>(window, "input_calibration_measure_disclosure");
+    auto& apply_button =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_apply_button");
     auto& cancel_button =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_cancel_button");
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
 
     // The reference reaches the player only as the formula behind the gain slider.
-    CHECK(findDescendant(window, "input_calibration_target") == nullptr);
     CHECK(slider.getTooltip() == "Gain = your audio device's dBu at 0 dBFS, minus 12.");
-    CHECK(
-        status.getText() ==
-        "Calibrated. Choose an audio device or change the gain to recalibrate.");
-    CHECK(status.isVisible());
-    // A message, not a field: the status draws no box.
-    CHECK_FALSE(status.isColourSpecified(juce::Label::backgroundColourId));
-    CHECK_THAT(status.getMinimumHorizontalScale(), Catch::Matchers::WithinULP(1.0f, 0));
-    CHECK_FALSE(status.getText().startsWith("Info:"));
     REQUIRE(help_button.onClick);
-    CHECK(help_button.getTooltip() == "Open the known audio devices table");
-    CHECK(manual_label.getText() == "Gain");
+    CHECK(help_button.getTooltip() == "Open the input calibration guide");
+    CHECK(message.getText() == juce::String{core::idleText()});
+    CHECK(calibrate.getButtonText() == "Calibrate");
+    CHECK(apply_button.getButtonText() == "Apply");
+    CHECK(cancel_button.getButtonText() == "Cancel");
+    // A message, not a field: it draws no box and is never squeezed.
+    CHECK_FALSE(message.isColourSpecified(juce::Label::backgroundColourId));
+    CHECK_THAT(message.getMinimumHorizontalScale(), Catch::Matchers::WithinULP(1.0f, 0));
     // The popup meter keeps the master meter's preferred 384px width. The live master meter can
     // flex narrower than that, because the window-centered playback transport has layout
     // priority over the meter's preferred width.
     CHECK(meter.getWidth() == 384);
     CHECK(master_meter.getWidth() <= meter.getWidth());
     CHECK(window.getContentComponent()->getWidth() < 520);
-    CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
-    CHECK(findDescendant(window, "input_calibration_recommendation") == nullptr);
-    CHECK(findDescendant(window, "input_calibration_docs_link") == nullptr);
-    // Top to bottom: the chooser with the guide at its end, the gain, the status, the meter, the
-    // closed measuring header, then the dismiss button at the trailing edge.
-    auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_interface");
-    CHECK(chooser.getBounds().getRight() <= help_button.getBounds().getX());
-    CHECK(chooser.getBounds().getBottom() <= slider.getBounds().getY());
-    CHECK(manual_label.getBounds().getY() == slider.getBounds().getY());
-    CHECK(manual_label.getBounds().getRight() <= slider.getBounds().getX());
-    CHECK(slider.getBounds().getBottom() <= status.getBounds().getY());
-    CHECK(status.getBounds().getBottom() <= meter.getBounds().getY());
-    CHECK(meter.getBounds().getBottom() <= disclosure.getBounds().getY());
-    CHECK(disclosure.getBounds().getX() == manual_label.getBounds().getX());
-    CHECK(disclosure.getBounds().getBottom() <= cancel_button.getBounds().getY());
-    CHECK(cancel_button.getBounds().getX() > window.getContentComponent()->getWidth() / 2);
-    CHECK(window.getContentComponent()->getHeight() < 260);
+    // Top to bottom: the message with the guide at its corner, the meter, the pickup type with
+    // Calibrate, the gain the measurement fills, then Apply before Cancel at the trailing edge.
+    CHECK(message.getBounds().getRight() <= help_button.getBounds().getX());
+    CHECK(message.getBounds().getBottom() <= meter.getBounds().getY());
+    CHECK(meter.getBounds().getBottom() <= pickups.getBounds().getY());
+    CHECK(pickups.getBounds().getRight() <= calibrate.getBounds().getX());
+    CHECK(calibrate.getBounds().getBottom() <= slider.getBounds().getY());
+    CHECK(slider.getBounds().getBottom() <= apply_button.getBounds().getY());
+    CHECK(apply_button.getBounds().getRight() <= cancel_button.getBounds().getX());
+    CHECK(cancel_button.getBounds().getRight() == meter.getBounds().getRight());
 }
 
 // Verifies calibration gain controls do not expose negative zero after one-decimal rounding.
@@ -153,7 +144,7 @@ TEST_CASE("Calibration Apply saves the shown gain and closes", "[ui][editor-view
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
     auto& apply_button =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_manual_apply_button");
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_apply_button");
     slider.setValue(3.5, juce::sendNotificationSync);
     REQUIRE(apply_button.onClick);
     apply_button.onClick();
@@ -169,48 +160,6 @@ TEST_CASE("Calibration Apply saves the shown gain and closes", "[ui][editor-view
             *controller.last_input_calibration_gain_db, Catch::Matchers::WithinAbs(3.5, 1e-9));
     }
     CHECK(slider.getTextFromValue(slider.getValue()) == "+3.5 dB");
-}
-
-// The chooser lists the known interfaces and opens on its placeholder; choosing one emits the
-// row's index, and the window shows the chosen row and the controller's sentence for it.
-TEST_CASE("Calibration chooser selects a known interface", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-    showOnScreen(view);
-
-    core::EditorViewState state;
-    state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .route = common::audio::testing::makeInputDeviceIdentity(),
-        .stored_gain_db = std::nullopt,
-    };
-    view.setState(state);
-
-    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
-    auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_interface");
-    auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
-    auto& status = findRequiredDescendant<juce::Label>(window, "input_calibration_status");
-    const auto rows = common::audio::knownInterfaces();
-
-    CHECK(chooser.getNumItems() == static_cast<int>(rows.size()));
-    CHECK(chooser.getSelectedId() == 0);
-    CHECK(chooser.getTextWhenNothingSelected() == "Choose your audio device");
-
-    const auto quad_cortex = std::ranges::find(
-        rows, std::string_view{"Neural DSP Quad Cortex"}, &common::audio::KnownInterface::model);
-    REQUIRE(quad_cortex != rows.end());
-    const int quad_cortex_id = static_cast<int>(quad_cortex - rows.begin()) + 1;
-    chooser.setSelectedId(quad_cortex_id, juce::sendNotificationSync);
-
-    CHECK(chooser.getSelectedId() == quad_cortex_id);
-    CHECK(slider.getTextFromValue(slider.getValue()) == "+2.3 dB");
-    CHECK(
-        status.getText() ==
-        "Estimated figure. Set the audio device to the instrument input, 1 MOhm, "
-        "at 0.0 dB input level, then click Apply.");
 }
 
 // Verifies that moving the output gain slider emits a controller intent.
@@ -346,8 +295,8 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
             .isVisible());
 }
 
-// Behind the measuring header, the pickup chooser lists the five kinds and opens on humbuckers;
-// "Start Calibration" then measures the chosen pickups.
+// The pickup chooser lists the five kinds, opens on humbuckers and offers the chosen kind's
+// description on hover; "Calibrate" then measures the chosen pickups.
 TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -365,23 +314,28 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
-    auto& disclosure =
-        findRequiredDescendant<juce::Button>(window, "input_calibration_measure_disclosure");
     auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
-    auto& start_button =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
+    auto& calibrate =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
 
-    REQUIRE(disclosure.onClick);
-    disclosure.onClick();
-    CHECK(start_button.isShowing());
     CHECK(chooser.getNumItems() == 5);
     CHECK(chooser.getText() == "Humbucker");
+    CHECK(
+        chooser.getTooltip() ==
+        juce::String{
+            std::string{common::audio::pickupType(common::audio::PickupClass::Humbucker).covers}
+        });
 
     chooser.setSelectedItemIndex(1, juce::sendNotificationSync);
     CHECK(chooser.getText() == "Single-coil");
+    CHECK(
+        chooser.getTooltip() ==
+        juce::String{
+            std::string{common::audio::pickupType(common::audio::PickupClass::SingleCoil).covers}
+        });
 
-    REQUIRE(start_button.onClick);
-    start_button.onClick();
+    REQUIRE(calibrate.onClick);
+    calibrate.onClick();
     CHECK(
         controller.last_input_calibration_pickups ==
         std::optional{common::audio::PickupClass::SingleCoil});

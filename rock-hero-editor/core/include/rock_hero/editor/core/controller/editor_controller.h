@@ -679,8 +679,11 @@ public:
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationApplied(double gain_db) override;
 
-    /*! \brief Handles the calibration prompt closing without a new successful calibration. */
+    /*! \brief Closes the calibration prompt, after an Apply or a Cancel. */
     void onInputCalibrationClosed() override;
+
+    /*! \brief Stops a running calibration measurement, keeping the prompt open. */
+    void onInputCalibrationMeasurementStopped() override;
 
     /*!
     \brief Handles a preview-only output gain change while the user is dragging the slider.

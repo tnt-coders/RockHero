@@ -1185,6 +1185,11 @@ void EditorController::onInputCalibrationClosed()
     m_impl->onInputCalibrationClosed();
 }
 
+void EditorController::onInputCalibrationMeasurementStopped()
+{
+    m_impl->onInputCalibrationMeasurementStopped();
+}
+
 void EditorController::onOutputGainPreviewChanged(double gain_db)
 {
     m_impl->onOutputGainPreviewChanged(gain_db);

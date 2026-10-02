@@ -1,6 +1,10 @@
 #include "input_calibration/input_calibration_window.h"
+#include "shared/audio_level_meter.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <optional>
+#include <rock_hero/common/audio/input/input_calibration.h>
+#include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
@@ -25,11 +29,9 @@ using testing::findRequiredDescendant;
 
 } // namespace
 
-// The window opens on the interface and the gain; measuring waits behind its header, which opens
-// the pickup and the start button under it and fits the window to them, then closes them again.
-// A running measurement locks the section and its header, since the controller holds the section
-// open until it ends.
-TEST_CASE("InputCalibrationWindow keeps measuring behind its header", "[ui][input-calibration]")
+// Calibrate starts a measurement and becomes Stop, the gain, the pickups and Apply waiting while it
+// runs; Stop ends it. The window keeps its size throughout, so its native window never resizes.
+TEST_CASE("InputCalibrationWindow measures at one size", "[ui][input-calibration]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingEditorController controller;
@@ -37,65 +39,60 @@ TEST_CASE("InputCalibrationWindow keeps measuring behind its header", "[ui][inpu
 
     InputCalibrationWindow window{controller, prompt, nullptr};
 
-    auto& disclosure =
-        findRequiredDescendant<juce::Button>(window, "input_calibration_measure_disclosure");
-    const auto& pickups =
-        findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
-    const auto& calibrate =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
-    auto& pickup_help = findRequiredDescendant<juce::DrawableButton>(
-        window, "input_calibration_pickup_help_button");
-    const auto& pickup_label =
-        findRequiredDescendant<juce::Label>(window, "input_calibration_pickup_label");
-    const auto& apply =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_manual_apply_button");
-    const auto& slider =
-        findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
-    const auto& later =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_cancel_button");
-    const auto& interface_label =
-        findRequiredDescendant<juce::Label>(window, "input_calibration_interface_label");
     const juce::Component* const content = window.getContentComponent();
     REQUIRE(content != nullptr);
-    // The bottom margin matches the side margin in either state.
-    const int margin = interface_label.getX();
-    const int closed_height = content->getHeight();
-    CHECK(later.getBottom() + margin == closed_height);
+    const juce::Rectangle<int> size = content->getLocalBounds();
+    auto& calibrate =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
+    const auto& apply =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_apply_button");
+    const auto& slider =
+        findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
+    const auto& pickups =
+        findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
 
-    CHECK(disclosure.getButtonText() == "Device not listed? Calibrate by playing");
-    CHECK(disclosure.isEnabled());
-    CHECK_FALSE(pickups.isVisible());
-    CHECK_FALSE(calibrate.isVisible());
-    CHECK(apply.isEnabled());
-    CHECK(slider.isEnabled());
-
-    REQUIRE(disclosure.onClick);
-    disclosure.onClick();
-    CHECK(disclosure.getToggleState());
-    CHECK(pickups.isVisible());
-    CHECK(pickup_help.isVisible());
-    CHECK(pickup_help.getTooltip() == "Open the pickup types table");
-    CHECK(pickups.getRight() <= pickup_help.getX());
-    CHECK(pickup_label.getText() == "Pickup type");
-    CHECK(calibrate.isVisible());
-    CHECK(calibrate.isEnabled());
-    CHECK(calibrate.getButtonText() == "Start Calibration");
-    CHECK(disclosure.getBounds().getBottom() <= pickups.getY());
-    CHECK(pickups.getBottom() <= calibrate.getY());
-    CHECK(content->getHeight() > closed_height);
-    CHECK(later.getBottom() + margin == content->getHeight());
-
-    disclosure.onClick();
-    CHECK_FALSE(pickups.isVisible());
-    CHECK_FALSE(calibrate.isVisible());
-    CHECK(content->getHeight() == closed_height);
-
-    disclosure.onClick();
     REQUIRE(calibrate.onClick);
     calibrate.onClick();
-    CHECK_FALSE(disclosure.isEnabled());
+    CHECK(content->getLocalBounds() == size);
+    CHECK(calibrate.getButtonText() == "Stop");
+    CHECK_FALSE(apply.isEnabled());
+    CHECK_FALSE(slider.isEnabled());
     CHECK_FALSE(pickups.isEnabled());
-    CHECK_FALSE(calibrate.isEnabled());
+
+    calibrate.onClick();
+    CHECK(controller.input_calibration_stop_count == 1);
+    CHECK(content->getLocalBounds() == size);
+    CHECK(calibrate.getButtonText() == "Calibrate");
+    CHECK(apply.isEnabled());
+}
+
+// The meter marks where a hard strum on the chosen pickups lands at the right gain, and the mark
+// follows the pickup type; a running measurement hides it, so nobody plays to it.
+TEST_CASE("InputCalibrationWindow marks the pickups' strum target", "[ui][input-calibration]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingEditorController controller;
+    const core::InputCalibrationPrompt prompt = calibrationPrompt();
+
+    InputCalibrationWindow window{controller, prompt, nullptr};
+
+    const auto& meter = findRequiredDescendant<AudioLevelMeter>(window, "input_calibration_meter");
+    auto& pickups = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
+    auto& calibrate =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
+
+    CHECK(
+        meter.targetDb() == std::optional{common::audio::inputCalibrationTargetPeakDb(
+                                common::audio::PickupClass::Humbucker)});
+
+    pickups.setSelectedItemIndex(1, juce::sendNotificationSync);
+    CHECK(
+        meter.targetDb() == std::optional{common::audio::inputCalibrationTargetPeakDb(
+                                common::audio::PickupClass::SingleCoil)});
+
+    REQUIRE(calibrate.onClick);
+    calibrate.onClick();
+    CHECK_FALSE(meter.targetDb().has_value());
 }
 
 } // namespace rock_hero::editor::ui

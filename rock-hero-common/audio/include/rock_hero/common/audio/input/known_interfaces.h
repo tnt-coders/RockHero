@@ -38,8 +38,8 @@ struct KnownInterface
     std::string_view model;
 
     /*!
-    \brief The input setting the level holds for, as a lower-case phrase that completes "Set the
-    interface to ___", e.g. "the instrument input at minimum gain".
+    \brief The input setting the level holds for, as a lower-case phrase that completes "Set it
+    to ___" (the guide table's column), e.g. "the instrument input at minimum gain".
     */
     std::string_view unity_input;
 
@@ -68,8 +68,8 @@ rounded as every calibration gain is.
 [[nodiscard]] Gain knownInterfaceGain(const KnownInterface& known_interface) noexcept;
 
 /*!
-\brief Returns the one sentence that says how far to trust a row's figure, for every surface in
-both products.
+\brief Returns the one sentence that says how far to trust a row's figure, as the guide's table
+words it.
 \param basis How the figure was established.
 \return A sentence ending in a period.
 */

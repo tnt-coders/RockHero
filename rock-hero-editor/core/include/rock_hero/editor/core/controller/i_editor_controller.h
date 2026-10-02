@@ -1033,6 +1033,12 @@ public:
     virtual void onInputCalibrationClosed() = 0;
 
     /*!
+    \brief Stops a running calibration measurement without a result; the prompt stays open and
+    the gate takes the route back.
+    */
+    virtual void onInputCalibrationMeasurementStopped() = 0;
+
+    /*!
     \brief Handles a preview-only output gain change while the user is dragging the slider.
     \param gain_db Desired output gain in decibels.
     */

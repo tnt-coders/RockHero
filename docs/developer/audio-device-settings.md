@@ -123,23 +123,25 @@ Devices table is generated from the rows by `rock_hero_calibration_doc`
 (`common/audio` `tools/calibration_doc_main.cpp`), which the docs targets build and run before
 Doxygen includes its output.
 
-The editor's calibration popup offers the table as its primary path: an **Audio device** chooser
-over the rows in table order, its "?" opening that generated table, the row index being the
-contract (`InputCalibrationViewState::selected_interface`, never persisted). Choosing one fills the gain slider through the same
-quantizer, and the status says `<basis sentence> Set the audio device to <unity_input>, then click
-Apply.` A gain changed by hand, or a measurement, clears the choice. Every gain the popup prints
-goes through `signedGainText` (`editor/core` `input_calibration/input_calibration_text.h`), the
-slider's text box included. The measurement is the fallback, so the popup keeps it closed behind a
-**Device not listed? Calibrate by playing** header. The open state is the controller's
-(`InputCalibrationViewState::measurement_section_open`), because the status follows it: opening
-shows the setup before Start.
-The section holds the **Pickup type** chooser, whose "?" opens the guide's Pickup Types table,
-and **Start Calibration**.
+The editor's calibration popup is one fixed-size screen: the message with the "?" (the
+calibration guide, whose generated table is how a player finds their device's gain) at its
+corner, the input meter, **Pickup type** with **Calibrate**, the **Gain** slider, then **Apply**
+and **Cancel**. It is sized once, for its longest message, and never resized, because a native
+window resize under the Direct2D renderer flashes a frame of the old size.
 
-A help button cannot open a section of a page directly: the shell drops a `#fragment` from a file
-URL. Each "?" therefore opens a small forwarding page in `docs/redirects/` (shipped beside the
-guide through the Doxyfile's `HTML_EXTRA_FILES`) that refreshes to the guide's section by its
-explicit heading id.
+`InputCalibrationViewState::measuring` is true while a measurement runs. **Calibrate** is one
+intent, `onCalibrateRequested`: it starts a measurement, or stops the running one (through the
+host, `onInputCalibrationMeasurementStopped`, keeping the popup open), when the button reads
+**Stop**; the gain, the pickup type and **Apply** wait meanwhile. A finished measurement fills the
+gain and leaves `measuredText` as the message; nothing is stored until **Apply**. The meter
+previews the shown gain, and shows the raw input, as the measurement hears it, while one runs. It
+marks `inputCalibrationTargetPeakDb(pickups)`, where a hard strum on the chosen kind lands at the
+right gain (`AudioLevelMeter::setTargetDb`), so a strum checks a typed or measured gain; the mark is
+hidden while a measurement runs, so the player does not play to it. The pickup chooser's tooltip is
+the chosen kind's `covers` text. The popup's own sentences come from `editor/core`
+`input_calibration/input_calibration_text.h`, and refusal and failure reasons are passed through
+from `common/audio` as they are; gains go through `signedGainText`, the slider's text box
+included.
 
 # The game's first-run setup
 
@@ -170,5 +172,5 @@ mapping is the seed of future multiplayer input plumbing.
    `savedRouteAudioConfigStore()`.
 5. Adding a known interface is one row in `known_interfaces.cpp`, in model order, every field
    named: the model as its maker spells it, the input setting as a lower-case phrase completing
-   "Set the audio device to ___", the dBu at 0 dBFS, the basis and the source. The table test
-   enforces the order and the phrasing; nothing else needs updating.
+   "Set it to ___" (the guide table's column), the dBu at 0 dBFS, the basis and the source. The
+   table test enforces the order and the phrasing; nothing else needs updating.

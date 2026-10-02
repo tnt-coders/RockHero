@@ -1,5 +1,7 @@
 #include "audio_level_meter.h"
 
+#include "shared/editor_theme.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -220,6 +222,20 @@ common::audio::AudioMeterLevel AudioLevelMeter::level() const noexcept
     return m_level;
 }
 
+void AudioLevelMeter::setTargetDb(std::optional<double> target_db)
+{
+    if (target_db != m_target_db)
+    {
+        m_target_db = target_db;
+        repaint();
+    }
+}
+
+std::optional<double> AudioLevelMeter::targetDb() const noexcept
+{
+    return m_target_db;
+}
+
 // Draws a peak meter with dB tick marks. The display spans -60 to +6 dBFS so that 0 dB sits at
 // its true position with a headroom zone beyond it reserved for the clipping indicator.
 void AudioLevelMeter::paint(juce::Graphics& g)
@@ -285,6 +301,35 @@ void AudioLevelMeter::paint(juce::Graphics& g)
     else
     {
         drawVerticalTickLabels(g, inner);
+    }
+
+    // The target, in the accent: a mark across the meter where the owner wants the signal to land.
+    const std::optional<double> target_db = m_target_db;
+    if (target_db.has_value())
+    {
+        constexpr int target_thickness{2};
+        const double target_fraction = displayFraction(*target_db);
+        g.setColour(editorTheme().accent);
+        if (m_orientation == AudioLevelMeterOrientation::Horizontal)
+        {
+            const int target_x =
+                inner.getX() + static_cast<int>(std::round(inner.getWidth() * target_fraction));
+            g.fillRect(
+                target_x - (target_thickness / 2),
+                inner.getY(),
+                target_thickness,
+                inner.getHeight());
+        }
+        else
+        {
+            const int target_y = inner.getBottom() -
+                                 static_cast<int>(std::round(inner.getHeight() * target_fraction));
+            g.fillRect(
+                inner.getX(),
+                target_y - (target_thickness / 2),
+                inner.getWidth(),
+                target_thickness);
+        }
     }
 
     if (!m_clip_indicator_active)

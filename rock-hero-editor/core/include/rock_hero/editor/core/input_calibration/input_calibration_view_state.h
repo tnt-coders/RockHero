@@ -6,57 +6,43 @@
 #pragma once
 
 #include <compare>
-#include <cstddef>
-#include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
-#include <rock_hero/common/audio/input/input_calibration.h>
+#include <rock_hero/common/audio/input/pickup_types.h>
 #include <string>
 
 namespace rock_hero::editor::core
 {
 
-/*! \brief Complete render state for the input calibration popup controls. */
+/*! \brief Complete render state for the input calibration popup. */
 struct InputCalibrationViewState
 {
-    /*! \brief Meter level shown for raw input after the displayed calibration gain preview. */
-    common::audio::AudioMeterLevel input_meter_level;
+    /*! \brief The gain Apply stores. */
+    double gain_db{0.0};
 
-    /*! \brief Current input gain value shown in the manual gain control. */
-    double input_gain_db{0.0};
-
-    /*! \brief Status text shown in the calibration popup. */
-    std::string status_message;
+    /*! \brief The pickups the measurement assumes; humbuckers until the player says otherwise. */
+    common::audio::PickupClass pickups{common::audio::PickupClass::Humbucker};
 
     /*!
-    \brief True while a measurement holds the route; the calibrate and manual-gain controls are
-    locked until it ends.
+    \brief True while a measurement runs. The gain, the pickups and Apply then wait, and the
+    calibrate button stops it.
     */
     bool measuring{false};
 
     /*!
-    \brief The chosen row of common::audio::knownInterfaces(), or empty while none is chosen: on
-    opening, after the gain is changed by hand, and during and after a measurement.
+    \brief The input meter: the raw input through the shown gain, or the raw input alone, as the
+    measurement hears it, while one runs.
     */
-    std::optional<std::size_t> selected_interface;
+    common::audio::AudioMeterLevel input_meter_level;
 
-    /*!
-    \brief True while the "Calibrate by playing" section is open. The measurement is the
-    fallback, so the popup opens with it closed; the status gives the setup while it is open.
-    */
-    bool measurement_section_open{false};
-
-    /*!
-    \brief The pickups the measurement assumes; humbuckers until the player says otherwise, the
-    commonest kind.
-    */
-    common::audio::PickupClass pickups{common::audio::PickupClass::Humbucker};
+    /*! \brief The popup's one message: what to do, what is happening, a result or an error. */
+    std::string message;
 
     /*!
     \brief Compares two popup view states by their stored values.
 
-    Hand-written, not defaulted: input_gain_db is a double of this struct's own, and a defaulted
+    Hand-written, not defaulted: gain_db is a double of this struct's own, and a defaulted
     comparison trips -Wfloat-equal on the strict compilers once odr-used. Every field is listed;
-    a new field must be added here, exactly like the sibling gated view states.
+    a new field must be added here.
 
     \param lhs Left-hand view state.
     \param rhs Right-hand view state.
@@ -65,12 +51,9 @@ struct InputCalibrationViewState
     friend bool operator==(
         const InputCalibrationViewState& lhs, const InputCalibrationViewState& rhs)
     {
-        return lhs.input_meter_level == rhs.input_meter_level &&
-               std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db) &&
-               lhs.status_message == rhs.status_message && lhs.measuring == rhs.measuring &&
-               lhs.selected_interface == rhs.selected_interface &&
-               lhs.measurement_section_open == rhs.measurement_section_open &&
-               lhs.pickups == rhs.pickups;
+        return std::is_eq(lhs.gain_db <=> rhs.gain_db) && lhs.pickups == rhs.pickups &&
+               lhs.measuring == rhs.measuring && lhs.input_meter_level == rhs.input_meter_level &&
+               lhs.message == rhs.message;
     }
 };
 

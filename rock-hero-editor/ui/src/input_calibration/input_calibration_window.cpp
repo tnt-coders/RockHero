@@ -4,16 +4,19 @@
 #include "shared/editor_theme.h"
 
 #include <BinaryData.h>
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration.h>
-#include <rock_hero/common/audio/input/known_interfaces.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -24,23 +27,21 @@ namespace
 
 // Match the transport-bar master meter's preferred width so the popup stays visually compact;
 // the live master meter can flex narrower when the window-centered transport needs the room.
-constexpr int g_input_calibration_meter_width{384};
-constexpr int g_input_calibration_content_margin{14};
-constexpr int g_input_calibration_preferred_width{
-    g_input_calibration_meter_width + (g_input_calibration_content_margin * 2)
-};
+constexpr int g_content_width{384};
+constexpr int g_margin{14};
 constexpr int g_row_height{28};
-// Wide enough that "Audio device" draws at full width rather than squeezed by the Label's scale.
+// Wide enough that "Pickup type" draws at full width rather than squeezed by the Label's scale.
 constexpr int g_label_width{96};
 constexpr int g_gap{8};
-constexpr int g_status_height{48};
-constexpr int g_status_to_meter_gap{10};
 constexpr int g_meter_height{26};
+constexpr int g_button_width{96};
+constexpr int g_pickup_chooser_width{150};
 
-// Resolves an installed docs page from the executable location and falls back to build-tree docs.
-[[nodiscard]] juce::File documentationFile(const juce::String& documentation_file_name)
+// The guide the "?" opens, resolved from the executable location, else from the build tree.
+[[nodiscard]] juce::File documentationFile()
 {
     constexpr int maximum_directory_search_depth{8};
+    const juce::String documentation_file_name{"user_input_calibration.html"};
     juce::File search_root =
         juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
 
@@ -67,27 +68,36 @@ constexpr int g_meter_height{26};
     return build_tree_documentation.existsAsFile() ? build_tree_documentation : juce::File{};
 }
 
-// Opens the local HTML file directly so Windows handles it as a normal filesystem document. The
-// shell drops a #fragment from a file URL, so a help target inside the guide is a forwarding page
-// of its own (docs/redirects) that refreshes to the section.
-[[nodiscard]] bool openDocumentation(const juce::String& documentation_file_name)
+// Opens the local HTML file directly so Windows handles it as a normal filesystem document.
+[[nodiscard]] bool openDocumentation()
 {
-    const juce::File documentation = documentationFile(documentation_file_name);
+    const juce::File documentation = documentationFile();
     return documentation.existsAsFile() && documentation.startAsProcess();
 }
 
-// A row's "?": the help icon, opening one guide page.
-void configureHelpButton(
-    juce::DrawableButton& button, const juce::Drawable* icon, const juce::String& tooltip)
+// The height a label needs to show text wrapped at its width, read from the label's own font and
+// border, so the fixed window fits its longest message instead of a guessed line count. A Label
+// draws as many lines as whole font heights fit inside its border.
+[[nodiscard]] int wrappedLabelHeight(const juce::Label& label, const juce::String& text, int width)
 {
-    button.setTooltip(tooltip);
-    button.setWantsKeyboardFocus(false);
-    button.setMouseClickGrabsKeyboardFocus(false);
-    button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
-    button.setImages(icon);
+    const juce::Font font = label.getFont();
+    const juce::BorderSize<int> border = label.getBorderSize();
+    juce::GlyphArrangement glyphs;
+    glyphs.addJustifiedText(
+        font,
+        text,
+        0.0F,
+        0.0F,
+        static_cast<float>(width - border.getLeftAndRight()),
+        juce::Justification::topLeft);
+    const int lines = std::max(
+        1,
+        static_cast<int>(
+            std::ceil(glyphs.getBoundingBox(0, -1, true).getHeight() / font.getHeight())));
+    return (lines * static_cast<int>(std::ceil(font.getHeight()))) + border.getTopAndBottom();
 }
 
-void configureManualInputGainSlider(juce::Slider& slider)
+void configureGainSlider(juce::Slider& slider)
 {
     slider.setComponentID("input_calibration_manual_gain");
     slider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -107,66 +117,10 @@ void configureManualInputGainSlider(juce::Slider& slider)
         juce::String{common::audio::inputLevelReferenceDbu(), 0} + ".");
 }
 
-// A disclosure header: a chevron and a line of text, no fill, that opens the section under it. Its
-// toggle state renders the open state its owner pushes; a click only asks for the other one.
-class DisclosureButton final : public juce::Button
-{
-public:
-    explicit DisclosureButton(const juce::String& header_text)
-        : juce::Button(header_text)
-    {
-        setWantsKeyboardFocus(false);
-        setMouseCursor(juce::MouseCursor::PointingHandCursor);
-    }
-
-    void paintButton(juce::Graphics& g, bool is_over, bool is_down) override
-    {
-        const EditorTheme& theme = editorTheme();
-        juce::Colour ink = theme.primary_text;
-        if (!isEnabled())
-        {
-            ink = theme.muted_text;
-        }
-        else if (is_over || is_down)
-        {
-            ink = theme.accent;
-        }
-        g.setColour(ink);
-
-        // The chevron points at the text while closed and down at the opened section.
-        constexpr float chevron_size{8.0F};
-        constexpr int chevron_column{16};
-        auto bounds = getLocalBounds();
-        const juce::Rectangle<float> chevron =
-            bounds.removeFromLeft(chevron_column)
-                .toFloat()
-                .withSizeKeepingCentre(chevron_size, chevron_size);
-        juce::Path triangle;
-        if (getToggleState())
-        {
-            triangle.addTriangle(
-                chevron.getTopLeft(),
-                chevron.getTopRight(),
-                {chevron.getCentreX(), chevron.getBottom()});
-        }
-        else
-        {
-            triangle.addTriangle(
-                chevron.getTopLeft(),
-                chevron.getBottomLeft(),
-                {chevron.getRight(), chevron.getCentreY()});
-        }
-        g.fillPath(triangle);
-
-        // A Label's default height, so the header reads as the same text as the rows above it.
-        g.setFont(juce::Font{juce::FontOptions{15.0F}});
-        g.drawText(getButtonText(), bounds, juce::Justification::centredLeft, true);
-    }
-};
-
 } // namespace
 
-// Self-contained calibration prompt that samples raw input and reports the result to controller.
+// The calibration prompt: one fixed-size screen, so nothing ever resizes its native window. The
+// player types a gain or measures one by playing, then Apply stores it.
 class InputCalibrationWindow::Content final : public juce::Component,
                                               private juce::Timer,
                                               private core::IInputCalibrationView,
@@ -184,42 +138,25 @@ public:
         const std::unique_ptr<juce::Drawable> help_icon =
             juce::Drawable::createFromImageData(BinaryData::help_svg, BinaryData::help_svgSize);
         m_help_button.setComponentID("input_calibration_help_button");
-        configureHelpButton(m_help_button, help_icon.get(), "Open the known audio devices table");
-        m_help_button.onClick = [this] { openGuidePage("user_known_audio_devices.html"); };
+        m_help_button.setTooltip("Open the input calibration guide");
+        m_help_button.setWantsKeyboardFocus(false);
+        m_help_button.setMouseClickGrabsKeyboardFocus(false);
+        m_help_button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
+        m_help_button.setImages(help_icon.get());
+        m_help_button.onClick = [this] { openGuide(); };
         addAndMakeVisible(m_help_button);
 
-        m_pickup_help_button.setComponentID("input_calibration_pickup_help_button");
-        configureHelpButton(m_pickup_help_button, help_icon.get(), "Open the pickup types table");
-        m_pickup_help_button.onClick = [this] { openGuidePage("user_pickup_types.html"); };
-        addChildComponent(m_pickup_help_button);
+        m_gain_label.setText("Gain", juce::dontSendNotification);
+        addAndMakeVisible(m_gain_label);
 
-        m_interface_label.setComponentID("input_calibration_interface_label");
-        m_interface_label.setText("Audio device", juce::dontSendNotification);
-        m_interface_label.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(m_interface_label);
-
-        m_interface_chooser.setComponentID("input_calibration_interface");
-        m_interface_chooser.setTextWhenNothingSelected("Choose your audio device");
-        int interface_id = 1;
-        for (const common::audio::KnownInterface& row : common::audio::knownInterfaces())
-        {
-            m_interface_chooser.addItem(juce::String{std::string{row.model}}, interface_id);
-            ++interface_id;
-        }
-        m_interface_chooser.onChange = [this] {
-            const int chosen_id = m_interface_chooser.getSelectedId();
-            if (chosen_id > 0)
-            {
-                m_calibration_controller.onInterfaceSelected(
-                    static_cast<std::size_t>(chosen_id - 1));
-            }
+        configureGainSlider(m_gain_slider);
+        m_gain_slider.onValueChange = [this] {
+            m_calibration_controller.onManualGainChanged(m_gain_slider.getValue());
         };
-        addAndMakeVisible(m_interface_chooser);
+        addAndMakeVisible(m_gain_slider);
 
-        m_pickup_label.setComponentID("input_calibration_pickup_label");
         m_pickup_label.setText("Pickup type", juce::dontSendNotification);
-        m_pickup_label.setJustificationType(juce::Justification::centredLeft);
-        addChildComponent(m_pickup_label);
+        addAndMakeVisible(m_pickup_label);
 
         // The items are common::audio::pickupTypes() in order, so an item's index is its row.
         m_pickup_chooser.setComponentID("input_calibration_pickup");
@@ -239,58 +176,36 @@ public:
                     rows[static_cast<std::size_t>(chosen_index)].pickups);
             }
         };
-        addChildComponent(m_pickup_chooser);
+        addAndMakeVisible(m_pickup_chooser);
+
+        // One button that starts a measurement and, while one runs, stops it.
+        m_calibrate_button.setComponentID("input_calibration_calibrate_button");
+        m_calibrate_button.onClick = [this] { m_calibration_controller.onCalibrateRequested(); };
+        addAndMakeVisible(m_calibrate_button);
+
+        m_message.setComponentID("input_calibration_message");
+        m_message.setJustificationType(juce::Justification::topLeft);
+        m_message.setColour(juce::Label::textColourId, editorTheme().primary_text);
+        m_message.setMinimumHorizontalScale(1.0F);
+        addAndMakeVisible(m_message);
 
         m_input_meter.setComponentID("input_calibration_meter");
         addAndMakeVisible(m_input_meter);
 
-        m_manual_label.setComponentID("input_calibration_manual_label");
-        m_manual_label.setText("Gain", juce::dontSendNotification);
-        m_manual_label.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(m_manual_label);
-
-        configureManualInputGainSlider(m_manual_gain_slider);
-        m_manual_gain_slider.onValueChange = [this] {
-            m_calibration_controller.onManualGainChanged(m_manual_gain_slider.getValue());
-        };
-        addAndMakeVisible(m_manual_gain_slider);
-
-        m_manual_apply_button.setComponentID("input_calibration_manual_apply_button");
-        m_manual_apply_button.setButtonText("Apply");
-        m_manual_apply_button.onClick = [this] { m_calibration_controller.onApplyRequested(); };
-        addAndMakeVisible(m_manual_apply_button);
-
-        m_status.setComponentID("input_calibration_status");
-        // A message, not a control: no box (a dark inset would read as a second field), the
-        // labels' own border so the text lines up with them, and top-aligned so a one-line message
-        // sits under the gain row it reports on.
-        m_status.setJustificationType(juce::Justification::topLeft);
-        m_status.setColour(juce::Label::textColourId, editorTheme().primary_text);
-        m_status.setMinimumHorizontalScale(1.0f);
-        addAndMakeVisible(m_status);
-
-        // Measuring is the fallback for an interface the list lacks, so it waits behind a header
-        // and the window opens on the two direct routes.
-        m_measure_disclosure.setComponentID("input_calibration_measure_disclosure");
-        m_measure_disclosure.onClick = [this] {
-            m_calibration_controller.onMeasurementSectionToggled(
-                !m_measure_disclosure.getToggleState());
-        };
-        addAndMakeVisible(m_measure_disclosure);
-
-        m_calibrate_button.setComponentID("input_calibration_start_button");
-        m_calibrate_button.setButtonText("Start Calibration");
-        m_calibrate_button.onClick = [this] {
-            m_calibration_controller.onMeasurementStartRequested();
-        };
-        addChildComponent(m_calibrate_button);
+        m_apply_button.setComponentID("input_calibration_apply_button");
+        m_apply_button.setButtonText("Apply");
+        m_apply_button.onClick = [this] { m_calibration_controller.onApplyRequested(); };
+        addAndMakeVisible(m_apply_button);
 
         m_cancel_button.setComponentID("input_calibration_cancel_button");
         m_cancel_button.setButtonText("Cancel");
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
-        // Attaching pushes the first state, which sizes the window to it.
+        // Sized once, for the longest message, so nothing ever resizes the native window.
+        setSize(
+            g_content_width + (2 * g_margin),
+            layOut({g_content_width + (2 * g_margin), std::numeric_limits<int>::max() / 2}));
         m_calibration_controller.attachView(*this);
         startTimerHz(common::audio::inputCalibrationSampleRateHz());
     }
@@ -308,7 +223,7 @@ public:
 
     void resized() override
     {
-        layOut(getLocalBounds());
+        static_cast<void>(layOut(getLocalBounds()));
     }
 
     void requestDismissal()
@@ -317,77 +232,85 @@ public:
     }
 
 private:
-    // Lays the rows out top-down in bounds and returns the height they take, so the window's size
-    // comes from the one layout rather than a second sum of it.
-    int layOut(juce::Rectangle<int> bounds)
+    // Lays the rows out top-down in bounds and returns the height they take.
+    [[nodiscard]] int layOut(juce::Rectangle<int> bounds)
     {
-        auto area = bounds.reduced(g_input_calibration_content_margin);
-        auto interface_row = area.removeFromTop(g_row_height);
-        m_interface_label.setBounds(interface_row.removeFromLeft(g_label_width));
-        m_help_button.setBounds(interface_row.removeFromRight(g_row_height).reduced(2));
-        interface_row.removeFromRight(g_gap);
-        m_interface_chooser.setBounds(interface_row);
-        area.removeFromTop(g_gap);
-        auto gain_row = area.removeFromTop(g_row_height);
-        m_manual_label.setBounds(gain_row.removeFromLeft(g_label_width));
-        m_manual_apply_button.setBounds(gain_row.removeFromRight(72));
-        gain_row.removeFromRight(g_gap);
-        m_manual_gain_slider.setBounds(gain_row);
-        area.removeFromTop(g_gap);
-        m_status.setBounds(area.removeFromTop(g_status_height));
-        area.removeFromTop(g_status_to_meter_gap);
-        m_input_meter.setBounds(area.removeFromTop(g_meter_height));
-        area.removeFromTop(g_gap);
-        m_measure_disclosure.setBounds(area.removeFromTop(g_row_height));
-        if (m_measure_disclosure.getToggleState())
+        auto area = bounds.reduced(g_margin);
+
+        // The message first, the "?" at its corner, tall enough for the popup's own sentences; the
+        // error reasons it passes through are shorter.
+        const int message_width = area.getWidth() - g_row_height - g_gap;
+        const auto fitted = [this, message_width](const std::string& text) {
+            return wrappedLabelHeight(m_message, juce::String{text}, message_width);
+        };
+        int message_height = std::max(
+            {g_row_height,
+             fitted(core::idleText()),
+             fitted(core::measuringText(common::audio::InputCalibrationWaiting{}))});
+        for (const common::audio::PickupType& row : common::audio::pickupTypes())
         {
-            area.removeFromTop(g_gap);
-            auto pickup_row = area.removeFromTop(g_row_height);
-            m_pickup_label.setBounds(pickup_row.removeFromLeft(g_label_width));
-            m_pickup_chooser.setBounds(pickup_row.removeFromLeft(160));
-            pickup_row.removeFromLeft(g_gap);
-            m_pickup_help_button.setBounds(pickup_row.removeFromLeft(g_row_height).reduced(2));
+            message_height = std::max(
+                message_height,
+                fitted(core::measuredText(common::audio::minimumGainDb(), row.pickups)));
         }
+        auto message_row = area.removeFromTop(message_height);
+        m_help_button.setBounds(
+            message_row.removeFromRight(g_row_height).removeFromTop(g_row_height).reduced(2));
+        message_row.removeFromRight(g_gap);
+        m_message.setBounds(message_row);
         area.removeFromTop(g_gap);
+
+        m_input_meter.setBounds(area.removeFromTop(g_meter_height));
+        area.removeFromTop(g_gap * 2);
+
+        auto pickup_row = area.removeFromTop(g_row_height);
+        m_pickup_label.setBounds(pickup_row.removeFromLeft(g_label_width));
+        m_pickup_chooser.setBounds(pickup_row.removeFromLeft(g_pickup_chooser_width));
+        pickup_row.removeFromLeft(g_gap);
+        m_calibrate_button.setBounds(pickup_row);
+        area.removeFromTop(g_gap);
+
+        auto gain_row = area.removeFromTop(g_row_height);
+        m_gain_label.setBounds(gain_row.removeFromLeft(g_label_width));
+        m_gain_slider.setBounds(gain_row);
+        area.removeFromTop(g_gap * 2);
+
         auto buttons = area.removeFromTop(g_row_height);
-        m_calibrate_button.setBounds(buttons.removeFromLeft(150));
-        m_cancel_button.setBounds(buttons.removeFromRight(96));
-        return area.getY() - bounds.getY() + g_input_calibration_content_margin;
+        m_cancel_button.setBounds(buttons.removeFromRight(g_button_width));
+        buttons.removeFromRight(g_gap);
+        m_apply_button.setBounds(buttons.removeFromRight(g_button_width));
+        return buttons.getBottom() + g_margin - bounds.getY();
     }
 
-    // Opens or closes the measuring section under its header, and fits the window to it.
-    void showMeasurementSection(bool open)
-    {
-        m_measure_disclosure.setToggleState(open, juce::dontSendNotification);
-        m_pickup_label.setVisible(open);
-        m_pickup_chooser.setVisible(open);
-        m_pickup_help_button.setVisible(open);
-        m_calibrate_button.setVisible(open);
-        constexpr int unbounded_height{1 << 15};
-        setSize(
-            g_input_calibration_preferred_width,
-            layOut({g_input_calibration_preferred_width, unbounded_height}));
-    }
-
-    // Renders the pushed state; the controller owns every enablement flag.
+    // Renders the pushed state. While a measurement runs, the gain, the pickups and Apply wait,
+    // and the calibrate button stops it.
     void setState(const core::InputCalibrationViewState& state) override
     {
-        m_input_meter.setLevel(state.input_meter_level);
-        m_manual_gain_slider.setValue(state.input_gain_db, juce::dontSendNotification);
-        m_manual_gain_slider.updateText();
-        m_status.setText(juce::String{state.status_message}, juce::dontSendNotification);
-        const std::optional<std::size_t> selected = state.selected_interface;
-        m_interface_chooser.setSelectedId(
-            selected.has_value() ? static_cast<int>(*selected) + 1 : 0, juce::dontSendNotification);
-        m_interface_chooser.setEnabled(!state.measuring);
+        m_gain_slider.setValue(state.gain_db, juce::dontSendNotification);
+        m_gain_slider.updateText();
+        m_gain_slider.setEnabled(!state.measuring);
         m_pickup_chooser.setSelectedItemIndex(
             static_cast<int>(std::to_underlying(state.pickups)), juce::dontSendNotification);
+        // The chosen kind's description, on demand: the list holds names only.
+        m_pickup_chooser.setTooltip(
+            juce::String{std::string{common::audio::pickupType(state.pickups).covers}});
         m_pickup_chooser.setEnabled(!state.measuring);
-        m_calibrate_button.setEnabled(!state.measuring);
-        m_measure_disclosure.setEnabled(!state.measuring);
-        m_manual_gain_slider.setEnabled(!state.measuring);
-        m_manual_apply_button.setEnabled(!state.measuring);
-        showMeasurementSection(state.measurement_section_open);
+        m_calibrate_button.setButtonText(state.measuring ? "Stop" : "Calibrate");
+        m_apply_button.setEnabled(!state.measuring);
+        m_message.setText(juce::String{state.message}, juce::dontSendNotification);
+        m_input_meter.setLevel(state.input_meter_level);
+        // Where a hard strum on the chosen pickups lands at the right gain: strumming to the mark
+        // checks a typed or measured gain. A running measurement meters the raw input, which the
+        // mark does not describe.
+        const std::string_view pickup_name = common::audio::pickupType(state.pickups).name;
+        m_input_meter.setTargetDb(
+            state.measuring
+                ? std::nullopt
+                : std::optional{common::audio::inputCalibrationTargetPeakDb(state.pickups)});
+        m_input_meter.setTooltip(
+            state.measuring ? juce::String{}
+                            : "A hard strum on " + juce::String{std::string{pickup_name}} +
+                                  " pickups peaks at the blue mark when the gain is right.");
     }
 
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
@@ -401,6 +324,11 @@ private:
         return m_editor_controller.onInputCalibrationSampled();
     }
 
+    void stopInputCalibrationMeasurement() override
+    {
+        m_editor_controller.onInputCalibrationMeasurementStopped();
+    }
+
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError> applyInputCalibration(
         double gain_db) override
     {
@@ -412,15 +340,13 @@ private:
         m_editor_controller.onInputCalibrationClosed();
     }
 
-    // Reports missing generated docs in the popup instead of letting a help button fail silently.
-    void openGuidePage(const juce::String& documentation_file_name)
+    // Reports missing generated docs in the popup instead of letting the help button fail silently.
+    void openGuide()
     {
-        if (openDocumentation(documentation_file_name))
+        if (!openDocumentation())
         {
-            return;
+            m_calibration_controller.onDocumentationUnavailable();
         }
-
-        m_calibration_controller.onDocumentationUnavailable();
     }
 
     void timerCallback() override
@@ -431,28 +357,22 @@ private:
     InputCalibrationWindow& m_owner;
     core::IEditorController& m_editor_controller;
     core::InputCalibrationController m_calibration_controller;
-    AudioLevelMeter m_input_meter;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
-    juce::DrawableButton m_pickup_help_button{
-        "input_calibration_pickup_help", juce::DrawableButton::ImageFitted
-    };
-    juce::Label m_interface_label;
-    juce::ComboBox m_interface_chooser;
+    juce::Label m_gain_label;
+    juce::Slider m_gain_slider;
     juce::Label m_pickup_label;
     juce::ComboBox m_pickup_chooser;
-    juce::Label m_manual_label;
-    juce::Slider m_manual_gain_slider;
-    juce::TextButton m_manual_apply_button;
-    juce::Label m_status;
-    DisclosureButton m_measure_disclosure{"Device not listed? Calibrate by playing"};
     juce::TextButton m_calibrate_button;
+    juce::Label m_message;
+    AudioLevelMeter m_input_meter;
+    juce::TextButton m_apply_button;
     juce::TextButton m_cancel_button;
 
     // A single application-wide tooltip window (created on first use, shared across all windows)
-    // renders the help buttons' hover text. Using SharedResourcePointer instead of a
-    // per-window instance is JUCE's documented fix for the duplicate-tooltip artifact: two live
-    // TooltipWindow instances each register a global mouse listener and can paint overlaid tips.
-    // Default (desktop) parent gives the native soft-corner drop-shadow window.
+    // renders the hover text. Using SharedResourcePointer instead of a per-window instance is
+    // JUCE's documented fix for the duplicate-tooltip artifact: two live TooltipWindow instances
+    // each register a global mouse listener and can paint overlaid tips. Default (desktop) parent
+    // gives the native soft-corner drop-shadow window.
     juce::SharedResourcePointer<juce::TooltipWindow> m_tooltip_window;
 };
 

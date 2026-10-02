@@ -752,6 +752,12 @@ public:
         input_calibration_close_count += 1;
     }
 
+    /*! \brief Counts stopped calibration measurements. */
+    void onInputCalibrationMeasurementStopped() override
+    {
+        input_calibration_stop_count += 1;
+    }
+
     /*!
     \brief Records output gain preview intents emitted by the signal-chain panel.
     \param gain_db Output gain preview selected by the view.
@@ -1265,6 +1271,9 @@ public:
 
     /*! \brief Number of input calibration close intents received. */
     int input_calibration_close_count{0};
+
+    /*! \brief Number of calibration measurement stop intents received. */
+    int input_calibration_stop_count{0};
 
     /*! \brief Number of output gain change intents received. */
     int output_gain_change_count{0};
