@@ -109,6 +109,64 @@ void configureManualInputGainSlider(juce::Slider& slider)
         juce::String{common::audio::inputLevelReferenceDbu(), 0} + ".");
 }
 
+// A disclosure header: a chevron and a line of text, no fill, that opens the section under it. The
+// toggle state is the open state, so the button is the one authority for it.
+class DisclosureButton final : public juce::Button
+{
+public:
+    explicit DisclosureButton(const juce::String& header_text)
+        : juce::Button(header_text)
+    {
+        setClickingTogglesState(true);
+        setWantsKeyboardFocus(false);
+        setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    }
+
+    void paintButton(juce::Graphics& g, bool is_over, bool is_down) override
+    {
+        const EditorTheme& theme = editorTheme();
+        juce::Colour ink = theme.primary_text;
+        if (!isEnabled())
+        {
+            ink = theme.muted_text;
+        }
+        else if (is_over || is_down)
+        {
+            ink = theme.accent;
+        }
+        g.setColour(ink);
+
+        // The chevron points at the text while closed and down at the opened section.
+        constexpr float chevron_size{8.0F};
+        constexpr int chevron_column{16};
+        auto bounds = getLocalBounds();
+        const juce::Rectangle<float> chevron =
+            bounds.removeFromLeft(chevron_column)
+                .toFloat()
+                .withSizeKeepingCentre(chevron_size, chevron_size);
+        juce::Path triangle;
+        if (getToggleState())
+        {
+            triangle.addTriangle(
+                chevron.getTopLeft(),
+                chevron.getTopRight(),
+                {chevron.getCentreX(), chevron.getBottom()});
+        }
+        else
+        {
+            triangle.addTriangle(
+                chevron.getTopLeft(),
+                chevron.getBottomLeft(),
+                {chevron.getRight(), chevron.getCentreY()});
+        }
+        g.fillPath(triangle);
+
+        // A Label's default height, so the header reads as the same text as the rows above it.
+        g.setFont(juce::Font{juce::FontOptions{15.0F}});
+        g.drawText(getButtonText(), bounds, juce::Justification::centredLeft, true);
+    }
+};
+
 } // namespace
 
 // Self-contained calibration prompt that samples raw input and reports the result to controller.
@@ -163,7 +221,7 @@ public:
         m_pickup_label.setComponentID("input_calibration_pickup_label");
         m_pickup_label.setText("Pickup:", juce::dontSendNotification);
         m_pickup_label.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(m_pickup_label);
+        addChildComponent(m_pickup_label);
 
         // The items are common::audio::pickupClasses() in order, so an item's index is its class.
         m_pickup_chooser.setComponentID("input_calibration_pickup");
@@ -182,7 +240,7 @@ public:
                     classes[static_cast<std::size_t>(chosen_index)]);
             }
         };
-        addAndMakeVisible(m_pickup_chooser);
+        addChildComponent(m_pickup_chooser);
 
         m_input_meter.setComponentID("input_calibration_meter");
         addAndMakeVisible(m_input_meter);
@@ -214,19 +272,25 @@ public:
         m_status.setMinimumHorizontalScale(1.0f);
         addAndMakeVisible(m_status);
 
+        // Measuring is the fallback for an interface the list lacks, so it waits behind a header
+        // and the window opens on the two direct routes.
+        m_measure_disclosure.setComponentID("input_calibration_measure_disclosure");
+        m_measure_disclosure.onClick = [this] { syncMeasureDisclosure(); };
+        addAndMakeVisible(m_measure_disclosure);
+
         m_calibrate_button.setComponentID("input_calibration_start_button");
-        m_calibrate_button.setButtonText("Measure by playing");
+        m_calibrate_button.setButtonText("Start measuring");
         m_calibrate_button.onClick = [this] {
             m_calibration_controller.onMeasurementStartRequested();
         };
-        addAndMakeVisible(m_calibrate_button);
+        addChildComponent(m_calibrate_button);
 
         m_cancel_button.setComponentID("input_calibration_cancel_button");
         m_cancel_button.setButtonText("Later");
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
-        setSize(g_input_calibration_preferred_width, preferredHeight());
+        syncMeasureDisclosure();
         m_calibration_controller.attachView(*this);
         startTimerHz(common::audio::inputCalibrationSampleRateHz());
     }
@@ -244,7 +308,20 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced(g_input_calibration_content_margin);
+        layOut(getLocalBounds());
+    }
+
+    void requestDismissal()
+    {
+        m_calibration_controller.onDismissRequested();
+    }
+
+private:
+    // Lays the rows out top-down in bounds and returns the height they take, so the window's size
+    // comes from the one layout rather than a second sum of it.
+    int layOut(juce::Rectangle<int> bounds)
+    {
+        auto area = bounds.reduced(g_input_calibration_content_margin);
         auto interface_row = area.removeFromTop(g_row_height);
         m_interface_label.setBounds(interface_row.removeFromLeft(g_label_width));
         m_help_button.setBounds(interface_row.removeFromRight(g_row_height).reduced(2));
@@ -260,31 +337,33 @@ public:
         m_status.setBounds(area.removeFromTop(g_status_height));
         area.removeFromTop(g_status_to_meter_gap);
         m_input_meter.setBounds(area.removeFromTop(g_meter_height));
-        auto buttons = area.removeFromBottom(g_row_height);
+        area.removeFromTop(g_gap);
+        m_measure_disclosure.setBounds(area.removeFromTop(g_row_height));
+        if (m_measure_disclosure.getToggleState())
+        {
+            area.removeFromTop(g_gap);
+            auto pickup_row = area.removeFromTop(g_row_height);
+            m_pickup_label.setBounds(pickup_row.removeFromLeft(g_label_width));
+            m_pickup_chooser.setBounds(pickup_row.removeFromLeft(160));
+        }
+        area.removeFromTop(g_gap);
+        auto buttons = area.removeFromTop(g_row_height);
         m_calibrate_button.setBounds(buttons.removeFromLeft(150));
         m_cancel_button.setBounds(buttons.removeFromRight(96));
-        area.removeFromBottom(g_gap);
-        auto pickup_row = area.removeFromBottom(g_row_height);
-        m_pickup_label.setBounds(pickup_row.removeFromLeft(g_label_width));
-        m_pickup_chooser.setBounds(pickup_row.removeFromLeft(160));
+        return area.getY() - bounds.getY() + g_input_calibration_content_margin;
     }
 
-    void requestDismissal()
+    // Shows or hides the measuring section to match its header, and fits the window to it.
+    void syncMeasureDisclosure()
     {
-        m_calibration_controller.onDismissRequested();
-    }
-
-private:
-    [[nodiscard]] static int preferredHeight()
-    {
-        return (g_input_calibration_content_margin * 2) + g_row_height + g_gap + g_row_height +
-               g_gap + g_status_height + g_status_to_meter_gap + g_meter_height + g_gap +
-               g_row_height + g_gap + g_row_height;
-    }
-
-    void syncPreferredSize()
-    {
-        setSize(g_input_calibration_preferred_width, preferredHeight());
+        const bool open = m_measure_disclosure.getToggleState();
+        m_pickup_label.setVisible(open);
+        m_pickup_chooser.setVisible(open);
+        m_calibrate_button.setVisible(open);
+        constexpr int unbounded_height{1 << 15};
+        setSize(
+            g_input_calibration_preferred_width,
+            layOut({g_input_calibration_preferred_width, unbounded_height}));
     }
 
     // Renders the pushed state; the controller owns every enablement flag.
@@ -305,7 +384,6 @@ private:
         m_manual_gain_slider.setEnabled(!state.measuring);
         m_manual_apply_button.setEnabled(!state.measuring);
         m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
-        syncPreferredSize();
     }
 
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
@@ -360,6 +438,7 @@ private:
     juce::Slider m_manual_gain_slider;
     juce::TextButton m_manual_apply_button;
     juce::Label m_status;
+    DisclosureButton m_measure_disclosure{"Not listed? Measure by playing"};
     juce::TextButton m_calibrate_button;
     juce::TextButton m_cancel_button;
 

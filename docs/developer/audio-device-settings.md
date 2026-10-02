@@ -113,7 +113,9 @@ selected_interface`, never persisted). Choosing one fills the gain slider throug
 quantizer, and the status says `<basis sentence> Set the interface to <unity_input>, then click
 Apply.` A gain changed by hand, or a measurement, clears the choice. Every gain the popup prints
 goes through `signedGainText` (`editor/core` `input_calibration/input_calibration_text.h`), the
-slider's text box included.
+slider's text box included. The measurement is the fallback, so the popup keeps it closed behind a
+**Not listed? Measure by playing** header; the header's toggle state is view-only, and opening it
+shows the Pickup chooser and **Start measuring**.
 
 # The game's first-run setup
 

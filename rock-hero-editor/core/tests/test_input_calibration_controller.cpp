@@ -136,8 +136,7 @@ TEST_CASE(
 
     CHECK(
         view.lastState().status_message ==
-        "Live input stays off until you calibrate. Choose your interface, or click Measure by "
-        "playing.");
+        "Live input stays off until you calibrate. Choose your interface, or measure by playing.");
     CHECK(view.lastState().input_gain_db == Catch::Approx(common::audio::defaultGainDb()));
     CHECK(view.lastState().dismiss_button_text == "Later");
 }

@@ -36,7 +36,7 @@ namespace
 {
     return calibrated ? "Calibrated. Choose an interface or change the gain to recalibrate."
                       : "Live input stays off until you calibrate. Choose your interface, or "
-                        "click Measure by playing.";
+                        "measure by playing.";
 }
 
 // Status text after the gain is changed by hand: the one thing left to do.

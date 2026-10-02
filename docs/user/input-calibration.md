@@ -17,7 +17,8 @@ restarts; the Calibrate button under the input meter opens it again at any time.
    and the window says how far to trust the figure and how to set the interface up for it: set the
    interface exactly that way, then click **Apply**.
 3. If your interface is not listed, either type its gain on the **Gain** slider and click
-   **Apply** (see the formula below), or click **Measure by playing**.
+   **Apply** (see the formula below), or open **Not listed? Measure by playing** to measure it
+   (see **Automatic Calibration** below).
 
 # Recommended Method
 
@@ -62,11 +63,11 @@ Sources for the reference:
 ## Automatic Calibration
 
 1. Select the correct input device and input channel in the audio settings.
-2. Open input calibration and set **Pickup** to the pickups you will play (see **Pickup Types**
-   below).
+2. Open input calibration, click **Not listed? Measure by playing**, and set **Pickup** to the
+   pickups you will play (see **Pickup Types** below).
 3. Plug the guitar straight into the interface's instrument (Hi-Z) input, set to 1 MOhm where it
    has a choice, with no pedals in between. Turn the guitar's volume and tone all the way up and
-   select one pickup, then click **Measure by playing**.
+   select one pickup, then click **Start measuring**.
 4. Play as hard as you play in a song, on all strings, until the countdown ends.
 5. Retry if the input clips or nothing is heard.
 
