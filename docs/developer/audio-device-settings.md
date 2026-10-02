@@ -179,16 +179,15 @@ The meter previews the shown gain, and shows the raw input, as the measurement h
 runs. `InputCalibrationViewState::meter_target_db` is `inputCalibrationTargetPeakDb(pickups)`, where
 a hard strum on the chosen kind lands at the right gain, so a strum checks a typed or measured gain;
 the meter draws it as a mark with an arrow pointing down at it from a line kept above the bar
-(`AudioLevelMeter::setTargetDb` and `reserveTargetArrow`; the window sizes the meter as its bar
-plus `targetArrowHeight()`). There is no caption: the arrow says "target", and the meter's tooltip,
-`peakTargetMeaningText()`, says what it asks: the tops of hard strums, not the average and not a
-ceiling. It is empty while a measurement runs, so
-the player does not play to it. The "?" is disabled, with a tooltip saying so, when the guide is not
-installed. The editor's composition resolves the guide once (`installedInputCalibrationGuide()`)
-and passes it through `EditorView` to each window, so a test chooses whether it exists. The pickup
-chooser's tooltip is the chosen kind's `covers` text. The popup's own
-sentences come from `editor/core` `input_calibration/input_calibration_text.h`, and refusal and
-failure reasons are passed through from `common/audio` as they are.
+(`AudioLevelMeter::setTargetDb` and `reserveTargetArrow`; the window sizes the meter as its bar plus
+`targetArrowHeight()`). There is no caption: the arrow says "target", and the meter's tooltip,
+`peakTargetMeaningText()`, says what it asks: loud strums should peak around it. It is empty while a
+measurement runs, so the player does not play to it. The "?" is disabled, with a tooltip saying so,
+when the guide is not installed. The editor's composition resolves the guide once
+(`installedInputCalibrationGuide()`) and passes it through `EditorView` to each window, so a test
+chooses whether it exists. The pickup chooser's tooltip is the chosen kind's `covers` text. The
+popup's own sentences come from `editor/core` `input_calibration/input_calibration_text.h`, and
+refusal and failure reasons are passed through from `common/audio` as they are.
 
 # The game's first-run setup
 

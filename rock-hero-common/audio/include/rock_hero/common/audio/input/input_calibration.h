@@ -168,15 +168,12 @@ the meter's mark: how the strums the pickup types' peaks come from were played.
 }
 
 /*!
-\brief Returns the one sentence saying what the meter's peak target mark asks of the player: the
-tops of hard strums, not the average level and not a ceiling never to pass.
-\return Sentences ending in a period.
+\brief Returns the one sentence saying what the meter's peak target mark asks of the player.
+\return A sentence ending in a period.
 */
 [[nodiscard]] constexpr std::string_view peakTargetMeaningText() noexcept
 {
-    return "At the right gain, the tops of your hard strums reach this mark. It is not your "
-           "average "
-           "level, and an occasional strum a little past it is fine.";
+    return "Loud strums should peak around this mark.";
 }
 
 /*!
