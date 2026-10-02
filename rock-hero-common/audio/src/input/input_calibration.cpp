@@ -127,9 +127,7 @@ std::size_t InputCalibrationAccumulator::percentileIndex(
     return static_cast<std::size_t>(clamped_index);
 }
 
-// Every window must hold a sample, or a stage would end before it began.
-static_assert(inputCalibrationSettleSampleCount() > 0);
-static_assert(inputCalibrationWaitSampleCount() > 0);
+// The listen must hold a sample, or it would end before it began.
 static_assert(inputCalibrationListenSampleCount() > 0);
 
 InputCalibrationCapture::InputCalibrationCapture(double target_peak_db) noexcept
@@ -139,42 +137,29 @@ InputCalibrationCapture::InputCalibrationCapture(double target_peak_db) noexcept
 // Advances the deterministic capture state machine by one raw meter sample.
 InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
 {
-    switch (m_stage)
+    if (m_listening)
     {
-        case InputCalibrationStage::Settling:
-        {
-            if (--m_settle_samples_remaining == 0)
-            {
-                m_stage = InputCalibrationStage::WaitingForInput;
-            }
-            return progress();
-        }
-        case InputCalibrationStage::WaitingForInput:
-        {
-            if (level.clipping || level.peak_db >= clippingAudioMeterDb())
-            {
-                return inputCalibrationError(InputCalibrationErrorCode::InputClipped);
-            }
-
-            // The first window the player is heard ends the wait and is the first one listened to.
-            if (level.peak_db >= minimumInputCalibrationSignalDb())
-            {
-                m_stage = InputCalibrationStage::Measuring;
-                return pushListenSample(level);
-            }
-
-            if (--m_wait_samples_remaining == 0)
-            {
-                return inputCalibrationError(InputCalibrationErrorCode::NoUsableSignal);
-            }
-            return progress();
-        }
-        case InputCalibrationStage::Measuring:
-        {
-            return pushListenSample(level);
-        }
+        return pushListenSample(level);
     }
 
+    // The settle span is part of the wait: its windows neither start the listen nor clip it.
+    if (m_settle_samples_remaining > 0)
+    {
+        --m_settle_samples_remaining;
+        return progress();
+    }
+
+    if (level.clipping || level.peak_db >= clippingAudioMeterDb())
+    {
+        return inputCalibrationError(InputCalibrationErrorCode::InputClipped);
+    }
+
+    // The first window the player is heard ends the wait and is the first one listened to.
+    if (level.peak_db >= minimumInputCalibrationSignalDb())
+    {
+        m_listening = true;
+        return pushListenSample(level);
+    }
     return progress();
 }
 
@@ -195,26 +180,14 @@ InputCalibrationStep InputCalibrationCapture::pushListenSample(AudioMeterLevel l
     return *result;
 }
 
-// Reports the current stage with the windows it still needs.
-InputCalibrationStageProgress InputCalibrationCapture::progress() const noexcept
+// Reports the current stage, with the windows the listen still needs once it has begun.
+InputCalibrationRunning InputCalibrationCapture::progress() const noexcept
 {
-    switch (m_stage)
+    if (m_listening)
     {
-        case InputCalibrationStage::Settling:
-        {
-            return {.stage = m_stage, .windows_remaining = m_settle_samples_remaining};
-        }
-        case InputCalibrationStage::WaitingForInput:
-        {
-            return {.stage = m_stage, .windows_remaining = m_wait_samples_remaining};
-        }
-        case InputCalibrationStage::Measuring:
-        {
-            return {.stage = m_stage, .windows_remaining = m_listen_samples_remaining};
-        }
+        return InputCalibrationListening{.windows_remaining = m_listen_samples_remaining};
     }
-
-    return {.stage = m_stage, .windows_remaining = 0};
+    return InputCalibrationWaiting{};
 }
 
 // Sets the gain that puts the playing's ceiling on the target peak.

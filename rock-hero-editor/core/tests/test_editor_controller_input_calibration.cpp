@@ -41,7 +41,6 @@ template <typename LiveInput>
 {
     live_input.raw_input_meter_level = common::audio::AudioMeterLevel{.peak_db = peak_db};
     constexpr std::size_t longest_measurement = common::audio::inputCalibrationSettleSampleCount() +
-                                                common::audio::inputCalibrationWaitSampleCount() +
                                                 common::audio::inputCalibrationListenSampleCount();
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
@@ -50,8 +49,7 @@ template <typename LiveInput>
         {
             return common::audio::InputCalibrationFailed{"The measurement was not running."};
         }
-        if (!std::holds_alternative<common::audio::InputCalibrationStageProgress>(
-                *reading.measurement))
+        if (!std::holds_alternative<common::audio::InputCalibrationRunning>(*reading.measurement))
         {
             return *reading.measurement;
         }

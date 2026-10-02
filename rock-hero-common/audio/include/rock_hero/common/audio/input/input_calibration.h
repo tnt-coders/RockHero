@@ -277,21 +277,13 @@ private:
 }
 
 /*!
-\brief Returns the samples discarded first, so gain resets and meter windows settle.
+\brief Returns the samples a capture ignores first, so a meter window that began before the
+measurement cannot start or end it.
 \return Half a second of samples.
 */
 [[nodiscard]] constexpr std::size_t inputCalibrationSettleSampleCount() noexcept
 {
     return static_cast<std::size_t>(inputCalibrationSampleRateHz()) / 2;
-}
-
-/*!
-\brief Returns how many quiet samples a measurement waits for the player to start.
-\return Ten seconds of samples.
-*/
-[[nodiscard]] constexpr std::size_t inputCalibrationWaitSampleCount() noexcept
-{
-    return static_cast<std::size_t>(inputCalibrationSampleRateHz()) * 10;
 }
 
 /*!
@@ -303,52 +295,54 @@ private:
     return static_cast<std::size_t>(inputCalibrationSampleRateHz()) * 10;
 }
 
-/*! \brief Stage of a running calibration capture. */
-enum class InputCalibrationStage : std::uint8_t
+/*!
+\brief A capture waiting for the player to start. It waits as long as it takes: the driver ends a
+measurement nobody plays.
+*/
+struct InputCalibrationWaiting
 {
-    /*! \brief Samples taken right after the route reset are being discarded. */
-    Settling,
-
-    /*! \brief The capture is waiting for the player to start playing. */
-    WaitingForInput,
-
-    /*! \brief The capture is listening to the player's hardest playing. */
-    Measuring,
+    /*!
+    \brief Compares two waiting reports, which are always equal.
+    \param lhs Left-hand report.
+    \param rhs Right-hand report.
+    \return True.
+    */
+    friend bool operator==(const InputCalibrationWaiting& lhs, const InputCalibrationWaiting& rhs) =
+        default;
 };
 
-/*! \brief Where a running measurement is, and how many meter windows its stage has left. */
-struct InputCalibrationStageProgress
+/*! \brief A capture listening to the player's hardest playing. */
+struct InputCalibrationListening
 {
-    /*! \brief The stage the capture is at. */
-    InputCalibrationStage stage;
-
-    /*! \brief Meter windows the stage still needs after the sample that reported it. */
+    /*! \brief Meter windows the listen still needs after the sample that reported it. */
     std::size_t windows_remaining;
 
     /*!
-    \brief Compares two progress reports field by field.
-    \param lhs Left-hand progress.
-    \param rhs Right-hand progress.
-    \return True when both report the same stage and the same windows left.
+    \brief Compares two listening reports by the windows they have left.
+    \param lhs Left-hand report.
+    \param rhs Right-hand report.
+    \return True when both have the same windows left.
     */
     friend bool operator==(
-        const InputCalibrationStageProgress& lhs,
-        const InputCalibrationStageProgress& rhs) = default;
+        const InputCalibrationListening& lhs, const InputCalibrationListening& rhs) = default;
 };
+
+/*! \brief Where a running capture is: waiting for the first strum, or listening. */
+using InputCalibrationRunning = std::variant<InputCalibrationWaiting, InputCalibrationListening>;
 
 /*!
 \brief Outcome of one capture sample: still running at a stage, finished with a result, or failed.
 */
 using InputCalibrationStep =
-    std::variant<InputCalibrationStageProgress, InputCalibrationResult, InputCalibrationError>;
+    std::variant<InputCalibrationRunning, InputCalibrationResult, InputCalibrationError>;
 
 /*!
 \brief Deterministic state machine for one automatic input calibration capture.
 
-The player plays as hard as they will play in a song. The capture discards a settle window, waits
-for the first window above the listening threshold, then listens for a fixed span from it and sets
-the gain so the playing's ceiling lands on the target it was given. A capture starts at its settle
-window on construction and is discarded once a sample returns a result or an error.
+The player plays as hard as they will play in a song. The capture waits, with no limit, for the
+first window above the listening threshold (ignoring a short settle span first), then listens for a
+fixed span from it and sets the gain so the playing's ceiling lands on the target it was given. A
+capture is discarded once a sample returns a result or an error.
 */
 class InputCalibrationCapture final
 {
@@ -369,13 +363,12 @@ public:
 
 private:
     [[nodiscard]] InputCalibrationStep pushListenSample(AudioMeterLevel level);
-    [[nodiscard]] InputCalibrationStageProgress progress() const noexcept;
+    [[nodiscard]] InputCalibrationRunning progress() const noexcept;
 
     InputCalibrationAccumulator m_accumulator;
     std::size_t m_settle_samples_remaining{inputCalibrationSettleSampleCount()};
-    std::size_t m_wait_samples_remaining{inputCalibrationWaitSampleCount()};
     std::size_t m_listen_samples_remaining{inputCalibrationListenSampleCount()};
-    InputCalibrationStage m_stage{InputCalibrationStage::Settling};
+    bool m_listening{false};
     double m_target_peak_db;
 };
 

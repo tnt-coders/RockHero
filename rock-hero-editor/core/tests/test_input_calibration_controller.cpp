@@ -231,8 +231,7 @@ TEST_CASE("Input calibration controller follows a running measurement", "[core][
 
     controller.onMeasurementStartRequested();
     host.sample = sampleWith(
-        common::audio::InputCalibrationStageProgress{
-            .stage = common::audio::InputCalibrationStage::Measuring,
+        common::audio::InputCalibrationListening{
             .windows_remaining = common::audio::inputCalibrationListenSampleCount() - 1,
         });
     controller.onSampleTick();
@@ -253,10 +252,7 @@ TEST_CASE("Input calibration controller counts down whole seconds", "[core][inpu
 
     const auto status_at = [&host, &controller, &view](std::size_t windows_remaining) {
         host.sample = sampleWith(
-            common::audio::InputCalibrationStageProgress{
-                .stage = common::audio::InputCalibrationStage::Measuring,
-                .windows_remaining = windows_remaining,
-            });
+            common::audio::InputCalibrationListening{.windows_remaining = windows_remaining});
         controller.onSampleTick();
         return view.lastState().status_message;
     };

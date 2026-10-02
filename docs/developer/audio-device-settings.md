@@ -78,14 +78,16 @@ input-device selection, since a missing property reads as absence rather than an
 
 Both products run the strum measurement the same way: `LiveInputMonitor::beginMeasurement`, then
 `sample()` once per tick at `inputCalibrationSampleRateHz()`. Each sample returns the raw level and,
-while a measurement runs, an `InputCalibrationProgress`: a stage with the windows it has left (the
-editor's countdown reads them, never a count of its own), a measured gain, or a failure. A
+while a measurement runs, an `InputCalibrationProgress`: still running, either waiting for the first
+strum (`InputCalibrationWaiting`, with no count: the wait has no limit, and the driver ends a
+measurement nobody plays) or listening with the windows it has left (`InputCalibrationListening`;
+the editor's countdown reads them, never a count of its own); a measured gain; or a failure. A
 measurement only reports its gain (`InputCalibrationMeasured`) and hands the route back to the
 gate; storing it is the driver's decision, through the one store path `commitCalibration`: the
 editor's window on Apply, the game's setup at once. The measurement listens to the player's hardest
-playing for a fixed span from the first window it hears and sets the gain so the playing's ceiling, a high percentile of the window peaks, lands on
-`inputCalibrationTargetPeakDb(pickups)`: where a hard strum on the stated `PickupClass` lands,
-from the authored `hardStrumPeakVolts()` (one value per type, its evidence beside it;
+playing for a fixed span from the first window it hears and sets the gain so the playing's
+ceiling, a high percentile of the window peaks, lands on `inputCalibrationTargetPeakDb(pickups)`:
+where a hard strum on the stated `PickupClass` lands, from the authored `hardStrumPeakVolts()` (one value per type, its evidence beside it;
 `docs/tracking/2026-10-01-hard-strum-peak-research.md`) and the one reference,
 `inputLevelReferenceDbu()` (`input/input_calibration.h`). `LiveInputMonitor::beginMeasurement`
 takes the pickups and keeps them with the measurement, and each finished measurement logs
@@ -112,16 +114,16 @@ Devices table is generated from the rows by `rock_hero_known_interfaces_doc`
 (`common/audio` `tools/known_interfaces_doc_main.cpp`), which the docs targets build and run before
 Doxygen includes its output.
 
-The editor's calibration popup offers the table as its primary path: an **Audio device** chooser over
-the rows in table order, its "?" opening that generated table, the row index being the contract (`InputCalibrationViewState::
-selected_interface`, never persisted). Choosing one fills the gain slider through the same
+The editor's calibration popup offers the table as its primary path: an **Audio device** chooser
+over the rows in table order, its "?" opening that generated table, the row index being the
+contract (`InputCalibrationViewState::selected_interface`, never persisted). Choosing one fills the gain slider through the same
 quantizer, and the status says `<basis sentence> Set the audio device to <unity_input>, then click
 Apply.` A gain changed by hand, or a measurement, clears the choice. Every gain the popup prints
 goes through `signedGainText` (`editor/core` `input_calibration/input_calibration_text.h`), the
 slider's text box included. The measurement is the fallback, so the popup keeps it closed behind a
 **Device not listed? Calibrate by playing** header. The open state is the controller's
 (`InputCalibrationViewState::measurement_section_open`), because the status follows it: opening
-shows the setup before Start, since the capture then waits only ten seconds for the first strum.
+shows the setup before Start.
 The section holds the **Pickup type** chooser, whose "?" opens the guide's Pickup Types table,
 and **Start Calibration**.
 

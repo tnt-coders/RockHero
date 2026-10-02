@@ -70,9 +70,8 @@ struct Harness
 [[nodiscard]] InputCalibrationProgress runMeasurement(Harness& harness, double peak_db)
 {
     harness.live_input.raw_input_meter_level = AudioMeterLevel{.peak_db = peak_db};
-    constexpr std::size_t longest_measurement = inputCalibrationSettleSampleCount() +
-                                                inputCalibrationWaitSampleCount() +
-                                                inputCalibrationListenSampleCount();
+    constexpr std::size_t longest_measurement =
+        inputCalibrationSettleSampleCount() + inputCalibrationListenSampleCount();
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         const LiveInputSample reading = harness.monitor.sample(g_ready);
@@ -80,7 +79,7 @@ struct Harness
         {
             return InputCalibrationFailed{"The measurement was not running."};
         }
-        if (!std::holds_alternative<InputCalibrationStageProgress>(*reading.measurement))
+        if (!std::holds_alternative<InputCalibrationRunning>(*reading.measurement))
         {
             return *reading.measurement;
         }
@@ -289,7 +288,7 @@ TEST_CASE("LiveInputMonitor measures against the stated pickups", "[audio][live-
     CHECK(measured->pickups == PickupClass::SingleCoil);
 }
 
-// A measurement that hears nothing usable fails and hands the route back to the stored
+// A measurement that fails (here, on a clipped input) hands the route back to the stored
 // calibration.
 TEST_CASE("LiveInputMonitor hands the route back after a failed measurement", "[audio][live-input]")
 {
@@ -297,7 +296,7 @@ TEST_CASE("LiveInputMonitor hands the route back after a failed measurement", "[
     harness.monitor.refresh(g_ready);
     REQUIRE(harness.monitor.beginMeasurement(PickupClass::Humbucker, g_ready).has_value());
 
-    const InputCalibrationProgress progress = runMeasurement(harness, minimumAudioMeterDb());
+    const InputCalibrationProgress progress = runMeasurement(harness, clippingAudioMeterDb());
 
     CHECK(std::holds_alternative<InputCalibrationFailed>(progress));
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);

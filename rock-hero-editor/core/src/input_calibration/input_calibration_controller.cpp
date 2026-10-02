@@ -53,8 +53,8 @@ namespace
            " Set the audio device to " + std::string{row.unity_input} + ", then click Apply.";
 }
 
-// Status text while the measuring section is open: the setup, read before Start because the capture
-// then waits only ten seconds for the first strum. Pedals lead, as the costliest mistake.
+// Status text while the measuring section is open: the setup, read before Start. Pedals lead, as
+// the costliest mistake.
 [[nodiscard]] std::string inputCalibrationSetupText()
 {
     return "No pedals. Volume and tone all the way up, one pickup selected, then click Start "
@@ -235,11 +235,11 @@ void InputCalibrationController::onSampleTick()
     }
 
     const common::audio::InputCalibrationProgress& progress = *sample.measurement;
-    if (const auto* const stage =
-            std::get_if<common::audio::InputCalibrationStageProgress>(&progress))
+    if (const auto* const stage = std::get_if<common::audio::InputCalibrationRunning>(&progress))
     {
-        m_state.status_message = stage->stage == common::audio::InputCalibrationStage::Measuring
-                                     ? inputCalibrationMeasuringText(stage->windows_remaining)
+        const auto* const listening = std::get_if<common::audio::InputCalibrationListening>(stage);
+        m_state.status_message = listening != nullptr
+                                     ? inputCalibrationMeasuringText(listening->windows_remaining)
                                      : inputCalibrationWaitingText();
         publishState();
         return;

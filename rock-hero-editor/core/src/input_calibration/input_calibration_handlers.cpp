@@ -86,7 +86,7 @@ common::audio::LiveInputSample EditorController::Impl::onInputCalibrationSampled
 {
     common::audio::LiveInputSample sample = m_live_input_monitor.sample(monitoringContext());
     if (sample.measurement.has_value() &&
-        !std::holds_alternative<common::audio::InputCalibrationStageProgress>(*sample.measurement))
+        !std::holds_alternative<common::audio::InputCalibrationRunning>(*sample.measurement))
     {
         updateView();
     }

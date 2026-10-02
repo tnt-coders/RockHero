@@ -78,10 +78,10 @@ Sources for the reference:
    select one pickup, then click **Start Calibration**.
 4. Play as hard as you play in a song, on all strings, until the countdown ends. The measured
    gain fills in; click **Apply** to save it.
-5. Retry if the input clips or nothing is heard.
+5. Retry if the input clips. If nothing is heard, check the input and cancel.
 
-Rock Hero waits up to ten seconds for you to start, then listens for ten seconds from your first
-strum and sets the gain from the loudest of your playing, ignoring a single stray spike.
+Rock Hero waits for you to start, however long that takes, then listens for ten seconds from your
+first strum and sets the gain from the loudest of your playing, ignoring a single stray spike.
 
 ## Pickup Types {#pickup-types}
 

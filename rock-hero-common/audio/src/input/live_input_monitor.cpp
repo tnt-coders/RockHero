@@ -175,7 +175,7 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
     }
 
     InputCalibrationStep step = m_measurement->capture.pushSample(raw_level);
-    if (const auto* const progress = std::get_if<InputCalibrationStageProgress>(&step))
+    if (const auto* const progress = std::get_if<InputCalibrationRunning>(&step))
     {
         return LiveInputSample{.raw_level = raw_level, .measurement = *progress};
     }

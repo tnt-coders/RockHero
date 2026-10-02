@@ -27,28 +27,31 @@ void pushSteadySamples(InputCalibrationAccumulator& accumulator, double peak_db)
     }
 }
 
-// Reports whether a capture step is still running, at the given stage with the given windows left.
-[[nodiscard]] bool atProgress(
-    const InputCalibrationStep& step, InputCalibrationStage stage, std::size_t windows_remaining)
+// Reports whether a capture step is still waiting for the first strum.
+[[nodiscard]] bool isWaiting(const InputCalibrationStep& step)
 {
-    const auto* const progress = std::get_if<InputCalibrationStageProgress>(&step);
-    return progress != nullptr && *progress == InputCalibrationStageProgress{
-                                                   .stage = stage,
-                                                   .windows_remaining = windows_remaining,
-                                               };
+    const auto* const progress = std::get_if<InputCalibrationRunning>(&step);
+    return progress != nullptr && std::holds_alternative<InputCalibrationWaiting>(*progress);
 }
 
-// Feeds the settle window, during which the capture ignores what it hears, and returns the step
-// the last settle sample produced.
-[[nodiscard]] InputCalibrationStep settle(InputCalibrationCapture& capture)
+// Reports whether a capture step is listening with the given windows left.
+[[nodiscard]] bool isListening(const InputCalibrationStep& step, std::size_t windows_remaining)
 {
-    InputCalibrationStep step{InputCalibrationStageProgress{
-        .stage = InputCalibrationStage::Settling,
-        .windows_remaining = inputCalibrationSettleSampleCount(),
-    }};
+    const auto* const progress = std::get_if<InputCalibrationRunning>(&step);
+    return progress != nullptr &&
+           *progress == InputCalibrationRunning{
+                            InputCalibrationListening{.windows_remaining = windows_remaining}
+                        };
+}
+
+// Feeds the settle span, which the capture ignores whatever it hears, and returns the step the last
+// settle sample produced.
+[[nodiscard]] InputCalibrationStep settle(InputCalibrationCapture& capture, AudioMeterLevel level)
+{
+    InputCalibrationStep step{InputCalibrationRunning{InputCalibrationWaiting{}}};
     for (std::size_t sample = 0; sample < inputCalibrationSettleSampleCount(); ++sample)
     {
-        step = capture.pushSample(AudioMeterLevel{.peak_db = -24.0});
+        step = capture.pushSample(level);
     }
     return step;
 }
@@ -210,36 +213,49 @@ TEST_CASE("Input calibration rejects clipped input", "[audio][input-calibration]
     CHECK(result.error().code == InputCalibrationErrorCode::InputClipped);
 }
 
-// Each stage reports the windows it has left, so a driver can count down without a counter of
-// its own.
-TEST_CASE("Input capture reports the windows each stage has left", "[audio][input-calibration]")
+// The settle span is part of the wait: what it hears, even playing or a clip, neither starts the
+// listen nor fails the capture.
+TEST_CASE("Input capture ignores its settle span", "[audio][input-calibration]")
 {
     InputCalibrationCapture capture{g_single_coil_target};
-    CHECK(atProgress(
-        capture.pushSample(AudioMeterLevel{.peak_db = -24.0}),
-        InputCalibrationStage::Settling,
-        inputCalibrationSettleSampleCount() - 1));
+    CHECK(isWaiting(settle(capture, AudioMeterLevel{.peak_db = -24.0})));
+
+    InputCalibrationCapture clipped_capture{g_single_coil_target};
+    CHECK(isWaiting(settle(clipped_capture, AudioMeterLevel{.peak_db = -3.0, .clipping = true})));
 }
 
-// The capture discards its settle window, waits for playing, then listens a fixed span counted
-// from the first window it hears.
+// The wait has no limit: a capture that hears nothing keeps waiting, with no count, until its
+// driver ends it.
+TEST_CASE("Input capture waits as long as it takes", "[audio][input-calibration]")
+{
+    InputCalibrationCapture capture{g_single_coil_target};
+    InputCalibrationStep step = settle(capture, AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    // A minute of silence, six times the wait the capture used to give up after.
+    for (std::size_t sample = 0;
+         sample < static_cast<std::size_t>(inputCalibrationSampleRateHz()) * 60;
+         ++sample)
+    {
+        step = capture.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    }
+    CHECK(isWaiting(step));
+}
+
+// The capture waits for playing, then listens a fixed span counted from the first window it
+// hears, reporting the windows it has left so a driver can count down without a counter of its
+// own.
 TEST_CASE("Input capture listens a fixed span from the first strum", "[audio][input-calibration]")
 {
     InputCalibrationCapture capture{g_single_coil_target};
-    REQUIRE(atProgress(
-        settle(capture),
-        InputCalibrationStage::WaitingForInput,
-        inputCalibrationWaitSampleCount()));
+    REQUIRE(isWaiting(settle(capture, AudioMeterLevel{.peak_db = minimumAudioMeterDb()})));
 
     // The first window heard ends the wait and is itself the first window listened to.
     InputCalibrationStep step = capture.pushSample(AudioMeterLevel{.peak_db = -24.0});
-    REQUIRE(atProgress(
-        step, InputCalibrationStage::Measuring, inputCalibrationListenSampleCount() - 1));
+    REQUIRE(isListening(step, inputCalibrationListenSampleCount() - 1));
     for (std::size_t remaining = inputCalibrationListenSampleCount() - 1; remaining > 1;
          --remaining)
     {
         step = capture.pushSample(AudioMeterLevel{.peak_db = -24.0});
-        REQUIRE(atProgress(step, InputCalibrationStage::Measuring, remaining - 1));
+        REQUIRE(isListening(step, remaining - 1));
     }
     step = capture.pushSample(AudioMeterLevel{.peak_db = -24.0});
 
@@ -248,32 +264,11 @@ TEST_CASE("Input capture listens a fixed span from the first strum", "[audio][in
     CHECK(result->calibration_gain.db == Catch::Approx(11.2));
 }
 
-// A capture that hears nothing usable times out before listening.
-TEST_CASE("Input capture times out waiting for input", "[audio][input-calibration]")
-{
-    InputCalibrationCapture capture{g_single_coil_target};
-    InputCalibrationStep step = settle(capture);
-    REQUIRE(atProgress(
-        step, InputCalibrationStage::WaitingForInput, inputCalibrationWaitSampleCount()));
-
-    for (std::size_t sample = 0; sample < inputCalibrationWaitSampleCount(); ++sample)
-    {
-        step = capture.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
-    }
-
-    const auto* const error = std::get_if<InputCalibrationError>(&step);
-    REQUIRE(error != nullptr);
-    CHECK(error->code == InputCalibrationErrorCode::NoUsableSignal);
-}
-
 // Clipped input stops the capture before it starts listening.
 TEST_CASE("Input capture rejects clipped waiting input", "[audio][input-calibration]")
 {
     InputCalibrationCapture capture{g_single_coil_target};
-    REQUIRE(atProgress(
-        settle(capture),
-        InputCalibrationStage::WaitingForInput,
-        inputCalibrationWaitSampleCount()));
+    REQUIRE(isWaiting(settle(capture, AudioMeterLevel{.peak_db = minimumAudioMeterDb()})));
 
     const InputCalibrationStep step =
         capture.pushSample(AudioMeterLevel{.peak_db = -3.0, .clipping = true});

@@ -164,13 +164,12 @@ runGainCalibration(SetupHarness& harness)
 {
     harness.live_input.raw_input_meter_level = steadyStrumLevel();
     constexpr std::size_t longest_measurement = common::audio::inputCalibrationSettleSampleCount() +
-                                                common::audio::inputCalibrationWaitSampleCount() +
                                                 common::audio::inputCalibrationListenSampleCount();
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         auto progress = harness.setup.sampleGainCalibration();
         if (!progress.has_value() ||
-            !std::holds_alternative<common::audio::InputCalibrationStageProgress>(*progress))
+            !std::holds_alternative<common::audio::InputCalibrationRunning>(*progress))
         {
             return progress;
         }
