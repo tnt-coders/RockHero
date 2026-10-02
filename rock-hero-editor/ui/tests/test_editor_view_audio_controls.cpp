@@ -133,8 +133,8 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
 }
 
-// Verifies manual gain remains adjustable after a manual calibration save.
-TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
+// Apply stores the shown gain and closes the prompt.
+TEST_CASE("Calibration Apply saves the shown gain and closes", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -154,13 +154,12 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
     auto& apply_button =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_manual_apply_button");
-    auto& status = findRequiredDescendant<juce::Label>(window, "input_calibration_status");
-
     slider.setValue(3.5, juce::sendNotificationSync);
     REQUIRE(apply_button.onClick);
     apply_button.onClick();
 
-    CHECK(controller.input_calibration_manual_set_count == 1);
+    CHECK(controller.input_calibration_apply_count == 1);
+    CHECK(controller.input_calibration_close_count == 1);
     // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
     // the rounded-zero test above).
     REQUIRE(controller.last_input_calibration_gain_db.has_value());
@@ -169,9 +168,6 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
         CHECK_THAT(
             *controller.last_input_calibration_gain_db, Catch::Matchers::WithinAbs(3.5, 1e-9));
     }
-    CHECK(slider.isEnabled());
-    CHECK(apply_button.isEnabled());
-    CHECK(status.getText() == "Saved: +3.5 dB.");
     CHECK(slider.getTextFromValue(slider.getValue()) == "+3.5 dB");
 }
 

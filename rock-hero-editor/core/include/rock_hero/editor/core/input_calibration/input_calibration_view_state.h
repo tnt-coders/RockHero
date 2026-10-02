@@ -33,9 +33,6 @@ struct InputCalibrationViewState
     */
     bool measuring{false};
 
-    /*! \brief Text shown by the popup dismissal button. */
-    std::string dismiss_button_text;
-
     /*!
     \brief The chosen row of common::audio::knownInterfaces(), or empty while none is chosen: on
     opening, after the gain is changed by hand, and during and after a measurement.
@@ -71,7 +68,6 @@ struct InputCalibrationViewState
         return lhs.input_meter_level == rhs.input_meter_level &&
                std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db) &&
                lhs.status_message == rhs.status_message && lhs.measuring == rhs.measuring &&
-               lhs.dismiss_button_text == rhs.dismiss_button_text &&
                lhs.selected_interface == rhs.selected_interface &&
                lhs.measurement_section_open == rhs.measurement_section_open &&
                lhs.pickups == rhs.pickups;

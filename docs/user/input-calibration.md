@@ -7,7 +7,7 @@ would a real amp.
 
 Live input stays off until the selected input is calibrated, so every player hears their guitar at
 the same level. The editor opens input calibration by itself the first time it sees an input
-without a calibration. **Later** closes it for that input until the input changes or the editor
+without a calibration. **Cancel** closes it for that input until the input changes or the editor
 restarts; the Calibrate button under the input meter opens it again at any time.
 
 # Calibrating
@@ -76,7 +76,8 @@ Sources for the reference:
 3. Plug the guitar straight into the interface's instrument (Hi-Z) input, set to 1 MOhm where it
    has a choice, with no pedals in between. Turn the guitar's volume and tone all the way up and
    select one pickup, then click **Start Calibration**.
-4. Play as hard as you play in a song, on all strings, until the countdown ends.
+4. Play as hard as you play in a song, on all strings, until the countdown ends. The measured
+   gain fills in; click **Apply** to save it.
 5. Retry if the input clips or nothing is heard.
 
 Rock Hero waits up to ten seconds for you to start, then listens for ten seconds from your first

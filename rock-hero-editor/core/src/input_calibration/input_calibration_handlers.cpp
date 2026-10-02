@@ -93,17 +93,18 @@ common::audio::LiveInputSample EditorController::Impl::onInputCalibrationSampled
     return sample;
 }
 
-// Stores a typed calibration gain for the current route.
+// Stores the prompt's gain for the current route, whether typed, from a known device or measured.
 std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl::
-    onInputCalibrationManuallySet(double gain_db)
+    onInputCalibrationApplied(double gain_db)
 {
-    auto committed = m_live_input_monitor.commitManualCalibration(gain_db, monitoringContext());
+    auto committed = m_live_input_monitor.commitCalibration(gain_db, monitoringContext());
     updateView();
     return committed;
 }
 
-// Closes the calibration prompt; live input stays off unless the route is calibrated.
-void EditorController::Impl::onInputCalibrationDismissed()
+// Closes the calibration prompt after Apply or Cancel; live input stays off unless the route is
+// calibrated.
+void EditorController::Impl::onInputCalibrationClosed()
 {
     m_live_input_monitor.cancelMeasurement(monitoringContext());
     m_calibration_prompt_route.reset();

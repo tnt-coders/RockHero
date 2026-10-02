@@ -270,9 +270,7 @@ public:
 
         m_manual_apply_button.setComponentID("input_calibration_manual_apply_button");
         m_manual_apply_button.setButtonText("Apply");
-        m_manual_apply_button.onClick = [this] {
-            m_calibration_controller.onManualApplyRequested();
-        };
+        m_manual_apply_button.onClick = [this] { m_calibration_controller.onApplyRequested(); };
         addAndMakeVisible(m_manual_apply_button);
 
         m_status.setComponentID("input_calibration_status");
@@ -301,7 +299,7 @@ public:
         addChildComponent(m_calibrate_button);
 
         m_cancel_button.setComponentID("input_calibration_cancel_button");
-        m_cancel_button.setButtonText("Later");
+        m_cancel_button.setButtonText("Cancel");
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
@@ -328,7 +326,7 @@ public:
 
     void requestDismissal()
     {
-        m_calibration_controller.onDismissRequested();
+        m_calibration_controller.onCloseRequested();
     }
 
 private:
@@ -402,7 +400,6 @@ private:
         m_measure_disclosure.setEnabled(!state.measuring);
         m_manual_gain_slider.setEnabled(!state.measuring);
         m_manual_apply_button.setEnabled(!state.measuring);
-        m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
         showMeasurementSection(state.measurement_section_open);
     }
 
@@ -417,15 +414,15 @@ private:
         return m_editor_controller.onInputCalibrationSampled();
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    applyManualInputCalibration(double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError> applyInputCalibration(
+        double gain_db) override
     {
-        return m_editor_controller.onInputCalibrationManuallySet(gain_db);
+        return m_editor_controller.onInputCalibrationApplied(gain_db);
     }
 
-    void dismissInputCalibration() override
+    void closeInputCalibration() override
     {
-        m_editor_controller.onInputCalibrationDismissed();
+        m_editor_controller.onInputCalibrationClosed();
     }
 
     // Reports missing generated docs in the popup instead of letting a help button fail silently.

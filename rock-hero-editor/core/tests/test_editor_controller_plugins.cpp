@@ -429,9 +429,9 @@ TEST_CASE("EditorController cancel scan keeps known plugins", "[core][editor-con
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     runner.runPendingCompletions();
     controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    const auto calibrated = controller.onInputCalibrationApplied(0.0);
     REQUIRE(calibrated.has_value());
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
     controller.onPluginBrowserRequested();
 
     controller.onPluginCatalogScanRequested();
@@ -522,9 +522,9 @@ TEST_CASE("EditorController cancel scan stops the scan worker", "[core][editor-c
     runner.runWork();
     runner.runCompletions();
     controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    const auto calibrated = controller.onInputCalibrationApplied(0.0);
     REQUIRE(calibrated.has_value());
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
     controller.onPluginBrowserRequested();
 
     controller.onPluginCatalogScanRequested();

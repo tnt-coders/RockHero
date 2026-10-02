@@ -66,7 +66,8 @@ enum class NativeAudioSetupErrorCode : std::uint8_t
     StorePersistFailed,
 
     /*!
-    \brief The measurement could not begin; the applied device is intact.
+    \brief The measurement could not begin or its gain could not be stored; the applied device is
+    intact and the flow stays in CalibratingGain.
     */
     CalibrationFailed,
 };
@@ -247,11 +248,12 @@ public:
     /*!
     \brief Samples the measurement once.
 
-    A finished measurement has stored its gain in the shared store, and the flow advances to
+    A finished measurement's gain is stored in the shared store at once, and the flow advances to
     Ready. A failed one leaves the flow in CalibratingGain for another attempt.
 
     \return The measurement's progress (a failed measurement is a progress value, recoverable by
-            beginning another), or InvalidRequest when no measurement was begun.
+            beginning another), InvalidRequest when no measurement was begun, or CalibrationFailed
+            when the measured gain could not be stored.
     */
     [[nodiscard]] std::expected<common::audio::InputCalibrationProgress, NativeAudioSetupError>
     sampleGainCalibration();

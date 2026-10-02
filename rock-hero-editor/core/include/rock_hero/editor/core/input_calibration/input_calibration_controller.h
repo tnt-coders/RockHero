@@ -51,15 +51,15 @@ public:
         [[nodiscard]] virtual common::audio::LiveInputSample sampleInputCalibration() = 0;
 
         /*!
-        \brief Applies a manually selected calibration gain.
+        \brief Stores the shown calibration gain.
         \param gain_db Gain in decibels.
         \return Empty success, or a typed live-input failure.
         */
         [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-        applyManualInputCalibration(double gain_db) = 0;
+        applyInputCalibration(double gain_db) = 0;
 
-        /*! \brief Dismisses the input calibration popup, ending any measurement. */
-        virtual void dismissInputCalibration() = 0;
+        /*! \brief Closes the input calibration popup, ending any measurement. */
+        virtual void closeInputCalibration() = 0;
 
     protected:
         /*! \brief Creates the input-calibration host interface. */
@@ -144,8 +144,11 @@ public:
     */
     void onPickupsSelected(common::audio::PickupClass pickups);
 
-    /*! \brief Applies the current manual gain through the host. */
-    void onManualApplyRequested();
+    /*!
+    \brief Stores the shown gain through the host and closes the popup; a refused store keeps it
+    open with the reason.
+    */
+    void onApplyRequested();
 
     /*! \brief Starts an automatic measurement when the host can hand over the route. */
     void onMeasurementStartRequested();
@@ -160,12 +163,12 @@ public:
     /*! \brief Reports that local input calibration documentation could not be opened. */
     void onDocumentationUnavailable();
 
-    /*! \brief Emits the popup-dismissal intent through the host. */
-    void onDismissRequested();
+    /*! \brief Closes the popup through the host without storing anything. */
+    void onCloseRequested();
 
 private:
     void setDisplayedInputGain(double gain_db);
-    void finishMeasurementSuccess(double gain_db);
+    void finishMeasurementSuccess(const common::audio::InputCalibrationMeasured& measured);
     void finishMeasurementError(std::string message);
     void setRestingStatus(std::string text);
     void publishState();

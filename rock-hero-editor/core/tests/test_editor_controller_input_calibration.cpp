@@ -59,6 +59,23 @@ template <typename LiveInput>
     return common::audio::InputCalibrationFailed{"The measurement did not finish."};
 }
 
+// Runs a measurement to its end and, when it measured a gain, applies that gain as the prompt's
+// Apply would, since a measurement only reports its gain.
+template <typename LiveInput>
+[[nodiscard]] common::audio::InputCalibrationProgress measureAndApply(
+    EditorController& controller, LiveInput& live_input, double peak_db)
+{
+    common::audio::InputCalibrationProgress progress =
+        runCalibrationMeasurement(controller, live_input, peak_db);
+    if (const auto* const measured =
+            std::get_if<common::audio::InputCalibrationMeasured>(&progress))
+    {
+        const auto applied = controller.onInputCalibrationApplied(measured->gain.db);
+        REQUIRE(applied.has_value());
+    }
+    return progress;
+}
+
 } // namespace
 
 // Verifies that the no-device disabled message takes priority over missing calibration.
@@ -159,7 +176,7 @@ TEST_CASE("Missing input calibration offers the prompt once per route", "[core][
     CHECK_FALSE(offered_state->audio_device_settings_enabled);
     CHECK(transport.pause_call_count == 1);
 
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
@@ -197,7 +214,7 @@ TEST_CASE("Missing input calibration offers a new route again", "[core][editor-c
         noopExitFunction(),
     };
     controller.attachView(view);
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     audio_devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
     audio_devices.notifyChanged();
@@ -281,8 +298,8 @@ TEST_CASE(
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
     REQUIRE(
-        std::holds_alternative<common::audio::InputCalibrationCommitted>(
-            runCalibrationMeasurement(controller, transport, -19.5)));
+        std::holds_alternative<common::audio::InputCalibrationMeasured>(
+            measureAndApply(controller, transport, -19.5)));
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -338,8 +355,8 @@ TEST_CASE(
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
     REQUIRE(
-        std::holds_alternative<common::audio::InputCalibrationCommitted>(
-            runCalibrationMeasurement(controller, transport, -19.5)));
+        std::holds_alternative<common::audio::InputCalibrationMeasured>(
+            measureAndApply(controller, transport, -19.5)));
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -354,7 +371,7 @@ TEST_CASE(
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(transport.calibration_input_monitoring_enabled);
 
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
@@ -489,7 +506,7 @@ TEST_CASE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
     controller.onInputCalibrationRequested();
-    const auto calibration_set = controller.onInputCalibrationManuallySet(3.25);
+    const auto calibration_set = controller.onInputCalibrationApplied(3.25);
     REQUIRE(calibration_set.has_value());
 
     const auto* const final_state = stateOrNull(view.last_state);
@@ -541,8 +558,8 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
     controller.onInputCalibrationRequested();
-    REQUIRE(controller.onInputCalibrationManuallySet(3.25).has_value());
-    controller.onInputCalibrationDismissed();
+    REQUIRE(controller.onInputCalibrationApplied(3.25).has_value());
+    controller.onInputCalibrationClosed();
     REQUIRE(transport.live_input_monitoring_enabled);
     REQUIRE_FALSE(transport.calibration_input_monitoring_enabled);
     const auto* const enabled_state = stateOrNull(view.last_state);
@@ -1218,7 +1235,7 @@ TEST_CASE(
     CHECK(transport.calibration_input_monitoring_enabled);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -1274,7 +1291,7 @@ TEST_CASE(
         controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
 
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -1336,7 +1353,7 @@ TEST_CASE(
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
         "live input route could not be armed",
     };
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -1396,15 +1413,21 @@ TEST_CASE(
         controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
 
+    const common::audio::InputCalibrationProgress progress =
+        runCalibrationMeasurement(controller, transport, -18.0);
+    const auto* const measured = std::get_if<common::audio::InputCalibrationMeasured>(&progress);
+    REQUIRE(measured != nullptr);
+    const double measured_gain_db = measured->gain.db;
     transport.next_set_live_input_monitoring_error = common::audio::LiveInputError{
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
         "live input route could not be armed",
     };
-    REQUIRE(
-        std::holds_alternative<common::audio::InputCalibrationCommitted>(
-            runCalibrationMeasurement(controller, transport, -18.0)));
 
-    controller.onInputCalibrationDismissed();
+    // Saved is committed: refusing to arm the route is gate state, not a failed store.
+    const auto applied = controller.onInputCalibrationApplied(measured_gain_db);
+    CHECK(applied.has_value());
+
+    controller.onInputCalibrationClosed();
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -1515,7 +1538,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         }
     };
     controller.attachView(view);
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     CHECK(
@@ -1541,8 +1564,8 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
     REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
                 .has_value());
     REQUIRE(
-        std::holds_alternative<common::audio::InputCalibrationCommitted>(
-            runCalibrationMeasurement(controller, live_input, -19.5)));
+        std::holds_alternative<common::audio::InputCalibrationMeasured>(
+            measureAndApply(controller, live_input, -19.5)));
     CHECK(
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Calibrated,
@@ -1550,7 +1573,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
                                              .prompt_present = true,
                                          });
 
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
     CHECK(
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Calibrated,
@@ -1567,11 +1590,14 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         setLiveInputMonitoringCall(false),
         setInputGainCall(0.0),
         setCalibrationInputMonitoringCall(true),
-        // The measurement finishing: disable calibration audition, apply gain, enable monitoring.
+        // The measurement finishing hands the still-uncalibrated route back to the gate.
+        setCalibrationInputMonitoringCall(false),
+        setLiveInputMonitoringCall(false),
+        // Apply: the stored gain arms the route.
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(12.7),
         setLiveInputMonitoringCall(true),
-        // onInputCalibrationDismissed: no setters (commit cleared the active measurement).
+        // onInputCalibrationClosed: no setters (the measurement already ended).
     };
     CHECK(live_input.calls == golden_trace);
 }
@@ -1837,15 +1863,20 @@ TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]
     REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
                 .has_value());
 
+    const common::audio::InputCalibrationProgress progress =
+        runCalibrationMeasurement(controller, live_input, -18.0);
+    const auto* const measured = std::get_if<common::audio::InputCalibrationMeasured>(&progress);
+    REQUIRE(measured != nullptr);
+    const double measured_gain_db = measured->gain.db;
     live_input.next_set_input_gain_error = common::audio::LiveInputError{
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
         "live input route could not be armed",
     };
     live_input.calls.clear();
 
-    REQUIRE(
-        std::holds_alternative<common::audio::InputCalibrationCommitted>(
-            runCalibrationMeasurement(controller, live_input, -18.0)));
+    // Saved is committed: refusing to arm the route is gate state, not a failed store.
+    const auto applied = controller.onInputCalibrationApplied(measured_gain_db);
+    CHECK(applied.has_value());
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(11.2),
@@ -1897,15 +1928,20 @@ TEST_CASE("Live input commit reports refused monitoring", "[core][editor-control
     REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
                 .has_value());
 
+    const common::audio::InputCalibrationProgress progress =
+        runCalibrationMeasurement(controller, live_input, -18.0);
+    const auto* const measured = std::get_if<common::audio::InputCalibrationMeasured>(&progress);
+    REQUIRE(measured != nullptr);
+    const double measured_gain_db = measured->gain.db;
     live_input.next_set_live_input_monitoring_error = common::audio::LiveInputError{
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
         "live input route could not be armed",
     };
     live_input.calls.clear();
 
-    REQUIRE(
-        std::holds_alternative<common::audio::InputCalibrationCommitted>(
-            runCalibrationMeasurement(controller, live_input, -18.0)));
+    // Saved is committed: refusing to arm the route is gate state, not a failed store.
+    const auto applied = controller.onInputCalibrationApplied(measured_gain_db);
+    CHECK(applied.has_value());
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(11.2),
@@ -1960,7 +1996,7 @@ TEST_CASE("Live input dismissal restores previous calibration", "[core][editor-c
                 .has_value());
 
     live_input.calls.clear();
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),

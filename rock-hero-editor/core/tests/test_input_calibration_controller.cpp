@@ -56,28 +56,28 @@ public:
         return sample;
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    applyManualInputCalibration(double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError> applyInputCalibration(
+        double gain_db) override
     {
-        manual_apply_count += 1;
-        last_manual_gain_db = gain_db;
-        return manual_apply_result;
+        apply_count += 1;
+        last_applied_gain_db = gain_db;
+        return apply_result;
     }
 
-    void dismissInputCalibration() override
+    void closeInputCalibration() override
     {
-        dismiss_count += 1;
+        close_count += 1;
     }
 
     std::expected<void, common::audio::LiveInputMonitorError> start_result{};
-    std::expected<void, common::audio::LiveInputMonitorError> manual_apply_result{};
+    std::expected<void, common::audio::LiveInputMonitorError> apply_result{};
     common::audio::LiveInputSample sample{};
-    std::optional<double> last_manual_gain_db{};
+    std::optional<double> last_applied_gain_db{};
     std::optional<common::audio::PickupClass> last_start_pickups{};
     int start_count{0};
     int sample_count{0};
-    int manual_apply_count{0};
-    int dismiss_count{0};
+    int apply_count{0};
+    int close_count{0};
 };
 
 [[nodiscard]] InputCalibrationPrompt prompt(double input_gain_db = 2.0)
@@ -139,11 +139,10 @@ TEST_CASE(
         "Live input stays off until you calibrate. Choose your audio device, or calibrate by "
         "playing.");
     CHECK(view.lastState().input_gain_db == Catch::Approx(common::audio::defaultGainDb()));
-    CHECK(view.lastState().dismiss_button_text == "Later");
 }
 
-// Manual calibration is committed through the narrow host contract.
-TEST_CASE("Input calibration controller applies manual gain", "[core][input-calibration]")
+// Apply stores the shown gain through the host and closes the popup.
+TEST_CASE("Input calibration controller applies the shown gain", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
@@ -151,14 +150,27 @@ TEST_CASE("Input calibration controller applies manual gain", "[core][input-cali
     controller.attachView(view);
 
     controller.onManualGainChanged(3.5);
-    controller.onManualApplyRequested();
+    controller.onApplyRequested();
 
-    CHECK(host.manual_apply_count == 1);
-    CHECK(host.last_manual_gain_db == std::optional{3.5});
-    CHECK(view.lastState().input_gain_db == Catch::Approx(3.5));
-    CHECK(view.lastState().status_message == "Saved: +3.5 dB.");
-    CHECK_FALSE(view.lastState().measuring);
-    CHECK(view.lastState().dismiss_button_text == "Close");
+    CHECK(host.apply_count == 1);
+    CHECK(host.last_applied_gain_db == std::optional{3.5});
+    CHECK(host.close_count == 1);
+}
+
+// A refused store keeps the popup open with the reason.
+TEST_CASE("Input calibration controller keeps a refused Apply open", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    host.apply_result = std::unexpected{routeError("The calibration store is unavailable.")};
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(0.0)};
+    controller.attachView(view);
+
+    controller.onManualGainChanged(3.5);
+    controller.onApplyRequested();
+
+    CHECK(host.close_count == 0);
+    CHECK(view.lastState().status_message == "The calibration store is unavailable.");
 }
 
 // The measuring section opens closed. Opening it gives the setup before anything starts, and Start
@@ -185,12 +197,17 @@ TEST_CASE("Input calibration controller opens the measuring section", "[core][in
     controller.onMeasurementSectionToggled(false);
     CHECK(view.lastState().measurement_section_open);
 
-    host.sample =
-        sampleWith(common::audio::InputCalibrationCommitted{.gain = common::audio::Gain{3.0}});
+    host.sample = sampleWith(
+        common::audio::InputCalibrationMeasured{
+            .gain = common::audio::Gain{3.0},
+            .pickups = common::audio::PickupClass::Humbucker,
+        });
     controller.onSampleTick();
     controller.onMeasurementSectionToggled(false);
     CHECK_FALSE(view.lastState().measurement_section_open);
-    CHECK(view.lastState().status_message == "Saved: +3.0 dB, measured with humbucker pickups.");
+    CHECK(
+        view.lastState().status_message ==
+        "Measured +3.0 dB with humbucker pickups. Click Apply to save it.");
 
     controller.onInterfaceSelected(0);
     const std::string interface_text = view.lastState().status_message;
@@ -249,8 +266,8 @@ TEST_CASE("Input calibration controller counts down whole seconds", "[core][inpu
     CHECK(status_at(1) == "Keep playing that hard. 1 s left.");
 }
 
-// A measurement the monitor committed moves the popup into its completed state.
-TEST_CASE("Input calibration controller completes a measurement", "[core][input-calibration]")
+// A finished measurement fills the gain without storing it; Apply then stores it like any other.
+TEST_CASE("Input calibration controller fills in a measured gain", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
@@ -258,14 +275,22 @@ TEST_CASE("Input calibration controller completes a measurement", "[core][input-
     controller.attachView(view);
 
     controller.onMeasurementStartRequested();
-    host.sample =
-        sampleWith(common::audio::InputCalibrationCommitted{.gain = common::audio::Gain{8.0}});
+    host.sample = sampleWith(
+        common::audio::InputCalibrationMeasured{
+            .gain = common::audio::Gain{8.0},
+            .pickups = common::audio::PickupClass::Humbucker,
+        });
     controller.onSampleTick();
 
     CHECK(view.lastState().input_gain_db == Catch::Approx(8.0));
-    CHECK(view.lastState().status_message == "Saved: +8.0 dB, measured with humbucker pickups.");
+    CHECK(
+        view.lastState().status_message ==
+        "Measured +8.0 dB with humbucker pickups. Click Apply to save it.");
     CHECK_FALSE(view.lastState().measuring);
-    CHECK(view.lastState().dismiss_button_text == "Close");
+    CHECK(host.apply_count == 0);
+
+    controller.onApplyRequested();
+    CHECK(host.last_applied_gain_db == std::optional{8.0});
 }
 
 // A failed measurement shows why and returns the popup to the last committed gain.
@@ -283,7 +308,6 @@ TEST_CASE("Input calibration controller reports a failed measurement", "[core][i
     CHECK(view.lastState().input_gain_db == Catch::Approx(2.0));
     CHECK(view.lastState().status_message == "No usable input signal.");
     CHECK_FALSE(view.lastState().measuring);
-    CHECK(view.lastState().dismiss_button_text == "Close");
 }
 
 // Without a measurement the tick only shows the raw input through the previewed gain.
@@ -306,7 +330,7 @@ TEST_CASE("Input calibration controller meters the input while idle", "[core][in
 TEST_CASE("Input calibration controller reports start failure", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
-    host.start_result = std::unexpected{routeError("Input route changed during calibration")};
+    host.start_result = std::unexpected{routeError("No input route is selected.")};
     RecordingInputCalibrationView view;
     InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
@@ -314,13 +338,12 @@ TEST_CASE("Input calibration controller reports start failure", "[core][input-ca
     controller.onMeasurementStartRequested();
 
     CHECK(host.start_count == 1);
-    CHECK(view.lastState().status_message == "Input route changed during calibration");
+    CHECK(view.lastState().status_message == "No input route is selected.");
     CHECK_FALSE(view.lastState().measuring);
 }
 
-// Dismissing hands the measurement's end to the host.
-TEST_CASE(
-    "Input calibration controller dismisses a running measurement", "[core][input-calibration]")
+// Closing hands the measurement's end to the host.
+TEST_CASE("Input calibration controller closes a running measurement", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
@@ -328,9 +351,9 @@ TEST_CASE(
     controller.attachView(view);
 
     controller.onMeasurementStartRequested();
-    controller.onDismissRequested();
+    controller.onCloseRequested();
 
-    CHECK(host.dismiss_count == 1);
+    CHECK(host.close_count == 1);
 }
 
 // The one gain formatter: signed, one decimal, and zero without a sign.
@@ -343,7 +366,7 @@ TEST_CASE("Signed gain text prints sign and one decimal", "[core][input-calibrat
 }
 
 // Choosing an interface fills the gain with its derived figure and says how far to trust it and
-// how to set the interface up; Apply then saves it under the interface's name.
+// how to set the interface up; Apply then stores it.
 TEST_CASE("Input calibration controller applies a chosen interface", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
@@ -360,10 +383,9 @@ TEST_CASE("Input calibration controller applies a chosen interface", "[core][inp
         "Estimated figure. Set the audio device to the instrument input, 1 MOhm, at 0.0 dB input "
         "level, then click Apply.");
 
-    controller.onManualApplyRequested();
+    controller.onApplyRequested();
 
-    CHECK(host.last_manual_gain_db == std::optional{2.3});
-    CHECK(view.lastState().status_message == "Saved: +2.3 dB for the Neural DSP Quad Cortex.");
+    CHECK(host.last_applied_gain_db == std::optional{2.3});
 }
 
 // A gain changed by hand is no longer the chosen row's, and a measurement replaces it too.
@@ -403,10 +425,15 @@ TEST_CASE("Input calibration controller measures the chosen pickups", "[core][in
     controller.onPickupsSelected(common::audio::PickupClass::Humbucker);
     CHECK(view.lastState().pickups == common::audio::PickupClass::SingleCoil);
 
-    host.sample =
-        sampleWith(common::audio::InputCalibrationCommitted{.gain = common::audio::Gain{4.1}});
+    host.sample = sampleWith(
+        common::audio::InputCalibrationMeasured{
+            .gain = common::audio::Gain{4.1},
+            .pickups = common::audio::PickupClass::SingleCoil,
+        });
     controller.onSampleTick();
-    CHECK(view.lastState().status_message == "Saved: +4.1 dB, measured with single-coil pickups.");
+    CHECK(
+        view.lastState().status_message ==
+        "Measured +4.1 dB with single-coil pickups. Click Apply to save it.");
 }
 
 } // namespace rock_hero::editor::core

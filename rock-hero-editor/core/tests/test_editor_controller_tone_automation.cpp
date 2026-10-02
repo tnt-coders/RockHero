@@ -435,8 +435,8 @@ TEST_CASE(
     controller.attachView(view);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     controller.onInputCalibrationRequested();
-    REQUIRE(controller.onInputCalibrationManuallySet(0.0).has_value());
-    controller.onInputCalibrationDismissed();
+    REQUIRE(controller.onInputCalibrationApplied(0.0).has_value());
+    controller.onInputCalibrationClosed();
     controller.onToneRegionSelected(g_region);
 
     REQUIRE(view.last_state.has_value());

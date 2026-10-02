@@ -2171,13 +2171,13 @@ mints one.
     }
 
     controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    const auto calibrated = controller.onInputCalibrationApplied(0.0);
     if (!calibrated.has_value())
     {
         return false;
     }
 
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
     return true;
 }
 

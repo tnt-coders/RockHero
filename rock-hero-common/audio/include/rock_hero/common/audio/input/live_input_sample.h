@@ -15,11 +15,18 @@
 namespace rock_hero::common::audio
 {
 
-/*! \brief A measurement that finished and stored its gain for the route it measured. */
-struct [[nodiscard]] InputCalibrationCommitted
+/*!
+\brief A measurement that finished: the gain it derived, not yet stored.
+
+Storing is the driver's decision, through LiveInputMonitor::commitCalibration().
+*/
+struct [[nodiscard]] InputCalibrationMeasured
 {
-    /*! \brief The gain stored for the route. */
+    /*! \brief The calibration gain the measurement derived. */
     Gain gain;
+
+    /*! \brief The pickups the measurement assumed. */
+    PickupClass pickups{};
 };
 
 /*! \brief A measurement that ended with nothing stored. */
@@ -31,7 +38,7 @@ struct [[nodiscard]] InputCalibrationFailed
 
 /*! \brief Where a running measurement is after one sample. */
 using InputCalibrationProgress =
-    std::variant<InputCalibrationStageProgress, InputCalibrationCommitted, InputCalibrationFailed>;
+    std::variant<InputCalibrationStageProgress, InputCalibrationMeasured, InputCalibrationFailed>;
 
 /*! \brief One reading of the raw input meter, and what it did to a measurement in progress. */
 struct [[nodiscard]] LiveInputSample

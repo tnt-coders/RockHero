@@ -153,7 +153,6 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::beginMeasurement(
     m_measurement_interrupted = false;
     m_measurement.emplace(
         Measurement{
-            .route = *route,
             .pickups = pickups,
             .capture = InputCalibrationCapture{inputCalibrationTargetPeakDb(pickups)},
         });
@@ -181,13 +180,13 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
         return LiveInputSample{.raw_level = raw_level, .measurement = *progress};
     }
 
-    // The measurement ends here by its own result, so it is reset before the gate takes the route.
-    const InputDeviceIdentity measured_route = m_measurement->route;
+    // The measurement ends here by its own result, so it is reset before the gate takes the route
+    // back; storing a result is the driver's decision, through commitCalibration().
     const PickupClass measured_pickups = m_measurement->pickups;
     m_measurement.reset();
+    refresh(context);
     if (auto* const error = std::get_if<InputCalibrationError>(&step))
     {
-        refresh(context);
         return LiveInputSample{
             .raw_level = raw_level,
             .measurement = InputCalibrationFailed{std::move(error->message)},
@@ -204,17 +203,9 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
         pickupClassText(measured_pickups),
         result.ceiling_peak_db,
         gain.db);
-    auto committed = commitMeasurement(measured_route, gain, context);
-    if (!committed.has_value())
-    {
-        return LiveInputSample{
-            .raw_level = raw_level,
-            .measurement = InputCalibrationFailed{std::move(committed.error().message)},
-        };
-    }
     return LiveInputSample{
         .raw_level = raw_level,
-        .measurement = InputCalibrationCommitted{.gain = gain},
+        .measurement = InputCalibrationMeasured{.gain = gain, .pickups = measured_pickups},
     };
 }
 
@@ -227,22 +218,7 @@ void LiveInputMonitor::cancelMeasurement(LiveInputMonitoringContext context)
     }
 }
 
-std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitMeasurement(
-    const InputDeviceIdentity& measured_route, Gain gain, LiveInputMonitoringContext context)
-{
-    // Read live, not from the last refresh: a device change may still be on its way.
-    if (m_device_configuration.currentInputDeviceIdentity() != measured_route)
-    {
-        refresh(context);
-        return std::unexpected{LiveInputMonitorError{
-            LiveInputMonitorErrorCode::InvalidRequest, "Input route changed during calibration."
-        }};
-    }
-
-    return storeAndApply(measured_route, gain.db, context);
-}
-
-std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitManualCalibration(
+std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitCalibration(
     double gain_db, LiveInputMonitoringContext context)
 {
     const std::optional<InputDeviceIdentity> route =

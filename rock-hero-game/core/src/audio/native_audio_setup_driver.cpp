@@ -133,8 +133,18 @@ std::expected<common::audio::InputCalibrationProgress, NativeAudioSetupError> Na
         }};
     }
 
-    if (std::holds_alternative<common::audio::InputCalibrationCommitted>(*progress))
+    // The setup menu saves a measured gain at once; the monitor only reports it.
+    if (const auto* const measured =
+            std::get_if<common::audio::InputCalibrationMeasured>(&*progress))
     {
+        if (auto committed =
+                m_live_input_monitor.commitCalibration(measured->gain.db, g_setup_menu_context);
+            !committed.has_value())
+        {
+            return std::unexpected{NativeAudioSetupError{
+                NativeAudioSetupErrorCode::CalibrationFailed, std::move(committed.error().message)
+            }};
+        }
         m_machine.calibrationCommitted();
     }
     return std::move(*progress);

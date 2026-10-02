@@ -79,14 +79,16 @@ input-device selection, since a missing property reads as absence rather than an
 Both products run the strum measurement the same way: `LiveInputMonitor::beginMeasurement`, then
 `sample()` once per tick at `inputCalibrationSampleRateHz()`. Each sample returns the raw level and,
 while a measurement runs, an `InputCalibrationProgress`: a stage with the windows it has left (the
-editor's countdown reads them, never a count of its own), a committed gain, or a failure. The
-measurement listens to the player's hardest playing for a fixed span from the first window it
-hears and sets the gain so the playing's ceiling, a high percentile of the window peaks, lands on
+editor's countdown reads them, never a count of its own), a measured gain, or a failure. A
+measurement only reports its gain (`InputCalibrationMeasured`) and hands the route back to the
+gate; storing it is the driver's decision, through the one store path `commitCalibration`: the
+editor's window on Apply, the game's setup at once. The measurement listens to the player's hardest
+playing for a fixed span from the first window it hears and sets the gain so the playing's ceiling, a high percentile of the window peaks, lands on
 `inputCalibrationTargetPeakDb(pickups)`: where a hard strum on the stated `PickupClass` lands,
 from the authored `hardStrumPeakVolts()` (one value per type, its evidence beside it;
 `docs/tracking/2026-10-01-hard-strum-peak-research.md`) and the one reference,
 `inputLevelReferenceDbu()` (`input/input_calibration.h`). `LiveInputMonitor::beginMeasurement`
-takes the pickups and keeps them with the measurement, and each committed measurement logs
+takes the pickups and keeps them with the measurement, and each finished measurement logs
 `pickups`, the raw `ceiling_peak_db` and the gain. The log states facts, not volts: volts need the
 interface's true full scale, which is what the measurement estimates. On an interface with a known
 figure, volts = its full-scale peak volts x 10^(ceiling_peak_db / 20), which is how a run re-centres

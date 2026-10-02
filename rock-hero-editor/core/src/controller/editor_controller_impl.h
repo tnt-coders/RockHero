@@ -645,8 +645,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups);
     [[nodiscard]] common::audio::LiveInputSample onInputCalibrationSampled();
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationManuallySet(double gain_db);
-    void onInputCalibrationDismissed();
+    onInputCalibrationApplied(double gain_db);
+    void onInputCalibrationClosed();
     void onOutputGainPreviewChanged(double gain_db);
     void onOutputGainChanged(double gain_db);
     void onAudioDeviceChangeRequested(

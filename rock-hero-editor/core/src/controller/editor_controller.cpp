@@ -1175,14 +1175,14 @@ common::audio::LiveInputSample EditorController::onInputCalibrationSampled()
 }
 
 std::expected<void, common::audio::LiveInputMonitorError> EditorController::
-    onInputCalibrationManuallySet(double gain_db)
+    onInputCalibrationApplied(double gain_db)
 {
-    return m_impl->onInputCalibrationManuallySet(gain_db);
+    return m_impl->onInputCalibrationApplied(gain_db);
 }
 
-void EditorController::onInputCalibrationDismissed()
+void EditorController::onInputCalibrationClosed()
 {
-    m_impl->onInputCalibrationDismissed();
+    m_impl->onInputCalibrationClosed();
 }
 
 void EditorController::onOutputGainPreviewChanged(double gain_db)

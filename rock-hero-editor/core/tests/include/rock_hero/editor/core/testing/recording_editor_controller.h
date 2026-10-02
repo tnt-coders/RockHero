@@ -734,22 +734,22 @@ public:
     }
 
     /*!
-    \brief Records manual calibration completion through the controller contract.
-    \param gain_db Calibration gain selected by the user.
+    \brief Records an applied calibration gain through the controller contract.
+    \param gain_db Calibration gain the prompt applied.
     \return Always empty success.
     */
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationManuallySet(double gain_db) override
+    onInputCalibrationApplied(double gain_db) override
     {
         last_input_calibration_gain_db = gain_db;
-        input_calibration_manual_set_count += 1;
+        input_calibration_apply_count += 1;
         return {};
     }
 
-    /*! \brief Counts dismissed input calibration prompts. */
-    void onInputCalibrationDismissed() override
+    /*! \brief Counts closed input calibration prompts. */
+    void onInputCalibrationClosed() override
     {
-        input_calibration_dismiss_count += 1;
+        input_calibration_close_count += 1;
     }
 
     /*!
@@ -1260,11 +1260,11 @@ public:
     /*! \brief Sample returned by onInputCalibrationSampled(). */
     common::audio::LiveInputSample input_calibration_sample{};
 
-    /*! \brief Number of successful manual calibration intents received. */
-    int input_calibration_manual_set_count{0};
+    /*! \brief Number of calibration Apply intents received. */
+    int input_calibration_apply_count{0};
 
-    /*! \brief Number of input calibration dismissed intents received. */
-    int input_calibration_dismiss_count{0};
+    /*! \brief Number of input calibration close intents received. */
+    int input_calibration_close_count{0};
 
     /*! \brief Number of output gain change intents received. */
     int output_gain_change_count{0};

@@ -677,10 +677,10 @@ public:
     \return Empty success, or a typed monitoring failure.
     */
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationManuallySet(double gain_db) override;
+    onInputCalibrationApplied(double gain_db) override;
 
     /*! \brief Handles the calibration prompt closing without a new successful calibration. */
-    void onInputCalibrationDismissed() override;
+    void onInputCalibrationClosed() override;
 
     /*!
     \brief Handles a preview-only output gain change while the user is dragging the slider.

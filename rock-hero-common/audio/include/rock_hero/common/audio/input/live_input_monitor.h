@@ -113,10 +113,10 @@ public:
     /*!
     \brief Reads the raw input meter once and advances a measurement in progress by that reading.
 
-    A measurement that finishes stores its gain for the route it measured and hands the route back
-    to the gate; one that fails hands the route back with nothing stored. A measurement a gate run
-    ended (a device change, a session closing) reports that as a failure at the next sample, once,
-    so a driver needs no memory of having started one.
+    A measurement that finishes reports the gain it derived and hands the route back to the gate;
+    storing that gain is the driver's decision, through commitCalibration(). One that fails hands
+    the route back too. A measurement a gate run ended (a device change, a session closing) reports
+    that as a failure at the next sample, once, so a driver needs no memory of having started one.
     \param context Session facts the gate re-runs with when a measurement ends.
     \return The raw level read, and the measurement's progress if one was running.
     */
@@ -129,28 +129,23 @@ public:
     void cancelMeasurement(LiveInputMonitoringContext context);
 
     /*!
-    \brief Stores a typed gain for the current route, then runs the gate.
+    \brief Stores a calibration gain for the current route, then runs the gate.
 
-    The manual path for an interface whose documented gain sets the level exactly.
+    The one way a gain is stored, whether it was typed, derived from a known device or measured.
     \param gain_db Calibration gain in decibels; clamped to the supported range.
     \param context Session facts the gate evaluates.
     \return Empty success, or a coarse monitoring failure.
     */
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitManualCalibration(
+    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitCalibration(
         double gain_db, LiveInputMonitoringContext context);
 
 private:
-    // A measurement in progress: the route it started on, the pickups it assumes and its capture.
+    // A measurement in progress: the pickups it assumes and its capture.
     struct Measurement
     {
-        InputDeviceIdentity route;
         PickupClass pickups;
         InputCalibrationCapture capture;
     };
-
-    // Stores a measured gain, refused if the route changed under the measurement.
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitMeasurement(
-        const InputDeviceIdentity& measured_route, Gain gain, LiveInputMonitoringContext context);
 
     // Stores the gain for the route before the gate applies it: the gain is a fact about the
     // route, true even if the backend then refuses the route.

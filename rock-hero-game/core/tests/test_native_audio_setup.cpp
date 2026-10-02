@@ -206,7 +206,7 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
     REQUIRE(harness.setup.beginGainCalibration(common::audio::PickupClass::Humbucker).has_value());
     const auto calibrated = runGainCalibration(harness);
     REQUIRE(calibrated.has_value());
-    CHECK(std::holds_alternative<common::audio::InputCalibrationCommitted>(*calibrated));
+    CHECK(std::holds_alternative<common::audio::InputCalibrationMeasured>(*calibrated));
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::Ready);
 
     // The store now holds a calibration matching the active route — the armed state.

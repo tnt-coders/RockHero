@@ -823,9 +823,9 @@ TEST_CASE(
     controller.onOpenRequested(existing_project);
     REQUIRE(controller.currentProjectFile() == std::optional{existing_project});
     controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    const auto calibrated = controller.onInputCalibrationApplied(0.0);
     REQUIRE(calibrated.has_value());
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     addKnownPlugin(controller);
 

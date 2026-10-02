@@ -201,9 +201,9 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
     controller.onOpenRequested(std::filesystem::path{"original.rhp"});
     runner.runPendingCompletions();
     controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    const auto calibrated = controller.onInputCalibrationApplied(0.0);
     REQUIRE(calibrated.has_value());
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
 
     addKnownPlugin(controller);
 
@@ -430,9 +430,9 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     // request.
     runner.runPendingCompletions();
     controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    const auto calibrated = controller.onInputCalibrationApplied(0.0);
     REQUIRE(calibrated.has_value());
-    controller.onInputCalibrationDismissed();
+    controller.onInputCalibrationClosed();
     addKnownPlugin(controller);
     plugin_host.catalog_scan_call_count = 0;
     plugin_host.known_candidates_call_count = 0;

@@ -1018,15 +1018,19 @@ public:
     [[nodiscard]] virtual common::audio::LiveInputSample onInputCalibrationSampled() = 0;
 
     /*!
-    \brief Applies and stores a manually entered input calibration gain.
+    \brief Stores the calibration gain the prompt applies, whether typed, derived from a known
+    device or measured.
     \param gain_db Input gain in decibels.
     \return Empty success, or a typed live-input failure.
     */
     [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationManuallySet(double gain_db) = 0;
+    onInputCalibrationApplied(double gain_db) = 0;
 
-    /*! \brief Handles the calibration prompt closing without a new successful calibration. */
-    virtual void onInputCalibrationDismissed() = 0;
+    /*!
+    \brief Closes the calibration prompt, after an Apply or a Cancel, ending any measurement; live
+    input stays off unless the route is calibrated.
+    */
+    virtual void onInputCalibrationClosed() = 0;
 
     /*!
     \brief Handles a preview-only output gain change while the user is dragging the slider.

@@ -78,11 +78,14 @@ namespace
     return "Keep playing that hard. " + std::to_string(seconds_left) + " s left.";
 }
 
-// Status text for a saved calibration, one shape for every path: the source is named when there
-// is one, so a measured figure does not read as authoritative as a published one.
-[[nodiscard]] std::string savedText(double gain_db, const std::string& source)
+// Status text for a finished measurement: the gain it filled in, not yet stored. The pickups are
+// named so a player who left the default sees what was assumed.
+[[nodiscard]] std::string inputCalibrationMeasuredText(
+    double gain_db, common::audio::PickupClass pickups)
 {
-    return "Saved: " + signedGainText(gain_db) + " dB" + source + ".";
+    return "Measured " + signedGainText(gain_db) + " dB with " +
+           std::string{common::audio::pickupClassText(pickups)} +
+           " pickups. Click Apply to save it.";
 }
 
 // Status text shown when docs are unavailable from both install and build-tree locations.
@@ -176,15 +179,15 @@ void InputCalibrationController::onInterfaceSelected(std::size_t index)
     publishState();
 }
 
-// Applies the currently displayed manual gain through the editor-runtime host.
-void InputCalibrationController::onManualApplyRequested()
+// Stores the shown gain and closes the popup; a refused store keeps the popup open with the reason.
+void InputCalibrationController::onApplyRequested()
 {
     if (m_state.measuring)
     {
         return;
     }
 
-    const auto applied = m_host.applyManualInputCalibration(m_state.input_gain_db);
+    const auto applied = m_host.applyInputCalibration(m_state.input_gain_db);
     if (!applied.has_value())
     {
         setRestingStatus(applied.error().message);
@@ -192,14 +195,7 @@ void InputCalibrationController::onManualApplyRequested()
         return;
     }
 
-    const std::optional<std::size_t> selected = m_state.selected_interface;
-    setRestingStatus(savedText(
-        m_state.input_gain_db,
-        selected.has_value()
-            ? " for the " + std::string{common::audio::knownInterfaces()[*selected].model}
-            : std::string{}));
-    m_committed_input_gain_db = m_state.input_gain_db;
-    publishState();
+    m_host.closeInputCalibration();
 }
 
 // Starts an automatic measurement once the host has handed over the route.
@@ -248,10 +244,10 @@ void InputCalibrationController::onSampleTick()
         publishState();
         return;
     }
-    if (const auto* const committed =
-            std::get_if<common::audio::InputCalibrationCommitted>(&progress))
+    if (const auto* const measured =
+            std::get_if<common::audio::InputCalibrationMeasured>(&progress))
     {
-        finishMeasurementSuccess(committed->gain.db);
+        finishMeasurementSuccess(*measured);
         return;
     }
     finishMeasurementError(std::get<common::audio::InputCalibrationFailed>(progress).message);
@@ -264,10 +260,10 @@ void InputCalibrationController::onDocumentationUnavailable()
     publishState();
 }
 
-// Forwards dismissal to the host, which ends any measurement in progress.
-void InputCalibrationController::onDismissRequested()
+// Closes without storing; the host ends any measurement in progress.
+void InputCalibrationController::onCloseRequested()
 {
-    m_host.dismissInputCalibration();
+    m_host.closeInputCalibration();
 }
 
 // Updates the gain preview and recomputes the display meter from the last sampled raw level.
@@ -277,16 +273,12 @@ void InputCalibrationController::setDisplayedInputGain(double gain_db)
     m_state.input_meter_level = applyDisplayGain(m_last_raw_meter_level, m_state.input_gain_db);
 }
 
-// Moves the popup into its completed state once the monitor has stored the measured gain.
-void InputCalibrationController::finishMeasurementSuccess(double gain_db)
+// Fills the slider with the measured gain; Apply then stores it like any other.
+void InputCalibrationController::finishMeasurementSuccess(
+    const common::audio::InputCalibrationMeasured& measured)
 {
-    setDisplayedInputGain(gain_db);
-    // The pickups are named so a player who left the default sees what was assumed.
-    setRestingStatus(savedText(
-        m_state.input_gain_db,
-        ", measured with " + std::string{common::audio::pickupClassText(m_state.pickups)} +
-            " pickups"));
-    m_committed_input_gain_db = m_state.input_gain_db;
+    setDisplayedInputGain(measured.gain.db);
+    setRestingStatus(inputCalibrationMeasuredText(m_state.input_gain_db, measured.pickups));
     m_state.measuring = false;
     publishState();
 }
@@ -307,11 +299,9 @@ void InputCalibrationController::setRestingStatus(std::string text)
     m_state.status_message = std::move(text);
 }
 
-// Pushes the cached state to the attached view if one is present. The dismissal words follow the
-// committed gain alone: an uncalibrated input is put off until later, a calibrated one closed.
+// Pushes the cached state to the attached view if one is present.
 void InputCalibrationController::publishState()
 {
-    m_state.dismiss_button_text = m_committed_input_gain_db.has_value() ? "Close" : "Later";
     if (m_view != nullptr)
     {
         m_view->setState(m_state);
