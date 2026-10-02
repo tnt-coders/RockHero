@@ -194,7 +194,10 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
     if (config.dev_package.has_value())
     {
         m_dev_session = DevSession::create(
-            *config.dev_package, m_lefty, std::chrono::steady_clock::now().time_since_epoch());
+            *config.dev_package,
+            std::string{},
+            m_lefty,
+            std::chrono::steady_clock::now().time_since_epoch());
         if (m_dev_session.has_value())
         {
             std::optional<common::core::HighwayViewState> dev_state =
@@ -266,7 +269,10 @@ void Game::launchSong(const core::SongSelectLaunch& launch)
     // drop the player out of the menu onto an empty board, so bail before touching the session,
     // the renderer, or the menu flag.
     std::optional<DevSession> dev_session = DevSession::create(
-        launch.package_path, m_lefty, std::chrono::steady_clock::now().time_since_epoch());
+        launch.package_path,
+        launch.arrangement_id,
+        m_lefty,
+        std::chrono::steady_clock::now().time_since_epoch());
     if (!dev_session.has_value())
     {
         RH_LOG_WARNING(
@@ -287,7 +293,7 @@ void Game::launchSong(const core::SongSelectLaunch& launch)
         if (const auto started = m_session->start(
                 core::GameplaySessionRequest{
                     .package_path = launch.package_path,
-                    .arrangement_id = launch.arrangement_id,
+                    .arrangement_id = dev_session->chosenArrangementId(),
                     .workspace_directory = m_session_workspace_directory,
                 });
             !started.has_value())

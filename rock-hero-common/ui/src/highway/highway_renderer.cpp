@@ -169,11 +169,11 @@ texel less than the cell's own span. The divisor reads the LOADED layout rather 
 literal, so a rebake at a different cell size rescales the light with the art instead of
 silently mis-sizing every glow, and the head's world size still lives in exactly one place.
 
-Two functions because the axes can differ: the width metric is its own quantity — the reference's
-head is narrower for its fret slot than ours while matching our height (highway_metrics.h) — so
-a future width change squashes the rectangle head's drawn texels horizontally while their height
-holds. Every x-extent converts through the width texel and every y-extent through the height
-texel, so the accent light keeps tracing the art the quad actually draws.
+Two functions because the axes can differ: the width metric is its own quantity
+(highway_metrics.h), so a future width change squashes the rectangle head's drawn texels
+horizontally while their height holds. Every x-extent converts through the width texel and every
+y-extent through the height texel, so the accent light keeps tracing the art the quad actually
+draws.
 */
 [[nodiscard]] double headArtTexelWidth(
     const common::core::HighwayMetrics& metrics, const HighwayAtlasLayout& layout)
@@ -346,11 +346,9 @@ constexpr int g_face_fret_count = common::core::g_highway_fret_count;
 // Seconds a passed note takes to fade out after crossing the hit line.
 constexpr double g_passed_fade_seconds = 0.15;
 
-// Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line.
-// The reference flip is fast and late (a 500 ms roll landing flat 100 ms out, the only timing
-// verifiable from reference material — the flip has no documented tie to any internal
-// constants); our flip instead spans the whole approach, and the slower final degrees need a
-// longer flat stretch to read as finished before the board face.
+// Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line. The
+// flip spans the whole approach, so its slow final degrees need this flat stretch to read as
+// finished before the board face.
 constexpr double g_flip_flat_lead_seconds = 0.25;
 
 // Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
@@ -4723,8 +4721,7 @@ void HighwayRenderer::Impl::draw(
             // Deferred to the group boundary rather than written inline; see PendingMarker.
             // Both extents from the HEIGHT metric: markers are square art at the family size and
             // deliberately never follow the head's width, so a head narrower than tall changes
-            // nothing about the mark riding it (the reference behaves the same way — its own
-            // marks exceed its narrow gem).
+            // nothing about the mark riding it.
             pending_markers.push_back(
                 PendingMarker{
                     .x = center_x,
@@ -5153,7 +5150,7 @@ void HighwayRenderer::Impl::draw(
         // appears half a second out, reaching full size a quarter second out and holding there.
         // The scale is squared, so it stays small for most of the window and opens up over the
         // last stretch rather than creeping linearly. It announces where the note will land, not
-        // where the note currently is (reference atlas cell; chart-driven, so the editor preview
+        // where the note currently is (an atlas cell; chart-driven, so the editor preview
         // shows it too).
         //
         // The landing spot is the chart-truth station: a pre-bend's ring sits on the TARGET
@@ -5203,8 +5200,8 @@ void HighwayRenderer::Impl::draw(
                     hollow_cell[1]));
         }
 
-        // Pre-bend target outline: the anticipation cell — already a hollow copy of the head's
-        // rim in the reference atlas — parks at the chart-truth station for the whole approach,
+        // Pre-bend target outline: the anticipation cell — a hollow copy of the head's rim in the
+        // atlas — parks at the chart-truth station for the whole approach,
         // so a pre-bent note reads as a slot the head rises into instead of passing for a
         // plainly fretted note on the lane it occupies. It rides the note's own z (unlike the
         // ring's hit-line landing preview), stays axis-aligned like the upright technique

@@ -3484,7 +3484,7 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         CHECK(chart.notes.back().position.offset == Fraction{1, 2});
     }
 
-    SECTION("THE Q7 GATE: the derived span answers all four verdicts")
+    SECTION("The derived span answers all four verdicts")
     {
         // THE GATE the roll figure must pass. It asks four verdicts rather than byte equality with
         // a claims-produced span, because a span built from claims runs only as far as the roll

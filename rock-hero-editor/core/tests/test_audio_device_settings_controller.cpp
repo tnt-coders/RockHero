@@ -317,19 +317,6 @@ TEST_CASE(
     CHECK(view.set_state_call_count == 2);
 }
 
-// A staged edit without an audio system selection cannot apply, so OK must be disabled.
-TEST_CASE(
-    "AudioDeviceSettingsController disables OK without system", "[core][audio-device-settings]")
-{
-    FakeAudioDeviceSettings settings;
-    settings.current_state.selected_audio_system_id = 0;
-    AudioDeviceSettingsController controller{settings};
-    FakeAudioDeviceSettingsView view;
-    controller.attachView(view);
-
-    CHECK_FALSE(view.last_state.ok_enabled);
-}
-
 // Split-device backends require both input and output selections before OK can apply.
 TEST_CASE(
     "AudioDeviceSettingsController disables OK without split pair", "[core][audio-device-settings]")

@@ -975,7 +975,7 @@ namespace
 // jump), Ctrl+click, double-click, a marquee release that caught notes, and playback start. Each
 // rewrites the selection without passing setSelection, so each needs its own settle — and dropping
 // any one would leave the sweep un-run at that event with nothing else to notice.
-TEST_CASE("EditorController settles at every ruled selection event", "[core][chart]")
+TEST_CASE("EditorController settles at every selection event outside setSelection", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;

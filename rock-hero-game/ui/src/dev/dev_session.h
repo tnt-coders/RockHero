@@ -21,11 +21,11 @@ namespace rock_hero::game::ui
 /*!
 \brief Owns the displayed chart of one loaded package for one shell run.
 
-Serves both the --dev-package path and a song picked from the menu. It loads the package's first
-charted arrangement (preferring a guitar part), publishes a stand-in clock that plays from load for
-runs with no gameplay session driving song time, watches the package source for edits (chart hot
-reload, polled only in dev mode), and executes the diagnostics layer's seek-to-section intents by
-re-anchoring that clock.
+Serves both the --dev-package path and a song picked from the menu. It loads the picked
+arrangement, or with none picked the package's first charted arrangement (preferring a guitar
+part), publishes a stand-in clock that plays from load for runs with no gameplay session driving
+song time, watches the package source for edits (chart hot reload, polled only in dev mode), and
+executes the diagnostics layer's seek-to-section intents by re-anchoring that clock.
 */
 class DevSession
 {
@@ -34,12 +34,15 @@ public:
     \brief Loads the package and starts the stand-in clock at song time zero.
 
     \param package_path .rock package file or unpacked package directory.
+    \param arrangement_id The picked arrangement, or empty for the first charted arrangement
+           (preferring a guitar part).
     \param lefty True to mirror the highway for left-handed display.
     \param now Monotonic timestamp anchoring the stand-in clock.
-    \return The session, or empty when the package has no loadable charted arrangement.
+    \return The session, or empty when the arrangement it would show is missing or uncharted.
     */
     [[nodiscard]] static std::optional<DevSession> create(
-        std::filesystem::path package_path, bool lefty, std::chrono::nanoseconds now);
+        std::filesystem::path package_path, std::string arrangement_id, bool lefty,
+        std::chrono::nanoseconds now);
 
     /*!
     \brief Hands the initially loaded view state to the renderer exactly once.
@@ -112,19 +115,18 @@ public:
     /*!
     \brief Id of the arrangement the fixture chose for display.
 
-    The gameplay session must load the SAME arrangement so the audible tone rig matches the
-    chart on screen (the fixture prefers a charted guitar part; sessions default to the first
-    arrangement otherwise).
+    The gameplay session loads this arrangement, so the audible tone rig always matches the chart
+    on screen.
 
     \return Chosen arrangement id, or empty before a successful load.
     */
     [[nodiscard]] const std::string& chosenArrangementId() const noexcept;
 
 private:
-    DevSession(std::filesystem::path package_path, bool lefty);
+    DevSession(std::filesystem::path package_path, std::string arrangement_id, bool lefty);
 
-    // Reads the package and projects its first charted arrangement; records the chosen
-    // arrangement id (non-const for exactly that reason).
+    // Reads the package and projects the requested arrangement, or the default choice; records
+    // the chosen arrangement id (non-const for exactly that reason).
     [[nodiscard]] std::optional<common::core::HighwayViewState> loadViewState();
 
     // Rebuilds the watched-source list (directory packages watch song.json plus every chart).
@@ -134,6 +136,8 @@ private:
     [[nodiscard]] std::optional<std::chrono::nanoseconds> probeSourceStamp() const;
 
     std::filesystem::path m_package_path;
+    // The picked arrangement, or empty for the dev default; every reload honors it.
+    std::string m_requested_arrangement_id;
     bool m_lefty{false};
 
     // Arrangement id the display projection chose; the session loads the same arrangement.

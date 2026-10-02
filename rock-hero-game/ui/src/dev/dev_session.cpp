@@ -63,9 +63,10 @@ readPackage(const std::filesystem::path& package_path)
 } // namespace
 
 std::optional<DevSession> DevSession::create(
-    std::filesystem::path package_path, const bool lefty, const std::chrono::nanoseconds now)
+    std::filesystem::path package_path, std::string arrangement_id, const bool lefty,
+    const std::chrono::nanoseconds now)
 {
-    DevSession session{std::move(package_path), lefty};
+    DevSession session{std::move(package_path), std::move(arrangement_id), lefty};
     std::optional<common::core::HighwayViewState> state = session.loadViewState();
     if (!state.has_value())
     {
@@ -81,8 +82,10 @@ std::optional<DevSession> DevSession::create(
     return session;
 }
 
-DevSession::DevSession(std::filesystem::path package_path, const bool lefty)
+DevSession::DevSession(
+    std::filesystem::path package_path, std::string arrangement_id, const bool lefty)
     : m_package_path{std::move(package_path)}
+    , m_requested_arrangement_id{std::move(arrangement_id)}
     , m_lefty{lefty}
 {}
 
@@ -210,8 +213,9 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
     }
     const common::core::Song& song = read->song;
 
-    // Prefer a charted guitar part: bass arrangements exercise few of the chord and technique
-    // visuals this dev fixture exists to inspect (packages often list bass first).
+    // A picked arrangement is shown as picked. With none picked, prefer a charted guitar part:
+    // bass arrangements exercise few of the chord and technique visuals this dev fixture exists to
+    // inspect (packages often list bass first).
     const common::core::Arrangement* chosen = nullptr;
     for (const common::core::Arrangement& arrangement : song.arrangements)
     {
@@ -219,8 +223,17 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         {
             continue;
         }
-        if (chosen == nullptr || (chosen->part == common::core::Part::Bass &&
-                                  arrangement.part != common::core::Part::Bass))
+        if (!m_requested_arrangement_id.empty())
+        {
+            if (arrangement.id == m_requested_arrangement_id)
+            {
+                chosen = &arrangement;
+            }
+        }
+        else if (
+            chosen == nullptr || (chosen->part == common::core::Part::Bass &&
+                                  arrangement.part != common::core::Part::Bass)
+        )
         {
             chosen = &arrangement;
         }
