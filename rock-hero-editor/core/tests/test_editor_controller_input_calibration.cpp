@@ -1669,14 +1669,15 @@ TEST_CASE("Live input gate arms matching route in order", "[core][editor-control
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
 
     // Project audio is not ready until the deferred live-rig load completes: monitoring stays off,
-    // yet the derived status already reports Calibrated with an empty message.
+    // the route already reports Calibrated, and the message says what live input waits for.
     CHECK_FALSE(live_input.live_input_monitoring_enabled);
     CHECK(
-        settledCalibrationState(view) == SettledCalibrationState{
-                                             .status = InputCalibrationStatus::Calibrated,
-                                             .disabled_message = {},
-                                             .prompt_present = false,
-                                         });
+        settledCalibrationState(view) ==
+        SettledCalibrationState{
+            .status = InputCalibrationStatus::Calibrated,
+            .disabled_message = "Live input starts once the project's audio has loaded.",
+            .prompt_present = false,
+        });
 
     live_input.calls.clear();
     REQUIRE(live_rig.completePendingLoad());
@@ -2199,11 +2200,12 @@ TEST_CASE("Live input gate disables while settings open", "[core][editor-control
     CHECK(live_input.calls == trace);
     CHECK_FALSE(live_input.live_input_monitoring_enabled);
     CHECK(
-        settledCalibrationState(view) == SettledCalibrationState{
-                                             .status = InputCalibrationStatus::Calibrated,
-                                             .disabled_message = {},
-                                             .prompt_present = false,
-                                         });
+        settledCalibrationState(view) ==
+        SettledCalibrationState{
+            .status = InputCalibrationStatus::Calibrated,
+            .disabled_message = "Live input is paused while the audio settings are open.",
+            .prompt_present = false,
+        });
 }
 
 // The settings window holds the route, so a route it stages is not offered calibration until the

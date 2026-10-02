@@ -105,6 +105,25 @@ TEST_CASE(
     CHECK_FALSE(projection.calibrate_enabled);
 }
 
+// A calibrated route whose live input the session holds off says why: the settings window holds
+// the route, or the project's audio has not loaded yet.
+TEST_CASE(
+    "Input calibration projection says why a calibrated route is not live",
+    "[core][input-calibration]")
+{
+    Harness harness{5.0};
+    harness.monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
+
+    const InputCalibrationProjection settings =
+        makeInputCalibrationProjection(harness.monitor, std::nullopt, true);
+    CHECK(settings.status == InputCalibrationStatus::Calibrated);
+    CHECK(settings.disabled_message == "Live input is paused while the audio settings are open.");
+
+    const InputCalibrationProjection loading =
+        makeInputCalibrationProjection(harness.monitor, std::nullopt, false);
+    CHECK(loading.disabled_message == "Live input starts once the project's audio has loaded.");
+}
+
 // An open prompt names its route and carries the route's stored gain, absent while uncalibrated.
 TEST_CASE(
     "Input calibration projection projects the prompt with the stored gain",
