@@ -5,12 +5,10 @@
 
 #pragma once
 
-#include <expected>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
-#include <rock_hero/common/audio/input/live_input_monitor_error.h>
-#include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
+#include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/input_calibration/i_input_calibration_view.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_view_state.h>
 #include <string>
@@ -23,88 +21,30 @@ namespace rock_hero::editor::core
 
 The player types a gain, or measures one by playing, then Apply stores it. A finished measurement
 fills the gain; nothing is stored until Apply. The shared live-input monitor runs the measurement;
-this controller samples it through a narrow host boundary once per UI tick and projects the
-readings into InputCalibrationViewState.
+this controller samples it through the editor controller once per UI tick and projects the readings
+into InputCalibrationViewState.
 */
 class InputCalibrationController final
 {
 public:
-    /*! \brief Host operations that leave popup-local state and touch editor runtime state. */
-    class Host
-    {
-    public:
-        /*! \brief Destroys the input-calibration host interface. */
-        virtual ~Host() = default;
-
-        /*!
-        \brief Hands the current live-input route to an automatic measurement.
-        \param pickups The pickups the player measures with.
-        \return Empty success, or a typed live-input failure.
-        */
-        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-        startInputCalibrationMeasurement(common::audio::PickupClass pickups) = 0;
-
-        /*!
-        \brief Reads the raw input once, advancing a measurement in progress.
-        \return The raw level, and the measurement's progress if one was running.
-        */
-        [[nodiscard]] virtual common::audio::LiveInputSample sampleInputCalibration() = 0;
-
-        /*! \brief Ends a running measurement without a result, keeping the popup open. */
-        virtual void stopInputCalibrationMeasurement() = 0;
-
-        /*!
-        \brief Stores the shown calibration gain.
-        \param gain_db Gain in decibels.
-        \return Empty success, or a typed live-input failure.
-        */
-        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-        applyInputCalibration(double gain_db) = 0;
-
-        /*! \brief Closes the input calibration popup, ending any measurement. */
-        virtual void closeInputCalibration() = 0;
-
-    protected:
-        /*! \brief Creates the input-calibration host interface. */
-        Host() = default;
-
-        /*! \brief Copies the input-calibration host interface. */
-        Host(const Host&) = default;
-
-        /*! \brief Moves the input-calibration host interface. */
-        Host(Host&&) = default;
-
-        /*!
-        \brief Assigns the input-calibration host interface from another host.
-        \return Reference to this host interface.
-        */
-        Host& operator=(const Host&) = default;
-
-        /*!
-        \brief Move-assigns the input-calibration host interface from another host.
-        \return Reference to this host interface.
-        */
-        Host& operator=(Host&&) = default;
-    };
-
     /*!
     \brief Creates a popup-local controller.
-    \param host Boundary used for editor-runtime side effects.
+    \param editor Editor controller the popup's intents go to.
     \param prompt Initial prompt state supplied by the editor workflow; its stored gain, if any,
            fills the slider.
     */
-    InputCalibrationController(Host& host, const InputCalibrationPrompt& prompt);
+    InputCalibrationController(IEditorController& editor, const InputCalibrationPrompt& prompt);
 
     /*! \brief Copies are disabled because the controller stores popup view attachment state. */
     InputCalibrationController(const InputCalibrationController&) = delete;
 
-    /*! \brief Copy assignment is disabled because the controller stores a host reference. */
+    /*! \brief Copy assignment is disabled because the controller stores an editor reference. */
     InputCalibrationController& operator=(const InputCalibrationController&) = delete;
 
     /*! \brief Moves are disabled because the attached view stores no back-reference update hook. */
     InputCalibrationController(InputCalibrationController&&) = delete;
 
-    /*! \brief Move assignment is disabled because the controller stores a host reference. */
+    /*! \brief Move assignment is disabled because the controller stores an editor reference. */
     InputCalibrationController& operator=(InputCalibrationController&&) = delete;
 
     /*! \brief Destroys the InputCalibrationController. */
@@ -129,7 +69,7 @@ public:
     void onManualGainChanged(double gain_db);
 
     /*!
-    \brief Stores the shown gain through the host, whose success ends the prompt; a refused store
+    \brief Stores the shown gain through the editor, whose success ends the prompt; a refused store
     says why.
     */
     void onApplyRequested();
@@ -156,7 +96,7 @@ public:
     /*! \brief Reports that the installed input calibration guide could not be opened. */
     void onDocumentationUnavailable();
 
-    /*! \brief Closes the popup through the host without storing anything. */
+    /*! \brief Closes the popup through the editor without storing anything. */
     void onCloseRequested();
 
 private:
@@ -164,7 +104,7 @@ private:
     void finishMeasurement(std::string message);
     void publishState();
 
-    Host& m_host;
+    IEditorController& m_editor;
     IInputCalibrationView* m_view{};
     InputCalibrationViewState m_state;
     common::audio::AudioMeterLevel m_last_raw_meter_level;

@@ -127,7 +127,9 @@ The editor's calibration popup is one fixed-size screen: the message with the "?
 calibration guide, whose generated table is how a player finds their device's gain) at its
 corner, the input meter, **Pickup type** with **Measure**, the **Gain** slider, then **Apply**
 and **Cancel**. It is sized once, for its longest message, and never resized, because a native
-window resize under the Direct2D renderer flashes a frame of the old size.
+window resize under the Direct2D renderer flashes a frame of the old size. Its headless
+`InputCalibrationController` sends every intent straight to `IEditorController`'s
+`onInputCalibration*` methods; it has no boundary interface of its own to keep in step with them.
 
 `InputCalibrationViewState::measuring` is true while a measurement runs. **Measure** is one
 intent, `onMeasureRequested`: it starts a measurement, or stops the running one (through the

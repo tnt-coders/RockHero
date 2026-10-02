@@ -713,14 +713,14 @@ public:
     /*!
     \brief Records calibration measurement setup through the controller contract.
     \param pickups The pickups the measurement was started with.
-    \return Always empty success.
+    \return The configured start result.
     */
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups) override
     {
         input_calibration_measurement_start_count += 1;
         last_input_calibration_pickups = pickups;
-        return {};
+        return input_calibration_start_result;
     }
 
     /*!
@@ -736,14 +736,14 @@ public:
     /*!
     \brief Records an applied calibration gain through the controller contract.
     \param gain_db Calibration gain the prompt applied.
-    \return Always empty success.
+    \return The configured apply result.
     */
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationApplied(double gain_db) override
     {
         last_input_calibration_gain_db = gain_db;
         input_calibration_apply_count += 1;
-        return {};
+        return input_calibration_apply_result;
     }
 
     /*! \brief Counts closed input calibration prompts. */
@@ -1265,6 +1265,12 @@ public:
 
     /*! \brief Sample returned by onInputCalibrationSampled(). */
     common::audio::LiveInputSample input_calibration_sample{};
+
+    /*! \brief Result returned by onInputCalibrationMeasurementStarted(). */
+    std::expected<void, common::audio::LiveInputMonitorError> input_calibration_start_result{};
+
+    /*! \brief Result returned by onInputCalibrationApplied(). */
+    std::expected<void, common::audio::LiveInputMonitorError> input_calibration_apply_result{};
 
     /*! \brief Number of calibration Apply intents received. */
     int input_calibration_apply_count{0};

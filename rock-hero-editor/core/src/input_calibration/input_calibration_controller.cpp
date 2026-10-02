@@ -34,8 +34,8 @@ namespace
 
 // Opens with the route's stored gain on the slider when it has one.
 InputCalibrationController::InputCalibrationController(
-    Host& host, const InputCalibrationPrompt& prompt)
-    : m_host(host)
+    IEditorController& editor, const InputCalibrationPrompt& prompt)
+    : m_editor(editor)
 {
     setGain(prompt.stored_gain_db.value_or(common::audio::defaultGainDb()));
     m_state.message = idleText();
@@ -78,7 +78,7 @@ void InputCalibrationController::onApplyRequested()
     }
 
     // A stored gain ends the prompt, so the editor closes it; only a refusal comes back here.
-    const auto applied = m_host.applyInputCalibration(m_state.gain_db);
+    const auto applied = m_editor.onInputCalibrationApplied(m_state.gain_db);
     if (!applied.has_value())
     {
         m_state.message = applied.error().message;
@@ -97,18 +97,18 @@ void InputCalibrationController::onPickupsSelected(common::audio::PickupClass pi
     publishState();
 }
 
-// Starts a measurement once the host has handed over the route, or stops the running one. A
+// Starts a measurement once the editor has handed over the route, or stops the running one. A
 // refused start says why.
 void InputCalibrationController::onMeasureRequested()
 {
     if (m_state.measuring)
     {
-        m_host.stopInputCalibrationMeasurement();
+        m_editor.onInputCalibrationMeasurementStopped();
         finishMeasurement(idleText());
         return;
     }
 
-    const auto started = m_host.startInputCalibrationMeasurement(m_state.pickups);
+    const auto started = m_editor.onInputCalibrationMeasurementStarted(m_state.pickups);
     if (!started.has_value())
     {
         m_state.message = started.error().message;
@@ -123,7 +123,7 @@ void InputCalibrationController::onMeasureRequested()
 // Meters the input and follows a running measurement: a finished one fills the gain for Apply.
 void InputCalibrationController::onSampleTick()
 {
-    const common::audio::LiveInputSample sample = m_host.sampleInputCalibration();
+    const common::audio::LiveInputSample sample = m_editor.onInputCalibrationSampled();
     m_last_raw_meter_level = sample.raw_level;
     if (!m_state.measuring || !sample.measurement.has_value())
     {
@@ -157,10 +157,10 @@ void InputCalibrationController::onDocumentationUnavailable()
     publishState();
 }
 
-// Closes without storing; the host ends any measurement in progress.
+// Closes without storing; the editor ends any measurement in progress.
 void InputCalibrationController::onCloseRequested()
 {
-    m_host.closeInputCalibration();
+    m_editor.onInputCalibrationClosed();
 }
 
 void InputCalibrationController::setGain(double gain_db)

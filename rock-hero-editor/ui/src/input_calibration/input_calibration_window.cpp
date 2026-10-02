@@ -113,17 +113,15 @@ void configureGainSlider(juce::Slider& slider)
 // player types a gain or measures one by playing, then Apply stores it.
 class InputCalibrationWindow::Content final : public juce::Component,
                                               private juce::Timer,
-                                              private core::IInputCalibrationView,
-                                              private core::InputCalibrationController::Host
+                                              private core::IInputCalibrationView
 {
 public:
     Content(
         InputCalibrationWindow& owner, core::IEditorController& controller,
         const core::InputCalibrationPrompt& prompt)
         : m_owner(owner)
-        , m_editor_controller(controller)
         , m_guide(documentationFile())
-        , m_calibration_controller(*this, prompt)
+        , m_calibration_controller(controller, prompt)
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
         const std::unique_ptr<juce::Drawable> help_icon =
@@ -302,33 +300,6 @@ private:
                                               : juce::String{});
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    startInputCalibrationMeasurement(common::audio::PickupClass pickups) override
-    {
-        return m_editor_controller.onInputCalibrationMeasurementStarted(pickups);
-    }
-
-    [[nodiscard]] common::audio::LiveInputSample sampleInputCalibration() override
-    {
-        return m_editor_controller.onInputCalibrationSampled();
-    }
-
-    void stopInputCalibrationMeasurement() override
-    {
-        m_editor_controller.onInputCalibrationMeasurementStopped();
-    }
-
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError> applyInputCalibration(
-        double gain_db) override
-    {
-        return m_editor_controller.onInputCalibrationApplied(gain_db);
-    }
-
-    void closeInputCalibration() override
-    {
-        m_editor_controller.onInputCalibrationClosed();
-    }
-
     // Opens the local HTML file directly so Windows handles it as a normal filesystem document; a
     // guide that will not open says so rather than failing silently.
     void openGuide()
@@ -345,7 +316,6 @@ private:
     }
 
     InputCalibrationWindow& m_owner;
-    core::IEditorController& m_editor_controller;
     // The guide the "?" opens; a default File when the build has no docs.
     juce::File m_guide;
     core::InputCalibrationController m_calibration_controller;
