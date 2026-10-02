@@ -123,7 +123,7 @@ TEST_CASE("Extrapolator snaps on seeks and loop wraps", "[audio][clock]")
     CHECK(sought == common::core::TimePosition{7.5});
 }
 
-// Non-unit playback rates advance the output at the published rate (plan 28's day-one plumbing).
+// Non-unit playback rates advance the output at the published rate.
 TEST_CASE("Extrapolator honors published playback rates", "[audio][clock]")
 {
     for (const double rate : {0.75, 1.25})

@@ -24,12 +24,10 @@ namespace rock_hero::common::ui
 /*!
 \brief Alpha a ghost keeps, everywhere: head art, technique markers, and sustain tail alike.
 
-The ghost look is `half light`, chosen from six candidates. A ghost is quieted by ALPHA on this
-surface, which composites over a dark 3D world - the opposite choice from the 2D lane, which is
-opaque and leans its ink toward the lane's own ground instead. Both surfaces spend the same weight;
-each spends it the way it actually composites. The candidates it beat: `dim fill` and `dim fill
-deep` (opaque darkening), `dim small` (thinning the head), and `hollow` (an outline instead of a
-fill).
+The ghost look is `half light`: a ghost is quieted by ALPHA on this surface, which composites over a
+dark 3D world, and the 2D lane spends the same weight through a transparency layer over its
+flattened note art. It reads better than the alternatives of opaque darkening (`dim fill`, `dim
+fill deep`), thinning the head (`dim small`), or an outline instead of a fill (`hollow`).
 
 ONE number on purpose, head and markers and tail alike. Splitting it - 0.45 on the head and markers
 against 0.65 on the tail - argues that a ghost is an attack dynamic rather than a sustain one, so a

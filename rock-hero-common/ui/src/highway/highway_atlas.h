@@ -89,7 +89,7 @@ struct HighwayAtlases
 {
     /*!
     \brief Note-head atlas in the reference channel scheme: R multiplies the string tint, G adds
-    white highlight, B is the alpha mask — the encoding Charter's note atlas ships in.
+    white highlight, B is coverage — the encoding Charter's note atlas ships in.
     */
     UniqueBgfxHandle<bgfx::TextureHandle> heads;
 
@@ -140,15 +140,15 @@ inline constexpr int g_head_cell_tech = 1;
 inline constexpr int g_head_cell_anticipation = 2;
 
 // Cells 3, 6 and 7 are FREE — byte-identical empties, and each one is the growth slot of the
-// family whose row it sits in: 3 completes the rectangle row, 6 and 7 the diamond row. Cell 3 is
-// the slot the accent ring vacated when emphasis became a rendered light, because a mark drawn on
-// the head could only ever say "accent", where the light says loud and quiet on one axis and says
-// it identically on an open string, which has no head to wear a mark.
+// family whose row it sits in: 3 completes the rectangle row, 6 and 7 the diamond row. There is
+// no accent-ring cell: emphasis is a rendered light, because a mark drawn on the head could only
+// ever say "accent", where the light says loud and quiet on one axis and says it identically on
+// an open string, which has no head to wear a mark.
 //
 // They cannot sit at the sheet's tail: seventeen filled cells on a four-wide grid is 4x4+1, so
 // "every group row-aligned" and "all spares last" are arithmetically incompatible. The mark rows
-// were kept intact and the spares stayed with the bases. A sixth row (256x384) would dissolve
-// that, and would also buy back the headroom noted at g_head_cell_count.
+// stay intact and the spares stay with the bases. A sixth row (256x384) would dissolve that, and
+// would also buy back the headroom noted at g_head_cell_count.
 
 /*!
 \brief Arpeggio bracket for a posture stop the hand is ON — a fret slot, or a harmonic node placed
@@ -162,10 +162,8 @@ inline constexpr int g_head_cell_arpeggio_open_bracket = 9;
 /*!
 \brief Legato marker: the hammer-on triangle, which the pull-off draws flipped vertically.
 
-One cell, not two. Drawn separately they disagreed — the flat edges carried different border
-thicknesses and the solid cores differed by 26 pixels, because each was authored rather than
-mirrored (measured: 377 of 4096 pixels differed from a true mirror). Flipping one cell makes the
-pair exact inverses by construction, and freed a cell at the time.
+One cell, not two: two separately authored triangles drift apart in border thickness and core
+size, while flipping one cell makes the pair exact inverses by construction.
 */
 inline constexpr int g_head_cell_legato = 10;
 
@@ -178,18 +176,17 @@ inline constexpr int g_head_cell_tap = 18;
 /*!
 \brief Pick-scrape marker: a plectrum split by a single 45-degree fracture.
 
-Wears the picking hand's dark-interior treatment — fill tint weight 68 against a rim of 240 with
-94 of white lift, the values tap, palm mute and pinch harmonic measure. The picking hand's rims
-fall into two clusters and this cell joins the lifted one; slap and pop instead rim at 255 with no
-lift at all. Interior darkness is this atlas's picking-hand signature, and it is load-bearing:
-the cell ORDERING deliberately does not encode the hand, on the grounds that the art already
-does. Measured as the median interior tint over each silhouette, the picking cells run 31 to 91
-and the fretting cells 246 to 255 — 155 counts of empty band between them, six and a half times
-the largest gap within either cluster. (An earlier wording claimed "exactly 255"; the fretting
-side is a ramp rather than a plateau, so the separation is real but that number overstated it.)
-The split holds across cells sharing a function (palm and full mute), a technique (natural and
-pinch harmonic), and a motion (tap and legato), so it tracks the hand rather than the atlas row —
-which is exactly what lets the rows carry the keybind pairs instead.
+Wears the picking hand's dark-interior treatment — fill tint weight 68 against a rim of 240 with 94
+of white lift, the values tap, palm mute and pinch harmonic measure. The picking hand's rims fall
+into two clusters and this cell joins the lifted one; slap and pop instead rim at 255 with no lift
+at all. Interior darkness is this atlas's picking-hand signature, and it is load-bearing: the cell
+ORDERING deliberately does not encode the hand, on the grounds that the art already does. Measured
+as the median interior tint over each silhouette, the picking cells run 31 to 91 and the fretting
+cells 246 to 255 — 155 counts of empty band between them, six and a half times the largest gap
+within either cluster (the fretting side is a ramp, not a plateau). The split holds across cells
+sharing a function (palm and full mute), a technique (natural and pinch harmonic), and a motion (tap
+and legato), so it tracks the hand rather than the atlas row — which is exactly what lets the rows
+carry the keybind pairs instead.
 
 One zig zag at 45 degrees — two arms offset by a single perpendicular step — splits the pick, and
 the fracture carries the row's brightest white lift, 192, so the crack reads as light filling it
@@ -237,8 +234,8 @@ inline constexpr int g_head_cell_full_mute = 13;
 /*!
 \brief Natural-harmonic head marker, sized by the family law.
 
-Drawn on the one uniform quad with its size carried in the cell's own art, which the 2026-08
-mark law sets like every technique mark's: 1.07 x the string pitch tall, and square (its
+Drawn on the one uniform quad with its size carried in the cell's own art, which the mark
+family's law sets like every technique mark's: 1.07 x the string pitch tall, and square (its
 construction is three concentric circles, so squareness is exact by construction). Its own
 cell rather than a bake into the bases because per-quad shader clamping is load-bearing: the
 family highlight deliberately overdrives past white and the icon's translucent moat darkens
@@ -279,16 +276,15 @@ inline constexpr int g_head_cell_harmonic_anticipation = 5;
 NOT a count of named cells — there are seventeen. It is one past the highest named index, which
 is what the startup check needs: capacity below this means some named index addresses no art.
 
-The shipped 256x320 asset supplies exactly this many, so there is now NO headroom: a twenty-first
-named cell needs a taller sheet (256x384 buys a sixth row). That is the price of packing the
-spares in at 5-7 rather than leaving the vocabulary's gaps where they fell.
+The shipped 256x320 asset supplies exactly this many, so the sheet itself has NO headroom: once
+the free cells 3, 6 and 7 are spent, another cell needs a taller sheet (256x384 buys a sixth row).
 */
 inline constexpr int g_head_cell_count = 20;
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
 
-The head atlas uploads the supplied reference PNG (the Charter-derived 4x4 channel-scheme
+The head atlas uploads the supplied reference PNG (the Charter-derived 4-column channel-scheme
 atlas) verbatim when the bytes decode; empty or undecodable bytes leave the heads handle
 invalid and the layout empty, which the renderer treats as a startup error — texture assets
 are required product content, never silently substituted. The glyph atlas is always

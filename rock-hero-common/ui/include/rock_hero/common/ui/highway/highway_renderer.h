@@ -47,7 +47,7 @@ using HighwayShaderSet =
 Indexed by common::core::indexOf(HighwayTexture), which carries the per-asset documentation and the
 file name each asset deploys as. Every entry is REQUIRED product content: empty or undecodable
 bytes fail create with a typed error, because a missing texture means a broken install, not a
-degradable state — the procedural fallbacks this replaces silently masked such failures.
+degradable state; a silent fallback would mask that failure.
 */
 using HighwayTextureSet =
     std::array<std::vector<std::byte>, common::core::g_highway_textures.size()>;
@@ -94,11 +94,10 @@ struct HighwayOverlayRect
 /*!
 \brief Renders the note highway from the shared headless scene model.
 
-One renderer serves both products, superseding plan 44's duplicated-thin-drawers recommendation:
-the game shell and the editor preview each own a bgfx device and feed this renderer their
-compiled shaders, view state, and per-frame time. bgfx never appears in this header — the
-framework stays isolated to implementation files, the same treatment Tracktion receives in
-common/audio.
+One renderer serves both products: the game shell and the editor preview each own a bgfx device
+and feed this renderer their compiled shaders, view state, and per-frame time. bgfx never appears
+in this header — the framework stays isolated to implementation files, the same treatment
+Tracktion receives in common/audio.
 
 Lifetime: create only while a bgfx device is live, destroy before bgfx shutdown (every owned GPU
 resource dies with this object). All methods run on the bgfx API thread.

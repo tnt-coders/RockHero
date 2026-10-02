@@ -70,7 +70,7 @@ std::vector<ToneGainPoint> makeToneGainEnvelope(
     std::vector<ToneGainPoint> envelope;
 
     // The origin point is always explicit so a curve exists even for a never-referenced tone
-    // (a single silent point) and so playback has a defined value before the first boundary.
+    // (silent throughout) and so playback has a defined value before the first boundary.
     const bool opens_audible =
         !schedule.empty() && schedule.front().tone_document_ref == tone_document_ref;
     envelope.push_back(ToneGainPoint{.seconds = 0.0, .gain = opens_audible ? 1.0F : 0.0F});

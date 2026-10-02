@@ -99,8 +99,8 @@ struct SlideRamp
     {
         const ChartNote& note = notes[index];
         // A scrape is the picking hand's travel and never feeds the slide-locked ramps: it has
-        // no fret-hand anchor to ramp. A note carrying no glide at all
-        // — nearly every note — leaves before a single position is resolved.
+        // no fret-hand anchor to ramp. A note carrying no glide at all — nearly every note —
+        // leaves before a single position is resolved.
         if (isScrape(note.attack) || !anyKeyframeStatesFret(note.keyframes))
         {
             continue;
@@ -126,9 +126,9 @@ struct SlideRamp
             }
             // An equal-fret keyframe is a HOLD, not a glide — nothing travels across it (the
             // pitch is pinned, which is how a slide notated on a tied continuation records where
-            // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
-            // whole held stretch to arrive at a fret it never left, so holds fall through to the
-            // margin morph. The segment start still advances, which is what gives the following
+            // it leaves from). Tying a placement's ramp to a hold's span would make the hand drift
+            // the whole held stretch to arrive at a fret it never left, so holds fall through to
+            // the margin morph. The segment start still advances, which is what gives the following
             // glide its true, shorter span. The slide-out's segment starts where the last sounded
             // fret left off and ends where the ring does, and is marked unpitched so the ease
             // matches the slide-out.

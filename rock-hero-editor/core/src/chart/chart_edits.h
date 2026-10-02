@@ -2,15 +2,13 @@
 \file chart_edits.h
 \brief Chart edit planning and the concrete undo edit applied through the editor history.
 
-Every mutation follows one shape: a pure planner builds the authored arrays the edit should
-produce, normalizes same-string sustain overlaps per 40-Q2-B (the earlier note auto-truncates,
-payloads clipped to the shortened sustain, all inside the same undo entry), and diffs against the
-current arrays into a removed/inserted plan. Applying, undoing, and redoing are then the same
-primitive run in opposite directions, so undo round-trips are exact by construction.
-
-A plan is one change to the ONE authored per-string array, the note stream, so every verb is a
-removal-and-insertion over that one array and the exact undo round trip falls out of the same
-primitive for all of them.
+Every mutation follows one shape: a pure planner builds the note stream the edit should produce,
+normalizes same-string sustain overlaps (a re-strike stops the ring: the earlier note
+auto-truncates, payloads clipped to the shortened sustain, all inside the same undo entry), and
+diffs against the current stream into a removed/inserted plan. The note stream is the ONE authored
+per-string array, so every verb is a removal-and-insertion over it, and applying, undoing, and
+redoing are the same primitive run in opposite directions: undo round-trips are exact by
+construction.
 */
 
 #pragma once
@@ -90,11 +88,10 @@ struct ChartPlanInvalid
 
 The two emptinesses are kept apart because sharing one `std::nullopt` makes every refusal in the
 editor silent — no caller can tell "this edit is not allowed" from "this edit changes nothing", so
-nothing can report the former without lying about the latter. W3's pending fret entry is the
-consumer that forces the split: a provisional value that plans to a no-op is VALID and must not
+nothing can report the former without lying about the latter. The pending fret entry is the
+consumer that needs the split: a provisional value that plans to a no-op is VALID and must not
 paint red. A sum rather than a kind beside a string, so only a refusal can carry a reason; the
-reason goes to the log, and what the screen shows is the refusal flash's
-(`docs/plans/in-progress/refusal-flash.md`).
+reason goes to the log, and what the screen shows is the refusal flash.
 */
 using ChartPlanRefusal = std::variant<ChartPlanNoChange, ChartPlanInvalid>;
 
@@ -126,7 +123,7 @@ using ChartFretWrite = std::variant<ChartFretSet, ChartFretShift>;
 
 Every note rings, so a placement authors a duration: the placed ring reaches the next line of the
 session's grid, clamped against the next onset on its own string, and any earlier same-string ring
-crossing the new onset truncates (40-Q2-B) — all in the one plan. The grid is the caller's because
+crossing the new onset truncates — all in the one plan. The grid is the caller's because
 it is a SESSION fact (the unit the user is working in), not a chart one; `note.sustain` is
 overwritten rather than read, so there is only one channel for it. The ring ends on a LINE rather
 than one exact grid step out, because a line is a tick-lattice position by construction and one
@@ -210,9 +207,9 @@ any other — authoring state the history never records (\ref writtenChartPlan) 
 writer sheds (\ref common::core::keyframeSaysNothingNew) — so this planner never refuses a point
 for its meaning, at the ring's END as much as inside it: a slide-out toward the fret already in
 force draws its chip, so it can be selected, retyped and deleted, and it goes with every other
-silent point when its note leaves focus. The scrape's
-still-hold — a repeated position that would stop the pick travelling — refuses through the fixpoint,
-because a scrape that rests on a fret is no scrape.
+silent point when its note leaves focus. The scrape's still-hold — a repeated position that would
+stop the pick travelling — refuses through the fixpoint, because a scrape that rests on a fret is
+no scrape.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -237,8 +234,8 @@ keyframe past the cut rides the new head, rebased; and the channel states in for
 open it, a bend in progress becoming its onset bend. The new head is STRUCK, at the fret given,
 with strike defaults — no attack, node, mute, tremolo, emphasis or held stop rides over, those
 being facts of the strike that made the origin — where the split's new head is picked and keeps
-them all. The cut deletes nothing: a later keyframe the fret makes silent dissolves under
-the commit law like any silent point.
+them all. The cut deletes nothing: a later keyframe the fret makes silent dissolves under the
+commit law like any silent point.
 
 A scrape refuses, as the split does: one picking-hand gesture has no junction. The offset must
 lie STRICTLY inside the ring — at its end there is nothing to divide, and the head simply stands
@@ -284,8 +281,8 @@ truths are not the burst's business.
 
 Deleting a selected KEYFRAME is the same verb one level in: it takes the point's FRET, the stop it
 states, as deleting a note takes the note, and leaves every other technique there for its own verb
-to clear (the bend picker's "No bend", `V`) — each technique is its own authored surface (user
-ruling, 2026-09-29). The point itself goes where nothing new is left on it (\ref
+to clear (the bend picker's "No bend", `V`) — each technique is its own authored surface. The
+point itself goes where nothing new is left on it (\ref
 common::core::keyframeSaysNothingNew), and a point stating no fret is its other techniques alone,
 so it goes whole, leg boundary included: a vibrato ending deleted lets the vibrato before it run
 on. Only the keyed points are judged; a silent point elsewhere on the note is the commit law's. A
@@ -441,11 +438,11 @@ it twice. Only keyframes on notes the selection left standing take the beat delt
 Refused (empty) when any moved note would leave the chart's string range or land on a slot an
 unmoved note occupies — validation-preserving edits only, and a HEAD's landing is never clamped
 short of where it was aimed (the one clamp is a ring's end, below). Overlaps created at the
-destinations truncate per 40-Q2-B: this is the ONE verb that re-strikes by truncation, so a landing
-inside a tail SHORTENS that ring and rides its slide-out back to the new end. It never DELETES a
-statement, though — a landing that would clip a keyframe other than the slide-out off the tail is
-refused whole, since the statement belongs to a note the charter did not touch and the clip leaves
-no record of it.
+destinations truncate (a re-strike stops the ring): this is the ONE verb that re-strikes by
+truncation, so a landing inside a tail SHORTENS that ring and rides its slide-out back to the new
+end. It never DELETES a statement, though — a landing that would clip a keyframe other than the
+slide-out off the tail is refused whole, since the statement belongs to a note the charter did not
+touch and the clip leaves no record of it.
 
 Most of a moved keyframe's bounds are stated nowhere here, because the rules already carry them: an
 offset stepped to or below zero, past the ring, or onto — or across — a neighbour leaves the note's
@@ -501,11 +498,11 @@ so a note carried across a meter change keeps its real length and stays on the t
 /*!
 \brief Plans retyping the stops a selection addresses toward a typed fret target.
 
-Two modes: transposing (the default) shifts every stop by the same delta
-so the snapshot's lowest fret lands on the target — shape-preserving, so chords reposition,
-runs transpose, and a single note retypes exactly — while set-exact assigns the target to
-every stop. Members can never go below zero under transposition because the lowest fret is
-the anchor; a member pushed past the fret cap refuses the whole plan, never clamps.
+Two modes: transposing (the default) shifts every stop by the same delta so the snapshot's lowest
+fret lands on the target — shape-preserving, so chords reposition, runs transpose, and a single
+note retypes exactly — while set-exact assigns the target to every stop. Members can never go
+below zero under transposition because the lowest fret is the anchor; a member pushed past the
+fret cap refuses the whole plan, never clamps.
 
 The base is a snapshot rather than the live chart so the multi-digit entry window can replan
 the whole entry from the pre-entry originals while widening; the retyped values are swapped into
@@ -516,8 +513,8 @@ inside its note, so a note reached only because one of its keyframes is selected
 with its own stop left alone.
 
 WHICH stops are addressed is the two key lists' answer, and they are the selection's own two
-operands. A note's own stop is retyped where `note_keys` names it; a keyframe's fret
-is retyped where `keyframe_keys` names it. That split is the fret-verb law made structural rather
+operands. A note's own stop is retyped where `note_keys` names it; a keyframe's fret is retyped
+where `keyframe_keys` names it. That split is the fret-verb law made structural rather
 than restated: retyping a head edits exactly that head's fret — a slide's path never rides along, in
 either mode, because every keyframe was placed on its fret on purpose — and retyping a keyframe
 edits exactly that point, leaving the head where the charter put it. A scrape start retyped onto its
@@ -525,16 +522,16 @@ first path position refuses through the finalize gate's always-traveling rule; a
 equal-fret start is the legal hold encoding and passes.
 
 A KEYFRAME retypes like a head: the SELECTION KIND is what says which stop a digit reached.
-Transposition anchors on the lowest stop the whole
-operand addresses, heads and keyframes together, which is what makes a chord slide's members move as
-one delta. A keyframe stating no fret states nothing about position, so it contributes no stop and
-takes none: authoring one there would state a channel the charter never pointed at, and nothing
-draws such a keyframe to point at in the first place.
+Transposition anchors on the lowest stop the whole operand addresses, heads and keyframes
+together, which is what makes a chord slide's members move as one delta. A keyframe stating no
+fret states nothing about position, so it contributes no stop and takes none: authoring one there
+would state a channel the charter never pointed at, and nothing draws such a keyframe to point at
+in the first place.
 
 Nothing else follows a retyped stop. The span it sits in is DERIVED, so a stop that now contradicts
-the note re-picking its string is not arbitrated here at all: side ruling (ii) stops recognising
-that re-pick as the same hand and the span splits, which is the coherence the ruling asks for
-falling out of the derivation rather than a second rule written into this planner.
+the note re-picking its string is not arbitrated here at all: the derivation stops recognising
+that re-pick as the same hand and the span splits, so the coherence falls out of the derivation
+rather than a second rule written into this planner.
 
 A FRET-HAND HARMONIC HAS NO STOP TO RETYPE, so a retype naming one is REFUSED outright: the finger
 stands on the node and presses nothing, and landing a digit would author a stop and a touch
@@ -629,8 +626,8 @@ authority drops that press rather than recording it — so a lone note at its bo
 unseen overshoot to pay back. A chord member pinned beside a moving one is not that case: the step
 IS recorded, and the member rejoins where it parted.
 
-- Growth clamps at exact adjacency with the next onset on the note's own string (40-Q2-B,
-  \ref common::core::sustainBoundOf), the model's one ceiling on a ring. A note pinned there
+- Growth clamps at exact adjacency with the next onset on the note's own string
+  (\ref common::core::sustainBoundOf), the model's one ceiling on a ring. A note pinned there
   reports the bound for every step past it, and leaves the bound on the step that falls back
   inside.
 - Shrinking stops at the ring's FLOOR: the last keyframe's offset where the note carries one, the
@@ -701,8 +698,8 @@ a note already as the verb would leave it is unchanged, not refused — which is
 toggle tell "nothing left to claim, so this press means clear" from "this press was refused".
 
 The notes themselves rather than a count, because the planner already walked them and the consumer
-is the refusal flash (`docs/plans/in-progress/refusal-flash.md`), which glows the very elements the
-verb turned down: returning them costs no second pass, and no count in a corner could name them.
+is the refusal flash, which glows the very elements the verb turned down: returning them costs no
+second pass, and no count in a corner could name them.
 */
 struct [[nodiscard]] ChartSelectionPlan
 {
@@ -1119,18 +1116,17 @@ split's exact inverse rather than as a second law, so split-then-join on the sam
 byte-exact round trip — and the tie the join authors never enters the format at all, because a
 point that restates the fret the path is already running on is silent authoring state the history
 and the writer both shed (\ref writtenChartPlan, \ref common::core::keyframeSaysNothingNew). That
-is W10's tie: one longer ring and one note fewer, with no tie datum anywhere.
+is the tie: one longer ring and one note fewer, with no tie datum anywhere.
 
 The label says which halves ran — "Split Note", "Join Notes", or "Split and Join" — so it is
 computed here and not handed in: only the walk knows what a mixed selection did.
 
 # THE SPLIT
 
-The split-tail law applied at a keyframe instead of at a bare tail point (W10's addendum): the
-note's path ENDS at the keyframe and a new head takes the remainder. The origin keeps the keyframe —
-its travel really does arrive there, and dropping it would delete the leg the split was made at — so
-the junction is an equal-fret handover, which is exactly the shape W10's ruling 2 names ("the
-handed-over keyframe fret equalling the new head's").
+The split-tail law applied at a keyframe instead of at a bare tail point: the note's path ENDS at
+the keyframe and a new head takes the remainder. The origin keeps the keyframe — its travel really
+does arrive there, and dropping it would delete the leg the split was made at — so the junction is
+an equal-fret handover, the handed-over keyframe fret equalling the new head's.
 
 **The arrival stands AT the split instant** — on the new head itself, which is what the store says
 the hands did. Nothing marks it as the pitched arrival the charter split at, and nothing has to: the
@@ -1159,12 +1155,10 @@ wrote, and the join refuses a scrape on either side, so such a product could nev
 Every selected keyframe on a note splits it, in offset order, so a chain selected at two junctions
 becomes three notes: the uniform-scope law, one level inside the note.
 
-**The split walk is this verb's alone.** The per-note segment walk it runs was shared with the tab
-lane's typed STRIKE until that verb was retired — every digit now states a point on the path it
-lands in, so the lossless split reaches the chart through this verb only. All this verb supplies is
-the instants, each selected keyframe; the walk owns everything a product carries, the struck
-`Pick` attack and the fret in force at the cut (at a keyframe, that keyframe's own statement)
-included.
+**The split walk is shared with \ref planCutRing**, which runs the same per-note segment walk with
+a fresh head in place of the severed one. All this verb supplies is the instants, each selected
+keyframe; the walk owns everything a product carries, the struck `Pick` attack and the fret in
+force at the cut (at a keyframe, that keyframe's own statement) included.
 
 What each product carries. The remainder is the same note restarted at the junction: its fret is
 the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its
@@ -1178,10 +1172,10 @@ produces — one longer ring — so "split but unstruck" names no state, and div
 therefore the statement that the string is re-attacked there. A charter who wants the cut played
 legato presses `L` on the product afterwards.
 
-Split refusals, the first two from W10's ruling 2 ("technique verbs split only at stated frets"):
+Split refusals (technique verbs split only at stated frets):
 
 - A keyframe stating no FRET is refused. A head must sit on a stated fret, and the fret between
-  stating points is interpolated travel — rounding it was killed explicitly as invented data.
+  stating points is interpolated travel — rounding it would invent data.
 - A keyframe at the ring's END is refused: there is no remainder for a new head to take, and the
   note already stops there.
 - A SCRAPE is refused, for the reason stated above: one picking-hand gesture has no junction.
@@ -1210,7 +1204,7 @@ Join refusals, each because the handover it would author is not one the format c
 - No predecessor on the string at all — there is no path for the point to join.
 - A scrape predecessor: its travel is the PICK's position, so no fretting finger arrives anywhere.
 - A predecessor whose end SLIDES OUT: a slide-out's tail is authored geometry, not slack to spend —
-  the same rule the D14 legato assist already refuses to reshape (\ref planSetLegato). A
+  the same tail the legato assist refuses to reshape (\ref planSetLegato). A
   predecessor whose end ARRIVES into this very head is the opposite case and IS joinable: the
   finger is already on the stop the head takes, so the relation is asked of the pair the join
   holds rather than of position (\ref common::core::arrivesIntoNextHead).
@@ -1314,9 +1308,9 @@ Both members take the whole OPERAND rather than one note — the selection, else
 caret's slot holds — because the operand is what the uniform-scope law scopes a verb to and not
 every technique lives in one place: vibrato is a channel along the ring, so a keyframe key (an
 instant, a point standing there or not) carries it and takes it exactly as a note does, while every
-row but its two reads `selection.notes()` and nothing else. Handing each row one
-operand and letting it read the parts it has a meaning for is what keeps a technique with no
-keyframe scope from carrying a guard about keyframes.
+row but its two reads `selection.notes()` and nothing else. Handing each row one operand and
+letting it read the parts it has a meaning for is what keeps a technique with no keyframe scope
+from carrying a guard about keyframes.
 */
 struct ChartTechniqueLaw
 {
@@ -1327,7 +1321,7 @@ struct ChartTechniqueLaw
     \brief True when every object the verb would write already carries the technique.
 
     False for a selection this verb has no operand in at all, which makes such a press mean SET and
-    therefore plan to nothing — the same inert outcome an empty selection has always had.
+    therefore plan to nothing — the same inert outcome an empty selection has.
     */
     bool (*carried)(const common::core::Chart& chart, const ChartSelection& selection);
 
@@ -1406,8 +1400,10 @@ struct [[nodiscard]] ChartEdit final : IEdit
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
         EditorEditContext& context) const override;
 
-    /*! \brief Returns the user-visible command label for menus and diagnostics.
-    \return Human-readable label for the planned change. */
+    /*!
+    \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label for the planned change.
+    */
     [[nodiscard]] std::string label() const override;
 
     /*!

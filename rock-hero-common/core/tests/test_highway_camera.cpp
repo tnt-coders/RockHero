@@ -121,7 +121,7 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
 }
 
 // A fretted note outside the hand window — a two-hand tap floats far above the fretting hand,
-// which no longer anchors it — must still be framed: the camera span widens up to the tap even
+// which does not anchor it — must still be framed: the camera span widens up to the tap even
 // though the hand window (and its light) stays low. Open strings never reframe, and content in
 // an already-passed zone drops out of the frame (within a zone it deliberately stays).
 TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][camera]")
@@ -185,8 +185,8 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
 
 // An OPEN-STRING tap harmonic has no stop, but its node is the note's only position — the light
 // and the head both draw there — so the node must reframe even though an open string's stop never
-// does. The node widening therefore runs BEFORE the open-string skip: skipping first left the one
-// note the tap light was built for entirely off screen.
+// does. The node widening therefore runs BEFORE the open-string skip: skipping first would leave
+// the one note the tap light was built for entirely off screen.
 TEST_CASE(
     "Highway camera frames an open-string tap harmonic at its node", "[core][highway][camera]")
 {
@@ -379,9 +379,9 @@ TEST_CASE(
 }
 
 // Square pixels: world-square geometry must project screen-square at every viewport shape, or
-// note heads and inlay dots render as ellipses. This guards the removal of Charter's +0.05
-// vertical screen-scale lift, which stretched the picture 5 to 10 percent vertically depending on
-// window shape and which no test caught in either direction.
+// note heads and inlay dots render as ellipses. This guards against Charter's +0.05 vertical
+// screen-scale lift, which stretches the picture 5 to 10 percent vertically depending on window
+// shape.
 //
 // The check is that a world X extent and an equal world Y extent, at the same depth, occupy the
 // same fraction of the screen: NDC is normalized per axis, so equal screen lengths means the X
@@ -499,7 +499,7 @@ TEST_CASE("Highway background matrix parallaxes with the pin intact", "[core][hi
 // THE FAR EDGE HOLDS: the height is derived so the visibility window's far edge lands at one
 // screen height at every zoom and every window shape, with the hit line still pinned — so zooming
 // out raises the camera instead of letting the highway's end sink. At the reference span and 16:9
-// the derived height reproduces the fixed 5.0 it replaced: a point 5.0 above the board is then at
+// the derived height reproduces Charter's fixed 5.0: a point 5.0 above the board is then at
 // eye level, which projects to one screen height at every depth.
 TEST_CASE("Highway camera holds the far edge at one screen height", "[core][highway][camera]")
 {
@@ -535,7 +535,7 @@ TEST_CASE("Highway camera holds the far edge at one screen height", "[core][high
         Catch::Approx(reference_clip.projectPoint(reference.x, 5.0, 24.0)[1]).margin(1.0e-3));
 }
 
-// Depth regression (plan-25 Phase 3): the near plane must be camera-relative (eye depth),
+// Depth regression: the near plane must be camera-relative (eye depth),
 // never anchored at world Z. The hit line (world z = 0) and the short passed-note region behind
 // it sit inside the depth volume, and depth stays monotonic along the time axis so far-to-near
 // draw ordering can rely on the depth test.

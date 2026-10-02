@@ -527,8 +527,8 @@ TEST_CASE("Project tone import shows per-plugin load progress", "[core][editor-c
 TEST_CASE("Project tone import confirms before dropping automation", "[core][editor-controller]")
 {
     CalibratedProjectHarness harness;
-    // The loaded rig reports a durable id for the fake's default chain instance, and the song
-    // carries one automation entry keyed by that id — the work an import would drop.
+    // The loaded rig reports a durable id for its one chain instance, and the song carries one
+    // automation entry keyed by that id — the work an import would drop.
     harness.live_rig.next_load_result.plugins = {
         common::audio::PluginChainEntry{
             .instance_id = "loaded-instance",
@@ -591,7 +591,8 @@ TEST_CASE("Project tone import confirms before dropping automation", "[core][edi
     CHECK(harness.state().undo_enabled);
 }
 
-// Opening a dirty tone document over another tone file defers behind the same prompt.
+// Opening another tone file over a dirty designer document defers behind the same unsaved-changes
+// prompt; Discard then opens it.
 TEST_CASE("Dirty tone designer defers opening another tone file", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;

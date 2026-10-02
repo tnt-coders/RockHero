@@ -1094,7 +1094,7 @@ TEST_CASE(
     // THE DATING RULE puts the first span's FRONT at beat one, not at the beat-2 chord: the tied
     // fret-6 ring the chord picks around began there and no preceding span covers it, so the
     // statement runs from the ring's own onset and the chord arrives inside it. The span COVERS ITS
-    // OWN GLIDE (rule 11b, [D2]), so it ends at the LANDING, which the store places exactly on the
+    // OWN GLIDE (rule 11b), so it ends at the LANDING, which the store places exactly on the
     // beat-3 chord, two beats in.
     //
     // THE LANDED GRIP DOES NOT BREATHE: the glides complete as the beat-3 chord is struck, and a
@@ -1269,7 +1269,7 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
     }
 
     // The accent bitset: 1 = staccato, 4 = heavy accent, 8 = accent. Both loud bits import as an
-    // accent (the ruling that a heavy accent folds into the one loud tier for now), while
+    // accent (a heavy accent folds into the one loud tier for now), while
     // staccato is not dynamics at all — it is duration, and counts as the halved ring the
     // last section below pins. Returns the eighth-note fixture note the bits were written on, so
     // one lambda can answer both axes.
@@ -1366,8 +1366,8 @@ TEST_CASE("Guitar Pro import halves a staccato note's ring", "[core][gp-import]"
     CHECK(chart.notes[0].sustain == Fraction{1, 2});
     CHECK(chart.notes[0].emphasis == common::core::NoteEmphasis::Normal);
 
-    // What the shortened ring costs, accepted by the ruling: the next note's legato claim was
-    // justified only while that quarter rang to its onset a beat later, so the claim now settles
+    // What the shortened ring costs, and the cost is accepted: the next note's legato claim is
+    // justified only while that quarter rings to its onset a beat later, so here the claim settles
     // into the plain pick it plays as (the main fixture pins the same note as Legato unmarked).
     CHECK(chart.notes[1].attack == common::core::NoteAttack::Pick);
 
@@ -1650,9 +1650,9 @@ constexpr int g_low_string_midi{40};
 
 } // namespace
 
-// Guitar Pro states the two mutes as independent note properties, and so does the chart now: a
-// dead string inside a palm-muted chord carries BOTH marks and must import with both flags. The
-// single mute axis this replaced had to pick one, and it dropped the palm.
+// Guitar Pro states the two mutes as independent note properties, and so does the chart: a dead
+// string inside a palm-muted chord carries BOTH marks and must import with both flags. A single
+// mute axis would have to pick one and drop the palm.
 TEST_CASE("Guitar Pro import carries both mutes independently", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -1803,14 +1803,9 @@ TEST_CASE(
     }
 }
 
-// Guitar Pro's tremolo picking is measured (the mark carries a stroke duration), and the chart
-// reserves `tremolo` for unmeasured noise, so import spells the strokes out as individual notes at
-// the marked subdivision. Ties into a tremolo beat release their origin (the strokes re-pick), the
-// first stroke alone keeps the accent, and beats whose notes carry bends or slide payloads keep the
-// mark with a conversion note instead. A harmonic is asserted by its node, so import must always
-// set one for a fret-hand harmonic — including when Guitar Pro's HarmonicFret matches the fret, or
-// omits it. Storing the node only where it differs from the fret would import the note as not a
-// harmonic at all.
+// A harmonic is asserted by its node, so import must always set one for a fret-hand harmonic —
+// including when Guitar Pro's HarmonicFret matches the fret, or omits it. Storing the node only
+// where it differs from the fret would import the note as not a harmonic at all.
 TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -2053,6 +2048,11 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
     }
 }
 
+// Guitar Pro's tremolo picking is measured (the mark carries a stroke duration), and the chart
+// reserves `tremolo` for unmeasured noise, so import spells the strokes out as individual notes at
+// the marked subdivision. Ties into a tremolo beat release their origin (the strokes re-pick), the
+// first stroke alone keeps the emphasis, a bent beat spells out as progressively larger prebends,
+// and a beat carrying a slide payload keeps the mark with a conversion note instead.
 TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -3141,8 +3141,8 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         REQUIRE(chart.notes.size() == 2);
         const common::core::ChartNote* const marked = noteOnChartString(chart.notes, 1);
         REQUIRE(marked != nullptr);
-        // Three beats, the figure's end on beat four; two is the merged written ring the deleted
-        // exemption froze it at.
+        // Three beats, the figure's end on beat four; two is the merged written ring a tie
+        // exemption would freeze it at.
         CHECK(marked->sustain == Fraction{3});
         CHECK(
             anyNoteContains(built->notes, "1 let-ring rings were extended to their figure's end"));
@@ -3316,10 +3316,10 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
     {
         // Rule 17's steal takes the ornament's lead out of this beat, and the figure law then
         // out-rings it. What must not happen anywhere in that order is the truth loss this pins:
-        // the bend was once clipped to the STOLEN ring the instant it was mapped, so the
-        // destination — which Guitar Pro states as a percentage of the NOTATED quarter and which
-        // therefore sits past the stolen end — was gone by the time the ring came back. The trim
-        // runs ONCE, after every pass that can lengthen a ring.
+        // clipping the bend to the STOLEN ring the instant it is mapped would lose the destination
+        // — which Guitar Pro states as a percentage of the NOTATED quarter and which therefore
+        // sits past the stolen end — before the ring comes back. The trim runs ONCE, after every
+        // pass that can lengthen a ring.
         //
         // THE FIGURE HAS TO REACH PAST THE ORNAMENT for that to be observable, so the beat the
         // grace ornaments carries a mark of its own: the anchor is measured from the figure's LAST
@@ -3366,7 +3366,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
     {
         // The same fixture without the mark, which is what keeps the trim honest: nothing
         // lengthens this ring afterwards, so the destination the curve wrote past the stolen end
-        // is a part of the bend that never sounds and it goes, exactly as it always has.
+        // is a part of the bend that never sounds and it goes.
         GpScore score = makeLinearScore(1, syncs);
         GpBeat bent = noteBeat(quarter, 5);
         bent.notes.front().bend = GpBend{
@@ -3486,10 +3486,10 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
 
     SECTION("THE Q7 GATE: the derived span answers all four verdicts")
     {
-        // THE GATE the roll figure must pass (W-D). It asks four verdicts rather than byte equality
-        // with a claims-produced span, because a span built from claims runs only as far as the
-        // roll GESTURE — that is all the claims state. Under [D3] the hold is the RING, so the gate
-        // asks what the rule actually promises.
+        // THE GATE the roll figure must pass. It asks four verdicts rather than byte equality with
+        // a claims-produced span, because a span built from claims runs only as far as the roll
+        // GESTURE — that is all the claims state. The hold is the RING, so the gate asks what the
+        // rule actually promises.
         //
         // Four verdicts, and every one of them is asserted below:
         //   (1) COVERAGE — every roll note lies inside a derived span;
@@ -3508,9 +3508,9 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartResolutions resolutions =
             common::core::chartResolutions(chart.notes, built->tempo_map);
-        // The figure the ruling asked for, read back by rules that know nothing about rolls: the
-        // members' rings overlap into one shape, so the ordinary opening law brackets the whole
-        // chord as ONE posture with no claim anywhere in it.
+        // The roll's figure, read back by rules that know nothing about rolls: the members' rings
+        // overlap into one shape, so the ordinary opening law brackets the whole chord as ONE
+        // posture with no claim anywhere in it.
         REQUIRE(resolutions.shapes.size() == 1);
         const common::core::ChartShape& span = resolutions.shapes.front();
 
@@ -3531,14 +3531,14 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         CHECK(span.position == GridPosition{.measure = 1, .beat = 1});
         CHECK(span.bracket_position == std::optional<GridPosition>{span.position});
         // Nothing here asserts a founding classification, because under the grip-tenure law there
-        // is none to read: `SpanFounding` does not exist. Accumulation is a RULE rather than a
-        // stored verdict — sound alone opens a span at three or more overlapping members — and the
-        // roll is exactly that figure, which the verdicts here (one span, no claim, the whole ring,
-        // arpeggio) already say.
+        // is none to read: the model stores no founding verdict. Accumulation is a RULE rather than
+        // a stored verdict — sound alone opens a span at three or more overlapping members — and
+        // the roll is exactly that figure, which the verdicts here (one span, no claim, the whole
+        // ring, arpeggio) already say.
 
         // (1) COVERAGE: every roll note lies inside the span, the last arrival included. The
-        // bracket runs the RING (two beats), not the stagger (half a beat), because under [D3] the
-        // hold IS the ring.
+        // bracket runs the RING (two beats), not the stagger (half a beat), because the hold IS the
+        // ring.
         CHECK(span.sustain == Fraction{2});
         const Fraction span_start =
             common::core::beatDistance(built->tempo_map, GridPosition{}, span.position);
@@ -4012,7 +4012,7 @@ TEST_CASE("Guitar Pro parsing reads the roll mark and its own spread", "[core][g
 // The parse side of voice identity, which a score-built test cannot reach: gpif spells a bar's
 // voices as SLOTS and writes -1 for one the bar does not use, while a voice's continuation across
 // bar lines is asked of the SLOT (the reference chains a beat to `bar.nextBar.voices[this.index]`).
-// Compacting the absences away renumbered every voice after a gap, which spliced two different
+// Compacting the absences away would renumber every voice after a gap and splice two different
 // voices into one chain — and the let-ring walk reads exactly that chain for its rest and
 // same-string stops. Nothing downstream can tell a spliced chain from a real one, so it is pinned
 // here.
@@ -4389,8 +4389,8 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         CHECK_FALSE(common::core::hasVibrato(note.vibrato));
         CHECK(note.sustain == Fraction{2});
         // A tie states no new position, so the keyframe carrying the vibrato states no fret: the
-        // fret-less keyframe the model made legal is exactly what a state change without a hand
-        // move needs.
+        // fret-less keyframe the model allows is exactly what a state change without a hand move
+        // needs.
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{1});
         CHECK_FALSE(note.keyframes[0].fret.has_value());
@@ -6018,7 +6018,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
 
     SECTION("a left-hand note under simultaneous right-hand taps derives no chord")
     {
-        // The two-hand-tapping staple (a real-score regression): a left-hand tap struck
+        // The two-hand-tapping staple, as real scores write it: a left-hand tap struck
         // together with two right-hand taps. The taps are invisible to span derivation, so the
         // onset counts one non-tap member — an ordinary single onset, no chord posture — and
         // the dense run that follows cannot crowd a derived span into zero length.
@@ -6240,9 +6240,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         GpScore score = makeLinearScore(1, syncs);
         GpBeat bent = noteBeat(Fraction{1, 4}, 8, 0, 16);
         // A rise to a whole step at the half: the bend states land at the onset, 1/2 and 1 beat,
-        // and the scoop keyframe interleaves between the first two. One array now
-        // holds both channels, so the scoop takes its place in the SAME order without touching a
-        // bend value — which is the coupling the model exists for.
+        // and the scoop keyframe interleaves between the first two. One array holds both
+        // channels, so the scoop takes its place in the SAME order without touching a bend value —
+        // which is the coupling the model exists for.
         bent.notes[0].bend = GpBend{
             .origin_value = 0.0,
             .middle_value = 100.0,
@@ -6656,9 +6656,9 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
 
     // Exact adjacency hands the instant to the next strike only where that strike presses a stop:
     // a strike of open strings places no window, so the hand would sit out the whole glide while
-    // the rail travels (sighted 2026-09-28, "In the Face of the Nameless" 100:10, a two-string
-    // slide-out onto the open outro chord). The exit rides the gesture to its end, and the restore
-    // waits for the onset after the open strike.
+    // the rail travels (a two-string slide-out onto an open chord is the figure that shows it).
+    // The exit rides the gesture to its end, and the restore waits for the onset after the open
+    // strike.
     SECTION("an abutting slide-out onto an open strike rides the window to its end")
     {
         GpScore score = makeLinearScore(1, syncs);
@@ -6860,8 +6860,8 @@ TEST_CASE("Guitar Pro import anchors the hand below tapped notes", "[core][gp-im
     const common::core::Chart& chart = built->arrangements.front().chart;
 
     // The tapped fret-15 note never anchors the hand: every generated position stays down where
-    // the fretted notes (3 and 5) are, none up in the tap's region — the greedy walk would have
-    // dragged the window all the way to fret 15.
+    // the fretted notes (3 and 5) are, none up in the tap's region — a walk anchoring on every
+    // fret would drag the window all the way to fret 15.
     REQUIRE_FALSE(chart.fret_hand_positions.empty());
     for (const common::core::FretHandPosition& fhp : chart.fret_hand_positions)
     {
@@ -6893,8 +6893,6 @@ TEST_CASE(
     CHECK(chart.fret_hand_positions.front().fret == 7);
 }
 
-// A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
-// the build records a drift warning naming the covered range.
 // Guitar Pro's positive backing-track frame padding is silence before the audio (the first
 // measure precedes the recording); the import turns it into the asset start offset so playback
 // lines up, counting the padding at a fixed 44.1kHz regardless of the audio's real rate.
@@ -6985,6 +6983,8 @@ TEST_CASE("Guitar Pro import snaps tempo anchors to the millisecond grid", "[cor
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
+// the build records a drift warning naming the covered range.
 TEST_CASE("Guitar Pro build warns about sparse audio sync coverage", "[core][gp-import]")
 {
     const GpScore score = makeLinearScore(
@@ -7386,10 +7386,10 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         // seven.
         //
         // This section exists because the cap governs exactly one shape, and this is it: every
-        // other figure here reaches its anchor first. A live bound no
-        // figure pins is a bound the next reader deletes as dead, so the figure rule's own case
-        // pins that the cap bounds a whole figure, while the sliding-cap sections in "rings a
-        // let-ring note on to what sounds" pin the other half — what the cap MEASURES.
+        // other figure here reaches its anchor first. A live bound no figure pins is a bound the
+        // next reader deletes as dead, so the figure rule's own case pins that the cap bounds a
+        // whole figure, while the sliding-cap sections in "rings a let-ring note on to what
+        // sounds" pin the other half — what the cap MEASURES.
         GpScore score = makeLinearScore(3, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -7478,7 +7478,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
     {
         // The point of the rule, read back by the derivation that knows nothing about let ring:
         // the marked members stack into ONE statement dated from the first note rather than three
-        // staircase spans — which is the figure the whole ruling grew from. The anchor moves where
+        // staircase spans — which is the figure the whole rule exists for. The anchor moves where
         // that statement closes without breaking it up: the whole figure takes the anchor's
         // instant, so the three members quit together on beat four instead of running to the
         // audibility cap three beats further out.
@@ -7507,8 +7507,8 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         const common::core::Chart& chart = built->arrangements.front().chart;
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
         // PINNED EXACTLY rather than as a `>= 1`: there is no founding classification to read —
-        // `SpanFounding` does not exist — so the COUNT is the only thing that can say "the texture
-        // is ONE span", and it says it exactly. ONE, and the whole song holds no other: the
+        // the model stores none — so the COUNT is the only thing that can say "the texture is ONE
+        // span", and it says it exactly. ONE, and the whole song holds no other: the
         // figure's one end stops all three marks on beat four together, and past that instant
         // nothing ever sounds two members at once — the unmarked stab is alone and the plain bar is
         // one string struck four times — so rule 10 never opens a second span. Three is the
@@ -7546,7 +7546,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
 // figure and founds the next AT ITSELF — exactly there, with no step back over anything. THERE IS
 // NO RETREAT MECHANISM IN THE LAW.
 //
-// WHAT THE SEAM IS FOR, now that no tail reads one: GROUPING THE MARKS. It decides which marks
+// WHAT THE SEAM IS FOR, given that no tail reads one: GROUPING THE MARKS. It decides which marks
 // share a figure, and therefore whose last mark each stack's tails are measured from — THE ANCHOR,
 // the first onset the figure's own voice states after that last mark. A seam is itself an own-voice
 // onset past the figure's marks, so it always sits at or after the anchor and can never bind a
@@ -7713,7 +7713,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
 
     SECTION("an open mark is still stopped by a statement on its OWN string")
     {
-        // The other half of the ruling, and the arm that needs no code: what stops an open ring
+        // The other half of the rule, and the arm that needs no code: what stops an open ring
         // is a direct contradiction on ITS string, which the same-string clamp every ring is
         // under already applies. The same figure with the drone's own string restated at beat
         // three — the lift carries it toward the phrase's beat-four anchor, and the clamp takes
@@ -7812,7 +7812,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         // string, and touch the drone's string nowhere. Bar four moves the grip back and opens a
         // second marked run with an open drone of its own. Quarter notes throughout, so no onset
         // gap comes near the audibility horizon and there is no horizon seam anywhere to end a
-        // phrase the old way.
+        // phrase instead.
         GpScore score = makeLinearScore(5, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -8051,7 +8051,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
 
     SECTION("unmarked material in the figure bounds the ring: the anchor, not the seam")
     {
-        // THE SIGHTED RULING, in its own fixture: a marked drone must not ring into the unmarked
+        // THE ANCHOR RULE, in its own fixture: a marked drone must not ring into the unmarked
         // chords that follow it in its own line, because material past the marked run never asked
         // to ring. Two marks and a drone open the figure, a third mark joins on beat two, and then
         // TWO unmarked chords follow on beats three and four before bar two's fret nine contradicts
@@ -8105,7 +8105,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
 
     SECTION("the seam still groups the marks: a contradiction starts a new marked stack")
     {
-        // WHY THE GRIP MACHINERY IS STILL HERE, now that no tail reads a seam. Two marked runs in
+        // WHY THE GRIP MACHINERY EXISTS, although no tail reads a seam. Two marked runs in
         // one voice, separated by a contradiction: a mark and a drone open, a second mark joins on
         // beat two, and beat three moves the drone from fret three to fret ten — closing the figure
         // and founding the next at that instant, where a third mark is struck with it. A fourth
@@ -8304,9 +8304,9 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         // Measured through the GROUPING, which is the only thing a seam does: a mark on beat four
         // lands on the far side of it, so the opening pair's stack ends with the beat-two mark and
         // its anchor is the first onset after it, on beat three. TWO beats each. FOUR is the
-        // reading where the source states its LANDING stop — the pre-2026-09-19 law — under which
-        // the slide-out merely confirms the grip, nothing seams, the beat-four mark joins the same
-        // stack and the anchor slides to bar two's downbeat.
+        // reading where the source states its LANDING stop, under which the slide-out merely
+        // confirms the grip, nothing seams, the beat-four mark joins the same stack and the anchor
+        // slides to bar two's downbeat.
         GpBeat release = noteBeat(quarter, 7, 2);
         release.notes.front().hopo_destination = true;
         GpScore score = makeLinearScore(2, syncs);
@@ -8346,7 +8346,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
 
     SECTION("a source riding above the stop the figure already grips seams nothing")
     {
-        // The surviving half, in the same shape and one string apart: the figure grips fret seven
+        // The other half, in the same shape and one string apart: the figure grips fret seven
         // on string 3 from the downbeat, and the fret-nine source on beat two arrives ABOVE that
         // very stop before being pulled back off onto it. So it states the seven the figure holds
         // — the nine is the ornament riding above — and the slide-out beneath it restates that
@@ -8396,7 +8396,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
 //
 // So a figure ALSO closes when the arriving onset lies past the AUDIBILITY HORIZON of its most
 // recent member — one ORIGIN-BAR metric length past that member's onset, the very length the tail
-// cap already reads, now stated once for both. The mark is the transcriber asking material to ring
+// cap reads, stated once for both. The mark is the transcriber asking material to ring
 // ON, and material arriving after the asking expired cannot belong to the same asking.
 //
 // MEMBER TO MEMBER, never from the figure's opening: a continuous texture of any length is still

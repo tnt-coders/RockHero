@@ -5,11 +5,11 @@
 namespace rock_hero::common::core
 {
 
-// One generic UTF-8 bridge for every platform (plan 33 Phase 1, replacing per-OS branches):
-// path::u8string() converts the native representation to UTF-8 correctly everywhere — on
-// Windows through the wide encoding, never the lossy active code page that path::string() can
-// use — and POSIX native bytes are already treated as UTF-8. The char8_t-to-char copy is the
-// standard-blessed way to hand the bytes to a char API without a reinterpret_cast.
+// One generic UTF-8 bridge for every platform, with no per-OS branch: path::u8string() converts
+// the native representation to UTF-8 correctly everywhere — on Windows through the wide encoding,
+// never the lossy active code page that path::string() can use — and POSIX native bytes are
+// already treated as UTF-8. The char8_t-to-char copy is the standard-blessed way to hand the bytes
+// to a char API without a reinterpret_cast.
 juce::String juceStringFromPath(const std::filesystem::path& path)
 {
     const std::u8string encoded = path.u8string();

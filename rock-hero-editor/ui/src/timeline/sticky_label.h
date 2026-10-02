@@ -27,9 +27,9 @@ ANCHOR's left edge while that edge is on screen; once the anchor has scrolled le
 sticks to the window's edge, so the thing it names stays named while any of it is visible; and once
 the anchor's RIGHT edge passes the window too, the label slides off with it rather than staying
 glued to the window over somebody else's territory. The tone regions' names, the automation row's
-lane and "+" chips, and any label added later all read this — the right bound was dropped once
-already when a caller restated the rule by hand, which left a whole chip column pinned over the
-dimmed area past its tone.
+lane and "+" chips, and any label added later all read this. A caller that restates the rule by
+hand tends to drop the right bound, which leaves a whole chip column pinned over the dimmed area
+past its tone.
 
 All three coordinates live in the same space (the row's own local x, with the window edge pushed in
 as a content coordinate); mixing spaces is the caller's error to avoid.

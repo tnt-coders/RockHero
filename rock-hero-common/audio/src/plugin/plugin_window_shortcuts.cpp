@@ -133,10 +133,10 @@ namespace
 
 } // namespace
 
+// Mirrors the editor's default keymap (Ctrl+Z, Ctrl+Y and its Ctrl+Shift+Z alias, Space), so an
+// engine running without an editor pushing bindings behaves like the editor's defaults.
 PluginWindowShortcutBindings defaultPluginWindowShortcutBindings()
 {
-    // The historical hardcoded trio plus the Ctrl+Shift+Z redo alias the editor's registry
-    // ships as a default, so an editor-less engine behaves like the editor's default keymap.
     PluginWindowShortcutBindings bindings;
     bindings.undo.push_back(PluginWindowShortcutChord{.character = U'z', .ctrl = true});
     bindings.redo.push_back(PluginWindowShortcutChord{.character = U'y', .ctrl = true});
@@ -146,6 +146,7 @@ PluginWindowShortcutBindings defaultPluginWindowShortcutBindings()
     return bindings;
 }
 
+// An unidentified chord never matches, even against an equally empty injected binding.
 std::optional<PluginWindowCommand> matchPluginWindowCommand(
     const PluginWindowShortcutBindings& bindings, const PluginWindowShortcutChord& chord)
 {
@@ -169,6 +170,7 @@ std::optional<PluginWindowCommand> matchPluginWindowCommand(
     return std::nullopt;
 }
 
+// Classifies a key press as a named key first, then a numpad or main-row character.
 PluginWindowShortcutChord pluginWindowChordFromKeyPress(const juce::KeyPress& key)
 {
     PluginWindowShortcutChord chord;

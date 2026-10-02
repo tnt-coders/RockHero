@@ -96,7 +96,8 @@ TEST_CASE(
     CHECK(parameter->getCurrentValue() == Catch::Approx(0.0f).margin(0.001));
 }
 
-// Verifies curve bypass releases the parameter to directly-set preview values.
+// Verifies a bypassed curve releases the parameter to directly-set values, and re-engaging the
+// curve takes it back.
 TEST_CASE(
     "ToneBranchGainPlugin curve bypass enables direct preview values",
     "[audio][tone-branch-gain-plugin]")

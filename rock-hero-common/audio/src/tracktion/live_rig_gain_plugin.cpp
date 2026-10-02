@@ -223,7 +223,8 @@ void LiveRigGainPlugin::setSmoothedGainTarget(float linear_gain) noexcept
     m_last_target_linear_gain = linear_gain;
 }
 
-// Keeps realtime state synchronized when Tracktion undo mutates the backing ValueTree directly.
+// Keeps realtime state synchronized when the backing ValueTree changes directly rather than
+// through setGain().
 void LiveRigGainPlugin::valueTreePropertyChanged(
     juce::ValueTree& changed_tree, const juce::Identifier& changed_property)
 {

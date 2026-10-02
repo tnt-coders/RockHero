@@ -26,9 +26,9 @@ namespace rock_hero::editor::ui
 /*!
 \brief Renders the current signal chain from framework-free state.
 
-The view is intentionally linear for the first plugin-host UI. It renders project-owned state and
-emits signal-chain intent through Listener so future rack or parallel-chain models can replace the
-state shape without exposing Tracktion or JUCE plugin descriptions to the view.
+The view is intentionally linear. It renders project-owned state and emits signal-chain intent
+through Listener, so a rack or parallel-chain model could replace the state shape without exposing
+Tracktion or JUCE plugin descriptions to the view.
 */
 class SignalChainView final : public juce::Component, public juce::DragAndDropContainer
 {

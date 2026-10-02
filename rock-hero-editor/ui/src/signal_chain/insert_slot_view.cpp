@@ -14,13 +14,14 @@ namespace
 {
 
 constexpr int g_insert_rail_width{28};
-// Insert rails stay ghosted until hovered, but legibly so: an idle alpha of 0.12 compounds with a
-// 0.16-alpha glyph to roughly 2% white, which is nearly impossible to spot.
+// Insert rails stay ghosted until hovered, but legibly so: this alpha compounds with the glyph's
+// own (g_insert_slot_placeholder), and a much fainter product is nearly impossible to spot.
 constexpr float g_idle_insert_affordance_alpha{0.4f};
 const juce::Colour g_insert_slot_placeholder{juce::Colours::white.withAlpha(0.8f)};
 
 } // namespace
 
+// Builds the ghosted "+" insert button for one fixed block location.
 SignalChainView::InsertSlotView::InsertSlotView(std::size_t block_index, SignalChainView& view)
     : m_view(view)
     , m_block_index(block_index)
@@ -36,12 +37,13 @@ SignalChainView::InsertSlotView::InsertSlotView(std::size_t block_index, SignalC
     m_button.setColour(juce::TextButton::textColourOffId, g_insert_slot_placeholder);
     m_button.setColour(juce::TextButton::textColourOnId, editorTheme().accent);
     m_button.onClick = [this] { m_view.insertPluginAtBlockLocation(m_block_index); };
-    // Empty fixed block locations stay visible without drawing old boundary rails.
+    // An empty fixed block location shows only the ghosted "+" until the pointer is over it.
     m_button.setAlpha(g_idle_insert_affordance_alpha);
     m_button.addMouseListener(this, false);
     addAndMakeVisible(m_button);
 }
 
+// Applies the controller's insert and move availability to this location.
 void SignalChainView::InsertSlotView::setEditingEnabled(bool insert_enabled, bool move_enabled)
 {
     // Visibility is the enablement: the idle "+" is deliberately ghosted, so a disabled one would

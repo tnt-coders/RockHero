@@ -82,7 +82,7 @@ public:
         /*! \brief Meter source sampled by the view for continuous level display. */
         const common::audio::IAudioMeterSource& meter_source;
 
-        /*! \brief Playback-time telemetry sampled by the 3D preview while playing (plan 44). */
+        /*! \brief Playback-time telemetry sampled by the 3D preview while playing. */
         const common::audio::IPlaybackClock& playback_clock;
     };
 
@@ -175,8 +175,8 @@ public:
     /*!
     \brief Returns the editor command manager owning the keybind registry and key mappings.
 
-    The window shell attaches the manager's key mapping set as a key listener so registered
-    shortcuts fire wherever focus lands inside the window.
+    The window shell dispatches every key press through the manager's key mapping set, so
+    registered shortcuts fire wherever focus lands inside the window.
 
     \return Command manager owned by the composed editor view.
     */

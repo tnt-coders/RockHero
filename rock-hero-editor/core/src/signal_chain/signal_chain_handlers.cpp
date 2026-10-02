@@ -543,7 +543,8 @@ void EditorController::Impl::completePluginCatalogScan(
     finishBusyOperation();
 }
 
-// Refreshes the browser from Tracktion's already-known plugins without touching the filesystem.
+// Refreshes the browser from the plugin host's already-known plugins without touching the
+// filesystem.
 void EditorController::Impl::refreshKnownPluginCatalog()
 {
     m_plugin_catalog.replaceCatalog(m_plugin_host.knownPluginCatalog());

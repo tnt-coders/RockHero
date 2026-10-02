@@ -19,7 +19,7 @@ namespace
 {
 
 // Source-probe cadence: with the watcher's settle interval on top, an edit reaches the highway
-// well inside the phase's one-second budget without touching the filesystem every frame.
+// well inside a one-second budget without touching the filesystem every frame.
 constexpr std::chrono::nanoseconds g_probe_interval = std::chrono::milliseconds{250};
 
 // Editing headroom before a "previous section" seek skips back past the section underway.
@@ -230,9 +230,8 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         // Recorded so the gameplay session loads the same arrangement the display shows.
         m_chosen_arrangement_id = chosen->id;
 
-        // Lowest-pitched string on top is the 3D notation's default (recorded in plan 25); the
-        // shared projection's invert flag realizes it, and plans 26/27 surface the per-player
-        // setting later.
+        // Lowest-pitched string on top is the 3D notation's default; the shared projection's
+        // invert flag realizes it until a per-player setting exists.
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
             *chosen,
             song.tempo_map,

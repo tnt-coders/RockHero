@@ -189,8 +189,8 @@ struct LoadedSectionEditor
 
 } // namespace
 
-// The whole point of the one-edit design: add, rename, move and delete all round-trip exactly,
-// because each carries both whole lists and undo is an assignment rather than a replayed inverse.
+// Adding a section round-trips exactly through undo and redo, because every section edit carries
+// the whole list before and after, so undo is an assignment rather than a replayed inverse.
 TEST_CASE("EditorController adds a section at the marker's measure", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
@@ -291,9 +291,9 @@ TEST_CASE("The section chord is nothing where no section can start", "[core][sec
     CHECK(std::holds_alternative<std::monostate>(closed));
 }
 
-// The chord AUTHORS at the cursor and never reads the selection (Phase 3 retired the grammar's
-// select-at-the-cursor rule): a chip outlined elsewhere leaves the verb naming the cursor's own
-// measure, so Ctrl+M cannot rename a section the charter is not standing in.
+// The chord AUTHORS at the cursor and never reads the selection: a chip outlined elsewhere leaves
+// the verb naming the cursor's own measure, so Ctrl+M cannot rename a section the charter is not
+// standing in.
 TEST_CASE("The section chord ignores the selected chip", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
@@ -344,9 +344,9 @@ TEST_CASE(
     CHECK(std::holds_alternative<RenameSectionTarget>(rearmed));
 }
 
-// A restate SELECTS its target (grammar rule 4), so the section the chord addressed is left under
-// Enter, Delete and Alt+arrows. A rename to the same name records nothing — and still selects,
-// because what the press addressed is what the charter is now working on either way.
+// A restate SELECTS its target, so the section the chord addressed is left under Enter, Delete and
+// Alt+arrows. A rename to the same name records nothing — and still selects, because what the
+// press addressed is what the charter is working on either way.
 TEST_CASE("A section rename selects the section it addressed", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
@@ -385,8 +385,8 @@ TEST_CASE("Section insert snaps the marker to its measure downbeat", "[core][sec
     CHECK(editor.sections().front().position == downbeat(2));
 }
 
-// Every section verb refuses rather than clamping or overwriting: an empty name, a downbeat
-// another section already holds, and a measure past the closing barline each leave the list alone.
+// Section insert refuses rather than overwriting: a blank name and a downbeat another section
+// already holds each leave the list alone and record no undo entry.
 TEST_CASE("Section insert refuses an empty name and a duplicate", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
@@ -404,6 +404,7 @@ TEST_CASE("Section insert refuses an empty name and a duplicate", "[core][sectio
     CHECK_FALSE(editor.undoAvailable());
 }
 
+// Section insert refuses the song's closing barline rather than clamping it back into the song.
 TEST_CASE("Section insert refuses a measure past the song end", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
@@ -413,6 +414,7 @@ TEST_CASE("Section insert refuses a measure past the song end", "[core][sections
     CHECK(editor.sections().empty());
 }
 
+// A rename round-trips exactly through undo and redo.
 TEST_CASE("EditorController renames a section and round-trips it", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
@@ -509,6 +511,8 @@ TEST_CASE("EditorController moves the selected section a measure", "[core][secti
     CHECK(editor.sections().front().position == downbeat(2));
 }
 
+// A section move refuses rather than swapping or merging: a step onto a downbeat another section
+// holds, past the last measure that can carry a section, or before measure 1 leaves it in place.
 TEST_CASE("Section move refuses an occupied downbeat and the song end", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
@@ -538,6 +542,7 @@ TEST_CASE("Section move refuses an occupied downbeat and the song end", "[core][
     CHECK(editor.sections()[0].position == downbeat(1));
 }
 
+// Delete removes the selected section and round-trips exactly through undo and redo.
 TEST_CASE("EditorController deletes the selected section", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(

@@ -168,7 +168,7 @@ struct ToneAutomationSelectedPointRef
         const ToneAutomationSelectedPointRef& rhs) = default;
 };
 
-/*! \brief The armed marker caret riding an automation lane row (the row axis, §9b). */
+/*! \brief The armed marker caret riding an automation lane row. */
 struct ToneAutomationLaneCaretRef
 {
     /*! \brief Index of the caret's lane in \ref ToneAutomationViewState::lanes. */
@@ -246,7 +246,7 @@ struct ToneAutomationDragPreviewRef
     }
 };
 
-/*! \brief The Alt-held insert ghost's rendered position over an empty lane slot (§9b). */
+/*! \brief The Alt-held insert ghost's rendered position over an empty lane slot. */
 struct ToneAutomationInsertGhostRef
 {
     /*! \brief Index of the ghost's lane in \ref ToneAutomationViewState::lanes. */
@@ -295,7 +295,7 @@ struct ToneAutomationViewState
     The marker stores the lane durably (instance + parameter); this is its per-push resolution
     against the published lanes, so a caret whose lane is not visible publishes as nothing.
     While present, the caret square draws on the lane and the paused cursor line hides — the
-    armed marker's one-glyph rule, extended to lane rows (§9b).
+    armed marker's one-glyph rule, extended to lane rows.
     */
     std::optional<ToneAutomationLaneCaretRef> lane_caret;
 
@@ -303,11 +303,11 @@ struct ToneAutomationViewState
     \brief The Alt-held insert ghost, present while Alt hovers an insertable empty lane slot.
 
     Rendered as a hollow ring on the curve where an Alt+click would plant an on-curve point —
-    the neutral-create verb's mouse form (§9b), the lane sibling of the tab lane's fret-0 note
-    ring. The controller resolves snap and occupancy exactly as the click would, and publishes
-    the ghost only when the ring would be honest: absent over occupied slots (an insert there
-    would no-op), without Alt, or while playing, so the affordance never advertises an action it
-    would not perform (§7).
+    the neutral-create verb's mouse form, the lane sibling of the tab lane's fret-0 note ring. The
+    controller resolves snap and occupancy exactly as the click would, and publishes the ghost
+    only when the ring would be honest: absent over occupied slots (an insert there would no-op),
+    without Alt, or while playing, so the affordance never advertises an action it would not
+    perform.
     */
     std::optional<ToneAutomationInsertGhostRef> insert_ghost;
 

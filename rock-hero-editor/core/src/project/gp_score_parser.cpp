@@ -484,9 +484,8 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
     // because nothing in a file separates the buggy writer's output from a later 7.x release
     // that may have fixed it, and suppressing the flag merely keeps the sharp spelling those
     // files import with today. The version element is read for this one gate and nothing else.
-    // No file yet imported is version 7, so this protects future imports rather than present
-    // ones. A file stating no version is not that writer — it always stamped one — so an
-    // unstated version honours the flag.
+    // A file stating no version is not that writer — it always stamped one — so an unstated
+    // version honours the flag.
     const bool tuning_flat_is_meaningful =
         juce::String{childText(*root, "GPVersion")}.getIntValue() != 7;
 

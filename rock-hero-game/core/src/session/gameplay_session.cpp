@@ -34,8 +34,8 @@ namespace
 // Composes the rig preload request exactly like the editor's project load does
 // (rock-hero-editor/core/src/project/project_handlers.cpp): every tone the arrangement's regions
 // reference, deduplicated in schedule order, empty entries skipped; the audible tone is left
-// empty so the engine's first-branch fallback applies. Constraint (g): the game must reproduce
-// the authored tone path byte-for-byte, so the request composition must match the editor's.
+// empty so the engine's first-branch fallback applies. The game must reproduce the authored tone
+// path byte-for-byte, so the request composition must match the editor's.
 [[nodiscard]] std::vector<std::string> toneDocumentRefsForArrangement(
     const common::core::Arrangement& arrangement)
 {
@@ -124,8 +124,7 @@ std::expected<void, GameplaySessionError> GameplaySession::start(GameplaySession
     // resolved by construction — and the game has no dirty state to mark either way.
     m_song = std::move(song->song);
 
-    // Empty arrangement id selects the first arrangement (the dev-fixture convention until the
-    // library UI supplies explicit ids).
+    // An empty arrangement id selects the song's first arrangement.
     std::size_t arrangement_index = 0;
     if (!request.arrangement_id.empty())
     {
@@ -176,12 +175,12 @@ std::expected<void, GameplaySessionError> GameplaySession::start(GameplaySession
     }
 
     // Hosted plugins read tempo from the backend, so the song's real tempo map is mirrored
-    // exactly like the editor does after its loads — tone fidelity (constraint (g)) includes
-    // tempo-synced effects. Best-effort by the port's contract.
+    // exactly like the editor does after its loads — tone fidelity includes tempo-synced
+    // effects. Best-effort by the port's contract.
     m_song_audio.mirrorTempoMap(m_song.tempo_map);
 
     // The seconds-resolved switch schedule is derived once per load and handed to the tone
-    // timeline when the rig finishes preloading (Phase 3 implements the backend).
+    // timeline when the rig finishes preloading.
     m_tone_schedule = common::core::makeToneSchedule(
         arrangement.tone_track, m_song.tempo_map, arrangement.audio_duration);
 
@@ -336,7 +335,7 @@ common::audio::Gain GameplaySession::backingVolume() const
 }
 
 // The monitor gain's single owner is the live rig's post-rack monitor stage; the session only
-// forwards so the game has one mixing surface (21-Q3: three volumes, each with exactly one backend
+// forwards so the game has one mixing surface (three volumes, each with exactly one backend
 // owner). Deliberately not the rig's output gain, which is the charter's per-tone level: that one
 // balances the song's tones against each other, and the player's mix must not overwrite it.
 std::expected<void, common::audio::LiveRigError> GameplaySession::setMonitorVolume(
@@ -468,8 +467,8 @@ void GameplaySession::onRigLoadCompleted(
 
     if (!result.has_value())
     {
-        // Missing plugins get their own code so UI can present an "install these" flow
-        // (21-Q1: refuse to start, listing the missing plugins) distinct from generic failure.
+        // Missing plugins get their own code so UI can present an "install these" flow (the song
+        // refuses to start and lists every missing plugin) distinct from generic failure.
         const GameplaySessionErrorCode code =
             result.error().code == common::audio::LiveRigErrorCode::MissingPlugins
                 ? GameplaySessionErrorCode::MissingPlugins

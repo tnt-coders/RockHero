@@ -58,13 +58,14 @@ bool isComposedCharacterPress(const juce::KeyPress& key, const bool key_currentl
     return !key_currently_down;
 }
 
-// Runs ahead of the key mapping set, which is why the window registers this listener last (see the
-// class documentation). The key code needs no case folding before the key-state query: every
-// platform's `isKeyCurrentlyDown` already accepts either case — Windows converts through
-// `VkKeyScan` (`juce_Windowing_windows.cpp:5608-5620`), macOS tries both cases
-// (`juce_NSViewComponentPeer_mac.mm:2963-2981`), and X11 converts the keysym to its hardware
-// keycode (`juce_XWindowSystem_linux.cpp:2488-2515`), which is shared by the two cases. It does
-// need the numpad twin, which those same conversions cannot reach — see the class documentation.
+// Runs ahead of the window's command dispatch, because JUCE offers a component's key listeners the
+// press before its own keyPressed (see the class documentation). The key code needs no case
+// folding before the key-state query: every platform's `isKeyCurrentlyDown` already accepts
+// either case — Windows converts through `VkKeyScan` (`juce_Windowing_windows.cpp:5608-5620`),
+// macOS tries both cases (`juce_NSViewComponentPeer_mac.mm:2963-2981`), and X11 converts the
+// keysym to its hardware keycode (`juce_XWindowSystem_linux.cpp:2488-2515`), which is shared by
+// the two cases. It does need the numpad twin, which those same conversions cannot reach — see
+// the class documentation.
 bool ComposedCharacterFilter::keyPressed(
     const juce::KeyPress& key, juce::Component* /*originating_component*/)
 {

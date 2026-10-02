@@ -161,7 +161,7 @@ struct MeasureGrid
 // rule. ONE statement of that length for the two readers of it in the let-ring figure law
 // (\ref letRingFigureEnds): the seam that decides which marks share a figure, and the cap that
 // bounds the figure's one end. Two spellings of "how long is this still audible" would be free to
-// disagree, and the sighted defect was exactly a horizon applied at one place and not the other.
+// disagree, applying the horizon at one place and not the other.
 //
 // The length is ORIGIN-relative in both readers: it is the bar the anchor beat itself sits in that
 // states the duration, so a mark under a meter change is bounded by the metre it was written in
@@ -458,16 +458,15 @@ struct BendCurvePoint
 // ending where nothing else changes (a tie). A segment whose width equals the leg before it
 // states nothing, the leg already covering it.
 //
-// Guitar Pro writes the mark per note and names no instant inside it, so the import picks one (the
-// carried sign-off in `docs/plans/todo/unified-waypoint-model.md`): a merged note anchors it at the
-// LAST keyframe. At a legato slide that keyframe is the junction the glide arrives at — where the
-// folded segment begins and where vibrato after a glide actually starts, which is the corpus's
-// dominant figure (31 of its 34 slide-then-vibrato occurrences arrive through this merge); at a tie
-// it is the continuation's own onset; and a note that merges nothing states its flag at the onset,
-// which is what \ref ChartNote::vibrato already is. Spelled as the folded segment's own START
-// rather than "whichever keyframe is last", because an origin's bend curve can legally run past
-// the junction and the literal reading would then hand the vibrato to a bend point; in the figure
-// the sign-off measures, the two readings name the same instant.
+// Guitar Pro writes the mark per note and names no instant inside it, so the import picks one: a
+// merged note anchors it at the LAST keyframe. At a legato slide that keyframe is the junction the
+// glide arrives at — where the folded segment begins and where vibrato after a glide actually
+// starts, which is the corpus's dominant figure (31 of its 34 slide-then-vibrato occurrences arrive
+// through this merge); at a tie it is the continuation's own onset; and a note that merges nothing
+// states its flag at the onset, which is what \ref ChartNote::vibrato already is. Spelled as the
+// folded segment's own START rather than "whichever keyframe is last", because an origin's bend
+// curve can legally run past the junction and the literal reading would then hand the vibrato to a
+// bend point; in the corpus figure above, the two readings name the same instant.
 //
 // Stated per SEGMENT rather than as an onset-level `||` over the whole chain, both halves of which
 // would lie: a folded segment's flag would vibrate the entire ring from the onset, and a folded
@@ -1098,23 +1097,23 @@ enum class RollSpread : std::uint8_t
 // Spells a ROLLED beat out as the figure it states: one grip, sounded member by member. Guitar
 // Pro's beat-level mark (engraving's vertical wavy line — this project's `arpeggio` means the
 // span a chart is READ to imply, never this) says the hand is already holding every stop when the
-// first string speaks. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST (Q7), so what the import
-// writes is exactly the sound: each member struck at its turn over the stored spread, every one of
-// them ringing to the end its beat gave it. The derivation reads one arpeggio span off those rings
-// by the ordinary opening law — the members' rings overlap, the span dates from the first of them,
+// first string speaks. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST, so what the import writes
+// is exactly the sound: each member struck at its turn over the stored spread, every one of them
+// ringing to the end its beat gave it. The derivation reads one arpeggio span off those rings by
+// the ordinary opening law — the members' rings overlap, the span dates from the first of them,
 // and the arrivals are absorbed — with no rule of its own.
 //
-// NO FRONTED CLAIMS (D11's machinery: a claim authored at the figure's front for every member
-// still to come). That is scaffolding for a derivation that cannot see the rings, and the
-// accumulation law sees them — so such a claim would state a fact the sound already states, which
-// is exactly the empty statement LAW II sweeps. IMPORTS AUTHOR ZERO CLAIMS: the statement model is
-// sound states and AUTHORED states, and "fronted span" is not a derivation concept. The claim
-// machinery itself — supersession and the inert sweep — keeps the residue it is for: the stop a
-// right-hand onset holds under it.
+// NO FRONTED CLAIMS (a claim authored at the figure's front for every member still to come). That
+// is scaffolding for a derivation that cannot see the rings, and the accumulation law sees them —
+// so such a claim would state a fact the sound already states, which is exactly the empty
+// statement the inert sweep removes. IMPORTS AUTHOR ZERO CLAIMS: the statement model is sound
+// states and AUTHORED states, and "fronted span" is not a derivation concept. The claim machinery
+// itself — supersession and the inert sweep — keeps the residue it is for: the stop a right-hand
+// onset holds under it.
 //
-// The bracket's DRAWN LENGTH follows from that (W-D): a claims-produced span would run only as far
-// as the roll gesture, because that is all the claims state. Under [D3] the hold is the RING, and
-// the accumulation derives it.
+// The bracket's DRAWN LENGTH follows from that: a claims-produced span would run only as far as
+// the roll gesture, because that is all the claims state, whereas the hold is the RING, and the
+// accumulation derives it.
 //
 // Works on the events one beat has just pushed, addressed by the RANGE they occupy, so the group
 // is the language's own and never a key two beats at one instant could share. That is also what
@@ -1277,11 +1276,10 @@ enum class RollSpread : std::uint8_t
 // The bar's feel is played first of all, because every duration below is read from the beats it
 // rewrites. All three spell-outs then happen here, each where its own input is final: tremolo
 // beats split BEFORE collection (their strokes must flow through positions, graces and ties like
-// hand-notated beats),
-// a rolled beat's members stagger as that beat's events are pushed (the ring the stagger eats into
-// is the one collection just gave them), and trilled notes spell out AFTER it (each alternation
-// fills the ring the note is finally left with). The single sort at the end is what puts every
-// fabricated onset back in stream order.
+// hand-notated beats), a rolled beat's members stagger as that beat's events are pushed (the ring
+// the stagger eats into is the one collection just gave them), and trilled notes spell out AFTER it
+// (each alternation fills the ring the note is finally left with). The single sort at the end is
+// what puts every fabricated onset back in stream order.
 [[nodiscard]] std::vector<NoteEvent> collectEvents(
     const GpTrack& track, const MeasureGrid& grid, const int capo, std::vector<std::string>& notes)
 {
@@ -1311,9 +1309,6 @@ enum class RollSpread : std::uint8_t
         }
     }
 
-    // What every let-ring mark in the track states, read once off the expanded beats the emission
-    // below walks — the mark needs a voice's rests and bar lines, which only this structure has.
-
     // The one place a source note's ring is established from what the beat states, which is why
     // both of Guitar Pro's duration marks land here. STACCATO: playback sounds such a note for
     // exactly half its stated duration, so the mark is duration truth and never a stored field.
@@ -1334,7 +1329,7 @@ enum class RollSpread : std::uint8_t
     // give them. Only that PRE-EMPTION is taken from the reference's block: the static durations
     // it returns on those notes (a fixed fraction of a quarter for dead and palm-muted alike)
     // are declined, because the notated duration is the timing information the chart reads and
-    // E25 hides a dead tail on the drawn side instead.
+    // presentation hides a dead tail on the drawn side instead.
     const auto emit_note = [&events, &letring_marks_preempted](
                                const GpNote& source,
                                const std::size_t voice,
@@ -1350,7 +1345,7 @@ enum class RollSpread : std::uint8_t
         event.voice = voice;
         // A grace's mark states nothing about length — the ornament's ring IS its lead — so it
         // never extends; its fret statement still joins the voice's grammar like any sounding
-        // onset, exactly as the grammar has always read the built stream.
+        // onset.
         if (!grace && source.let_ring)
         {
             if (source.full_mute || source.palm_mute || source.staccato)
@@ -1679,10 +1674,6 @@ struct BuiltNote
     return entry.global_beat + entry.note.sustain;
 }
 
-// The stored stream lifted out of the build records: the notes exactly as they will ship. Both
-// the same-string clamp and the presentation derivation speak about a note stream, so this is
-// what they are handed. No scrape suppression is applied on the way out — the pick-slide
-// conversion already stores its carriers in saved form, and nothing later re-adds a latent mark.
 // The next HEAD on this record's own string, or nullptr — the successor the slide-out/arrival
 // relation is a fact about. The stream is in onset order, so the first later record on the string
 // is it. A record `merged_away` marks was folded into its predecessor and is no head; a null table
@@ -1748,6 +1739,10 @@ struct BuiltNote
     return back >= floor && back <= common::core::g_max_fret ? back : candidate;
 }
 
+// The stored stream lifted out of the build records: the notes exactly as they will ship. Both
+// the same-string clamp and the presentation derivation speak about a note stream, so this is
+// what they are handed. No scrape suppression is applied on the way out — the pick-slide
+// conversion already stores its carriers in saved form, and nothing later re-adds a latent mark.
 [[nodiscard]] std::vector<ChartNote> storedNotes(const std::vector<BuiltNote>& built)
 {
     std::vector<ChartNote> notes;
@@ -1762,7 +1757,7 @@ struct BuiltNote
 // The stored stream's final shape, settled once every synthesis that can lengthen a ring is done.
 // The one rule a note cannot obey alone, asked of the one authority in core rather than restated
 // here (which is why the notes travel out and back — that authority speaks about a note stream,
-// not about the builder's records): a re-strike stops the ring (40-Q2-B), so no stored tail
+// not about the builder's records): a re-strike stops the ring, so no stored tail
 // crosses the next onset on its own string. A slide-out or an end bend authored on a tiled ring
 // then ends EXACTLY on that head, which is what the material says the hands did; presentation
 // stops the ink one margin before that head and leaves the mark at its stored instant.
@@ -1807,6 +1802,25 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     return common::core::fretHandStopAt(entry.note, std::nullopt, instant - entry.global_beat);
 }
 
+// A note's GRIP STATEMENT for the let-ring figure law below: the stop it states at the asked
+// instant — except a pull-off source arriving above the stop the figure ALREADY GRIPS on its
+// string, which states that stop, the fret it sounds being the ornament riding above it
+// (\ref rock_hero::common::core::gripStatement, the span machine's own authority, so the cut law
+// seams where the spans break and the import stays span-blind). Such a source and the slide-out
+// returning beneath it both restate the grip and close nothing. A source over any other ground
+// states what it sounds, so its release is an ordinary new statement and the figure closes THERE,
+// as it would were the same notes plainly picked: a pull-off proves a finger at its release and at
+// no earlier instant.
+[[nodiscard]] std::optional<common::core::ChartStop> gripStatementAt(
+    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& planted_stops,
+    const std::size_t index, const Fraction onset,
+    const std::optional<common::core::ChartStop>& gripped)
+{
+    const std::optional<common::core::ChartStop> beneath =
+        common::core::gripStatement(built[index].note, planted_stops[index], gripped);
+    return beneath.has_value() ? beneath : statedStopAt(built, index, onset);
+}
+
 // THE LET-RING FIGURE LAW. Three rules, held in one breath: a marked tail rings to the first onset
 // its own voice states after its figure's last mark; a figure ends where its grip is contradicted
 // or where its own audibility horizon expires before the next onset arrives; written is the floor
@@ -1818,16 +1832,12 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // so a chug can never split anything, and a repetition of a figure can never be divided: with no
 // retreat mechanism in the law, the repetition invariant is structural, not satisfied. An onset
 // stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
-// only TIME seams besides it. The comparison judges GRIP STATEMENTS (\c gripStatementAt): a
-// pull-off source over the stop the figure already grips on its string states THAT stop, the fret
-// it sounds being the ornament riding above, so it and the slide-out returning beneath it both
-// restate the grip and close nothing. A source over any other ground states the fret it sounds,
-// and the figure closes at its SLIDE-OUT — the same seam the span machine breaks at, asked of the
-// same authority, with the import span-blind. The grip is figure-scoped memory. The figure's
-// whole job for the tails is grouping the MARKS — which let-ring stack a mark belongs to, and
-// therefore where that stack's marked run ends — with one correction to the grouping, the FRAGMENT
-// DONATION below: a
-// figure closed by a GRIP contradiction while too small to ever found a span hands its
+// only TIME seams besides it. The comparison judges GRIP STATEMENTS (\c gripStatementAt), so a
+// pull-off source over the gripped stop closes nothing, while one over any other ground closes the
+// figure at its SLIDE-OUT — the same seam the span machine breaks at. The figure's whole job for
+// the tails is grouping the MARKS — which let-ring stack a mark belongs to, and therefore where
+// that stack's marked run ends — with one correction to the grouping, the FRAGMENT DONATION below:
+// a figure closed by a GRIP contradiction while too small to ever found a span hands its
 // non-contradicting notes to the figure that closed it. Never across the horizon, which mis-groups
 // nothing.
 //
@@ -1839,9 +1849,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // the figure's latest written end. The SEAM never appears in the tail arithmetic — it is always at
 // or past the first onset after the figure's marks, so the anchor subsumes it, and the figure
 // boundary only decides which marks count as one stack. And the end is never more than THE
-// AUDIBILITY HORIZON past the last marked onset (\ref audibilityHorizonFrom) — the original
-// Guitar-Pro audibility rule, which bounds a marked drone under a marked same-voice texture that
-// nothing ever contradicts.
+// AUDIBILITY HORIZON past the last marked onset (\ref audibilityHorizonFrom) — Guitar Pro's own
+// audibility rule, which bounds a marked drone under a marked same-voice texture that nothing ever
+// contradicts.
 //
 // TIME SEAMS TOO: a figure also closes when the arriving onset lies PAST the audibility horizon of
 // the figure's most recent member — the same length the cap reads, measured member to member. The
@@ -1849,7 +1859,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // already expired cannot belong to the same asking. Without this arm, membership is time-blind:
 // silence states nothing, so a rest of any length closes nothing and material re-entering bars
 // later on the SAME grip merely CONFIRMS it and joins the stack (open strings state stop 0, so
-// they confirm too). One corpus chart carries such a figure across 33 bars, whose single end —
+// they confirm too). One corpus chart would carry such a figure across 33 bars, whose single end —
 // computed from its LAST member, as the law's own arithmetic requires — reaches five notes struck
 // 130 beats earlier that the tab writes at half a beat each. Measuring the horizon member to
 // member rather than from the figure's first note is what keeps a continuous texture of any length
@@ -1867,25 +1877,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 //
 // PER VOICE, because events must not cut rings in another voice: grammar takes the voice; only the
 // same-string clamp — physics — is cross-voice. The walk reads onsets and statements only, never a
-// ring, so it is a pure function of the written stream: no fixpoint, one forward pass per voice. A
-// note's GRIP STATEMENT: the stop it states at the asked instant — except a pull-off source
-// arriving above the stop the figure ALREADY GRIPS on its string, which states that stop, the fret
-// it sounds being the ornament riding above it (\ref rock_hero::common::core::gripStatement, the
-// span machine's own authority, so the cut law seams where the spans break and the import stays
-// span-blind). Such a source and the slide-out returning beneath it both restate the grip and close
-// nothing. A source over any other ground states what it sounds, so its release is an ordinary new
-// statement and the figure closes THERE, as it would were the same notes plainly picked: a pull-off
-// proves a finger at its release and at no earlier instant.
-[[nodiscard]] std::optional<common::core::ChartStop> gripStatementAt(
-    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& planted_stops,
-    const std::size_t index, const Fraction onset,
-    const std::optional<common::core::ChartStop>& gripped)
-{
-    const std::optional<common::core::ChartStop> beneath =
-        common::core::gripStatement(built[index].note, planted_stops[index], gripped);
-    return beneath.has_value() ? beneath : statedStopAt(built, index, onset);
-}
-
+// ring, so it is a pure function of the written stream: no fixpoint, one forward pass per voice.
 //
 // Returns the figure end for every marked note, index-parallel to `built`.
 [[nodiscard]] std::vector<std::optional<Fraction>> letRingFigureEnds(
@@ -2207,8 +2199,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // figure does changes nothing.
         //
         // Deliberately the open string alone. A natural harmonic's ring is hand-free by the same
-        // physics, but the lift is scoped to open notes and a harmonic's marked ring is rare
-        // enough to be worth sighting before it is lifted too.
+        // physics, but a harmonic's marked ring is rare enough that the lift stays scoped to open
+        // notes until such a ring has been checked by eye.
         // Bound once so the presence test and the read are provably the same object.
         const std::optional<std::size_t>& phrase = phrase_of[figure];
         const std::optional<Fraction> phrase_end =
@@ -2400,8 +2392,8 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     // a SLIDE-OUT is the hand leaving, and where it rides is the exit placement
                     // resolveSlideOutExits decides; an ARRIVAL stands on the LANDING's own onset,
                     // where that head's onset event already states the demand — and stating it
-                    // twice made the window the sliding finger's alone, since at that instant the
-                    // fingers that pinned the hull have just stopped ringing.
+                    // twice would make the window the sliding finger's alone, since at that instant
+                    // the fingers that pinned the hull have just stopped ringing.
                     //
                     // Bound to a local so the optional check and the access are provably the same
                     // object.
@@ -2568,7 +2560,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         // The floor wins if it ever crosses the covered extent. std::clamp is UB when its
         // low bound exceeds its high one, and the capo term makes that reachable in
         // principle: every guarantee that a covered fret sits above the capo (validation
-        // refusing sub-capo notes, the import shift, E21 putting a node past the stop, the
+        // refusing sub-capo notes, the import shift, the rule putting a node past the stop, the
         // skips for open strings and scrape travel) is external to this walk, and this walk
         // runs on untrusted files BEFORE validation.
         // The window must also FIT on the neck: a hand anchored high enough that its span runs
@@ -2931,7 +2923,7 @@ void resolveSlideOutExits(
         if (!withinGrid(grid, end_position))
         {
             // The slide-out ends past the last bar, at the very end of the score. A placement
-            // there is not representable, and fabricating one failed validation for the whole
+            // there is not representable, and fabricating one would fail validation for the whole
             // song; the gesture keeps its default exit fret and the hand simply stays put, which
             // is what happens anyway when there is no room to ride.
             continue;
@@ -3031,13 +3023,6 @@ void resolveSlideOutExits(
     }
 }
 
-// Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
-// normalization, and fret-hand position generation. The tempo map places mid-sustain
-// slide-keyframe positions on the musical grid.
-//
-// The conversion notes and the let-ring report are both SONG-level accumulators the track
-// adds to, for the one reason: a reader asks what the whole import did, and a per-track answer
-// would have to be summed by every caller.
 // THE LATTICE AT THE COMMIT POINT: every instant the chart stores — an onset, a ring's end, a
 // keyframe, a hand placement — lands on the tick lattice, the finest position a chart may state.
 // Guitar Pro places some between two ticks (a septuplet's rhythm, a bend point's percentage) and
@@ -3140,6 +3125,13 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     placements.erase(restated.begin(), restated.end());
 }
 
+// Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
+// normalization, and fret-hand position generation. The tempo map places mid-sustain
+// slide-keyframe positions on the musical grid.
+//
+// The conversion notes and the let-ring report are both SONG-level accumulators the track
+// adds to, for the one reason: a reader asks what the whole import did, and a per-track answer
+// would have to be summed by every caller.
 [[nodiscard]] Chart buildChart(
     const GpTrack& track, const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
     const std::vector<Fraction>& phrase_boundary_beats, std::vector<std::string>& notes,
@@ -3312,8 +3304,8 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         }
 
         // Both marks carried through independently, because the score states them independently:
-        // a dead string inside a palm-muted chord wears "Muted" and "PalmMuted" at once, and the
-        // old single mute axis had to drop one of them (the palm one) to fit.
+        // a dead string inside a palm-muted chord wears "Muted" and "PalmMuted" at once, and a
+        // single mute axis would have to drop one of them to fit.
         note.palm_mute = source.palm_mute;
         note.dead = source.full_mute;
 
@@ -3360,7 +3352,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
                 }
                 // The stop the harmonic speaks from — the note's (already capo-shifted,
                 // absolute) fret, or the capo when the string is open — asked of the same
-                // authority E21 validates against.
+                // authority the node-past-the-stop rule validates against.
                 const int stop_fret = common::core::physicalStopFret(note, chart.tuning.capo);
                 // With no usable label the octave is the default: the 2nd partial is the
                 // lowest-order harmonic available at any fret and so the easiest to ring. Using
@@ -3404,8 +3396,8 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
                 // and the node carries the position, so `fret` never doubles as a rounded copy
                 // of it. The label (or, absent one, the SOURCE fret, which for a natural IS the
                 // touched position in GP's capo-relative frame) resolves against an open string
-                // and lands on the real stop — capo + offset, which is exactly right now that
-                // GP's frame is confirmed capo-relative.
+                // and lands on the real stop — capo + offset, which is exactly right because GP's
+                // frame is capo-relative.
                 const double notated =
                     source.harmonic_fret.value_or(static_cast<double>(source.fret));
                 const std::vector<common::core::HarmonicNodeCandidate> candidates =
@@ -3446,7 +3438,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             }
         }
 
-        // A tap needs somewhere to strike (E4), whichever hand delivers it: a fret, or a harmonic's
+        // A tap needs somewhere to strike, whichever hand delivers it: a fret, or a harmonic's
         // node. A `Tapped` or `LeftHandTapped` flag on an open string with no node is junk data,
         // and it has to be settled HERE rather than at the end of the build — the chord-shape and
         // hand-window passes read the attack, and they treat a two-hand tap as a picking-hand onset
@@ -3471,7 +3463,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         }
 
         // NO CLAIM IS EVER AUTHORED HERE, and that is the whole of what the import states about
-        // the fretting hand's silent stops (Q7). The accumulation law derives a rolled chord's
+        // the fretting hand's silent stops. The accumulation law derives a rolled chord's
         // figure from its members' own rings, so nothing here needs to claim one: a held stop is a
         // record the CHARTER writes and the import never does.
 
@@ -3507,10 +3499,9 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     std::vector<bool> merged_away(built.size(), false);
 
     // Pick-slide carriers (Slide flags 64 down / 128 up) convert IN PLACE into pick-slide
-    // notes before any slide chain resolves (plan 55, note-carried design): the dead carrier is
-    // Guitar Pro's encoding vehicle for the gesture, so it sheds its mute and gains the attack plus
-    // the corpus-derived default path (down 17 -> 3, up the mirror) across the notated span, ready
-    // for the user to reshape.
+    // notes before any slide chain resolves: the dead carrier is Guitar Pro's encoding vehicle for
+    // the gesture, so it sheds its mute and gains the attack plus the corpus-derived default path
+    // (down 17 -> 3, up the mirror) across the notated span, ready for the user to reshape.
     //
     // Simultaneous same-direction carriers are ONE scrape sounding on EVERY string it crosses, so
     // each carrier becomes its own note on its own string rather than collapsing to one. They share
@@ -3568,13 +3559,13 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             note.attack = NoteAttack::PickSlide;
             // The suppression set lives in savedChartNote alone. A second copy of it here is free
             // to drift — clearing the emphasis, say, when an accented scrape is legal and
-            // meaningful (an aggressively played one, H3/D4) — and would silently discard a mark
-            // the score made.
+            // meaningful (an aggressively played one) — and would silently discard a mark the
+            // score made.
             note = common::core::savedChartNote(note);
             // Carriers are dead strings with meaningless frets, so the import owns the start too;
             // the editor's toggle keeps a real note's fret instead. The start is floored above the
-            // capo like every fret a slide gesture names (W9-J: a scrape's start, its turnarounds,
-            // and its terminal all sit at or above the first playable fret — the pick travels the
+            // capo like every fret a slide gesture names (a scrape's start, its turnarounds, and
+            // its terminal all sit at or above the first playable fret — the pick travels the
             // sounding string, and a scrape at the nut is no scrape). The default path floors its
             // own terminal the same way.
             note.fret = upward ? pickSlideDefaultLowFret(chart.tuning.capo)
@@ -3720,8 +3711,8 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         {
             const bool upward = (flags & 8) != 0;
             // Four frets of travel, held onto the playable board at both ends: the floor is the
-            // first fret above the capo, never the nut — an exit below the floor was a form the
-            // rules refuse, produced here and caught only at the track's validation.
+            // first fret above the capo, never the nut — an exit below the floor is a form the
+            // rules refuse, and producing one here would surface only at the track's validation.
             const int target =
                 upward
                     ? std::min(glide_fret + 4, common::core::g_max_fret)
@@ -3818,6 +3809,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     // window dips with the scoop for exactly its duration and the natural window returns at the
     // scoop's end; an approach the window already covers stays a planted finger gesture, like an
     // unpitched slide.
+    //
     // The relation the hand generator needs at a LANDING: a head some glide arrived into inherits
     // that glide's drag (rule 9). Resolved on the stream the slide passes have left, which is the
     // stream the generator reads — the shift branch grew each origin's ring to exactly the gap, so
@@ -3842,8 +3834,8 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     // clamp below is physics and the strongest bound.
     //
     // It runs here rather than where the ring was first established because the mark yields to a
-    // note that states its OWN end — an unpitched slide-out IS the ring's end by definition (LAW I:
-    // physically forced, not stylistic), and the gesture is only resolved above.
+    // note that states its OWN end — an unpitched slide-out IS the ring's end by definition
+    // (physically forced, not stylistic), and the gesture is only resolved above.
     //
     // WELL-FOUNDED, ONE PASS: the figure walk reads onsets and statements only (\ref
     // letRingFigureEnds), so nothing here reads a span or a ring and there is no circularity to
@@ -3854,9 +3846,11 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     // extends here like any other marked note (rule 1 of the baseline law: ties combine into a
     // single note at its true WRITTEN duration, and the mark then extends that note normally).
     // Guitar Pro itself audibly rings tied let-ring notes past the written duration.
-    // RESOLVED AGAIN because `resolveSlideIns` has since moved rings: a scoop shorter than its
-    // floored window lengthens the landing's sustain and plants a keyframe inside it, so the
-    // adjacency and the end statement of every scooped note are not what the walk above saw.
+    //
+    // The connections are RESOLVED AGAIN because `resolveSlideIns` has since moved rings: a scoop
+    // shorter than its floored window lengthens the landing's sustain and plants a keyframe inside
+    // it, so the adjacency and the end statement of every scooped note are not what the walk above
+    // saw.
     const common::core::ChartConnections let_ring_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
     const std::vector<std::optional<int>> let_ring_planted =
@@ -3897,9 +3891,9 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     // Every synthesis that can lengthen a ring is done, so the stored stream takes its final
     // shape here — the clamp and the payload trimmed to the ring — and the one pass below reads
     // those settled rings: a slide-out's hand exit lands where the stored gesture ends.
-    // Hand-posture spans are NOT an import decision any more: they are derived from the finished
-    // notes wherever they are read (common/core's deriveChartShapes), so there is nothing to run
-    // here and nothing to report.
+    // Hand-posture spans are NOT an import decision: they are derived from the finished notes
+    // wherever they are read (common/core's deriveChartShapes), so there is nothing to run here and
+    // nothing to report.
     clampSameStringOverlaps(built, tempo_map);
 
     // The let-ring report, now that the clamp has had its say: a ring longer than its written
@@ -3998,10 +3992,11 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     // therefore describe the SETTLED stream, which is the stream the surfaces draw: a claim the
     // chart cannot justify plays as a plain pick, so it must not split a box from a neighbouring
     // strum that plays the same way. The rules live beside their repairs in `chart_rules`, because
-    // a list of them kept here drifted from the list there twice, and a dead note carrying a bend
-    // then reached validation intact and failed the WHOLE song's import. Counted by rule rather
-    // than listed, like every other import conversion: an import converts wholesale, and a
+    // a second list kept here would drift from that one, and a rule missing here lets a dead note
+    // carrying a bend reach validation intact and fail the WHOLE song's import. Counted by rule
+    // rather than listed, like every other import conversion: an import converts wholesale, and a
     // position list for a dense score would be hundreds of lines.
+    //
     // The builder is an AUTHOR, and an author writes no keyframe that says nothing (the keyframe
     // commit law, `keyframeSaysNothingNew`): a Guitar Pro bend curve's plateau and trailing points
     // repeat its values, and the merges above fold more of them. Shed here, before the load repair

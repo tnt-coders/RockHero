@@ -15,9 +15,8 @@ namespace rock_hero::common::core
 
 The editor's "show at least N strings" setting can only ADD empty lanes: the chart's own string
 count is a floor, so a five-string bass never loses a lane to a smaller minimum. A chart with no
-strings displays nothing, because padding an instrument that is not there has no meaning — and that
-zero case is the one the two surfaces used to disagree about, the 3D projection having open-coded a
-bare maximum that turned a stringless chart into a stack of empty lanes.
+strings displays nothing, because padding an instrument that is not there has no meaning; a bare
+maximum would turn a stringless chart into a stack of empty lanes.
 
 Lives here rather than beside either surface because both need it and neither may depend on the
 other: the answer decides which lane every note and posture sits on, and it anchors the shared

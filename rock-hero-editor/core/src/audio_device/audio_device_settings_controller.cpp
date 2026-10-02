@@ -221,11 +221,10 @@ void AudioDeviceSettingsController::onCancelRequested()
     runFinishingOperation([this] { return m_settings.cancel(); });
 }
 
-// The async path disables editing now so the user sees the intent take effect immediately, runs
-// the operation behind the dispatcher's busy indicator, and re-enables the view on failure so the
-// existing in-dialog error label can display the diagnostic. On success the host closes for real
-// via finishAndClose(). This is what gives every finishing intent the same dismiss-immediately,
-// busy-overlay-painted feel.
+// With a dispatcher, disables editing immediately so the user sees the intent take effect, runs
+// the operation behind the dispatcher's busy indicator, then closes via finishAndClose() on
+// success or re-enables the view on failure so the in-dialog error label can show the diagnostic.
+// Without a dispatcher the operation runs synchronously with the same outcome handling.
 void AudioDeviceSettingsController::runFinishingOperation(
     std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()> operation)
 {

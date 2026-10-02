@@ -39,6 +39,7 @@ struct InputCalibrationProjection
 
 Independent of whether the session allows monitoring right now, so the signal chain keeps
 showing a route's calibration while no project is open or the settings window is up.
+
 \param monitor Shared live-input monitoring service driven by the controller.
 \return Signal-chain calibration status for the current route.
 */

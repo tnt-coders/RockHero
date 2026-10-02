@@ -146,7 +146,8 @@ private:
 
 } // namespace
 
-// A loaded arrangement with a plugin host enables the add-plugin command.
+// Loading an arrangement on a calibrated input route enables the add-plugin command, which is
+// disabled before any load; Remove stays disabled while the chain is empty.
 TEST_CASE("EditorController enables plugin add after load", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1640,7 +1641,8 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
     }
 }
 
-// Save As after a tone edit should retarget the project and establish a clean exit baseline.
+// Save As after a tone edit retargets the project and establishes a clean baseline, so exit needs
+// no prompt.
 TEST_CASE("EditorController save as clears plugin dirty state", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1740,7 +1742,8 @@ TEST_CASE("EditorController placement edit marks tone dirty", "[core][editor-con
     }
 }
 
-// Placement-only undo and redo restore editor metadata without exposing user-facing commands yet.
+// Placement-only undo and redo restore the authored block indices under a block-rearrangement
+// label, and undoing back to the loaded placement leaves the project clean.
 TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1803,7 +1806,7 @@ TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-contr
     CHECK_FALSE(closed_state->unsaved_changes_prompt.has_value());
 }
 
-// Redo returns the controller to an edited history position and should prompt before replacement.
+// Redo returns the controller to an edited history position, so closing prompts before discarding.
 TEST_CASE("EditorController redo makes clean placement dirty", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1846,7 +1849,8 @@ TEST_CASE("EditorController redo makes clean placement dirty", "[core][editor-co
         std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
 }
 
-// A new edit after undo discards the saved redo branch, so the old clean marker is unreachable.
+// A new edit after undo discards the saved redo branch, so the saved state's clean marker is
+// unreachable and the project stays dirty.
 TEST_CASE("EditorController forked redo branch stays dirty", "[core][editor-controller]")
 {
     FakeTransport transport;

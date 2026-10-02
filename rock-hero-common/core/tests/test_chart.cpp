@@ -254,6 +254,7 @@ constexpr Fraction g_fixture_ring{1, 8};
 
 } // namespace
 
+// Verifies grid position tokens parse whole and sub-beat spellings and reformat canonically.
 TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
 {
     const auto whole = parseGridPositionToken("12:3");
@@ -291,6 +292,8 @@ TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
     CHECK_FALSE(parseGridPositionToken("1:1+0/2").has_value());
 }
 
+// Verifies beat fraction tokens parse whole and fractional spellings, refuse malformed ones, and
+// reformat canonically.
 TEST_CASE("Chart beat fraction tokens round-trip", "[core][chart]")
 {
     CHECK(parseBeatFractionToken("2") == Fraction{2});
@@ -303,6 +306,8 @@ TEST_CASE("Chart beat fraction tokens round-trip", "[core][chart]")
     CHECK_FALSE(parseBeatFractionToken("-1/2").has_value());
 }
 
+// Verifies the fixture holding every construct the format defines survives a write and read
+// unchanged, writes each note's ring, and satisfies the structural rules.
 TEST_CASE("Chart document round-trips every construct", "[core][chart]")
 {
     const Chart chart = makeFullChart();
@@ -632,6 +637,7 @@ TEST_CASE("Chart rules refuse an instant between two ticks", "[core][chart]")
     }
 }
 
+// The harmonic rules: which node-and-attack records are legal, and where a node may lie.
 TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -822,7 +828,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 
     SECTION("the removed fields are refused rather than silently dropped")
     {
-        // Loading an un-reimported package must fail loudly: ignoring these keys would drop every
+        // Loading an out-of-date package must fail loudly: ignoring these keys would drop every
         // harmonic in the chart without a word.
         CHECK_FALSE(
             parseChartDocument(
@@ -841,7 +847,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 
 // The claim both drawing surfaces read for their harmonic mark — the 2D diamond head and the 3D
 // harmonic cell — kept apart from soundingStopAt's claim about WHERE the note sounds, because the
-// two part company at the pinch (RULED 2026-09-17).
+// two part company at the pinch.
 TEST_CASE("isHarmonic names a harmonic whichever hand makes it", "[core][chart]")
 {
     // The thumb's squeal is stated by the ATTACK, so a pinch counts whether or not the charter has
@@ -865,7 +871,7 @@ TEST_CASE("isHarmonic names a harmonic whichever hand makes it", "[core][chart]"
 
 // The one name for the family whose head prints somewhere the fretting hand is not, which is why
 // both surfaces state that hand's stop beside the head — the 2D lane in the satellite, the highway
-// as the floor line's run from the stop to the node (RULED 2026-09-18).
+// as the floor line's run from the stop to the node.
 TEST_CASE("harmonicOverPressedStop names the harmonics whose stop the head omits", "[core][chart]")
 {
     // An ARTIFICIAL harmonic: the fretting hand presses 5 while the picking hand touches the node
@@ -900,10 +906,10 @@ TEST_CASE("harmonicOverPressedStop names the harmonics whose stop the head omits
 }
 
 // The chart-level half of the removed-field tripwire: the posture table and its spans are derived
-// from the notes now (deriveChartShapes), so a document carrying either key states a second,
+// from the notes (deriveChartShapes), so a document carrying either key states a second,
 // unverifiable copy of what the notes already say. Silently ignoring them is the failure this
-// pins — every un-reimported package would load with its stored picture discarded and no word
-// said. Delete this with the tripwire once the corpus is re-imported.
+// pins — an out-of-date package would load with its stored picture discarded and no word said.
+// Delete this with the tripwire.
 TEST_CASE("Chart document refuses the removed posture and span keys", "[core][chart]")
 {
     const auto parse_with_key = [](const std::string& key_body) {
@@ -989,12 +995,12 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     CHECK(chartDocumentText(plain, tempo_map).find(R"("bend")") == std::string::npos);
 }
 
-// The payload spellings the keyframe model replaced. `bend` still EXISTS under a different shape,
-// so its refusal is keyed on the superseded shape rather than on the key: a document carrying it
-// must name the re-import remedy instead of loading with its curve silently dropped. The others
-// are simply gone — `slides` dissolved into the one interval-payload array, `waypoints` was that
-// array's own earlier name, and `slideOut` became the keyframe at the ring's end, so BOTH of its
-// spellings are refused: the object that carried an offset and the bare fret that replaced it.
+// The removed payload spellings. `bend` EXISTS under a different shape, so its refusal is keyed on
+// the removed shape rather than on the key: a document carrying it must name the re-import remedy
+// instead of loading with its curve silently dropped. The others are removed outright — `slides`
+// and `waypoints` are old spellings of the one interval-payload array, and the slide-out is the
+// keyframe at the ring's end, so BOTH `slideOut` spellings are refused: the object form carrying an
+// offset and the bare-fret form.
 TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]")
 {
     const auto parse_note = [](const std::string& body) {
@@ -1020,8 +1026,8 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     REQUIRE_FALSE(slide_out_object.has_value());
     CHECK(slide_out_object.error().message.find("re-import") != std::string::npos);
 
-    // The bare fret the object form was reduced to is gone with it: the gesture is a keyframe now,
-    // so nothing on the note states it.
+    // The bare-fret form is refused too: the gesture is a keyframe, so nothing on the note states
+    // it.
     const auto slide_out_fret = parse_note(R"("slideOut": 9)");
     REQUIRE_FALSE(slide_out_fret.has_value());
     CHECK(slide_out_fret.error().message.find("re-import") != std::string::npos);
@@ -1112,8 +1118,8 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
 
     SECTION("a keyframe reads the same two words, and off is unknown there too")
     {
-        // Nothing carries, so a keyframe never has to say vibrato ends: the word it once used for
-        // that is now the onset's read error.
+        // Nothing carries, so a keyframe never has to say vibrato ends, and `off` is a read error
+        // there exactly as at the onset.
         const auto off = parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "off" } ])");
         REQUIRE_FALSE(off.has_value());
         CHECK(off.error().message.find("vibrato is unknown") != std::string::npos);
@@ -1610,8 +1616,8 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
 // A NOTE'S ARRIVAL TRUNCATES ITS PREDECESSOR'S RING, AND THE STATEMENT AT THAT RING'S END RIDES
 // BACK WITH IT. The statement's moment is the end by definition, so a cut ring carries it to the
 // new end whatever it states — the bend curve's last value exactly as a slide-out's fret. Losing it
-// silently turned a bend that completes as the note ends into one that completes early and then
-// holds flat to an end it no longer reaches.
+// would silently turn a bend that completes as the note ends into one that completes early and then
+// holds flat to an end it does not reach.
 TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1653,8 +1659,8 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         // It states no fret, so the carry makes no slide-out of it.
         CHECK(endStatedFretOrNull(notes[0]) == nullptr);
         // The new end IS the next head of its own string, and the statement STAYS THERE: the store
-        // holds what the hands did, and nothing in it spaces a mark (user ruling, 2026-09-21). The
-        // truncation is its own fixpoint.
+        // holds what the hands did, and nothing in it spaces a mark. The truncation is its own
+        // fixpoint.
         CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
         CHECK(notes[0].sustain == Fraction{2});
         CHECK(notes[0].keyframes[1].offset == Fraction{2});
@@ -2075,6 +2081,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
     }
 }
 
+// Verifies the single chart version gate refuses a missing or unsupported formatVersion.
 TEST_CASE("Chart document rejects unsupported versions", "[core][chart]")
 {
     // Missing and non-1 versions are both rejected by the single chart version gate.
@@ -2088,6 +2095,8 @@ TEST_CASE("Chart document rejects unsupported versions", "[core][chart]")
     CHECK(rejected.error().message.find("formatVersion") != std::string::npos);
 }
 
+// Verifies malformed elements, wrong-typed properties, a missing ring and out-of-order notes each
+// fail the read rather than loading as something else.
 TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
 {
     CHECK_FALSE(parseChartDocument("not json").has_value());
@@ -2154,15 +2163,13 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
               .has_value());
 
     // The ring is REQUIRED, and absence is malformed rather than "no tail": reading a missing key
-    // as zero would invent the one datum the model cannot derive, and every note of a chart
-    // written before the duration model is missing exactly this.
+    // as zero would invent the one datum the model cannot derive.
     const auto missing = parse_note(R"("position": "1:1", "string": 1, "fret": 5)");
     REQUIRE_FALSE(missing.has_value());
     CHECK(missing.error().code == ChartErrorCode::MalformedDocument);
     CHECK(missing.error().message.find("sustain") != std::string::npos);
-    // And the remedy is IN that message, because this is the path such a package actually takes:
-    // the pre-model writer elided the key rather than writing a zero, so the positive-sustain
-    // rule's own re-import sentence is unreachable from a real file.
+    // And the remedy is IN that message, because a document missing the key is out of date rather
+    // than merely short.
     CHECK(missing.error().message.find("re-import") != std::string::npos);
     // The requirement is the note's, not the plain pick's: every attack token the vocabulary has
     // must state a ring, so no spelling gets a document form that elides it.
@@ -2189,8 +2196,8 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     CHECK(unsorted.error().message.find("sorted") != std::string::npos);
 
     // "none" is a token the vocabulary does not contain, and it is refused through the ONE unknown
-    // attack path every other misspelling takes — no branch of its own, so a document written
-    // before the token left fails exactly as `"attack": "wobble"` does.
+    // attack path every other misspelling takes — no branch of its own, so it fails exactly as
+    // `"attack": "wobble"` does.
     const auto none_attack = parse_note(
         R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1", "attack": "none")");
     REQUIRE_FALSE(none_attack.has_value());
@@ -2201,7 +2208,7 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
 }
 
 // Emphasis is one axis with a never-written default, so three things have to hold together: both
-// named values load, the default is spelled by ABSENCE, and the bool this replaced is refused
+// named values load, the default is spelled by ABSENCE, and the removed `accent` bool is refused
 // loudly rather than ignored — a silently dropped "accent" would strip every accent in the corpus
 // on the next save.
 TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
@@ -2251,7 +2258,7 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
             .has_value());
 
     // The tripwire: the removed key fails the load and names the fix, exactly as the removed
-    // harmonic/touch keys do. Delete this with the tripwire once the corpus is re-imported.
+    // harmonic/touch keys do. Delete this with the tripwire.
     CHECK_FALSE(
         parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "accent": true)")
             .has_value());
@@ -2261,7 +2268,7 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
             .has_value());
 
     // Round trip: both named values survive a write and read, and a normal note writes no key at
-    // all — which is what keeps a package that predates the axis byte-identical after a save.
+    // all, so the common note's line carries nothing for it.
     Chart chart;
     chart.tuning.strings = {"E2"};
     chart.notes = {
@@ -2340,9 +2347,9 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
             R"( "palmMute": true, "dead": true)") == std::pair{true, true});
 
-    // The tripwire: the single "mute" key this pair replaced fails the load and names the fix,
-    // exactly as the removed accent and harmonic/touch keys do. A silently ignored key would load
-    // every muted note in the corpus as unmuted. Delete this once the corpus is re-imported.
+    // The tripwire: the removed single "mute" key fails the load and names the fix, exactly as the
+    // removed accent and harmonic/touch keys do. A silently ignored key would load every muted note
+    // in the corpus as unmuted. Delete this with the tripwire.
     CHECK_FALSE(
         parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "mute": "palm")")
             .has_value());
@@ -2489,6 +2496,8 @@ TEST_CASE("Chart document refuses a hand position without a fret", "[core][chart
     CHECK(parsed.error().code == ChartErrorCode::MalformedDocument);
 }
 
+// Verifies the structural rules no repair can express are refused, beside the forms the load
+// normalizes instead.
 TEST_CASE("Chart rules reject structural violations", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -2527,7 +2536,7 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
 
     // A keyframe sitting exactly on a later onset of its string is LEGAL and nothing moves it: the
     // store holds what the hands did, and the spacing a mark needs to be seen belongs to
-    // presentation alone (user ruling, 2026-09-21). The ring here runs PAST the landing, so the one
+    // presentation alone. The ring here runs PAST the landing, so the one
     // rule a note cannot obey alone truncates it to exact adjacency — the third-beat gap, 1/3 — and
     // carries the statement to that end, where a stated fret IS the slide-out. That is the whole of
     // what the load path reports.
@@ -2828,8 +2837,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
     SECTION("a note must ring: a non-positive sustain is refused, never repaired")
     {
         // Structural, because no repair can invent a duration — and it doubles as the format
-        // tripwire, since a chart written before the duration model stores zero for every
-        // tail-less note.
+        // tripwire for any zero that reaches memory.
         ChartNote silent = make_note(1, 1, 5);
         silent.sustain = Fraction{};
         const auto refused = validate({silent});
@@ -3155,7 +3163,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
 
     SECTION("the whole chart normalizes in one call, with the settle sweep last")
     {
-        // Every stage in one call, in order: the stream-level ring bound (40-Q2-B) after the
+        // Every stage in one call, in order: the stream-level ring bound after the
         // per-note repairs, the hand windows, and the relational sweep LAST — over the stream as
         // it will actually stand. Each repair is reported with its place, which is what the load
         // notice shows.
@@ -3414,7 +3422,7 @@ TEST_CASE("An end statement sheds its vibrato and keeps its bend", "[core][chart
         CHECK(note.keyframes[0].fret == 9);
         CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
         // No fret beside it, so shedding the vibrato leaves nothing stated and the keyframe goes:
-        // an empty keyframe is a shape no chart may hold.
+        // a bare keyframe at the ring's end, where no leg begins, is nothing.
         note.keyframes = {
             Keyframe{.offset = Fraction{1}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide}
         };
@@ -3776,7 +3784,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         ChartNote source = make_note(1, 1, 9);
         CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
 
-        // Reaching the onset exactly is reaching — which is the longest ring 40-Q2-B allows, so
+        // Reaching the onset exactly is reaching — which is the longest ring the bound allows, so
         // every justified claim in a normalized chart is this case.
         source.sustain = Fraction{1};
         CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
@@ -4287,9 +4295,9 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     CHECK_FALSE(arrivesAsArpeggio(tapped_after.notes, strum_at, tempo_map));
 
     // A RIGHT-HAND ring crossing the start carries nothing: a tap joins no posture, so the strum
-    // states its own two strings whole and stays a box. This is where "a ringing string outside the
-    // posture" went — a fretting-hand ring across a start is always folded IN, so the only ring
-    // that can cross one and leave the shape alone is the other hand's.
+    // states its own two strings whole and stays a box. A fretting-hand ring across a start is
+    // always folded IN, so the only ring that can cross one and leave the shape alone is the other
+    // hand's.
     chart.notes[0].sustain = Fraction{2};
     Chart tapped_before = chart;
     tapped_before.notes[0].attack = NoteAttack::Tap;
@@ -4313,7 +4321,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
         });
     CHECK_FALSE(arrivesAsArpeggio(chord_sourced_ring.notes, strum_at, tempo_map));
 
-    // F1: a DEAD string's carry classifies. The class is a fact about the HANDS — the finger is
+    // A DEAD string's carry classifies. The class is a fact about the HANDS — the finger is
     // still down and the strum still picks around it — so it reads the STORED ring, the same one
     // the walk's fold-in reads. E25 takes the tail off what a surface DRAWS and says nothing about
     // what the hands were doing; letting it decide here would flip the span at an interior slot
@@ -4323,9 +4331,8 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     CHECK(arrivesAsArpeggio(dead_ring.notes, strum_at, tempo_map));
 }
 
-// THE RETIRED `held` KEY (RULED 2026-09-29): a held stop is derived, never stored, so a document
-// that still carries the key reads exactly as though it did not — whatever the value's type — and
-// the writer never emits it.
+// A `held` KEY IS IGNORED: a held stop is derived, never stored, so a document carrying the key
+// reads exactly as though it did not — whatever the value's type — and the writer never emits it.
 TEST_CASE("A chart document ignores the retired held key", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -4443,10 +4450,10 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
     }
 }
 
-// AND THE DERIVATION IS BOUND BY THE RELEASE ALONE (RULED 2026-09-29): a pull-off proves a finger
-// on its landing stop at the release, whatever path the source travelled first, so a stop the
-// source's own path swept derives exactly as one it never touched. (The traveled range still bounds
-// the ride; it no longer bounds the derivation.)
+// AND THE DERIVATION IS BOUND BY THE RELEASE ALONE: a pull-off proves a finger on its landing stop
+// at the release, whatever path the source travelled first, so a stop the source's own path swept
+// derives exactly as one it never touched. (The traveled range bounds the ride, not the
+// derivation.)
 TEST_CASE("A pull-off states its stop whatever the onset's own travel", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();

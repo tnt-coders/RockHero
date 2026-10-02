@@ -20,7 +20,7 @@ enum class AudioConfigErrorCode : std::uint8_t
     /*! \brief Persisted input calibration history could not be parsed. */
     InvalidInputCalibrationHistory,
 
-    /*! \brief The store could not be saved, including a write into a read-only store. */
+    /*! \brief The store's file could not be written. */
     CouldNotSave,
 };
 

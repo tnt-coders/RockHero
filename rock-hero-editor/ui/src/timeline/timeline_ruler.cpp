@@ -40,7 +40,7 @@ constexpr int g_subdivision_tick_height{5};
 // Chip height shared by every ruler chip row so they read as one family.
 constexpr int g_chip_height{11};
 // The play-from-here flag: a filled triangle at the ruler body's top pointing down the cursor
-// line, sized to read at a glance — the 1px alignment line alone was too easy to miss.
+// line, sized to read at a glance — the 1px alignment line alone is too easy to miss.
 constexpr float g_cursor_flag_half_width{5.0f};
 constexpr float g_cursor_flag_height{7.0f};
 
@@ -59,7 +59,7 @@ constexpr float g_cursor_flag_height{7.0f};
 
 // Enlarged bold face used only for the quarter-note glyph of tempo markings: the symbol needs
 // more size and weight than the digits to stay legible inside the chip, while bolding or
-// enlarging the whole marking only made it muddier.
+// enlarging the whole marking only makes it muddier.
 [[nodiscard]] juce::Font noteGlyphFont()
 {
     return juce::Font{juce::FontOptions{13.0f, juce::Font::bold}};

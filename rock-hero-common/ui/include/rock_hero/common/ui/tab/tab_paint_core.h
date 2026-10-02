@@ -76,7 +76,7 @@ past the ~8th a fingertip can still isolate. A trailing ".0" is dropped so the c
 positions stay as narrow as an ordinary fret number.
 
 A **pinch** keeps its fret: its node sits off the neck over the pickups, and 2D has no axis to place
-that on, so drawing it would name a fret the hand is nowhere near (roadmap 25-Q5).
+that on, so drawing it would name a fret the hand is nowhere near.
 
 The stop is a parameter because one gesture has more than one head: the onset passes the note's own
 fret, and a linked slide junction passes the fret the glide has reached, so every head of a gesture
@@ -147,8 +147,8 @@ public:
     /*!
     \brief Height the font was built at — JUCE's ascent-plus-descent line box, not a cap height.
 
-    What callers size a plate or a chip against, exactly as they did when this was a bare
-    juce::Font; \ref inkHeight is the separate question of how much of that box a glyph fills.
+    What callers size a plate or a chip against; \ref inkHeight is the separate question of how
+    much of that box a glyph fills.
 
     \return Font height in pixels.
     */
@@ -176,7 +176,7 @@ public:
 
     The box is the one the caller would centre the text in geometrically; whatever that box is
     centred on — a string line, a plate, a chip — is what the glyphs' ink ends up centred on.
-    Drawing is in the graphics context's current colour.
+    Drawing is in the graphics context's current color.
 
     \param g Graphics context to draw into.
     \param text Text to draw; an empty string draws nothing.
@@ -246,8 +246,7 @@ struct TabLaneMetrics : TabLaneGeometry
 For host chrome that must trace a head it did not draw — the editor's selection ring strokes it
 and its refusal flash glows around it. The silhouette is chosen by the same rule the head itself
 uses, so chrome cannot disagree with the head under it: re-deriving "diamond if it has a node, else
-a circle" in the host left every pick slide wearing a circular ring around a plectrum once the
-scrape head shipped.
+a circle" in the host would leave every pick slide wearing a circular ring around a plectrum.
 
 \param note Note whose head silhouette is wanted.
 \param center_x Head center on the time axis.
@@ -334,10 +333,9 @@ void paintTabPendingEntryPlate(
 number-plate's own geometry and font carrying a provisional value, in
 \ref paintTabPendingEntryPlate's polarity.
 
-Exported rather than restated in the host so the provisional digit's typography and placement
-CANNOT drift from the committed head's (the one-primitive rule of the pending-entry design; the
-insert ghost's shape drifted exactly this way once). The plate rect is the same authority the mute
-number-plate draws and the font is the head digit's own.
+Exported rather than restated in the host so the provisional digit's typography and placement CANNOT
+drift from the committed head's (the one-primitive rule of the pending-entry design). The plate rect
+is the same authority the mute number-plate draws and the font is the head digit's own.
 
 The box follows the head's own digit PLACEMENT too: a plectrum raises its number to fit the
 silhouette, so the box over a scrape rides the same raise — the provisional digit must sit
@@ -413,7 +411,7 @@ statement about the column's ground and never about what covers a mark.
 \param g Graphics context to draw into.
 \param panel The panel's rectangle from \ref tabStringLegendBounds, slid to where the host pins it;
        an empty one draws nothing.
-\param ground Colour the tint is mixed from: the host's own lane band, so the panel reads as a
+\param ground Color the tint is mixed from: the host's own lane band, so the panel reads as a
        quieted stretch of that band rather than as a foreign surface.
 */
 void drawTabStringLegendTint(juce::Graphics& g, juce::Rectangle<int> panel, juce::Colour ground);
@@ -421,7 +419,7 @@ void drawTabStringLegendTint(juce::Graphics& g, juce::Rectangle<int> panel, juce
 /*!
 \brief Draws the tuning's open-string names ON their own lane lines, inside the pinned panel.
 
-The legend a reader needs to know which line is which string: each name in its OWN string's colour,
+The legend a reader needs to know which line is which string: each name in its OWN string's color,
 sitting on that string's line at the fret digits' size, inside the panel the host places. Drawn
 LAST, over the tint and over the furniture that crosses the column, which is what makes the letters
 readable at every scroll position rather than only where the lane happens to be empty.
@@ -562,9 +560,9 @@ each pass in turn.
        draws the whole note — head, digit, tail and chips — fading toward a fifth of its weight,
        beneath every other note. Empty presents every note plainly: it crops at its ink end, and
        the leg the crop cuts wears a destination chip there (\ref tabKeyframeLayout).
-\param ground The colour the host painted under the lane. The tail's core is light laid over it
+\param ground The color the host painted under the lane. The tail's core is light laid over it
        (\ref common::core::g_tail_core_alpha), and the one mark that must knock out what lies
-       beneath — a bracket's satellite digit's ground — restores this colour before laying the core
+       beneath — a bracket's satellite digit's ground — restores this color before laying the core
        back over it, so the knockout reads as a clean stretch of the tail. Transparent where the
        host composites the lane itself.
 */

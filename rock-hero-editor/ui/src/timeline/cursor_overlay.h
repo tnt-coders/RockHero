@@ -136,13 +136,14 @@ public:
     bool hitTest(int x, int y) override;
 
     /*!
-    \brief Draws only the cursor; static waveform content remains in the views below.
+    \brief Draws the time-selection wash, the cursor and the snap guide; static track content
+    remains in the views below.
     \param g Graphics context used for drawing.
     */
     void paint(juce::Graphics& g) override;
 
     /*!
-    \brief Converts editor-wide timeline clicks into timeline seek intent.
+    \brief Converts highway-band timeline clicks into timeline seek intent.
     \param event Mouse event delivered by JUCE.
     */
     void mouseDown(const juce::MouseEvent& event) override;
@@ -163,7 +164,7 @@ private:
     // Visible timeline range last pushed by the owning view's setState().
     common::core::TimeRange m_visible_timeline{};
 
-    // Tempo map owned by the editor view state, referenced to snap non-modified timeline clicks.
+    // Tempo map owned by the editor view state, referenced to snap timeline clicks.
     const common::core::TempoMap& m_tempo_map;
 
     // Note value seek clicks quantize onto, initialized to the editor's default grid because the

@@ -18,7 +18,7 @@ TEST_CASE("Song default construction is empty", "[core][song]")
     CHECK(song.arrangements.empty());
 }
 
-// Verifies metadata fields remain plain value storage until validation rules are introduced.
+// Verifies metadata fields are plain value storage with no validation policy of their own.
 TEST_CASE("Song metadata round-trip", "[core][song]")
 {
     Song song;

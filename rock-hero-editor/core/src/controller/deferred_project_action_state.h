@@ -108,37 +108,33 @@ public:
     [[nodiscard]] std::optional<SaveAsPrompt> saveAsPrompt() const;
 
 private:
-    /*! \brief No project action is deferred. */
+    // No project action is deferred.
     struct Idle
     {
     };
 
-    /*! \brief A deferred action is waiting on the unsaved-changes prompt. */
+    // A deferred action is waiting on the unsaved-changes prompt.
     struct AwaitingUnsavedChangesDecision
     {
         EditorAction::ProjectAction action;
     };
 
-    /*! \brief A deferred action is waiting on the user to supply a Save As path. */
+    // A deferred action is waiting on the user to supply a Save As path.
     struct AwaitingSaveAsPath
     {
         EditorAction::ProjectAction action;
     };
 
-    /*! \brief A deferred action is parked while its protective save runs, ready to replay. */
+    // A deferred action is parked while its protective save runs, ready to replay.
     struct SavingBeforeReplay
     {
         EditorAction::ProjectAction action;
     };
 
-    /*!
-    \brief Lifecycle phase of a deferred project action.
-
-    Each non-idle phase carries the action it concerns, so "which action is waiting" and "which
-    prompt is showing" are one value that changes shape together. Illegal combinations the old
-    optional-plus-two-bools storage allowed -- both prompts visible at once, or a prompt visible
-    with no action behind it -- cannot be represented.
-    */
+    // Lifecycle phase of a deferred project action. Each non-idle phase carries the action it
+    // concerns, so "which action is waiting" and "which prompt is showing" are one value that
+    // changes shape together. Illegal combinations -- both prompts visible at once, or a prompt
+    // visible with no action behind it -- cannot be represented.
     using DeferralState =
         std::variant<Idle, AwaitingUnsavedChangesDecision, AwaitingSaveAsPath, SavingBeforeReplay>;
 

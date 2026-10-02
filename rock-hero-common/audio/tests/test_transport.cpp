@@ -65,7 +65,7 @@ public:
         return m_position;
     }
 
-    // Mirrors the v1 speed contract: exactly 1.0 is accepted, everything else fails loudly.
+    // Mirrors the speed contract: exactly 1.0 is accepted, everything else fails loudly.
     [[nodiscard]] std::expected<void, TransportError> setPlaybackSpeed(double factor) override
     {
         if (std::is_neq(factor <=> 1.0))
@@ -77,7 +77,7 @@ public:
         return {};
     }
 
-    // Returns the fake's stored speed factor; 1.0 under the v1 contract.
+    // Returns the fake's stored speed factor; always 1.0 under the speed contract.
     [[nodiscard]] double playbackSpeed() const noexcept override
     {
         return m_playback_speed;
@@ -141,10 +141,10 @@ private:
     // Current coarse state returned by state() and sent through listener callbacks.
     TransportState m_state{};
 
-    // Current current position returned by position(); intentionally excluded from TransportState.
+    // Current position returned by position(); intentionally excluded from TransportState.
     rock_hero::common::core::TimePosition m_position{};
 
-    // Port-level speed factor stored by setPlaybackSpeed(); only 1.0 is storable in v1.
+    // Port-level speed factor stored by setPlaybackSpeed(); only 1.0 is storable.
     double m_playback_speed{1.0};
 
     // Engaged normalized loop region; nullopt while looping is disengaged.
@@ -174,7 +174,7 @@ public:
 
 } // namespace
 
-// Verifies future headless controller tests can treat ITransport as a state source.
+// Verifies a headless controller test can treat ITransport as a state source.
 TEST_CASE("ITransport fake stores state and position separately", "[audio][transport]")
 {
     const TransportState expected_state{
@@ -224,7 +224,7 @@ TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transpor
     CHECK(listener.call_count == 0);
 }
 
-// Verifies the v1 speed contract: 1.0 round-trips, everything else is a typed loud failure.
+// Verifies the speed contract: 1.0 round-trips, everything else is a typed loud failure.
 TEST_CASE("ITransport playback speed accepts only 1.0 in v1", "[audio][transport]")
 {
     FakeTransport transport;

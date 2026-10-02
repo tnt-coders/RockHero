@@ -520,8 +520,8 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 }
 
-// The load settle (red-team D5): a hand-made document can carry a connection claim its own notes do
-// not justify, the reader flattens it rather than refusing the package, and a load that converted
+// The load settle: a hand-made document can carry a connection claim its own notes do not
+// justify, the reader flattens it rather than refusing the package, and a load that converted
 // anything leaves the session dirty — memory no longer equals disk, so the next save is what makes
 // the file agree. The audio half of this fixture converts nothing, so the flag can only have come
 // from the chart.
@@ -569,10 +569,10 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
 
     SECTION("a chart written under older rules is normalized, and the project carries the report")
     {
-        // A dead note carrying a bend was legal before the technique matrix shipped: a damped
-        // string sounds no pitch to modulate, so the load sheds the bend instead of refusing the
-        // project, and what it shed travels with the Project so the controller can show it once at
-        // open — the report IS the repair's honesty.
+        // A dead note carrying a bend breaks the technique rules: a damped string sounds no pitch
+        // to modulate, so the load sheds the bend instead of refusing the project, and what it shed
+        // travels with the Project so the controller can show it once at open — the report IS the
+        // repair's honesty.
         writeChartedProjectPackage(path, R"(, "dead": true, "bend": 1.0)");
 
         Project project;
@@ -681,7 +681,7 @@ TEST_CASE("Project imports a native song package", "[core][project]")
 }
 
 // Verifies arrangements sharing one source audio path get a single analysis call and identical
-// metadata, matching the dedupe contract described in the normalization plan.
+// metadata: import analyzes each unique source once and shares the record.
 TEST_CASE("Project import analyzes each unique source audio once", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;

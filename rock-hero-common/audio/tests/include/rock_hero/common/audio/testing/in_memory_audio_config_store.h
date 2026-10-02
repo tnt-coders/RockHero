@@ -24,11 +24,12 @@ namespace rock_hero::common::audio::testing
 \brief IAudioConfigStore implementation that keeps the active route and calibration in memory.
 
 Use this when a test needs a fully readable and writable audio-config store without touching disk:
-controller device-route restore/persist, migration, and any consumer of the port can round-trip
-state through it. It mirrors the concrete store's validity posture (identity validation, gain
-clamping, physical-route dedup, empty-blob-clears) so the fake and the JUCE-backed store behave
-alike. Each next_*_error member injects one typed failure into the next matching call, following the
-FakeLiveInput one-shot-failure pattern, so tests can exercise the typed-failure branches.
+controller device-route restore/persist and any consumer of the port can round-trip state through
+it. It mirrors the concrete store's validity posture (identity validation, physical-route dedup,
+empty-blob-clears) so the fake and the JUCE-backed store behave alike; it clamps a saved gain but,
+unlike the concrete store, does not round it to the calibration step. Each next_*_error member
+injects one typed failure into the next matching call, following the FakeLiveInput
+one-shot-failure pattern, so tests can exercise the typed-failure branches.
 */
 class InMemoryAudioConfigStore final : public IAudioConfigStore
 {

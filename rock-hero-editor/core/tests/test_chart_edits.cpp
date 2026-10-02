@@ -91,8 +91,8 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
 }
 
 // Applies a plan and asserts the whole-chart rules gate accepts the result — the planners'
-// joint contract: a plan that applies and saves but cannot re-load is exactly the
-// silent-corruption class the scrape work exists to close.
+// joint contract: a plan that applies and saves but cannot re-load would silently corrupt the
+// document.
 void applyAndValidate(
     common::core::Chart& chart, const common::core::TempoMap& tempo_map, const ChartEditPlan& plan)
 {
@@ -191,7 +191,7 @@ void applyAndValidate(
     return state.notes[index].vibrato;
 }
 
-// The NOTE-scope forms of the two planners that now take both selection operands. A scenario about
+// The NOTE-scope forms of the two planners that take both selection operands. A scenario about
 // heads alone says so by naming every note in its snapshot and no keyframe, which keeps the operand
 // split visible exactly where a case exercises it — the keyframe cases call the planners directly.
 [[nodiscard]] std::vector<ChartSlotKey> slotsOf(const std::vector<common::core::ChartNote>& notes)
@@ -223,8 +223,8 @@ void applyAndValidate(
 }
 
 // The SPLIT-only form of the junction toggle: keyframes alone as the operand, which is the whole
-// of what every split case below asks for. The label is the planner's own answer now, so no
-// caller supplies one, and the selection it plans is checked only where a case is about it.
+// of what every split case below asks for. The label is the planner's own answer, so no caller
+// supplies one, and the selection it plans is checked only where a case is about it.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> splitAt(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartKeyframeKey>& keyframe_keys)
@@ -403,8 +403,6 @@ TEST_CASE("planInsertNote adds a note on an empty slot", "[core][chart]")
     }
 }
 
-// Placing a note on an occupied slot replaces the note there: the old full value is removed and
-// the new one inserted in one plan.
 // An occupied slot is the gate's refusal, never a replace: the entry keys address the head that
 // stands there instead of placing over it.
 TEST_CASE("planInsertNote refuses an occupied slot", "[core][chart]")
@@ -991,8 +989,8 @@ TEST_CASE("planMoveSelection returns nullopt for no-op inputs", "[core][chart]")
                     .has_value());
 }
 
-// The keyframe half of the same step (W13's ruling): a selected point moves along the ring it
-// rides, by the whole-note delta a selected note would have moved its slot by.
+// The keyframe half of the same step: a selected point moves along the ring it rides, by the
+// whole-note delta a selected note would have moved its slot by.
 TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]")
 {
     const common::core::Chart chart = makeSteppedGlideChart();
@@ -1127,10 +1125,10 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     SECTION("a point stating something else is refused onto the end the same way")
     {
         // The bound is about POSITION, so what the point STATES never enters it — which is exactly
-        // what keeps the two losses the old step could inflict unreachable: a same-fret point
-        // became a slide-out falling toward the fret the string already holds (a mark nothing
-        // draws, dissolved by the gate, the visible point gone with it), and a point carrying a
-        // vibrato was bared of it by the slide-out's fret-and-nothing-else law.
+        // what keeps two losses unreachable: a same-fret point stepped onto the end would become a
+        // slide-out falling toward the fret the string already holds (a mark nothing draws,
+        // dissolved by the gate, the visible point gone with it), and a point carrying a vibrato
+        // would be bared of it by the slide-out's fret-and-nothing-else law.
         common::core::Chart one_point;
         one_point.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote note =
@@ -1415,10 +1413,9 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
 // back with the end — both the move's to do, a ring's length and the slide-out it goes out on being
 // exactly what this verb changes. What the clip would ALSO do is drop every other keyframe past
 // the landing, or overwrite a value standing on it — a statement the charter wrote, lost on a note
-// they never touched — so a landing that would is refused whole. The
-// refusal is the plan gate's (finalizePlan), not the move verb's own, so it holds in both
-// directions: an unmoved ring a landing shortens, and a moved ring that now runs through an unmoved
-// head.
+// they never touched — so a landing that would is refused whole. The refusal is the plan gate's
+// (finalizePlan), not the move verb's own, so it holds in both directions: an unmoved ring a
+// landing shortens, and a moved ring that runs through an unmoved head.
 TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -1764,9 +1761,9 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
     CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
 }
 
-// A selected keyframe retypes like a head (W13's ruling), and needs no channel of its own: the
-// selection kind is what says which stop the digit reached. The head it rides keeps its own fret,
-// which is the fret-verb law read the other way round.
+// A selected keyframe retypes like a head, and needs no channel of its own: the selection kind is
+// what says which stop the digit reached. The head it rides keeps its own fret, which is the
+// fret-verb law read the other way round.
 TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
 {
     const common::core::Chart chart = makeGlideChart();
@@ -2923,23 +2920,20 @@ TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
                     .plan.has_value());
 }
 
-// The three boolean techniques share ONE planner, and the reason that is safe rather than merely
-// tidy is that eligibility is asked of the per-note rule authority instead of being restated. Each
-// flag therefore inherits its own rules for free, and they are different rules: a pinch harmonic
-// cannot be deadened (a damped string cannot squeal, so the normalizer would take the pinch with
-// the deadening) while a dead note cannot take vibrato (it modulates a pitch the note does not
-// have).
-// Vibrato has its own planner now that the field is a width axis, so the second half below asks
-// THAT verb the same question: one law, two different answers - and neither is written in this
-// file or in either verb.
+// The boolean techniques share ONE planner, and the reason that is safe rather than merely tidy is
+// that eligibility is asked of the per-note rule authority instead of being restated. Each flag
+// therefore inherits its own rules for free: a pinch harmonic cannot be deadened (a damped string
+// cannot squeal, so the normalizer would take the pinch with the deadening). Vibrato is a width
+// axis with its own planner, so the second half below asks THAT verb the same question: a dead
+// note cannot take vibrato (it modulates a pitch the note does not have). One law, two different
+// answers - and neither is written in this file or in either verb.
 TEST_CASE("planSetNoteFlag inherits each flag's own per-note rule", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    // A pinch harmonic and a plain note, selected together. (The tap harmonic, whose tremolo
-    // exclusion this half used to probe, is a disabled form; the pinch's deadening rule — a damped
-    // string cannot squeal — is the same kind of per-note refusal on an enabled one.)
+    // A pinch harmonic and a plain note, selected together: the pinch's deadening rule — a damped
+    // string cannot squeal — is the per-note refusal this half probes.
     chart.notes[0].attack = common::core::NoteAttack::Pinch;
     chart.notes[0].harmonic_node = 17.0;
     const std::vector<ChartSlotKey> keys{
@@ -3960,7 +3954,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
     }
 }
 
-// The D14 assist: when the hold is the only thing missing, the verb grows the predecessor's ring
+// The hold assist: when the hold is the only thing missing, the verb grows the predecessor's ring
 // to the successor's onset and claims the connection in the same plan — the ring is the held-ness
 // datum, and the verb writes it rather than demanding the drag first.
 TEST_CASE(
@@ -4011,7 +4005,7 @@ TEST_CASE(
 
     SECTION("a chord onto a chord grows every member's predecessor uniformly")
     {
-        // Groups are allowed by the ruled assist: pressing H on a selection IS intent, one
+        // Groups are allowed by the assist: pressing H on a selection IS intent, one
         // uniform rule with no single-vs-group branch, and same-onset members never block each
         // other's growth.
         common::core::Chart chart;
@@ -4440,10 +4434,10 @@ TEST_CASE("A retype applies and reverses atomically", "[core][chart]")
     CHECK(other == original);
 }
 
-// `Shift+L` on a selected keyframe severs the gesture there (W10's addendum): the origin's path
-// ENDS at the junction and a new head takes the remainder. The origin keeps the keyframe it
-// arrives at — the leg the user split at is real travel — so the junction is the equal-fret
-// handover W10's ruling 2 names, and the later keyframes rebase onto the new onset.
+// `Shift+L` on a selected keyframe severs the gesture there: the origin's path ENDS at the junction
+// and a new head takes the remainder. The origin keeps the keyframe it arrives at — the leg the
+// user split at is real travel — so the junction is an equal-fret handover, and the later
+// keyframes rebase onto the new onset.
 TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
@@ -4497,9 +4491,9 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     CHECK(chart == original);
 }
 
-// A head must sit on a stated fret and needs a remainder to take (W10's ruling 2). Both refusals
-// are Invalid rather than a clamp: rounding the interpolated fret between stating points would be
-// invented data, and a key naming no keyframe at all is simply skipped.
+// A head must sit on a stated fret and needs a remainder to take. Both refusals are Invalid rather
+// than a clamp: rounding the interpolated fret between stating points would be invented data, and
+// a key naming no keyframe at all is simply skipped.
 TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -4965,9 +4959,9 @@ TEST_CASE("chartHarmonicNodeCandidates reads the fret as a label", "[core][chart
 
     SECTION("the labels import calls dead do name nodes here")
     {
-        // 1, 11 and 13 reach no harmonic under import's snapping cap, so they were dead keys for
-        // the verb too. Under the editor's wider bound each names at least one high-order node, and
-        // the verb now states it rather than skipping the note.
+        // 1, 11 and 13 reach no harmonic under import's snapping cap. Under the editor's wider
+        // bound each names at least one high-order node, so the verb states it rather than
+        // skipping the note.
         for (const int fret : {1, 11, 13})
         {
             INFO("fret " << fret);
@@ -5100,7 +5094,7 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
     }
 }
 
-// The refusal is the whole of the ruling on a fret that names nothing: the verb states a node or
+// The refusal is the whole answer to a fret that names nothing: the verb states a node or
 // leaves the note alone, and never moves the hand to the nearest node to invent one. An open string
 // states no position at all — its offset is zero, which is not a touch — and under the editor's
 // partial bound it is the only fret in that position. The plan is NoChange, and the note is named
@@ -5157,7 +5151,7 @@ TEST_CASE("planClearHarmonic presses the fret the touch was standing on", "[core
 // THE FRETTING HAND'S CLEAR REACHES ONLY THE FRETTING HAND'S NODES. An IMPORTED artificial keeps
 // the stop its fretting hand is pressing, since the node it loses belonged to the other hand — and
 // a PINCH is left exactly as it was, because the thumb's graze is the `PinchHarmonic` row's to
-// clear (planClearPinchHarmonic). One clear once reached both, which let the picker's "No harmonic"
+// clear (planClearPinchHarmonic). One clear reaching both would let the picker's "No harmonic"
 // strip a pinch the charter had only selected beside a real carrier.
 TEST_CASE("planClearHarmonic removes the harmonic the fretting hand owns", "[core][chart]")
 {
@@ -5327,9 +5321,9 @@ TEST_CASE("carriesNeckHarmonic answers for the hand that owns the node", "[core]
 }
 
 // A FRET-HAND HARMONIC HAS NO STOP TO RETYPE. Its finger stands on the node and presses nothing, so
-// the digit channel has nothing to land on — and landing it anyway authored `fret 5 + node 4.98`,
-// a stop and a touch naming two different places, which passed the node-beyond-the-stop rule
-// because 4.98 is not beyond nothing. Refused whole, so the pending entry paints red.
+// the digit channel has nothing to land on — and landing it anyway would author `fret 5 + node
+// 4.98`, a stop and a touch naming two different places, which would pass the node-beyond-the-stop
+// rule because 4.98 is not beyond nothing. Refused whole, so the pending entry paints red.
 TEST_CASE("planRetypeFrets refuses the sounding stop of a fret-hand harmonic", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -5475,7 +5469,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         CHECK(law.carried(chart, vibrating));
 
         // The onset vibrates and the other anchor does not, so the press means SET — the same
-        // partly-carried answer a mixed note selection has always given.
+        // partly-carried answer a mixed note selection gives.
         ChartSelection mixed;
         mixed.add(note_key);
         mixed.add(
@@ -5679,7 +5673,7 @@ TEST_CASE("planToggleJunctions joins a vibrating head as its own leg's width", "
     CHECK(chart == original);
 }
 
-// W10'S TIE, and the whole of why it needs no tie datum. Joining an EQUAL-fret head leaves a point
+// THE TIE, and the whole of why it needs no tie datum. Joining an EQUAL-fret head leaves a point
 // that restates the fret the path is already running on, so the commit law owns it: it draws, it
 // takes the selection, it dissolves with focus, and the history entry sheds it. What the document
 // records is one longer ring and one note fewer — never a tie.
@@ -6584,10 +6578,9 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         CHECK(chart == original);
     }
 
-    // Each technique is its own authored surface (user ruling, 2026-09-29): Delete takes the
-    // point's FRET and leaves its width for `V` to clear, so the point stands as a vibrato change;
-    // a second Delete, on a point with no fret left, takes it whole, and the onset's vibrato runs
-    // on.
+    // Each technique is its own authored surface: Delete takes the point's FRET and leaves its
+    // width for `V` to clear, so the point stands as a vibrato change; a second Delete, on a point
+    // with no fret left, takes it whole, and the onset's vibrato runs on.
     SECTION("a keyframe carrying a fret and a width loses its fret, then goes whole")
     {
         common::core::Chart chart = vibrated_hold(

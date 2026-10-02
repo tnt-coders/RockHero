@@ -101,8 +101,8 @@ public:
 
     The live instrument path is never speed-affected — speed applies to backing playback only.
     Current implementations accept exactly 1.0; any other factor returns
-    TransportErrorCode::SpeedNotSupported and leaves playback unchanged. Practice-speed support
-    (docs/plans/roadmap/28-practice-mode.md) widens the accepted range behind this same signature.
+    TransportErrorCode::SpeedNotSupported and leaves playback unchanged. The signature already
+    takes any factor so practice-speed playback can widen the accepted range without a port change.
 
     \param factor Requested playback speed multiplier, where 1.0 is normal speed.
     \return Nothing on success, or a typed transport error when the factor is unsupported.
@@ -114,7 +114,7 @@ public:
 
     Message-thread-only like the rest of the port.
 
-    \return Current playback speed multiplier; 1.0 until practice-speed support lands.
+    \return Current playback speed multiplier; always 1.0 while only normal speed is supported.
     */
     [[nodiscard]] virtual double playbackSpeed() const noexcept = 0;
 

@@ -505,8 +505,8 @@ void ToneAutomationLanesView::refreshLaneChips()
 //
 // The rule itself is stickyLabelLeft's, shared with the tone regions' own labels one row up: pin,
 // stick, and slide off past the tone's END. That last half is what a hand-written copy of the rule
-// dropped, leaving the whole column glued to the window over the dimmed area no press there could
-// edit.
+// tends to drop, which leaves the whole column glued to the window over the dimmed area no press
+// there could edit.
 std::optional<int> ToneAutomationLanesView::pinnedChipLeft() const
 {
     const auto window_left = static_cast<float>(m_visible_content_left);
@@ -514,8 +514,7 @@ std::optional<int> ToneAutomationLanesView::pinnedChipLeft() const
     const std::optional<float> tone_right = xForSeconds(m_editable_window.end.seconds);
     // An unmappable geometry (no width, no duration) leaves the window edge as the whole answer:
     // there is no on-screen tone span to pin to or slide off, and a tone selected before the
-    // timeline arrives must still offer its chips. This is what the row drew before the tone's
-    // start entered the rule.
+    // timeline arrives must still offer its chips.
     if (!tone_left.has_value() || !tone_right.has_value())
     {
         return juce::roundToInt(window_left) + g_chip_inset_x;
@@ -547,7 +546,7 @@ std::optional<juce::Rectangle<int>> ToneAutomationLanesView::laneChipBounds(
 }
 
 // The "+" chip's one geometry, painted and hit-tested through this for the same reason the lane
-// names are: it was spelled twice, and the two spellings had to agree by hand.
+// names are: two spellings would have to agree by hand.
 std::optional<juce::Rectangle<int>> ToneAutomationLanesView::plusChipBounds(
     const LaneExtent& plus_extent) const
 {
@@ -806,7 +805,7 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
             }
         }
 
-        // Editable lane area is a hit with or without Alt (§9b): with Alt down it is the insert
+        // Editable lane area is a hit with or without Alt: with Alt down it is the insert
         // quasimode's target, and a plain click seeks and arms the caret on the lane — the
         // row-axis form of the chart lane's empty click. Outside the editable window the area
         // stays with the seek overlay, and so does whatever part of the anchor's grab falls out
@@ -1049,8 +1048,8 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             if (point.authored && point.x >= clip_left && point.x <= clip_right)
             {
                 // Every point draws in the curve colour at the same size; the selected point (the
-                // Delete target) adds a white ring so it reads as
-                // picked without moving or resizing.
+                // Delete target) adds a white ring so it reads as picked without moving or
+                // resizing.
                 const float radius = g_point_draw_radius;
                 graphics.setColour(editorTheme().accent.withMultipliedAlpha(lane_alpha));
                 graphics.fillEllipse(
@@ -1120,7 +1119,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             }
         }
 
-        // The armed marker caret riding this lane (§9b): a white rounded square centered on
+        // The armed marker caret riding this lane: a white rounded square centered on
         // the curve at the caret slot — where Insert and typed values land. Its geometry comes
         // from the shared helper so the paused-column cut-out can never diverge from the drawn
         // square.
@@ -1181,7 +1180,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
     if (plus_bounds.intersects(clip))
     {
         // Wherever the column is, the chip is drawn (dimmed when there is nothing to offer):
-        // hiding it made "empty tone" and "listing failed" indistinguishable from a missing
+        // hiding it would make "empty tone" and "listing failed" indistinguishable from a missing
         // feature. Scrolled past the tone's end there IS no column, and the "+" leaves with the
         // names rather than sitting alone over the dimmed area.
         const bool has_offer = !m_state.available_parameters.empty();
@@ -1209,7 +1208,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods.isAltDown());
 
-    // Resolve the hover readout and the hover intent. The insert ghost is controller-owned now
+    // Resolve the hover readout and the hover intent. The insert ghost is controller-owned
     // (published through m_state.insert_ghost); the view forwards every lane-area hover and lets
     // the controller resolve snap + occupancy, exactly like the tab lane's chart ghost. Hovering a
     // point shows its position and value; the Alt-held insert zone shows the prospective on-curve
@@ -1470,7 +1469,7 @@ void ToneAutomationLanesView::requestPointInsert(
 }
 
 // Opens the typed-value editor at the armed lane caret, seeded with the typed digit: the
-// keyboard mirror of double-click value entry (the typing rule on lane rows, §9b). Committing
+// keyboard mirror of double-click value entry (the typing rule on lane rows). Committing
 // creates an on-caret point with the typed value, or retypes the point already at the slot.
 bool ToneAutomationLanesView::beginCaretValueEntry(int digit)
 {
@@ -1649,8 +1648,8 @@ core::ToneAutomationPointerEvent ToneAutomationLanesView::makePointerEvent(
     pointer_event.modifiers.shift = event.mods.isShiftDown();
     // A resolved lane (Down/Move) names its identity, index, value shape, and the band-extent
     // vector the controller maps y to a value with. A Drag/Up rides the gesture the controller
-    // froze on Down, so it leaves the lane geometry default and never
-    // rebuilds the extents mid-drag.
+    // froze on Down, so it leaves the lane geometry default and never rebuilds the extents
+    // mid-drag.
     if (lane_index.has_value() && *lane_index < m_state.lanes.size())
     {
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[*lane_index];

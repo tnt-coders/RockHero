@@ -55,6 +55,7 @@ PreviewWindow::PreviewWindow(
     addKeyListener(m_composed_character_filter.get());
 }
 
+// Unregisters the filter before it dies, then suspends the surface and hides the window.
 PreviewWindow::~PreviewWindow()
 {
     // Detach before the filter is destroyed: the key-listener list holds a non-owning pointer.
@@ -74,6 +75,7 @@ void PreviewWindow::open()
     m_surface->grabKeyboardFocus();
 }
 
+// Hides the window, stopping the surface's frame ticks while its render stack stays alive.
 void PreviewWindow::close()
 {
     // Suspend before hiding: the peer (and the render stack) survive a hide, but the vblank
@@ -83,16 +85,19 @@ void PreviewWindow::close()
     setVisible(false);
 }
 
+// Forwards the highway snapshot to the surface that renders it.
 void PreviewWindow::setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state)
 {
     m_surface->setHighwayState(std::move(state));
 }
 
+// Forwards the armed caret's position to the surface's paused-time marker rule.
 void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
 {
     m_surface->setCaretSeconds(seconds);
 }
 
+// The title-bar close is the View-menu toggle turning the preview off: hide, never destroy.
 void PreviewWindow::closeButtonPressed()
 {
     close();

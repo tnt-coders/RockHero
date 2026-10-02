@@ -514,11 +514,10 @@ TEST_CASE("EditorController restore clears path after async failure", "[core][ed
     CHECK_FALSE(settings.interruptedRestoreProject().has_value());
 }
 
-// A restore request fired while the controller already has dirty work routes through the same
-// unsaved-changes gate as Open, instead of overwriting the in-progress project. Today this only
-// matters as a guard for future call sites that invoke RestoreProject after startup (a
-// reopen-last-session menu item, a crash-recovery flow, etc.); the startup path is unaffected
-// because the controller has nothing loaded yet at that point.
+// A restore request fired while the controller holds dirty work routes through the same
+// unsaved-changes gate as Open instead of overwriting the in-progress project. Startup restore
+// never meets the gate, since nothing is loaded yet; the gate covers any RestoreProject request
+// made once a project is open.
 TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"restore_prompts_unsaved"};

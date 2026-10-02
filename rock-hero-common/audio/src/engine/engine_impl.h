@@ -72,7 +72,8 @@ struct LiveRigLoadOperation
         // Display names precomputed once so progress messages stay stable across resume points.
         std::vector<std::string> display_names;
 
-        // Output gain from the parsed tone document, applied when this tone becomes audible.
+        // Output gain from the parsed tone document, set on this tone's branch gain when the rack
+        // is assembled.
         Gain output_gain;
 
         // Plugins restored so far, held free-floating until the rack assembles them.
@@ -91,7 +92,7 @@ struct LiveRigLoadOperation
 
     // Plugins whose backend load failed because they are not installed, as "Name (tone ref)"
     // display strings. The load keeps scanning so the finalize step can refuse ONCE with the
-    // complete list (gameplay policy 21-Q1(A)) instead of aborting at the first miss.
+    // complete list instead of aborting at the first miss.
     std::vector<std::string> missing_plugin_names;
 
     // Flattened progress counters across all tones.
@@ -151,6 +152,8 @@ struct ToneChainReplaceOperation
     LiveRigLoadResultCallback on_result;
 };
 
+// A failed plugin-chain mutation step: the error for the caller, plus the log context for the
+// best-effort monitoring reroute that follows it.
 struct PluginChainMutationFailure
 {
     PluginHostError error;
@@ -172,7 +175,7 @@ private:
     // Stable ID for the Tracktion track that owns arrangement backing clips.
     tracktion::EditItemID m_backing_track_id;
 
-    // Stable ID for the Tracktion track that owns instrument input and future plugin FX.
+    // Stable ID for the Tracktion track that owns instrument input and the live-rig plugins.
     tracktion::EditItemID m_instrument_track_id;
 
     // Stable IDs for structural live-rig plugins around the external plugin chain. These are
@@ -230,10 +233,10 @@ private:
     // Observer installed by editor-core for completed plugin-wide state edits.
     PluginStateEditObserver m_plugin_state_edit_observer;
 
-    // Observer installed by editor-core for Undo/Redo shortcuts from plugin editor windows.
+    // Observer installed by editor-core for shortcuts from plugin editor windows.
     PluginWindowCommandObserver m_plugin_window_command_observer;
 
-    // Per-external-plugin parameter observers for the user-visible live-rig chain.
+    // Per-external-plugin parameter observers across every rack branch, audible or not.
     std::vector<std::unique_ptr<PluginParameterDirtyTracker>> m_plugin_parameter_dirty_trackers;
 
     // Per-external-plugin dirty-state transaction observers.
@@ -479,7 +482,7 @@ private:
     [[nodiscard]] std::vector<PluginCandidate> knownPluginCatalogForScannedFiles(
         const juce::StringArray& scanned_files) const;
 
-    // Inserts a selected plugin candidate into the instrument track's user-visible chain.
+    // Inserts a selected plugin candidate into the audible tone's rack branch.
     [[nodiscard]] std::expected<PluginInsertResult, PluginHostError> insertPluginCandidateToTrack(
         const PluginCandidate& plugin_candidate, std::size_t chain_index);
 
@@ -594,7 +597,8 @@ private:
         PluginInstanceState state;
     };
 
-    // Rebuilds plugin edit listeners for user-visible external plugins only.
+    // Rebuilds plugin edit listeners for the external plugins of every rack branch, so a plugin
+    // window left open across an audible switch keeps feeding dirty tracking and undo.
     void refreshPluginEditObservers(
         std::optional<KnownPluginBaseline> known_baseline = std::nullopt);
 
@@ -767,12 +771,11 @@ private:
     // detail, so route failures are logged through this named best-effort helper.
     void rebuildInstrumentMonitoringGraphBestEffort(std::string_view context);
 
-    // Centralizes the shared "adopt the requested monitoring flags, reroute, and roll back to off
-    // on route failure" path for the two monitoring toggles, which were otherwise identical apart
-    // from the channel and the rollback context. The mutual-exclusion and no-input-device policy
-    // lives in the pure, device-free monitoringFlagsForRequest(); this method owns only the side
-    // effects. Keeps the existing synchronous LiveInputError contract; callers supply device
-    // availability because that check lives on Engine, not Impl.
+    // The one "adopt the requested monitoring flags, reroute, and roll back to off on route
+    // failure" path shared by both monitoring toggles. The mutual-exclusion and no-input-device
+    // policy lives in the pure, device-free monitoringFlagsForRequest(); this method owns only the
+    // side effects. Callers supply device availability because that check lives on Engine, not
+    // Impl.
     [[nodiscard]] std::expected<void, LiveInputError> setMonitoringChannelEnabled(
         MonitorChannel channel, bool enabled, bool input_device_available,
         std::string_view rollback_context);

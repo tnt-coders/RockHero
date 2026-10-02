@@ -42,7 +42,10 @@ public:
     /*! \brief Moving is disabled; Tracktion plugins are reference-counted graph nodes. */
     LiveRigGainPlugin(LiveRigGainPlugin&&) = delete;
 
-    /*! \brief Move assignment is disabled; Tracktion plugins are reference-counted graph nodes. */
+    /*!
+    \brief Move assignment is disabled; Tracktion plugins are reference-counted graph nodes.
+    \return Reference to this plugin.
+    */
     LiveRigGainPlugin& operator=(LiveRigGainPlugin&&) = delete;
 
     /*!

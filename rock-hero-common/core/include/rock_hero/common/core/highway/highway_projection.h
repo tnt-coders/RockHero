@@ -72,7 +72,7 @@ strikes that overlap merge.
 something.
 
 The evidence is every note whose onset is not a right-hand onset (fretted, open, dead, natural
-harmonic, legato, left tap) — an open string by ruling, because it is drawn as a bar spanning the
+harmonic, legato, left tap) — an open string included, because it is drawn as a bar spanning the
 window and a dark window under it would read as a floating bar; every right-hand onset whose held
 stop is pressed, lit through its claim; and every hand-posture span over its drawn extent. A bare
 tap proves nothing. A note lights from its onset, rising over its margin, to its release (the drawn

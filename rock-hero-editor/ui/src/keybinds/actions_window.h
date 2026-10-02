@@ -18,11 +18,10 @@ namespace rock_hero::editor::ui
 
 Named for the REAPER-style actions model: the command registry is the editor's one
 trigger-agnostic action list, and this window is where its bindings are viewed and edited.
-Hosts the custom `KeymapEditorView` over the editor's one key mapping set (plan 46 Phase 3: the
-stock component shipped first and its recorded custom-rebuild trigger fired — the themed stock
-dialog read as off-product in live use). The window stays alive across closes — the close
-button only hides it — and rebinds apply live through the mapping set's own change broadcasts
-(key dispatch, menu shortcut text, and the keymap persistence all listen to the same set).
+Hosts the custom `KeymapEditorView` over the editor's one key mapping set. The window stays
+alive across closes — the close button only hides it — and rebinds apply live through the
+mapping set's own change broadcasts (key dispatch, menu shortcut text, and the keymap
+persistence all listen to the same set).
 */
 class ActionsWindow final : public juce::DocumentWindow
 {

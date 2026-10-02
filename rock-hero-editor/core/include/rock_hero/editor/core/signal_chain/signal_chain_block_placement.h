@@ -91,13 +91,13 @@ public:
 
     /*!
     \brief Moves a plugin onto an empty block or into an occupied block.
-    \param plugin_index Plugin being moved.
-    \param target_block Visual block receiving the plugin.
 
     Occupied targets shift the contiguous occupied run toward the moved plugin's source gap. An
     adjacent occupied target therefore swaps with the moved plugin while longer moves preserve
     the same order as the controller's single move command.
 
+    \param plugin_index Plugin being moved.
+    \param target_block Visual block receiving the plugin.
     \return Resulting placement, or empty when source or target is outside this placement.
     */
     [[nodiscard]] std::optional<SignalChainBlockPlacement> withPluginAtBlock(

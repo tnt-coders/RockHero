@@ -72,8 +72,8 @@ namespace
 }
 
 // THE ONE DENSITY POLICY every leg the sampler walks is sliced by, in slices per fret of travel.
-// Six slices flat sufficed for a tapped glide's few-fret travel but faceted a scrape's dozen-fret
-// leg into visible straights; four per fret keeps the eased curve under half a fret per slice at
+// A flat slice count that suits a tapped glide's few-fret travel facets a scrape's dozen-fret leg
+// into visible straights; four per fret keeps the eased curve under half a fret per slice at
 // its steepest, which makes the density a property of the TRAVEL rather than of the segment. The
 // floor keeps a travel of well under a fret reading as a curve, and the ceiling keeps a full-neck
 // sweep inside a batch's budget.
@@ -185,8 +185,8 @@ HighwayHandWindow highwayHandWindowAt(
     const HighwayHandWindow target = settledWindow(*leg->to);
     // The window eases with the SAME curve the drawn rail uses for this move: the pitched glide's
     // curve for a pitched ramp, the unpitched release curve for a slide-out. Easing every move with
-    // the pitched one left the window and the rail sharing only their endpoints, which read as the
-    // window not moving with the slide.
+    // the pitched one would leave the window and the rail sharing only their endpoints, which reads
+    // as the window not moving with the slide.
     const double weight = approachWeight(*leg->to, leg->progress);
     return HighwayHandWindow{
         .low_line = previous.low_line + ((target.low_line - previous.low_line) * weight),
@@ -263,8 +263,8 @@ HighwayHandWindow highwayBoxSidesAt(
     return highwayHandWindowAt(track, std::max(onset_seconds, now_seconds));
 }
 
-// Distance-to-edge coverage: saturates one lane inside either edge, so a settled integer window
-// scores exactly 1 on its own lines and 0 one line outside.
+// Distance-to-edge coverage: saturates at either edge and ramps over the lane outside it, so a
+// settled integer window scores exactly 1 on its own lines and 0 one line outside.
 double highwayHandWindowLineCoverage(const HighwayHandWindow& window, const double line) noexcept
 {
     return std::clamp(1.0 + std::min(line - window.low_line, window.high_line - line), 0.0, 1.0);

@@ -5,7 +5,8 @@
 namespace rock_hero::editor::core
 {
 
-// Verifies that authored output gain controls remain available after loading a live rig.
+// Verifies that loading an arrangement on a live rig enables the output gain controls at 0 dB,
+// while calibration stays unavailable because no input device is active.
 TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -37,7 +38,8 @@ TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][
     CHECK_FALSE(final_state->signal_chain.input_calibrate_enabled);
 }
 
-// Verifies that authored output gain controls remain available with the required live-rig port.
+// Verifies that output gain controls are enabled with the bundle's default live rig: the live-rig
+// port is required, so the controls always have a rig to drive.
 TEST_CASE("Output gain controls enabled with required live rig", "[core][editor-controller]")
 {
     FakeTransport transport;

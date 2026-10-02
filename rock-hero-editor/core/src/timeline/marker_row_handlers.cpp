@@ -16,11 +16,10 @@
 namespace rock_hero::editor::core
 {
 
-// The marker rows (docs/plans/completed/keyboard-focus-rows.md): the ruler's section, tempo and
-// time-signature rows, the hand row and the tone row, which the keyboard reaches by selecting a
-// marker. Every row answers the same questions — where its markers start, which one holds a
-// position, which one the selection names — so the walk, a chip click and Tab share one model of
-// all five.
+// The marker rows: the ruler's section, tempo and time-signature rows, the hand row and the tone
+// row, which the keyboard reaches by selecting a marker. Every row answers the same questions —
+// where its markers start, which one holds a position, which one the selection names — so the
+// walk, a chip click and Tab share one model of all five.
 
 std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     const MarkerRow row) const
@@ -407,11 +406,10 @@ std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget()
 }
 
 // Enter's verb, dispatched on the selection's kind here so the view opens what it names and
-// decides nothing: a section restates on its name, a tone region on its tone (until the signal
-// chain has a keyboard model to drill into, plan 53 Phase 5), the "+" row opens the parameter
-// picker, a bend chip the caret stands on restates its bend through the picker `B` opens, and every
-// other kind has no restate — a fret-hand position included, until its fret has an entry to
-// re-open.
+// decides nothing: a section restates on its name, a tone region on its tone (the signal chain has
+// no keyboard model to drill into), the "+" row opens the parameter picker, a bend chip the caret
+// stands on restates its bend through the picker `B` opens, and every other kind has no restate — a
+// fret-hand position included, since its fret has no entry to re-open.
 RestateTarget EditorController::Impl::restateTarget() const
 {
     if (chartCaretFace() == ChartCaretFace::BendChip)

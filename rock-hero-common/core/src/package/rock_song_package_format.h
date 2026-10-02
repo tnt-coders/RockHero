@@ -57,8 +57,8 @@ struct BeatPositionToken
 /*!
 \brief Parses a `"<measure>:<beat>"` grid position token.
 
-The one token grammar shared by tempo-map anchors and tone-region endpoints; sub-beat `+` suffixes
-are rejected until a format revision introduces them.
+The shared grid-position grammar restricted to whole beats, for tempo-map anchors, which pin beats
+rather than sub-beat positions: a `+` sub-beat suffix is rejected.
 
 \param text Token text from a song document.
 \return Parsed position, or empty when the token is malformed.
@@ -76,10 +76,10 @@ are rejected until a format revision introduces them.
 /*!
 \brief Validates the structural tone-track rules shared by package read and write.
 
-Checks region IDs (canonical, unique), endpoint validity against the tempo map's grid and
-terminal anchor, strict start-before-end ordering, ascending non-overlapping regions, and
-canonical tone document references. File existence is checked by the caller because read and
-write resolve documents against different directories.
+Translates \ref validateToneTrackRules (canonical unique IDs, valid starts on the tempo map's grid,
+whole-song coverage, strictly ascending starts, canonical tone document references) into the
+package error surface. File existence is checked by the caller because read and write resolve
+documents against different directories.
 
 \param tone_track Parsed or about-to-be-persisted tone track.
 \param tempo_map Tempo map the region endpoints must address.

@@ -376,8 +376,8 @@ using common::core::NoteEmphasis;
 }
 
 // The capacity probe's content: four measures of accented, tremolo'd open tails struck on all six
-// strings twice a beat. This is the shape of the historical 65535-vertex defect — one onset group
-// of long teethed open tails whose accent glow overflowed a 16-bit index base — so it pushes the
+// strings twice a beat. This is the shape that can overflow a 16-bit index base — one onset group
+// of long teethed open tails whose accent glow passes 65535 vertices — so it pushes the
 // largest batches the encoder builds. What it asserts is survival: past the cap the renderer DROPS
 // the batch and logs once, which is the guard doing its job and is invisible from here.
 [[nodiscard]] common::core::Arrangement makeDenseAccentArrangement()
@@ -443,9 +443,9 @@ void drawFrames(
 
 } // namespace
 
-// The first test that drives HighwayRenderer itself. Scope, and the limits of the Noop backend it
-// runs on, are documented at the top of this file — read that before reading a green run as
-// evidence about what the board looks like.
+// Drives HighwayRenderer itself. Scope, and the limits of the Noop backend it runs on, are
+// documented at the top of this file — read that before reading a green run as evidence about
+// what the board looks like.
 TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway][surface]")
 {
     const HighwayShaderSet shaders = loadStagedShaderSet();

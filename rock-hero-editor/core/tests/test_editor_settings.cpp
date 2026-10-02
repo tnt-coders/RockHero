@@ -265,8 +265,8 @@ TEST_CASE("EditorSettings persists the project grid note value", "[core][setting
     CHECK_FALSE(reloaded_settings.projectGridNoteValueFor(other_project_file).has_value());
 }
 
-// Saving again for the same project replaces the record instead of accumulating duplicates.
-// Zoom mirrors cursor/grid persistence: app-local per-project resume state, keyed by path.
+// Zoom mirrors marker/grid persistence: app-local per-project resume state, keyed by path. A
+// non-positive zoom is refused and leaves the stored value standing.
 TEST_CASE("EditorSettings persists the project timeline zoom", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"persists_project_timeline_zoom.settings"};

@@ -20,10 +20,9 @@
 namespace rock_hero::editor::core
 {
 
-// The hand row's markers (docs/plans/in-progress/hand-marker-stopgap.md): the chart's stored
-// fret-hand positions, authored through the marker grammar every other marker kind shares. Where
-// the hand arrives and its index finger's fret are stored; the window's reach is derived unless the
-// charter states its end fret.
+// The hand row's markers: the chart's stored fret-hand positions, authored through the marker
+// grammar every other marker kind shares. Where the hand arrives and its index finger's fret are
+// stored; the window's reach is derived unless the charter states its end fret.
 
 namespace
 {

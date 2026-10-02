@@ -72,8 +72,8 @@ enum class LiveRigErrorCode : std::uint8_t
     \brief One or more tone plugins are not installed on this machine.
 
     The message lists every missing plugin across every tone — the load scans to completion
-    before refusing, so a player can install them all in one pass. Gameplay policy 21-Q1(A):
-    a song whose tones reference uninstalled plugins refuses to start.
+    before refusing, so a player can install them all in one pass. A song whose tones reference
+    uninstalled plugins refuses to start.
     */
     MissingPlugins,
 

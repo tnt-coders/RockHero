@@ -26,10 +26,9 @@ clears instead — because the toggle contract is identical even though the plan
 `Vibrato` and `WideVibrato` are two values rather than one because they are two VERBS, not two
 fields: each is the toggle of its own tier under the one law above, so pressing either on a scope
 already at that tier clears it, and pressing it on a scope at the OTHER tier is an ordinary set
-that replaces the width in one entry. The alternative — one verb cycling off/narrow/wide — was
-declined at the ruling: a cycling verb has no "already carries it" answer to give the uniform-scope
-law, and `Shift+`letter is this keymap's stated shape for a magnitude variant of a plain letter's
-own technique.
+that replaces the width in one entry. One verb cycling off/narrow/wide would not fit: a cycling
+verb has no "already carries it" answer to give the uniform-scope law, and `Shift+`letter is this
+keymap's stated shape for a magnitude variant of a plain letter's own technique.
 
 `PickSlide`, `Tap`, `LeftTap`, `Slap` and `Pop` are five values of that same shape one level up:
 they are values of the note's ATTACK, which holds exactly one, so each is the toggle of its own

@@ -53,8 +53,8 @@ struct PluginRecord
 
     The editor mints it and keys arrangement-scoped automation in song.json on it, so the
     association follows the plugin through chain reorder and capture. The audio layer never
-    interprets it. Empty for records written before automation existed; the editor mints one at
-    load and the next capture persists it.
+    interprets it. Empty until the editor mints one; it mints at load and the next capture
+    persists it.
     */
     std::string stable_id;
 };
@@ -65,7 +65,7 @@ struct ToneDocument
     /*! \brief Persisted plugin chain in playback order. */
     std::vector<PluginRecord> chain;
 
-    /*! \brief Persisted fixed output gain applied after the external chain. */
+    /*! \brief The tone's authored output level, applied by its branch gain after the chain. */
     Gain output_gain;
 };
 

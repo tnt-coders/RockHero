@@ -106,12 +106,12 @@ onset center first among overlapping heads. Then the linked keyframe heads ridin
 drawn ON the ribbon and are the last mark a pointer can reach. A note stepped back behind the ring
 being edited goes through the same order after every note in front.
 
-A TAIL resolves to nothing at all. Selecting a note by a spot where it does not happen put the
-selection where the caret was not, so a click on a ribbon falls through to the ordinary empty-slot
-placement, and "is something here?" is answered by the lane reveal instead — one meaning per
-click. The affordance this retires is selecting a long sustain whose head has
-scrolled off-screen by clicking its tail; the marquee and the keyboard still reach it, and it is
-recorded as a sighting item (`docs/tracking/watch-items.md`).
+A TAIL resolves to nothing at all. Selecting a note by a spot where it does not happen would put
+the selection where the caret is not, so a click on a ribbon falls through to the ordinary
+empty-slot placement, and "is something here?" is answered by the lane reveal instead — one
+meaning per click. The affordance given up is selecting a long sustain whose head has scrolled
+off-screen by clicking its tail; the marquee and the keyboard still reach it, and the trade is
+tracked in `docs/tracking/watch-items.md`.
 
 What the lane draws nothing for is not hit-testable, because nothing undrawn is. A keyframe is
 reached where the lane draws a face of it (\ref common::ui::TabKeyframeLayout): its mark within the

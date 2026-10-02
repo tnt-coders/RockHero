@@ -645,7 +645,7 @@ TEST_CASE("A harmonic press over a mixed chord reads one member for the scope", 
 
 // THE PINCH IS THE ONE NODE THIS VERB DOES NOT OWN. A thumb's graze belongs to the picking hand
 // and the `Shift+H` row clears it, so "No harmonic" here removes the fret-hand carrier's node and
-// leaves the pinch exactly as it was — a shared clear once reached both, and stripped a pinch the
+// leaves the pinch exactly as it was — a shared clear would reach both and strip a pinch the
 // charter had only selected in passing. The pinch is no carrier either, which is why Return does
 // NOT take the clear: not every selected note carries, so what a toggle would have done is state a
 // node — and the row the anchor already stands on is skipped for the first one that changes
@@ -891,11 +891,10 @@ TEST_CASE("A pending fret entry settles before the harmonic rows are read", "[co
     }
 }
 
-// The skips are silent: an open string states no position — its offset is zero, which is not a
-// touch — and a pinch's node belongs to the other hand, so neither names a row. With nothing on
-// offer the press asks nothing and writes nothing: no request, no entry, and the pinch keeps the
-// node it came in with. (The counted-skip reason waits on the non-modal refusal channel, exactly as
-// the legato verb's does.)
+// An open string states no position — its offset is zero, which is not a touch — and a pinch's
+// node belongs to the other hand, so neither names a row. With nothing on offer the press asks
+// nothing and writes nothing: no request, no entry, and the pinch keeps the node it came in with.
+// The refused notes go through the non-modal refusal channel, as the legato verb's do.
 TEST_CASE("A harmonic press over notes that name nothing is inert", "[core][chart]")
 {
     common::core::Chart chart;

@@ -167,8 +167,7 @@ double highwayVibratoDisplacementAt(
     {
         const double duration = span.end_seconds - span.start_seconds;
         // A span a statement opened exactly at the ring's end has no time to wobble in, and its
-        // progress would be a division by zero — the same guard the head's taper carried when the
-        // whole channel was one note-long flag.
+        // progress would be a division by zero.
         if (!(duration > 0.0) || seconds < span.start_seconds || seconds > span.end_seconds)
         {
             continue;

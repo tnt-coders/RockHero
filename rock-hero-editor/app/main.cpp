@@ -166,7 +166,8 @@ public:
         }
     }
 
-    // Handles platform quit requests through JUCE's normal quit path.
+    // Routes platform quit requests through the editor's guarded exit, so unsaved work is offered
+    // for saving; with no window up, quits directly.
     void systemRequestedQuit() override
     {
         if (m_main_window != nullptr)

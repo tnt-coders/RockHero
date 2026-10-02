@@ -8,10 +8,9 @@ states at length, and \ref highway_floor_geometry.h repeats one level smaller.
 
 This is that shape for the fret axis. Three consumers ask the glide where a note is at a time — the
 head's anchor, the tail's arc probe and the tail's per-sample walk — and the anchor underneath it is
-asked by those plus the fret-span furniture. Both were written inline in `draw()`, the glide as a
-sixty-line lambda declared AFTER every floor pass, which is what made a floor mark unable to follow
-a slide at all without moving it. They are pure functions of a projected note, the board metrics and
-a time, so out here they gain the witness the draw pass can never have.
+asked by those plus the fret-span furniture. Both are pure functions of a projected note, the board
+metrics and a time, so out here every pass of `draw()` — the floor passes included — can ask them,
+and they gain the witness the draw pass can never have.
 */
 
 #pragma once
@@ -62,7 +61,7 @@ it travels with the head, node shift and glide included. A KEYFRAME's post is fu
 stay on its stop, because that is a place the hand goes.
 
 A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on the stop and
-this returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).
+this returns the ordinary fret slot; that node still waits for its own right-hand cue.
 
 \param note Projected note whose gesture is being placed.
 \param fret_at_point Stop being placed — the note's own fret, or a slide keyframe's target.

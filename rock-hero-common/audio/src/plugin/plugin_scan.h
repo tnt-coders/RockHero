@@ -43,13 +43,13 @@ struct PluginIdentity
     /*! \brief Durable unique plugin ID in hex text form. */
     std::string unique_id;
 
-    /*! \brief Legacy JUCE plugin UID kept for matching older persisted state. */
+    /*! \brief JUCE's deprecated-format plugin UID, kept so duplicate matching sees every ID. */
     std::string deprecated_uid;
 
     /*! \brief True when the plugin reports itself as an instrument. */
     bool is_instrument{false};
 
-    /*! \brief Plugin file path or identifier as originally persisted. */
+    /*! \brief Plugin file path or identifier recorded when the identity was captured. */
     std::string original_file_or_identifier;
 
     /*! \brief Non-authoritative JUCE identifier for fast known-plugin lookup. */
@@ -137,13 +137,19 @@ public:
     /*! \brief Copying is disabled; the watchdog owns a joinable thread. */
     PluginScanTimeout(const PluginScanTimeout&) = delete;
 
-    /*! \brief Copy assignment is disabled; the watchdog owns a joinable thread. */
+    /*!
+    \brief Copy assignment is disabled; the watchdog owns a joinable thread.
+    \return Reference to this watchdog.
+    */
     PluginScanTimeout& operator=(const PluginScanTimeout&) = delete;
 
     /*! \brief Moving is disabled; the watchdog thread captures this object. */
     PluginScanTimeout(PluginScanTimeout&&) = delete;
 
-    /*! \brief Move assignment is disabled; the watchdog thread captures this. */
+    /*!
+    \brief Move assignment is disabled; the watchdog thread captures this object.
+    \return Reference to this watchdog.
+    */
     PluginScanTimeout& operator=(PluginScanTimeout&&) = delete;
 
     /*! \brief Marks the scan finished and joins the watchdog thread. */

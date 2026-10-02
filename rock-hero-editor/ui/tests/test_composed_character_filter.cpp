@@ -71,8 +71,8 @@ TEST_CASE("Composed-character rule swallows only unheld bare character presses",
     }
 }
 
-// Guards the regression that made numpad '+' and '-' stop resizing the grid: the press carries the
-// character, so the key-state table has to be asked about the numpad key too.
+// Keeps numpad '+' and '-' resizing the grid: the press carries the character, so the key-state
+// table has to be asked about the numpad key too.
 TEST_CASE("Numpad twins cover every character two keys can produce", "[ui][keybinds]")
 {
     SECTION("the operator and decimal keys pair with their characters")

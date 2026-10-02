@@ -457,8 +457,8 @@ void ToneTrackView::showRegionContextMenu(
     }
     menu.showMenuAsync(
         // Force a cancel result if this view is deleted while the menu is open, so the callback
-        // never dereferences a dangling listener (JUCE reports result
-        // 0 for a deleted watch target).
+        // never dereferences a dangling listener (JUCE reports result 0 for a deleted watch
+        // target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
         [this, ref = region.tone_document_ref, name = region.name, id = region.id, insert_position](
             int result) {
@@ -855,11 +855,10 @@ std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForD
 //
 // Only playback needs the cadence: every seek, Stop, and Play already activates the region under
 // the cursor inside the controller, so the `playing` gate is what keeps a paused seek from being
-// told twice. The gesture guard the old decision needed is gone with it: it existed because
-// setState defers pushes while a drag reads m_state, which froze the `active` flag this row used
-// to compare against. The controller compares against its own remembered region instead, which no
-// view-local preview can freeze — an edge drag mutates nothing but m_drag until mouseUp emits its
-// intent, so the model the controller reads is the same one all through the gesture.
+// told twice. No gesture guard is needed even though setState defers pushes while a drag reads
+// m_state: the controller compares against its own remembered region, which no view-local preview
+// can freeze — an edge drag mutates nothing but m_drag until mouseUp emits its intent, so the model
+// the controller reads is the same one all through the gesture.
 void ToneTrackView::reportPlaybackFrame()
 {
     if (!m_transport.state().playing)

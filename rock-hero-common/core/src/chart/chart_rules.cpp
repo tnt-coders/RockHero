@@ -521,9 +521,9 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     // place behind this one rule, but it reads the pressed stop off the note's own `fret`, which is
     // NOT the reopened design: those harmonics will take their held stop from the stated grip, so
     // that code needs rework before this rule lifts
-    // (docs/plans/in-progress/harmonic-display-followups.md). Pinch is
-    // excluded by harmonicOverPressedStop (its node lies off the neck); the tap arm catches the
-    // open-string tapped harmonic, whose stop is 0.
+    // (docs/plans/in-progress/harmonic-display-followups.md). Pinch is excluded by
+    // harmonicOverPressedStop (its node lies off the neck); the tap arm catches the open-string
+    // tapped harmonic, whose stop is 0.
     if (harmonicOverPressedStop(note) ||
         (note.attack == NoteAttack::Tap && note.harmonic_node.has_value()))
     {
@@ -666,10 +666,10 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
                 positionText(note.position) + " string " + std::to_string(note.string));
         }
     }
-    // The one rule a note cannot obey alone (40-Q2-B): a re-strike stops the ring. It runs here
-    // rather than at each producer, so a chart written before the rule — or by a converter that
-    // never learned it — is truncated and REPORTED on load instead of drawing a tail through a
-    // later head.
+    // The one rule a note cannot obey alone: a re-strike stops the ring. It runs here rather than
+    // at each producer, so a chart that overruns it — a hand-edited file, or a converter that does
+    // not apply it — is truncated and REPORTED on load instead of drawing a tail through a later
+    // head.
     for (const TailTruncation& truncation : normalizeSustainOverlaps(chart.notes, tempo_map))
     {
         const ChartNote& note = chart.notes[truncation.index];
@@ -722,9 +722,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // so the sustain is the actual duration and is strictly positive on every note. No repair can
     // express that: a duration is information, and inventing one would be authoring the chart. It
     // doubles as the format tripwire for any zero that reaches memory, which is why the message
-    // names the cause rather than the field. A package written before the duration model rarely
-    // arrives here: that writer OMITTED the key on every tail-less note, so the document reader
-    // refuses it first, with the same re-import remedy.
+    // names the cause rather than the field; a document missing the key is refused earlier, by the
+    // document reader, with the same re-import remedy.
     if (note.sustain.numerator <= 0)
     {
         return std::unexpected{ChartError{
@@ -742,9 +741,9 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "note ring must end on the tick lattice at " + positionText(note.position),
         }};
     }
-    // A legal node is stated as what it IS, in positive form: a node now takes part in the
-    // posture map's ordering key (\ref ChartStop), and NaN — which passes both halves of the
-    // negative form — would be a strict-weak-ordering violation there.
+    // A legal node is stated as what it IS, in positive form: a node takes part in the posture
+    // map's ordering key (ChartStop), and NaN — which passes both halves of the negative form —
+    // would be a strict-weak-ordering violation there.
     if (note.harmonic_node.has_value() &&
         !(*note.harmonic_node > 0.0 && *note.harmonic_node <= g_max_harmonic_node))
     {
@@ -810,9 +809,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // Payload geometry no repair can express: a statement outside the sustain or out of order is
-    // incoherent data, not a technique to shed. Where a keyframe sits on
-    // the NECK is the normalizer's (the board clamp and the capo floor), asked as the fixpoint
-    // below.
+    // incoherent data, not a technique to shed. Where a keyframe sits on the NECK is the
+    // normalizer's (the board clamp and the capo floor), asked as the fixpoint below.
     //
     // Offsets are STRICTLY positive: offset zero is the onset, whose facts the note itself carries,
     // so a keyframe there would be a second spelling of a value the note already states. Strictly
@@ -862,7 +860,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // must already equal its own saved form. A SAVED pick slide carries no pitched technique,
     // because the writer omits the in-memory overrides (chart.h), and enumerating that set here
     // would duplicate exactly what savedChartNote strips, leaving the writer and this rule to agree
-    // by hand while a field added to ChartNote updated only one of them. Asked unconditionally
+    // by hand while a field added to ChartNote updates only one of them. Asked unconditionally
     // because the comparison is identity for every note that overrides nothing, so only a scrape
     // can fail it. Emphasis is a scrape's own dynamics and is never stripped.
     if (!(savedChartNote(note) == note))

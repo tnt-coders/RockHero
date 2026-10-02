@@ -17,13 +17,13 @@ namespace
 class RecordingKeymapSettings final : public core::testing::NullEditorSettings
 {
 public:
-    /*! \copydoc rock_hero::editor::core::IEditorSettings::keymapXml */
+    // Returns the blob as last stored, the read a restore makes.
     [[nodiscard]] std::optional<std::string> keymapXml() const override
     {
         return stored_keymap;
     }
 
-    /*! \copydoc rock_hero::editor::core::IEditorSettings::setKeymapXml */
+    // Stores the blob (empty clears it) and counts the write, so the equality gate is observable.
     [[nodiscard]] std::expected<void, core::EditorSettingsError> setKeymapXml(
         std::optional<std::string> keymap_xml) override
     {
@@ -32,10 +32,10 @@ public:
         return {};
     }
 
-    /*! \brief Blob most recently stored, or empty when cleared or never written. */
+    // Blob most recently stored, or empty when cleared or never written.
     std::optional<std::string> stored_keymap{};
 
-    /*! \brief Number of setKeymapXml calls, for asserting the equality gate. */
+    // Number of setKeymapXml calls, for asserting the equality gate.
     int write_count{0};
 };
 
@@ -175,8 +175,8 @@ TEST_CASE("EditorKeymapPersistence restores removals cleanly", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingKeymapSettings settings;
-    // F11 was never ToggleUndoHistory's default (a stale entry from an older default set); F3 is
-    // TogglePreview3D's default today.
+    // F11 is not ToggleUndoHistory's default (a stale entry from an older default set); F3 is
+    // TogglePreview3D's default.
     settings.stored_keymap =
         std::string{R"(<KEYMAPPINGS basedOnDefaults="1">)"
                     R"(<UNMAPPING commandId="1302" description="F11" key="F11"/>)"

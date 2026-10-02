@@ -94,8 +94,7 @@ namespace
 }
 
 // Parses the optional "--dev-package <path>" development argument: the .rock package whose first
-// charted arrangement the highway scrolls (plan 25 Phase 3's fixture path; plan 26's library
-// replaces it for players).
+// charted arrangement the highway scrolls. It bypasses the library menu players pick songs from.
 [[nodiscard]] std::optional<std::filesystem::path> devPackagePath(const int argc, char** argv)
 {
     const std::optional<std::string_view> path_text = argumentValue("--dev-package", argc, argv);
@@ -123,7 +122,7 @@ namespace
 }
 
 // Composes the unique per-session scratch directory under per-user app data. The session
-// creates and deletes the directory; the composer owns uniqueness (plan 21 Phase 2 contract).
+// creates and deletes the directory; the composer owns uniqueness.
 [[nodiscard]] std::filesystem::path makeSessionWorkspaceDirectory()
 {
     const std::string_view folder_name = common::core::applicationDataFolderName();
@@ -137,7 +136,7 @@ namespace
 
 // Scans the song library at startup for the shell's menu: the per-user default Songs folder
 // (created on demand) plus any custom roots from settings. A fresh scan each launch is cheap
-// because the peek reader never extracts (plan 26 Phase 1); an index cache is a later optimization.
+// because the peek reader never extracts; an index cache is a later optimization.
 [[nodiscard]] rock_hero::game::core::LibraryIndex scanSongLibrary()
 {
     namespace core = rock_hero::game::core;
@@ -172,8 +171,8 @@ namespace
 // SDL owns the process entry point under loop model L2: a plain portable main() (the game window
 // marks SDL's entry-point handling as app-provided) that composes and runs the game. JUCE runs as
 // a library inside the frame loop — there is no JUCEApplication in this process. Logging is
-// composed here, before the game, so the frame loop's timing instrumentation (plan 20 Phase 3)
-// has a live backend for its whole run; a logging failure is reported and never blocks the game.
+// composed here, before the game, so the frame loop's timing instrumentation has a live backend
+// for its whole run; a logging failure is reported and never blocks the game.
 // The catch-all keeps exceptions from escaping main (path/format machinery can throw): an
 // unhandled escape would terminate without the nonzero exit code automation relies on.
 int main(int argc, char** argv)
@@ -190,8 +189,8 @@ try
         return rock_hero::common::audio::Engine::startPluginScanChildProcess(command_line) ? 0 : 1;
     }
 
-    // The dev flag activates the diagnostics layer (plan 20 Phase 4, 20-Q5: A) and lowers the
-    // runtime log level so the per-frame trace instrumentation records.
+    // The dev flag activates the diagnostics layer and lowers the runtime log level so the
+    // per-frame trace instrumentation records.
     const bool dev_mode = rock_hero::game::app::hasFlag("--dev", argc, argv);
 
     const std::filesystem::path log_file = rock_hero::game::app::gameLogFile();

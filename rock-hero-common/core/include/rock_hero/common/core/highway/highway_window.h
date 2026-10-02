@@ -36,12 +36,10 @@ struct HighwayHandWindow
     \param rhs Right-hand window.
     \return True when both windows store equal values.
     */
-    // Window-edge equality is intentionally exact: settled placements land on exact fret-line
-    // coordinates, and callers comparing a morphing window compare with a tolerance instead.
-    // This is not defaulted because the generated comparison uses direct floating-point ==,
-    // which is promoted to a build error by -Wfloat-equal under the shared warning policy.
-    // std::is_eq(lhs.low_line <=> rhs.low_line) preserves exact equality semantics while
-    // avoiding that compiler diagnostic.
+    // Exact by design: settled placements land on exact fret-line coordinates, and callers
+    // comparing a morphing window compare with a tolerance instead. Not defaulted: the generated
+    // floating-point == is a -Wfloat-equal build error, while std::is_eq on <=> keeps the same
+    // exact semantics without the diagnostic.
     friend constexpr bool operator==(
         const HighwayHandWindow& lhs, const HighwayHandWindow& rhs) noexcept
     {
@@ -117,10 +115,10 @@ follows, the hand-shape rails, an open tail's band. It appends \p from_seconds, 
 arrival strictly between them, and, for each leg whose ramp overlaps that open range, the ramp's
 slices that fall strictly inside it — THE ONE DENSITY POLICY, four slices per fret of the leg's
 wider edge travel, never fewer than 6 nor more than 64, so a move cannot facet under one mark while
-staying smooth under another.
-Between two consecutive instants the window then moves along one slice of one leg or holds still, so
-straight segments between them follow the eased window. A settled stretch adds nothing: the window
-is constant there. A leg with no ramp, or one whose edges do not move, adds no slices.
+staying smooth under another. Between two consecutive instants the window then moves along one
+slice of one leg or holds still, so straight segments between them follow the eased window. A
+settled stretch adds nothing: the window is constant there. A leg with no ramp, or one whose edges
+do not move, adds no slices.
 
 Only the legs that govern an instant in the range are walked — those of the arrivals from the first
 after \p from_seconds through the first after \p to_seconds, since the window eases through the
@@ -211,8 +209,8 @@ there.
 
 This is the part of the brightness a moving light leaves behind; the part it casts where it stands
 is \ref highwayHandWindowLineCoverage over \ref highwayLitWindowAt, and a layer takes the larger of
-the two. Without this, a line the fretting hand moves off went dark over the move's ramp while a
-line the picking hand releases went dark over the whole decay.
+the two. Without it, a line the fretting hand moves off would go dark over the move's ramp while
+a line the picking hand releases goes dark over the whole decay.
 
 \param track Arrivals in ascending order.
 \param stretch The light's lit stretch over that track.
@@ -249,9 +247,9 @@ Exactly one ON the window's own edge lines and anywhere inside, zero a whole lan
 linearly over the lane OUTSIDE each edge — from one line below the low edge up to that edge, and
 symmetrically above the high one. The ramp lies wholly outside the window, so a line needs no spare
 lane to score one; reimplementing this from a "lane to spare inside" reading offsets the whole
-crossfade by a full lane. This is the shared signal driving the hit-line
-presentation during a transition: lane-border brightness crossfades and fret-number fades both
-follow it, so everything at the hit line moves as a single gesture with the sweeping border.
+crossfade by a full lane. This is the shared signal driving the hit-line presentation during a
+transition: lane-border brightness crossfades and fret-number fades both follow it, so everything
+at the hit line moves as a single gesture with the sweeping border.
 
 \param window Window extent from highwayHandWindowAt.
 \param line Fret-line coordinate to measure (integer lines for the board's fixed lines).

@@ -106,7 +106,10 @@ public:
     /*! \brief Copying is disabled because Tracktion runtime state has unique ownership. */
     Engine(const Engine&) = delete;
 
-    /*! \brief Copy assignment is disabled because Tracktion runtime state has unique ownership. */
+    /*!
+    \brief Copy assignment is disabled because Tracktion runtime state has unique ownership.
+    \return Reference to this engine.
+    */
     Engine& operator=(const Engine&) = delete;
 
     /*! \brief Moving is disabled so listener registrations and adapter references stay stable. */
@@ -115,6 +118,7 @@ public:
     /*!
     \brief Move assignment is disabled so listener registrations and adapter references stay
     stable.
+    \return Reference to this engine.
     */
     Engine& operator=(Engine&&) = delete;
 
@@ -141,8 +145,8 @@ public:
     /*!
     \brief Requests a backing-playback speed factor; only 1.0 is currently accepted.
 
-    Practice-speed support (docs/plans/roadmap/28-practice-mode.md) implements non-1.0 factors over
-    the proxy-off backing clip; until then any other factor returns SpeedNotSupported unchanged.
+    Practice-speed playback is not implemented yet, so any factor other than 1.0 returns
+    SpeedNotSupported and leaves the speed unchanged.
 
     \param factor Requested playback speed multiplier, where 1.0 is normal speed.
     \return Nothing on success, or SpeedNotSupported for any factor other than 1.0.
@@ -151,7 +155,7 @@ public:
 
     /*!
     \brief Reads the playback speed factor currently applied to backing playback.
-    \return Current playback speed multiplier; always 1.0 until practice-speed support lands.
+    \return Current playback speed multiplier; always 1.0 while only normal speed is supported.
     */
     [[nodiscard]] double playbackSpeed() const noexcept override;
 
@@ -391,9 +395,9 @@ public:
         const std::string& instance_id) override;
 
     /*!
-    \brief Captures the active live rig chain into a package-relative tone document.
-    \param request Song workspace and arrangement identity for the capture.
-    \return Written tone document reference and display chain, or a typed failure.
+    \brief Captures every loaded tone's chain into its package-relative tone document.
+    \param request Song workspace, arrangement identity, and the audible chain's editor layout.
+    \return The audible chain and its output gain, or a typed failure.
     */
     [[nodiscard]] std::expected<LiveRigSnapshot, LiveRigError> captureActiveRig(
         const LiveRigCaptureRequest& request) override;

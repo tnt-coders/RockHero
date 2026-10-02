@@ -18,9 +18,9 @@ namespace
 constexpr int g_keep_snapping_result = 1;
 constexpr int g_turn_snapping_off_result = 2;
 
-// The command's shipped display name, as the Grid menu and the actions list print it. Hardcoded
-// where the chord is not: a rebind is user state the dialog must read live, a rename is a change
-// to the command table this string is written against.
+// The command's shipped display name, as the lane menu's Grid & Zoom submenu and the actions list
+// print it. Hardcoded where the chord is not: a rebind is user state the dialog must read live, a
+// rename is a change to the command table this string is written against.
 constexpr const char* g_command_name = "Grid Snap";
 
 // Names the command the way the copy needs it: "Grid Snap (Ctrl · G)" while a chord is bound, and

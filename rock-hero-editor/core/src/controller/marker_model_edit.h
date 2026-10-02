@@ -62,8 +62,10 @@ template <typename Snapshot> struct [[nodiscard]] MarkerModelEdit final : IEdit
         return apply(context, after);
     }
 
-    /*! \brief Returns the user-visible command label for menus and diagnostics.
-    \return Human-readable label naming the verb and its marker. */
+    /*!
+    \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label naming the verb and its marker.
+    */
     [[nodiscard]] std::string label() const override
     {
         return edit_label;

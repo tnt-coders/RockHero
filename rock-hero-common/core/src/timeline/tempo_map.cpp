@@ -133,7 +133,7 @@ void TempoMap::buildDerivedIndices()
 
 // Finds the last segment whose reign starts at or before the measure. upper_bound lands past the
 // last segment with an equal start, so a zero-length reign left by a duplicate or out-of-order
-// signature loses to the later-listed one, matching the previous sequential-walk behavior.
+// signature loses to the later-listed one, the same answer timeSignatureAt's walk gives.
 const TempoMap::SignatureSegment& TempoMap::segmentForMeasure(int measure) const noexcept
 {
     const auto after =

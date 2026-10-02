@@ -82,8 +82,7 @@ token table.
 \brief One playable route, identified by part and numeric difficulty.
 
 An Arrangement owns the playable data for one path through a song: the backing audio selected for
-that path and the named tones its tone track schedules. Chart, tuning, and note-event storage are
-intentionally deferred until note display or gameplay needs the model.
+that path, the named tones its tone track schedules with their parameter automation, and the chart.
 */
 struct Arrangement
 {
@@ -142,8 +141,8 @@ struct Arrangement
     /*!
     \brief Chart content loaded from chart_ref at package read, when a reference exists.
 
-    Runtime convenience for display and gameplay consumers; not compared field-by-field against
-    the file on save because the file remains authoritative while charts are read-only.
+    The authoritative chart while a project is open: editing mutates it and saving serializes it
+    back through chart_ref.
     */
     std::optional<Chart> chart;
 

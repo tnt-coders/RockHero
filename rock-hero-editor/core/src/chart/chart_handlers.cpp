@@ -262,8 +262,7 @@ void EditorController::Impl::clearChartEditingState()
     m_chart_bend_question.clear();
     m_chart_notes_top.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
-    // position is the position, and nothing is armed until the first click or arrow (the
-    // marker model).
+    // position is the position, and nothing is armed until the first click or arrow.
     m_chart_marker = ChartCursor{};
 }
 
@@ -312,10 +311,10 @@ const TimeSelection* EditorController::Impl::selectedTimeSelection() const
 // is keyed to the chart selection it retypes, so leaving it armed against a vanished selection
 // could widen an undo entry for notes no longer selected.
 //
-// This reset is belt-and-braces, NOT the guarantee — several chart paths replace the selection
-// through `chartSelectionMutable` without coming through here, so a comment promising that every
-// replacement funnels through this one function would be false and would invite someone to rely on
-// it. What actually protects the entry is the widen's own key check: it proceeds only while the
+// This reset is belt-and-braces, NOT the guarantee: several chart paths replace the selection
+// through `chartSelectionMutable` without coming through here, so nothing may rely on every
+// replacement funnelling through this function. What actually protects the entry is the widen's
+// own key check: it proceeds only while the
 // entry's keys still equal the current chart selection, so any selection change of any shape
 // declines the widen. The audible tone is the one thing both funnels DO owe: the sync below is
 // matched by one on `chartSelectionMutable`'s emplace, because the selection is an input to it.
@@ -601,8 +600,8 @@ bool EditorController::Impl::dissolveSilentKeyframes(
 }
 
 // THE one test of whether a face can be stood on: the mark always, a bend chip where the object
-// states a bend. The arming and the read both ask it, so a
-// face is one predicate applied at two moments rather than two rules.
+// states a bend. The arming and the read both ask it, so a face is one predicate applied at two
+// moments rather than two rules.
 bool EditorController::Impl::chartFaceShown(
     const ChartCaretFace face, const std::optional<ChartSelectionKey>& object) const
 {
@@ -633,8 +632,8 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartCaretObject() cons
 // THE caret's face, and the one place a face's precondition is applied at READ time: the stored
 // value is what the last arming asked for, and a face is worth only what the drawn picture still
 // says. An edit can take a face out from under a stationary caret — clearing the bend is exactly
-// what Delete on it does — and a caret left claiming a face that is gone would point
-// the next key at nothing.
+// what Delete on it does — and a caret left claiming a face that is gone would point the next key
+// at nothing.
 ChartCaretFace EditorController::Impl::chartCaretFace() const
 {
     const ChartCaret* const caret = armedChartStringCaret();
@@ -653,8 +652,8 @@ void EditorController::Impl::armChartCaret(
     // committed at the OLD slot, and the arming below then replaces that selection for the new
     // slot, so "armed implies the selection is what sits under the caret" holds through every
     // caret move. This is the one funnel behind pointer, arrow, jump, and row stepping; a verb
-    // that settled only after moving the marker (the End key once did) left the caret at the
-    // destination with the selection on the slot it left.
+    // that settled only after moving the marker would leave the caret at the destination with the
+    // selection on the slot it left.
     settleChartFretEntry();
     // A caret move is a commit point for the chart verbs' coalescing window: a press after it
     // means the verb's ordinary law — never a reversal of the entry the window remembers, and
@@ -701,7 +700,7 @@ void EditorController::Impl::armChartCaret(
 }
 
 // Arms the caret on an automation lane row and re-derives the selection from what sits under
-// it — armChartCaret's row-axis sibling (§9b): a point at the slot becomes the editor-wide
+// it — armChartCaret's row-axis sibling: a point at the slot becomes the editor-wide
 // selection, an empty slot clears it. The string survives as the fallback an arming takes once
 // this lane is no longer visible.
 void EditorController::Impl::armLaneCaret(
@@ -850,9 +849,9 @@ std::vector<EditorController::Impl::AutomationLaneRow> EditorController::Impl::
 
 // Resolves the event's snapped musical position and the string lane under the pointer — the
 // chart's single placement seam (every press snaps through it, mirroring the lane's
-// laneSnapPositionForX). It snaps to the placement quantum's exact rational, which is
-// the displayed grid while snap is on and the tick lattice while it is off; no modifier composes
-// a second answer.
+// laneSnapPositionForX). It snaps to the placement quantum's exact rational, which is the
+// displayed grid while snap is on and the tick lattice while it is off; no modifier composes a
+// second answer.
 std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl::chartPlacementAt(
     const ChartPointerEvent& event) const
 {
@@ -960,13 +959,13 @@ bool EditorController::Impl::applyChartEditPlan(
                 {
                     const ChartSlotKey key = chartSlotKeyOf(note);
                     // A note rewritten IN PLACE that the user had not selected is something
-                    // the plan carried, not the edit's subject — the H assist grows a
+                    // the plan carried, not the edit's subject — the legato assist grows a
                     // predecessor's tail inside the same plan, and the finalize's overlap pass
                     // can retrim a same-string neighbour — so it must not join the selection.
                     // Selecting it would break the armed-caret invariant (armed means the
                     // selection is exactly what sits under the caret) and would silently widen
                     // the next keystroke's scope. A note inserted at a NEW key is the edit's own
-                    // product (a moved or created object) and follows as before.
+                    // product (a moved or created object) and follows.
                     if (in_side(plan->removed, key) && !std::ranges::binary_search(selected, key))
                     {
                         continue;
@@ -1084,11 +1083,10 @@ std::optional<ChartEditFocus> EditorController::Impl::chartEditFocusOf(
 // Arms the gesture and applies glyph-press selection per the containment hierarchy: a plain single
 // press selects the individual note — keeping an existing multi-selection intact so a future drag
 // can move it — a double press selects the note's whole onset group (its chord), and Ctrl toggles
-// individual membership. Shift is reassigned to plan 52's time-range selection and behaves as
-// plain until that lands. Marker handoffs (the marker model): a plain press on an unselected note
-// arms the caret there; every multi-select gesture — Ctrl, double-click — dissolves the caret into
-// a cursor in its place, so the visible glyph always states whether typing inserts or acts on the
-// selection.
+// individual membership. Shift belongs to time-range selection and acts as plain on a glyph press.
+// Marker handoffs: a plain press on an unselected note arms the caret there; every multi-select
+// gesture — Ctrl, double-click — dissolves the caret into a cursor in its place, so the visible
+// glyph always states whether typing inserts or acts on the selection.
 void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 {
     // The pending fret entry settles first (the uniform prologue): a click that starts a drag
@@ -1183,8 +1181,8 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     else if (event.clicks >= 2 && face == ChartCaretFace::BendChip)
     {
         // A double click on a bend chip RESTATES the bend it prints, the chip's own `Enter`: its
-        // object alone on its chip, with the bend picker open over it (user ruling 2026-09-29).
-        // The chord is still a double click away on the heads.
+        // object alone on its chip, with the bend picker open over it. The chord is still a
+        // double click away on the heads.
         const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
         armChartCaret(slot.position, slot.string, face, key);
         runAction(EditorAction::ChooseChartBend{.plane = ChartEntryPlane::Note});
@@ -1242,9 +1240,9 @@ void EditorController::Impl::onChartPointerDrag(const ChartPointerEvent& event)
         return;
     }
 
-    // The in-flight marquee leaves the marker alone: dissolution is a rule over OUTCOMES (the
-    // marker model), and the outcome is unknown until release — an empty box must leave an
-    // armed caret exactly where it was.
+    // The in-flight marquee leaves the marker alone: dissolution is a rule over OUTCOMES, and the
+    // outcome is unknown until release — an empty box must leave an armed caret exactly where it
+    // was.
     gesture.marquee = true;
     updateView();
 }
@@ -1275,8 +1273,8 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                              std::abs(event.y - gesture.anchor_y) <= g_chart_click_threshold_px;
         // A completed plain click on a selected object collapses the selection to that object and
         // arms the caret there, on the face the click hit (the press deferred both while a drag
-        // was still possible) — a chord member's chip as much as its head. The
-        // second release of a double click leaves what the second press made standing.
+        // was still possible) — a chord member's chip as much as its head. The second release of
+        // a double click leaves what the second press made standing.
         if (clicked && gesture.collapse_on_release && !gesture.modifiers.ctrl && event.clicks < 2)
         {
             if (const std::optional<ChartSelectionKey> key =
@@ -1312,9 +1310,9 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                 keys.push_back(*key);
             }
         }
-        // Dissolution is a rule over outcomes (the marker model): a box that caught objects is
-        // a multi-select outcome and demotes the caret to a cursor in its place; an empty box
-        // has no selection outcome, so an armed caret survives untouched.
+        // Dissolution is a rule over outcomes: a box that caught objects is a multi-select
+        // outcome and demotes the caret to a cursor in its place; an empty box has no selection
+        // outcome, so an armed caret survives untouched.
         //
         // The box takes the modifiers' one vocabulary: plain REPLACES, as a plain click does;
         // Shift EXTENDS; and Ctrl, the membership modifier, toggles what it boxed as one unit —
@@ -1424,9 +1422,9 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     return stack;
 }
 
-// The vertical walk (docs/plans/completed/keyboard-focus-rows.md): rows where nothing is typed —
-// the ruler's marker rows, the tone row and the "+" row — are reached by SELECTION, and rows where
-// a keystroke authors a point by the caret, so the caret only ever arms on a string or a lane.
+// The vertical walk: rows where nothing is typed — the ruler's marker rows, the tone row and the
+// "+" row — are reached by SELECTION, and rows where a keystroke authors a point by the caret, so
+// the caret only ever arms on a string or a lane.
 // Vertical keys keep the column; the landing decides what the destination row holds there.
 void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const int string_count)
 {
@@ -1466,8 +1464,8 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
     if (here == stack.end())
     {
         // A row that has left the stack — a caret's lane hidden by a tone switch or a lane removal,
-        // or a tone or "+" row whose track lost its regions or its tone — lands on the marker's
-        // point row instead (§9b demotion posture).
+        // or a tone or "+" row whose track lost its regions or its tone — demotes to the marker's
+        // point row instead.
         landOnRow(prepareLandingRow(string_count), column);
         return;
     }
@@ -1573,7 +1571,7 @@ void EditorController::Impl::armMarkerInPlace(const int string_count)
     updateView();
 }
 
-// Arrow keys on the marker (the marker model): Up/Down walk the focus rows (stepFocusRow).
+// Arrow keys on the marker: Up/Down walk the focus rows (stepFocusRow).
 // Left/Right from the passive marker — a marker row included — arm in place on the remembered row
 // without stepping, except under a time selection, which they leave past its edge in their
 // direction; while armed they step the union stop set on the caret's row, or jump measures under
@@ -1668,26 +1666,24 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         }
     }
     // Time stepping is row-agnostic: a lane caret steps the same grid and keeps its row, the one
-    // row rule every horizontal landing shares. EVERY ARRIVAL LANDS ON THE MARK (user ruling
-    // 2026-09-29): a walk between slots is a walk between objects, and the head is the object; a
-    // face — the bend chip above — is stepped onto from its own mark.
+    // row rule every horizontal landing shares. EVERY ARRIVAL LANDS ON THE MARK: a walk between
+    // slots is a walk between objects, and the head is the object; a face — the bend chip above —
+    // is stepped onto from its own mark.
     landOnRow(prepareLandingRow(tab->stringCount()), stepped, ChartCaretFace::Mark, stepped_object);
     updateView();
 }
 
-// Tab (docs/plans/completed/keyboard-focus-rows.md, Phase 2, re-ruled in Phase 3): the next or
-// previous OBJECT on the row focus stands on, the grid ignored, read from the CURSOR on every row.
-// A string's objects are its notes and their keyframes (its notes alone under notes_only), a
-// lane's its points, and a marker row's its marker starts: the column rule first brings the cursor
-// into a marker the pointer selected elsewhere, then Tab reaches the start strictly after the
-// cursor and Shift+Tab the start strictly before it — from inside a marker past its start, that is
-// the marker's OWN start, the media player's "previous" — and the marker starting there is
-// selected with the cursor on it. A string step always lands on the mark every object has. Where
-// a ring's end
-// statement and a head share an instant the statement is stepped first, so Shift+Tab from the head
-// selects it and a second press leaves. Past either end, and on the "+" row,
-// which holds no objects, the press is inert; from the passive marker it arms in place, as the
-// arrows' first press does.
+// Tab: the next or previous OBJECT on the row focus stands on, the grid ignored, read from the
+// CURSOR on every row. A string's objects are its notes and their keyframes (its notes alone under
+// notes_only), a lane's its points, and a marker row's its marker starts: the column rule first
+// brings the cursor into a marker the pointer selected elsewhere, then Tab reaches the start
+// strictly after the cursor and Shift+Tab the start strictly before it — from inside a marker past
+// its start, that is the marker's OWN start, the media player's "previous" — and the marker
+// starting there is selected with the cursor on it. A string step always lands on the mark every
+// object has. Where a ring's end statement and a head share an instant the statement is stepped
+// first, so Shift+Tab from the head selects it and a second press leaves. Past either end, and on
+// the "+" row, which holds no objects, the press is inert; from the passive marker it arms in
+// place, as the arrows' first press does.
 void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObject& action)
 {
     const common::core::ChartViewState* const tab = currentTabProjection();
@@ -1870,14 +1866,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
 
 // Extends or creates the grid-locked time selection (Shift+arrows). The range is a
 // mutually-exclusive selection kind, so making or extending it demotes the marker to passive and
-// evicts any object selection (decision D). With a range held, the focus edge moves one `extent`
-// in `direction` from the fixed anchor; with none held, the first press anchors on the marker —
-// the armed caret's slot snapped to the grid (an off-grid caret's note stays inside the range), or
-// the nearest grid line to the paused cursor while passive (52-Q9's recommendation) — then
-// extends from there. Every endpoint is a grid position, so a boundary is never off-grid (decision
-// B). A Grid or Section extend with nothing further that way refuses (the focus stays), and a
-// refused first press creates no range. Inert while playing; Up/Down are ignored (the span is
-// full-height).
+// evicts any object selection. With a range held, the focus edge moves one `extent` in `direction`
+// from the fixed anchor; with none held, the first press anchors on the marker — the armed caret's
+// slot snapped to the grid (an off-grid caret's note stays inside the range), or the nearest grid
+// line to the paused cursor while passive — then extends from there. Every endpoint is a grid
+// position, so a boundary is never off-grid. A Grid or Section extend with nothing further that way
+// refuses (the focus stays), and a refused first press creates no range. Inert while playing;
+// Up/Down are ignored (the span is full-height).
 void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSelection& action)
 {
     const TimeSelectionExtent extent = action.extent;
@@ -1955,7 +1950,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
         return;
     }
 
-    // The range dissolves the caret and evicts any object selection (decision D). The dissolution
+    // The range dissolves the caret and evicts any object selection. The dissolution
     // seeks the transport to the caret's spot (not disarmChartMarker, which deliberately does not
     // seek), so play-from-here and a later plain arrow resume at the range rather than a stale
     // transport position; it no-ops when the marker is already passive (an existing range, or the
@@ -2043,16 +2038,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // out of its ring) is a silent no-op — the selection stays put, matching refuse-not-clamp
 // everywhere else.
 //
-// BOTH selection kinds are operands of the time step (W13's ruling): a note's place is its slot and
-// a keyframe's is an offset along the ring it rides, so one press steps each where it lives, in one
-// plan and one undo entry. The STRING step reaches notes only — a keyframe has no string of its
+// BOTH selection kinds are operands of the time step: a note's place is its slot and a keyframe's
+// is an offset along the ring it rides, so one press steps each where it lives, in one plan and
+// one undo entry. The STRING step reaches notes only — a keyframe has no string of its
 // own, and a selected head carries its path across by construction — so Alt+Up/Down over keyframes
 // alone moves nothing: a first press plans nothing at all, and a press inside a live run records a
 // step that adds no delta, which leaves the run exactly where it was.
 //
-// A held or repeated run is ONE GESTURE and ONE UNDO ENTRY (ruling 8, extended from the duration
-// verb to this one): every press APPENDS its step to the run's list, the whole run is re-planned by
-// replaying that list over the objects it STARTED on, and the entry always describes start → now.
+// A held or repeated run is ONE GESTURE and ONE UNDO ENTRY, as the duration verb's is: every press
+// APPENDS its step to the run's list, the whole run is re-planned by replaying that list over the
+// objects it STARTED on, and the entry always describes start → now.
 // The entry bookkeeping is the shared gesture authority's (commitChartGestureStep), so all that is
 // written here is what a MOVE step means.
 //
@@ -2155,10 +2150,10 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         caret_rides = caret->position == under.position && caret->string == under.string;
     }
     // The caret rides its FACE, not just its slot: a charter on a bend chip who nudges the note
-    // would otherwise find the caret back on the mark. Read before
-    // the edit and copied by value, because the marker below is what the reference points into;
-    // a face the moved object no longer draws is dropped where every other read drops it
-    // (chartCaretFace), so this needs no test of the destination.
+    // would otherwise find the caret back on the mark. Read before the edit and copied by value,
+    // because the marker below is what the reference points into; a face the moved object no
+    // longer draws is dropped where every other read drops it (chartCaretFace), so this needs no
+    // test of the destination.
     const ChartCaretFace rides_face = caret_rides ? chartCaretFace() : ChartCaretFace::Mark;
     // The entry names what the run actually moves, so a lone object of either kind reads as itself
     // and anything wider reads as the selection it was.
@@ -2248,9 +2243,8 @@ void EditorController::Impl::deleteChartSelection()
 }
 
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
-// whatever kind it holds. This is dispatch on the variant's alternative, not the retired
-// automation-point → chart → tone-region precedence ladder — once two live selections became
-// unrepresentable, there is nothing to disambiguate.
+// whatever kind it holds. This is dispatch on the variant's alternative, not a precedence ladder:
+// two live selections are unrepresentable, so there is nothing to disambiguate.
 void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelection&)
 {
     // Copied for the same aliasing reason as the move dispatch: the delete replays a points
@@ -2274,8 +2268,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
 // run of deletes walks back along the row instead of dropping the keyboard off it. Where the
 // deleted marker was the row's first, nothing is left selected, as Shift+Tab is inert there. A
 // note's delete is not this rule: it leaves the caret on the emptied slot, which is the entry
-// plane's own continuation. A row with no delete verb (the tempo anchor and the time signature,
-// until their verbs ship) deletes nothing, and the selection stays.
+// plane's own continuation. A row with no delete verb (the tempo anchor and the time signature)
+// deletes nothing, and the selection stays.
 void EditorController::Impl::deleteSelectedMarker()
 {
     const std::optional<SelectedMarker> marker = selectedMarker();
@@ -2321,12 +2315,12 @@ void EditorController::Impl::deleteSelectedMarker()
     updateView();
 }
 
-// Typed digits are PROVISIONAL (the W3 pending model): the value being typed lives in the
-// pending entry — drawn on the head(s), red when it cannot apply — and the chart holds nothing
-// of it until the entry settles (a second digit, the window elapsing, or any other action's
-// settle prologue). A first digit no second digit could extend within the fret cap needs no
-// window and settles in the same keystroke, so only a leading 1 or 2 waits at the 24-fret cap.
-// The flows live in their own helpers below; this dispatcher only orders them.
+// Typed digits are PROVISIONAL: the value being typed lives in the pending entry — drawn on the
+// head(s), red when it cannot apply — and the chart holds nothing of it until the entry settles (a
+// second digit, the window elapsing, or any other action's settle prologue). A first digit no
+// second digit could extend within the fret cap needs no window and settles in the same keystroke,
+// so only a leading 1 or 2 waits at the 24-fret cap. The flows live in their own helpers below;
+// this dispatcher only orders them.
 void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFretDigit& action)
 {
     const int digit = action.digit;
@@ -2347,8 +2341,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
     // then armed for a digit a second digit could extend, or settled in the same keystroke for
     // one it could not. An Invalid provisional digit still arms: under a capo every playable
     // fret's first digit alone refuses, and the window is what keeps the two-digit target
-    // reachable. While the marker is passive with no selection, digits are inert by design (the
-    // marker model) — a stray keystroke after listening authors nothing.
+    // reachable. While the marker is passive with no selection, digits are inert by design — a
+    // stray keystroke after listening authors nothing.
     if (std::optional<decltype(ChartFretEntry::target)> target = chartEntryTarget(action.plane);
         target.has_value())
     {
@@ -2447,9 +2441,9 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
                     {ChartKeyframeKey{.note = create.note, .offset = create.offset}});
             },
             // No guard for an empty operand here: the planner answers NoChange for one, and
-            // calling that Invalid is what armed a red pending box — the display of a REFUSAL —
-            // over a press that had simply found nothing to retype. The two emptinesses stay
-            // distinct, as everywhere else.
+            // calling that Invalid would arm a red pending box — the display of a REFUSAL — over a
+            // press that had simply found nothing to retype. The two emptinesses stay distinct,
+            // as everywhere else.
             [&](const ChartFretEntry::Retype& retype) -> Planned {
                 return selecting(
                     planRetypeFrets(
@@ -2560,10 +2554,10 @@ void EditorController::Impl::armChartFretEntry(ChartFretEntry entry)
 
 // Schedules the settle at the window's end. The stamp is the ONLY guard: a settle, discard, or
 // re-arm since scheduling makes the wake stale, and a live stamp means this wake is the live
-// entry's own timer, so it settles unconditionally. Deliberately NO clock re-check: an earlier
-// version second-guessed the scheduler against the injected clock and no-oped without
-// rescheduling, which left a marginally-early wake as a pending entry nothing would ever
-// settle — a stuck state a correctness check must not be able to create. Under the tests'
+// entry's own timer, so it settles unconditionally. Deliberately NO clock re-check: a wake that
+// second-guessed the scheduler against the injected clock and no-oped without rescheduling would
+// leave a marginally-early wake as a pending entry nothing would ever settle — a stuck state a
+// correctness check must not be able to create. Under the tests'
 // synchronous scheduler the wake therefore settles inside the arming keystroke, which is why
 // every test that needs the pending state to persist uses the deferring scheduler instead.
 void EditorController::Impl::scheduleChartFretEntryWake()
@@ -2961,8 +2955,8 @@ std::vector<common::core::ChartNote> EditorController::Impl::chartNotesForKeys(
 // Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
 // construction: the verb names its delta and nothing else, and the planner moves every stop the
 // selection addresses by it — selected KEYFRAMES included, since a point on a slide states a fret
-// exactly as a head does (W13's ruling). A shift pushing any stop below zero or past the cap is
-// refused by the planner, never clamped.
+// exactly as a head does. A shift pushing any stop below zero or past the cap is refused by the
+// planner, never clamped.
 void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFrets& action)
 {
     const int direction = action.direction;
@@ -3293,7 +3287,7 @@ void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
     updateView();
 }
 
-// The chart verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
+// The chart verbs' toggle window, shared by every verb that has one rather than
 // copied into each: while the selection and the burst record still prove the previous press was
 // this verb's own entry, this press REVERSES that entry exactly, so the pair leaves no trace —
 // including tails an assist grew, which a verb's own clear law could never restore.
@@ -3434,8 +3428,8 @@ std::optional<ChartHarmonicNodePicker> EditorController::Impl::chartHarmonicNode
 // and asks only when there is more than one. WHAT CHANGES ANYTHING IS THE PLANNER'S ANSWER: each
 // node row and the clear are planned over the live chart, and a plan of NoChange is a row that
 // would do nothing — the node the anchor already touches with no other member to move, or a clear
-// with nothing carried. Counting rows by hand instead was a second model of the same question, and
-// it disagreed with the first. One change applies at once — a 12 writes its single node, a 12
+// with nothing carried. Counting rows by hand instead would be a second model of the same question,
+// free to disagree with the first. One change applies at once — a 12 writes its single node, a 12
 // already touching it clears — and several open the picker through the view port, committing
 // nothing; the chosen row returns through SetChartHarmonicNode. Every node row is shown so the tick
 // can say where the finger is, and Return takes what a toggle would have done: the clear when every
@@ -3837,8 +3831,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJu
 // claim the burst broke stops being transient.
 //
 // The view push is the RUNG's, deliberately: a committing sweep publishes its own state, so a press
-// that fell through every rung with nothing to settle changed nothing and publishes nothing — the
-// shape the ladder had before the sweep joined it.
+// that fell through every rung with nothing to settle changed nothing and publishes nothing.
 void EditorController::Impl::onChartEscapePressed()
 {
     const bool consumed = consumeChartEscapeRung();
@@ -3849,14 +3842,13 @@ void EditorController::Impl::onChartEscapePressed()
     }
 }
 
-// The Esc ladder (the marker model): an in-flight pointer gesture is abandoned without
-// mutating; else an armed caret — on any row, lane carets included — dissolves to the passive
-// cursor in its place, keeping the selection; else THE selection clears, whatever its kind (one
-// selection editor-wide, so Esc's last rung is kind-agnostic like Delete's dispatch — a selected
-// tone region clears through it like any other kind, and the clear itself hands the rig back to the
-// cursor's tone, because the selection is one of the audible tone's inputs). The marker rungs also
-// end the multi-digit fret-entry window — after a cancel, the next digit must not widen a dead
-// entry.
+// The Esc ladder: an in-flight pointer gesture is abandoned without mutating; else an armed caret
+// — on any row, lane carets included — dissolves to the passive cursor in its place, keeping the
+// selection; else THE selection clears, whatever its kind (one selection editor-wide, so Esc's last
+// rung is kind-agnostic like Delete's dispatch — a selected tone region clears through it like any
+// other kind, and the clear itself hands the rig back to the cursor's tone, because the selection
+// is one of the audible tone's inputs). The marker rungs also end the multi-digit fret-entry window
+// — after a cancel, the next digit must not widen a dead entry.
 bool EditorController::Impl::consumeChartEscapeRung()
 {
     // Gesture cancels outrank the marker/selection ladder: an in-flight pointer drag simply never

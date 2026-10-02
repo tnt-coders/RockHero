@@ -34,6 +34,7 @@ constexpr std::string_view g_tone_ref{"tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30
 
 } // namespace
 
+// Verifies a well-formed track covering the song from its first downbeat validates clean.
 TEST_CASE("Tone track rules accept sorted whole-beat regions", "[core][tone]")
 {
     const ToneTrack tone_track{
@@ -46,6 +47,7 @@ TEST_CASE("Tone track rules accept sorted whole-beat regions", "[core][tone]")
     CHECK(validateToneTrackRules(tone_track, makeTempoMap()).has_value());
 }
 
+// Verifies region starts must be strictly ascending, so no region is empty or reversed.
 TEST_CASE("Tone track rules reject overlapping regions", "[core][tone]")
 {
     const ToneTrack tone_track{
@@ -60,6 +62,7 @@ TEST_CASE("Tone track rules reject overlapping regions", "[core][tone]")
     CHECK(result.error().code == ToneTrackErrorCode::UnsortedOrOverlappingRegions);
 }
 
+// Verifies the first region must open at the song's first downbeat, or the lead-in has no tone.
 TEST_CASE("Tone track rules reject a first region that misses the song start", "[core][tone]")
 {
     const ToneTrack tone_track{
@@ -73,6 +76,7 @@ TEST_CASE("Tone track rules reject a first region that misses the song start", "
     CHECK(result.error().code == ToneTrackErrorCode::SongStartUncovered);
 }
 
+// Verifies a region starting at or past the terminal anchor is refused as empty.
 TEST_CASE("Tone track rules reject regions past the terminal anchor", "[core][tone]")
 {
     const ToneTrack tone_track{
@@ -87,6 +91,8 @@ TEST_CASE("Tone track rules reject regions past the terminal anchor", "[core][to
     CHECK(result.error().code == ToneTrackErrorCode::RegionPastTerminalAnchor);
 }
 
+// Verifies off-grid starts, non-canonical or repeated region ids, and non-canonical tone document
+// references are each refused with their own error code.
 TEST_CASE("Tone track rules reject invalid beats and ids and refs", "[core][tone]")
 {
     ToneTrack tone_track{
@@ -112,8 +118,9 @@ TEST_CASE("Tone track rules reject invalid beats and ids and refs", "[core][tone
 }
 
 // The range guard is written as a range the value must be INSIDE because every comparison against
-// NaN is false: the excursion form accepted NaN, and the writer then emitted the bare token nan,
-// which bricked song.json. This validator is the only thing between a captured point and the file.
+// NaN is false: an excursion test would accept NaN, and the writer would then emit the bare token
+// nan, leaving song.json unparseable. This validator is the only thing between a captured point
+// and the file.
 TEST_CASE("Tone automation refuses a non-finite point value", "[core][tone]")
 {
     const TempoMap tempo_map = makeTempoMap();

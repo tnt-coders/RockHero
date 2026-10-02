@@ -323,7 +323,6 @@ SignalChainView::~SignalChainView()
     m_output_gain_slider.setLookAndFeel(nullptr);
 }
 
-// Stores the render state and updates controls whose enabledness is derived outside the view.
 // Repaints the header title with the selected tone's name appended.
 void SignalChainView::setToneName(std::string tone_name)
 {

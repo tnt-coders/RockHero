@@ -19,9 +19,8 @@ namespace rock_hero::game::core
 /*!
 \brief Shader backends the resources tree ships compiled shader binaries for.
 
-The plan-20 gate pinned Direct3D 11 as the only shipped backend for now; adding one later is a
-new enumerator plus a build-list edit, never a loading-path redesign (the reason this convention
-exists).
+Direct3D 11 is the only shipped backend; adding one is a new enumerator plus a build-list edit,
+never a loading-path redesign (the reason this convention exists).
 */
 enum class ShaderBackend : std::uint8_t
 {

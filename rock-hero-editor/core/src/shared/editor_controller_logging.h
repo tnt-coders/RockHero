@@ -13,7 +13,7 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Routes non-fatal cleanup/persistence failures to the debug log.
+\brief Logs a non-fatal cleanup or persistence failure as a warning.
 
 Keeps the primary workflow result being handled by the caller visible while still recording the
 secondary failure. Shared by the controller's per-feature translation units.

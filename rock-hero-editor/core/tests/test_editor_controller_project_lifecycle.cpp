@@ -198,9 +198,9 @@ TEST_CASE("EditorController open restores settings cursor", "[core][editor-contr
     CHECK(state->project_load_id == 1);
 }
 
-// A settings file is taken on trust, and one written before the tick lattice existed can hold a
-// caret between two ticks — an address every verb the caret feeds would refuse. The restore snaps
-// it onto the nearest tick before seeking or arming.
+// A settings file is taken on trust, and it can hold a caret between two ticks — an address every
+// verb the caret feeds would refuse. The restore snaps it onto the nearest tick before seeking or
+// arming.
 TEST_CASE(
     "EditorController open snaps a stored caret onto the tick lattice", "[core][editor-controller]")
 {
@@ -785,7 +785,8 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
     CHECK(audio.clear_active_arrangement_call_count == 0);
 }
 
-// Discarding a dirty saved project before import still makes the imported project displace it.
+// Discarding a dirty saved project to import lets the import displace it, and closing that import
+// with its own Discard reopens the displaced project from its file.
 TEST_CASE(
     "EditorController discard import reopens dirty displaced project", "[core][editor-controller]")
 {

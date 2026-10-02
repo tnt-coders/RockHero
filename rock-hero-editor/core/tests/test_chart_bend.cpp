@@ -491,8 +491,8 @@ TEST_CASE("A click on a bend chip puts the caret on it", "[core][chart]")
 }
 
 // A click on the chip of a member of a selected chord selects that note ALONE on its chip, exactly
-// as a click on its head selects it alone: a face is one object's (user ruling 2026-09-29). The
-// chord's bends are the letter verb's: `B` over the chord.
+// as a click on its head selects it alone: a face is one object's. The chord's bends are the letter
+// verb's: `B` over the chord.
 TEST_CASE("A click on a chord member's bend chip collapses to that note", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
@@ -515,7 +515,7 @@ TEST_CASE("A click on a chord member's bend chip collapses to that note", "[core
 }
 
 // A double click on a bend chip restates the bend it prints: its note alone on the chip, with the
-// bend picker open over it (user ruling 2026-09-29). The chord stays a double click on the heads.
+// bend picker open over it. The chord stays a double click on the heads.
 TEST_CASE("A double click on a bend chip opens the bend picker", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();

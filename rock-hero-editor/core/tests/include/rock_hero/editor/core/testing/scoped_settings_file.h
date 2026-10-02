@@ -37,7 +37,7 @@ public:
         removeFiles();
     }
 
-    /*! \brief Removes the owned files so persisted state cannot leak into later tests. */
+    /*! \brief Removes the owned file so persisted state cannot leak into later tests. */
     ~ScopedSettingsFile()
     {
         removeFiles();

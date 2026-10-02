@@ -23,7 +23,7 @@ namespace
 // Each marker kind's letter, declared once: `Ctrl`+letter AUTHORS that kind at the cursor and
 // `Ctrl+Shift`+letter SELECTS it (jumps focus onto its row), so the pair is composed from the one
 // letter below and cannot drift. The tempo (B) and time-signature (/) author chords are reserved
-// for plan 41 and not registered yet; their jumps are.
+// but not registered; only their jumps are.
 constexpr int g_section_key = 'm';
 constexpr int g_tempo_key = 'b';
 constexpr int g_time_signature_key = '/';
@@ -218,17 +218,16 @@ constexpr int g_add_lane_key = 'a';
         EditorCommandSpec{
             .id = EditorCommandId::RenameSelection,
             // Ctrl+R renames the selection where its kind has a name: a section, or a tone
-            // region's tone. Free until 2026-09-14 (plain R is tremolo); it self-gates on the core
-            // naming a rename.
+            // region's tone. Exact modifier matching keeps it apart from plain R (tremolo); it
+            // self-gates on the core naming a rename.
             .name = "Rename Selection",
             .category = "Marker",
             .default_keypresses = {chord('r', command)},
         });
 
-    // The grammar verbs (plan 53 Phase 1b, total rebindability): one command per (chord, verb)
-    // pair, so the precision/reach tiers are separate commands and every binding is individually
-    // rebindable. The defaults below ARE the interaction grammar's modifier algebra, shipped as
-    // defaults rather than enforced.
+    // The grammar verbs: one command per (chord, verb) pair, so the precision/reach tiers are
+    // separate commands and every binding is individually rebindable. The defaults below ARE the
+    // interaction grammar's modifier algebra, shipped as defaults rather than enforced.
     constexpr int alt = juce::ModifierKeys::altModifier;
     const auto add = [&registry](
                          EditorCommandId id,
@@ -402,8 +401,8 @@ constexpr int g_add_lane_key = 'a';
         "Selection",
         {chord(juce::KeyPress::deleteKey, alt)});
     // Cancel/Clear sits with the selection verbs (its user-visible rungs disarm the caret and
-    // clear the selection); its 0x1708 id stays in the authoring block — id blocks are
-    // historical hints, the registry row owns the category.
+    // clear the selection); its 0x1708 id stays in the authoring block — id blocks are hints
+    // only, the registry row owns the category.
     add(EditorCommandId::CancelDismiss,
         "Cancel / Clear",
         "Selection",
@@ -461,10 +460,10 @@ constexpr int g_add_lane_key = 'a';
     // author an off-by-one link; the technique-letter map in keymap-matrix.md puts the default on
     // L and leaves H to the harmonics. One key covers both motions because no direction is
     // stored: which way the connection runs is read back from the predecessor. Shift+L carries the
-    // same verb extended with TRAVEL (walkthrough W10), and it is whole: it toggles every selected
-    // junction, severing a gesture at a selected keyframe and joining a selected head back onto
-    // its predecessor's path. The tie half is that join — the point it leaves on an equal-fret
-    // junction says nothing new, so it never reaches the format, and W10's tie is one longer ring
+    // same verb extended with TRAVEL, and it is whole: it toggles every selected junction,
+    // severing a gesture at a selected keyframe and joining a selected head back onto its
+    // predecessor's path. The tie half is that join — the point it leaves on an equal-fret
+    // junction says nothing new, so it never reaches the format, and a tie is one longer ring
     // with one note fewer.
     add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('l')});
     add(EditorCommandId::ChartJunctionToggle,
@@ -502,18 +501,16 @@ constexpr int g_add_lane_key = 'a';
     add(EditorCommandId::ChartAccentToggle, "Toggle Accent", "Authoring", {chord('a')});
     add(EditorCommandId::ChartGhostToggle, "Toggle Ghost Note", "Authoring", {chord('g')});
     // `V` is vibrato's own first letter, and `Shift+V` carries the wide tier — the `Shift` plane
-    // used exactly as intended, a magnitude variant of the plain key's own technique. That also
-    // closes the recorded whammy-bar alternative on this chord: `W` keeps whammy outright. The two
-    // are toggles of their own tiers rather than one cycling verb, so pressing either on a scope
-    // already at the other tier simply replaces it. Tremolo cannot have its own first letter —
-    // `T` is the tap's — so it takes `R` for REPEAT, which is what the technique is: both surfaces
-    // already describe the teeth as "repeated attacks", so the mnemonic states the rule rather
-    // than borrowing a spare letter.
+    // used exactly as intended, a magnitude variant of the plain key's own technique; `W` stays
+    // reserved for the whammy bar. The two are toggles of their own tiers rather than one cycling
+    // verb, so pressing either on a scope already at the other tier simply replaces it. Tremolo
+    // cannot have its own first letter — `T` is the tap's — so it takes `R` for REPEAT, which is
+    // what the technique is: both surfaces already describe the teeth as "repeated attacks", so
+    // the mnemonic states the rule rather than borrowing a spare letter.
     // `H` is the loudest first-letter mnemonic in the map, and it is free because the legato claim
-    // moved to `L` — Guitar Pro's `H` links the selected note FORWARD, so an `H` habit here would
-    // have authored an off-by-one link. `Shift+H` is the letter's second claimant rather than a
-    // magnitude variant: the pinch is the same technique reached by the OTHER hand, which is what
-    // the shift plane is for one row over from the tap pair. Plain `H` takes the fretting hand's
+    // sits on `L` (see above). `Shift+H` is the letter's second claimant rather than a magnitude
+    // variant: the pinch is the same technique reached by the OTHER hand, which is what the shift
+    // plane is for one row over from the tap pair. Plain `H` takes the fretting hand's
     // harmonic because that is the one a charter reaches for first. It is not a toggle: the fret
     // already typed becomes the node the finger touches, so the verb states a VALUE — it offers
     // every change the selection allows, writes the one when there is only one, and asks when

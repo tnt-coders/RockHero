@@ -50,13 +50,19 @@ public:
     /*! \brief Copying is disabled; the tracker holds listener registrations. */
     PluginParameterDirtyTracker(const PluginParameterDirtyTracker&) = delete;
 
-    /*! \brief Copy assignment is disabled; the tracker holds listener registrations. */
+    /*!
+    \brief Copy assignment is disabled; the tracker holds listener registrations.
+    \return Reference to this tracker.
+    */
     PluginParameterDirtyTracker& operator=(const PluginParameterDirtyTracker&) = delete;
 
     /*! \brief Moving is disabled; parameters hold a stable listener pointer. */
     PluginParameterDirtyTracker(PluginParameterDirtyTracker&&) = delete;
 
-    /*! \brief Move assignment is disabled; parameters hold a stable listener pointer. */
+    /*!
+    \brief Move assignment is disabled; parameters hold a stable listener pointer.
+    \return Reference to this tracker.
+    */
     PluginParameterDirtyTracker& operator=(PluginParameterDirtyTracker&&) = delete;
 
 private:
@@ -107,8 +113,8 @@ public:
     re-announce, an undo/redo recreate's re-announce, or any gesture-less self-mutation — is folded
     into the baseline and never recorded, so it cannot appear as a phantom edit or truncate the redo
     stack. The deliberate cost: a gesture-less user action inside the plugin (e.g. an in-plugin
-    preset load) also folds — its state still persists through the baseline, but it
-    does not get its own undo entry.
+    preset load) also folds — its state still persists through the baseline, but it does not get
+    its own undo entry.
 
     \param plugin Plugin whose state edits should be tracked.
     \param capture_state Full-state capture callback.
@@ -128,13 +134,19 @@ public:
     /*! \brief Copying is disabled; the tracker holds a listener registration. */
     PluginDirtyStateTracker(const PluginDirtyStateTracker&) = delete;
 
-    /*! \brief Copy assignment is disabled; the tracker holds a listener registration. */
+    /*!
+    \brief Copy assignment is disabled; the tracker holds a listener registration.
+    \return Reference to this tracker.
+    */
     PluginDirtyStateTracker& operator=(const PluginDirtyStateTracker&) = delete;
 
     /*! \brief Moving is disabled; the plugin holds a stable listener pointer. */
     PluginDirtyStateTracker(PluginDirtyStateTracker&&) = delete;
 
-    /*! \brief Move assignment is disabled; the plugin holds a stable listener pointer. */
+    /*!
+    \brief Move assignment is disabled; the plugin holds a stable listener pointer.
+    \return Reference to this tracker.
+    */
     PluginDirtyStateTracker& operator=(PluginDirtyStateTracker&&) = delete;
 
     /*!

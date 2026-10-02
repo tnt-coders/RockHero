@@ -48,8 +48,7 @@ namespace
 }
 
 // The vibrato spans a note vibrating END TO END carries: exactly what the projection derives from
-// a chart that states vibrato at the onset and never restates it, which is every chart written
-// before the channel could say anything else.
+// a chart that states vibrato at the onset and never restates it.
 [[nodiscard]] std::vector<common::core::VibratoSpanViewState> wholeTailVibrato(
     const double start_seconds, const double end_seconds)
 {
@@ -423,7 +422,7 @@ constexpr int g_digit_window = 4;
 } // namespace
 
 // An `Unjustified` claim draws exactly what the plain pick beside it draws: nothing. The whole
-// no-indicator ruling rests on that identity — mid-burst a broken claim and a true pick are
+// no-indicator rule rests on that identity — mid-burst a broken claim and a true pick are
 // pixel-identical by design — so it is checked as an image identity rather than by probing where
 // the triangle would have been, which is what makes it kill the mutation the branch invites:
 // drawing the hammer for any stored `Legato` regardless of the resolution.
@@ -480,8 +479,8 @@ TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab
 // a stronger attack, and a plucked string's whole ring scales with how hard it was struck — it
 // rings as A * exp(-lambda * t), where picking harder raises A while lambda is fixed by the
 // damping, so the note is louder at every instant it sounds rather than only at its onset. The
-// quiet end of this axis already said so here by fading the entire ink set, ribbon included, so a
-// head-only accent left one axis saying two different things at its two ends.
+// quiet end of this axis says so here too by fading the entire ink set, ribbon included, so a
+// head-only accent would leave one axis saying two different things at its two ends.
 //
 // And it rides the RAILS with NO END CAP. The tail draws no cap at either end — a cap boxes in
 // whatever technique mark reaches the tip — so a halo wrapping the tip would restore that cap in
@@ -737,7 +736,7 @@ TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
         }
         else
         {
-            // The chug: no ribbon anywhere past its head. The old hold ribbon reached x = 240 here.
+            // The chug: no ribbon anywhere past its head, though its hold runs on to x = 240.
             CHECK_FALSE(differs(note.string, 120));
             CHECK(last_column <= juce::roundToInt(layout.head.x + layout.head.width));
             // Its HEAD is still the whole of what addresses it, ring or no ring.
@@ -748,7 +747,7 @@ TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
 
 // The sine covers exactly the stretch its region claims and no more — BOTH of its ends, because
 // the channel states vibrato's stop as readily as its start. This is the figure the keyframe
-// model's vibrato channel exists for — vibrato that starts where a glide arrives, which the
+// model's vibrato channel exists for — vibrato that starts where a glide arrives, which a
 // whole-note flag could only draw from the onset, across the travel it never touched.
 TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[ui][tab-paint]")
 {
@@ -801,8 +800,8 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
     // ...and right of it they differ, so the identity above is not an empty render.
     CHECK(worstPixelDeltaInColumns(late, steady, 108, 158) > 0);
     // The discrimination the first check needs: a region covering the whole tail DOES ink those
-    // same early columns, so the probe can see a sine there when one is drawn — and the old
-    // whole-note flag drew exactly this picture for the late vibrato too.
+    // same early columns, so the probe can see a sine there when one is drawn — and a whole-note
+    // flag would draw exactly this picture for the late vibrato too.
     CHECK(worstPixelDeltaInColumns(throughout, steady, 0, 92) > 0);
     CHECK(worstPixelDeltaInColumns(throughout, late, 0, 92) > 0);
 
@@ -976,8 +975,8 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     CHECK(image.getPixelAt(150, 1).getARGB() == 0);
     CHECK(image.getPixelAt(150, 238).getARGB() == 0);
 
-    // The arpeggio span's rails are the purple at its own gentler brightness (base x1.3, user
-    // tuned darker than the chord blue's x1.5).
+    // The arpeggio span's rails are the purple at its own gentler brightness (base x1.3, tuned
+    // darker than the chord blue's x1.5).
     CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffac73ed});
     CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffac73ed});
 
@@ -1264,7 +1263,7 @@ TEST_CASE("Tab paint core labels a harmonic head with its node", "[ui][tab-paint
     CHECK(head_text(5, 17.0, common::core::NoteAttack::Tap) == "17");
 
     // A pinch keeps its FRET: its node is off the neck over the pickups, and 2D has no axis for it,
-    // so labelling 24.0 here would name a fret the hand is nowhere near (25-Q5).
+    // so labelling 24.0 here would name a fret the hand is nowhere near.
     CHECK(head_text(5, 24.0, common::core::NoteAttack::Pinch) == "5");
 }
 
@@ -1395,7 +1394,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     CHECK(scrape_upper - scrape_lower > 1.5);
     CHECK(plain_upper - plain_lower < 0.0);
 
-    // The silhouette stands exactly as tall as the disc it replaces and 0.9395 as wide, so the
+    // The silhouette stands exactly as tall as the disc and 0.9395 as wide, so the
     // lane's vertical collision budget is untouched. Height is the center column's coverage (the
     // head is opaque, so the string line under it adds nothing); width is twice the widest sampled
     // half-chord, which lands a little under the true maximum because it is averaged over a whole
@@ -1448,7 +1447,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     // band or the silhouette were too narrow to hold a number unboxed. Checked for the two-digit
     // fret as well, on its own lane: that is the widest number the unboxed head has to hold.
     // The scan starts at the digit's own topmost ink row rather than a fixed reach above the
-    // lane center: the beside-head chip sits above-left, and its rim is white ink too now that
+    // lane center: the beside-head chip sits above-left, and its rim is white ink too because
     // the plate palette mirrors — a symmetric window would read the chip's rim as digit ink and
     // fail on the empty lane beyond it.
     const auto digit_ink_clear_of_rim =
@@ -1476,7 +1475,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
                             // green at 185) while looking identical in the editor, where it
                             // composites over the lane instead of over this case's transparent
                             // image. What the case asserts is unaffected: the digit sits on the
-                            // head's own coloured centre rather than on a plate or hanging off onto
+                            // head's own colored centre rather than on a plate or hanging off onto
                             // the lane, and a pixel outside the head still reads alpha 0 and fails.
                             const bool ok =
                                 near_ink.getAlpha() > 0 && near_ink != juce::Colour{0xff101010};
@@ -1517,11 +1516,11 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
 }
 
 // A pinch harmonic wears the DIAMOND, because in 2D the diamond is the only thing that says
-// "harmonic" and a pinch is one whichever hand makes it (RULED 2026-09-17). The shape reads
+// "harmonic" and a pinch is one whichever hand makes it. The shape reads
 // common::core::isHarmonic — the same claim the highway's harmonic cell reads — while the head
 // TEXT keeps reading the sounding rule, so the pinch prints its FRET: its node is over the body
 // where the thumb grazes and 2D has no axis for it. Reading the shape off the sounding rule
-// instead is what once left a pinch as a bar on an ordinary head, saying nothing of a harmonic.
+// instead would leave a pinch as a bar on an ordinary head, saying nothing of a harmonic.
 TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1852,7 +1851,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
     // A TURNAROUND WEARS THE NOTE'S OWN HEAD, row for row. A head is taller than the ribbon, so the
     // rows BELOW the ribbon hold nothing but head, which isolates the silhouette from the ribbon
     // the columns share. Measured against the onset's own head rather than re-deriving the
-    // plectrum's shape: the scrape-head case above already pins that shape, and the ruling here is
+    // plectrum's shape: the scrape-head case above already pins that shape, and the rule here is
     // precisely that a junction repeats it.
     int ribbon_bottom = 0;
     for (int y = lane_y + 20; y >= lane_y - 20; --y)
@@ -2048,10 +2047,10 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
     }
     CAPTURE(worst_x, worst_y);
     // Both generated overlays land bit-identical; the residue is JUCE's own antialiasing of the
-    // plain ribbon, a float-height fillRect whose two edge rows already came out a step lighter or
-    // darker with the clip before any of this existed (it is still there with both overlays
-    // switched off). Two steps of 255 on a soft edge is invisible, and it is four decimal orders
-    // below what an actual seam scores: a dropped tooth swaps ribbon for empty lane at full alpha.
+    // plain ribbon, a float-height fillRect whose two edge rows come out a step lighter or darker
+    // with the clip on their own (it is there with both overlays switched off). Two steps of 255 on
+    // a soft edge is invisible, and it is four decimal orders below what an actual seam scores: a
+    // dropped tooth swaps ribbon for empty lane at full alpha.
     CHECK(worst_delta <= 2);
     // And the window really did hold both tails, so a pass cannot come from comparing two empty
     // regions. Two ribbons ~10px tall across 40 columns clear this floor several times over.
@@ -2139,8 +2138,8 @@ TEST_CASE("Tab paint core preserves color and fades a ghost note", "[ui][tab-pai
     CHECK(topDigitInkRow(ghost, onset_x, center_y) == normal_digit_top);
 
     // A dead note's white plate lands at 0.75 over the 0.5 note beneath it: JUCE's integer
-    // source-over produces alpha 222. The grouped white X remains at 127, while the plate is no
-    // longer opaque at 255.
+    // source-over produces alpha 222. The grouped white X remains at 127, and the plate is
+    // translucent rather than opaque at 255.
     const int head_half = juce::roundToInt(metrics.headSize() / 2.0f);
     int strongest_ghost_plate_alpha = 0;
     for (int x = onset_x - head_half; x <= onset_x + head_half; ++x)
@@ -2418,8 +2417,8 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
     SECTION("an end bend at a shared instant keeps its chip on the curve, over its instant")
     {
         // A bend still rising to a whole step as the next head of its own string is struck unbent.
-        // Its chip used to drop below the envelope, into the band the next string's pre-bend chip
-        // stands in; it now rides its own curve, centred on its instant.
+        // Its chip rides its own curve, centred on its instant, rather than dropping below the
+        // envelope into the band the next string's pre-bend chip stands in.
         common::core::NoteViewState bent = ringing({}, true);
         bent.bend = {common::core::BendPointViewState{.seconds = 8.0, .semitones = 2.0}};
         const common::core::NoteViewState unbent = ringing({}, true);
@@ -3004,7 +3003,7 @@ TEST_CASE("Tab paint core dissolves a tail at its tip unless revealed", "[ui][ta
             return crest;
         };
         // Before the fade the sine's ink is opaque; deep inside it, the crest is dissolved. A sine
-        // drawn in its solid colour would stay opaque there over the dissolving ribbon.
+        // drawn in its solid color would stay opaque there over the dissolving ribbon.
         CHECK(crest_in(solid_from, solid_to).getAlpha() == 255);
         const juce::Colour faded_crest = crest_in(faded_from, faded_to);
         CAPTURE(faded_crest.toString());
@@ -3326,8 +3325,8 @@ TEST_CASE("Tab paint core draws a reveal partway and carries its chip along", "[
 // A CHIP NEVER COVERS ITS OWN KEYFRAME'S DIGIT. A bend point whose keyframe also wears a head — a
 // linked stop stating a fret — stands its chip above that head, as the onset's chip does. Half a
 // tail above the curve, where a chip otherwise sits, is the string line at a small amount, the very
-// row the head prints its fret on (sighted 2026-09-28, "In the Face of the Nameless" 31:2: a glide
-// to 10 whose landing also states a bend of nothing).
+// row the head prints its fret on (a glide to 10 whose landing also states a bend of nothing, for
+// one).
 TEST_CASE("Tab paint core stands a bend chip above its own keyframe head", "[ui][tab-paint]")
 {
     const TabLaneMetrics metrics = referenceMetrics(6);
@@ -3573,8 +3572,8 @@ TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][ta
     }
 }
 
-// [D2]'s amendment 2 on this surface. A landing-opened span states nothing at its landing, so it
-// draws no mark there and defers its bracket to the first interior sounding; a span an event
+// The deferred posture mark on this surface. A landing-opened span states nothing at its landing,
+// so it draws no mark there and defers its bracket to the first interior sounding; a span an event
 // states keeps its own start. Asked as "which COLUMNS do these renders differ in" rather than by
 // probing the bracket's own geometry, so the three pictures are distinguished by where the mark is
 // and nothing else — and a bracket-less span is the common ground all three are measured against.
@@ -3649,13 +3648,14 @@ TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][ta
 // leaves 3.98 above against 3.50 below -- the best a whole-row baseline can do, and a third of
 // the error.
 //
-// FAILS UNDER PRE-CHANGE CODE at all three sites by a full pixel, deliberately.
+// A line-box placement fails all three sites by a full pixel, deliberately.
 //
 // The three probed here are the three separate call paths into the one placement authority: the
 // note head's own number, the boxed number a mute prints, and the string-line label the legend and
-// the satellite digits share. The mute is the site that made the defect visible -- its PLATE is
-// exactly centred on the line and its digit was not -- so the plate's own symmetry is asserted
-// beside the digit's: the glyphs settle onto the line, the box they sit in does not move.
+// the satellite digits share. The mute is the site where the error shows most -- its PLATE is
+// exactly centred on the line, so a digit that is not reads off-centre -- and the plate's own
+// symmetry is asserted beside the digit's: the glyphs settle onto the line, the box they sit in
+// does not move.
 TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -3705,7 +3705,7 @@ TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-p
         drawTabStringLegend(graphics, metrics, state.open_strings, panel);
     }
 
-    // A fifth of a pixel: well inside the FULL pixel the pre-change placement is out by once the
+    // A fifth of a pixel: well inside the FULL pixel a line-box placement is out by once the
     // renderer has rounded its baseline, and well outside the 0.08 px spread between one figure's
     // ink box and another's across every glyph this lane can print, which is all the slack a
     // single reference figure costs.
@@ -3773,8 +3773,8 @@ TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-p
 // The width is measured from the FONT and never from the tuning at hand, so the panel cannot move
 // under the reader when a song retunes or when scrolling reaches a chart spelled differently.
 //
-// FAILS UNDER PRE-CHANGE CODE at the exclusion assertion: the scrim let an attenuated head through
-// (the previous case asserted that it must), where the column now carries no note ink at all.
+// A scrim laid over finished notation would fail the exclusion assertion by letting an attenuated
+// head through; the column carries no note ink at all.
 TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -3821,8 +3821,8 @@ TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[u
     empty_lane.open_strings = state.open_strings;
 
     // The CANVAS behind the lane -- in the editor the waveform row -- stood in for by a flat fill,
-    // so "what the column let through" is one colour to compare against. The tint's ground is the
-    // host's row band, a different colour again, so the three states of a pixel in the column
+    // so "what the column let through" is one color to compare against. The tint's ground is the
+    // host's row band, a different color again, so the three states of a pixel in the column
     // (canvas, tint, lane ink) can never be confused for one another.
     const juce::Colour canvas{0xff203040};
     const juce::Colour ground{0xff1b1f26};
@@ -3866,7 +3866,7 @@ TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[u
     // passing on a lane that drew nothing.
     CHECK(worstPixelDeltaInColumns(bare, bare_empty, panel_from, panel_to) > 0);
 
-    // THE STRING LINE IS NO LONGER A SPECIAL CASE. Read with the tint left off so the answer is
+    // THE STRING LINE IS NOT A SPECIAL CASE. Read with the tint left off so the answer is
     // "nothing is painted here" rather than "something is": the top string's line row inside the
     // column is the canvas untouched, and the same row outside it carries the line.
     constexpr int line_row = 20;
@@ -3874,7 +3874,7 @@ TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[u
     CHECK(excluded_only.getPixelAt(200, line_row) != canvas);
 
     // THE TINT IS WHAT THE COLUMN SHOWS INSTEAD, and it stands on the CANVAS: the column's pixel
-    // is no longer what the canvas painted there.
+    // differs from what the canvas painted there.
     CHECK(composed.getPixelAt(panel_from, line_row) != canvas);
 
     // The one assertion here that moves with the SIGHTING KNOB (g_legend_scrim_opacity): at the

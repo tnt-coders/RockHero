@@ -633,8 +633,7 @@ void defaultExit()
 
 } // namespace
 
-// Subscribes for coarse transport transitions and captures an initial derived state, falling back
-// to production project IO where an optional project operation is omitted.
+// Delegates to the full constructor with every project operation left to its production default.
 EditorController::EditorController(
     EditorController::AudioPorts audio_ports, const EditorController::Services& services,
     EditorController::ExitFunction exit_function)
@@ -1264,8 +1263,8 @@ EditorController::Impl::Impl(
     , m_message_thread_scheduler(services.message_thread_scheduler)
     , m_transport_listener(transport, *this)
 {
-    // Resolve the fret-entry coalescing clock: an injected source (tests) or the real wall clock.
-    // Core stays off the wall clock behind an injectable seam (Time Must Be a Dependency).
+    // Resolve the fret-entry coalescing clock: an injected source (tests) or the system millisecond
+    // counter. Core reads time only through this injectable seam (Time Must Be a Dependency).
     m_now_milliseconds =
         services.now_milliseconds
             ? std::move(services.now_milliseconds)
@@ -1919,10 +1918,10 @@ void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
 // The chart projection resolves thousands of positions to seconds, so it is memoized per displayed
 // arrangement and chart revision: the arrangement id keys which chart is shown, and the session's
 // chart revision (bumped by every mutable chart acquisition) keys its edit state, so chart edits
-// invalidate without any explicit notification path. The 3D highway projection rides the same rule
-// (plan 44): one shared scene-model snapshot per displayed arrangement, consumed by the preview
-// window exactly as the game consumes it. One refresh for both, because they share the key: a
-// refresh of one alone would advance the key past the other.
+// invalidate without any explicit notification path. The 3D highway projection rides the same rule:
+// one shared scene-model snapshot per displayed arrangement, consumed by the preview window exactly
+// as the game consumes it. One refresh for both, because they share the key: a refresh of one alone
+// would advance the key past the other.
 void EditorController::Impl::refreshChartProjections() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -1944,7 +1943,7 @@ void EditorController::Impl::refreshChartProjections() const
     // The highway state carries the display options the renderer applies per frame (the
     // displayed-string minimum among them — the scene itself is never padded), so it is
     // republished on an arrangement change OR a minimum change. Lowest-pitched string on top is
-    // the 3D default (recorded in plan 25).
+    // the 3D default.
     if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
     {
         m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
@@ -2090,7 +2089,7 @@ bool EditorController::Impl::dropUndoTop()
     return true;
 }
 
-// Pushes one already-applied user edit into the product-level history stack.
+// Pushes one already-applied user edit into the project-level history stack.
 bool EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
 {
     const bool had_edit = edit != nullptr;
@@ -2209,10 +2208,10 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
 
     if (m_transport.state().playing)
     {
-        // Pause rests the marker passive at the raw stop point (the marker model): the paused
-        // cursor line simply stays where the playhead stopped — no snapping, which happens
-        // only at arming. The marker was already demoted at play, so there is nothing to do
-        // beyond pausing and republishing.
+        // Pause rests the marker passive at the raw stop point: the paused cursor line simply
+        // stays where the playhead stopped — no snapping, which happens only at arming. The
+        // marker was already demoted at play, so there is nothing to do beyond pausing and
+        // republishing.
         m_transport.pause();
         updateView();
     }
@@ -2264,10 +2263,10 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
 {
     const common::core::TimePosition position = session().timeline().clamp(action.position);
     m_transport.seek(position);
-    // A seek is transport motion, so the marker demotes to its passive state (the marker
-    // model): the paused cursor line rests exactly at the seek target — the ruler click, a
-    // waveform click — and arming waits for the next editing gesture. Playing seeks move only
-    // the live playhead (the marker is already passive).
+    // A seek is transport motion, so the marker demotes to its passive state: the paused cursor
+    // line rests exactly at the seek target — the ruler click, a waveform click — and arming waits
+    // for the next editing gesture. Playing seeks move only the live playhead (the marker is
+    // already passive).
     disarmChartMarker();
     // Moving the transport away is leaving the place being edited, so it settles too — after the
     // seek's own state changes, like every shared settle event.
@@ -2399,8 +2398,8 @@ void EditorController::Impl::onTransportStateChanged(common::audio::TransportSta
         return;
     }
     // Playback dissolves the caret and the note selection no matter what started it (the
-    // marker model's armed ⟹ paused invariant, enforced here for transports the PlayPause
-    // action did not drive — external starts, test doubles flipping state directly).
+    // armed ⟹ paused invariant, enforced here for transports the PlayPause action did not
+    // drive — external starts, test doubles flipping state directly).
     if (state.playing)
     {
         disarmChartMarker();
@@ -2438,9 +2437,6 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
     return m_project_file;
 }
 
-// Builds the message-thread view state from the session and transport state. Current cursor
-// position is only sampled to derive stop enabledness; the view receives discrete mapping state
-// rather than a continuously pushed playhead position.
 namespace
 {
 
@@ -2500,6 +2496,8 @@ namespace
 
 } // namespace
 
+// Builds the message-thread view state from the session and transport state. The view receives
+// discrete mapping state rather than a continuously pushed playhead position.
 EditorViewState EditorController::Impl::deriveViewState() const
 {
     const common::audio::TransportState transport_state = m_transport.state();
@@ -2661,7 +2659,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         state.tone_automation.add_lane_row_selected =
             std::holds_alternative<AddAutomationLaneRowSelection>(m_selection);
         // A lane-riding caret resolves against the published lanes exactly like the selected
-        // point: a caret whose lane is not visible publishes as nothing (§9b).
+        // point: a caret whose lane is not visible publishes as nothing.
         if (const ChartCaret* const caret = armedChartCaret();
             caret != nullptr && caret->lane.has_value())
         {
@@ -2685,10 +2683,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
         // The Alt-hover insert ghost resolves against the published lanes exactly like the lane
         // caret: located by (instance, parameter), with seconds derived through the tempo map
         // identically to the caret's so the ring rides the same visible-timeline convention. The
-        // occupancy gate keeps the ring honest (§7): now that mouse placement refuses an occupied
-        // slot (onToneAutomationPointerDown's Alt branch shares the keyboard Insert's refusal), the
-        // ring is hidden over a slot that already carries a point so it never previews an insert
-        // that would no-op. A standing drag owns the lane, so its preview masks the ghost too.
+        // occupancy gate keeps the ring honest: mouse placement refuses an occupied slot
+        // (onToneAutomationPointerDown's Alt branch shares the keyboard Insert's refusal), so the
+        // ring is hidden over a slot that already carries a point and never previews an insert that
+        // would no-op. A standing drag owns the lane, so its preview masks the ghost too.
         if (m_tone_insert_ghost.has_value() && !m_tone_automation_drag.has_value())
         {
             for (std::size_t lane_index = 0; lane_index < state.tone_automation.lanes.size();
@@ -2934,8 +2932,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
 
     // Derived from the PUBLISHED per-surface states plus the time span, not the raw variant: a
     // stale selection (one whose object vanished) publishes nothing, and Delete must keep
-    // propagating then. A tempo or time-signature chip is left out on purpose: neither has a Delete
-    // yet, so counting it would swallow the key for a verb that does nothing.
+    // propagating then. A tempo or time-signature chip is left out on purpose: neither has a
+    // Delete, so counting it would swallow the key for a verb that does nothing.
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
         state.chart_edit.selected_fret_hand_position.has_value() ||
@@ -2977,8 +2975,8 @@ void EditorController::Impl::clearActiveArrangementBestEffort(std::string_view c
 }
 
 // Caches the derived state as the seed for future attachView() pushes and forwards it to the
-// currently attached view if any. The null branch covers the construction window during which
-// restoreAudioDeviceState() may fire onAudioDeviceConfigurationChanged() before attachView().
+// currently attached view if any. The null branch covers construction and any other work that
+// publishes before the host attaches a view.
 void EditorController::Impl::updateView()
 {
     m_last_state = deriveViewState();
@@ -3095,12 +3093,11 @@ void EditorController::Impl::detachView()
 // Dirty state comes from imported unsaved projects, undo-history clean markers, and narrow
 // untracked cases such as load-time normalization rewrites or faulted sessions.
 //
-// "A project is open" is asked of `m_project_file` and the write in flight, NOT of `m_project`,
-// which a write legitimately empties for its whole duration: a project is moved out to the worker
-// so background IO never shares mutable ownership with message-thread actions. Reading openness
-// from that optional made this return false for the entire write — and close and exit both
-// SUPERSEDE busy, so a close during an export (which deliberately leaves the project dirty) skipped
-// the unsaved-changes prompt entirely and dropped the edits with no warning.
+// A project is open while `m_project` holds it OR a write has it in flight: a write moves the
+// project out to its worker so background IO never shares mutable ownership with message-thread
+// actions, leaving `m_project` empty for the whole write. Close and exit both SUPERSEDE busy, so
+// without the in-flight half a close during an export (which deliberately leaves the project
+// dirty) would skip the unsaved-changes prompt and drop the edits with no warning.
 bool EditorController::Impl::hasUnsavedChanges() const noexcept
 {
     const bool project_open = m_project.has_value() || m_project_write_in_flight;

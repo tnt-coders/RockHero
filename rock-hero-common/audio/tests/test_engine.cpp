@@ -718,7 +718,7 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
     CHECK(transport.position() == common::core::TimePosition{});
 }
 
-// Verifies the v1 speed contract on the concrete adapter: 1.0 round-trips, anything else is a
+// Verifies the speed contract on the concrete adapter: 1.0 round-trips, anything else is a
 // typed loud failure that leaves the reported speed untouched.
 TEST_CASE("Engine playback speed accepts only 1.0", "[audio][engine][integration]")
 {
@@ -1017,9 +1017,9 @@ TEST_CASE("Engine pauses on every hardware loss", "[audio][engine][integration]"
 }
 
 // Nothing reopens a device automatically: after a disconnect close, the saved device returning
-// produces no reopen (the automatic path crashed flaky ASIO drivers mid-enumeration and was
-// removed), and the closed status snapshot explains why the route is closed. The only reopen path
-// is an explicit application of the saved route from the settings window.
+// produces no reopen (noticing the replug would need a driver probe that crashes flaky ASIO
+// drivers mid-enumeration), and the closed status snapshot explains why the route is closed. The
+// only reopen path is an explicit application of the saved route from the settings window.
 TEST_CASE(
     "Engine leaves a closed device closed when its hardware returns",
     "[audio][engine][integration]")
@@ -1064,9 +1064,9 @@ TEST_CASE(
     });
 }
 
-// A deliberately closed device (the settings edit stages with the device closed) stays closed
-// through benign device events while its hardware remains attached: JUCE's own list handler is a
-// no-op with no open device, and the engine adds no reopen of its own.
+// A deliberately closed device stays closed through benign device events while its hardware
+// remains attached: JUCE's own list handler is a no-op with no open device, and the engine reopens
+// no hardware of its own.
 TEST_CASE(
     "Engine leaves a deliberately closed device closed while its hardware stays listed",
     "[audio][engine][integration]")
@@ -1083,7 +1083,7 @@ TEST_CASE(
     juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
     runMessageThreadSteps({
         [&] {
-            // The staging close, then a benign list event with the device still attached.
+            // A deliberate close, then a benign list event with the device still attached.
             device_manager.closeAudioDevice();
             fake_type.simulateDeviceListChange({g_fake_device_a_name});
             device_manager.dispatchPendingMessages();
@@ -2043,8 +2043,8 @@ TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][int
             .tone_document_ref = *second_ref,
         },
     };
-    // The load result surfaces each tone's summed reported latency (plan 21 Phase 5): empty
-    // chains report exactly zero, and the field exists for the editor's export warning to read.
+    // The load result surfaces each tone's summed reported latency: empty chains report exactly
+    // zero, and the field exists for the editor's export warning to read.
     REQUIRE((*loaded)->tone_chains.size() == 2);
     CHECK_THAT(
         (*loaded)->tone_chains[0].summed_reported_latency_seconds,
@@ -2355,7 +2355,7 @@ TEST_CASE("Engine arrangement load resyncs the tone timeline", "[audio][engine][
 }
 
 // Verifies the rig load scans to completion and refuses ONCE with the complete missing-plugin
-// list (gameplay policy 21-Q1(A)) instead of aborting at the first uninstalled plugin.
+// list instead of aborting at the first uninstalled plugin.
 TEST_CASE("Engine live rig lists every missing plugin", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
@@ -2791,8 +2791,8 @@ TEST_CASE("Engine clock publishes clamped seek positions", "[audio][engine][cloc
     CHECK(std::abs(harness.engine.snapshot().position.seconds - duration.seconds) < 1.0e-9);
 
     // The cursor-facing position() and the clock the highway reads must answer the same audible
-    // time for the same instant: they share one authority, so this can
-    // only fail if a second one appears.
+    // time for the same instant: they share one authority, so this can only fail if a second one
+    // appears.
     harness.engine.seek(common::core::TimePosition{mid_seconds});
     CHECK(
         std::abs(harness.engine.position().seconds - harness.engine.snapshot().position.seconds) <
@@ -2803,9 +2803,8 @@ TEST_CASE("Engine clock publishes clamped seek positions", "[audio][engine][cloc
 // position write, which rewinds the transport to zero. The clock has to report where the transport
 // actually is: publishing the requested end position instead would strand the clock -- and the
 // tone rack a boundary publish drags with it -- on end-of-song values with the playhead at the
-// origin. Guarded on the transport actually entering play: the harness opens the machine's real
-// default device on a developer box and finds none on a CI runner, where play() leaves the
-// transport stopped.
+// origin. Guarded on the transport actually entering play, so a headless run that never starts
+// playback asserts nothing it did not set up.
 TEST_CASE("Engine clock follows the auto-stop on a seek to the end", "[audio][engine][clock]")
 {
     EngineTestHarness harness;
@@ -2874,9 +2873,9 @@ TEST_CASE("Engine clock capture stamps never decrease across publishes", "[audio
 
 // While the transport plays, a message-thread republisher restamps the clock at render-adjacent
 // cadence; once stopped it is retired. Headless tests drive the real timer through JUCE's public
-// synchronous-timer hook because no message loop is pumped here. The playing branch is guarded:
-// without an audio device the headless transport may refuse to enter play, and the retired-timer
-// half of the contract is what must hold unconditionally.
+// synchronous-timer hook because no message loop is pumped here. The playing branch is guarded on
+// the published flag (see below); the retired-timer half of the contract is what must hold
+// unconditionally.
 TEST_CASE("Engine clock republisher runs only while playing", "[audio][engine][clock]")
 {
     EngineTestHarness harness;

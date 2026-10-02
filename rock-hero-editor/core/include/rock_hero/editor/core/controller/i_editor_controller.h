@@ -218,10 +218,10 @@ public:
 
     While paused the controller resolves the hit against the current tab projection: a plain
     note-glyph press selects the note and arms the caret there, Ctrl toggles membership (a
-    multi-select gesture — the caret dissolves in place), a double press selects the whole
-    onset group (likewise dissolving), and an empty-lane press arms the click-vs-marquee
-    disambiguation. While playing every lane press is a plain seek (the marker model — there
-    is no caret to place). Nothing mutates the chart.
+    multi-select gesture — the caret dissolves in place), a double press selects the whole onset
+    group (likewise dissolving), and an empty-lane press arms the click-vs-marquee disambiguation.
+    While playing every lane press is a plain seek — there is no caret to place. Nothing mutates
+    the chart.
 
     \param event Pointer event in lane-local pixels with the painted lane geometry.
     */
@@ -250,7 +250,7 @@ public:
     virtual void onChartPointerUp(const ChartPointerEvent& event) = 0;
 
     /*!
-    \brief Handles an arrow key on the position marker (the marker model).
+    \brief Handles an arrow key on the position marker.
 
     Up/Down walk the focus rows: the ruler's section, tempo and time-signature rows, the strings,
     then the tone row, the automation lanes and the "+" row beneath them. The caret arms only on a
@@ -305,15 +305,14 @@ public:
     /*!
     \brief Handles a jump onto a row reached by selection (Ctrl+Shift+letter).
 
-    The vertical walk's direct route: instead of stepping row by row, the press lands straight
-    on the row its letter names. It lands exactly as the walk does — the marker holding the
-    cursor is selected and an armed caret is demoted in place — and a following left/right arrow
-    re-arms the caret on the row it last rode. Where the named row has nothing to hold the cursor —
-    in practice a song with no sections or a chart with no fret-hand positions; a loaded
-    arrangement always has a tone region and an active tone — the press selects nothing, leaving an
-    armed caret armed, though it still brings
-    the cursor inside a marker selected elsewhere with the pointer, as every walk step does. Inert
-    while playing, with the rest of the marker plane.
+    The vertical walk's direct route: instead of stepping row by row, the press lands straight on
+    the row its letter names. It lands exactly as the walk does — the marker holding the cursor is
+    selected and an armed caret is demoted in place — and a following left/right arrow re-arms the
+    caret on the row it last rode. Where the named row has nothing to hold the cursor — in practice
+    a song with no sections or a chart with no fret-hand positions; a loaded arrangement always has
+    a tone region and an active tone — the press selects nothing, leaving an armed caret armed,
+    though it still brings the cursor inside a marker selected elsewhere with the pointer, as every
+    walk step does. Inert while playing, with the rest of the marker plane.
 
     \param row The row to land on.
     */
@@ -323,14 +322,14 @@ public:
     \brief Extends (or creates) the grid-locked time selection by one unit (Shift+arrows).
 
     The time selection is a full-height span across every surface, a mutually-exclusive kind of the
-    one editor-wide selection (decision D): making or extending it dissolves any object selection
-    and demotes the marker to passive. With a range already held, \p direction moves its focus edge
-    one \p extent from the anchor; with none held, the first press anchors at the caret
-    (grid-snapped, even from an off-grid caret) — or, while passive, at the nearest grid line to the
-    paused cursor — then extends from there. Every endpoint snaps to the display grid; a boundary is
-    never off-grid (decision B). \p direction Left is earlier, Right is later (Up/Down are ignored —
-    the span is full-height). A Section or Grid extend with nothing further in that direction is
-    refused, not clamped. Inert while playing — the range anchors on the paused marker.
+    one editor-wide selection: making or extending it dissolves any object selection and demotes
+    the marker to passive. With a range already held, \p direction moves its focus edge one
+    \p extent from the anchor; with none held, the first press anchors at the caret (grid-snapped,
+    even from an off-grid caret) — or, while passive, at the nearest grid line to the paused
+    cursor — then extends from there. Every endpoint snaps to the display grid; a boundary is never
+    off-grid. \p direction Left is earlier, Right is later (Up/Down are ignored — the span is
+    full-height). A Section or Grid extend with nothing further in that direction is refused, not
+    clamped. Inert while playing — the range anchors on the paused marker.
 
     \param extent The unit the focus edge moves by.
     \param direction Left to extend earlier, Right to extend later.
@@ -345,8 +344,8 @@ public:
     Dispatches on the selection's kind. Chart notes: Left/Right move the selection by one
     placement-quantum step (the move is RELATIVE, so a note between lines keeps its offset),
     Up/Down move it across string lanes; refused, never clamped, when any note would leave the neck
-    or land on an occupied slot, with the whole selection moving as one undo entry and 40-Q2-B
-    truncation of any overlaps it creates. An automation point: Left/Right step its time to the
+    or land on an occupied slot, with the whole selection moving as one undo entry and any ring a
+    moved note re-strikes truncated in it. An automation point: Left/Right step its time to the
     adjacent line of that same lattice, Up/Down step its value (one real state on a discrete lane,
     else 0.01), clamped strictly between its neighbors and inside the active region's window. With
     no selection but an armed caret on an empty lane slot, the arrow creates an on-curve point with
@@ -359,9 +358,9 @@ public:
     /*!
     \brief Handles the Delete key: deletes the one editor-wide selection, whatever its kind.
 
-    Exactly one selection exists across every surface (chart notes, a tone region, or an
-    automation point — interaction model), so this dispatches on the selection's
-    kind rather than probing surfaces in precedence order. A no-op when nothing is selected.
+    Exactly one selection exists across every surface (chart notes, a marker, an automation point,
+    a time span), so this dispatches on the selection's kind and never has to choose between
+    surfaces. A no-op when nothing is selected.
     */
     virtual void onSelectionDeleteRequested() = 0;
 
@@ -376,9 +375,9 @@ public:
     a ring's exact end alike (the ring already stops where that head starts, which keeps sequential
     entry safe), the head under the caret retyped, and inside a ring the head that CUTS it, taking
     the ring's remainder. While the marker is passive with no selection, digits are inert — a
-    stray keystroke after listening authors nothing (the marker model). Digits within the
-    multi-digit entry window combine (typing 1 then 2 yields fret 12 as ONE undo entry) whichever
-    plane began the entry; a digit outside the window starts a fresh value.
+    stray keystroke after listening authors nothing. Digits within the multi-digit entry window
+    combine (typing 1 then 2 yields fret 12 as ONE undo entry) whichever plane began the entry; a
+    digit outside the window starts a fresh value.
 
     \param digit Typed digit in [0, 9].
     */
@@ -440,12 +439,11 @@ public:
     write the saved form would not record, such as a scrape's mute, is an honest no-op. The
     emphasis pair writes one AXIS: accenting a ghosted note replaces the ghost. The pick slide
     keeps each note's fret as the scrape's start and grows the default path; clearing it lets the
-    overridden techniques resurface. While the selection and undo history
-    still prove the previous press was this verb's own entry, a second press of the SAME technique
-    reverses that
-    entry exactly — grown tails included — and leaves no history entry behind: a true on/off
-    toggle. Once that proof fails (a selection change, a caret move, any edit, undo/redo, a settling
-    sweep) the verb means its ordinary law again and Ctrl+Z is the revert.
+    overridden techniques resurface. While the selection and undo history still prove the previous
+    press was this verb's own entry, a second press of the SAME technique reverses that entry
+    exactly — grown tails included — and leaves no history entry behind: a true on/off toggle. Once
+    that proof fails (a selection change, a caret move, any edit, undo/redo, a settling sweep) the
+    verb means its ordinary law again and Ctrl+Z is the revert.
 
     `ChartTechnique::Legato` runs under the same contract with its own plan: the connection resolver
     is the only authority on eligibility, applying is always the first answer — every note whose
@@ -543,16 +541,15 @@ public:
 
     One verb, two directions, one compound undo entry. A selected KEYFRAME becomes a head: the
     note's path ends there and a new head takes the remainder, carrying the bend and vibrato already
-    in force so the sound does not change across the split (W10's addendum). A selected HEAD
-    becomes a point on its same-string predecessor's path: the two rings join end to end, the
-    head's own keyframes ride along rebased, and everything a STRIKE states — attack, mutes, node,
-    tremolo, emphasis — goes with the head, because the join is the statement that no strike
-    happens there.
+    in force so the sound does not change across the split. A selected HEAD becomes a point on its
+    same-string predecessor's path: the two rings join end to end, the head's own keyframes ride
+    along rebased, and everything a STRIKE states — attack, mutes, node, tremolo, emphasis — goes
+    with the head, because the join is the statement that no strike happens there.
 
     The join is the split's exact inverse, so split-then-join restores the chart byte for byte. On
     an equal-fret junction the point it leaves says nothing the path does not already say, and the
-    history and the document writer both shed it — which is W10's tie, written as one longer ring
-    and one note fewer with no tie datum anywhere.
+    history and the document writer both shed it — a tie, written as one longer ring and one note
+    fewer with no tie datum anywhere.
 
     Selection-scoped like every other technique verb; refused — never clamped — where a head must
     sit on a fret the chart does not state, or where a predecessor cannot hand its string over.
@@ -563,10 +560,10 @@ public:
     /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
 
-    The Esc ladder (the marker model): an in-flight pointer gesture (marquee or
-    armed press) is abandoned without mutating; else an armed caret dissolves to the passive
-    cursor in its place, keeping the selection; else a standing note selection clears. Either
-    marker rung also ends the multi-digit fret-entry window.
+    The Esc ladder: an in-flight pointer gesture (marquee or armed press) is abandoned without
+    mutating; else an armed caret dissolves to the passive cursor in its place, keeping the
+    selection; else a standing note selection clears. Either marker rung also ends the multi-digit
+    fret-entry window.
     */
     virtual void onChartEscapePressed() = 0;
 
@@ -609,8 +606,8 @@ public:
     operand of Delete and Alt+arrows, and like every marker selection it is cleared by any cursor
     move. An index naming no placement selects nothing.
 
-    \param index Index of the placement in the chart's stream, which the tab projection's
-           placement list mirrors one to one.
+    \param index Index of the placement in the chart's stream, which the tab projection's placement
+    list mirrors one to one.
     */
     virtual void onFretHandPositionSelected(std::size_t index) = 0;
 
@@ -852,7 +849,7 @@ public:
     by the editor-core suite (arm at 2.5 s, not at a pixel), keeping the caret-semantics tests off
     the pixel-geometry path the pointer boundary cases already cover. The caret arms at the nearest
     grid slot on the lane and the transport rests at that slot (the row-axis form of the chart
-    lane's empty click, §9b). While playing it only seeks — armed implies paused.
+    lane's empty click). While playing it only seeks — armed implies paused.
 
     \param instance_id Plugin instance owning the lane's parameter.
     \param param_id Parameter id within the plugin.
@@ -862,15 +859,15 @@ public:
         std::string instance_id, std::string param_id, common::core::TimePosition time) = 0;
 
     /*!
-    \brief Handles a button-less hover over an automation lane (the Alt insert ghost, §9b).
+    \brief Handles a button-less hover over an automation lane (the Alt insert ghost).
 
     While paused with Alt held over an insertable empty lane slot the controller publishes the
     insert ghost — the hollow ring on the curve where an Alt+click would plant a point — snapping
     resolved exactly as the click itself would: the controller inverts the event's raw pixel x
-    through the same placement seam (timelinePositionForX then the placement quantum's lattice),
-    so the ring lands on the identical slot a click would, with no sub-pixel drift. Without
-    Alt, or while playing, any standing ghost clears. The hover never mutates the model or moves the
-    marker. The lanes view resolves which lane the pointer is over and names it on the event.
+    through the same placement seam (timelinePositionForX then the placement quantum's lattice), so
+    the ring lands on the identical slot a click would, with no sub-pixel drift. Without Alt, or
+    while playing, any standing ghost clears. The hover never mutates the model or moves the marker.
+    The lanes view resolves which lane the pointer is over and names it on the event.
 
     \param event Lane-local pointer state (hovered lane identity, geometry, pixel x/y, modifiers).
     */
@@ -1014,6 +1011,7 @@ public:
 
     A measurement that finishes here reports its gain; nothing is stored until
     onInputCalibrationApplied().
+
     \return The raw level, and the measurement's progress if one was running.
     */
     [[nodiscard]] virtual common::audio::LiveInputSample onInputCalibrationSampled() = 0;

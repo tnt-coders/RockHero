@@ -3,9 +3,9 @@
 namespace rock_hero::editor::core
 {
 
-// Central source of busy-overlay default copy. Controller fills BusyViewState::message from this
-// helper at beginBusy() time so every entry point produces consistent text without each call site
-// retyping it.
+// Central source of busy-overlay default copy. BusyOperationState::viewState() fills
+// BusyViewState::message from this helper so every entry point produces consistent text without
+// each call site retyping it.
 std::string busyMessage(BusyOperation operation)
 {
     switch (operation)

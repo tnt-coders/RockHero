@@ -234,7 +234,6 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
     CHECK(output_meter.level() == common::audio::AudioMeterLevel{});
 }
 
-// Verifies the signal-chain meters use the intended input and output control layout.
 // Verifies the Tone Designer file strip appears only in designer mode and routes its intents.
 TEST_CASE("Tone designer strip shows in designer mode and emits intents", "[ui][editor-view]")
 {
@@ -1381,8 +1380,8 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
 }
 
 // While no chain verb is available — the calibration prompt owns the chain, say — the chain still
-// SHOWS: hiding it read as a lost tone. Its tiles stay, dimmed as one layer, and a click opens
-// nothing.
+// SHOWS: hiding it would read as a lost tone. Its tiles stay, dimmed as one layer, and a click
+// opens nothing.
 TEST_CASE(
     "Signal-chain shows its tiles inert while no chain verb is available", "[ui][editor-view]")
 {

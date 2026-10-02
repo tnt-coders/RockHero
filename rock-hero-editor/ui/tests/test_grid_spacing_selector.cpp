@@ -292,10 +292,10 @@ TEST_CASE("GridSpacingSelector strikes only the value while snap is off", "[ui][
 //
 // Both assertions are falsifiers for a specific way this mark degrades. The digit band's centre is
 // fractional, so a 1px line laid there covers two rows at about half strength each — measurably
-// the quieted look that sighting rejected, reached by accident rather than by choice; only a
+// the quieted look the indicator must avoid, reached by accident rather than by choice; only a
 // whole-pixel row gives one row of the digits' own ink. And a row derived from the value rather
 // than from the font's line box would drift as the number got wider, drawing one fixed state as a
-// varying mark, which is exactly the defect the replaced diagonal had.
+// varying mark, which is exactly what a diagonal strike would do.
 TEST_CASE("GridSpacingSelector strikes one full-coverage row at every value", "[ui][grid-spacing]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

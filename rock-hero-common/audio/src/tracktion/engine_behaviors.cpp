@@ -159,7 +159,7 @@ namespace
 constexpr int g_thumbnail_samples_per_point{16};
 
 // Distinct type so Tracktion's thumbnail cache hashing (which keys cache files by the thumbnail
-// type's typeid) never pairs these thumbnails with files cached at the old coarser granularity.
+// type's typeid) never pairs these thumbnails with files cached at Tracktion's coarser default.
 class HighResolutionAudioThumbnail final : public juce::AudioThumbnail
 {
 public:

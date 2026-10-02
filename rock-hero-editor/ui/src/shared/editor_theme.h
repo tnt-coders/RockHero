@@ -102,7 +102,7 @@ struct EditorTheme
 
     Pure red on purpose: its relative luminance (~0.21) against the digit white (1.0) keeps the
     valid/invalid signal legible on luminance alone, so it survives protan and deutan vision
-    without a second shape (the pending-entry ruling).
+    without a second shape.
     */
     juce::Colour invalid{0xffff0000};
 
@@ -138,9 +138,9 @@ The returned color is translucent, so the compositor puts it exactly halfway bet
 that ground on every band, with no ground constant to state or to get wrong.
 
 The precondition is what makes it exact: nothing but the ground may lie underneath, and the mark
-must not overlap itself (a second pass over the same pixel would composite twice). A mark drawn
-over OTHER marks leans opaquely toward its own ground instead — the 2D tab lane's rule, where a
-tail, a lane line, or a chord fill sits beneath a note and translucency would reveal them.
+must not overlap itself (a second pass over the same pixel would composite twice). Marks drawn over
+OTHER marks cannot use it, because translucency would reveal what lies beneath them; the 2D tab
+lane instead fades a whole note group through one transparency layer over its flattened art.
 
 Chrome the editor does not draw itself — a child component's own text and borders — is never
 quieted at all. Compositing over such a region takes its background down with the marks, and a

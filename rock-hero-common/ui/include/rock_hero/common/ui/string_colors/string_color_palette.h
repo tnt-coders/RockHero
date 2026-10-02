@@ -24,12 +24,12 @@ value and every derivation result carries an opaque 0xff alpha.
 using ArgbColor = std::uint32_t;
 
 /*!
-\brief The achromatic string colour: the near-white grey the 8th string wears in every palette.
+\brief The achromatic string color: the near-white grey the 8th string wears in every palette.
 
 The one WHITE the board speaks, named once so the marks that must read as white without a hue —
 the picking hand's chord box and rails — take the same near-white the 8th string does rather than
 a second one. Achromatic because the 8th string's fundamental folds outside visible light, so it
-has no hue to represent (plan 45, open question 2).
+has no hue to represent.
 */
 inline constexpr ArgbColor g_achromatic_string_color = 0xffb6b6b6;
 
@@ -98,8 +98,8 @@ defensively past its end.
 The derivation chain is bit-identical to Charter's fixed multiply/brighten/darken sequence, with
 one deliberate divergence: the accent color brightens hue-preservingly instead of with Charter's
 per-channel double brighten, which bleaches saturated hues toward yellow (an orange or green
-accent glow rendered yellow — user-flagged bug). All consumers — the editor tab lane, the editor
-3D preview, and the game highway — render identical string styles from this one authority.
+accent glow would render yellow). All consumers — the editor tab lane, the editor 3D preview, and
+the game highway — render identical string styles from this one authority.
 */
 struct StringLaneStyle
 {

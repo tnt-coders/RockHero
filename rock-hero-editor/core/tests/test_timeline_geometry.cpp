@@ -19,8 +19,7 @@ constexpr int g_window_width = 101;
 
 } // namespace
 
-// Verifies interior positions map proportionally onto the
-// [0, width - 1] span at start, mid, and end.
+// Verifies start, mid, and end positions map proportionally onto the [0, width - 1] pixel span.
 TEST_CASE("Timeline geometry maps interior positions proportionally", "[core][timeline]")
 {
     const std::optional<float> start_x = timelineXForPosition(

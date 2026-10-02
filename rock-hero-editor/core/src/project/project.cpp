@@ -89,8 +89,8 @@ using common::core::Song;
     }};
 }
 
-// Renamed from normalizeImportedSong because this helper only resolves arrangement audio paths
-// into the imported workspace; loudness normalization happens in a separate pass below.
+// Resolves each arrangement's audio path into the imported workspace, rejecting a song with no
+// arrangement or with audio outside the workspace. Loudness normalization is a separate pass below.
 [[nodiscard]] std::expected<Song, ProjectError> resolveImportedSongAudioPaths(
     const std::filesystem::path& workspace_directory, Song song)
 {
@@ -129,8 +129,8 @@ using common::core::Song;
     return std::expected<Song, ProjectError>{std::in_place, std::move(song)};
 }
 
-// Collects unique resolved audio paths referenced by arrangements. Order is preserved so the
-// normalized output filenames are deterministic across reruns of the same import.
+// Collects unique resolved audio paths referenced by arrangements, in first-seen arrangement order
+// so each shared backing file is analyzed once and in a deterministic order.
 [[nodiscard]] std::vector<std::filesystem::path> collectUniqueAudioAssets(const Song& song)
 {
     std::vector<std::filesystem::path> unique_paths;

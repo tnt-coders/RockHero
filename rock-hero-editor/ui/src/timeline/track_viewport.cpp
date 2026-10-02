@@ -245,7 +245,7 @@ void TrackViewport::TimelineViewport::visibleAreaChanged(
     }
 }
 
-// Installs the existing waveform track and cursor overlay into viewport-owned content.
+// Installs the track rows and the cursor overlay into viewport-owned content.
 TrackViewport::TrackViewport(
     core::IEditorController& controller, ArrangementView& arrangement_view, TabView& tab_view,
     ToneTrackView& tone_track_view, ToneAutomationLanesView& tone_automation_lanes_view,
@@ -513,8 +513,8 @@ int TrackViewport::defaultVisibleCanvasHeight() const noexcept
     return std::max(1, g_track_canvas_default_height - m_viewport.getScrollBarThickness());
 }
 
-// Keeps the tone row at a fixed label-height strip: regions only need to show their name until
-// clicking one expands per-automation sub-lanes (planned), so taller rows are wasted space.
+// Keeps the tone row at a fixed label-height strip: regions only need to show their name, so
+// taller rows are wasted space.
 int TrackViewport::toneTrackHeight() const noexcept
 {
     return g_tone_track_height;
@@ -1059,7 +1059,7 @@ void TrackViewport::updateRulerView()
 // Hands every row the range the canvas width represents, so the notation, the waveform, the tone
 // rows, and the overlay all map time onto the same columns this shell sized them for. The rows
 // take the range rather than the gutter because the gutter is a canvas fact, not a musical one:
-// each row keeps mapping across its own full width exactly as before.
+// each row maps across its own full width with no gutter offset to apply.
 void TrackViewport::pushCanvasTimeline()
 {
     const common::core::TimeRange canvas_timeline = canvasTimeline();

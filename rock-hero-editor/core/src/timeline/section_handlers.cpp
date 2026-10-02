@@ -125,9 +125,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSec
 // Renames the section at a position. Position-anchored like the tone rename beside it, so Ctrl+M at
 // the cursor, Enter and Ctrl+R on a selected chip, and the chip double-click reach a section the
 // same way. A name that changes nothing pushes nothing, and a blank one is refused by the section
-// rules at the commit. A restate SELECTS its target (rule 4) — whether the name changed or not, so
-// the chord typed at the cursor leaves the section it addressed under Enter, Delete and
-// Alt+arrows — and only a refused rename leaves the selection where it was.
+// rules at the commit. A restate SELECTS its target — whether the name changed or not, so the
+// chord typed at the cursor leaves the section it addressed under Enter, Delete and Alt+arrows —
+// and only a refused rename leaves the selection where it was.
 void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSection& action)
 {
     SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());

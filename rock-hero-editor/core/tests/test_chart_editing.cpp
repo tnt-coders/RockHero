@@ -95,8 +95,8 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
     CHECK_FALSE(state->chart_edit.caret.has_value());
 
-    // Shift behaves as plain until plan 52's time-range selection lands: it replaces the
-    // selection with the clicked note.
+    // Shift on a note behaves as a plain click and replaces the selection with the clicked note;
+    // on this lane Shift extends only a marquee box.
     click(controller, 80.0f, 220.0f, ChartPointerModifiers{.shift = true});
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 
@@ -556,7 +556,7 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     REQUIRE(grid_slot != tick_slot);
 
     // Snap on: the click arms on the grid line and the typed head lands there, ringing one grid
-    // step. A digit is the only way a head is placed now, so the placement rule is read through it.
+    // step. A digit is the only way to place a head, so the placement rule is read through it.
     click(controller, off_grid_x, 100.0f);
     controller.onChartFretDigitTyped(3);
     const common::core::Chart* chart = chartOrNull(controller);

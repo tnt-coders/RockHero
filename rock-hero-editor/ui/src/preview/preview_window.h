@@ -1,6 +1,6 @@
 /*!
 \file preview_window.h
-\brief Top-level editor window hosting the 3D highway preview (plan 44).
+\brief Top-level editor window hosting the 3D highway preview.
 */
 
 #pragma once
@@ -31,8 +31,8 @@ Show resumes the render surface and hide suspends its frame ticks: a hidden JUCE
 keeps its native peer (and the embedded render child) alive, but the vblank feed is
 visibility-blind, so the ticks stop explicitly while the window is away. The GPU stack itself
 lives from first open until destruction because bgfx cannot re-initialize in-process.
-Transport and song-navigation keys pressed while the preview has focus forward to the main view
-(44-Q4), so play/pause and caret navigation work without refocusing the editor.
+Transport and song-navigation keys pressed while the preview has focus forward to the main view,
+so play/pause and caret navigation work without refocusing the editor.
 */
 class PreviewWindow final : public juce::DocumentWindow
 {
@@ -51,16 +51,24 @@ public:
         juce::Component* centering_component);
 
     /*!
-    \brief Runs close() and detaches the key listener, then hides the window.
+    \brief Detaches the key listener, then runs close(), which suspends the surface and hides the
+    window.
 
     Detaching first: the key-listener list holds a non-owning pointer to the filter this window
     owns.
     */
     ~PreviewWindow() override;
 
+    /*! \brief Copying is disabled because JUCE window ownership is not copyable. */
     PreviewWindow(const PreviewWindow&) = delete;
+
+    /*! \brief Copy assignment is disabled because JUCE window ownership is not copyable. */
     PreviewWindow& operator=(const PreviewWindow&) = delete;
+
+    /*! \brief Moving is disabled because the listener registration is identity-based. */
     PreviewWindow(PreviewWindow&&) = delete;
+
+    /*! \brief Move assignment is disabled because the listener registration is identity-based. */
     PreviewWindow& operator=(PreviewWindow&&) = delete;
 
     /*! \brief Shows the window and brings the render surface up (or resumes its ticks). */

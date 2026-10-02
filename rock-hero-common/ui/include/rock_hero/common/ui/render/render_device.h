@@ -16,14 +16,13 @@ namespace rock_hero::common::ui
 /*!
 \brief Render backends this project ships or tests against.
 
-The gate pinned Direct3D 11 as the required proven Windows backend; Noop is the GPU-less,
-window-less backend the headless test suite runs on (gate criterion S5). Adding a platform later
-extends this enum and the platform table behind \ref defaultRenderBackend — an init-time choice,
-never a build-graph change.
+Direct3D 11 is the production Windows backend; Noop is the GPU-less, window-less backend the
+headless test suite runs on. Adding a platform extends this enum and the platform table behind
+\ref defaultRenderBackend — an init-time choice, never a build-graph change.
 */
 enum class RenderBackend : std::uint8_t
 {
-    /*! \brief Direct3D 11 — the spike-proven production backend on Windows. */
+    /*! \brief Direct3D 11 — the production backend on Windows. */
     Direct3D11,
 
     /*! \brief bgfx's no-op backend for headless tests: no GPU, no window, no platform data. */
@@ -33,7 +32,7 @@ enum class RenderBackend : std::uint8_t
 /*!
 \brief Returns the production render backend for the platform this build targets.
 
-\return The backend the game window renders with (one-entry table today: Windows → Direct3D 11).
+\return The backend the game window renders with (a one-entry table: Windows → Direct3D 11).
 */
 [[nodiscard]] RenderBackend defaultRenderBackend() noexcept;
 
@@ -102,7 +101,7 @@ struct RenderDeviceConfig
     /*! \brief Initial backbuffer height in pixels. */
     std::uint32_t height = 0;
 
-    /*! \brief True enables vsync — the gate's default frame-pacing policy (20-Q6: A). */
+    /*! \brief True enables vsync — the default frame-pacing policy. */
     bool vsync = true;
 
     /*!
@@ -116,8 +115,8 @@ struct RenderDeviceConfig
     /*!
     \brief True enables bgfx's debug checks and the D3D11 SDK debug layers when present.
 
-    Wired to the dev-diagnostics runtime flag (plan 20 Phase 4, 20-Q5: A); bgfx degrades
-    gracefully when the debug layers are not installed.
+    Wired to the dev-diagnostics runtime flag; bgfx degrades gracefully when the debug layers are
+    not installed.
     */
     bool debug = false;
 };
@@ -174,10 +173,9 @@ public:
 
     Scene content (the highway renderer) encodes its views before this call; this executes and
     presents them. With vsync on, the present blocks until the display's next refresh — this
-    call is the frame pacer of the main loop. Present semantics (Phase 3 checkpoint): bgfx flips
-    BEFORE it renders, so each call presents the PREVIOUS frame's content and then executes this
-    frame's commands; a timestamp taken after this returns is a pacing anchor, never a photon
-    time.
+    call is the frame pacer of the main loop. Present semantics: bgfx flips BEFORE it renders, so
+    each call presents the PREVIOUS frame's content and then executes this frame's commands; a
+    timestamp taken after this returns is a pacing anchor, never a photon time.
     */
     void submitFrame();
 
@@ -194,7 +192,7 @@ public:
     [[nodiscard]] std::uint32_t height() const noexcept;
 
     /*!
-    \brief Enables or disables bgfx's built-in debug-text overlay (the Phase 3 overlay v1).
+    \brief Enables or disables bgfx's built-in debug-text overlay.
     \param enabled True to draw queued debug text over every frame.
     */
     void setDebugTextEnabled(bool enabled);

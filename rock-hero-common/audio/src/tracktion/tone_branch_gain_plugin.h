@@ -51,7 +51,10 @@ public:
     /*! \brief Moving is disabled; Tracktion plugins are reference-counted graph nodes. */
     ToneBranchGainPlugin(ToneBranchGainPlugin&&) = delete;
 
-    /*! \brief Move assignment is disabled; Tracktion plugins are reference-counted graph nodes. */
+    /*!
+    \brief Move assignment is disabled; Tracktion plugins are reference-counted graph nodes.
+    \return Reference to this plugin.
+    */
     ToneBranchGainPlugin& operator=(ToneBranchGainPlugin&&) = delete;
 
     /*!
@@ -138,7 +141,7 @@ public:
     void restorePluginStateFromValueTree(const juce::ValueTree& tree) override;
 
     /*!
-    \brief Returns the automatable branch gain parameter for schedule baking and preview.
+    \brief Returns the automatable branch gain parameter for schedule baking and direct switches.
     \return Reference-counted pointer to the 0..1 branch gain parameter.
     */
     [[nodiscard]] tracktion::AutomatableParameter::Ptr branchGainParameter() const;

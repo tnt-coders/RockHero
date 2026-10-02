@@ -90,7 +90,7 @@ public:
         /*! \brief Read-only transport used by cursor drawing and viewport following. */
         const common::audio::ITransport& transport;
 
-        /*! \brief Playback-time telemetry sampled by the 3D preview while playing (plan 44). */
+        /*! \brief Playback-time telemetry sampled by the 3D preview while playing. */
         const common::audio::IPlaybackClock& playback_clock;
 
         /*! \brief Factory used by the arrangement view to create its thumbnail. */
@@ -193,8 +193,8 @@ public:
     \brief Routes Alt-modified wheels bubbled from anywhere in the editor to the selection.
 
     Selection verbs follow the selection, not the pointer: with a chart selection active,
-    Alt+wheel adjusts sustain (Ctrl composes the fine grid) and Alt+Shift+wheel shifts frets
-    wherever the pointer sits. Wheel-consuming surfaces (the timeline zoom) route their
+    Alt+wheel adjusts sustain and Alt+Shift+wheel shifts frets, one placement-quantum step per
+    detent, wherever the pointer sits. Wheel-consuming surfaces (the timeline zoom) route their
     Alt-modified wheels here instead of acting on them; unhandled wheels keep bubbling.
 
     \param event Mouse event delivered by JUCE.
@@ -229,7 +229,8 @@ public:
     \brief Returns the editor command manager that owns the keybind registry and key mappings.
 
     The manager's key mapping set is the single chord-to-command matcher; the owning window
-    attaches it as a key listener so shortcuts fire wherever focus lands inside the window.
+    dispatches every key press through it, so shortcuts fire wherever focus lands inside the
+    window.
 
     \return Command manager owned by this view.
     */
@@ -464,126 +465,114 @@ private:
     // SignalChainView::Listener implementation.
     void onExportTonePressed() override;
 
-    /*! \copydoc TimelineRuler::Listener::onSongSectionSelected */
+    // TimelineRuler::Listener implementation.
     void onSongSectionSelected(std::optional<common::core::GridPosition> position) override;
 
-    /*! \copydoc TimelineRuler::Listener::onTempoAnchorSelected */
+    // TimelineRuler::Listener implementation.
     void onTempoAnchorSelected(common::core::GridPosition position) override;
 
-    /*! \copydoc TimelineRuler::Listener::onTimeSignatureSelected */
+    // TimelineRuler::Listener implementation.
     void onTimeSignatureSelected(int measure) override;
 
-    /*! \copydoc TimelineRuler::Listener::onSongSectionRenamePromptRequested */
+    // TimelineRuler::Listener implementation.
     void onSongSectionRenamePromptRequested(
         common::core::GridPosition position, juce::String current_name) override;
 
-    /*! \copydoc TimelineRuler::Listener::onSongSectionInsertPromptRequested */
+    // TimelineRuler::Listener implementation.
     void onSongSectionInsertPromptRequested(common::core::GridPosition position) override;
 
-    /*! \copydoc TimelineRuler::Listener::onSongSectionDeleteRequested */
+    // TimelineRuler::Listener implementation.
     void onSongSectionDeleteRequested() override;
 
-    /*! \copydoc TimelineRuler::Listener::onSongSectionMoveRequested */
+    // TimelineRuler::Listener implementation.
     void onSongSectionMoveRequested(bool later) override;
 
-    /*! \brief Opens the rename prompt the core's published rename verb names. */
+    // Opens the rename prompt the core's published rename verb names.
     void renameSection(const core::RenameSectionTarget& target);
 
-    /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
+    // ToneTrackView::Listener implementation.
     void onToneRegionSelected(std::string region_id) override;
 
-    /*! \copydoc ToneTrackView::Listener::onPlaybackFrameAdvanced */
+    // ToneTrackView::Listener implementation.
     void onPlaybackFrameAdvanced() override;
 
-    /*! \brief Shows the tone-picker menu that splits a region at the published verb's position. */
+    // Shows the tone-picker menu that splits a region at the published verb's position.
     void splitToneRegion(const core::SplitToneRegionTarget& target);
 
-    /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
+    // Prompts for a name and asks the controller to create a new tone at the marker.
     void promptForNewTone(common::core::GridPosition position);
 
-    /*! \brief Asks for a new tone's name, then hands the trimmed name to the caller's request. */
+    // Asks for a new tone's name, then hands the trimmed name to the caller's request.
     void promptForNewToneName(std::function<void(std::string)> on_named);
 
-    /*! \brief One catalog tone the picker can offer: a region's document ref and display name. */
+    // One catalog tone the picker can offer: a region's document ref and display name.
     struct ReusableTone final
     {
         std::string ref;
         std::string name;
     };
 
-    /*!
-    \brief Distinct catalog tones the tone track references, minus the one the verb would not
-    change.
-
-    The picker's list for both the insert and the restate. Each excludes exactly the tone that
-    would make its verb a no-op — the region being split, or the region being restated, already
-    sounds it. A neighbour's tone is offered: choosing it merges the regions, which is a change.
-    */
+    // Distinct catalog tones the tone track references, minus the one the verb would not change:
+    // the picker's list for both the insert and the restate. Each excludes exactly the tone that
+    // would make its verb a no-op — the region being split, or the region being restated, already
+    // sounds it. A neighbour's tone is offered: choosing it merges the regions, which is a change.
     [[nodiscard]] std::vector<ReusableTone> reusableTones(std::string_view excluded_ref) const;
 
-    /*!
-    \brief Shows the tone picker over the given tones.
-
-    \param tones Catalog tones the picker offers, in menu order.
-    \param on_reuse Runs with the chosen tone's document ref when an offered tone is picked.
-    \param on_new_tone When present, a trailing "New tone" item runs it.
-    */
+    // Shows the tone picker over `tones`, in menu order: picking one runs `on_reuse` with its
+    // document ref, and when `on_new_tone` is present a trailing "New tone" item runs it.
     void showTonePicker(
         std::vector<ReusableTone> tones, std::function<void(std::string)> on_reuse,
         std::optional<std::function<void()>> on_new_tone);
 
-    /*!
-    \brief Shows the picker to repoint a tone region at a different catalog tone.
-
-    \param target The region and the tone it sounds now, as the core published them.
-    */
+    // Shows the picker to repoint a tone region at a different catalog tone; `target` is the
+    // region and the tone it sounds now, as the core published them.
     void restateToneRegion(const core::RetoneRegionTarget& target);
 
-    /*! \copydoc ToneTrackView::Listener::onToneBoundaryMoveRequested */
+    // ToneTrackView::Listener implementation.
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position) override;
 
-    /*! \copydoc ToneTrackView::Listener::onToneRenamePromptRequested */
+    // ToneTrackView::Listener implementation.
     void onToneRenamePromptRequested(
         std::string tone_document_ref, std::string current_name) override;
 
-    /*! \copydoc ToneTrackView::Listener::onToneChangeInsertRequested */
+    // ToneTrackView::Listener implementation.
     void onToneChangeInsertRequested(
         common::core::GridPosition position, std::string containing_tone_document_ref) override;
 
-    /*! \copydoc ToneTrackView::Listener::onToneRegionDeleteRequested */
+    // ToneTrackView::Listener implementation.
     void onToneRegionDeleteRequested(std::string region_id) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneAddRequested */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneRemoveRequested */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationLaneRemoveRequested(
         std::string instance_id, std::string param_id) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointsEditRequested */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationPointsEditRequested(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointSelectRequested */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationPointSelectRequested(
         std::string instance_id, std::string param_id,
         common::core::GridPosition position) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerMove */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationPointerMove(const core::ToneAutomationPointerEvent& event) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerExit */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationPointerExit() override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerDown */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationPointerDown(const core::ToneAutomationPointerEvent& event) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerDrag */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationPointerDrag(const core::ToneAutomationPointerEvent& event) override;
 
-    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerUp */
+    // ToneAutomationLanesView::Listener implementation.
     void onToneAutomationPointerUp(const core::ToneAutomationPointerEvent& event) override;
 
     // PluginBrowserWindow::Listener implementation.
@@ -645,7 +634,7 @@ private:
     // Read-only transport sampled at display cadence for the transport-strip time readout.
     const common::audio::ITransport& m_transport;
 
-    // Playback-time telemetry the 3D preview samples while playing (plan 44).
+    // Playback-time telemetry the 3D preview samples while playing.
     const common::audio::IPlaybackClock& m_playback_clock;
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
@@ -663,7 +652,7 @@ private:
     // first; the declaration order stays as it is so the look-and-feel outlives the bar.
     std::unique_ptr<MenuLookAndFeel> m_menu_look_and_feel;
 
-    // Editor File menu.
+    // Editor menu bar (File, Edit, View), with this view as its model.
     juce::MenuBarComponent m_menu_bar;
 
     // Concrete presentation-only transport control strip.
@@ -741,7 +730,7 @@ private:
     // Optional top-level audio-device settings window.
     std::unique_ptr<juce::DocumentWindow> m_audio_device_settings_window;
 
-    // Optional top-level 3D preview window (plan 44); created on first toggle, then kept and
+    // Optional top-level 3D preview window; created on first toggle, then kept and
     // shown/hidden (its render surface rebuilds per open).
     std::unique_ptr<PreviewWindow> m_preview_window;
 

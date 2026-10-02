@@ -24,6 +24,8 @@ constexpr const char* g_default_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30
 
 } // namespace
 
+// Verifies a cataloged arrangement with no regions gains one region from the song start on its
+// first catalog tone.
 TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core][tone]")
 {
     Song song = makeSong();
@@ -44,6 +46,7 @@ TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core
     CHECK(normalized.tones.front().name == "Clean Verse");
 }
 
+// Verifies an arrangement that already owns regions is not normalized again.
 TEST_CASE("ensureExplicitToneRegions leaves authored regions untouched", "[core][tone]")
 {
     Song song = makeSong();
@@ -65,6 +68,7 @@ TEST_CASE("ensureExplicitToneRegions leaves authored regions untouched", "[core]
     CHECK(normalized.tone_track.regions.front().id == "existing");
 }
 
+// Verifies an arrangement with an empty catalog gets no region: there is no tone to anchor one to.
 TEST_CASE("ensureExplicitToneRegions leaves a tone-less arrangement empty", "[core][tone]")
 {
     Song song = makeSong();

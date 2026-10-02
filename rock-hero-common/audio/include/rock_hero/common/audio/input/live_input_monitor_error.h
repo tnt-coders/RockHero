@@ -15,9 +15,8 @@ namespace rock_hero::common::audio
 \brief Coarse failure reasons for LiveInputMonitor operations.
 
 The service exposes operation-level codes and preserves the underlying live-input or store
-diagnostic in \ref LiveInputMonitorError::message. The internal route-unavailable-versus-other
-rollback distinction is not surfaced here; it stays inside the service, branching on the raw
-LiveInputError code the live-input port returns.
+diagnostic in \ref LiveInputMonitorError::message. It recovers from every failure by re-running its
+gate, so callers never need the finer LiveInputError code the live-input port returned.
 */
 enum class LiveInputMonitorErrorCode : std::uint8_t
 {

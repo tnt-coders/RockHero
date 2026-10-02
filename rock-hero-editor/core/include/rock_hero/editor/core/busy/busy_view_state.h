@@ -93,8 +93,8 @@ struct BusyViewState
     /*!
     \brief Optional determinate progress value from 0.0 to 1.0.
 
-    Used by BusyIndicator::DeterminateProgress. The open-project flow should set this only after
-    it enters a countable phase such as restoring multiple plugins.
+    Used by BusyIndicator::DeterminateProgress. Set only once an operation enters a countable
+    phase, such as restoring a live rig's plugins or scanning plugin files.
     */
     std::optional<double> progress{};
 

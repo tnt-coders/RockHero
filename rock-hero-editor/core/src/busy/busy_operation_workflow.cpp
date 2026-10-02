@@ -106,6 +106,7 @@ public:
     void wait()
     {
         std::unique_lock lock(m_mutex);
+        // Bounded so a paint that never arrives cannot hang the worker indefinitely.
         static constexpr auto g_max_wait = std::chrono::milliseconds(250);
         m_condition.wait_for(lock, g_max_wait, [this]() { return m_released; });
     }

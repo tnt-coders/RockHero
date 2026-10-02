@@ -156,7 +156,7 @@ enum class ChartErrorCode : std::uint8_t
     InvalidNote,
     /*! \brief Notes are not sorted by position and string, or duplicate an onset. */
     UnsortedOrDuplicateNotes,
-    /*! \brief A keyframe is empty, misordered, outside its sustain, or states an illegal value. */
+    /*! \brief A keyframe is out of order or sustain, off the lattice, or states a negative. */
     InvalidNotePayload,
     /*! \brief A fret-hand position is out of range, or the stream is not strictly ascending. */
     InvalidFretHandPosition,
@@ -231,7 +231,7 @@ enum class ChartRepair : std::uint8_t
     OpenStringSlide,
     /*! \brief A tap with nowhere to strike became a plain pick (E4). */
     StrandedStrike,
-    /*! \brief A tail ringing across the next onset on its own string was truncated (40-Q2-B). */
+    /*! \brief A tail ringing across the next onset on its own string was truncated. */
     OverlappingTail,
     /*! \brief A fret, slide position, or hand window past the last fret clamped onto the board. */
     FretPastBoard,
@@ -377,7 +377,7 @@ bool clipPayloadsToSustain(ChartNote& note, Fraction sustain);
 /*!
 \brief The one bound on a note's ring: how far it may sound before its string is struck again.
 
-`ChartNote::sustain` is the actual duration the string rings, and 40-Q2-B is the only thing that
+`ChartNote::sustain` is the actual duration the string rings, and this is the only thing that
 bounds it — a re-strike stops the ring, so a tail may reach the next onset on its OWN string
 exactly and never pass it (exact adjacency is what lets a slide reach its landing, and what a
 legato claim reads as a hold that still reaches). Every other length a surface shows is derived
@@ -403,13 +403,13 @@ placement asks the same question.
 /*!
 \brief The end a ring may reach: `target`, held at the note's own \ref sustainBoundOf.
 
-40-Q2-B's clamp, applied. Stated once here because three rules apply it and disagreeing would be
-the defect: \ref normalizeSustainOverlaps truncates a stored ring to it, the editor's duration verb
-grows a ring toward it, and its move verb steps a slide-out toward it — so "a ring's end reaching
-the next head on its string" has ONE answer wherever it is asked. Exact adjacency is legal, which is
-what lets a slide reach its landing and a slide-out complete on the head it goes out on; the ink
-then stops one margin before that head (\ref chartPresentation rule 1), and the mark stays at
-its stored instant.
+The ring bound's clamp, applied. Stated once here because three rules apply it and disagreeing
+would be the defect: \ref normalizeSustainOverlaps truncates a stored ring to it, the editor's
+duration verb grows a ring toward it, and its move verb steps a slide-out toward it — so "a ring's
+end reaching the next head on its string" has ONE answer wherever it is asked. Exact adjacency is
+legal, which is what lets a slide reach its landing and a slide-out complete on the head it goes
+out on; the ink then stops one margin before that head (\ref chartPresentation rule 1), and the
+mark stays at its stored instant.
 
 A clamp rather than a refusal, and it needs no direction test: a ring already at its bound reports
 the bound for every target past it, and leaves it the moment the target falls back inside.
@@ -450,7 +450,7 @@ struct TailTruncation
 };
 
 /*!
-\brief Truncates every tail ringing past its \ref sustainBoundOf (40-Q2-B); reports which.
+\brief Truncates every tail ringing past its \ref sustainBoundOf; reports which.
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
 adjacency stays legal, which is what lets a slide reach its landing. The truncation clips the
@@ -502,10 +502,9 @@ What it deliberately does NOT own stays a refusal in \ref validateChartNoteAlone
 repair can express it without inventing data: a string the tuning lacks, a negative fret, a
 non-positive sustain, a node off the string or behind its stop, a pinch without its node, a
 pressed note on a capo'd fret, a scrape without its terminal. And nothing relational belongs here:
-a connection claim
-nothing justifies is not a technique to shed but a claim that resolves to a plain pick
-(\ref resolveLegato), which is why \ref normalizeChart ends with \ref sweepUnjustifiedLegato
-instead.
+a connection claim nothing justifies is not a technique to shed but a claim that resolves to a
+plain pick (\ref resolveLegato), which is why \ref normalizeChart ends with
+\ref sweepUnjustifiedLegato instead.
 
 Which side loses when two techniques contradict is settled by whether the loser still says something
 true. The deadening wins outright: a bend or vibrato has no second reading once the pitch is gone,
@@ -549,7 +548,7 @@ THE one normalizer: every path that brings a chart into memory — the package r
 Pro importer — calls this and nothing else, so the two cannot drift, and the validator that follows
 refuses only what no repair can express. It applies \ref normalizeChartNote to every note, bounds
 every ring at its own string's next onset with \ref normalizeSustainOverlaps (the one stream-level
-note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand position, then settles the
+note rule), applies \ref normalizeFretHandPosition to every hand position, then settles the
 one relational truth — \ref sweepUnjustifiedLegato — last, because a truncated tail can be the hold
 a neighbour's legato claim depended on, and it must be judged against the stream as it will actually
 stand.
@@ -579,17 +578,15 @@ runs \ref normalizeSustainOverlaps before it validates, exactly as it runs the p
 Two halves, and only the first is a list of refusals: the structural rules no repair can express
 (a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some
 length, and no repair can invent the one a chart failed to state — a node off the string or behind
-its stop, a
-pinch without its node, a pressed note on a capo'd fret, a position off the grid, an onset, ring
-end or keyframe between two ticks of the lattice, a keyframe outside its sustain, out of order,
-stating nothing, or stating a negative fret or bend, a scrape without its terminal, a saved scrape
-still carrying a latent technique), and then the FIXPOINT —
-the note must already equal its
-own normal form (\ref normalizeChartNote). Every other rule a note can break on its own is stated
-once, as that normalizer's repair, and enforced here for free; nothing is restated as a refusal
-beside it. Everything that reads ONE note lives here, so the editor's per-note eligibility can ask
-the whole question of the note as it would be written; only the ordering reads neighbours, and it
-stays in \ref validateChartNotes.
+its stop, a pinch without its node, a pressed note on a capo'd fret, a position off the grid, an
+onset, ring end or keyframe between two ticks of the lattice, a keyframe outside its sustain, out
+of order, or stating a negative fret or bend, a scrape without its terminal, a saved scrape still
+carrying a latent technique), and then the FIXPOINT — the note must already equal its own normal
+form (\ref normalizeChartNote). Every other rule a note can break on its own is stated once, as
+that normalizer's repair, and enforced here for free; nothing is restated as a refusal beside it.
+Everything that reads ONE note lives here, so the editor's per-note eligibility can ask the whole
+question of the note as it would be written; only the ordering reads neighbours, and it stays in
+\ref validateChartNotes.
 
 Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
 this question per note: the whole-stream gate refuses an entire plan when one note is ineligible, so
@@ -647,19 +644,17 @@ it of the stream alone, so a placement edit is judged by exactly the rule a pack
 
 The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
 the structural checks over the chart's own arrays and then delegates the per-note rules to
-\ref validateChartNotes, so the authoritative list is the two functions' code rather than
-this paragraph — a summary here drifts, and this one did once, describing "positive sustains" while
-zero was still the encoding for a note with no tail.
+\ref validateChartNotes, so the authoritative list is the two functions' code rather than this
+paragraph, which only summarizes it.
 
 Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by
 (position, string) with no duplicate onsets, on valid grid positions, with every onset, ring end
-and keyframe on the tick lattice; strings in range;
-non-negative frets, and a strictly positive sustain on every note; keyframe offsets ascending
-strictly inside the sustain, each stating at least one channel and no negative fret or bend;
-fret-hand positions strictly ascending and unique by position; harmonic-node range,
-beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the attack that cannot
-carry every technique, that the note already equals its own \ref savedChartNote form — a pick
-slide's pitched fields being in-memory latents the writer omits.
+and keyframe on the tick lattice; strings in range; non-negative frets, and a strictly positive
+sustain on every note; keyframe offsets strictly positive and ascending within the sustain, none
+stating a negative fret or bend; fret-hand positions strictly ascending and unique by position;
+harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the
+attack that cannot carry every technique, that the note already equals its own
+\ref savedChartNote form — a pick slide's pitched fields being in-memory latents the writer omits.
 Then the fixpoint half, stated once each as a repair of the normalizer: every note and hand
 position must already equal its own normal form (\ref normalizeChartNote,
 \ref normalizeFretHandPosition).

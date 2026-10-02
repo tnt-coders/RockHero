@@ -391,7 +391,7 @@ enum class HighwayChordBoxTreatment : std::uint8_t
 Membership decides the rolling flip and the shadow, and \ref box states which of the three chord-box
 treatments the strum draws. Derived from the chart once per revision by \ref makeHighwayChordGroups:
 the classification reads the derived hand-shape spans across the whole song, so deriving it inside
-the renderer's visible window both re-ran it every frame and could not see past the window's edge.
+the renderer's visible window would re-run it every frame and could not see past the window's edge.
 */
 struct HighwayChordGroupViewState
 {
@@ -475,9 +475,9 @@ struct HighwayChordGroupViewState
     \brief Onset of the next note-showing strum, capping this group's span-hold display;
            infinity when none follows in the song.
 
-    Whole-song on purpose. Derived over the visible window this was wrong at the window's edge:
-    the last visible group's cap read as infinity even when a note-showing strum sat just past
-    it, self-correcting only as that strum scrolled in.
+    Whole-song on purpose: derived over the visible window, the last visible group's cap would
+    read as infinity even when a note-showing strum sat just past it, self-correcting only as that
+    strum scrolled in.
     */
     double hold_cap_seconds{0.0};
 
@@ -555,7 +555,7 @@ struct HighwaySectionViewState
 
     Display-ready on purpose. The highway draws every section name upper-cased, and folding the case
     here rather than in the renderer keeps a pure function of the chart out of the per-frame path,
-    where it was allocating and transforming a fresh string for every visible section every frame.
+    where it would allocate and transform a fresh string for every visible section every frame.
     Only the 3D board reads this view, so the case fold cannot leak into the 2D ruler, which shows
     the authored name.
     */
@@ -618,8 +618,8 @@ struct HighwayViewState
     \brief Tapping-hand onsets in ascending order, derived from the notes' picking-hand-at-the-neck
     attacks — taps AND pick slides, per \ref rightHandOnset.
 
-    Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): these
-    feed the tapped chord boxes and the strike pops, and carry no user-editable data.
+    Right-hand presentation is derived, never authored: these feed the tapped chord boxes and the
+    strike pops, and carry no user-editable data.
     */
     std::vector<HighwayTapOnsetViewState> tap_onsets;
 
@@ -705,8 +705,8 @@ WHAT THIS DELIBERATELY DOES NOT DO is ask the derivation whether a slot sounds i
 shape WHOLE. Such a comparison would exist to keep a partial restrike from claiming a full
 restatement, and the identity law above refuses that outright, because a repeat only ever follows
 an IDENTICAL onset. Nor does anything here walk the note stream BACKWARD looking for a run to
-anchor a chain on (an F10-style "singles and chugs don't break the chain" rule) — and no chain
-state survives at all: the run's head is simply the onset whose predecessor differs.
+anchor a chain on, and no chain state exists at all: the run's head is simply the onset whose
+predecessor differs.
 
 EVERY QUESTION HERE IS ASKED OF THE FRETTING HAND'S MEMBERS ALONE: the count, the identity's places,
 the mute and emphasis unanimities, and the capability gate's scans. A right-hand onset is the other
@@ -719,11 +719,10 @@ box, exactly as the exact string-set comparison says.
 
 THE DISPLAY-CAPABILITY GATE is untouched otherwise, and it is the one thing here that is about
 drawing rather than about the music: a repeat box has no heads, so it can only stand in for a strum
-whose whole
-statement it can draw itself — the mute profiles it wears a mark for, composed with the emphasis it
-carries. Anything else falls back to the full box, which keeps its heads and therefore keeps every
-mark on them. With the profile out of the identity the gate is what a mixed profile now meets, so it
-is asked per group exactly as the tails a group happens to present are.
+whose whole statement it can draw itself — the mute profiles it wears a mark for, composed with the
+emphasis it carries. Anything else falls back to the full box, which keeps its heads and therefore
+keeps every mark on them. With the profile out of the identity the gate is what a mixed profile
+meets, so it is asked per group exactly as the tails a group happens to present are.
 
 The take-over cap is resolved over the whole song, which is what makes it stable: each group's
 span-hold display ends at the next note-showing strum wherever that strum is, not merely within
@@ -803,8 +802,8 @@ whatever window a renderer happens to be drawing.
             // WHERE THE HEADS SOUND, not the stored fret and not the grip: the box the identity
             // gates draws NO heads (the renderer skips every member of a repeat group), so two
             // onsets may only compare identical when the heads they replace are. Reading `fret`
-            // made a node-12 chord compare identical to an open chord on the same strings, so
-            // the open one following it drew a HEADLESS repeat box for a strum that never
+            // would make a node-12 chord compare identical to an open chord on the same strings,
+            // so the open one following it would draw a HEADLESS repeat box for a strum that never
             // repeated; reading the GRIP would leave the artificial half of the same defect live,
             // since a fret-5 head damped at node 17 is drawn twelve frets from the stop the hand
             // presses. The chart's own place, not the board-clamped one (\ref highwayDrawnStop):
@@ -832,8 +831,8 @@ whatever window a renderer happens to be drawing.
     const auto same_onset = [&group_stops](const std::size_t lhs, const std::size_t rhs) {
         return group_stops[lhs] == group_stops[rhs];
     };
-    // ONE forward cursor over the spans, replacing the backward walk over the notes. Both streams
-    // ascend, so the span covering a group can only ever move forward. No chain state rides along:
+    // ONE forward cursor over the spans. Both streams ascend, so the span covering a group can
+    // only ever move forward. No chain state rides along:
     // the run's head is the onset whose predecessor differs, which the comparison above answers on
     // the spot.
     std::size_t next_shape = 0;
@@ -859,7 +858,7 @@ whatever window a renderer happens to be drawing.
             ++next_shape;
         }
         // The span this onset lies in, if any. A chord onset at (or within rounding of) the span's
-        // end is still under it — a strict comparison here once dropped a handshape's last strum
+        // end is still under it — a strict comparison here would drop a handshape's last strum
         // from repeat treatment.
         const std::optional<std::size_t> lies_in =
             covering < shapes.size() && !(group.start_seconds > shapes[covering].drawn_end_seconds +
@@ -907,8 +906,8 @@ whatever window a renderer happens to be drawing.
             // The same members the strum is made of (above), for the same reason: the gate asks
             // whether a box can carry this STRUM's whole statement, and a tap's sustain is no part
             // of that statement. A tap draws its own head and its own tail whatever the strum below
-            // it does, so letting one force a full box put heads back on a chug run for a sound the
-            // other hand made.
+            // it does, so letting one force a full box would put heads back on a chug run for a
+            // sound the other hand made.
             if (rightHandOnset(note.attack))
             {
                 continue;

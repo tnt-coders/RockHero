@@ -10,9 +10,9 @@
 namespace rock_hero::editor::core
 {
 
-// The pure half of the caret's navigation, reachable from a test now that it is out of the
-// controller: the destinations every caret verb and the time-selection extend resolve through, the
-// fret-entry window's extendable test, and the caret's published time bounds.
+// The pure half of the caret's navigation, tested without a controller: the destinations every
+// caret verb and the time-selection extend resolve through, the fret-entry window's extendable
+// test, and the caret's published time bounds.
 TEST_CASE("Chart navigation resolves caret destinations", "[core][chart]")
 {
     SECTION("the fret entry waits only for a value another digit can still extend")

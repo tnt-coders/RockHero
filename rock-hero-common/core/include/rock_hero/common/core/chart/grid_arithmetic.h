@@ -154,8 +154,8 @@ The execution form's one display constant: a tail the tail law hides draws only 
 WINDOW rising this deep from the hit line — fully lit at the line, fading to nothing at the window's
 outer edge, so the ink continuously materializes as it scrolls in. A window, never a whole-tail
 fade. Resolved at each note's own meter and tempo, referenced as a note value and never a pixel, so
-a window in a fast song is the shorter wall-clock rise a fast song reads as. Deliberately NOT the
-duration the minimum sustain distance became: a reveal is a MUSICAL lead-in the scrolling board
+a window in a fast song is the shorter wall-clock rise a fast song reads as. Deliberately NOT a
+duration like the minimum sustain distance: a reveal is a MUSICAL lead-in the scrolling board
 carries the ink through, not a gap between two marks that has to stay readable at any tempo. The 2D
 lane never reads it: the lane draws the execution form always. THE TUNABLE the reveal's feel is
 sighted against — the initializer below is the one statement of its value, and no prose restates

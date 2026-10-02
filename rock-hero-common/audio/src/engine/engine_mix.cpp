@@ -6,9 +6,9 @@ namespace rock_hero::common::audio
 // The master volume plugin is constructed unconditionally by Edit::initialise, so it is never
 // null; setVolumeDb converts through the fader curve and drives the automatable parameter with
 // per-sample 50 ms smoothing (click-free), touching no graph structure. NOTE (verified): the
-// master stage applies only to the default wave output device — both engine tracks route there
-// today, so master scales backing playback AND live monitoring; if a track is ever routed to a
-// secondary device it would silently escape this fader.
+// master stage applies only to the default wave output device — both engine tracks route there,
+// so master scales backing playback AND live monitoring; a track routed to a secondary device
+// would silently escape this fader.
 std::expected<void, MixControlsError> Engine::setMasterGain(Gain gain)
 {
     tracktion::VolumeAndPanPlugin* const master = m_impl->m_edit->getMasterVolumePlugin().get();

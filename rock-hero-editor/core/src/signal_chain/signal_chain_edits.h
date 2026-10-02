@@ -33,7 +33,12 @@ struct [[nodiscard]] PluginVisualEditState
     /*! \brief Manual display type override before removal or after insertion. */
     std::optional<PluginDisplayType> display_type_override;
 
-    /*! \brief Compares two visual edit states by their stored values. */
+    /*!
+    \brief Compares two visual edit states by their stored values.
+    \param lhs Left-hand visual edit state.
+    \param rhs Right-hand visual edit state.
+    \return True when both visual edit states store equal values.
+    */
     friend bool operator==(const PluginVisualEditState& lhs, const PluginVisualEditState& rhs) =
         default;
 };

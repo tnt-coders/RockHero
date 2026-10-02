@@ -28,8 +28,8 @@ namespace rock_hero::editor::ui
 \brief Renders the current arrangement from framework-free state.
 
 The view owns one thumbnail renderer for the arrangement's full-source audio and draws the
-currently visible timeline range. Cursor and tempo-grid overlays are intentionally excluded;
-EditorView owns editor-wide timeline overlays.
+currently visible timeline range. The cursor and the tempo grid are intentionally excluded: the
+editor-wide cursor overlay draws the one and the track canvas behind the rows the other.
 */
 class ArrangementView : public juce::Component
 {

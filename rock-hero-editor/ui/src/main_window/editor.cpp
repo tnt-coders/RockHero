@@ -93,7 +93,8 @@ juce::Component& Editor::component() noexcept
     return *m_view;
 }
 
-// Exposes the view-owned command manager so the window shell can attach its key mapping set.
+// Exposes the view-owned command manager so the window shell can dispatch through its key mapping
+// set.
 juce::ApplicationCommandManager& Editor::commandManager() noexcept
 {
     return m_view->commandManager();

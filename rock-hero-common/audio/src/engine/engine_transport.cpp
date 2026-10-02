@@ -21,8 +21,8 @@ void Engine::Impl::updateTransportState()
     // resume without the playhead moving -- a live-rig clear, save, or load releases the playback
     // context in place, and the plugin host resumes the transport directly -- and none of those
     // publishes a clock boundary. Gating the sync on the notified state changing would let the
-    // clock's own copy of the flag drift and never repair, which is the memo trap; the sync is an
-    // atomic store plus a timer check, so running it unconditionally costs nothing worth guarding.
+    // clock's own copy of the flag drift and never repair; the sync is an atomic store plus a
+    // timer check, so running it unconditionally costs nothing worth guarding.
     syncClockPlayingState(current_state.playing);
 
     if (m_last_notified_transport_state == current_state)
@@ -68,8 +68,8 @@ double Engine::Impl::clampToLoadedRange(double seconds) const noexcept
 // a live seek, and falls back to the transport position when stopped.
 //
 // The read is lifetime-safe: the playback context pointer is only ever mutated on this (message)
-// thread, and getAudibleTimelineTime() is one null check plus one atomic load (source-verified
-// against the vendored engine; findings recorded in plan 12's inventory).
+// thread, and getAudibleTimelineTime() is one null check plus one atomic load (verified against
+// the vendored engine source).
 common::core::TimePosition Engine::Impl::audiblePositionNow() const noexcept
 {
     auto& transport = m_edit->getTransport();
@@ -123,7 +123,7 @@ void Engine::Impl::stopTransport()
     transport.setPosition(tracktion::TimePosition{});
 
     // Publishing here covers both Engine::stop() and the automatic end-of-file stop, which share
-    // this path (decision: boundary publishes fire wherever the operation already lives).
+    // this path.
     publishClockBoundary(common::core::TimePosition{});
 }
 
@@ -211,9 +211,9 @@ void Engine::seek(common::core::TimePosition position)
             transport.getPosition().inSeconds())});
 }
 
-// v1 accepts exactly 1.0: real speed control arrives with practice mode's time-stretch work over
-// the proxy-off backing clip. Rejecting loudly here (instead of silently ignoring the factor)
-// keeps early consumers from shipping code that believes speed changes worked.
+// Accepts exactly 1.0, because speed control is not implemented yet. Rejecting loudly here
+// (instead of silently ignoring the factor) keeps consumers from shipping code that believes a
+// speed change worked.
 std::expected<void, TransportError> Engine::setPlaybackSpeed(double factor)
 {
     // Exact inequality via std::is_neq keeps the -Wfloat-equal build clean and still rejects NaN,
@@ -234,7 +234,7 @@ std::expected<void, TransportError> Engine::setPlaybackSpeed(double factor)
 }
 
 // Reports the port-level speed factor from the clock, the one place the rate lives; always 1.0
-// until practice-speed support lands.
+// while only normal speed is supported.
 double Engine::playbackSpeed() const noexcept
 {
     return m_impl->m_playback_clock.snapshot().playback_rate;

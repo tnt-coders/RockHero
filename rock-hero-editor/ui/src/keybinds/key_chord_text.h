@@ -26,8 +26,10 @@ using ShiftedCharacterResolver = juce::juce_wchar (*)(juce::juce_wchar base_char
 
 The small dot is the editor's house separator: unlike the conventional "+", it can never collide
 with the `+`/`-` keys ("Ctrl · +" vs "Ctrl++"), so those keys keep their compact symbols. U+00B7
-MIDDLE DOT specifically — a Latin-1 character present in every font, immune to the substitution
-that killed the arrow glyphs (the math-block dot operator is not).
+MIDDLE DOT specifically — a Latin-1 character present in every font and so immune to font
+substitution (the math-block dot operator is not).
+
+\return The joiner text, a middle dot with one space on each side.
 */
 [[nodiscard]] juce::String keyChordJoiner();
 

@@ -875,7 +875,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         }
     }
 
-    // Drives the configured load result or error through the new async callback contract while
+    // Drives the configured load result or error through the async callback contract while
     // recording the request and replicating the engine's per-plugin progress sequence.
     void loadLiveRig(
         common::audio::LiveRigLoadRequest request,
@@ -1888,8 +1888,8 @@ private:
 };
 
 // Owns build-local settings and project files used by restore/exit persistence tests. The settings
-// file (and the audio-config sibling that rides with it) belongs to the owned ScopedSettingsFile,
-// so the settings-family cleanup rule lives in one place.
+// file belongs to the owned ScopedSettingsFile, so the settings-file cleanup rule lives in one
+// place.
 class ScopedControllerFiles final
 {
 public:

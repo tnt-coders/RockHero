@@ -21,7 +21,7 @@ double highwayHitGlowIntensity(const double since_seconds, const double release_
     }
     // Smoothstep over the remaining fraction: full at the crossing with zero initial slope (a
     // momentary bright hold), an even mid fade, and a soft landing at zero — a gradual dissolve
-    // rather than a blink, unlike the front-loaded quadratic it replaced.
+    // rather than the blink a front-loaded curve reads as.
     const double remaining = 1.0 - (since_seconds / release_seconds);
     return remaining * remaining * (3.0 - (2.0 * remaining));
 }

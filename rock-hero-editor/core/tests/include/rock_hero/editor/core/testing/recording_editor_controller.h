@@ -91,7 +91,10 @@ public:
         new_tone_request_count += 1;
     }
 
-    /*! \brief Captures the tone file selected by the Open Tone command. */
+    /*!
+    \brief Captures the tone file selected by the Open Tone command.
+    \param file Tone file selected by the view.
+    */
     void onOpenToneFileRequested(std::filesystem::path file) override
     {
         last_open_tone_file = std::move(file);
@@ -104,28 +107,40 @@ public:
         save_tone_request_count += 1;
     }
 
-    /*! \brief Captures the destination selected by the Save Tone As command. */
+    /*!
+    \brief Captures the destination selected by the Save Tone As command.
+    \param file Tone file destination selected by the view.
+    */
     void onSaveToneAsRequested(std::filesystem::path file) override
     {
         last_save_tone_as_file = std::move(file);
         save_tone_as_request_count += 1;
     }
 
-    /*! \brief Captures the tone file selected by the Import Tone command. */
+    /*!
+    \brief Captures the tone file selected by the Import Tone command.
+    \param file Tone file selected by the view.
+    */
     void onImportToneFileRequested(std::filesystem::path file) override
     {
         last_import_tone_file = std::move(file);
         import_tone_request_count += 1;
     }
 
-    /*! \brief Captures the destination selected by the Export Tone command. */
+    /*!
+    \brief Captures the destination selected by the Export Tone command.
+    \param file Tone file destination selected by the view.
+    */
     void onExportToneFileRequested(std::filesystem::path file) override
     {
         last_export_tone_file = std::move(file);
         export_tone_request_count += 1;
     }
 
-    /*! \brief Captures decisions selected through the tone-import confirmation. */
+    /*!
+    \brief Captures decisions selected through the tone-import confirmation.
+    \param decision User-selected tone-import decision.
+    */
     void onToneImportDecision(ToneImportDecision decision) override
     {
         last_tone_import_decision = decision;
@@ -235,9 +250,9 @@ public:
         last_selected_arrangement_id = std::move(arrangement_id);
     }
 
-    // The chart pointer/navigation intents record nothing: no view-routing test asserts on
-    // them (TabView's forwarding is tested through its own callback seam), so the overrides
-    // are deliberate no-ops until a test needs a recorded value.
+    // The chart intents no view-routing test asserts on record nothing (TabView's forwarding is
+    // tested through its own callback seam), so those overrides are deliberate no-ops until a
+    // test needs a recorded value.
 
     /*! \copydoc IEditorController::onChartPointerDown */
     void onChartPointerDown(const ChartPointerEvent& /*event*/) override

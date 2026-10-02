@@ -75,8 +75,8 @@ namespace
     };
 #if JUCE_MAC || JUCE_IOS
     // macOS carries distinct Ctrl and Cmd bits and orders chords Ctrl-Option-Shift-Cmd (the
-    // native Control-Option-Shift-Command glyph order, as words — font substitution already
-    // killed glyph rendering at chip size for the arrows).
+    // native Control-Option-Shift-Command glyph order, spelled as words because font
+    // substitution makes symbol glyphs unreliable at chip size).
     constexpr auto modifier_names = std::to_array<ModifierName>({
         {.flag = juce::ModifierKeys::ctrlModifier, .name = "Ctrl"},
         {.flag = juce::ModifierKeys::altModifier, .name = "Option"},
@@ -108,8 +108,8 @@ namespace
 
 // Canonical Windows-convention names for the non-character keys, replacing JUCE's lowercase
 // idiosyncrasies ("spacebar", "return", "cursor left"). Arrows are bare direction words —
-// the glyph alternatives all fail at chip size (thin arrows are barely legible and fell to
-// font substitution in the running editor; heavy arrows risk color-emoji presentation).
+// the glyph alternatives all fail at chip size (thin arrows are barely legible and subject to
+// font substitution; heavy arrows risk color-emoji presentation).
 // "Num" abbreviates JUCE's "numpad" per convention (REAPER/Windows "Num"). Returns empty when
 // the key is not a named key.
 [[nodiscard]] juce::String namedKeyText(int key_code)
@@ -175,9 +175,9 @@ namespace
 
 juce::String keyChordJoiner()
 {
-    // A spaced U+00B7 MIDDLE DOT (" · ") — Latin-1, present in every font (the math-block dot
-    // operator U+22C5 is not, and font substitution already killed the arrow glyphs). Built by
-    // codepoint because plain narrow literals assert on non-ASCII in juce::String.
+    // A spaced U+00B7 MIDDLE DOT (" · ") — Latin-1, present in every font, where the math-block
+    // dot operator U+22C5 is not and would fall to font substitution. Built by codepoint because
+    // plain narrow literals assert on non-ASCII in juce::String.
     return " " + juce::String::charToString(juce::juce_wchar{0x00B7}) + " ";
 }
 

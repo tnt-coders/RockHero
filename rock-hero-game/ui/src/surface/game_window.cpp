@@ -3,7 +3,7 @@
 #include <rock_hero/common/core/shared/logger.h>
 
 // The shell provides a plain portable main(), so SDL must not rewrite the entry point; this is
-// the app-provided-main pattern SDL_main.h documents (and the gate spike proved).
+// the app-provided-main pattern SDL_main.h documents.
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -95,17 +95,16 @@ GameWindowError::GameWindowError(const GameWindowErrorCode error_code, std::stri
 {}
 
 // Initializes SDL video and creates the game window, translating each failed step into the typed
-// error for it. SDL_WINDOW_HIGH_PIXEL_DENSITY is inert on Windows today but makes the
-// pixel-size-driven resize path real on platforms where points and pixels differ (0a memo:
-// portability preserved by choices).
+// error for it. SDL_WINDOW_HIGH_PIXEL_DENSITY is inert on Windows but makes the pixel-size-driven
+// resize path real on platforms where points and pixels differ.
 std::expected<GameWindow, GameWindowError> GameWindow::create(
     const std::string& title, const PixelSize size)
 {
     // SDL_MAIN_HANDLED main: tell SDL the app owns the entry point before any other SDL call.
     SDL_SetMainReady();
 
-    // Video only for now; gamepad input is a purely additive SDL_InitSubSystem when the menu
-    // work (plan 26) has a consumer for it.
+    // Video only; gamepad input is a purely additive SDL_InitSubSystem once a gamepad consumer
+    // exists.
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         return std::unexpected{GameWindowError{
@@ -188,7 +187,7 @@ PixelSize GameWindow::pixelSize() const
 // Drains the SDL event queue and reduces it to the frame-relevant signals. Pixel-size changes
 // re-query the window rather than trusting event payloads: SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED
 // is the event a DPI change routes through, and window-coordinate payloads only match pixels at
-// scale 1.0 (a current-Windows accident the gate record flags under S2).
+// scale 1.0 (an accident of current Windows, not a contract).
 GameWindowEvents GameWindow::pollEvents()
 {
     GameWindowEvents events;
@@ -228,9 +227,9 @@ GameWindowEvents GameWindow::pollEvents()
             }
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
             {
-                // DPI-change behavior was never exercised by the gate spike (S2 caveat, single
-                // monitor); record the first real occurrence so a future multi-monitor run
-                // produces evidence instead of a silent blind spot.
+                // DPI-change behavior is unverified (only single-monitor runs have been
+                // observed); record each real occurrence so a multi-monitor run produces evidence
+                // instead of a silent blind spot.
                 RH_LOG_WARNING(
                     "game.surface",
                     "display scale changed to {}; DPI path is unexercised (S2)",

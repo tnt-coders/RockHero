@@ -113,8 +113,8 @@ schedule is baked the audio thread drives the same gains from the curves instead
 calls this.
 
 Takes a resolved branch index rather than a tone reference: the caller has already resolved the
-reference to refuse an unknown tone, and resolving twice was the only reason for a second walk. An
-index past the last branch leaves every gain unchanged.
+reference to refuse an unknown tone, so resolving it again here would only repeat the walk. An index
+past the last branch leaves every gain unchanged.
 
 \param rack Built rack whose branches should switch.
 \param audible_branch_index Index of the branch that becomes audible.

@@ -5,11 +5,11 @@
 The engine owns the deterministic scan pipeline (list -> plan -> describe each package, and ask
 the album-art port for its art) behind three injected ports, so it is fully testable with fakes
 and never touches the real filesystem in tests. It is persistence-free by design: it exposes the
-working index and signals
-a commit checkpoint after each package, and a thin game/app runner performs the actual save through
-the Phase-2 free functions on its worker thread. This mirrors the "record a signal, the shell
-performs the effect" split of DiagnosticsController rather than mutating the filesystem inside the
-orchestration (docs/design/architectural-principles.md "Separate State From Side Effects").
+working index and signals a commit checkpoint after each package, and the caller performs the
+actual save through the library index store's free functions. This mirrors the "record a signal,
+the shell performs the effect" split of DiagnosticsController rather than mutating the filesystem
+inside the orchestration (docs/design/architectural-principles.md "Separate State From Side
+Effects").
 */
 
 #pragma once
@@ -82,11 +82,11 @@ struct LibraryScanStep
 /*!
 \brief Drives a whole library scan synchronously, one package per step().
 
-Holds references to the three scan ports and owns the scan's working state; game/app constructs it
-with real adapters and pumps step() on a dedicated thread, marshalling progress back to the message
-thread (docs/design/architectural-principles.md "Keep Threading at the Boundary"). The engine never
-persists: after each step the caller reads index() and, on a commit checkpoint, saves it with the
-Phase-2 saveLibraryIndex free function.
+Holds references to the three scan ports and owns the scan's working state. A background caller
+pumps step() on a dedicated thread and marshals progress back to the message thread
+(docs/design/architectural-principles.md "Keep Threading at the Boundary"); scanLibrary() is the
+synchronous pump. The engine never persists: after each step the caller reads index() and, on a
+commit checkpoint, saves it with saveLibraryIndex.
 */
 class LibraryScanEngine
 {
@@ -129,9 +129,8 @@ public:
     offers a final commit checkpoint so the partial index can be persisted. Otherwise it applies one
     action — describing an added or rescanned package and asking the album-art port for its art,
     reusing a cached entry, or dropping a removed one — and advances progress. No-ops once the scan
-    is done. The port really is called, but the shipped implementation is
-    \ref NullAlbumArtGenerator and returns none: art itself arrives with
-    docs/plans/roadmap/43-song-information-and-art.md, so nothing here generates an image today.
+    is done. The shipped album-art port is \ref NullAlbumArtGenerator, which reports no art until
+    docs/plans/roadmap/43-song-information-and-art.md adds it.
 
     \param token Cooperative cancellation handle polled at the between-package checkpoint.
     \return The phase, progress, and commit signal after this step.

@@ -418,8 +418,8 @@ TEST_CASE("EditorController builds and extends the time selection", "[core][char
     CHECK(time_selection->end.seconds == Catch::Approx(chart_end));
 }
 
-// Building a time selection dissolves the caret (decision D), and a plain arrow then clears the
-// range — the settled "a plain arrow clears it" rule — arming a caret again.
+// Building a time selection dissolves the caret, and a plain arrow then clears the range and arms a
+// caret again: a range and an armed caret never stand together.
 TEST_CASE(
     "EditorController time selection dissolves the caret and yields to arrows", "[core][chart]")
 {

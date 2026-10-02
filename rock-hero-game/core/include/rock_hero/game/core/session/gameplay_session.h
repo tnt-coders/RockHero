@@ -193,7 +193,7 @@ public:
     void clearLoopRegion();
 
     /*!
-    \brief Sets the edit-wide master volume (21-Q3: global, session-local until plan 27 lands).
+    \brief Sets the edit-wide master volume (global, session-local until plan 27 persists it).
     \param gain Desired master gain.
     \return The mix boundary's typed result.
     */
@@ -230,7 +230,7 @@ public:
 
     /*!
     \brief Reads the player-monitor volume.
-    \return Current monitor gain, which is the live rig's output gain.
+    \return Current monitor gain, read from the live rig's monitor stage.
     */
     [[nodiscard]] common::audio::Gain monitorVolume() const;
 

@@ -551,7 +551,8 @@ LiveRigLoadResult Engine::Impl::audibleToneResult() const
     return result;
 }
 
-// Clears the instrument plugin chain without touching the active backing arrangement.
+// Removes the multi-tone rack and every user plugin from the instrument track, keeping the
+// structural stages and leaving the active backing arrangement untouched.
 std::expected<void, LiveRigError> Engine::clearLiveRig()
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -657,7 +658,8 @@ std::expected<LiveRigLoadResult, LiveRigError> Engine::setAudibleTone(
     return m_impl->audibleToneResult();
 }
 
-// Captures the current Tracktion live rig chain into a tone document plus plugin-state sidecars.
+// Captures every loaded tone branch into its tone document plus plugin-state sidecars; the
+// returned snapshot describes the audible chain.
 std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     const LiveRigCaptureRequest& request)
 {
@@ -888,6 +890,8 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     return snapshot;
 }
 
+// Appends a passthrough branch to the loaded rack without touching the other branches' plugins,
+// so creating a tone never stops playback.
 std::expected<void, LiveRigError> Engine::addEmptyToneBranch(const std::string& tone_document_ref)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -982,7 +986,7 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         }
 
         // The audible tone must be one of the loaded set; default to the first tone when unset
-        // so legacy single-tone callers stay trivial.
+        // so a caller loading a single tone need not name it twice.
         if (request.audible_tone_ref.empty())
         {
             request.audible_tone_ref = request.tone_document_refs.front();
@@ -1068,7 +1072,7 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
     m_impl->m_load_op = std::move(operation);
 
     // A plugin-less load has no heavy construction to paint around, so it finalizes
-    // synchronously, matching the pre-multi-tone empty-load contract callers rely on.
+    // synchronously: callers rely on an empty load completing before loadLiveRig() returns.
     if (m_impl->m_load_op->total_plugins == 0)
     {
         m_impl->beginNextPluginStep();
@@ -1141,9 +1145,9 @@ void Engine::Impl::finalizeLiveRigLoad()
         return;
     }
 
-    // Gameplay policy 21-Q1(A): a load that hit uninstalled plugins refuses AFTER the full scan
-    // so the message lists every missing plugin in one pass, instead of the install-one,
-    // discover-the-next loop an abort-at-first-failure would create.
+    // A load that hit uninstalled plugins refuses AFTER the full scan so the message lists every
+    // missing plugin in one pass, instead of the install-one, discover-the-next loop an
+    // abort-at-first-failure would create.
     if (!m_load_op->missing_plugin_names.empty())
     {
         std::string missing_list;
@@ -1291,7 +1295,7 @@ void Engine::Impl::finalizeLiveRigLoad()
 
                 // With compensation off, the branch's summed self-reported latency IS the
                 // player's monitoring latency while this tone is audible; surfaced for the
-                // editor's authoring-time export warning (21-Q2 refinement), silent in gameplay.
+                // editor's authoring-time export warning, silent in gameplay.
                 identities.summed_reported_latency_seconds +=
                     branch.chain[plugin_index]->getLatencySeconds();
                 identities.plugins.push_back(
@@ -1313,8 +1317,7 @@ void Engine::Impl::finalizeLiveRigLoad()
 
 // Records the current plugin as missing (uninstalled, or present in the catalog but unable to
 // load on this machine) and yields to the next step, so finalize can refuse ONCE with the
-// complete missing list (gameplay policy 21-Q1(A)). Shared by both missing-plugin branches of
-// executePluginStep.
+// complete missing list. Shared by both missing-plugin branches of executePluginStep.
 void Engine::Impl::skipMissingPluginAndContinue(
     const std::string& display_name, const std::string& tone_document_ref)
 {
@@ -1356,8 +1359,8 @@ void Engine::Impl::executePluginStep()
     if (!plugin_known.has_value())
     {
         // A plugin that simply is not installed is collected instead of aborting: the load
-        // keeps scanning so the finalize step refuses ONCE with the complete missing list
-        // (gameplay policy 21-Q1(A)). Any other resolution failure still aborts immediately.
+        // keeps scanning so the finalize step refuses ONCE with the complete missing list. Any
+        // other resolution failure still aborts immediately.
         if (plugin_known.error().code == LiveRigErrorCode::PluginNotFound)
         {
             skipMissingPluginAndContinue(display_name, tone.tone_document_ref);
@@ -1390,9 +1393,9 @@ void Engine::Impl::executePluginStep()
     // Plugins restore free-floating through the plugin cache and stay unparented until the
     // finalize step assembles every chain into the multi-tone rack.
     juce::ValueTree state_copy = plugin_state->createCopy();
-    // Sidecars written before this build may carry a stale derived curve and the tempo-remap flag;
-    // the live curve is rebuilt from the arrangement's musical automation after the load, and the
-    // flag must never let Tracktion remap that derived curve.
+    // Strip any derived curve and tempo-remap flag a sidecar carries: the live curve is rebuilt
+    // from the arrangement's musical automation after the load, and the flag must never let
+    // Tracktion remap that derived curve.
     stripAutomationCurves(state_copy);
     stripTempoRemapFlag(state_copy);
     tracktion::EditItemID::readOrCreateNewID(*m_edit, state_copy);
@@ -1415,7 +1418,7 @@ void Engine::Impl::executePluginStep()
     {
         // Same collect-and-continue treatment as an unresolvable identity: a plugin that exists
         // in the catalog but fails to load on THIS machine is a missing/broken install, and the
-        // finalize step refuses once with the complete list (gameplay policy 21-Q1(A)).
+        // finalize step refuses once with the complete list.
         skipMissingPluginAndContinue(display_name, tone.tone_document_ref);
         return;
     }
@@ -1424,8 +1427,8 @@ void Engine::Impl::executePluginStep()
     m_load_op->next_plugin = plugin_index + 1;
     ++m_load_op->completed_plugins;
 
-    // "Loaded X" advances the bar to N+1/T so the user sees the per-plugin completion the spec
-    // calls for, and so a one-plugin chain hits 100% before the overlay clears.
+    // "Loaded X" advances the bar to N+1/T so the user sees each plugin complete, and so a
+    // one-plugin chain hits 100% before the overlay clears.
     reportLiveRigLoadProgress(
         m_load_op->request,
         m_load_op->completed_plugins,
@@ -1786,7 +1789,7 @@ void Engine::Impl::startToneChainReplace(std::unique_ptr<ToneChainReplaceOperati
 }
 
 // Instantiates the next replacement candidate, collecting missing plugins across the whole chain
-// so the refusal lists every one at once (the loader's 21-Q1(A) policy).
+// so the refusal lists every one at once, the same policy as the loader.
 void Engine::Impl::executeToneReplaceStep()
 {
     if (m_replace_op == nullptr)

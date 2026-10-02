@@ -26,7 +26,7 @@ namespace
 //
 // Two facts decide it, and nothing else. A TAP's node is a struck contact point, and a strike is a
 // strike whichever hand delivers it, so re-typing a tap carries the node into any attack that can
-// host it: Shift+T re-handing a tap harmonic lands on the left-hand-tap harmonic E13 names, and the
+// host it: Shift+T re-handing a tap harmonic lands on the left-hand-tap harmonic, and the
 // validation gate below still refuses a strike point past the neck ceiling. (The reverse re-hand,
 // left-hand tap back to Tap, still drops the node under the ownership test; no live verb sets Tap
 // today, and truing that direction is the note-view unification's business, not this verb's.)
@@ -35,7 +35,7 @@ namespace
 // change that flips the owner silently re-reads it as a different technique. On a stopped note
 // nothing flips — an artificial harmonic's fretting hand is on the stop and the picking hand on
 // the node under every attack — while an open-string pinch's bridge-side graze, which is not a
-// strikeable place at all, strands its node and the E4 gate then refuses the form.
+// strikeable place at all, strands its node and the strike-from-nowhere gate then refuses the form.
 //
 // The connection verb does not ask: a legato claim stores no direction, so it can never demand a
 // node leave. A stored-direction model instead needs a rule the two verbs must agree on by hand.
@@ -202,12 +202,12 @@ struct KeyedSplit
 }
 
 // The one repair a plan carries with it rather than refusing over: an attack that STRIKES from
-// nowhere needs somewhere to land (E4). It rides the entry that produced it because the truth it
+// nowhere needs somewhere to land. It rides the entry that produced it because the truth it
 // repairs is the note's OWN — retyping a tap down to the open string leaves nothing to strike — so
 // refusing instead would make the edit fail for a reason the user never asked about. Every OTHER
 // rule the normalizer owns stays a refusal, because its repair would discard authored data the
-// user did not touch. (A dead note's tail was the second such repair until E25 became a
-// presentation rule: X now leaves the ring alone, because nothing draws it.)
+// user did not touch. (A dead note's tail needs no repair: whether it draws is a presentation rule,
+// so X leaves the ring alone.)
 //
 // Whether a verb's per-note ELIGIBILITY test applies the flatten before asking the rule authority.
 // Only the verbs whose intent is not the attack do: for the attack verb a strike with nowhere to
@@ -218,15 +218,16 @@ enum class StrandedStrikeRepair : std::uint8_t
     Skip
 };
 
-// Finalizes a candidate chart: restores each authored array's slot order, applies the 40-Q2-B
+// Finalizes a candidate chart: restores each authored array's slot order, applies the same-string
 // overlap normalization — refusing where it lost an authored statement — and the one in-plan
 // repair, gates the result through the whole technique matrix, and diffs against `base`. The gate
 // is what makes authoring an invalid chart impossible by construction — a plan whose candidate the
 // document reader would reject refuses here, for every present and future verb, with no per-verb
 // guard to forget. It validates the SAVED form, because a scrape's latent overrides are legal in
 // memory and stripped by the writer.
+//
 // The two emptinesses are distinct on purpose: the gate's refusal is Invalid, an empty diff is
-// NoChange — conflating them is what made every refusal in the editor silent.
+// NoChange — conflating them would make every refusal in the editor silent.
 //
 // `base` is the stream the plan is expressed against, which is `chart.notes` for every verb that
 // edits from what it finds. The duration gesture is the reason the base is a parameter rather than
@@ -234,9 +235,9 @@ enum class StrandedStrikeRepair : std::uint8_t
 // the gesture started from while the ring RULES still judge the live chart. The move gesture,
 // equally a gesture, needs no such split — every bound it reads is a fact about the PRE-GESTURE
 // chart that its own steps cannot change, so its caller simply hands it that chart and `base` is
-// that chart's own notes. Slide-out-ness is the one that had to be earned: a point stepped onto the
-// ring's end would have become the slide-out mid-run, leaving the replay reading a kind the chart
-// no longer had, so the verb refuses that step instead (planMoveSelection).
+// that chart's own notes. Slide-out-ness stays such a fact only because the verb refuses a step
+// that would carry a point onto the ring's end (planMoveSelection): that point would become the
+// slide-out mid-run, leaving the replay reading a kind the chart no longer has.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
@@ -257,10 +258,11 @@ enum class StrandedStrikeRepair : std::uint8_t
             ChartPlanInvalid{"the edit would cut an authored statement off a ring it shortens"}
         };
     }
-    // The in-plan repair (E4). Relational truths deliberately do not repair here (see
-    // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
-    // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record
-    // of which notes the plan touched, because a note the plan left alone already passed this gate.
+    // The in-plan repair (a strike with nowhere to land). Relational truths deliberately do not
+    // repair here (see planSettleChart): mid-burst a claim the chart cannot justify simply plays as
+    // the pick it sounds like, and the burst stays one undo step. Sweeping the whole candidate
+    // needs no record of which notes the plan touched, because a note the plan left alone already
+    // passed this gate.
     for (common::core::ChartNote& note : candidate)
     {
         static_cast<void>(common::core::flattenStrandedStrike(note));
@@ -387,7 +389,7 @@ struct AddressedStop
 // author.
 //
 // Deliberately UNBOUNDED: the floor and the same-string bound judge this answer at the call site
-// and are never fed back into the walk. That is the gesture's symmetry (ruling 8) — a step a bound
+// and are never fed back into the walk. That is the gesture's symmetry — a step a bound
 // absorbed would otherwise become the next step's starting value, and a chord member pinned on the
 // way out would come back on a different ring than it left on. So the authored ring may sit past a
 // note's bound, or at or below zero, between steps; the caller resolves both.
@@ -438,8 +440,8 @@ struct AddressedStop
 // that divides a ring, replaces that head with one at strike defaults.
 //
 // Instants must be strictly inside the ring and strictly ascending; one at the ring's END is not a
-// split at all (the ring already stops there) and is refused, which is also the whole of the
-// disconnect's "a keyframe at the ring's end has no remainder to hand over".
+// split at all (the ring already stops there) and is refused, which is also why the junction
+// toggle cannot split at a keyframe on the ring's end: it has no remainder to hand over.
 [[nodiscard]] std::expected<void, ChartPlanRefusal> splitNoteIntoProducts(
     const common::core::TempoMap& tempo_map, const common::core::ChartNote& note,
     const std::vector<common::core::Fraction>& instants,
@@ -533,7 +535,7 @@ struct AddressedStop
     // A scrape's travel is the PICK's position on the string, so no fretting finger arrives
     // anywhere for a path to continue from.
     // A SLIDE-OUT's tail is authored exit geometry, not slack to spend: growing the ring under it
-    // would rewrite the gesture (the D14 assist refuses the same reshape, planSetLegato). An
+    // would rewrite the gesture (the legato assist refuses the same reshape, planSetLegato). An
     // ARRIVAL is the opposite — the finger is already on the stop this very head takes — so it is
     // joinable, and the predicate is asked of the PAIR this function holds rather than of a
     // resolved vector it has no index into.
@@ -920,11 +922,12 @@ common::core::Fraction chartSteppedKeyframeOffset(
         return stepped;
     }
     // Only the statement AT the ring's end carries that end with it, and the end is the one thing
-    // 40-Q2-B bounds. Every other point is bounded by that end instead, which planMoveSelection
-    // refuses a step past rather than clamping — so a key naming an interior point, or naming
-    // nothing, answers with the plain step. NOTE-LOCAL, and the relation is no part of it: a
-    // slide-out and a shift slide's arrival are the same point at the same moment, and moving
-    // either moves the end, so asking which gesture it proves would change nothing this verb does.
+    // the next same-string onset bounds. Every other point is bounded by that end instead, which
+    // planMoveSelection refuses a step past rather than clamping — so a key naming an interior
+    // point, or naming nothing, answers with the plain step. NOTE-LOCAL, and the relation is no
+    // part of it: a slide-out and a shift slide's arrival are the same point at the same moment,
+    // and moving either moves the end, so asking which gesture it proves would change nothing this
+    // verb does.
     const common::core::Keyframe* const end = common::core::endFretStatement(*note);
     if (end == nullptr || end->offset != keyframe.offset)
     {
@@ -987,11 +990,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             // (\ref chartSteppedKeyframeOffset), so a slide-out stepped onto that head lands there
             // and one stepped past it parks on it, exactly as the duration verb's clamp does.
             //
-            // Without the bound the step authored a slide-out the burst could not then drag: the
-            // gesture replays from the PRE-GESTURE chart, where the point is still interior, so
-            // the end never followed the next press and the run stuck until re-selection. And what
-            // it left behind was a slide-out nothing draws (a repeated fret) or one shed of its
-            // vibrato (shedEndStatementVibrato) — a point that lost its meaning to a move.
+            // Without the bound the step would author a slide-out the burst could not then drag:
+            // the gesture replays from the PRE-GESTURE chart, where the point is still interior, so
+            // the end would never follow the next press and the run would stick until
+            // re-selection. And what it left behind would be a slide-out nothing draws (a repeated
+            // fret) or one shed of its vibrato (shedEndStatementVibrato) — a point that lost its
+            // meaning to a move.
             const common::core::Fraction end =
                 slide_out != nullptr && std::ranges::binary_search(offsets, slide_out->offset)
                     ? chartSteppedKeyframeOffset(
@@ -1086,9 +1090,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
 
     // EVERY stop this plan addresses, collected once so the anchor and the write can never read
     // different fields. The two key lists say WHICH: a note's own stop where the selection named
-    // the note, a keyframe's fret where it named the keyframe. A note in the
-    // snapshot that neither list names is written through and not addressed — the shape a mixed
-    // selection takes, and the fret-verb law's other half (a head's digit never moves its path).
+    // the note, a keyframe's fret where it named the keyframe. A note in the snapshot that neither
+    // list names is written through and not addressed — the shape a mixed selection takes, and the
+    // fret-verb law's other half (a head's digit never moves its path).
     std::vector<AddressedStop> addressed;
     addressed.reserve(base.size() + keyframe_keys.size());
     for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
@@ -1113,10 +1117,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         }
     }
     // The keyframe half: the selection kind already said which stop the digit meant. A keyframe
-    // stating no fret INHERITS the fret in force and is drawn and
-    // selected like any other point (ruled 2026-09-27), so a typed value pointed at it STATES its
-    // fret there, beside whatever else the point states. A SHIFT moves stops, and such a point has
-    // no stop of its own — it rides the path it inherits — so a shift takes none.
+    // stating no fret INHERITS the fret in force and is drawn and selected like any other point, so
+    // a typed value pointed at it STATES its fret there, beside whatever else the point states. A
+    // SHIFT moves stops, and such a point has no stop of its own — it rides the path it inherits —
+    // so a shift takes none.
     for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
     {
         const common::core::ChartNote& note = base[base_index];
@@ -1266,10 +1270,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         // path does not already hold there, on a ring that simply ends, is how a glide becomes an
         // unpitched slide-out. On a ring that already slides out the floor IS it and stays
         // exclusive — the ribbon cannot pass its own end point, and the slide-out's length is the
-        // point's to change. The onset itself is never a legal end,
-        // so the empty ring's floor stays exclusive too. A scrape's path is DERIVED and
-        // re-terminates onto whatever tail it has, so it floors at the minimum gesture window
-        // instead, clamped — always positive, so it never reaches the hold below.
+        // point's to change. The onset itself is never a legal end, so the empty ring's floor stays
+        // exclusive too. A scrape's path is DERIVED and re-terminates onto whatever tail it has, so
+        // it floors at the minimum gesture window instead, clamped — always positive, so it never
+        // reaches the hold below.
         common::core::Fraction floor{};
         bool floor_may_end_the_ring = false;
         if (common::core::isScrape(stepped.attack))
@@ -1292,7 +1296,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         if (floor < target || (floor_may_end_the_ring && floor == target))
         {
-            // The one bound on a ring (40-Q2-B), asked of the one authority that applies it — the
+            // The one bound on a ring, asked of the one authority that applies it — the
             // same call the move verb's stepped slide-out makes, so both verbs give one answer for
             // a ring's end reaching the next head on its string. The margin that binds growth
             // against ANY string is the DRAWN tail's spacing rule, which presentation owns rather
@@ -1407,7 +1411,7 @@ ChartSelectionPlan planSetLegato(
         asked.attack = common::core::NoteAttack::Legato;
         common::core::LegatoMotion resolved =
             common::core::resolveLegato(asked, predecessor, tempo_map);
-        // The D14 assist: when the HOLD is the only thing missing — the claim would resolve if the
+        // The assist: when the HOLD is the only thing missing — the claim would resolve if the
         // predecessor were still ringing — the verb grows that ring to the successor's ONSET in
         // the same plan, so pressing L authors the connection instead of demanding the drag first
         // (the ring IS the held-ness datum; the verb writes it rather than requiring it). The
@@ -1492,10 +1496,10 @@ std::optional<ChartEditPlan> planSettleChart(
         return std::nullopt;
     }
     // Deliberately not through finalizePlan: the sweep only ever turns a `Legato` into a `Pick`, so
-    // order, the 40-Q2-B overlap bound, and every intra-note rule are exactly as the stream already
-    // satisfied them — a plain pick demands nothing. Passing through the finalize would also diff
-    // against the current stream rather than `base`, which is the one thing this planner needs to
-    // control.
+    // order, the same-string overlap bound, and every intra-note rule are exactly as the stream
+    // already satisfied them — a plain pick demands nothing. Passing through the finalize would
+    // also diff against the current stream rather than `base`, which is the one thing this planner
+    // needs to control.
     //
     // The diff itself may come out EMPTY, and that is a real plan rather than a refusal: it means
     // the flatten put the stream back exactly where `base` had it, so the caller still has to
@@ -1572,9 +1576,9 @@ ChartSelectionPlan planSetAttack(
             {
                 // A scrape needs room to travel, so a ring too short to hold a gesture at all
                 // grows first: the signed quarter-note default, clamped by the model's ONE bound
-                // (40-Q2-B) so an authored default can never ring through the string's next
-                // onset. A ring that can hold the gesture is left exactly as authored — the ring
-                // is the note's own truth, and this verb changes the attack, not the duration.
+                // so an authored default can never ring through the string's next onset. A ring
+                // that can hold the gesture is left exactly as authored — the ring is the note's
+                // own truth, and this verb changes the attack, not the duration.
                 const common::core::Fraction window =
                     minimumSlideWindowRing(tempo_map, note.position);
                 if (retyped.sustain < window)
@@ -1615,11 +1619,12 @@ ChartSelectionPlan planSetNoteFlag(
 {
     // The write is one bool, and the rule authority is what refuses `dead` wherever a technique
     // needs the pitch it removes — a bend, a vibrato, a pinch's squeal — and what a palm mute
-    // always passes. The eligibility asks the plan's own repair first (E4's strike flatten), as
+    // always passes. The eligibility asks the plan's own repair first (the strike flatten), as
     // every verb whose intent is not the attack does: a write that leaves a strike with nowhere to
     // land retypes to a plain pick and applies, rather than skipping the note for a reason the
-    // user never asked about. The ring is not this verb's business at all — E25 is a presentation
-    // rule, so X takes a dead note's DRAWN tail away and leaves its stored duration standing.
+    // user never asked about. The ring is not this verb's business at all — whether a dead note's
+    // tail draws is a presentation rule, so X takes the DRAWN tail away and leaves its stored
+    // duration standing.
     bool common::core::ChartNote::* const field = chartNoteFlagField(which);
     return planNoteWrite(
         chart,
@@ -1659,10 +1664,10 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
             }
             if (!keyframe.fret.has_value())
             {
-                // W10's ruling 2: a head must sit on a STATED fret, and the value between two
-                // stating points is interpolated travel. The other half of that ruling — a
-                // keyframe at the ring's end, with no remainder to hand over — is the walk's own
-                // range refusal below and is not restated here.
+                // A head must sit on a STATED fret, and the value between two stating points is
+                // interpolated travel. The other half of that rule — a keyframe at the ring's end,
+                // with no remainder to hand over — is the walk's own range refusal below and is not
+                // restated here.
                 return std::unexpected{ChartPlanInvalid{"a head must sit on a stated fret"}};
             }
             // The instant is all this verb supplies: the keyframe the cut consumes states its own
@@ -1947,9 +1952,9 @@ std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
     // neck, at or behind the stop, or on a note whose saved form records no node at all (a scrape)
     // is dropped because the write it would produce is one the chart rules refuse — the same
     // judgement planNoteWrite makes per note, asked one candidate earlier so the picker never
-    // offers a row the settle would skip. Only the last of those can fire today; the
-    // header states why the two positional bounds are unreachable from a label, and asking the
-    // authority is what keeps this tracking them if they move.
+    // offers a row the settle would skip. Only the last of those can fire today; the header states
+    // why the two positional bounds are unreachable from a label, and asking the authority is what
+    // keeps this tracking them if they move.
     std::erase_if(
         candidates,
         [&note, &tuning, &tempo_map](const common::core::HarmonicNodeCandidate& candidate) {
@@ -2021,9 +2026,8 @@ ChartSelectionPlan planClearHarmonic(
         StrandedStrikeRepair::Flatten,
         [](const common::core::ChartNote& note, common::core::ChartNote& cleared) -> NoteWrite {
             // The fretting hand's node only: a pinch's is the picking thumb's, and the row that
-            // owns that hand clears it (planClearPinchHarmonic). A shared clear once reached both,
-            // which let this verb's "No harmonic" strip a pinch selected beside a
-            // fret-hand carrier.
+            // owns that hand clears it (planClearPinchHarmonic). A shared clear would reach both,
+            // letting this verb's "No harmonic" strip a pinch selected beside a fret-hand carrier.
             if (!carriesNeckHarmonic(note))
             {
                 return {};
@@ -2071,8 +2075,8 @@ namespace
 
 // The uniform-scope read for a technique that lives on the NOTE alone: every selected note already
 // carries it. An empty note operand answers false, which makes such a press mean SET — and a set
-// with nothing to write plans to NoChange, which is the inert outcome an empty selection has always
-// had. Written once so six of the seven row shapes below state only their own field.
+// with nothing to write plans to NoChange, which is the inert outcome an empty selection has.
+// Written once so every note-scoped row below states only its own field.
 template <typename Carries>
 [[nodiscard]] bool everySelectedNoteCarries(
     const common::core::Chart& chart, const ChartSelection& selection, const Carries& carries)

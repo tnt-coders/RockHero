@@ -112,8 +112,8 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     GestureFixture fixture;
     REQUIRE(fixture.load());
 
-    // A plain click selects just the string-1 note (containment hierarchy). Every fixture note
-    // starts at the eighth-of-a-beat fixture ring, which ends BETWEEN grid lines, so the first grid
+    // A plain click selects just the string-1 note (containment hierarchy). The measure-2 notes
+    // start at the eighth-of-a-beat fixture ring, which ends BETWEEN grid lines, so the first grid
     // step snaps its end onto the next line rather than adding a beat to it.
     click(fixture.controller, 40.0f, 220.0f);
     fixture.step(1);
@@ -128,7 +128,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{4});
 
     // Nothing bounds the string-2 chord member, because the bound is its OWN string's next onset
-    // and it has none: the measure-3 note on string 1 no longer stops its ring.
+    // and it has none: the measure-3 note on string 1 does not stop its ring.
     click(fixture.controller, 40.0f, 180.0f);
     for (int index = 0; index < 6; ++index)
     {
@@ -642,12 +642,11 @@ TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
     CHECK(slides_out_toward().has_value());
 }
 
-// The defect end to end, by the route that authored it: a ring digit typed on a tail plants a
-// point, and one repeating the note's own fret plants a point that says nothing. Shrinking onto
-// it would have made it an invisible slide-out, after which the ring refused to shorten from the
-// head either —
-// the charter's tail stuck on a mark nothing draws. The ring now floors one step above the point
-// the charter CAN see, from the point's selection and from the head alike; and once the point
+// The same defect end to end, by the route that can author it: a ring digit typed on a tail plants
+// a point, and one repeating the note's own fret plants a point that says nothing. Shrinking onto
+// it would make it an invisible slide-out the ring could not then shorten past from the head
+// either — the charter's tail stuck on a mark nothing draws. So the ring floors one step above the
+// point the charter CAN see, from the point's selection and from the head alike; and once the point
 // dissolves at the settle, the floor falls back to the onset and the tail moves again.
 TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]")
 {

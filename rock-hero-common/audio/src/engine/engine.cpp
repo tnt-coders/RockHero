@@ -22,10 +22,9 @@ void Engine::Impl::createEdit()
     // aligns parallel paths at sum points). With it off, the player hears only the active
     // branch's real latency; branches misalign only during the 5-10 ms tone crossfade — a brief
     // phase smear, not a timing error. PDC exists to align recorded material in mixes; this
-    // product has one live path plus a backing stem, so compensation stays off for BOTH products
-    // (latency stance recorded in docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 5
-    // and the tone plan's latency amendment). Scoring is unaffected either way: note detection
-    // taps the dry input before the rack.
+    // product has one live path plus a backing stem, so compensation stays off for BOTH products.
+    // Scoring is unaffected either way: note detection taps the dry input before the rack (the
+    // dry-tap contract on ILiveInput).
     m_edit->setLatencyCompensationEnabled(false);
 
     auto audio_tracks = tracktion::getAudioTracks(*m_edit);
@@ -134,7 +133,7 @@ Engine::Engine()
 }
 
 // Stops transport activity and detaches listeners while the Tracktion objects are still alive.
-// Destroying them is Impl's job, not this body's -- see the note above the rack reset below.
+// Destroying them is Impl's job, not this body's -- see the note after the rack reset below.
 Engine::~Engine()
 {
     // Retire the clock republisher first. Declaration order already destroys it before m_edit;
@@ -163,12 +162,12 @@ Engine::~Engine()
 
     // m_edit and m_engine are deliberately NOT reset here, and neither is any other plugin-holding
     // member. They are declared first in Impl, so ~Impl destroys them last -- after every member
-    // that can hold a tracktion::Plugin::Ptr. Resetting them here destroyed the Edit early, and a
-    // plugin still held by a later-declared member then ran ~AutomatableEditItem against the freed
-    // Edit, which writes into the Edit's item cache. m_replace_op is the reachable case: close the
-    // editor while a tone-chain swap is mid-flight and its candidate plugins outlive the Edit.
-    // Declaration order is the single authority for teardown order; the hand-maintained list that
-    // used to live here was a second one, and it was missing m_replace_op.
+    // that can hold a tracktion::Plugin::Ptr. Resetting them here would destroy the Edit early,
+    // and a plugin still held by a later-declared member would then run ~AutomatableEditItem
+    // against the freed Edit, which writes into the Edit's item cache. m_replace_op is the
+    // reachable case: close the editor while a tone-chain swap is mid-flight and its candidate
+    // plugins outlive the Edit. Declaration order is the single authority for teardown order; a
+    // hand-maintained reset list here would be a second one, bound to drift from it.
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.

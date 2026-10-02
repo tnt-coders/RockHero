@@ -317,13 +317,12 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     resetUndoHistory("undo.reset.open_project");
     markUndoHistoryClean("undo.mark_clean.open_project");
 
-    // Restore the marker exactly as stored (the marker model): a passive cursor seeks the
-    // transport to its raw saved time; an armed caret seeks to its slot's musical time and
-    // re-arms on the same exact grid address. A stored caret whose string no longer exists on
-    // the loaded chart — or that belongs to a now-chartless project — demotes to a passive
-    // cursor at the same musical time: restore never clamps onto a wrong string and never
-    // invents a position. An unknown project starts passive at time zero (loadSessionSong's
-    // clearChartEditingState already reset the marker itself).
+    // Restore the marker exactly as stored: a passive cursor seeks the transport to its raw saved
+    // time; an armed caret seeks to its slot's musical time and re-arms on the same exact grid
+    // address. A stored caret whose string does not exist on the loaded chart — or that belongs to
+    // a chartless project — demotes to a passive cursor at the same musical time: restore never
+    // clamps onto a wrong string and never invents a position. An unknown project starts passive
+    // at time zero (loadSessionSong's clearChartEditingState already reset the marker itself).
     if (next_marker.has_value())
     {
         std::visit([this](const auto& stored) { restoreProjectMarker(stored); }, *next_marker);
@@ -483,8 +482,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project_file.clear();
     m_save_requires_destination = true;
     // A fresh import has no per-project grid note-value record to restore (no project path yet), so
-    // the grid resets to the default instead of inheriting the replaced project's
-    // spacing.
+    // the grid resets to the default instead of inheriting the replaced project's spacing.
     resetGridSession(g_default_tempo_grid_note_value);
     m_timeline_zoom_pixels_per_second = 0.0;
     clearSelection();
@@ -583,7 +581,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 m_output_gain_db = rig_result->output_gain.db;
                 m_output_gain_preview_before.reset();
                 // Load-fresh plugin identities key the arrangement's musical automation; merge
-                // them, then rebuild the derived playback curves the sidecars no longer carry.
+                // them, then rebuild the derived playback curves, which no saved file carries.
                 mergeToneChainIdentities(rig_result->tone_chains);
                 rebuildDerivedToneCurves(editContext());
                 m_loaded_tone_refs.clear();
@@ -594,8 +592,8 @@ void EditorController::Impl::startLiveRigLoadStage(
                     m_loaded_tone_refs.push_back(chain.tone_document_ref);
                 }
                 // One-way host-tempo mirror so hosted plugins see the song's real tempo map
-                // instead of the backend default. A future tempo-editing flow must re-mirror
-                // after every tempo-map change alongside rebuildDerivedToneCurves().
+                // instead of the backend default. Any flow that edits the tempo map must re-mirror
+                // after the change, alongside rebuildDerivedToneCurves().
                 m_song_audio.mirrorTempoMap(session().song().tempo_map);
                 refreshLiveInput();
                 if (!report_progress)
@@ -1123,7 +1121,7 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
     return {};
 }
 
-// Restores the selected arrangement's saved tone document after the backing audio is active.
+// Restores the selected arrangement's saved tone documents after the backing audio is active.
 // Live rig restore runs cooperatively on the message thread inside the audio adapter, so this
 // method always returns immediately and routes the audio load result through the on_loaded callback
 // without mutating controller state.
@@ -1484,8 +1482,8 @@ void EditorController::Impl::restoreProjectMarker(const EditorProjectCursor& cur
 
 // Restores a stored armed marker: the transport seeks to the slot's musical time and the
 // caret re-arms on the stored grid address, snapped onto the tick lattice — a settings file is
-// taken on trust, and one written before the lattice existed can hold an address between two
-// ticks, where every verb the caret feeds would be refused. When the stored string no longer
+// taken on trust, and one can hold an address between two ticks, where every verb the caret
+// feeds would be refused. When the stored string no longer
 // exists on the loaded chart (or the project is chartless) the marker demotes to a passive cursor
 // at that same time instead — never a clamp onto a wrong string; the stored string stays as the
 // arming memory, which itself clamps against the displayed chart.
@@ -1567,7 +1565,7 @@ void EditorController::Impl::saveCurrentProjectMarkerBestEffort(std::string_view
     }
 
     // A lane caret persists as a passive cursor: lane visibility depends on the active tone at
-    // restore time, and restore never invents a row (§9a/§9b demotion posture). The transport
+    // restore time, and restore never invents a row (it demotes instead). The transport
     // already rests at the caret's slot (lane arming seeks), so no position is lost.
     const ChartCaret* const caret = armedChartCaret();
     const EditorProjectMarker marker =
@@ -1609,7 +1607,7 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
     }
 
     // Establish the tone baseline before the song is committed: every arrangement gets a real
-    // default tone document (minted here for tone-less imports and pre-tone packages) plus an
+    // default tone document (minted here for imports and packages that carry no tones) plus an
     // explicit catalog entry and whole-song region. This is the single seam that guarantees the
     // invariant; capture, restore, and the projections do not handle the tone-less shape. The
     // materialized state joins the loaded (clean) baseline rather than showing up as an unsaved

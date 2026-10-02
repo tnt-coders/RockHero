@@ -16,11 +16,11 @@ namespace rock_hero::editor::ui
 /*!
 \brief Turns playback-clock snapshots into the preview's per-frame displayed song time.
 
-While playing, the time is the plan-12 extrapolated clock (raw transport reads shimmer on a moving
-field). While paused, it glides toward the caller-supplied marker target with a short exponential
-settle so a caret step reads as motion down the highway rather than a cut; within a snap tolerance
-the glide pins to the target so it provably terminates. Pausing pins the glide to the played time
-so playback resumes seamlessly from the stop point.
+While playing, the time is the extrapolated playback clock (raw transport reads shimmer on a
+moving field). While paused, it glides toward the caller-supplied marker target with a short
+exponential settle so a caret step reads as motion down the highway rather than a cut; within a
+snap tolerance the glide pins to the target so it provably terminates. Pausing pins the glide to
+the played time so playback resumes seamlessly from the stop point.
 
 Pure and injected-time: no clocks or ports are read here, so the paused/resume policy the preview
 window depends on is unit-testable without a GPU frame callback. Owned by PreviewSurface, which

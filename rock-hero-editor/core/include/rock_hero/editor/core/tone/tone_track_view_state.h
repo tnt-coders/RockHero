@@ -16,7 +16,7 @@ namespace rock_hero::editor::core
 /*! \brief One tone region rendered on the tone track row. */
 struct ToneRegionViewState
 {
-    /*! \brief Stable region identifier used by future selection intents. */
+    /*! \brief Stable region identifier used by selection intents. */
     std::string id;
 
     /*! \brief User-facing region name; empty means the view shows a fallback label. */
@@ -48,8 +48,9 @@ struct ToneRegionViewState
     /*!
     \brief True when this region is the formally selected region.
 
-    A selection is made only by deliberately clicking a region and is cleared by any cursor move; it
-    is the Delete target and is drawn with a distinct white outline on top of the active highlight.
+    A selection is made by deliberately clicking a region or reaching it with the keyboard's marker
+    walk, and is cleared by any cursor move; it is the Delete target and is drawn with a distinct
+    white outline on top of the active highlight.
     */
     bool selected{false};
 

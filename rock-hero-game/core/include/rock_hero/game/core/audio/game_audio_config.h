@@ -40,11 +40,10 @@ struct [[nodiscard]] PlayerInputConfig
 \brief The game's player-slot-to-route mapping, persisted through game/core.
 
 v1 holds exactly one entry (slot 0), persisted and read back at startup, so the multi-input schema
-is genuinely exercised rather than a hollow symmetry type. The multi-input boundary is honest and
-additive: N players as N channels on the one active device is purely additive (append entries, each
-naming a different channel index on the same active route). N players on separate physical
-interfaces is genuine future work needing a multi-device active-route representation and a
-multi-channel selection surface, and is out of v1 scope.
+is exercised rather than a hollow symmetry type. N players as N channels on the one active device
+is purely additive (append entries, each naming a different channel index on the same active
+route). N players on separate physical interfaces would need a multi-device active-route
+representation and a multi-channel selection surface, and is out of v1 scope.
 */
 struct [[nodiscard]] GameAudioConfig
 {

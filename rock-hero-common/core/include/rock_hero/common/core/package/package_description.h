@@ -83,8 +83,8 @@ struct PackageDescription
 \brief Peeks a native song package's description straight from the archive.
 
 Streams song.json and each referenced chart entry from the ZIP; never extracts audio, never
-writes a workspace, never touches the filesystem beyond reading the archive. The library index
-(plan 26) rescans with this instead of extracting, which is what keeps startup instant.
+writes a workspace, never touches the filesystem beyond reading the archive. The game's library
+index rescans with this instead of extracting, which is what keeps startup instant.
 
 \param package_path Native `.rock` package file.
 \return The description, or a typed failure when the file is not a readable supported package.

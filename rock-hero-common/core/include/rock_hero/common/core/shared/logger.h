@@ -180,7 +180,7 @@ struct Logger
         \brief Runtime severity floor applied to every category logger.
 
         Info by default so per-frame trace instrumentation stays dormant in normal runs; the
-        game's dev-diagnostics flag (plan 20 Phase 4) lowers it to \ref Level::Trace.
+        game's dev-diagnostics flag lowers it to \ref Level::Trace.
         */
         Level default_level = Level::Info;
     };

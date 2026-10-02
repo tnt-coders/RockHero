@@ -25,9 +25,8 @@ struct ToneRegionSelection
 };
 
 // A formally selected song-structure section chip on the ruler (the Delete/Ctrl+M/Alt+arrow
-// target).
-// Identified by its exact grid position, which is the section's identity in the song: sections
-// carry no id, and a display index would not survive a rebuild push. Deliberately NOT a
+// target). Identified by its exact grid position, which is the section's identity in the song:
+// sections carry no id, and a display index would not survive a rebuild push. Deliberately NOT a
 // ChartSelectionKey variant — the uniform-scope law would then force every technique verb to
 // answer what accent means on a section, and the chart selection is arrangement-scoped while a
 // section is song-level and outlives the arrangement switch. Single-select, for the reason the
@@ -79,10 +78,10 @@ struct FretHandPositionSelection
 };
 
 // A grid-locked time span across every surface (the Shift+arrow / Shift+click time selection).
-// Both endpoints are display-grid positions — a boundary is never off-grid (decision B) — stored
-// as an anchor (the fixed end) and a focus (the end an extend moves), so extension knows which
-// side grows; the rendered/edited span is the ordered pair [min, max]. A distinct EditorSelection
-// kind, so making one structurally evicts any object selection and vice versa (decision D).
+// Both endpoints are display-grid positions — a boundary is never off-grid — stored as an anchor
+// (the fixed end) and a focus (the end an extend moves), so extension knows which side grows; the
+// rendered/edited span is the ordered pair [min, max]. A distinct EditorSelection kind, so making
+// one structurally evicts any object selection and vice versa.
 struct TimeSelection
 {
     // The end that stays put while the span is extended (the last non-Shift marker position,
@@ -136,17 +135,16 @@ struct AddAutomationLaneRowSelection
         const AddAutomationLaneRowSelection& rhs) = default;
 };
 
-// Exactly one selection exists editor-wide (the interaction model): chart notes, a tone
-// region, a song section, a tempo or time-signature chip, a fret-hand position, an automation
-// point, the "+" row, and a time span are alternatives of one sum type, so selecting on any surface
-// structurally replaces the selection on every other —
-// two live selections are unrepresentable and Delete needs no precedence ladder to disambiguate.
-// std::monostate is "nothing selected"; a held-but-empty ChartSelection means the same thing.
-// Selection kinds keep their shipped lifecycles: chart selection and the time span survive seeks
-// and clear on play, while every other kind also clears whenever the cursor moves (the
-// transport-move rule). The time span is the object-vs-time exclusivity of decision D: making a
-// range dissolves the object selection and demotes the marker to passive, and any object gesture
-// evicts the range in turn.
+// Exactly one selection exists editor-wide (the interaction model): chart notes, a tone region, a
+// song section, a tempo or time-signature chip, a fret-hand position, an automation point, the "+"
+// row, and a time span are alternatives of one sum type, so selecting on any surface structurally
+// replaces the selection on every other — two live selections are unrepresentable and Delete never
+// has to choose between surfaces. std::monostate is "nothing selected"; a held-but-empty
+// ChartSelection means the same thing. Selection kinds differ in lifecycle: chart selection and the
+// time span survive seeks and clear on play, while every other kind also clears whenever the cursor
+// moves (the transport-move rule). The time span is exclusive with object selection: making a range
+// dissolves the object selection and demotes the marker to passive, and any object gesture evicts
+// the range in turn.
 using EditorSelection = std::variant<
     std::monostate, ChartSelection, ToneRegionSelection, SongSectionSelection, TempoAnchorSelection,
     TimeSignatureSelection, FretHandPositionSelection, AutomationPointSelection,

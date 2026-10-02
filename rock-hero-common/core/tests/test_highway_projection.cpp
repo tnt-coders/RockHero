@@ -373,7 +373,7 @@ void checkPop(
 
 } // namespace
 
-// The capo rides the projection so the board can draw the clamp and its dead zone (25-Q6).
+// The capo rides the projection so the board can draw the clamp and its dead zone.
 TEST_CASE("Highway projection carries the tuning's capo", "[core][highway]")
 {
     Arrangement arrangement;
@@ -421,7 +421,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(sliding.slides[0].fret == 9);
 
     // The between-fret harmonic node survives projection untouched, and its presence is what
-    // makes the note a harmonic now.
+    // makes the note a harmonic.
     const NoteViewState& harmonic = state.chart.notes[5];
     CHECK(harmonic.attack == NoteAttack::Pick);
     REQUIRE(harmonic.harmonic_node.has_value());
@@ -458,7 +458,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
     // Upper-cased by the projection, not the renderer: the board draws every section name that way,
     // and folding the case here keeps a pure function of the chart out of the per-frame path, where
-    // it was allocating and transforming a string per visible section per frame. The authored name
+    // it would allocate and transform a string per visible section per frame. The authored name
     // is untouched in the song, and the 2D ruler still shows it as written.
     CHECK(state.sections[0].name == "VERSE");
 }
@@ -726,8 +726,8 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
 
 // Node-series rules: a repeat of the same node extends the run, a fretting-hand non-natural
 // breaks it, a picking-hand onset is invisible to it, and a re-established node starts a new
-// series. The maker moved here from the renderer's per-frame path, so this pins the behavior
-// the floor labels and the dotted-fret suppression read.
+// series. The maker lives here rather than in the renderer's per-frame path, so this pins the
+// behavior the floor labels and the dotted-fret suppression read.
 TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
 {
     std::vector<NoteViewState> notes;
@@ -1070,7 +1070,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     CHECK_FALSE(state.chart.notes[0].rested);
 }
 
-// Tapping-hand onsets (right-hand-tap-lighting plan): one derived entry per onset group that
+// Tapping-hand onsets: one derived entry per onset group that
 // contains tapped notes, carrying the taps' fret extent and count. Non-tap notes sharing the
 // onset contribute nothing, tap-free onsets derive no entry, and simultaneity follows the
 // shared onset epsilon.
@@ -1159,8 +1159,8 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
 
 // A tap harmonic lights the NODE it strikes, even on an open string. E4 accepts a tap that strikes
 // a node in place of a fret, and the tapping hand really does land on the node — so judging the
-// light by `fret` dropped it entirely from a legal, matrix-listed note: the same tap one fret
-// higher lit normally while the open-string one lit nowhere.
+// light by `fret` would drop it entirely from a legal, matrix-listed note: the same tap one fret
+// higher would light normally while the open-string one lit nowhere.
 TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[core][highway]")
 {
     NoteViewState tap;
@@ -1186,8 +1186,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     CHECK(std::is_eq(light.track.front().low_line <=> 11.0));
     CHECK(std::is_eq(light.track.front().high_line <=> 12.0));
 
-    // An ordinary open string with no node still has nowhere to light, so the guard still holds
-    // where it was meant to.
+    // An ordinary open string with no node has nowhere to light, so it stays dark.
     NoteViewState open_tap = tap;
     open_tap.harmonic_node.reset();
     CHECK(makeHighwayTapOnsets({open_tap}, std::vector<double>(1, 0.0)).empty());
@@ -1973,7 +1972,7 @@ void checkEveryStretchOpensOnANote(const HighwayViewState& state)
 
 } // namespace
 
-// An open string is evidence by ruling: it is drawn as a bar spanning the window, so a dark window
+// An open string is evidence by rule: it is drawn as a bar spanning the window, so a dark window
 // under it would read as a floating bar. Its light rises over the arrival margin before the note —
 // the same marginBefore the hand's own morph is led by — and releases at the drawn end.
 TEST_CASE("Fret-hand light lights a lone open note with a margin rise", "[core][highway][light]")
@@ -2135,7 +2134,7 @@ TEST_CASE("Fret-hand light is never opened by a carry-opened span", "[core][high
     checkEveryStretchOpensOnANote(state);
 }
 
-// THE 9731dcee DISCRIMINATOR, the user's repro: a chord under a span in measure 1, measure 2
+// THE REST DISCRIMINATOR: a chord under a span in measure 1, measure 2
 // emptied of notes, and the chord returning in measure 3. The rest is longer than the tolerance,
 // so the light goes out and comes back: TWO stretches, the second starting at the returning chord
 // with a one-margin rise that never reaches back through the rest. It guards the order of the
@@ -2344,10 +2343,9 @@ TEST_CASE("Highway chord groups fold emphasis loud-wins, quiet-unanimous", "[cor
 
 // The repeat chain (Charter's chord visibility rules): under a covering shape, a strum that
 // restates the posture of an earlier non-muted run renders as the repeat box alone. Two boundary
-// cases are pinned here, both untestable while this decision lived inside the renderer: the chain's
-// first strum sitting a rounding epsilon BELOW the shape start must still anchor the walk (else the
-// box flickers), and a strum at the shape's END is still under the span (a strict comparison would
-// drop the last strum from repeat treatment).
+// cases are pinned here: the chain's first strum sitting a rounding epsilon BELOW the shape start
+// must still anchor the walk (else the box flickers), and a strum at the shape's END is still
+// under the span (a strict comparison would drop the last strum from repeat treatment).
 TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -2404,7 +2402,7 @@ TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[co
 
 // A BOX MARKS SIMULTANEITY (LAW IV): any two-or-more-string strike wears one, inside a span and
 // outside one alike. A partial restrike is still two strings struck together, so it states its own
-// chord — and it wears THE STANDARD CHORD BOX (Q2), never a narrowed one, because the arpeggio
+// chord — and it wears THE STANDARD CHORD BOX, never a narrowed one, because the arpeggio
 // context is already carried by the span's borders and the brackets standing on the fretboard. What
 // keeps it from LYING is the identity law, not a missing box: a repeat only ever follows an
 // IDENTICAL preceding onset, and a partial is not the same notes as the whole.
@@ -2435,7 +2433,7 @@ TEST_CASE("Highway chord groups box a partial strike with the standard box", "[c
     // different onset however little sits between them.
     CHECK(grouping.groups[1].fretting_hand_count == 2);
     CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
-    // THE STANDARD box, not a narrowed one (Q2): the arpeggio context is already carried by the
+    // THE STANDARD box, not a narrowed one: the arpeggio context is already carried by the
     // span's borders and the brackets on the fretboard, so the box restates nothing by matching the
     // shape's width. The struck count still differs, because the count is what the box treatment is
     // decided FROM.
@@ -2448,7 +2446,7 @@ TEST_CASE("Highway chord groups box a partial strike with the standard box", "[c
     CHECK(grouping.groups[3].box_treatment == HighwayChordBoxTreatment::Full);
 }
 
-// EVERY QUESTION HERE IS THE FRETTING HAND'S (review N3/N4). A right-hand onset is the other hand,
+// EVERY QUESTION HERE IS THE FRETTING HAND'S. A right-hand onset is the other hand,
 // so it never counts toward the strum, folds into its unanimities, states a fret its identity
 // compares, or is scanned by the capability gate. A mixed reading gets it wrong in both
 // directions, and this pins both.
@@ -2641,16 +2639,16 @@ TEST_CASE("Highway chord groups break a repeat run on any interleaved onset", "[
 
 // THE IDENTITY COMPARES WHERE THE HEADS SOUND (soundingStopAt), not the fret column and not the
 // grip: a repeat box draws no heads, so it may only stand in for an onset whose heads are the ones
-// the onset before it drew. Both halves of the harmonic defect are pinned — a node chord read as
-// an open chord through `fret`, and an artificial-harmonic chord read as its pressed frets through
-// the grip. The node chord itself never repeats (the capability gate folds a node into its marks
-// scan), so in both figures the FOLLOWER is where the false box appeared.
+// the onset before it drew. Both wrong readings are pinned — a node chord read as an open chord
+// through `fret`, and an artificial-harmonic chord read as its pressed frets through the grip. The
+// node chord itself never repeats (the capability gate folds a node into its marks scan), so in
+// both figures the FOLLOWER is where a false box would appear.
 TEST_CASE("Highway chord groups compare sounding places, not frets or grips", "[core][highway]")
 {
     SECTION("an open chord after a natural-harmonic chord on the same strings re-heads")
     {
-        // Through `fret` both onsets are 0/0 on strings one and two, and the open chord following
-        // the chime drew a headless repeat box for a strum that never repeated.
+        // Through `fret` both onsets are 0/0 on strings one and two, so the open chord following
+        // the chime would draw a headless repeat box for a strum that never repeated.
         const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, {{1, 0}, {2, 0}})};
         std::vector<NoteViewState> notes{
             chordNote(1.0, 1, 0),
@@ -2671,8 +2669,8 @@ TEST_CASE("Highway chord groups compare sounding places, not frets or grips", "[
     {
         // The half a GRIP reading leaves live: a fret-5 chord damped at node 17 presses the same
         // stops as the plain fret-5 chord after it, so the grips compare identical and the plain
-        // chord wore a repeat box implying the squeal repeats. Its heads sound twelve frets from
-        // where the first chord's did, so they are not heads a repeat box may stand in for.
+        // chord would wear a repeat box implying the squeal repeats. Its heads sound twelve frets
+        // from where the first chord's did, so they are not heads a repeat box may stand in for.
         const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, {{1, 5}, {2, 5}})};
         std::vector<NoteViewState> notes{
             chordNote(1.0, 1, 5),
@@ -2695,7 +2693,7 @@ TEST_CASE("Highway chord groups compare sounding places, not frets or grips", "[
 // the same struck strings at the same frets, PROFILE FREE. Every re-head below is that one rule: a
 // rest is a span boundary, a fresh grip is a span boundary, and a differing onset before it is
 // simply not the same onset. Nothing may be skipped over on the way to a matching run further away
-// (the rule F10 asked for, and the ruleset's dead list refuses).
+// (a rule the ruleset's dead list refuses).
 TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -2817,12 +2815,12 @@ TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][
     }
 }
 
-// THE DISPLAY-CAPABILITY GATE, which the identity law above leaves exactly as it was — and which
-// now carries more weight, since a profile CHANGE reaches it instead of re-heading. A repeat
-// box draws no heads, so it may only stand in for a strum whose entire statement the box itself
-// carries: one of the four mute profiles it has a mark for, composed with the emphasis it already
-// carries. Every combination of the two axes is a valid repeat render, and a profile the box cannot
-// draw falls back to the full box, which keeps its heads and therefore keeps every mark on them.
+// THE DISPLAY-CAPABILITY GATE, which a profile CHANGE reaches instead of re-heading, because the
+// identity law above is profile free. A repeat box draws no heads, so it may only stand in for a
+// strum whose entire statement the box itself carries: one of the four mute profiles it has a
+// mark for, composed with the emphasis it already carries. Every combination of the two axes is a
+// valid repeat render, and a profile the box cannot draw falls back to the full box, which keeps
+// its heads and therefore keeps every mark on them.
 TEST_CASE("Highway repeat boxes render every mute profile at every emphasis", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -2887,8 +2885,7 @@ TEST_CASE("Highway repeat boxes render every mute profile at every emphasis", "[
     {
         // The identity is profile free, so a plain chord followed by the same frets in a profile no
         // box can draw passes the comparison and is refused HERE, by the one rule that is about
-        // drawing. That is the whole of what the profile ruling moved: from a re-head decided by
-        // the identity to a fallback decided by capability.
+        // drawing: a fallback decided by capability, not a re-head decided by the identity.
         const std::vector<NoteViewState> plain_then_mixed{
             chordNote(1.0, 1, 3),
             chordNote(1.0, 2, 5),

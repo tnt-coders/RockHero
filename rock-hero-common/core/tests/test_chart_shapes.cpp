@@ -563,8 +563,8 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
         // same-hold material sounding in parts inside the stroke's own rings, so THE ABSORPTION
         // RULE takes the chord in as the figure's opening stroke rather than letting it stand
         // alone as a box for the pull-off to break — the tap's claim reads exactly as it reads at
-        // the slot open (sighted on the corpus: Periphery, "It's Only Smiles" measure 82, where
-        // the bracket started at the first pull-off instead of at the chord).
+        // the slot open (the corpus figure is Periphery, "It's Only Smiles" measure 82; read the
+        // other way, the bracket would start at the first pull-off instead of at the chord).
         std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{12}),
             noteAt(1, Fraction{}, 2, 7, Fraction{12}),
@@ -628,7 +628,7 @@ TEST_CASE("A tap's ring never makes a dead string a member", "[core][chart]")
 }
 
 // The other half of the same law, and the half that decides WHICH ONSETS the chain is continuous
-// through (F2): the adjacency set is every SOUNDING onset, whichever hand made it. The warrant is
+// through: the adjacency set is every SOUNDING onset, whichever hand made it. The warrant is
 // what happens to the member's tail at a tap — the tap ends it underneath, with no hand lifting
 // anywhere, so the sound was REPLACED rather than silenced, and detachment is a statement about
 // sound stopping. A tap therefore chains a statement it may not bound.
@@ -1131,7 +1131,7 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
     }
 }
 
-// THE F1 PROBE, permanent: CLASSIFICATION READS THE STORED STREAM.
+// CLASSIFICATION READS THE STORED STREAM.
 //
 // One figure, two arms of the one class law. A DEAD string carries into a chord's onset: its
 // STORED ring is real timing, its DRAWN tail is gone (E25). The walk's fold-in asks the stored
@@ -1249,11 +1249,11 @@ TEST_CASE("Chart shape derivation tables one posture per distinct fret vector", 
     }
 }
 
-// A TAP STATES NOTHING TO THE SPANS (RULED 2026-09-29): its plant is a fact the pull-off's own
-// sounding note restates when it lands, so the grip the spans print is read off the notes that
-// sound and nothing the tap claims. The figure is the one corner where a claim used to say
-// something: a two-string statement on the downbeat puts string ONE on the landing stop, then that
-// span is broken in the tap's own slot by string two moving. The successor founds on the pull-off
+// A TAP STATES NOTHING TO THE SPANS: its plant is a fact the pull-off's own sounding note restates
+// when it lands, so the grip the spans print is read off the notes that sound and nothing the tap
+// claims. The figure is the one corner where a tap's claim could seem to matter: a two-string
+// statement on the downbeat puts string ONE on the landing stop, then that span is broken in the
+// tap's own slot by string two moving. The successor founds on the pull-off
 // and the rings around it, and its posture still holds the landing stop — stated by the note that
 // sounds it.
 TEST_CASE("A tap's plant reaches the spans through the pull-off that states it", "[core][chart]")
@@ -1313,7 +1313,7 @@ TEST_CASE("A tap's plant reaches the spans through the pull-off that states it",
 // fingers planted, so the rings run continuously and the span COVERS the transit, ending where the
 // new grip is established — which is exactly where the successor opens, so the two TILE. The
 // members' sliding tails draw across the transit, and the successor draws no opening mark of its
-// own (amendment 2): the continued tails and the chord NAME changing at the landing are the whole
+// own: the continued tails and the chord NAME changing at the landing are the whole
 // statement.
 TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][chart]")
 {
@@ -1434,7 +1434,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // the ONE derivation question that reads the display margin, every other use of it living
         // at the projection, and it does so on purpose: whether the landed grip gets a moment of
         // its own is whether a reader could see one. The margin is taken at the CLOSING onset, as
-        // every other reader takes it and never at the arrival (review F3); the cross-tempo
+        // every other reader takes it and never at the arrival; the cross-tempo
         // section below is what pins that.
         //
         // The closing statement has to be a FOREIGN one (rule 11, corollary 2). A restrike of the
@@ -1477,7 +1477,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 
     SECTION("THE LANDING PIN: a landing met by a restrike emits the departing grip and the chord")
     {
-        // The pin for the boundary rule (review #1): the continuity law alone judges a death, and a
+        // The pin for the boundary rule: the continuity law alone judges a death, and a
         // LANDING is the case a second reading of the same adjacency could part from it over, since
         // a landing is a reach that is not a ring's end.
         //
@@ -1578,7 +1578,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             GridPosition{.measure = 1, .beat = 2, .offset = Fraction{9, 10}});
         CHECK(derived.shapes[1].sustain == Fraction{11, 10});
         CHECK(derived.shapes[1].landing_opened);
-        // THE SIGHTING FIGURE, BOX CLASS END TO END: a chord sliding into chords is not an
+        // BOX CLASS END TO END: a chord sliding into chords is not an
         // arpeggio. The landing fires no trigger — a landing is not a sounding — and the restrike
         // inside the successor is the shape WHOLE, so nothing makes either span an arpeggio. What
         // draws is two boxes joined by the members' sliding tails, which is the published
@@ -1595,7 +1595,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // The other side of the same law: a successor is classified by what sounds INSIDE it, so a
         // sounding that reaches only part of the landed grip is LAW III's class rule at its
         // ordinary width. One string of the landed grip is re-picked at its own landed stop, which
-        // rides the successor (review F7) and states its members arriving separately. Every ring
+        // rides the successor and states its members arriving separately. Every ring
         // runs past the re-pick, so the successor's statement is still in force there — a re-pick
         // AT the shortest member's end would close the span instead of riding it.
         const std::vector<ChartNote> notes = streamOf({
@@ -1891,7 +1891,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
     SECTION("a lone re-pick of a landed member rides the successor")
     {
-        // Review F7. The successor's members are RINGS it never struck, so it has no strike
+        // The successor's members are RINGS it never struck, so it has no strike
         // articulation for a re-pick to match — the same shape a claimed member has, and the
         // same answer: the STOP is the whole test. Matching the carried record whole would be one
         // comparison doing two rules' work, and would refuse the lone re-pick that rides every
@@ -1915,8 +1915,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         CHECK(derived.shapes[1].sounds_in_parts);
 
         // One string apart, a FULL restatement of the landed grip RIDES the successor too (rule 11,
-        // corollary 2): the re-pick and the full restrike are one law, which is what F7 said the
-        // separation was for.
+        // corollary 2): the re-pick and the full restrike are one law, which is what the separation
+        // is for.
         const std::vector<ChartNote> restruck = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{6}), {{Fraction{2}, 9}}),
@@ -1934,12 +1934,12 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
     SECTION("only the landing successor is published as landing-opened")
     {
-        // [D2] amendment 2's one derivational fact, and display keys the whole bracket deferral on
-        // it. What makes it a field rather than a test a reader could run for itself is that every
-        // available proxy drifts: a successor states nothing at its own start, but so does a span
-        // the hand alone opened — and the walk's own record of "an event stated this" stops being
-        // empty the moment an interior re-pick states the successor, which is exactly the case the
-        // deferral has to survive.
+        // [D2]'s one derivational fact for a landing, and display keys the whole bracket deferral
+        // on it. What makes it a field rather than a test a reader could run for itself is that
+        // every available proxy drifts: a successor states nothing at its own start, but so does a
+        // span the hand alone opened — and the walk's own record of "an event stated this" stops
+        // being empty the moment an interior re-pick states the successor, which is exactly the
+        // case the deferral has to survive.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{6}), {{Fraction{2}, 9}}),
@@ -1998,7 +1998,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
         // The EXACT count, before anything indexes: "the landing opens nothing" is a claim about
         // how many spans exist, so a bound that only guarded the indexing below would let another
-        // span appear unnoticed (review #4).
+        // span appear unnoticed.
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{1});
@@ -2026,7 +2026,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
     SECTION("a landing on another chord's onset steals no box")
     {
-        // The zero-length successor the review probed for: the glide lands exactly where a chord
+        // The zero-length successor: the glide lands exactly where a chord
         // on other strings is struck. A successor there would have no length at all, and drawing
         // it would put a bracket on the very instant the strike's own box states — so it is never
         // emitted, and the struck chord keeps its start and its whole extent.
@@ -2054,10 +2054,10 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
     SECTION("the edge (b) suppression does not flip across a signature change")
     {
-        // The first meter-change figure in this suite, and it is here because the quantum used to
-        // be a NOTE VALUE, which a signature change rescaled. It is a DURATION now, so the meter
-        // cannot touch it at all — and this figure is the pin that says so: a 6/8 glide landing on
-        // a 4/4 downbeat is suppressed by exactly the same duration a 4/4 one would be.
+        // The first meter-change figure in this suite, and it is here because the quantum is a
+        // DURATION, which no signature change can rescale — and this figure is the pin that says
+        // so: a 6/8 glide landing on a 4/4 downbeat is suppressed by exactly the same duration a
+        // 4/4 one would be.
         //
         // The arrival sits one margin before the closing chord, which is how the chart states
         // "glides into that note". At this map's one quarter-note rate a 6/8 eighth-note beat lasts
@@ -2299,7 +2299,7 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
     }
 }
 
-// THE ONE PER-STRING RECORD (N5 (a)): one record per sounded string, rather than two arrays over
+// THE ONE PER-STRING RECORD: one record per sounded string, rather than two arrays over
 // one fact — the STOPS each string states and the REACH each member's ring covers — which would let
 // a string be in one and not the other. These pin the seam's halves: a ring the span refuses as a
 // member states neither its stop nor its reach, a tap's sound chains a statement it may not bound,
@@ -2334,7 +2334,7 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
 
     SECTION("a tap carries the SOUND past the coverage, and the close still reads the coverage")
     {
-        // What the figure pins is the TWO REACH COLUMNS the law separates, which is the N5 seam
+        // What the figure pins is the TWO REACH COLUMNS the law separates, which is the same seam
         // from the other side.
         //
         // String 1's fretting-hand ring ends at beat 2 and the tap picks the string up there, so
@@ -2361,10 +2361,10 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
 
     SECTION("a fold-in's own glide splits the span at the landing it makes")
     {
-        // THE N5 FIGURE, and the defect two records would make unfixable: a lone ringing note folds
-        // into a chord's posture and then GLIDES under it. With the travel in a record the span's
-        // own reading could not see, the span would go on owning its members' tail ink across a
-        // transit it did not know was happening. What this pins is the derivation alone.
+        // THE FOLD-IN GLIDE, and the defect two records would make unfixable: a lone ringing note
+        // folds into a chord's posture and then GLIDES under it. With the travel in a record the
+        // span's own reading could not see, the span would go on owning its members' tail ink
+        // across a transit it did not know was happening. What this pins is the derivation alone.
         // The carry HOLDS its stop through the fold-in slot (the restating keyframe at two beats)
         // and departs after it, so it is a member of the posture and then travels under the span
         // — which is the figure, rather than a string caught mid-glide that folds into nothing.
@@ -2394,7 +2394,7 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
     }
 }
 
-// SPANS NEVER OVERLAP, which two independent readers both stand on (review N12). The presentation
+// SPANS NEVER OVERLAP, which two independent readers both stand on. The presentation
 // rules find a note's covering span with \ref SpanCover, which keeps the FURTHEST-REACHING span
 // started at or before the onset; the highway's chord grouping keeps the LATEST-STARTING one. Those
 // are the same span exactly while the ends are non-decreasing — that is, while no span outlives the
@@ -2456,7 +2456,7 @@ TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
     }
 }
 
-// THE OPENING MARK'S ANCHOR, published by the walk ([D2] amendment 2, refined by review F7). One
+// THE OPENING MARK'S ANCHOR, published by the walk ([D2]). One
 // field with one write rule: every span an EVENT states seeds it at its own start, and the first
 // interior SOUNDING fills the slot a landing left empty.
 TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][chart]")
@@ -2519,11 +2519,11 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
 
     SECTION("an accumulation dated to a glide's landing draws its mark at the landing")
     {
-        // The sighted figure: a slide lands on 13 and rings on while an open string and then a
-        // fret sound around it, founding the span at the fret. The slid finger's statement began
-        // at the landing, so the span fronts there — and a landing begins a statement exactly as
-        // a strike does, so the mark draws there too. Deferred to the founding strike it printed
-        // the 13 a beat late, after the open string's own head.
+        // The figure: a slide lands on 13 and rings on while an open string and then a fret sound
+        // around it, founding the span at the fret. The slid finger's statement began at the
+        // landing, so the span fronts there — and a landing begins a statement exactly as a strike
+        // does, so the mark draws there too. Deferred to the founding strike it would print the 13
+        // a beat late, after the open string's own head.
         const ChartShapes derived = deriveFrom(streamOf({
             travellingAt(noteAt(2, Fraction{}, 3, 11, Fraction{5, 2}), {{Fraction{1, 2}, 13}}),
             noteAt(3, Fraction{}, 4, 0, Fraction{3, 2}),
@@ -2681,7 +2681,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 
     SECTION("A MIXED CHUG is a replacement too, where only ONE member's ring ends there")
     {
-        // The discriminator (review #5): the section above cannot tell the replacement reading from
+        // The discriminator: the section above cannot tell the replacement reading from
         // a boundary that simply never happens, because its rings all end together and all are
         // struck again. Here they do not — strings 2 and 3 ring straight through beat 2, where
         // string 1's ring ends and string 1 alone is restruck.
@@ -2848,11 +2848,11 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
     {
         // The My Sacrifice bar-11 figure. String 2's fret 2 fronts the first span and rings
         // exactly to its close, where the same fret is struck again and rings on under the next
-        // accumulation. Uncapped, the restrike inherits a beginning INSIDE the emitted span, falls
-        // behind the dating floor and dates nothing — so the second span fronted at the next
-        // member's onset, half a beat late, over a restrike it plainly began with. The inherited
-        // beginning is spent up to the frontier, so the restrike dates the span from the close
-        // and the two spans tile.
+        // accumulation. Uncapped, the restrike would inherit a beginning INSIDE the emitted span,
+        // fall behind the dating floor and date nothing — so the second span would front at the
+        // next member's onset, half a beat late, over a restrike it plainly began with. The
+        // inherited beginning is spent up to the frontier, so the restrike dates the span from the
+        // close and the two spans tile.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 2, 2, Fraction{3, 2}),
             noteAt(1, Fraction{1, 2}, 4, 0, Fraction{1}),
@@ -2999,7 +2999,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        // FOUNDING FOLLOWS COMPOSITION (review #10): the stab struck two of the three stops the
+        // FOUNDING FOLLOWS COMPOSITION: the stab struck two of the three stops the
         // span holds, so the slot did not state the shape WHOLE — the drone arrived a beat earlier
         // and the span dates from THERE. A simultaneous strike founds a STATEMENT only where its
         // own members are the whole shape, which is what makes the front and the founding one story
@@ -3022,11 +3022,11 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 
     SECTION("THE MONSTER FIGURE IS BOUNDED: a long texture ends at its first member death")
     {
-        // The 128-member relay the gate census condemned, in miniature. Under Rule A alone a
-        // bracket could run for as long as ANY pair overlapped, and the census found conjunctions
-        // spanning twenty measures. The death law is what makes that impossible: the statement
-        // ends at the FIRST member to fall silent, so however long the texture runs, every fret
-        // the bracket prints was held for every instant it covers.
+        // A 128-member relay, in miniature. Without the death law a bracket could run for as long
+        // as ANY pair overlapped, and the corpus holds conjunctions spanning twenty measures. The
+        // death law makes that impossible: the statement ends at the FIRST member to fall silent,
+        // so however long the texture runs, every fret the bracket prints was held for every
+        // instant it covers.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(1, Fraction{1, 2}, 2, 7, Fraction{8}),
@@ -3141,8 +3141,8 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         // The chug that follows continues the chord span, and it does not stand alone — the partial
         // restrike at its tail picks one of its own stops while two of its members ring on — so the
         // chug is ABSORBED and the span turns to parts THERE, in place. Splitting at the partial
-        // instead would give the tail a third span, which is the fragmentation the sighting
-        // condemned. Both strums keep their boxes inside the one bracket.
+        // instead would give the tail a third span, which is the fragmentation this rule prevents.
+        // Both strums keep their boxes inside the one bracket.
         std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{2}),
@@ -3207,7 +3207,7 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         // striking ALL FOUR with one long ring and three short ones, and half a beat later the
         // same hold sounding in parts on three of them while the long one is still ringing. Cutting
         // this into THREE spans — the texture up to the stroke, a one-slot box AT the stroke, and
-        // the resumed parts after it — is exactly the fragmentation the sighting condemned. The
+        // the resumed parts after it — is exactly the fragmentation absorption prevents. The
         // stroke is absorbed and one bracket flows.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(3, Fraction{}, 4, 7, Fraction{1}),
@@ -3253,7 +3253,7 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
     SECTION("a STANDALONE uneven chord keeps its boundary and rings past its own box")
     {
         // The stroke stands alone: nothing follows it at all, so no same-hold parts can sound
-        // inside its rings and the chord judgment commits exactly as before. Its members ring
+        // inside its rings and the chord judgment commits. Its members ring
         // unevenly — the box ends at the shortest, and the long member's drawn tail runs past it,
         // which is the picture the rule deliberately leaves standing.
         const std::vector<ChartNote> notes = streamOf({
@@ -3319,7 +3319,7 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
 
     SECTION("THE CONTROL: rings that end before the parts commit the boundary")
     {
-        // The sighted figure with ONE datum changed — the stroke's long member now rings only to
+        // The absorbed figure with ONE datum changed — the stroke's long member rings only to
         // the parts slot instead of past it — so no member of the stroke is still sounding when
         // the parts arrive. They follow the stroke rather than sounding under it, the judgment
         // commits, and the three spans stand. This is the discriminating control: everything else
@@ -3393,9 +3393,9 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
 // A TAP OVER A HELD CHORD STOP KEEPS THE STATEMENT ALIVE: the tap's pitch is the stopped length,
 // so the finger provably stays through the tap's ring, and the pull-off that follows restates the
 // same stop — the chord is one arpeggio from its strum through the whole tapped figure, never a
-// box that runs out where the first member's own ring ends under the tap. Sighted on the corpus
-// (Periphery, "It's Only Smiles" measure 82): the span started at the first pull-off landing
-// instead of at the chord.
+// box that runs out where the first member's own ring ends under the tap. The corpus figure is
+// Periphery, "It's Only Smiles" measure 82, where the wrong reading starts the span at the first
+// pull-off landing instead of at the chord.
 TEST_CASE("A tap over a held chord stop carries the span through it", "[core][chart]")
 {
     // The chord: 7 7 11 9 across strings 1–4, the low string's ring ending exactly where the tap
@@ -3421,7 +3421,7 @@ TEST_CASE("A tap over a held chord stop carries the span through it", "[core][ch
     everySpanIsPositive(derived);
 }
 
-// THE TAP'S FLOOR (RULED 2026-09-29): the picking hand sounds a string only ABOVE the finger
+// THE TAP'S FLOOR: the picking hand sounds a string only ABOVE the finger
 // holding it, so a tap whose path reaches the standing grip's stop or below it says that finger is
 // gone — the grip moved, and the span splits at the tap. Above the stop the tap rides, as the case
 // before this one pins.
@@ -3499,7 +3499,7 @@ TEST_CASE("A tap at or below the standing grip's stop splits the span", "[core][
 // span it is the statement coming apart AT that slot, even where it restates the whole grip: the
 // box closes there and the slot founds the parts figure, dated at its own onset and born in parts.
 // A voicing-shift slide whose held strings ring the whole transit stays one statement, and a
-// whole-grip travel is the ruled chord slide ([D2]).
+// whole-grip travel is the chord slide ([D2]).
 TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][chart]")
 {
     // Two whole chugs, then the chord restated with its fretted strings gliding away while the
@@ -3569,6 +3569,8 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
     everySpanIsPositive(whole);
 }
 
+// LAW A at the join: a ring outliving the span that recorded it is still evidence, so a strike
+// stating another stop on that string contradicts it.
 TEST_CASE("A foreign sounding ring contradicts a slot that restates its string", "[core][chart]")
 {
     // The figure that makes a ring foreign, which is the only thing that can: three plucks
@@ -3689,9 +3691,9 @@ TEST_CASE("A contradiction split emits no piece the opening gate refused", "[cor
 }
 
 // THE DATING CLAMP (LAW A's second half). The join refusal can only fire against a STANDING span,
-// and the sighted reel figure musters its opening minimum only AFTER the junction — so unclamped
-// the span opens later and back-dates its front across the instant the contradicted string audibly
-// held another stop, and the fronted bracket claims a grip that did not yet exist there. The
+// and the reel figure musters its opening minimum only AFTER the junction — so unclamped the span
+// would open later and back-date its front across the instant the contradicted string audibly held
+// another stop, and the fronted bracket would claim a grip that did not yet exist there. The
 // foreign-sound floor bounds the dating instead: a member behind the end of any stated string's
 // foreign sound rides extent-inert, and the span dates from the junction — the displacement case of
 // the general bound the next case reaches through gaps of silence.
@@ -3716,8 +3718,8 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
 
         // One span, dated at the junction where the 6's grip became possible — the string-two
         // member behind the bound is stated but extent-inert, exactly like a member behind the
-        // coverage frontier. Unclamped the front back-dates to beat 2 and the bracket claims the 6
-        // while string one still sounds 7.
+        // coverage frontier. Unclamped the front would back-date to beat 2 and the bracket would
+        // claim the 6 while string one still sounds 7.
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 4});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
@@ -3790,8 +3792,8 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
     // The riff chugs the grip WHOLE and the ornament arrives inside a stroke: the rest of the grip
     // is restruck beside the finger added above. The stroke still says the whole grip — the source
     // states the held stop, its fret is the ornament — so the chord span rides it and stays a box
-    // (sighted 2026-09-28: a picked open string under 4 pulled off, with 6 restruck beside it,
-    // seamed there and opened an arpeggio).
+    // (read the other way, a picked open string under 4 pulled off with 6 restruck beside it would
+    // seam there and open an arpeggio).
     SECTION("an ornament co-struck with the rest of the grip rides the chord span as a box")
     {
         for (const int held : {0, 2})
@@ -3872,6 +3874,8 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
     }
 }
 
+// A pull-off source over ground its string never held states the fret it sounds, so the figure
+// breaks at the release exactly as the same notes plainly picked.
 TEST_CASE("A source over ground its string never held states the fret it sounds", "[core][chart]")
 {
     // THE SLIDE FIGURE: the hand plays the 7/8 position with nothing beneath it, then a 7 arrives
@@ -3951,11 +3955,10 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
 // stands as the chord it struck and the release splits it chord -> parts — a half-beat box at the
 // stroke, then the parts figure the release founds.
 //
-// RULED 2026-09-06 the other way, on a sighting of this figure, and REVERSED 2026-09-19 by the
-// user's own re-sighting: the earlier reading dated the span back to a source whose landing stop
-// was never held, which is a hold-under exemption asserted with no evidence for it. The sighted
-// destination was the OPEN string, which derives like every fret; its fretted twin is here to
-// prove the two are one case. Each section states the law as an EQUALITY against its own plainly
+// Dating the span back to the source instead would assert a hold-under exemption with no evidence
+// for it, since the source's landing stop was never held. The corpus figure's destination is the
+// OPEN string, which derives like every fret; its fretted twin is here to prove the two are one
+// case. Each section states the law as an EQUALITY against its own plainly
 // restruck control rather than writing one set of numbers out twice.
 TEST_CASE(
     "A co-struck source over foreign ground derives as the same notes picked", "[core][chart]")
@@ -4040,10 +4043,10 @@ TEST_CASE(
 // section asserts that equality rather than a set of numbers, because the numbers belong to the
 // plain figure and writing them out twice is what lets two readings of one law drift apart.
 //
-// EACH IS ASKED TWICE, bare and over HISTORY, because the defect this pins was history-dependent:
-// a string that had ever been fretted read as still holding the stop it once held, so a long-dead
-// strike on every string the figure uses must change nothing at all. The first section is the
-// harmonic-display follow-up's own acceptance figure — the dyad at 18:3.
+// EACH IS ASKED TWICE, bare and over HISTORY, because the defect this pins is history-dependent: a
+// string that had ever been fretted could read as still holding the stop it once held, so a
+// long-dead strike on every string the figure uses must change nothing at all. The first section
+// is the acceptance figure — the dyad at 18:3.
 TEST_CASE(
     "A pull-off over ground its string was not at derives as the same notes picked",
     "[core][chart]")
@@ -4133,11 +4136,10 @@ TEST_CASE(
 
     SECTION("a LONE RING under the stroke is no grip, whatever it still sounds")
     {
-        // FIGURE M, sighted and ruled 2026-09-19. String 4's 7 rings alone into the stroke at beat
-        // two — a lone ring is not a grip, and the stroke is what FOUNDS the span here, so it
-        // states the frets it STRIKES and the box prints the 5 and the 9. Asked at both rings,
-        // because under the ruling the ring is beside the point: a 7 still sounding into the
-        // stroke and a 7 choked long before it derive alike.
+        // FIGURE M. String 4's 7 rings alone into the stroke at beat two — a lone ring is not a
+        // grip, and the stroke is what FOUNDS the span here, so it states the frets it STRIKES and
+        // the box prints the 5 and the 9. Asked at both rings, because the ring is beside the
+        // point: a 7 still sounding into the stroke and a 7 choked long before it derive alike.
         const auto lone_ring = [](const Fraction ring, const bool pulled) {
             return streamOf({
                 noteAt(1, Fraction{}, 4, 7, ring),
@@ -4187,7 +4189,7 @@ TEST_CASE(
 // needs, and a pull-off from such a harmonic never moves the bracket onto the finger the release
 // derives beneath it. The plant stays true in the wide table the hold-under law derives — a finger
 // really is waiting there, and the FRET-HAND POSITION derivation is what factors it in — but the
-// bracket does not print it. RULED 2026-09-18.
+// bracket does not print it.
 //
 // ONE AUTHORITY (\ref gripStatement), so the HOLD-UNDER arms answer it too: a bridge between two
 // stops is the claim that they are one statement of one hand, and such a harmonic states its
@@ -4282,13 +4284,13 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
         everySpanIsPositive(derived);
     }
 
-    // THE CO-STRUCK FIGURE — the sighting that sent the ruling into the HOLD-UNDER arms as well
-    // (2026-09-18). The same harmonic, struck inside a chord that is STILL STANDING when the
-    // release lands: two plain 5s ringing four beats around it, the harmonic ringing one, and the
-    // release landing on its plant at the far end of that ring. The span therefore does not end
-    // with the harmonic's own ring, so the release is a statement made INSIDE it — and the
-    // hold-under law, reading the plant bare, called that release the span's own finger lifting
-    // and let it write 3 over the 5 in a posture the bracket prints beside the head's standing 5.
+    // THE CO-STRUCK FIGURE, the reason the rule reaches the HOLD-UNDER arms as well. The same
+    // harmonic, struck inside a chord that is STILL STANDING when the release lands: two plain 5s
+    // ringing four beats around it, the harmonic ringing one, and the release landing on its plant
+    // at the far end of that ring. The span therefore does not end with the harmonic's own ring, so
+    // the release is a statement made INSIDE it — and a hold-under law reading the plant bare would
+    // call that release the span's own finger lifting and let it write 3 over the 5 in a posture
+    // the bracket prints beside the head's standing 5.
     const auto co_struck = [](ChartNote sounded) {
         return streamOf({
             noteAt(1, Fraction{}, 3, 5, Fraction{4}),
@@ -4341,13 +4343,13 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     }
 }
 
-// A NATURAL HARMONIC STATES NO GRIP (re-ruled 2026-09-24): a node touched with nothing pressed is
+// A NATURAL HARMONIC STATES NO GRIP: a node touched with nothing pressed is
 // no stop the hand holds, so it founds, grows and joins no span, and no posture holds a node. Its
 // STRIKE still sounds, so the split a harmonic makes falls out of the ordinary contradiction law
 // reading a stop that cannot say a node is fret 0 — node 5 is not fret 5, nor the open string it
 // shares a fret number with — while a node on a string the span does not name leaves the span
-// standing. Read as an open string instead, a natural harmonic vanishes into the grip and the
-// sighted chart runs one span 9.5 beats straight through a harmonic passage.
+// standing. Read as an open string instead, a natural harmonic would vanish into the grip and the
+// corpus chart would run one span 9.5 beats straight through a harmonic passage.
 TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[core][chart]")
 {
     // The third partial's node as the importer stores it, so the fixture cannot drift from the
@@ -4572,7 +4574,7 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
     }
 }
 
-// A SPAN NEVER PRINTS A FRET OVER A HARMONIC'S TAIL (ruled 2026-09-24): while a natural harmonic
+// A SPAN NEVER PRINTS A FRET OVER A HARMONIC'S TAIL: while a natural harmonic
 // rings, its string is demonstrably not fretted, so for that whole tenure the string is no part of
 // any grip statement. A bracket asserts its grip from its front, so a strike on a string the span
 // does not state, whose last foreign sound ended STRICTLY after that front, breaks the span rather
@@ -4595,11 +4597,11 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
     SECTION("THE SIGHTED FIGURE: a fret struck after the chime died breaks the span")
     {
         // The chime rings to 1:3, a beat past the span's 1:2 front and a beat short of the late
-        // fret. Before the ruling the fret joined by growth: one posture holding strings 2, 3 AND
-        // 4, running to the rings' end at 1:5, so the bracket printed string 4's 2 back to 1:2,
-        // over the chime's tail. Now the span closes at the fret's onset on strings 2 and 3 alone,
-        // and the fret founds nothing: the pair's rings were struck behind the new frontier (A RING
-        // BELONGS ONLY TO THE SPAN IT WAS STRUCK IN), so the late fret stands alone.
+        // fret. Joined by growth, the fret would make one posture holding strings 2, 3 AND 4,
+        // running to the rings' end at 1:5, so the bracket would print string 4's 2 back to 1:2,
+        // over the chime's tail. Instead the span closes at the fret's onset on strings 2 and 3
+        // alone, and the fret founds nothing: the pair's rings were struck behind the new frontier
+        // (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN), so the late fret stands alone.
         const ChartShapes derived = deriveFrom(figure(Fraction{2}));
 
         REQUIRE(derived.shapes.size() == 1);
@@ -4638,9 +4640,9 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
     SECTION("THE DISPLACEMENT CONTROL: a chime still ringing at the fret derives the same")
     {
         // The chime rings to 1:4, the late fret's own onset, so the strike displaces a sound
-        // still audible there — Law A's foreign-ring break, read end-inclusively at the junction
-        // — and the span broke there before the ruling too. The join's break is that same break
-        // for a ring that ended sooner, so the two figures derive identically.
+        // still audible there — Law A's foreign-ring break, read end-inclusively at the junction.
+        // The join's break is that same break for a ring that ended sooner, so the two figures
+        // derive identically.
         derivesLike(figure(Fraction{3}), figure(Fraction{2}));
         const ChartShapes derived = deriveFrom(figure(Fraction{3}));
         REQUIRE(derived.shapes.size() == 1);
@@ -4657,8 +4659,8 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
         // no span at all, it would accumulate into the pair's grip and quit it at 1:3). An open
         // ring is no finger's stop any more than a chime is, so the fret on string 4 at 1:4
         // breaks the pair's span by the same law: nothing sounds on string 4 at that strike, so
-        // without the join's break the fret grew the grip and its bracket printed the 2 back over
-        // the open string's tail.
+        // without the join's break the fret would grow the grip and its bracket would print the 2
+        // back over the open string's tail.
         const ChartShapes derived = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 5, 3, Fraction{1}),
             noteAt(1, Fraction{}, 6, 3, Fraction{1}),
@@ -4691,7 +4693,7 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
 // the span that struck it; without that, rings running to the end of their phrase give every
 // melody note over them a one-note bracket of its own, restating the same rings each time.
 //
-// A refused ring is a plain tail, the open string's included (ruled 2026-09-24): a bracket states
+// A refused ring is a plain tail, the open string's included: a bracket states
 // the onsets inside its span and nothing else, so no later bracket prints it and it classes no
 // span. What the hand still decides is the LANDING — the one seam a member crosses, the grip
 // itself moving under fingers that slid — where a string no finger holds (\c handFree) can be no
@@ -4798,7 +4800,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         grown.push_back(inMeasure(2, noteAt(1, Fraction{}, 6, 3, Fraction{1})));
         const ChartShapes replaced = deriveFrom(streamOf(std::move(grown)));
         // A fret struck on the drone's string DISPLACES the open sound there (Law A reads the
-        // sound, member or not — the user's sighted harmonic chord over ringing opens): the
+        // sound, member or not, exactly as for the harmonic chord over ringing opens below): the
         // figure's span breaks at the strike. Growing the standing span instead would print the
         // new stop from a front before which the string audibly rang open. What the strike founds
         // is nothing: it states one stop, and every ring it states it over belongs to the span it
@@ -5061,8 +5063,9 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
         // The sighting itself. The pull-off's ring reaches the restrike exactly — the end-INCLUSIVE
         // window the contradiction witness reads — and the restrike names the very stop the channel
         // states there, so the two notes are one statement of fret 5 and the span fronts where that
-        // statement began. Without the column the front is string five's onset a half beat later,
-        // because the restrike's own onset is the only date a loop can read for string four.
+        // statement began. Without the column the front would be string five's onset a half beat
+        // later, because the restrike's own onset is the only date a loop can read for string
+        // four.
         //
         // THE FOLD carries the beginning NO FURTHER BACK than the release here. The fret-7 note is
         // the pull-off's SOURCE, but string four was not at 5 when it spoke — a pull-off proves
@@ -5133,13 +5136,13 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
 
 // THE TIE DOCTRINE'S LIMIT: a WHOLE-GRIP STROKE standing alone is a span boundary (the absorption
 // rule), so the box it founds dates from the stroke itself and reads no statement column. The
-// sighted figure is a rhythm stab: a lone palm-muted eighth on one string dying exactly into a
-// chord that restates that stop among others struck whole. The tie found the stop's statement
-// beginning at the stab — a ring abutting the strike is inside its end-inclusive window — and dated
-// the box a half beat before the stroke that says it whole, over a slot where the posture was one
-// finger. Only the box is fenced: a stab ringing under a stroke that does NOT restate its string is
-// a carry, the stroke is not whole over it, and the bracket that results dates from the stab
-// exactly as the drone under stabs does.
+// corpus figure is a rhythm stab: a lone palm-muted eighth on one string dying exactly into a
+// chord that restates that stop among others struck whole. Read through the tie, the stop's
+// statement begins at the stab — a ring abutting the strike is inside its end-inclusive window —
+// and the box would date a half beat before the stroke that says it whole, over a slot where the
+// posture was one finger. Only the box is fenced: a stab ringing under a stroke that does NOT
+// restate its string is a carry, the stroke is not whole over it, and the bracket that results
+// dates from the stab exactly as the drone under stabs does.
 TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates", "[core][chart]")
 {
     const auto stab_into_chord = [](const Fraction stab_ring) {
@@ -5216,10 +5219,10 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
 // (\ref StatedStop::stated_from), so the landing needs no record of its own.
 //
 // The defect this pins is the tie doctrine's sibling: dating a lone glide under no span at its
-// NOTE's onset makes the first span to fold it in front over the very beats the string spent on
-// the old stop and in transit. Its coverage freezes at that first landing for the same reason —
-// nothing is standing to restart it — so the bogus front comes with a bogus reach, and the pair
-// emits a span that exists over nothing but the travel.
+// NOTE's onset would make the first span to fold it in front over the very beats the string spent
+// on the old stop and in transit. Its coverage would freeze at that first landing for the same
+// reason — nothing is standing to restart it — so the bogus front would come with a bogus reach,
+// and the pair would emit a span that exists over nothing but the travel.
 TEST_CASE("A slid string dates its span from the landing, not its onset", "[core][chart]")
 {
     // String one glides 5 to 7 across the first beat and rings on; a dyad four beats later founds
@@ -5277,8 +5280,8 @@ TEST_CASE("A span cannot date across a foreign ring that died before its strike"
         })));
 
         // One span with the whole grip, dated at the f7 strike — the earliest member onset past the
-        // f0's death. Without the floor it fronts at measure 2 beat 1 and the bracket prints 7 on a
-        // string audibly ringing 0 for another quarter beat.
+        // f0's death. Without the floor it would front at measure 2 beat 1 and the bracket would
+        // print 7 on a string audibly ringing 0 for another quarter beat.
         REQUIRE(derived.shapes.size() == 1);
         CHECK(
             derived.shapes[0].position ==
@@ -5347,6 +5350,8 @@ TEST_CASE("A pull-off source's plant is its held stop", "[core][chart]")
     }
 }
 
+// THE DEFAULT HELD FACT: a bare tap releases onto the covering posture's fret on its string, and
+// onto the open string where no span or no posture entry names it.
 TEST_CASE("A bare tap's held stop defaults to the grip the covering span holds", "[core][chart]")
 {
     const std::vector<ChartNote> notes = chugOverTap(7);

@@ -150,9 +150,10 @@ public:
         /*!
         \brief Monotonic millisecond clock used to coalesce multi-digit fret entry.
 
-        Empty in production, where the controller falls back to the real wall clock. Tests inject a
-        controllable source so the multi-digit coalescing window is exercised without real elapsed
-        time — see "Time Must Be a Dependency" in docs/design/architectural-principles.md.
+        Empty in production, where the controller falls back to the system millisecond counter.
+        Tests inject a controllable source so the multi-digit coalescing window is exercised
+        without real elapsed time — see "Time Must Be a Dependency" in
+        docs/design/architectural-principles.md.
         */
         std::function<std::uint32_t()> now_milliseconds{};
     };
@@ -271,8 +272,8 @@ public:
     \brief Handles a request to open an editor project package.
 
     On success, the controller stores the project context. On failure, the old session/context are
-    preserved and a transient view error is emitted. Reentrant transport
-    notifications received during backend arrangement activation are coalesced into one final push.
+    preserved and a transient view error is emitted. Reentrant transport notifications received
+    during backend arrangement activation are coalesced into one final push.
 
     \param file Filesystem path selected by the user.
     */
@@ -282,8 +283,8 @@ public:
     \brief Handles a request to import a song source.
 
     On success, the controller stores an unsaved workspace. On failure, the old session/context are
-    preserved and a transient view error is emitted. Reentrant transport
-    notifications received during backend arrangement activation are coalesced into one final push.
+    preserved and a transient view error is emitted. Reentrant transport notifications received
+    during backend arrangement activation are coalesced into one final push.
 
     \param file Filesystem path selected by the user.
     */
@@ -373,16 +374,17 @@ public:
     /*!
     \brief Handles a play/pause button press from the editor UI.
 
-    The intent is ignored when no arrangement is loaded. Otherwise, plays or pauses
-    based on the current transport state.
+    The intent is ignored when no arrangement is loaded. Otherwise, plays or pauses based on the
+    current transport state.
     */
     void onPlayPausePressed() override;
 
     /*!
     \brief Handles a stop button press from the editor UI.
 
-    The intent is ignored when the transport is not currently playing and is already at the start
-    of the loaded timeline, mirroring the published EditorViewState transport stop gate.
+    Shares Play's gate, so the intent is ignored only when no arrangement is loaded. Otherwise the
+    transport stops and returns to the timeline start, and the view is asked to bring the start
+    into sight even when the cursor was already there.
     */
     void onStopPressed() override;
 
@@ -593,7 +595,7 @@ public:
     /*! \copydoc IEditorController::onToneAutomationPointerUp */
     void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event) override;
 
-    /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
+    /*! \brief Shows the plugin browser with the plugins the host already knows, without a scan. */
     void onPluginBrowserRequested() override;
 
     /*!
@@ -618,7 +620,7 @@ public:
     /*!
     \brief Removes a plugin instance from the current runtime plugin chain.
 
-    Removal marks the project dirty when a persistent live rig port is available.
+    Removal records one undo entry, like every other signal-chain edit.
 
     \param instance_id Opaque plugin instance ID selected by the user.
     */

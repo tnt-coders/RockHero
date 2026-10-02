@@ -2,14 +2,12 @@
 \file highway_head_marks.h
 \brief What a highway note head draws: its technique marks in order, its connection cell, its base.
 
-Decisions the 3D draw path made inline, hoisted out for two reasons. They were each read in more
-than one place — the connection cell in the open-string branch and again in the fretted one, where
-the open branch restated a SUBSET of the rule — and nothing inside the renderer's draw pass is
-reachable from a test, so inline they had no witness at all.
+Decisions the 3D draw path makes for a note head, kept out of the draw pass for two reasons. Each
+is asked from more than one place — the open-string head path and the fretted one — and nothing
+inside the renderer's draw pass is reachable from a test, so out here they gain a witness.
 
-\ref highwayHeadMarks is the same class caught one level up: the two branches did not merely
-restate the connection rule, they hand-wrote the whole marker LIST twice and came to different
-answers about its order.
+One authority per decision keeps the two paths from restating a rule and answering differently;
+\ref highwayHeadMarks applies that one level up, to the whole marker LIST and its order.
 */
 
 #pragma once
@@ -29,7 +27,7 @@ namespace rock_hero::common::ui
 \brief What a head does with the shared legato atlas cell.
 
 The hammer-on and the pull-off are ONE cell drawn two ways, so the pair can never drift apart in
-weight or border the way separately drawn art did.
+weight or border the way two separately authored cells would.
 */
 enum class HighwayLegatoCell : std::uint8_t
 {
@@ -210,8 +208,8 @@ draws over the one before it.
 
 The mutes cap the stack: palm mute, then the deadening X on top. A mute is stated over whatever
 the hand did, which is how the 2D lane paints it too (its mute X lands after the pinch bar), so
-both surfaces state one stack; drawn under the pinch cell, a palm mute was hidden by the squeal
-mark. The X stays topmost because a broken X reads as a different mark entirely.
+both surfaces state one stack; drawn under the pinch cell, a palm mute would be hidden by the
+squeal mark. The X stays topmost because a broken X reads as a different mark entirely.
 
 A scrape is not a rank in that ladder but a category of one, and that is a chart rule rather than a
 layering preference: `chart_rules.cpp` validates a pick-slide note against `savedChartNote(note) ==

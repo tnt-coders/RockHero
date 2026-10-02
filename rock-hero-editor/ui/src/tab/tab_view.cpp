@@ -45,8 +45,7 @@ struct MarkOutline
 };
 
 // How far the refusal glow reaches past a mark's outline, as a fraction of the mark's size: the
-// accent halo's own reach, which sighted better than a wider glow (user, 2026-09-30;
-// refusal-flash.md F2).
+// accent halo's own reach; a wider glow reads worse.
 constexpr float g_refusal_glow_reach{0.2f};
 
 // The glow's layers: nested strokes of the outline, each wider and each faint, which pile up to
@@ -82,7 +81,7 @@ void glowAround(juce::Graphics& g, const MarkOutline& mark, const juce::Colour c
 constexpr double g_presence_ease_seconds{0.12};
 
 // THE REFUSAL FLASH's pulse train: how many times the refused elements glow and how long the whole
-// flash runs. Sighting values (refusal-flash.md F1): two, over a little more than half a second.
+// flash runs: two pulses, over a little more than half a second.
 constexpr double g_refusal_flash_pulses{2.0};
 constexpr double g_refusal_flash_seconds{0.6};
 
@@ -103,8 +102,8 @@ bool stepToward(float& progress, const float target, const float step) noexcept
 } // namespace
 
 // The notation rasterizer lives in the shared paint core (rock-hero-common/ui tab/), one
-// authority for the editor lane and the game tab strips; these free functions stay on the
-// editor surface as thin delegates so editor widgets and tests keep their existing seam.
+// authority for the editor lane and the game tab strips; these free functions are thin delegates
+// that let editor widgets and tests read the shared rules in the editor's own vocabulary.
 
 juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 {
@@ -321,7 +320,7 @@ bool TabView::wantsPointerAt(juce::Point<int> local_point) const
            getLocalBounds().contains(local_point) && m_visible_timeline.duration().seconds > 0.0;
 }
 
-// THE STRING LEGEND IS INERT CHROME (the pointer half of its ruling): the lane keeps CLAIMING its
+// THE STRING LEGEND IS INERT CHROME to the pointer: the lane keeps CLAIMING its
 // column — wantsPointerAt is unchanged, so the overlay still passes the press down here and no
 // seek fires under the letters — and this lane simply has nothing to answer with there, so the
 // press dies. The alternative, letting the column fall through, would seek to the leftmost visible
@@ -1279,7 +1278,7 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& l
 
     const common::ui::TabLaneMetrics& metrics = lane.metrics;
     // The square says WHERE and stays on the slot whatever face the caret stands on: the ring on
-    // the face — the bend chip — says which (user ruling 2026-09-29).
+    // the face — the bend chip — says which.
     const common::ui::TabLayoutRect head =
         common::ui::tabSlotHeadSquare(metrics, m_edit.caret->seconds, m_edit.caret->string);
     return juce::Rectangle<float>{head.x, head.y, head.width, head.height};

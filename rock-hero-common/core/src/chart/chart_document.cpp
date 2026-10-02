@@ -118,9 +118,8 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         std::string_view key;
         bool (*matches)(const juce::var&);
         // The channel's REMOVED shape and the fix for it — the keyframe twin of the note's removed
-        // spellings, which nested channels had no equivalent of until the vibrato channel stopped
-        // being a bool. Null where a channel has never changed shape, and then a wrong-typed value
-        // reports the plain type message it always did.
+        // spellings. Null where a channel has no removed shape, so a wrong-typed value reports the
+        // plain type message.
         bool (*was)(const juce::var&);
         std::string_view remedy;
     };
@@ -140,7 +139,7 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         ChannelRule{
             .key = "vibrato",
             .matches = [](const juce::var& v) { return v.isString(); },
-            // The vibrato became an AXIS with a width: a bool could say only that the string
+            // The vibrato is an AXIS with a width: the removed bool could say only that the string
             // vibrated, and never how wide.
             .was = [](const juce::var& v) { return v.isBool(); },
             .remedy = R"(re-import the package to get "vibrato": "narrow")",
@@ -170,9 +169,9 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
     {
         return std::unexpected{std::move(vibrato.error())};
     }
-    // A keyframe stating no channel at all is refused by validateChartNoteAlone rather than here:
-    // this reader answers what the document SAYS, and an empty statement is a legality question
-    // the one rules authority owns.
+    // A keyframe stating no channel at all is no reading error: a bare keyframe begins an
+    // unvibrated leg, and whether it says anything is the commit law's question, which the load
+    // normalizer answers (stripSilentKeyframes).
     return Keyframe{
         .offset = *offset,
         .fret = Json::value(keyframe_json, "fret").isVoid()
@@ -193,12 +192,11 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         return std::unexpected{std::move(position.error())};
     }
 
-    // Spellings the format no longer has, refused BEFORE any type check so a document that
-    // predates a change reports the re-import remedy instead of a bare "wrong type" — two of
-    // these keys still exist under a different SHAPE, which a type message would describe without
-    // naming the fix. Every project is fresh and nothing legacy is preserved (chart_document.h),
-    // so each row exists to fail loudly, not to support the old form; delete a row once the
-    // packages carrying it are re-imported.
+    // Removed spellings, refused BEFORE any type check so an out-of-date document reports the
+    // re-import remedy instead of a bare "wrong type" — some of these keys exist under a different
+    // SHAPE, which a type message would describe without naming the fix. Nothing legacy is read,
+    // so each row exists to fail loudly, not to support the old form; delete a row once no
+    // package carries it.
     struct RemovedSpelling
     {
         std::string_view key;
@@ -211,15 +209,15 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         RemovedSpelling{
             .key = "mute",
             .was = [](const juce::var&) { return true; },
-            // The one mute axis became two independent flags: a hand can palm the strings and
-            // deaden a string at the same time, which one enum could not say.
+            // Muting is two independent flags: a hand can palm the strings and deaden a string at
+            // the same time, which one enum could not say.
             .remedy = R"(re-import the package to get "palmMute" and "dead")",
         },
         RemovedSpelling{
             .key = "harmonic",
             .was = [](const juce::var&) { return true; },
-            // The harmonic field is gone: a node asserts the harmonic and `attack` says which
-            // hand damps it.
+            // No harmonic field exists: a node asserts the harmonic and `attack` says which hand
+            // damps it.
             .remedy = R"(re-import the package to get "harmonicNode" (and "attack": "pinch"))",
         },
         RemovedSpelling{
@@ -230,36 +228,35 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         RemovedSpelling{
             .key = "accent",
             .was = [](const juce::var&) { return true; },
-            // The accent bool became one end of the emphasis axis, whose other end is the ghost.
+            // Accent is one end of the emphasis axis, whose other end is the ghost.
             .remedy = R"(re-import the package to get "emphasis": "accent")",
         },
         RemovedSpelling{
             .key = "slides",
             .was = [](const juce::var&) { return true; },
-            // Slide keyframes became the one interval-payload array, which every channel shares.
+            // Slide stops live in the one interval-payload array, which every channel shares.
             .remedy = "re-import the package to get \"keyframes\"",
         },
         RemovedSpelling{
             .key = "waypoints",
             .was = [](const juce::var&) { return true; },
-            // The array is unchanged in shape and only its NAME moved: a statement fixed at a
-            // moment inside the ring is a keyframe. Refused rather than read, for the reason
-            // every removed spelling is — a document saying the old word is a document nothing
-            // in the tree writes any more.
+            // The keyframes array under its old NAME: a statement fixed at a moment inside the
+            // ring is a keyframe. Refused rather than read, like every removed spelling — nothing
+            // in the tree writes the old word.
             .remedy = "re-import the package to get \"keyframes\"",
         },
         RemovedSpelling{
             .key = "bend",
             .was = [](const juce::var& v) { return v.isArray(); },
-            // The bend CURVE dissolved: its onset value is this key as a number, and every later
-            // value is a keyframe's bend channel.
+            // There is no bend CURVE array: the onset value is this key as a number, and every
+            // later value is a keyframe's bend channel.
             .remedy = R"(re-import the package to get the onset "bend" value and "keyframes")",
         },
         RemovedSpelling{
             .key = "vibrato",
             .was = [](const juce::var& v) { return v.isBool(); },
-            // The vibrato bool became the width AXIS: the ordinary vibrato is `"narrow"` and the
-            // deliberate exaggeration `"wide"`, which one bool could not tell apart.
+            // Vibrato is a width AXIS: the ordinary vibrato is `"narrow"` and the deliberate
+            // exaggeration `"wide"`, which one bool could not tell apart.
             .remedy = R"(re-import the package to get "vibrato": "narrow")",
         },
         RemovedSpelling{
@@ -365,10 +362,9 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
 
     // The ring. Required with no default: a note rings for some length, so a missing key is a
     // missing fact rather than "no tail", and reading it as zero would silently invent the one
-    // datum the model cannot derive. This is also the path a chart written before the duration
-    // model actually takes, and the only one: that writer OMITTED the key on every tail-less note,
-    // which is most of them, so the message carries the re-import remedy exactly like the
-    // removed-key tripwires above.
+    // datum the model cannot derive. A document missing the key is out of date rather than
+    // merely short, so the message carries the re-import remedy exactly like the removed-key
+    // tripwires above.
     if (Json::value(note_json, "sustain").isVoid())
     {
         return std::unexpected{malformed(
@@ -453,8 +449,8 @@ void appendJsonString(std::string& out, const std::string& text)
 
 // A chart's doubles are measurements — a harmonic node is `12 * log2(partial)`, a bend height a
 // fraction of a step — so the writer needs the shared round-trip-exact form. `juce::String{double}`
-// was NOT that: it leaves the stream at its default six significant digits, which silently rounded
-// every node and semitone, and could round an out-of-range value back into range on the way out.
+// is NOT that: it writes the stream's default six significant digits, which silently rounds every
+// node and semitone, and can round an out-of-range value back into range on the way out.
 [[nodiscard]] std::string doubleText(double value)
 {
     return Json::numberText(value);
@@ -647,12 +643,12 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     chart.tuning.capo = Json::readOptionalInt(tuning_json, "capo", 0);
     chart.tuning.cent_offset = Json::readOptionalDouble(tuning_json, "centOffset", 0.0);
 
-    // The posture table and the spans that indexed it are gone: both are derived from the notes
-    // now (deriveChartShapes), so a document carrying them states a second, unverifiable copy of
-    // something the notes already say. Refused rather than ignored, the same tripwire the removed
-    // note fields get, so an un-reimported package fails loudly with the fix named instead of
-    // loading with a stale picture silently discarded. Delete this once the packages are
-    // re-imported — it exists to fail loudly, not to support the old shape.
+    // No posture table or span list is stored: both are derived from the notes (deriveChartShapes),
+    // so a document carrying them states a second, unverifiable copy of something the notes
+    // already say. Refused rather than ignored, the same tripwire the removed note fields get, so
+    // an out-of-date package fails loudly with the fix named instead of loading with a stale
+    // picture silently discarded. Delete this once no package carries those fields — it exists to
+    // fail loudly, not to support the old shape.
     if (!Json::value(root, "chords").isVoid() || !Json::value(root, "shapes").isVoid())
     {
         return std::unexpected{malformed(

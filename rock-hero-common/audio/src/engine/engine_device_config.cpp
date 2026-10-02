@@ -31,8 +31,8 @@ namespace
 // hardware's actual active channel mask (verified in juce_AudioDeviceManager.cpp
 // updateCurrentSetup, updateXml). Comparing against getAudioDeviceSetup() directly would therefore
 // spuriously differ for every default-channel route and defeat the skip. Reconstructing both sides
-// compares the persisted forms that restore actually reproduces, so equal persisted forms
-// mean an equal restore outcome.
+// compares the persisted forms that restore actually reproduces, so equal persisted forms mean an
+// equal restore outcome.
 [[nodiscard]] bool activeDeviceMatchesSerializedState(
     juce::AudioDeviceManager& device_manager, const juce::XmlElement& xml)
 {
@@ -62,8 +62,7 @@ namespace
 // the two in agreement, so a divergence between the saved-choice identity and the live-device
 // identity is exactly a fallback. Identity is compared on device type + input/output names only,
 // not the full setup, to avoid the default-channel-mask asymmetry that
-// activeDeviceMatchesSerializedState() documents.
-// Callers ask it only while hardware is open.
+// activeDeviceMatchesSerializedState() documents. Callers ask it only while hardware is open.
 [[nodiscard]] bool juceFellBackFromExplicitChoice(
     juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
 {
@@ -133,12 +132,12 @@ void Engine::Impl::handleAudioDeviceConfigurationRefresh()
 // lastExplicitSettings either way.
 //
 // Losing the hardware pauses playback in both products: an immediate, unmistakable sign that the
-// device just went (user, 2026-10-01), and the game's stop, since it detects notes. It is an edge,
-// not a level -- playback the user starts on the silent device keeps playing.
+// device just went, and the game's stop, since it detects notes. It is an edge, not a level --
+// playback the user starts on the silent device keeps playing.
 //
-// It never reopens hardware: automatic reopening required a speculative driver probe that crashed
-// flaky ASIO drivers (docs/plans/todo/safe-device-auto-reopen.md). Every reopen is an explicit
-// application of the saved route.
+// It never reopens hardware: noticing a replug would take a speculative driver probe, and such
+// probes crash flaky ASIO drivers (docs/plans/todo/safe-device-auto-reopen.md). Every reopen is an
+// explicit application of the saved route.
 void Engine::Impl::enforceDevicePolicy()
 {
     juce::AudioDeviceManager& device_manager = m_engine->getDeviceManager().deviceManager;
@@ -253,10 +252,9 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
         // The route was applied but the hardware stayed closed -- the designed no-fallback outcome,
         // reported in the value channel rather than as an error so callers keep the saved choice.
         // The backend's own diagnostic is recorded for the status snapshot, so the status text
-        // can name the real cause. The failed initialise() already posted a
-        // device-change message, which drives the same async monitoring teardown a mid-session
-        // disconnect does, so the synchronous monitoring rebuild below is correctly skipped on
-        // this branch.
+        // can name the real cause. The failed initialise() already posted a device-change message,
+        // which drives the same async monitoring teardown a mid-session disconnect does, so the
+        // synchronous monitoring rebuild below is correctly skipped on this branch.
         return DeviceRestoreOutcome::DeviceUnavailable;
     }
 

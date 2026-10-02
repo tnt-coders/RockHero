@@ -397,7 +397,7 @@ void openInitialRoute(
 
 } // namespace
 
-// Preferred backend ordering is now observed through the public settings state.
+// Verifies the preferred backend ordering through the public settings state.
 TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -805,10 +805,8 @@ TEST_CASE(
     CHECK(audio_type.controlPanelCallCount() == 0);
 }
 
-// Applying a route whose driver init failed reports the one canonical unavailable message rather
-// than the backend's raw setup text (for ASIO literally "Driver failed to initialise"), so the OK
-// failure reads identically to the window's standing unavailable notice. Other apply failures keep
-// the backend's specific diagnostic.
+// Applying a route whose driver init failed adopts it as a closed route rather than failing: the
+// hardware stays closed, apply succeeds, and no operation error competes with the standing notice.
 TEST_CASE(
     "AudioDeviceSettings apply adopts an unavailable route as closed",
     "[audio][audio-device-settings]")

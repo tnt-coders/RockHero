@@ -21,8 +21,8 @@ TEST_CASE("JUCE path helpers roundtrip paths through UTF-8", "[core][juce-path]"
 }
 
 // Verifies the std::string<->path UTF-8 helpers round-trip non-ASCII bytes without going through
-// the lossy active code page (the package-I/O path the narrow path constructor corrupted). Bytes
-// are appended programmatically so this source file stays pure ASCII.
+// the lossy active code page that the narrow path constructor decodes through. Bytes are appended
+// programmatically so this source file stays pure ASCII.
 TEST_CASE("UTF-8 path helpers roundtrip package-relative names", "[core][juce-path]")
 {
     std::string utf8{"audio/Mot"};
@@ -44,8 +44,8 @@ TEST_CASE("UTF-8 path form is generic forward-slash", "[core][juce-path]")
 }
 
 #if JUCE_WINDOWS
-// Platform-specific test asserting platform behavior (allowed per plan 33's guiding
-// principle): a native wide drive-letter path must survive the UTF-8 bridge unchanged.
+// Windows-only because it asserts a Windows guarantee: a native wide drive-letter path must survive
+// the UTF-8 bridge unchanged.
 TEST_CASE("JUCE path helpers roundtrip native wide Windows paths", "[core][juce-path]")
 {
     std::wstring native{L"C:\\Rock Hero\\Project Fil"};

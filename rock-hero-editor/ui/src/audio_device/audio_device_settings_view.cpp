@@ -371,7 +371,7 @@ void AudioDeviceSettingsView::applyStateToControls()
 
 // Keeps the host window's resize limits matched to the current content. JUCE auto-grows the
 // DialogWindow when the new minimum height exceeds its current size, so adding rows (for example
-// switching from a combined-device backend to separate input/output) widens the window. Limits
+// switching from a combined-device backend to separate input/output) grows the window. Limits
 // alone, without an unconditional setSize, also leave user-expanded windows intact rather than
 // shrinking them back to preferred size when the row count drops.
 void AudioDeviceSettingsView::syncWindowHeightToContent()

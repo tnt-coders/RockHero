@@ -57,8 +57,8 @@ void drawTempoGridDots(
     const juce::Rectangle<int> visible_clip = g.getClipBounds();
 
     // Collect dots per color, then issue one batched fill each. Separating the colors keeps the
-    // fills homogeneous; the alternative of one fill per line scaled the draw-call count by the
-    // dot count per line, which is what made zoomed-out repaints lag.
+    // fills homogeneous; one fill per dot would scale the draw-call count by the dot count per
+    // line and make zoomed-out repaints lag.
     juce::RectangleList<float> subdivision_dots;
     juce::RectangleList<float> beat_dots;
     juce::RectangleList<float> measure_dots;

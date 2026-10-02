@@ -10,8 +10,8 @@ namespace
 
 // Message-thread cadence for playback republishing. Render loops consume snapshots through the
 // extrapolator, whose capture-stamp arithmetic makes cadence jitter harmless, so a modest fixed
-// rate is enough; the audio-graph tap remains the recorded escalation path if measurements ever
-// disagree (plan 12 decision 13).
+// rate is enough. Should measurements ever show it falling short, publishing from an audio-graph
+// tap is the escalation path.
 constexpr int g_republish_hz = 60;
 
 // File-local juce::Timer adapter driving the clock republish tick while playing. It holds a

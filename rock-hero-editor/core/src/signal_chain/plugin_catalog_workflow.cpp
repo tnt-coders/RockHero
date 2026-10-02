@@ -9,6 +9,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// Orders by name, then manufacturer, then id, so the browser list is total and stable across scans.
 void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candidates)
 {
     std::ranges::sort(

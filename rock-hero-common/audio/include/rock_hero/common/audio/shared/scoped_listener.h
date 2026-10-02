@@ -45,13 +45,19 @@ public:
     /*! \brief Copying is disabled so one object always represents one registration. */
     ScopedListener(const ScopedListener&) = delete;
 
-    /*! \brief Copy assignment is disabled to prevent duplicate listener registrations. */
+    /*!
+    \brief Copy assignment is disabled to prevent duplicate listener registrations.
+    \return Reference to this registration.
+    */
     ScopedListener& operator=(const ScopedListener&) = delete;
 
     /*! \brief Moving is disabled because it would change which object owns deregistration. */
     ScopedListener(ScopedListener&&) = delete;
 
-    /*! \brief Move assignment is disabled because registration ownership is fixed. */
+    /*!
+    \brief Move assignment is disabled because registration ownership is fixed.
+    \return Reference to this registration.
+    */
     ScopedListener& operator=(ScopedListener&&) = delete;
 
 private:

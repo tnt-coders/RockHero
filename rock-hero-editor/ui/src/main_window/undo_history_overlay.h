@@ -30,7 +30,10 @@ public:
     */
     void setHistory(const core::UndoHistoryState& history);
 
-    /*! \brief Paints the panel background, a summary line, and the entry list. */
+    /*!
+    \brief Paints the panel background, a summary line, and the entry list.
+    \param graphics Graphics context used for drawing.
+    */
     void paint(juce::Graphics& graphics) override;
 
 private:

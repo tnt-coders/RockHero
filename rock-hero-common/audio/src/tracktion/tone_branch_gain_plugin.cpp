@@ -218,7 +218,7 @@ void ToneBranchGainPlugin::restorePluginStateFromValueTree(const juce::ValueTree
     setTargetOutputGainDb(static_cast<float>(restored_gain.db));
 }
 
-// Exposes the parameter so the rack adapter can bake schedules and toggle preview bypass.
+// Exposes the parameter so the rack adapter can bake schedules and drive the direct switch.
 tracktion::AutomatableParameter::Ptr ToneBranchGainPlugin::branchGainParameter() const
 {
     return m_branch_gain_parameter;
@@ -253,8 +253,8 @@ void ToneBranchGainPlugin::setTargetOutputGainDb(float gain_db) noexcept
     m_target_output_gain_db.store(gain_db, std::memory_order_release);
 }
 
-// Keeps the realtime target synchronized when Tracktion undo mutates the backing ValueTree
-// directly, exactly as the rig's own gain stages do.
+// Keeps the realtime target synchronized when the backing ValueTree changes directly rather than
+// through setOutputGain(), exactly as the rig's own gain stages do.
 void ToneBranchGainPlugin::valueTreePropertyChanged(
     juce::ValueTree& changed_tree, const juce::Identifier& changed_property)
 {

@@ -333,7 +333,6 @@ struct EditorAction
         std::string name;
     };
 
-    /*! \brief Repoint a tone region at a different catalog tone. */
     /*! \brief Retone target naming a tone already in the arrangement's catalog. */
     struct ExistingTone
     {
@@ -373,6 +372,7 @@ struct EditorAction
     */
     using RetoneTarget = std::variant<ExistingTone, NewTone>;
 
+    /*! \brief Repoint a tone region at a different catalog tone, minting it when it is new. */
     struct SetToneRegionTone
     {
         /*!
@@ -420,8 +420,8 @@ struct EditorAction
     {
         /*!
         \brief Creates a new-tone action.
-        \param position_value Grid position at which the new tone begins; must
-                              fall strictly inside a region.
+        \param position_value Grid position at which the new tone begins; must fall strictly
+        inside a region.
         \param name_value User-facing name for the new tone.
         */
         CreateNewTone(common::core::GridPosition position_value, std::string name_value)

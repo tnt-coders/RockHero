@@ -284,7 +284,7 @@ TEST_CASE("EditorController walks up from the strings onto the ruler rows", "[co
     CHECK_FALSE(editor.caretString().has_value());
     CHECK(editor.state().selected_time_signature_measure == std::optional{5});
     CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
-    // A tempo or signature chip carries no Delete yet, so it is not a deletable selection.
+    // A tempo or signature chip carries no Delete, so it is not a deletable selection.
     CHECK_FALSE(editor.state().selection_present);
     // The keyboard stands at the paused cursor (measure 6, 10.0s); what a verb acts on is the
     // selected chip, the signature change at measure 5 (8.0s) that holds that measure.
@@ -428,8 +428,8 @@ TEST_CASE("EditorController steps off a clicked chip from its start", "[core][ma
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
 }
 
-// A tempo or time-signature chip selection has no verbs yet: Delete and Alt+arrows leave the tempo
-// map untouched, Esc releases it, and a cursor move releases it like every marker selection.
+// A tempo or time-signature chip selection has no editing verbs: Delete and Alt+arrows leave the
+// tempo map untouched, Esc releases it, and a cursor move releases it like every marker selection.
 TEST_CASE("EditorController keeps tempo and signature selections inert", "[core][marker-rows]")
 {
     MarkerRowEditor editor;
@@ -476,7 +476,8 @@ TEST_CASE(
     CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
     CHECK(editor.state().selection_start_seconds == std::optional{4.0});
 
-    // Stepping off it still keeps the cursor in the lead-in: the walk's holder rule is unchanged.
+    // Stepping off it still keeps the cursor in the lead-in, which the walk's holder rule gives to
+    // the first section.
     editor.step(ChartStepDirection::Down);
     CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
 }
@@ -553,10 +554,10 @@ TEST_CASE("EditorController steps a marker row to the neighbouring marker", "[co
     CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
 }
 
-// Tab reads the cursor on a marker row (Phase 3 re-ruling), which is what makes a step from inside
-// a marker land on that marker's OWN start first — the media player's "previous" — while a chip
-// selected far from the cursor still steps from the CHIP, because the column rule brings the cursor
-// into it before the step measures anything.
+// Tab reads the cursor on a marker row, which is what makes a step from inside a marker land on
+// that marker's OWN start first — the media player's "previous" — while a chip selected far from
+// the cursor still steps from the CHIP, because the column rule brings the cursor into it before
+// the step measures anything.
 TEST_CASE("EditorController steps a marker row from the cursor", "[core][marker-rows]")
 {
     MarkerRowEditor editor{makeThreeMarkerSections()};
@@ -692,7 +693,7 @@ TEST_CASE("EditorController jumps by the walk's own row rules", "[core][marker-r
         CHECK(editor.caretString() == std::optional{1});
         CHECK(editor.transport.position().seconds == Catch::Approx(6.0));
 
-        // The rows the song does have are reached the same as ever.
+        // The rows the song does have are still reachable.
         editor.jump(FocusRowJump::Tempo);
         CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(1)});
     }

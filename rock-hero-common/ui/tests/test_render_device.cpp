@@ -8,11 +8,11 @@
 namespace rock_hero::common::ui
 {
 
-// Proves the headless CI path (gate criterion S5): bgfx's Noop backend initializes with no GPU,
-// no window, and no platform data, runs frames, and resizes. The device comes from the shared
-// accessor because bgfx cannot be initialized twice in one process (see noop_render_device.h),
-// which also moves the clean shutdown to process exit — still executed, and a failure there still
-// fails the run through the exit code.
+// Proves the headless CI path: bgfx's Noop backend initializes with no GPU, no window, and no
+// platform data, runs frames, and resizes. The device comes from the shared accessor because bgfx
+// cannot be initialized twice in one process (see noop_render_device.h), which also moves the
+// clean shutdown to process exit — still executed, and a failure there still fails the run through
+// the exit code.
 TEST_CASE("Render device runs headless frames on the Noop backend", "[ui][surface]")
 {
     RenderDevice* const device = sharedNoopDevice();
@@ -43,9 +43,9 @@ TEST_CASE("Render device rejects a windowed backend without a native handle", "[
     CHECK(device.error().code == RenderDeviceErrorCode::MissingNativeWindowHandle);
 }
 
-// Pins the production platform table: its single entry is the spike-proven Direct3D 11 backend,
-// never bgfx auto-selection. The selection carries no OS conditional, so the pin holds on every
-// platform that builds the library and adding a second entry must update this case.
+// Pins the production platform table: its single entry is the Direct3D 11 backend, never bgfx
+// auto-selection. The selection carries no OS conditional, so the pin holds on every platform that
+// builds the library and adding a second entry must update this case.
 TEST_CASE("Default render backend is the pinned Direct3D11 entry", "[ui][surface]")
 {
     CHECK(defaultRenderBackend() == RenderBackend::Direct3D11);

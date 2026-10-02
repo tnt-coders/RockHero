@@ -31,10 +31,11 @@ class ToneAutomationLanesView;
 class ToneTrackView;
 
 /*!
-\brief Hosts zoomable track content inside a JUCE viewport for future multi-track scrolling.
+\brief Hosts the zoomable track rows inside a JUCE viewport.
 
 The shell owns the pinned timeline ruler, the scrolling viewport, and the zoomed content canvas
-that hosts the arrangement waveform row and the editor-wide cursor overlay. It computes the
+that hosts the track rows (the arrangement waveform with its tablature lane, the tone track and
+the automation lanes) and the editor-wide cursor overlay. It computes the
 shared visible-span tempo-grid scan once per geometry change and feeds the one result to both the
 ruler and the canvas, and it keeps playback visible with Guitar Pro-style shifted-window follow.
 
@@ -142,7 +143,7 @@ private:
 
 public:
     /*!
-    \brief Installs the existing waveform track and cursor overlay into viewport-owned content.
+    \brief Installs the track rows and the cursor overlay into viewport-owned content.
 
     \param controller Controller that receives ruler-level and canvas-level timeline seek intents.
     \param arrangement_view Waveform view hosted as the first track row; must outlive this shell.
@@ -171,8 +172,9 @@ public:
     /*! \brief Moving is disabled because hosted component references must remain stable. */
     TrackViewport(TrackViewport&&) = delete;
 
-    /*! \brief Move assignment is disabled because hosted component references must remain
-    stable. */
+    /*!
+    \brief Move assignment is disabled because hosted component references must remain stable.
+    */
     TrackViewport& operator=(TrackViewport&&) = delete;
 
     /*!
@@ -561,7 +563,7 @@ private:
     // Read-only transport sampled to keep the viewport near the current cursor during playback.
     const common::audio::ITransport& m_transport;
 
-    // Zoomed canvas that holds the current waveform track and future track rows.
+    // Zoomed canvas that holds every track row and the cursor overlay.
     Content m_content;
 
     // Pinned ruler that shows measure orientation plus the tempo and signature header bands.

@@ -55,9 +55,9 @@ public:
     /*!
     \brief Composition inputs for one Game: run options plus injected collaborators.
 
-    Mirrors the surviving fields of the old GameShellOptions bag that describe content rather than
-    the loop: the dev flags, the optional development package, the workspace the gameplay session
-    extracts into, the injected session, and the optional scanned library that opens the menu.
+    Carries the run options that describe content rather than the loop: the dev flags, the optional
+    development package, the workspace the gameplay session extracts into, the injected session,
+    and the optional scanned library that opens the menu.
     */
     struct Config
     {

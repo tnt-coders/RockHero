@@ -4,10 +4,9 @@
 namespace rock_hero::common::ui
 {
 
-// Lane-window behavior ported from the editor tab renderer: the six highest lanes keep the
-// standard set anchored at the first standard color on the sixth-highest lane, a bass keeps the
-// low-string colors, and extended-range lanes walk the extended tier downward. These pins mirror
-// the editor's test expectations, which double as the bit-identical parity proof.
+// Lane-window behavior: the six highest lanes keep the standard set anchored at the first standard
+// color on the sixth-highest lane, a bass keeps the low-string colors, and extended-range lanes
+// walk the extended tier downward.
 TEST_CASE("Palette colors strings by their standard-window position", "[ui][string-colors]")
 {
     const StringColorPalette& palette = charterClassicPalette();
@@ -44,7 +43,7 @@ TEST_CASE("Palette derivation reproduces the java color semantics", "[ui][string
 }
 
 // Hand-computed chain pins for Charter red: every derived surface of StringLaneStyle must land
-// on the exact integers the editor's previous in-module chain produced.
+// on the exact integers Charter's fixed chain produces.
 TEST_CASE("Palette style derivation matches the Charter chain for red", "[ui][string-colors]")
 {
     const StringLaneStyle style{0xffed0000};
@@ -58,13 +57,13 @@ TEST_CASE("Palette style derivation matches the Charter chain for red", "[ui][st
     CHECK(style.accent == 0xffff0000);       // saturated red stays saturated
 }
 
-// The accent brightens without shifting hue: Charter's per-channel double brighter bleached
-// saturated hues toward yellow (orange and green accents rendered yellow), so the accent scales
-// all channels by one gain instead, capped where the hottest channel saturates.
+// The accent brightens without shifting hue: Charter's per-channel double brighter bleaches
+// saturated hues toward yellow (orange and green accents would render yellow), so the accent
+// scales all channels by one gain instead, capped where the hottest channel saturates.
 TEST_CASE("Palette accent brightening preserves the string hue", "[ui][string-colors]")
 {
     // Orange: ring (255, 154, 11) is already saturated, so the accent is the ring itself —
-    // not the (255, 255, 22) yellow the java chain produced.
+    // not the (255, 255, 22) yellow the java chain would produce.
     const StringLaneStyle orange{0xffff870a};
     CHECK(orange.accent == orange.border_inner);
     CHECK(orange.accent == 0xffff9a0b);

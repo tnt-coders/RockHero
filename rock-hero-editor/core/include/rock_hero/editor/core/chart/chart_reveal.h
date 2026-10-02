@@ -13,18 +13,18 @@ span (\ref chartSpanRevealed).
 THE LAST TWO ARE THE EDIT'S FOCUS, and focus does one thing the modifier does not: a focused ring
 ending on the next head of its own string sets that head STEPPED BACK, drawn faint and beneath the
 ring, so the ring being edited reads whole — its end's chips and dots in truth — instead of
-fighting the head for one column (user ruling, 2026-09-28). A focused note never steps back, and
-the modifier steps nothing back: it shows every ring at once, where no one ring is the subject.
+fighting the head for one column. A focused note never steps back, and the modifier steps nothing
+back: it shows every ring at once, where no one ring is the subject.
 
 A REVEAL CARRIES ITS MARKS TO THEIR TRUTH. It adds ink, running the tail on from its crop to its
 ring's end, and the marks riding the tail travel with it: the destination chip at the crop glides
 to its point's own instant, and a linked stop's chip gives way to its head there. The lane EASES the
 run (common::ui::TabNotePresence), so a chip pressed at the crop visibly glides from under the
-pointer to its truth (user ruling, 2026-09-28). The chip is a face of the keyframe it names, so a
-press on it selects that keyframe, whose selection reveals the note: the press's own object carried
-to its truth, never some other target shifted under the pointer. A press lands on the state the
-ease is heading for, since the hit test reads this answer and never the eased picture. That is what
-still lets the selection and the caret be grounds.
+pointer to its truth. The chip is a face of the keyframe it names, so a press on it selects that
+keyframe, whose selection reveals the note: the press's own object carried to its truth, never
+some other target shifted under the pointer. A press lands on the state the ease is heading for,
+since the hit test reads this answer and never the eased picture. That is what still lets the
+selection and the caret be grounds.
 
 THE CARET IS A POSITION, NOT A MEMBER, and both caret arms judge it ends-INCLUDED, so a
 grid-snapped caret behaves the same wherever it lands: one sitting exactly on a ring's end or a
@@ -98,7 +98,7 @@ real ring. A span COVERING A SELECTED NOTE reveals with it, because the selectio
 scrutiny and the span a selected note stands in is part of what is being scrutinised — the same
 argument that draws a selected note's own ring. And the CARET anywhere inside the span's tenure
 reveals it, its STRING ignored, because a span is lane furniture rather than one string's ring.
-Spans are not selectable in their own right; that arrives with the span-marker work.
+Spans are not selectable in their own right.
 
 The selection arm judges a selected note's ONSET start-included, close-EXCLUDED: an onset AT the
 close is the event that ended the statement, or the one that opened the successor span, and neither

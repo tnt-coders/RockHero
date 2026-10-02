@@ -20,10 +20,9 @@ namespace rock_hero::game::core
 \brief Scans the given roots to a complete library index on the calling thread.
 
 Composes a LibraryScanEngine over the three ports, begins a fresh scan (no prior index), and pumps
-it to completion, returning the built index. This is the simple synchronous entry point a startup
-sequence uses before menus exist; a background, index-cached, cancellable scan is the
-LibraryScanEngine's own step() surface. A requested cancellation stops the pump
-and returns the partial index.
+it to completion, returning the built index. This is the simple synchronous entry point the game's
+startup uses; a background, index-cached, cancellable scan is the LibraryScanEngine's own step()
+surface. A requested cancellation stops the pump and returns the partial index.
 
 \param scan_roots Directories to scan for packages.
 \param lister Enumerates package files under each root.

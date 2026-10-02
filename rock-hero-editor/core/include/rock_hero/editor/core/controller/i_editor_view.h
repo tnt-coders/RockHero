@@ -93,7 +93,7 @@ public:
 
     /*!
     \brief Asks the view to flash the elements a chart edit refused: they glow red a couple of times
-    and stay as they were (`docs/plans/in-progress/refusal-flash.md`).
+    and stay as they were.
 
     A one-shot effect rather than view state: the pulse has a lifetime of its own, and a refusal
     changes nothing a re-derivation could compare. Why the edit was refused goes to the log, never

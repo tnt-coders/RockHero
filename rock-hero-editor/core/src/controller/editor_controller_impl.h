@@ -171,8 +171,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
     // What the next press of the verb that armed the window needs to know: the technique a second
-    // press would reverse (the legato plan's ruling 4, extended to the scrape), or the duration
-    // gesture's steps so far.
+    // press would reverse.
     struct ChartTechniqueToggle
     {
         ChartTechnique technique{};
@@ -257,8 +256,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // empty lane caret slot. The time axis steps by the placement quantum on every surface.
     void performActionImpl(const EditorAction::MoveSelection& action);
     void moveChartSelection(ChartStepDirection direction);
-    // The chart branch of the unified Delete dispatch (Impl-private since the per-surface
-    // public intent retired with the precedence ladder).
+    // The chart branch of the unified Delete dispatch.
     void deleteChartSelection();
     void performActionImpl(const EditorAction::DeleteSelection& action);
     void performActionImpl(const EditorAction::TypeChartFretDigit& action);
@@ -348,9 +346,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetChartHarmonicNode& action);
     void performActionImpl(const EditorAction::ChooseChartBend& action);
     void performActionImpl(const EditorAction::SetChartBend& action);
-    // Severs each selected keyframe's gesture (Shift+L, W10's addendum): the path ends
-    // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
-    // no keyframe selected.
+    // Toggles every selected junction (Shift+L) in one compound undo entry: a keyframe splits its
+    // path there and a new head takes the remainder, and a head joins its same-string
+    // predecessor's ring as a point. Inert with an empty selection.
     void performActionImpl(const EditorAction::ToggleChartJunction& action);
     // The legato row of the technique toggle, planned through the resolver rather than
     // chartTechniqueLaw; the operand's heads are claimed or cleared, and the operand becomes the
@@ -416,7 +414,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // stored keyframe is in the projection, so every keyframe key resolves, and whether the lane
     // DRAWS the mark is the lane's own extent question. The caret publishes whenever armed, empty
     // slot or note alike — its presence is the armed signal that hides the paused playhead — while
-    // a lane-riding caret publishes through the tone-automation state instead (§9b), so the tab
+    // a lane-riding caret publishes through the tone-automation state instead, so the tab
     // lane draws no square for it. The overlay's other fields (marquee, pending entry) are the
     // publisher's alone.
     [[nodiscard]] ChartEditViewState resolvedChartEdit() const;
@@ -497,7 +495,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         }
     }
     // Clears only the selection kinds that follow the cursor — every kind but a chart selection
-    // and the time span, which deliberately survive seeks (the marker model's lifecycle split).
+    // and the time span, which deliberately survive seeks.
     void clearCursorCoupledSelection();
     // The note value every position-quantizing verb on every surface snaps onto, from the two
     // session facts through the one authority (placementQuantumNoteValue). A verb wanting a
@@ -899,10 +897,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void reportNotice(const std::string& title, const std::string& message);
     void requestChartHarmonicNodePicker(ChartHarmonicNodePicker picker);
     void requestChartBendPicker(ChartBendPicker picker);
-    // THE REFUSAL REPORT (docs/plans/in-progress/refusal-flash.md): each reason goes to the log and
-    // the refused elements flash red. A whole plan refused flashes the selection; a NoChange is an
-    // honest no-op and reports nothing. Per-note refusals flash only the notes named. Called after
-    // any apply, because the flash is addressed in the projection the view is showing.
+    // THE REFUSAL REPORT: each reason goes to the log and the refused elements flash red. A whole
+    // plan refused flashes the selection; a NoChange is an honest no-op and reports nothing.
+    // Per-note refusals flash only the notes named. Called after any apply, because the flash is
+    // addressed in the projection the view is showing.
     void reportChartPlanRefusal(const ChartPlanRefusal& refusal);
     void reportChartRefusedNotes(std::span<const ChartRefusedNote> refused);
     // The flash's one path: keys to the lane's projection indices, through the two authorities
@@ -963,7 +961,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Song-audio port used for project audio validation and selected-arrangement loading.
     common::audio::ISongAudio& m_song_audio;
 
-    // Audio-device port used for ASIO input/output routing.
+    // Audio-device port used for hardware input/output routing.
     common::audio::IAudioDeviceConfiguration& m_audio_devices;
 
     // Plugin-host port used to mutate the processing chain.
@@ -998,9 +996,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     common::audio::IAudioConfigStore& m_audio_config_store;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
-    // updateView() and reportError() tolerate the null window because the constructor's
-    // restoreAudioDeviceState() can synchronously fire onAudioDeviceConfigurationChanged()
-    // before the host wires up a view.
+    // updateView() and the report helpers tolerate the null view because startup work in the
+    // constructor (the device restore, transport callbacks it triggers) can publish before the
+    // host attaches one.
     IEditorView* m_view{nullptr};
 
     // Most recently derived view state used as the seed push at view attachment.
@@ -1015,7 +1013,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Headless signal-chain workflow refreshed only from authoritative backend snapshots.
     SignalChainWorkflow m_signal_chain;
 
-    // Product-level undo history for tone edits currently covered by the implementation plan.
+    // Project-level undo history for every recorded edit: chart, markers, tones, automation, and
+    // the signal chain.
     EditorUndoHistory m_undo_history;
 
     // Undo/redo transitions that brought their change into focus, published so the view can keep
@@ -1044,15 +1043,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // resume state. Zero means no zoom has been reported or restored (view default applies).
     double m_timeline_zoom_pixels_per_second{0.0};
 
-    // The one editor-wide selection (editor_selection.h): chart notes, a tone region, an
-    // automation point, or a grid-locked time span — never more than one at a time, by
+    // The one editor-wide selection (editor_selection.h): chart notes, a marker, an automation
+    // point, the "+" row, or a grid-locked time span — never more than one at a time, by
     // construction. Access through the selection accessors above. Cleared on project load/close and
-    // arrangement switches; each alternative keeps its shipped lifecycle (chart notes and the time
-    // span clear on play but survive seeks; the cursor-coupled kinds clear on any cursor move).
-    // While the marker is armed the chart alternative is exactly what sits under the caret (the
-    // marker model): arming onto a note selects it, onto an empty slot clears it; multi-note
-    // selections and the time span exist only while the marker is passive (decision D — a range
-    // dissolves the object selection and demotes the marker).
+    // arrangement switches; each alternative keeps its own lifecycle (chart notes and the time span
+    // clear on play but survive seeks; the cursor-coupled kinds clear on any cursor move). While
+    // the marker is armed the chart alternative is exactly what sits under the caret: arming onto a
+    // note selects it, onto an empty slot clears it; multi-note selections and the time span exist
+    // only while the marker is passive (a range dissolves the object selection and demotes the
+    // marker).
     EditorSelection m_selection{};
 
     // In-flight tablature pointer gesture: armed on Down, disambiguated into click vs. marquee by
@@ -1075,7 +1074,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
 
-    // The in-flight PENDING multi-digit fret entry (the W3 pending model): the typed value is
+    // The in-flight PENDING multi-digit fret entry (the pending model): the typed value is
     // provisional and the chart holds NOTHING of it — nothing commits until the entry settles
     // (a second digit, the window timeout, or any other action's settle prologue), and an entry
     // whose plan is Invalid discards, leaving the previous values untouched. The stored plan is
@@ -1098,10 +1097,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // from their pre-entry values, so a widened value never compounds on its own earlier
         // digit.
         //
-        // BOTH selection kinds, because a selected keyframe states a fret exactly as a head does
-        // (W13's ruling): the entry carries the two key lists and the snapshot of every note it
-        // writes THROUGH, which for a keyframe is the note that stores it. The selection kind is
-        // what says which stop a digit reached.
+        // BOTH selection kinds, because a selected keyframe states a fret exactly as a head does:
+        // the entry carries the two key lists and the snapshot of every note it writes THROUGH,
+        // which for a keyframe is the note that stores it. The selection kind is what says which
+        // stop a digit reached.
         struct Retype
         {
             std::vector<ChartSlotKey> keys{};
@@ -1283,10 +1282,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // starting from the current values; grown tails then stay and Ctrl+Z is the revert.
     //
     // ONE window, because at most one can ever be armed: every arming runs after
-    // applyChartEditPlan, which disarms, so eight per-verb fields encoded a one-of-eight state and
-    // needed a hand-kept disarm list. Keeping the gestures in the same field rather than beside it
-    // is the same argument a second time — two optionals could both be armed, which is a state no
-    // verb can produce and every disarm site would have to remember.
+    // applyChartEditPlan, which disarms, so per-verb fields would encode a one-of-N state and need
+    // a hand-kept disarm list. Keeping the gestures in the same field rather than beside it is the
+    // same argument a second time — two optionals could both be armed, which is a state no verb can
+    // produce and every disarm site would have to remember.
     struct ChartVerbWindow
     {
         // The whole selection the arming press acted on, kind-tagged and compared as one vector
@@ -1308,11 +1307,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the
-    // wall clock in the constructor when the service is unset.
+    // system millisecond counter in the constructor when the service is unset.
     std::function<std::uint32_t()> m_now_milliseconds;
 
     // A caret row on an automation lane, identified durably (instance + parameter, never a
-    // display index) so lane reordering cannot move the caret (the row axis, §9b).
+    // display index) so lane reordering cannot move the caret.
     struct AutomationLaneRow
     {
         std::string instance_id;
@@ -1357,15 +1356,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         common::core::GridPosition position{};
         int string{1};
         // WHICH face of the object at this slot the caret stands on (ChartCaretFace): its mark,
-        // or the chip printing its bend. A face is unreachable
-        // unless it is drawn: armChartCaret falls back to the mark rather than parking the caret
-        // on a face that is not there, and chartCaretFace applies the same test at the read.
+        // or the chip printing its bend. A face is unreachable unless it is drawn: armChartCaret
+        // falls back to the mark rather than parking the caret on a face that is not there, and
+        // chartCaretFace applies the same test at the read.
         ChartCaretFace face{ChartCaretFace::Mark};
         std::optional<AutomationLaneRow> lane{};
     };
 
-    // The two-state position marker (the marker model): always present, exactly one state at a
-    // time — passive cursor or armed caret — so "cursor and caret at once" is unrepresentable.
+    // The two-state position marker: always present, exactly one state at a time — passive
+    // cursor or armed caret — so "cursor and caret at once" is unrepresentable.
     // Armed implies paused (playback demotes via the transport listener) and implies the selection
     // is what sits under the caret; chartless arrangements simply never arm.
     using ChartMarker = std::variant<ChartCursor, ChartCaret>;
@@ -1388,7 +1387,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Arms the caret on an automation lane row and re-derives the selection from what sits
     // under it: a point at the slot becomes the editor-wide selection, an empty slot clears it
-    // (armChartCaret's row-axis sibling, §9b).
+    // (armChartCaret's row-axis sibling).
     void armLaneCaret(common::core::GridPosition position, AutomationLaneRow row);
 
     // Whether an authored point stands on a lane row at exactly this slot.
@@ -1493,11 +1492,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::optional<std::size_t> markerIndex(
         MarkerRow row, const common::core::GridPosition& start) const;
 
-    // One row of the keyboard's vertical walk (docs/plans/completed/keyboard-focus-rows.md),
-    // computed per press and never stored. The caret names a string or lane row; the selection
-    // names a marker row or the "+" row beneath the lanes. The alternatives are in no particular
-    // order — only their DISTINCTNESS is used — because the order the rows are walked in is
-    // authored once, in focusRowStack.
+    // One row of the keyboard's vertical walk, computed per press and never stored. The caret
+    // names a string or lane row; the selection names a marker row or the "+" row beneath the
+    // lanes. The alternatives are in no particular order — only their DISTINCTNESS is used —
+    // because the order the rows are walked in is authored once, in focusRowStack.
     struct MarkerFocusRow
     {
         // No member initializer, unlike its siblings below: a focus row must always name WHICH
@@ -1654,8 +1652,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // A time-addressed lane caret arm (the row-axis form of the chart lane's empty click): arms the
     // caret at the grid slot nearest the given time. The time-input entry point (exercised by
-    // tests); the pixel-input click path arms through
-    // onToneAutomationPointerDown's one placement snap.
+    // tests); the pixel-input click path arms through onToneAutomationPointerDown's one placement
+    // snap.
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time);
 
@@ -1674,9 +1672,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The pointer left the lane row: no hover, so no ghost.
     void onToneAutomationPointerExit();
 
-    // A primary-button press inside a lane: re-resolves the point-vs-empty-area hit from the event
-    // geometry and the lane's points, then arms the matching gesture. A press on a point begins a
-    // move drag; Alt on empty area begins an on-curve insert (refused on an occupied slot); plain
+    // A primary-button press inside a lane: re-resolves the point-vs-anchor-vs-empty-area hit from
+    // the event geometry and the lane's points, then arms the matching gesture. A press on a point
+    // begins a move drag; a press on the derived anchor begins an insert held until the drag
+    // threshold; Alt on empty area begins an on-curve insert (refused on an occupied slot); plain
     // empty area arms the lane caret. A double-click's second press is left to the view's editor.
     void onToneAutomationPointerDown(const ToneAutomationPointerEvent& event);
 
@@ -1685,8 +1684,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // axis), and republishes the preview. A no-op without an active drag.
     void onToneAutomationPointerDrag(const ToneAutomationPointerEvent& event);
 
-    // Ends the drag: a moved gesture commits its replacement list (one undo entry) and selects the
-    // landed point; a press that never moved selects the pressed point. A no-op without a drag.
+    // Ends the drag: a gesture holding a live edit commits its replacement list (one undo entry)
+    // and selects the landed point; a press that produced none runs the click verb of what it
+    // grabbed — a point selects, the anchor seeks and arms the caret. A no-op without a drag.
     void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event);
 
     // The Insert key's create: whatever the armed caret's row holds — the lane's on-curve point,
@@ -1865,7 +1865,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const ToneAutomationDrag& drag) const;
 
     // Memoized tab and 3D-highway projections for the displayed arrangement; see
-    // deriveViewState for the cache rule (keyed by arrangement id plus the session's chart
+    // refreshChartProjections for the cache rule (keyed by arrangement id plus the session's chart
     // revision, so chart edits rebuild both projections). Mutable because the caches refresh
     // lazily inside the const view-state derivation.
     mutable std::shared_ptr<const common::core::ChartViewState> m_tab_view_state{};
@@ -1945,7 +1945,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // True while a project write owns the Project. `m_project` is legitimately empty for that whole
     // window, so it cannot answer "is a project open" — and close and exit supersede busy, so
-    // without this the unsaved-changes prompt was skipped for the duration of every save.
+    // without this a close or exit during a save would skip the unsaved-changes prompt.
     bool m_project_write_in_flight{false};
 
     // True after an undo/redo rollback-contract violation makes the live backend untrusted.
@@ -1987,7 +1987,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     common::audio::ScopedListener<common::audio::ITransport, common::audio::ITransport::Listener>
         m_transport_listener;
 
-    // Optional audio-device-configuration listener registration.
+    // Audio-device-configuration listener registration, made at the end of construction, after the
+    // startup device restore has run.
     std::unique_ptr<common::audio::ScopedListener<
         common::audio::IAudioDeviceConfiguration,
         common::audio::IAudioDeviceConfiguration::Listener>>
@@ -2015,7 +2016,7 @@ struct EditorController::Impl::ImportTaskState
 };
 
 // Per-operation state for selected browser-plugin insertion. Actual chain mutation happens on
-// the message thread after the busy overlay has painted because Tracktion requires it.
+// the message thread after the busy overlay has painted because the plugin host requires it.
 struct EditorController::Impl::InsertSelectedPluginTaskState
 {
     common::audio::PluginCandidate plugin_candidate{};

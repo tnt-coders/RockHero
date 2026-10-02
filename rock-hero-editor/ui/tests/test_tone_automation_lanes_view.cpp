@@ -301,8 +301,8 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
 {
     const LanesHarness harness;
 
-    // Empty editable lane area claims the pointer (§9b): a plain click seeks and arms the
-    // caret on the lane, and with Alt held it is the insert quasimode's target.
+    // Empty editable lane area claims the pointer: a plain click seeks and arms the caret on the
+    // lane, and with Alt held it is the insert quasimode's target.
     CHECK(harness.view.wantsPointerAt({100, 30}));
     // Same lane but outside the editable window (x=500 = 5 s): seek stays with the overlay.
     CHECK_FALSE(harness.view.wantsPointerAt({500, 30}));
@@ -323,11 +323,11 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
 // that starts later. Its home is the tone's own start, and the window edge only takes over once
 // that start has scrolled off — the tone regions' label rule one row up.
 //
-// FAILS UNDER PRE-CHANGE CODE, deliberately: the chip answered at x = 10 wherever the tone began.
+// A chip pinned to the window edge alone would answer at x = 10 wherever the tone began.
 TEST_CASE("Lanes view pins the chip column to the selected tone", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    // 800 px across 8 s, so the tone now starts at x = 200 and runs to x = 600.
+    // 800 px across 8 s, so the tone starts at x = 200 and runs to x = 600.
     harness.view.setEditableWindow(
         common::core::TimeRange{
             .start = common::core::TimePosition{2.0},
@@ -353,8 +353,8 @@ TEST_CASE("Lanes view pins the chip column to the selected tone", "[ui][tone-aut
 
     // PAST THE TONE'S END the column LEAVES: sticking is bounded by the thing being labelled, so
     // once the window's left edge clears x = 600 there is no chip to draw and none to press — the
-    // half of the rule the hand-written copy dropped, which left the whole column glued to the
-    // window over the dimmed, non-editable area beyond the tone.
+    // half of the rule a hand-written copy tends to drop, which would leave the whole column glued
+    // to the window over the dimmed, non-editable area beyond the tone.
     harness.view.setVisibleContentLeft(600);
     CHECK_FALSE(harness.view.wantsPointerAt({606, plus_y}));
     CHECK_FALSE(harness.view.wantsPointerAt({610, plus_y}));
@@ -554,7 +554,7 @@ TEST_CASE(
 {
     LanesHarness harness;
 
-    // The controller owns the drag now and publishes its preview; the view paints the readout from
+    // The controller owns the drag and publishes its preview; the view paints the readout from
     // it. A preview on lane 0 at measure 2 beat 1, value 0.5, formats through the stub as [0.50].
     core::ToneAutomationViewState state = makeState();
     state.drag_preview = core::ToneAutomationDragPreviewRef{
@@ -639,9 +639,8 @@ TEST_CASE(
     // A press on empty editable lane area forwards a pointer Down carrying the lane identity, its
     // published index, the raw pixel, the value-band extents, the click count, and the modifiers —
     // the controller re-resolves point-vs-area and arms the caret or the insert (a controller
-    // test). The view emits no edit intent itself; caret arming and placement became the
-    // controller's (the caret-request Listener callback is gone entirely — the press
-    // forwards only a pointer Down).
+    // test). The view emits no edit intent itself: caret arming and placement are the
+    // controller's, and the press forwards only a pointer Down.
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
     REQUIRE(harness.listener.pointer_down_count == 1);
     CHECK(harness.listener.edit_count == 0);
@@ -685,9 +684,9 @@ TEST_CASE(
     LanesHarness harness;
 
     // A hover over empty editable lane area forwards a pointer Move carrying the hovered lane's
-    // identity, the raw lane-local pixel x, and the geometry the controller needs to snap. The
-    // Phase 2 seam forwards raw pixels + geometry rather than Phase 1's view-computed time, so the
-    // ghost and an Alt+click resolve through one snap path.
+    // identity, the raw lane-local pixel x, and the geometry the controller needs to snap. Raw
+    // pixels + geometry rather than a view-computed time, so the ghost and an Alt+click resolve
+    // through one snap path.
     const juce::ModifierKeys alt_hover{juce::ModifierKeys::altModifier};
     harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, alt_hover));
     REQUIRE(harness.listener.pointer_move_count == 1);
@@ -698,8 +697,8 @@ TEST_CASE(
         const core::ToneAutomationPointerEvent& event = *harness.listener.last_pointer_event;
         CHECK(event.instance_id == "instance-a");
         CHECK(event.param_id == "gain");
-        // The raw pixel, not a snapped time: exact by construction,
-        // is_eq keeps -Wfloat-equal clean.
+        // The raw pixel, not a snapped time: exact by construction, and is_eq keeps
+        // -Wfloat-equal clean.
         CHECK(std::is_eq(event.x <=> 100.0f));
         CHECK(event.geometry.content_width == 800);
         CHECK(std::is_eq(event.geometry.visible_timeline.start.seconds <=> 0.0));
@@ -743,9 +742,9 @@ TEST_CASE(
 {
     LanesHarness harness;
 
-    // The lane-height resize is the one gesture the view still owns (the point move/insert drag and
-    // its whole state machine moved to the controller and are exercised there). Grab the first
-    // lane's resize band (the bottom 6 px of the 56 px lane) and drag it taller.
+    // The lane-height resize is the one gesture the view owns (the point move/insert drag and its
+    // state machine are the controller's and are exercised there). Grab the first lane's resize
+    // band (the bottom 6 px of the 56 px lane) and drag it taller.
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 53.0f));
     // A resize is view-owned, so it forwards no pointer event to the controller.
     CHECK(harness.listener.pointer_down_count == 0);

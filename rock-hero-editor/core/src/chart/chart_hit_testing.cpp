@@ -101,8 +101,8 @@ std::optional<ChartHitTarget> chartHitTarget(
 {
     // Everything a press can land on, sorted into the paint's two layers: the notes in front, and
     // beneath them every note STEPPED BACK behind the ring being edited, which the lane draws first
-    // and whole, chips included. The front layer answers first, so a press on the
-    // head a focused ring ends on reaches the ring's faces drawn over it.
+    // and whole, chips included. The front layer answers first, so a press on the head a focused
+    // ring ends on reaches the ring's faces drawn over it.
     std::array<PressLayer, 2> layers{PressLayer{x}, PressLayer{x}};
     const auto layer_of =
         [&layers](const common::ui::TabNotePresence& note_presence) -> PressLayer& {
@@ -117,11 +117,11 @@ std::optional<ChartHitTarget> chartHitTarget(
     // chip its keyframe, each as a face of its own (ChartBendChipHit). A chip's box is as wide as
     // the widest amount it can print, since this resolver measures no text, so letting chips
     // answer before heads would hand a short chip's empty margin a press meant for the head beside
-    // it. Among the faces the one PAINTED ON TOP
-    // answers, not the nearest: chips pushed back to one place stack, and boxes of different widths
-    // ending at one edge have different centres. So each of the paint core's three layers keeps
-    // the last face containing the press, in the paint core's order, and the layers answer topmost
-    // first: every bend chip, then every slide chip, then the marks drawn in the note pass.
+    // it. Among the faces the one PAINTED ON TOP answers, not the nearest: chips pushed back to one
+    // place stack, and boxes of different widths ending at one edge have different centres. So
+    // each of the paint core's three layers keeps the last face containing the press, in the paint
+    // core's order, and the layers answer topmost first: every bend chip, then every slide chip,
+    // then the marks drawn in the note pass.
     const auto [first, last] = candidateRange(tab, geometry, x, x);
     for (std::size_t index = first; index < last; ++index)
     {

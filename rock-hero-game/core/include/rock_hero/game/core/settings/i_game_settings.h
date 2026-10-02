@@ -20,13 +20,12 @@ namespace rock_hero::game::core
 /*!
 \brief Stores game settings and the implicit v1 player profile outside song packages.
 
-The game's one per-user persistence seam: every game plan that needs a persisted value adds a
-typed getter/setter pair here in its own phase (reads return `std::optional`, writes return
-`std::expected`), keeping key names and storage format private to the implementation. Reserved
-key names already promised by other plans: `mixMasterDb`, `mixBackingDb`, `mixMonitorDb`
-(plan 21 Phase 4's session-local mix values; 21-Q3: global scope). v1 ships the implicit
-profile: a stable generated profile id stamped on every persisted record, a display name, and
-the first-run flag plan 26's onboarding consumes.
+The game's one per-user persistence seam: every persisted game value is a typed getter/setter pair
+here (reads return `std::optional`, writes return `std::expected`), keeping key names and storage
+format private to the implementation. Reserved key names for the global mix volumes, which are
+session-local for now: `mixMasterDb`, `mixBackingDb`, `mixMonitorDb`. v1 ships the implicit
+profile: a stable generated profile id stamped on every persisted record, a display name, and the
+first-run flag plan 26's onboarding consumes.
 */
 class IGameSettings
 {
@@ -94,7 +93,7 @@ public:
     /*!
     \brief Reads the game's player-slot-to-route audio configuration.
 
-    The game-private player-to-route mapping (plan 32 Phase 1), distinct from the shared
+    The game-private player-to-route mapping, distinct from the shared
     common::audio::AudioConfigStore that holds device state, gain calibration, and latency offsets
     keyed by route. A corrupt or absent stored value reads as an empty config, mirroring the
     rebuild-on-doubt tolerance the custom scan roots use so a broken value never crashes startup.

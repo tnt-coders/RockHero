@@ -31,7 +31,7 @@ structural scheme; the shipped file carries no alpha). The threshold is load-bea
 radius is a strong function of it — fitted to the antialias tail instead, the same art measures
 roughly twice the radius — so every field here reads the same contour.
 
-Centres are offsets from the drawn quad's centre, +x right and +y up. The marks-final atlas
+Centres are offsets from the drawn quad's centre, +x right and +y up. The shipped atlas
 measures them at exactly zero — every cell is recentred by contract — but the fields stay
 measured rather than assumed: art authored even half a texel off-centre would land the glow's
 ridge off the art's edge, bright on bare texture along two edges and buried under the head along

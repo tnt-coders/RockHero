@@ -271,8 +271,8 @@ TEST_CASE("Hand window clamps a settle longer than its ramp", "[core][highway][w
     }
 }
 
-// Coverage is the shared hit-line signal: full one lane inside either edge, zero one lane
-// outside, ramping linearly across each moving edge so brightness crossfades and number fades
+// Coverage is the shared hit-line signal: full on and inside either edge, zero one lane outside,
+// ramping linearly over the lane outside each moving edge so brightness crossfades and number fades
 // track the sweeping border exactly.
 TEST_CASE("Hand window line coverage ramps across the edges", "[core][highway][window]")
 {

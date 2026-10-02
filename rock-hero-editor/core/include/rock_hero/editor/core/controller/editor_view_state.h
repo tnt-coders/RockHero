@@ -344,9 +344,9 @@ enum class ChartCaretFace : std::uint8_t
 /*!
 \brief The armed caret's rendered position while it sits on an empty grid slot.
 
-The marker model: while the marker is armed the caret is THE paused position —
-typing inserts here, play starts here. Published in seconds so the lane maps it through the
-same visible-timeline convention as the notation.
+While the marker is armed the caret is THE paused position — typing inserts here, play starts
+here. Published in seconds so the lane maps it through the same visible-timeline convention as the
+notation.
 */
 struct ChartCaretViewState
 {
@@ -430,7 +430,10 @@ struct RenameSectionTarget
     /*! \brief The section's current name, the prompt's starting text. */
     std::string name{};
 
-    /*! \brief Compares two targets field by field. */
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both name the same section under the same name.
+    */
     bool operator==(const RenameSectionTarget&) const = default;
 };
 
@@ -443,7 +446,10 @@ struct InsertSectionTarget
     /*! \brief Measure downbeat the new section will start on. */
     common::core::GridPosition downbeat{};
 
-    /*! \brief Compares two targets field by field. */
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both name the same downbeat.
+    */
     bool operator==(const InsertSectionTarget&) const = default;
 };
 
@@ -470,7 +476,10 @@ struct RetoneRegionTarget
     /*! \brief Tone document the region references now; empty for the synthesized default. */
     std::string tone_document_ref{};
 
-    /*! \brief Compares two targets field by field. */
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both name the same region and current tone.
+    */
     bool operator==(const RetoneRegionTarget&) const = default;
 };
 
@@ -486,7 +495,10 @@ struct SplitToneRegionTarget
     /*! \brief Tone document the containing region references; the new region cannot keep it. */
     std::string containing_tone_document_ref{};
 
-    /*! \brief Compares two targets field by field. */
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both name the same position and containing tone.
+    */
     bool operator==(const SplitToneRegionTarget&) const = default;
 };
 
@@ -510,21 +522,30 @@ struct RenameToneTarget
     /*! \brief The tone's current name, the prompt's starting text. */
     std::string name{};
 
-    /*! \brief Compares two targets field by field. */
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both name the same tone document under the same name.
+    */
     bool operator==(const RenameToneTarget&) const = default;
 };
 
 /*! \brief The verb that opens the automation parameter picker the "+" row offers. */
 struct OpenAutomationPickerTarget
 {
-    /*! \brief Two picker targets are always the same verb. */
+    /*!
+    \brief Compares two picker targets, which are always the same verb.
+    \return Always true.
+    */
     bool operator==(const OpenAutomationPickerTarget&) const = default;
 };
 
 /*! \brief The verb that opens the bend picker on the bend a selected bend chip prints. */
 struct OpenBendPickerTarget
 {
-    /*! \brief Two picker targets are always the same verb. */
+    /*!
+    \brief Compares two picker targets, which are always the same verb.
+    \return Always true.
+    */
     bool operator==(const OpenBendPickerTarget&) const = default;
 };
 
@@ -533,9 +554,7 @@ struct OpenBendPickerTarget
 selected tone region, open the "+" row's picker, open the bend picker on a bend chip, or nothing.
 
 The selection's own verb, dispatched on its kind here rather than in the view: restating a section
-is renaming it, restating a tone region is repointing it, restating a bend is choosing its amount. A
-retone stays `Enter`'s meaning on a region until the signal chain has a keyboard model to drill into
-(plan 53 Phase 5).
+is renaming it, restating a tone region is repointing it, restating a bend is choosing its amount.
 */
 using RestateTarget = std::variant<
     std::monostate, RenameSectionTarget, RetoneRegionTarget, OpenAutomationPickerTarget,
@@ -672,9 +691,9 @@ struct ChartPendingFretHandPosition
 While a typed value is provisional the lane draws an entry box over each affected head — the
 plate the mute heads already draw, with the editor accent as a border so pending reads as an
 editor state — carrying the typed text: the ordinary digit ink while the value would apply, red
-when it cannot. Red marks EVERY affected object, deliberately without
-per-object attribution: relational refusals are properties of the whole selection, so a per-note
-red would claim a precision the refusal does not have.
+when it cannot. Red marks EVERY affected object, deliberately without per-object attribution:
+relational refusals are properties of the whole selection, so a per-note red would claim a
+precision the refusal does not have.
 
 An entry that would CREATE something — a note at an empty caret, a point on a tail — wears its box
 at the slot it began on, and a value that would apply is already drawn beneath the box as the head
@@ -721,9 +740,9 @@ struct ChartPendingFretViewState
 
 The ORDINAL is what the rows differ by, and the only stable name for a choice: our frets are
 absolute where published tab is capo-relative, so under a capo of 2 the same rows read "5.2" and
-"4.7" for the 6th and the 7th. Sounding pitch is deliberately not offered —
-a partial is just-intoned (the 7th sits 31 cents below any equal-tempered name), so a pitch letter
-beside 2.7 would be false.
+"4.7" for the 6th and the 7th. Sounding pitch is deliberately not offered — a partial is
+just-intoned (the 7th sits 31 cents below any equal-tempered name), so a pitch letter beside 2.7
+would be false.
 */
 struct ChartHarmonicNodeChoice
 {
@@ -948,10 +967,10 @@ struct EditorViewState
 
     Derived as the availability of \ref EditorActionId::SelectSongSection, the marker verb with the
     WEAKEST base condition — a project, and a paused transport — so it answers for every marker kind
-    (sections, tempo anchors, time signatures, fret-hand positions, tone regions, automation
-    points) and for the "+" row
-    at once. Every marker-row surface greys its affordances and refuses its gestures from this flag
-    alone: no view derives marker enablement itself, and none reads the transport to decide it.
+    (sections, tempo anchors, time signatures, fret-hand positions, tone regions, automation points)
+    and for the "+" row at once. Every marker-row surface greys its affordances and refuses its
+    gestures from this flag alone: no view derives marker enablement itself, and none reads the
+    transport to decide it.
 
     It is not the whole availability answer for any one verb — a tone-region verb also needs a
     loaded arrangement, a lane point also needs its lane — so the core still refuses each verb on
@@ -1034,8 +1053,8 @@ struct EditorViewState
     The earliest selected note or keyframe, the selected automation point, or the selected
     marker's start — the chip, whichever way the cursor stands to it — and, with nothing selected,
     the armed caret's slot, where typing acts. After a verb that acts on the selection, the view
-    leaves the window alone while this member is fully on screen and centres it otherwise
-    (\ref EditorView::perform); a verb that destroyed the selection centres where it stood.
+    leaves the window alone while this member is fully on screen and centres it otherwise; a verb
+    that destroyed the selection centres where it stood.
     Selecting alone never moves the view. Nothing while passive with no caret, while the transport
     plays, or with no arrangement.
     */
@@ -1152,18 +1171,19 @@ struct EditorViewState
     \brief The grid-locked time-selection span resolved to seconds; absent when none is held.
 
     A full-height range across every surface (chart, tone, lanes) — a mutually-exclusive kind of
-    the one editor-wide selection (decision D). The endpoints are display-grid positions resolved to
-    seconds so the full-canvas overlay maps them to pixels the same way it maps the cursor,
-    surviving zoom and scroll without a re-push. Present implies selection_present.
+    the one editor-wide selection. The endpoints are display-grid positions resolved to seconds so
+    the full-canvas overlay maps them to pixels the same way it maps the cursor, surviving zoom and
+    scroll without a re-push. Present implies selection_present.
     */
     std::optional<common::core::TimeRange> time_selection{};
 
     /*!
     \brief True when the one editor-wide selection resolves to something published.
 
-    Derived from the published per-surface states (selected chart notes, a selected tone
-    region, a resolved automation point, or a time-selection span), so a stale selection reads as
-    absent exactly as it renders. The view's Delete guard reads this single flag instead of
+    Derived from the published per-surface states (selected chart notes or keyframes, a fret-hand
+    position, a section, a tone region, a resolved automation point, or a time-selection span), so a
+    stale selection reads as absent exactly as it renders. Tempo and time-signature chips have no
+    Delete, so they do not count. The view's Delete guard reads this single flag instead of
     re-deriving the union — an idle Delete keeps propagating to other key consumers.
     */
     bool selection_present{false};
@@ -1171,10 +1191,10 @@ struct EditorViewState
     /*!
     \brief Seconds-resolved 3D highway projection of the displayed arrangement.
 
-    The shared scene model the 3D preview window renders (plan 44) — the same projection the
-    game highway consumes, so what the charter previews is what the player gets. Rebuilt under
-    the same rule as \ref tab (only when the displayed arrangement changes) and shared immutably
-    across state copies. Null when the arrangement has no chart.
+    The shared scene model the 3D preview window renders — the same projection the game highway
+    consumes, so what the charter previews is what the player gets. Rebuilt under the same rule as
+    \ref tab, and also when the displayed-string minimum changes, and shared immutably across state
+    copies. Null when the arrangement has no chart.
     */
     std::shared_ptr<const common::core::HighwayViewState> highway{};
 

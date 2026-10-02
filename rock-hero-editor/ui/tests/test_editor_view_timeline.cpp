@@ -341,7 +341,7 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     CHECK(listener.last_rename_position == verse_position);
     CHECK(listener.last_rename_name == juce::String{"Verse"});
 
-    // A click in the ruler body misses every chip and seeks as it always did.
+    // A click in the ruler body misses every chip and seeks.
     ruler.mouseDown(makeMouseDownEvent(ruler, 200.0f, 55.0f));
     CHECK(placement_count == 1);
     CHECK(listener.select_count == 1);
@@ -639,8 +639,8 @@ TEST_CASE("EditorView transport readout tracks the transport position", "[ui][ed
 }
 
 // Verifies a mid-span downbeat displays as its own measure start. The seconds-to-beat inverse of
-// forward-mapped downbeat seconds can round to just under the whole beat (e.g. 3.9999...), and
-// the readout once floored that raw, showing 1.4.99 when the cursor sat exactly on measure 2.
+// forward-mapped downbeat seconds can round to just under the whole beat (e.g. 3.9999...), and a
+// readout that floored that raw would show 1.4.99 with the cursor exactly on measure 2.
 TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -711,7 +711,7 @@ TEST_CASE("EditorView default zoom maps four seconds", "[ui][editor-view]")
 
 // Verifies the leftmost scroll position draws the first beat's note head whole. A head is centered
 // on its instant, so half of one at time zero hangs left of the timeline's own start; with the
-// timeline flush against the canvas edge that half had nowhere to draw and clipped away.
+// timeline flush against the canvas edge that half would have nowhere to draw and would clip away.
 TEST_CASE("EditorView draws the first beat's head whole at leftmost scroll", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1470,8 +1470,8 @@ TEST_CASE("EditorView right-click does not seek the timeline", "[ui][editor-view
     CHECK_FALSE(controller.last_seek_position.has_value());
 }
 
-// Verifies keyboard play/pause reaches the transport intent through the command mapping set
-// (Space is a registered command now, not a keyPressed branch).
+// Verifies keyboard play/pause reaches the transport intent through the command mapping set, where
+// Space is a registered command.
 TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1487,8 +1487,8 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
 }
 
 // Digits route to the fret intent with or without a selection — the controller owns the
-// retype-vs-insert-at-caret branch (the caret model). Dispatch rides the command mapping set
-// since total rebindability (plan 53 Phase 1b): digits are registered commands now.
+// retype-vs-insert-at-caret branch (the caret model). Dispatch rides the command mapping set:
+// digits are registered commands like every other binding.
 TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

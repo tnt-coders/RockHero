@@ -9,13 +9,14 @@ Gestures follow the editor-wide interaction model without restating it — the m
 once in docs/plans/in-progress/editing-interaction-model.md (the verb table;
 docs/developer/adding-a-pointer-gesture.md walks adding one), never restated here or in
 \ref ToneTrackView, where two wordings are free to drift apart. What is specific to the lanes: a
-plain click never mutates (points select; empty lane space passes through to the seek overlay), the
-Alt-placed point lands ON the curve at the snapped time and the drag phase pulls its value by the
-pointer's delta, so placement is sonically silent until deliberately pulled, and Shift axis-locks a
-point drag. Gestures preview locally and commit one full-point-list intent on release; a state push
-mid-gesture is deferred until the gesture ends so it cannot reset the edit in progress. The lanes
-never resize themselves: heights flow up through a callback and the track viewport lays the
-component out, so the cursor overlay and content height stay authoritative.
+plain click never mutates (points select; empty editable lane area seeks and arms the lane caret),
+the Alt-placed point lands ON the curve at the snapped time and the drag phase pulls its value by
+the pointer's delta, so placement is sonically silent until deliberately pulled, and Shift
+axis-locks a point drag. The controller owns those point gestures: the view forwards its pointer
+events and paints the preview the controller publishes back. The one view-owned gesture is the
+lane resize, and a state push that lands during it is deferred until it ends. The lanes never
+resize themselves: heights flow up through a callback and the track viewport lays the component
+out, so the cursor overlay and content height stay authoritative.
 */
 
 #pragma once
@@ -209,10 +210,11 @@ public:
     void setPlacementQuantum(common::core::Fraction placement_quantum);
 
     /*!
-    \brief Replaces the rendered automation state, or defers it while a gesture is in flight.
+    \brief Replaces the rendered automation state, or defers it while a lane resize is in flight.
 
-    A state push that lands between mouseDown and mouseUp is stashed and applied when the gesture
-    ends, so the engine's frequent state pushes cannot reset an edit in progress.
+    A state push that lands during a lane-resize drag is stashed and applied when the resize ends,
+    so the engine's frequent state pushes cannot shift the lane it holds. A controller-owned point
+    drag needs no deferral: its preview is part of every state build.
 
     \param state Automation lanes for the selected tone.
     */
@@ -275,7 +277,7 @@ public:
     The cursor overlay's hit-test pass-through uses this to decide between lane editing and
     click-to-seek: point handles, lane name chips, resize bands, the "+" chip, and empty
     editable lane area all claim the pointer — a plain click on empty lane area seeks and arms
-    the caret on that lane (§9b), and with Alt held it is the insert quasimode's target.
+    the caret on that lane, and with Alt held it is the insert quasimode's target.
     Disabled lanes, out-of-window areas, and empty strip space pass through.
 
     \param local_point Position in this component's coordinates.
@@ -283,7 +285,10 @@ public:
     */
     [[nodiscard]] bool wantsPointerAt(juce::Point<int> local_point) const;
 
-    /*! \brief Paints every lane, its curve and points, the insert ghost, and the "+" lane. */
+    /*!
+    \brief Paints every lane, its curve and points, the insert ghost, and the "+" lane.
+    \param graphics Graphics context used for drawing.
+    */
     void paint(juce::Graphics& graphics) override;
 
     /*!
@@ -294,22 +299,41 @@ public:
     /*! \brief Republishes the caret mask, whose lane geometry shifts when the row is resized. */
     void resized() override;
 
-    /*! \brief Updates the hover cursor and readout, and forwards the hover (the insert ghost). */
+    /*!
+    \brief Updates the hover cursor and readout, and forwards the hover (the insert ghost).
+    \param event Mouse event delivered by JUCE.
+    */
     void mouseMove(const juce::MouseEvent& event) override;
 
-    /*! \brief Classifies and starts a gesture: Alt-insert, move point, resize lane, or menu. */
+    /*!
+    \brief Classifies a press: opens a menu or the picker, starts a lane resize, or forwards an
+    editing press to the controller, which owns point moves, Alt inserts and the lane caret.
+    \param event Mouse event delivered by JUCE.
+    */
     void mouseDown(const juce::MouseEvent& event) override;
 
-    /*! \brief Advances the active gesture's local preview; Shift locks the dominant axis. */
+    /*!
+    \brief Advances a lane resize, or forwards the drag to the controller's point gesture.
+    \param event Mouse event delivered by JUCE.
+    */
     void mouseDrag(const juce::MouseEvent& event) override;
 
-    /*! \brief Commits the active gesture as one intent when it changed anything. */
+    /*!
+    \brief Ends a lane resize, or forwards the release so the controller commits its gesture.
+    \param event Mouse event delivered by JUCE.
+    */
     void mouseUp(const juce::MouseEvent& event) override;
 
-    /*! \brief Opens the typed exact-value editor for a double-clicked point. */
+    /*!
+    \brief Opens the typed exact-value editor for a double-clicked point.
+    \param event Mouse event delivered by JUCE.
+    */
     void mouseDoubleClick(const juce::MouseEvent& event) override;
 
-    /*! \brief Clears the hover readout and ends the hover (clearing the ghost) mid-hover. */
+    /*!
+    \brief Clears the hover readout and ends the hover (clearing the ghost) mid-hover.
+    \param event Mouse event delivered by JUCE.
+    */
     void mouseExit(const juce::MouseEvent& event) override;
 
     /*!
@@ -319,11 +343,11 @@ public:
     [[nodiscard]] std::optional<juce::String> valueReadoutTextForTest() const;
 
     /*!
-    \brief Cancels the gesture in flight, restoring the pre-gesture state.
+    \brief Cancels a lane resize in flight, restoring the lane's starting height.
 
-    The editor routes Esc here so an unwanted drag can be abandoned without committing: a point
-    move or Alt-insert simply never commits, and a lane resize restores its starting height. A
-    state push deferred during the gesture is adopted, exactly as an uncommitted release would.
+    The editor routes Esc here first. Only the view-owned lane resize cancels here; a point move
+    or Alt-insert belongs to the controller and cancels through its Escape ladder. A state push
+    deferred during the resize is adopted, exactly as an uncommitted release would.
 
     \return True when a gesture was active and has been cancelled.
     */
@@ -332,7 +356,7 @@ public:
     /*!
     \brief Opens the typed-value editor at the armed lane caret, seeded with a typed digit.
 
-    The keyboard mirror of double-click value entry (the typing rule on lane rows, §9b):
+    The keyboard mirror of double-click value entry (the typing rule on lane rows):
     committing the text creates an on-curve-positioned point at the caret slot with the typed
     value, or retypes the point already there.
 
@@ -411,10 +435,10 @@ private:
     [[nodiscard]] static ValueBand valueBandFor(const LaneExtent& extent);
     [[nodiscard]] static float valueBandY(const ValueBand& band, float norm_value);
 
-    // The lane-height resize drag, the one gesture the view still owns: a pure presentation
-    // concern (lane heights flow up through the height callback, never the model). The point
-    // move/insert drag moved to the controller (it owns hit resolution, snap, and the delta-value
-    // state machine); the view forwards its pointer events and paints the published preview.
+    // The lane-height resize drag, the one gesture the view owns: a pure presentation concern
+    // (lane heights flow up through the height callback, never the model). The point move/insert
+    // drag is the controller's (it owns hit resolution, snap, and the delta-value state machine);
+    // the view forwards its pointer events and paints the published preview.
     struct ResizeLaneDrag
     {
         std::size_t lane_index{};
@@ -433,7 +457,7 @@ private:
 
     // Hit zones resolved by hitAt(); the pass-through predicate and mouseDown share this result.
     // LaneAreaHit is editable lane area: Alt makes it the insert quasimode's target, and a plain
-    // click seeks and arms the caret on the lane (§9b). LaneAnchorHit is the derived anchor's grab
+    // click seeks and arms the caret on the lane. LaneAnchorHit is the derived anchor's grab
     // — a HANDLE like a point, not area, which is why it is its own zone rather than area the
     // controller happens to re-resolve: the Alt-authors law does not reach it, so a hover must not
     // offer the insert affordance over it. LaneChipHit is the lane's pinned name chip — the lane
@@ -566,7 +590,7 @@ private:
 
     // Emits the points-edit intent that inserts a new point into a lane and selects it. Drives the
     // typed-value editor's create-at-the-caret branch; the keyboard create-then-nudge is the
-    // controller's now (it moved with the pointer pipeline).
+    // controller's.
     void requestPointInsert(
         const core::ToneAutomationLaneViewState& lane, const common::core::GridPosition& position,
         float value);
@@ -603,16 +627,16 @@ private:
     // Opens the remove menu for a right-clicked lane row (authored or tracking).
     void showLaneMenu(std::size_t lane_index);
 
-    // Emits the points-edit intent that removes the point at a position from its lane; shared by
-    // the right-click "Delete Point" menu and the keyboard-Delete path.
-    // A no-op when it no longer exists.
+    // Emits the points-edit intent that removes the point at a position from its lane, for the
+    // right-click "Delete Point" menu (keyboard Delete goes through the controller). A no-op when
+    // the lane no longer exists.
     void requestPointDelete(
         const std::string& instance_id, const std::string& param_id,
         const common::core::GridPosition& position);
 
     // Emits the points-edit intent that replaces one point's position and value (echoing every
     // other point bit-identically) and selects the edited point. Shared by the typed value editor
-    // and the menu's reset-to-default (keyboard nudges are the controller's now). A no-op when the
+    // and the menu's reset-to-default (keyboard nudges are the controller's). A no-op when the
     // point no longer exists.
     void requestPointReplace(
         const std::string& instance_id, const std::string& param_id,

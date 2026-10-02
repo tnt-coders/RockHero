@@ -26,7 +26,7 @@ enum class InputCalibrationStatus : std::uint8_t
     /*! \brief The active input route has a saved calibration available. */
     Calibrated,
 
-    /*! \brief A saved calibration exists but cannot currently be applied by the backend. */
+    /*! \brief The calibration store or the live-input backend failed for the active route. */
     Unavailable,
 };
 

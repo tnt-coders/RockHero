@@ -195,8 +195,7 @@ struct LoudnessMeasurement
 }
 
 // Presents the hash prefix and audio file as one stream so SHA-256 does not need a full-file
-// MemoryBlock. The worker still reads the whole file, but it no longer allocates and copies the
-// complete backing track before hashing.
+// MemoryBlock: the whole backing track is still read, but never allocated and copied at once.
 class ValidationHashInputStream final : public juce::InputStream
 {
 public:
@@ -426,7 +425,7 @@ analyzeAudioForGainNormalization(
     }
 
     // No reading means no gain, which is a result and not a failure: the asset plays at its raw
-    // level and the caller reports that. Refusing here failed the whole open or import.
+    // level and the caller reports that. Refusing here would fail the whole open or import.
     if (!isMeasurableLoudness(measurement->integrated_loudness_lufs))
     {
         return std::optional<common::core::AudioNormalization>{};

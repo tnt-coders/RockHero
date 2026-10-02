@@ -50,8 +50,8 @@ constexpr std::string_view g_unknown_backend_text{"Unknown"};
 
 } // namespace
 
-// One sample-rate rendering for every audio-device surface. See the header for why the shortest
-// round-tripping form carries no integrality tolerance.
+// One sample-rate rendering for every audio-device surface. See the header for why the default
+// shortest round-tripping form needs no fixed precision or integrality tolerance.
 std::string sampleRateText(double sample_rate_hz)
 {
     return std::format("{} Hz", sample_rate_hz);

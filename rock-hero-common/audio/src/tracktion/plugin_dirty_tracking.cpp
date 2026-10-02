@@ -88,8 +88,7 @@ void PluginParameterDirtyTracker::parameterChanged(
     tracktion::AutomatableParameter& /*parameter*/, float /*new_value*/)
 {
     // A bare value change carries no intent: the plugin fires it identically for a user move and
-    // for its own post-load re-announcement. The state tracker decides
-    // intent from gestures / window.
+    // for its own post-load re-announcement. The state tracker decides intent from gestures alone.
     markDirty();
 }
 

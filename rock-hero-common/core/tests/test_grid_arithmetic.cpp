@@ -340,10 +340,10 @@ TEST_CASE("Grid stepping reaches the adjacent note-value line", "[core][chart]")
 }
 
 // The reversibility the caret, the lane nudge, and the duration gesture all rely on, in the meter
-// that broke it: a 1/4-note grid in 7/8 steps two beats, so the measure's last line (beat 7) sits
-// one beat — exactly half a step — before the next downbeat. A walk that stepped two beats back
-// from the downbeat and re-snapped to the nearest line landed halfway between beats 5 and 7 and
-// resolved the tie to beat 5, skipping the line the forward walk had just visited.
+// that tests it hardest: a 1/4-note grid in 7/8 steps two beats, so the measure's last line (beat
+// 7) sits one beat — exactly half a step — before the next downbeat. A walk that stepped two beats
+// back from the downbeat and re-snapped to the nearest line would land halfway between beats 5 and
+// 7 and resolve the tie to beat 5, skipping the line the forward walk had just visited.
 TEST_CASE("Grid stepping is exactly reversible across an odd measure", "[core][chart]")
 {
     const TempoMap map = signatureChangeMap();

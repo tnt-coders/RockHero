@@ -443,7 +443,7 @@ TEST_CASE("EditorController keeps an invalid pending digit until it is settled",
 
 // The sticky rule holds for IMMEDIATE digits too: a digit that would settle in its own
 // keystroke when valid goes pending red when the gate refuses it, because the refusal must be
-// seen — a silent no-op is exactly the invisible refusal W3 exists to end.
+// seen — a silent no-op would leave the charter guessing why the key did nothing.
 TEST_CASE("EditorController keeps an invalid immediate digit pending red", "[core][chart]")
 {
     FakeTransport transport;
@@ -882,8 +882,8 @@ TEST_CASE("EditorController retypes the head an undo restores", "[core][chart]")
 
 // The caret funnel is where the pending entry settles, BEFORE the marker moves, so every caret
 // mover — pointer, arrow, jump, row step — commits a typed value with the selection landing where
-// the caret lands. The hole the funnel closes: settling AFTER the marker moves (the End key's
-// shape) selects the committed note at the slot the caret has LEFT.
+// the caret lands. Settling AFTER the marker moves would select the committed note at the slot the
+// caret has LEFT.
 TEST_CASE("EditorController settles a pending entry through every caret mover", "[core][chart]")
 {
     FakeTransport transport;
@@ -931,9 +931,9 @@ TEST_CASE("EditorController settles a pending entry through every caret mover", 
     }
 }
 
-// A caret move is a commit point for the technique toggle windows (the legato ruling's settle
-// set): stepping away and back does not leave the window armed, so the next press is the verb's
-// ordinary law rather than a reversal of the entry it remembers.
+// A caret move is a commit point for the technique toggle windows, as it is for the settle sweep:
+// stepping away and back does not leave the window armed, so the next press is the verb's ordinary
+// law rather than a reversal of the entry it remembers.
 TEST_CASE("EditorController closes a technique toggle window on a caret move", "[core][chart]")
 {
     FakeTransport transport;
@@ -974,8 +974,8 @@ TEST_CASE("EditorController closes a technique toggle window on a caret move", "
     CHECK(state->undo_history.labels.back() == "Remove Palm Mute");
 }
 
-// Two-digit entry across a note another note connects to. Nothing is repaired mid-burst any more —
-// the claim is authored data and stays put — so what this pins is that the widen still reconstructs
+// Two-digit entry across a note another note connects to. Nothing is repaired mid-burst — the
+// claim is authored data and stays put — so what this pins is that the widen still reconstructs
 // the pre-entry stream by reversing its own plan, and that the connection is pure re-projection:
 // the direction it reads back as follows each typed value with no stored field to fall out of step.
 TEST_CASE("EditorController re-projects a claim through a widened fret entry", "[core][chart]")
@@ -1114,7 +1114,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
 
 // A refused first digit still arms the multi-digit entry window, so an in-range two-digit
 // value stays typeable when the digit alone refuses — here a scrape start stilled against its
-// path terminal, the fret-verb law's surviving scrape refusal (the path itself never retypes).
+// path terminal, the one scrape refusal the fret verb has (the path itself never retypes).
 TEST_CASE("EditorController fret typing recovers from a refused first digit", "[core][chart]")
 {
     FakeTransport transport;

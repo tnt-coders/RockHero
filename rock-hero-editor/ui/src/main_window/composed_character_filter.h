@@ -70,9 +70,9 @@ can come from two physical keys. Numpad `+` reaches `doKeyChar` as `'+'` — `do
 `VK_ADD` case (`juce_Windowing_windows.cpp:3077-3163`) and the numpad remap in `doKeyChar` covers
 digits only (`:3176-3195`) — and `isKeyCurrentlyDown('+')` converts that character through
 `VkKeyScan`, which answers with the MAIN-ROW `VK_OEM_PLUS` (`:5608-5617`). The key actually held is
-`VK_ADD`, so the bare question reported "not down" and the filter swallowed every numpad `+`, `-`,
-`*`, `/` and `.`. Asking the twin as well fixes it without weakening the rule: the composed
-character comes from NEITHER key, so both questions answer false for it.
+`VK_ADD`, so the bare question would report "not down" and swallow every numpad `+`, `-`, `*`, `/`
+and `.`. Asking about the twin as well keeps the rule intact: the composed character comes from
+NEITHER key, so both questions answer false for it.
 
 Install this on a top-level window; the registration order carries no rule. JUCE offers a
 component's key listeners the press BEFORE that component's own `keyPressed`

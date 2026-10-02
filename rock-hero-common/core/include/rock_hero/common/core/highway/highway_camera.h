@@ -102,9 +102,9 @@ toward a whole-neck position, and the range width is the span driving the out-zo
 The target holds perfectly still for whole zones and *steps* only at zone boundaries: content
 framed for its zone stays framed even after it is consumed, every position change is announced a
 full zone before the hand must be in place, and HighwayCamera's spring is the single mechanism
-that turns the boundary steps into motion. Earlier per-FHP rolling windows kept the target in
-constant per-position churn; target-side eases layered on a follow filter fought each other —
-both were tried and rejected.
+that turns the boundary steps into motion. Per-FHP rolling windows would keep the target in
+constant per-position churn, and target-side eases layered on a follow filter fight each other, so
+neither belongs here.
 
 Zone quantization is the only framing rule; there is no second scan path. An empty zone list is
 simply one unbounded zone, which is well defined because it can only occur with no chart at all
@@ -129,12 +129,12 @@ One instance per rendering consumer; no internal synchronization. The one smooth
 of the camera: three coincident real poles at HighwayMetrics::focus_spring_per_second, so the
 motion carries position, velocity, and acceleration as state — all continuous across a
 zone-boundary target step. It eases into the shift from zero acceleration (no jolt) and lands
-without overshoot (real poles, no zeros → monotone). A second-order spring left acceleration
-discontinuous, so each step began with an instant kick that read as a jolt; the third pole
-removes it. Three equal poles is the maximally smooth arrangement at a given speed — spreading
-them apart only sharpens the onset — and that maximally smooth, slow hover is the wanted feel.
-Each advance applies the exact closed-form solution over the frame, so smoothing is exactly
-frame-rate independent: two half steps equal one full step.
+without overshoot (real poles, no zeros → monotone). A second-order spring would leave
+acceleration discontinuous, so each step would begin with an instant kick that reads as a jolt;
+the third pole removes it. Three equal poles is the maximally smooth arrangement at a given
+speed — spreading them apart only sharpens the onset — and that maximally smooth, slow hover is
+the wanted feel. Each advance applies the exact closed-form solution over the frame, so smoothing
+is exactly frame-rate independent: two half steps equal one full step.
 */
 class HighwayCamera
 {

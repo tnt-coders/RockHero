@@ -71,14 +71,13 @@ void MenuLookAndFeel::drawMenuBarItem(
 
     // The access letter is the title's FIRST character, which is what the keybind registry's
     // Alt+F / Alt+E / Alt+V chords match by hand; test_editor_view_state.cpp locks the menu names
-    // (lines 111-114) and those chords (lines 476-478) together, so the two cannot drift apart
-    // silently. The underline spans the letter's ADVANCE CELL, bearings included, exactly as
-    // Windows draws a menu mnemonic (ruled 2026-09-12 over an ink-spanning rule): this font's
-    // cell sits left of the strokes by the bearings' difference (0.6 px under F, 0.3 under E,
-    // 0 under V at the bar's size), a lean Windows' own menu font does not show because its F and
-    // E carry symmetric bearings. Thickness and the one-row gap below the baseline are what both
-    // fonts' own underline metrics round to at these sizes. Whole pixels on one whole row, so the
-    // rule is crisp rather than smeared over two columns.
+    // and those chords together, so the two cannot drift apart silently. The underline spans the
+    // letter's ADVANCE CELL, bearings included, exactly as Windows draws a menu mnemonic, rather
+    // than the ink: this font's cell sits left of the strokes by the bearings' difference (0.6 px
+    // under F, 0.3 under E, 0 under V at the bar's size), a lean Windows' own menu font does not
+    // show because its F and E carry symmetric bearings. Thickness and the one-row gap below the
+    // baseline are what both fonts' own underline metrics round to at these sizes. Whole pixels on
+    // one whole row, so the rule is crisp rather than smeared over two columns.
     const juce::PositionedGlyph& letter = title.getGlyph(0);
     const int underline_left = juce::roundToInt(letter.getLeft());
     g.fillRect(

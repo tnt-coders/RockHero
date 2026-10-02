@@ -33,7 +33,7 @@ constexpr std::uint32_t g_initial_window_width = 1280;
 constexpr std::uint32_t g_initial_window_height = 720;
 
 // Resolves the deployed resource-pack root next to the executable — the one loading seam
-// packaged assets come through (plan 20 Phase 2).
+// packaged assets come through.
 [[nodiscard]] std::optional<core::GameResources> makeGameResources()
 {
     // SDL documents the base path as UTF-8 and as null on failure: the null must be caught before

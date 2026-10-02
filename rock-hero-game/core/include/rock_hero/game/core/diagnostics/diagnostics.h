@@ -17,8 +17,8 @@ namespace rock_hero::game::core
 /*!
 \brief Presentation state of the dev-diagnostics layer.
 
-The layer is compiled into every build and activated by the runtime dev flag (plan 20 open
-question 5, answer A), so release-build timing bugs stay observable while players never see it.
+The layer is compiled into every build and activated by the runtime dev flag, so release-build
+timing bugs stay observable while players never see it.
 */
 struct DiagnosticsState
 {

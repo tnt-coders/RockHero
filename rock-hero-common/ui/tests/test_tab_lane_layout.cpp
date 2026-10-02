@@ -100,8 +100,8 @@ TEST_CASE("Tab lane geometry maps time and strings to pixels", "[ui][tab-layout]
 
     // Highest string on top, lowest at the bottom, centers 40px apart — and each landing on a
     // pixel ROW CENTRE, hence the .5. A row spans [N, N+1], so a row is the mirror of another only
-    // when 2 * center_y is whole; without the snap the shipped 39.5 px lane put every centre on a
-    // quarter boundary and the tail's two rails rasterised to different row counts.
+    // when 2 * center_y is whole; without the snap the shipped 39.5 px lane would put every centre
+    // on a quarter boundary and the tail's two rails would rasterise to different row counts.
     CHECK(geometry.laneY(6) == Catch::Approx(20.5f));
     CHECK(geometry.laneY(1) == Catch::Approx(220.5f));
 

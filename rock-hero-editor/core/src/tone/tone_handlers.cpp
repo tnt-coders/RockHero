@@ -76,12 +76,12 @@ namespace
                : 0.01F;
 }
 
-// The lanes view's ÷width forward pixel map (xForSeconds), replicated so the ported move/insert
-// drag hit-tests and window-clamps against the same pixels the view did. This is a forward map for
-// resolving which point a press falls on and where the editable window's edges sit — NOT a snap
-// path: every position SNAP on the lane (caret arm, insert ghost, Alt placement, drag) runs through
-// the one ÷(width - 1) placement seam, laneSnapPositionForX, so the lane has a single horizontal
-// snap authority as the chart does.
+// The lanes view's ÷width forward pixel map (xForSeconds), replicated so the controller's
+// move/insert drag hit-tests and window-clamps against the same pixels the view draws. This is a
+// forward map for resolving which point a press falls on and where the editable window's edges sit
+// — NOT a snap path: every position SNAP on the lane (caret arm, insert ghost, Alt placement, drag)
+// runs through the one ÷(width - 1) placement seam, laneSnapPositionForX, so the lane has a single
+// horizontal snap authority as the chart does.
 [[nodiscard]] std::optional<float> laneXForSeconds(
     double seconds, common::core::TimeRange visible_timeline, int content_width)
 {
@@ -95,9 +95,9 @@ namespace
 }
 
 // Maps a lane-local pixel y onto a normalised value inside one lane's value band, clamped to the
-// band, matching the lanes view's valueForY so the delta-based pull moves bit-for-bit as the view
-// did. The band geometry is view-computed and carried on the event, so no view layout constant
-// reaches editor-core.
+// band: the inverse of the y the lanes view draws a value at (laneValueBandY below), so the
+// delta-based pull agrees bit-for-bit with what the view draws. The band geometry is view-computed
+// and carried on the event, so no view layout constant reaches editor-core.
 [[nodiscard]] float laneValueForY(float y, const ToneAutomationLaneExtent& extent)
 {
     const float band_height = std::max(1.0F, extent.value_band_height);
@@ -439,8 +439,7 @@ void EditorController::Impl::onToneRegionSelected(std::string region_id)
 // plus one id comparison — no allocation, no rig call and no view push. That is what makes this
 // affordable sixty times a second.
 //
-// Transient cursor state, not an edit, so it does not route through an action — exactly as the
-// handler it replaces did not.
+// Transient cursor state, not an edit, so it does not route through an action.
 void EditorController::Impl::onPlaybackFrameAdvanced()
 {
     if (session().currentArrangement() == nullptr)
@@ -712,10 +711,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
     }
 
     // Delete leaves NOTHING selected: the commit releases a selection naming a region that is gone.
-    // The absorbing neighbour used to inherit it, on the reasoning that the signal-chain panel had
-    // to stay bound to a region — but the panel follows the ACTIVE tone, which tracks the cursor,
-    // while "selected" is only the Delete target and its outline. Inheriting it just armed Delete
-    // at a region the charter never pointed at.
+    // Handing it to the absorbing neighbour would arm Delete at a region the charter never pointed
+    // at, and the signal-chain panel needs no selected region to stay bound: it follows the ACTIVE
+    // tone, which tracks the cursor, while "selected" is only the Delete target and its outline.
     commitMarkerModel(
         std::move(before),
         std::move(after),
@@ -913,11 +911,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
         return;
     }
 
-    // A restate SELECTS its target (rule 4), from whichever input asked for it — Enter on a
-    // selected region or the chord at the cursor — so the next verb acts on what the charter just
-    // made. The region the charter pointed at may have merged into its predecessor; the region now
-    // holding its start is the one the retone produced either way. Selected after the commit, so
-    // it publishes with this refresh — the commit's own publish released any selection the merge
+    // A restate SELECTS its target, from whichever input asked for it — Enter on a selected
+    // region or the chord at the cursor — so the next verb acts on what the charter just made. The
+    // region the charter pointed at may have merged into its predecessor; the region now holding
+    // its start is the one the retone produced either way. Selected after the commit, so it
+    // publishes with this refresh — the commit's own publish released any selection the merge
     // took.
     selectMarker(ToneRegionSelection{.region_id = surviving_region_id});
     updateView();
@@ -1170,7 +1168,7 @@ std::string EditorController::Impl::automationParameterName(
 }
 
 // Supplies the audible chain's durable plugin ids for capture, in chain order, minting ids for
-// instances the association does not know yet (first save of a chain built before ids existed).
+// instances the association does not know yet (plugins that carry no durable id so far).
 std::vector<std::string> EditorController::Impl::captureStableIds()
 {
     std::vector<std::string> stable_ids;
@@ -1310,7 +1308,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
     updateView();
 }
 
-// A time-addressed lane caret arm (the row-axis form of the chart lane's empty click, §9b): the
+// A time-addressed lane caret arm (the row-axis form of the chart lane's empty click): the
 // caret arms at the grid slot nearest the given time. This is the time-input entry point (exercised
 // by tests); the pixel-input click path arms through the one placement snap in
 // onToneAutomationPointerDown. Both converge on seekAndArmLaneCaret, so a lane caret always rests
@@ -1358,8 +1356,8 @@ void EditorController::Impl::seekAndArmLaneCaret(
 // commit share (timelinePositionForX ÷ (width - 1) then the placement quantum's lattice),
 // so the ring lands on the identical slot the click would with no sub-pixel drift. The occupancy
 // gate that keeps the ring honest lives at publish time (deriveViewState, against the published
-// lanes): now that mouse placement refuses an occupied slot (onToneAutomationPointerDown's Alt
-// branch), the ring is hidden there too so it never previews an insert that would no-op (§7).
+// lanes): mouse placement refuses an occupied slot (onToneAutomationPointerDown's Alt branch), so
+// the ring is hidden there too and never previews an insert that would no-op.
 // Dirty-checked against the current ghost: a hover that stays within one grid slot leaves it
 // unchanged and pushes no view rebuild.
 void EditorController::Impl::onToneAutomationPointerMove(const ToneAutomationPointerEvent& event)
@@ -1472,8 +1470,8 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
         }
 
         // A point grab begins a move drag but stays a click until the pointer crosses the drag
-        // threshold, so a plain click selects the point without an
-        // accidental move (resolved on Up).
+        // threshold, so a plain click selects the point without an accidental move (resolved on
+        // Up).
         const common::core::ToneAutomationPoint& point = (*points)[*grabbed];
         m_tone_automation_drag = ToneAutomationDrag{
             .instance_id = event.instance_id,
@@ -1537,9 +1535,8 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
     // through the one placement seam — laneSnapPositionForX (timelinePositionForX ÷ (width - 1)
     // then the placement quantum's lattice) — mirroring the chart's single chartPlacementAt
     // consumed by both its caret arm and its Alt insert. So the caret lands on the identical slot
-    // an Alt+click or the insert ghost would at the same pixel, erasing the ÷width slot-boundary
-    // drift the shipped view armed the caret with. A degenerate geometry that maps no slot only
-    // refreshes the dismissed ghost.
+    // an Alt+click or the insert ghost would at the same pixel. A degenerate geometry that maps no
+    // slot only refreshes the dismissed ghost.
     const std::optional<common::core::GridPosition> position = laneSnapPositionForX(
         tempo_map,
         placementQuantum(),
@@ -1552,7 +1549,7 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
         return;
     }
 
-    // Without Alt, arm the lane caret at the slot — the row-axis empty click (§9b): seek there and
+    // Without Alt, arm the lane caret at the slot — the row-axis empty click: seek there and
     // arm (paused), re-deriving the selection from what sits under the caret.
     if (!event.modifiers.alt)
     {
@@ -1630,12 +1627,12 @@ bool EditorController::Impl::beginLanePointInsertDrag(
     return true;
 }
 
-// Advances the in-flight move/insert drag preview, ported verbatim from the lanes view's mouseDrag:
-// snap the position through the placement seam, neighbor-clamp it so the committed list stays
-// strictly ascending, clamp x inside the editable window, and pull the value by the pointer's
-// vertical delta from the press (Shift locks the dominant axis). Everything read here is frozen at
-// Down (the lane's points, the geometry, the value band, the press point), so a mid-drag engine
-// rebuild republishes this preview rather than resetting the edit.
+// Advances the in-flight move/insert drag preview: snap the position through the placement seam,
+// neighbor-clamp it so the committed list stays strictly ascending, clamp x inside the editable
+// window, and pull the value by the pointer's vertical delta from the press (Shift locks the
+// dominant axis). Everything read here is frozen at Down (the lane's points, the geometry, the
+// value band, the press point), so a mid-drag engine rebuild republishes this preview rather than
+// resetting the edit.
 void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPointerEvent& event)
 {
     if (!m_tone_automation_drag.has_value())
@@ -1649,7 +1646,7 @@ void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPoi
     // so the micro-jiggle inside a click can never commit an accidental move or author a stray
     // point. The Alt insert authored on its press and moves with the pointer from there. The signal
     // is JUCE's own mouseWasDraggedSinceMouseDown, carried on the event, so the timing component (a
-    // long press) is honored exactly as the shipped view did.
+    // long press) is honored exactly as the framework defines it.
     if (!drag.hasLiveEdit() && !event.dragged_since_down)
     {
         return;
@@ -1733,11 +1730,10 @@ void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPoi
     updateView();
 }
 
-// Ends the in-flight move/insert drag, ported from the lanes view's mouseUp: a gesture holding a
-// live edit commits its replacement list (one undoable edit) and selects the landed point, and a
-// press that never produced one runs the click verb of whatever it grabbed. Clearing the gesture
-// before the commit lets its state push apply immediately rather than rebuilding against a stale
-// preview.
+// Ends the in-flight move/insert drag: a gesture holding a live edit commits its replacement list
+// (one undoable edit) and selects the landed point, and a press that never produced one runs the
+// click verb of whatever it grabbed. Clearing the gesture before the commit lets its state push
+// apply immediately rather than rebuilding against a stale preview.
 void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPointerEvent& /*event*/)
 {
     if (!m_tone_automation_drag.has_value())
@@ -1753,7 +1749,7 @@ void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPoint
     {
         // The commit runs synchronously and pushes fresh state; with the gesture already cleared
         // that push applies immediately rather than deferring. The follow-up selection arms the
-        // caret on the landed point (paused) exactly as the shipped view's release did.
+        // caret on the landed point (paused).
         onToneAutomationPointsEditRequested(
             drag.instance_id, drag.param_id, toneAutomationDragCommitPoints(drag));
         onToneAutomationPointSelectRequested(
@@ -1766,7 +1762,7 @@ void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPoint
     if (drag.origin == ToneLaneDragOrigin::Anchor)
     {
         // An anchor click authors nothing (see the Down handler) and falls through to the plain
-        // lane-area click at the pressed pixel — §9b's seek and caret arm. The slot is re-derived
+        // lane-area click at the pressed pixel — the seek and caret arm. The slot is re-derived
         // through the one placement seam from the geometry frozen at Down, so it is the identical
         // slot a plain click at that pixel would have armed. A degenerate geometry maps no slot,
         // and the click simply does nothing.
@@ -1785,14 +1781,13 @@ void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPoint
         return;
     }
 
-    // A plain click on a point (no move) selects it — the row-axis point select (§9b).
+    // A plain click on a point (no move) selects it — the row-axis point select.
     onToneAutomationPointSelectRequested(
         drag.instance_id, drag.param_id, drag.points[drag.point_index].position);
 }
 
 // Builds the replacement point list an active move/insert drag commits: every frozen point echoed
-// bit-identically except the moved one, with the preview point inserted in sorted order — the
-// controller-owned sibling of the lanes view's pointsForCommit.
+// bit-identically except the moved one, with the preview point inserted in sorted order.
 std::vector<common::core::ToneAutomationPoint> EditorController::Impl::
     toneAutomationDragCommitPoints(const ToneAutomationDrag& drag) const
 {
@@ -1959,7 +1954,7 @@ void EditorController::Impl::plantLanePoint(
     updateView();
 }
 
-// The move-intent fallback on an armed empty lane slot (§9b): the point lands ON the curve at
+// The move-intent fallback on an armed empty lane slot: the point lands ON the curve at
 // the caret and the arrow's step is baked into the creation, so "grab the curve here and pull"
 // is one keystroke and ONE undo entry. A caret over an existing point always publishes it as
 // the selection (arming re-derives), so reaching here means the slot is empty.

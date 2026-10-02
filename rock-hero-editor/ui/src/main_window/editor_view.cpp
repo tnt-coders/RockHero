@@ -416,8 +416,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 
     // Register the keybind registry: every command's info (name, category, default chords,
     // enablement) comes from this target, and the manager's key mapping set becomes the single
-    // chord-to-command matcher — the owning window attaches it as a key listener. Watching the
-    // manager keeps menu shortcut text current after mapping changes.
+    // chord-to-command matcher — the owning window dispatches every key press through it. Watching
+    // the manager keeps menu shortcut text current after mapping changes.
     m_command_manager.registerAllCommandsForTarget(this);
     m_command_manager.setFirstCommandTarget(this);
     setApplicationCommandManagerToWatch(&m_command_manager);
@@ -557,13 +557,12 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     addAndMakeVisible(m_audio_device_button);
     addAndMakeVisible(m_signal_chain_panel);
     addAndMakeVisible(*m_track_viewport);
-    // BusyOverlay is added last so it lands on top of the editor child stack. It also calls
-    // toFront() on activation, but adding it here as the final child means the initial Z-order
-    // is already correct before the first push.
     // The history inspector floats above the track stack but below the busy overlay; it starts
     // hidden and the user reveals it on demand.
     addChildComponent(m_undo_history_overlay);
-    // The busy overlay is added last, so it paints above everything.
+    // The busy overlay is added last so it paints above everything. It also calls toFront() on
+    // activation, but adding it as the final child makes the initial Z-order correct before the
+    // first push.
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
     // The ruler's chips raise intents this view answers: two of them need a prompt, which is this
@@ -648,8 +647,7 @@ void EditorView::setState(const core::EditorViewState& state)
         m_after_busy_overlay_paint = {};
     }
 
-    // Feed the history inspector every push so it tracks the stack live (this is also how the
-    // storm of idle plugin-state edits becomes visible as it grows).
+    // Feed the history inspector every push so it tracks the stack live.
     m_undo_history_overlay.setHistory(m_state.undo_history);
 
     // Live-edit updates for the 3D preview: pointer identity stands in for content equality on
@@ -745,7 +743,7 @@ void EditorView::setState(const core::EditorViewState& state)
             m_state.tab_minimum_displayed_strings));
     // An armed caret hides the paused playhead (the caret is the position display) and
     // becomes the wheel-zoom center; passive keeps the paused cursor line at the transport
-    // position and zooms around it. A lane-riding caret (§9b) is armed all the same, just
+    // position and zooms around it. A lane-riding caret is armed all the same, just
     // published through the automation state instead of the chart overlay. Ordering against the
     // caret-bearing views' setState does not matter: the paused column's caret mask is pushed
     // by those views (setTab/AutomationCaretMask), not polled here.
@@ -1068,7 +1066,7 @@ void EditorView::toggleUndoHistoryPanel()
 
 // Selection verbs follow the selection, not the pointer: with a chart selection active, Alt+wheel
 // (sustain) and Alt+Shift+wheel (fret shift) act on it wherever the pointer sits inside the editor
-// window. One detent is one placement-quantum step — Ctrl composes nothing here any more. A
+// window. One detent is one placement-quantum step, with or without Ctrl. A
 // selection of keyframes alone counts: both verbs reach a keyframe — the sustain verb through the
 // ring it rides, the fret shift on the point itself — so the wheel must reach them too, exactly as
 // the keyboard forms do.
@@ -1133,14 +1131,14 @@ void EditorView::togglePreviewWindow()
             m_playback_clock,
             [this](const juce::KeyPress& key) {
                 // Transport keys, the preview toggle, the forward/backward song-navigation verbs,
-                // and everything that sets the caret's travel speed (44-Q4: the paused preview
-                // follows the marker, so caret time travel is meaningful from this window). Arrows
-                // step the PLACEMENT QUANTUM, so that speed is the grid pair AND the snap toggle:
-                // with snap off the grid size changes nothing and one arrow crawls a single tick,
-                // which without the toggle here would be unrecoverable without leaving the window.
+                // and everything that sets the caret's travel speed (the paused preview follows
+                // the marker, so caret time travel is meaningful from this window). Arrows step the
+                // PLACEMENT QUANTUM, so that speed is the grid pair AND the snap toggle: with snap
+                // off the grid size changes nothing and one arrow crawls a single tick, which
+                // without the toggle here would be unrecoverable without leaving the window.
                 // Editing shortcuts (delete, nudge, undo) stay with the main window, which shows
                 // the selection context. Resolved through the command mappings, not hardcoded
-                // chords, so future rebinds of rebindable commands stay honored.
+                // chords, so rebinds stay honored.
                 static constexpr std::array g_preview_commands{
                     EditorCommandId::PlayPause,
                     EditorCommandId::TogglePreview3D,
@@ -1216,10 +1214,10 @@ void EditorView::stepToRowObject(const bool later, const bool notes_only)
 
 // Raises the chart lane's keybind-discovery menu.
 //
-// The menu's job is to TEACH the shortcuts, not to be a second way to act (keymap-matrix.md parity
-// triage item 2), so every item is a registered command added through addEditorCommandItem: the
-// label, the enablement, and the live chord all come from the registry, which means a rebind is
-// reflected here with no work and an item can never drift from the key that triggers it.
+// The menu's job is to TEACH the shortcuts, not to be a second way to act, so every item is a
+// registered command added through addEditorCommandItem: the label, the enablement, and the live
+// chord all come from the registry, which means a rebind is reflected here with no work and an
+// item can never drift from the key that triggers it.
 //
 // Applicability is deliberately NOT shown here, and the reason is worth stating because the
 // opposite reads as an oversight: every chart command registers as always-active on purpose,
@@ -1227,7 +1225,7 @@ void EditorView::stepToRowObject(const bool later, const bool notes_only)
 // always read enabled, and one that cannot apply right now does nothing rather than greying out.
 // Making them grey would mean a second applicability authority beside the planners' own gate, which
 // the one-rule principle refuses; the feedback a refused verb owes the user belongs in the refusal
-// channel instead (walkthrough W5).
+// channel instead.
 void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
 {
     if (!hasChart())
@@ -1244,9 +1242,8 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     juce::PopupMenu note_menu;
     add(note_menu, EditorCommandId::SelectionDelete);
     note_menu.addSeparator();
-    // The technique verbs, so the menu teaches the whole set: every one of them now carries a
-    // chord, and the menu's job is to TEACH those chords rather than to be a second way to act.
-    // A verb missing here is a chord nobody discovers.
+    // The technique verbs, so the menu teaches the whole set: every one of them carries a chord,
+    // and a verb missing here is a chord nobody discovers.
     add(note_menu, EditorCommandId::ChartLegatoToggle);
     add(note_menu, EditorCommandId::ChartLeftTapToggle);
     add(note_menu, EditorCommandId::ChartTapToggle);
@@ -1589,16 +1586,19 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
     }
 }
 
+// Exposes the one editor-wide command manager the window shell dispatches key presses through.
 juce::ApplicationCommandManager& EditorView::commandManager() noexcept
 {
     return m_command_manager;
 }
 
+// Ends the command chain here: this view is the sole command target.
 juce::ApplicationCommandTarget* EditorView::getNextCommandTarget()
 {
     return nullptr;
 }
 
+// Registers every registry command against this target, in registry order.
 void EditorView::getAllCommands(juce::Array<juce::CommandID>& commands)
 {
     for (const EditorCommandSpec& spec : editorCommandRegistry())
@@ -1608,8 +1608,7 @@ void EditorView::getAllCommands(juce::Array<juce::CommandID>& commands)
 }
 
 // One source for menus and key dispatch: names, categories, and default chords come from the
-// registry table; enablement and tick state derive from the same pushed view state the menus
-// used before the registry existed, so behavior is preserved exactly.
+// registry table; enablement and tick state derive from the pushed view state.
 void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCommandInfo& info)
 {
     const EditorCommandSpec* const spec = findEditorCommandSpec(command_id);
@@ -1686,8 +1685,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ShowActions:
         case EditorCommandId::PlayPause:
         {
-            // Always active: the controller owns transport legality, matching the old
-            // unconditional Space handling.
+            // Always active: the controller owns transport legality.
             break;
         }
         case EditorCommandId::ToggleWaveform:
@@ -1710,10 +1708,10 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setTicked(preview_open);
             break;
         }
-        // InsertToneChange and the grammar verbs (plan 53 Phase 1b) stay always-active on
-        // purpose: their old decoder branches declined silently, and a disabled command whose
-        // chord matches makes JUCE play the system alert sound (KeyPressMappingSet::keyPressed)
-        // — so perform self-gates instead, and the core self-gates its intents anyway.
+        // The marker verbs, the menu openers and the grammar verbs stay always-active on purpose:
+        // they must decline silently, and a disabled command whose chord matches makes JUCE play
+        // the system alert sound (KeyPressMappingSet::keyPressed) — so perform self-gates instead,
+        // and the core self-gates its intents anyway.
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::InsertSongSection:
         case EditorCommandId::InsertFretHandPosition:
@@ -1820,6 +1818,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
     }
 }
 
+// Wraps every command dispatch with the selection-centring rule documented on the declaration.
 bool EditorView::perform(const InvocationInfo& info)
 {
     // The rule for a verb on a selection is judged WHEN THE VERB RUNS: what it is about to act on,
@@ -2108,10 +2107,10 @@ bool EditorView::performCommand(const InvocationInfo& info)
             return true;
         }
 
-            // ---- Grammar verbs (plan 53 Phase 1b). Each perform calls the same controller
-            // intents a raw key decoder would, so the trigger lives in the mapping set while undo
-            // and gesture semantics stay the controller's. Guards decline silently; see
-            // getCommandInfo for why these register always-active.
+            // ---- Grammar verbs. Each perform calls the controller intent for its verb, so the
+            // trigger lives in the mapping set while undo and gesture semantics stay the
+            // controller's. Guards decline silently; see getCommandInfo for why these register
+            // always-active.
 
         case EditorCommandId::CaretStepLeft:
         {
@@ -2522,8 +2521,7 @@ bool EditorView::performCommand(const InvocationInfo& info)
         }
 
         // The Esc ladder: view-owned edge drags cancel first, then the marker ladder fires
-        // when any published rung is live. An idle press is a silent no-op now that dispatch
-        // is command-based; nothing downstream consumed the decoder's old fall-through.
+        // when any published rung is live. An idle press is a silent no-op.
         case EditorCommandId::CancelDismiss:
         {
             if (m_tone_automation_lanes_view.cancelActiveGesture())
@@ -2535,16 +2533,16 @@ bool EditorView::performCommand(const InvocationInfo& info)
                 return true;
             }
             // Handed on unconditionally: the controller's ladder self-gates every rung, and
-            // mirroring its conditions here could only get them wrong. It did — the mirror could
-            // see a marquee only after the drag crossed its four-pixel threshold, so pressing
-            // Escape inside that threshold never reached the controller, the gesture was not
-            // abandoned, and the release still armed the caret at the pressed slot, moving the
-            // playhead the press had cancelled.
+            // mirroring its conditions here would get them wrong: a mirror sees a marquee only
+            // after the drag crosses its four-pixel threshold, so Escape inside that threshold
+            // would never reach the controller, the gesture would not be abandoned, and the
+            // release would still arm the caret at the pressed slot, moving the playhead the press
+            // had cancelled.
             m_controller.onChartEscapePressed();
             return true;
         }
 
-        // Digits type the row's payload (the typing rule, §9b), in the decoder's try order:
+        // Digits type the row's payload (the typing rule), trying each consumer in order:
         // the lanes view first (it re-checks its own possibly gesture-deferred caret copy),
         // then chart fret typing; the passive marker keeps digits inert (the controller owns
         // that branch). The ring plane follows the same order — on a lane row a digit is a
@@ -3488,7 +3486,6 @@ void EditorView::onOutputGainPreviewChanged(double gain_db)
     m_controller.onOutputGainPreviewChanged(gain_db);
 }
 
-// Forwards committed output gain slider changes to the controller when controls are enabled.
 // Routes a tone-region selection intent to the controller.
 void EditorView::onToneRegionSelected(std::string region_id)
 {
@@ -3528,6 +3525,8 @@ void EditorView::onToneRegionDeleteRequested(std::string region_id)
     m_controller.onToneRegionDeleteRequested(std::move(region_id));
 }
 
+// The automation lanes' intents below forward unchanged: the controller owns their gating and the
+// gesture state.
 void EditorView::onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id)
 {
     m_controller.onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
@@ -3823,6 +3822,7 @@ void EditorView::onToneRenamePromptRequested(
         });
 }
 
+// Forwards committed output gain slider changes to the controller when controls are enabled.
 void EditorView::onOutputGainChanged(double gain_db)
 {
     if (!m_state.signal_chain.output_gain_controls_enabled)

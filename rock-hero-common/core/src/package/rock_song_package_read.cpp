@@ -214,10 +214,9 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        // FLAC is RockHero's canonical package audio format. Packages that reference WAV, Ogg, or
-        // any other format are no longer supported and must be re-imported through the FLAC
-        // pipeline. Safety and existence are checked first so an
-        // unsafe path still reports as unsafe.
+        // FLAC is RockHero's canonical package audio format; a package that references any other
+        // format is refused and must be re-imported through the FLAC pipeline. Safety and
+        // existence are checked first so an unsafe path still reports as unsafe.
         if (!hasFlacExtension(*relative_path))
         {
             return std::unexpected{SongPackageError{
@@ -229,8 +228,8 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         const auto normalization =
             readOptionalNormalization(Json::value(asset_json, "normalization"));
 
-        // Absent offset means the audio starts at the score's first beat; pre-offset packages
-        // simply omit the field. A field that is PRESENT but not a finite number is refused rather
+        // Absent offset means the audio starts at the score's first beat (the writer omits a zero
+        // offset). A field that is PRESENT but not a finite number is refused rather
         // than read as zero: falling back would shift the whole backing track against the score
         // with no word to the user, and a non-finite value survives to the next save, where the
         // writer would emit the bare token `nan` and leave song.json permanently unparseable.
@@ -678,12 +677,11 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                 }};
             }
 
-            // The removed "shape" key is IGNORED rather than refused, unlike the chart's removed
-            // keys. A refusal tripwire exists to stop a package whose authored data would now be
-            // silently discarded, and no package can carry that data: shape was never authorable,
-            // stayed 0 at every producer, and the writer omitted it at 0, so it was never written.
-            // Nothing to re-import means nothing to fail loudly about, and the reader's standing
-            // rule (normalize, don't reject) governs.
+            // A "shape" key on a point is IGNORED rather than refused, unlike the chart's removed
+            // keys. A refusal tripwire stops a package whose authored data would be silently
+            // discarded, and no package carries shape data: no producer ever wrote a nonzero
+            // shape. With nothing to re-import, the reader's standing rule (normalize, don't
+            // reject) governs.
             entry.points.push_back(
                 ToneAutomationPoint{
                     .position = *position,

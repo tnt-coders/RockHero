@@ -179,9 +179,9 @@ comparison quietly answering "not accented". Its quiet twin is \ref isGhosted be
 /*!
 \brief Reports whether a note is struck QUIETER than normal.
 
-The quiet end's one classifier, mirroring \ref isAccented: added once both renderers and the
-view-state grouping were each open-coding the ghost comparison, so a second quiet tier arriving
-below \ref NoteEmphasis::Ghost lights up every consumer at once.
+The quiet end's one classifier, mirroring \ref isAccented: the renderers and the view-state
+grouping ask it rather than open-coding the ghost comparison, so a second quiet tier arriving below
+\ref NoteEmphasis::Ghost lights up every consumer at once.
 
 \param emphasis How hard the note is struck.
 
@@ -317,7 +317,7 @@ Both producers that turn a label into a node read it through the one enumerator 
 resolving Guitar Pro's `HarmonicFret`, and the editor's harmonic verb resolving the fret a charter
 typed. They agree about which labels name a node at all because there is one rule, not two.
 
-The verb's use of it was RULED with the node picker (2026-09-15, the `H` row of
+The verb reads it through the node picker (the `H` row of
 `docs/plans/in-progress/keymap-matrix.md`): a fret a CHARTER types is read as a label exactly as
 import reads a written one, rather than through the ceil law that places a node in fret `ceil(p)`.
 The two answer different questions — where a finger stands, versus what a label names — and the
@@ -490,10 +490,10 @@ ChartNote::dead answers alone.
 The chart's one interval-payload record. A keyframe fixes a MOMENT inside the note's ring and
 carries any SUBSET of the channels that can change while a string sounds. The moment is stored
 ONCE and every technique authored there lands on it, so moving the moment moves everything that
-meant "at that moment" — which parallel per-technique arrays could not do: a glide target, a
-vibrato start, and a bend value at one instant were three independently editable copies of one
-offset, and dragging any of them sheared the authored figure with no rule able to object, because
-both the before and the after were legal (`docs/plans/todo/unified-waypoint-model.md`).
+meant "at that moment". Parallel per-technique arrays cannot do that: a glide target, a vibrato
+start, and a bend value at one instant would be three independently editable copies of one offset,
+and dragging any of them would shear the authored figure with no rule able to object, because both
+the before and the after are legal (`docs/plans/todo/unified-waypoint-model.md`).
 
 Each channel reads independently along the ring:
 
@@ -687,7 +687,7 @@ struct ChartNote
     Every note rings for some length, so zero is not an encoding — \ref validateChartNoteAlone
     refuses it structurally on every note, since no repair can invent a duration. The only bound is
     \ref sustainBoundOf: a re-strike stops the ring, so the tail may reach the next onset on its own
-    string exactly and never pass it (40-Q2-B, \ref normalizeSustainOverlaps). Payload offsets lie
+    string exactly and never pass it (\ref normalizeSustainOverlaps). Payload offsets lie
     within it.
     */
     Fraction sustain{};
@@ -735,7 +735,7 @@ struct ChartNote
     Which hand damps the node is carried by `attack`: every attack damps with a finger on the
     neck except `Pinch`, whose thumb grazes the string over the body — ask `nodeIsOnNeck` rather
     than testing the attack directly. On a pinch the value is where the picking hand grazes,
-    which no surface shows yet (roadmap 25-Q5).
+    which no surface shows.
 
     **Every** harmonic has one, a pinch included: the overtone that squeals is *determined* by
     where the thumb lands, so an absent node is missing data rather than a different technique,
@@ -854,7 +854,7 @@ its hand is on the node the head prints; a pinch because its head prints the fre
 The one reading of the onset-facts-plus-keyframes split
 (`docs/plans/todo/unified-waypoint-model.md`): a channel opens on the note itself and every later
 change lands on a keyframe, so "what is in force here" is a fold over the two — and every reader
-folding it by hand was a second copy of the model's semantics, free to disagree with the first.
+folding it by hand would be a second copy of the model's semantics, free to disagree with this one.
 
 The STATEMENT in force, never the sounding value. Between two statements the position channel is
 travelling and the bend channel is climbing its curve, and both are interpolated by the surfaces
@@ -1861,7 +1861,9 @@ PRESSED stop fails the `fret == 0` half exactly as an artificial one does. Contr
 node branch, which additionally excludes `Tap` because the hand-placement question cares which HAND
 owns the node, not whether a stop is pressed.
 
-\param note Note to classify.
+\param fret Stored fret; zero is the open string.
+\param harmonic_node The note's node, if it has one.
+\param attack How the onset is produced.
 
 \return True when the fretting hand touches the node and presses nothing.
 */
@@ -1937,9 +1939,9 @@ gesture: the onset passes the note's own fret, a slide junction the fret it has 
 
 A pinch is the exception the answer's node-ness exists for as much as the position is: its node is
 over the body rather than on the neck, so a pinch sounds at its stop as far as any neck coordinate
-goes (the squeal's own cue is roadmap 25-Q5). Callers read \ref ChartStop::node because a node and
-a fret are read differently — 2D labels a node to one decimal and a fret as a whole number, 3D
-places a node on the fret line and a fret at its slot's midpoint.
+goes, and no neck coordinate cues the squeal itself. Callers read \ref ChartStop::node because a
+node and a fret are read differently — 2D labels a node to one decimal and a fret as a whole
+number, 3D places a node on the fret line and a fret at its slot's midpoint.
 
 Deliberately NOT \ref frettingStopAt: that one asks where the FRETTING hand is, so a two-hand tap's
 node counts here and not there, because the tap's node belongs to the picking hand.
@@ -1970,7 +1972,7 @@ it sounds, because the two part company at the pinch: a pinch is a harmonic whos
 body, so it sounds at its stop as far as any neck coordinate goes and is a harmonic all the same.
 Both surfaces draw the first claim — 2D as the diamond head, 3D as the harmonic cell a head wears —
 and read it here so neither can call a note a harmonic the other does not. Folding the two claims
-into one is what once left a 2D pinch as a bar on an ordinary head, saying nothing of a harmonic.
+into one would leave a 2D pinch as a bar on an ordinary head, saying nothing of a harmonic.
 
 A pinch counts by its attack alone: the squeal is the thumb's, and the attack is what states it. Any
 other note counts by carrying a node, except a scrape, whose node is the in-memory latent its attack
@@ -2008,7 +2010,9 @@ finger cannot be past the last fret, so the neck caps it rather than the string.
 Deliberately NOT what the 3D board asks when placing a note: a note sounds from its node whichever
 hand is damping it, so the board's own axis ignores which hand that is.
 
-\param note Note to classify.
+\param fret Stored fret; zero is the open string.
+\param harmonic_node The note's node, if it has one.
+\param attack How the onset is produced.
 
 \return True when the fretting hand's finger is the one touching the node.
 */

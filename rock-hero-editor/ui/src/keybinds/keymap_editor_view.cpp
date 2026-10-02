@@ -80,10 +80,7 @@ public:
         }
     }
 
-    /*!
-    \brief Returns the last chord pressed.
-    \return The captured chord, or an invalid key when none was pressed.
-    */
+    // The last chord pressed, or an invalid key when none was.
     [[nodiscard]] const juce::KeyPress& captured() const noexcept
     {
         return m_captured;
@@ -444,8 +441,7 @@ void KeymapEditorView::rebuildRows()
         m_rows.push_back(std::move(row));
     };
 
-    // Every command is rebindable — grammar verbs included (plan 53 Phase 1b) — grouped under
-    // its registry category.
+    // Every command is rebindable — grammar verbs included — grouped under its registry category.
     const char* current_category = "";
     for (const EditorCommandSpec& spec : editorCommandRegistry())
     {

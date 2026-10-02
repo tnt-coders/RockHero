@@ -68,8 +68,8 @@ void EditorController::Impl::openCalibrationPrompt()
 }
 
 // Opens the calibration prompt for the current route on explicit user request, after a Cancel
-// too. The gate re-reads the store first, so the prompt opens on a gain the other
-// product may have saved since.
+// too. The gate re-reads the store first, so the prompt opens on a gain the other product may
+// have saved since.
 void EditorController::Impl::onInputCalibrationRequested()
 {
     refreshLiveInput();

@@ -120,8 +120,8 @@ std::expected<RenderDevice, RenderDeviceError> RenderDevice::create(
     init.resolution.width = config.width;
     init.resolution.height = config.height;
     init.resolution.reset = reset_flags;
-    // Driven by the dev-diagnostics runtime flag (plan 20 Phase 4); bgfx degrades gracefully if
-    // the D3D11 debug layers are absent. Profiling stays off until something consumes it.
+    // Driven by the dev-diagnostics runtime flag; bgfx degrades gracefully if the D3D11 debug
+    // layers are absent. Profiling stays off until something consumes it.
     init.debug = config.debug;
     init.profile = false;
 
@@ -184,8 +184,8 @@ std::uint32_t RenderDevice::height() const noexcept
     return m_height;
 }
 
-// bgfx's built-in debug text is a global overlay drawn during frame(), independent of views —
-// the cheapest possible overlay v1 until plan 20 Phase 4's diagnostics layer replaces it.
+// bgfx's built-in debug text is a global overlay drawn during frame(), independent of views — the
+// cheapest possible text overlay, which the diagnostics layer prints its numeric readouts through.
 void RenderDevice::setDebugTextEnabled(const bool enabled)
 {
     bgfx::setDebug(enabled ? BGFX_DEBUG_TEXT : BGFX_DEBUG_NONE);

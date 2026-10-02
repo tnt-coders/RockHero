@@ -9,7 +9,9 @@ namespace rock_hero::editor::core
 
 using testing::ScopedSettingsFile;
 
-// Verifies editor state represents a single displayed arrangement without extra identity.
+// Verifies a default EditorViewState describes an empty editor (no command enabled, the transport
+// unavailable, the device closed), and that a loaded state carries its one displayed arrangement
+// directly, with no separate arrangement identity.
 TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controller]")
 {
     const EditorViewState empty_state{};
@@ -289,7 +291,8 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
     }
 }
 
-// Confirms attachView immediately delivers the controller's cached arrangement state.
+// Confirms attachView immediately delivers the controller's derived state, and that undo and redo
+// against an empty history push nothing further.
 TEST_CASE("EditorController pushes derived state on view attachment", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -819,8 +822,9 @@ TEST_CASE("EditorController persists the grid note value on save-as", "[core][ed
     CHECK(stored == std::optional{common::core::Fraction{1, 16}});
 }
 
-// Both preferences are app-wide display state: published in every derived state, persisted on
-// change, clamped to the chart string cap, and restored by a fresh controller.
+// Waveform visibility and the tab lane's minimum displayed strings are app-wide display state:
+// published in every derived state, persisted on change, the string count clamped to the chart
+// string cap, and both restored by a fresh controller.
 TEST_CASE(
     "EditorController publishes and persists tab display preferences", "[core][editor-controller]")
 {

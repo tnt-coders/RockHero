@@ -55,7 +55,7 @@ struct ToneAutomationPointerModifiers
 {
     /*!
     \brief Authoring: over empty lane area, the neutral-create gate — a hover shows the on-curve
-    insert ring and a press plants an on-curve point (§9b's Insert verb in its mouse form). Without
+    insert ring and a press plants an on-curve point (the Insert verb in its mouse form). Without
     it a lane-area hover publishes no ghost.
     */
     bool alt{false};
@@ -73,7 +73,7 @@ Computed view-side (the value-band inset and resize-band height are pure-view la
 they never leak into editor-core): the band is the drawable region a point rides, already inset
 from the lane's outer bounds. The controller maps a lane-local pixel y to a normalised value with
 just these two numbers — value = clamp(1 - (y - top) / height, 0, 1) — exactly as the lanes view
-does, so the ported drag pulls the value bit-for-bit as the view did. The lane sibling of the
+draws it, so the controller's drag and the drawn point agree bit-for-bit. The lane sibling of the
 tablature lane's \ref common::ui::TabLaneGeometry laneY, which likewise carries the view-computed
 pixel layout so the controller hit-tests against the pixels on screen.
 */
@@ -167,7 +167,7 @@ struct ToneAutomationPointerEvent
     \brief True once the gesture has crossed the framework's click→drag threshold (a Drag phase).
 
     Carried straight from JUCE's `MouseEvent::mouseWasDraggedSinceMouseDown` so the controller's
-    click-vs-move decision matches the shipped view bit-for-bit — both the ~4-pixel travel and the
+    click-vs-move decision matches the framework's own exactly — both the ~4-pixel travel and the
     long-press-past-the-double-click-timeout it folds in — rather than re-deriving a pixel threshold
     that would drop the timing component. Every gesture that arrives with no edit in hand — an
     existing-point grab, and a press on the lane's derived anchor — stays a click until this turns

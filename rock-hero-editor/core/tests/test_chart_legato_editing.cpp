@@ -7,10 +7,10 @@
 namespace rock_hero::editor::core
 {
 
-// The H toggle law measures what the PLAN does (W5, ruled): a selection holding a note nothing can
-// justify must still round-trip — apply on the first press, clear on the second. The old
-// whole-selection test left such a selection stuck in apply mode forever. And the clear targets
-// only the stored claims, so a rider keeps its own attack instead of being flattened by the clear.
+// The H toggle law measures what the PLAN does: a selection holding a note nothing can justify
+// must still round-trip — apply on the first press, clear on the second — where a test over the
+// whole selection would leave it stuck in apply mode forever. And the clear targets only the
+// stored claims, so a rider keeps its own attack instead of being flattened by the clear.
 TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core][chart]")
 {
     // String 1 carries a resolvable pair (the predecessor's tail reaches the note's onset, so the
@@ -431,7 +431,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
         CHECK(note(0).sustain == common::core::Fraction{4});
 
-        // The window (ruling 4): the second press reverses that entry exactly — the grown tail
+        // The toggle window: the second press reverses that entry exactly — the grown tail
         // included, which the clear law could never restore — and leaves no history entry.
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
@@ -543,10 +543,10 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     }
 }
 
-// The settle sweep's commit shape (red-team D1): on top of history the flatten FOLDS into the
-// burst's own entry, so one undo restores the edit and the claim together; at a mid-stack point it
-// DEFERS, because touching bytes there would either truncate a live redo branch or rewrite an entry
-// the cursor is not on.
+// The settle sweep's commit shape: on top of history the flatten FOLDS into the burst's own entry,
+// so one undo restores the edit and the claim together; at a mid-stack point it DEFERS, because
+// touching bytes there would either truncate a live redo branch or rewrite an entry the cursor is
+// not on.
 TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][chart]")
 {
     // String 1: fret 9 held exactly to the margin before a legato note at fret 5 four beats later,
@@ -796,10 +796,10 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
     }
 }
 
-// Red-team D3: a sweep that COMMITS closes both coalescing windows. A fold rewrites the top entry's
-// content without moving the history position, so every proof an armed window checks still passes —
-// and reversing or widening against a plan that no longer describes that entry would either
-// resurrect the claim the sweep just flattened or reconstruct the wrong pre-burst stream.
+// A sweep that COMMITS closes both coalescing windows. A fold rewrites the top entry's content
+// without moving the history position, so every proof an armed window checks still passes — and
+// reversing or widening against a plan that no longer describes that entry would either resurrect
+// the claim the sweep just flattened or reconstruct the wrong pre-burst stream.
 TEST_CASE("EditorController closes its coalescing windows on a committing settle", "[core][chart]")
 {
     // String 1 climbs 3 -> 7 -> 5, each a measure apart. The first two ring to their successors, so
@@ -973,8 +973,8 @@ namespace
 // The settle-event set, at the five events that reach the sweep through their OWN call site rather
 // than through setSelection: a caret move (armChartCaret, the funnel behind pointer, arrow and
 // jump), Ctrl+click, double-click, a marquee release that caught notes, and playback start. Each
-// rewrites the selection without passing setSelection, so each needs its own settle — and each was
-// a live hole: reverting any one left the sweep un-run at that event with nothing to notice.
+// rewrites the selection without passing setSelection, so each needs its own settle — and dropping
+// any one would leave the sweep un-run at that event with nothing else to notice.
 TEST_CASE("EditorController settles at every ruled selection event", "[core][chart]")
 {
     FakeTransport transport;
@@ -1055,8 +1055,8 @@ TEST_CASE("EditorController settles at every ruled selection event", "[core][cha
 
 // A transport seek settles the pending fret entry through the action gate's uniform prologue:
 // the typed value commits as its own entry BEFORE the seek's settle sweep judges the chart, so
-// the sweep folds the claim it broke into that very entry. That ordering makes the paused-seek bug
-// unrepresentable: a seek cannot leave a half-typed window armed.
+// the sweep folds the claim it broke into that very entry. That ordering is what guarantees a
+// seek cannot leave a half-typed window armed.
 TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[core][chart]")
 {
     FakeTransport transport;

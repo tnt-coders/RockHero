@@ -67,7 +67,7 @@ TEST_CASE("Highway atlas cells tile the texture with a half-texel inset", "[ui][
 
 // The legato pair shares one cell, drawn upright for the hammer-on and vertically flipped for
 // the pull-off, so the two can never disagree in weight or border the way separately authored
-// art did. Swapping a cell's v coordinates is exactly that flip, and it stays inside the cell.
+// art would. Swapping a cell's v coordinates is exactly that flip, and it stays inside the cell.
 TEST_CASE("Highway atlas legato cell mirrors within its own bounds", "[ui][highway]")
 {
     const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 320, .cell_size = 64};

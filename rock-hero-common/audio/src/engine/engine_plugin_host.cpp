@@ -18,11 +18,11 @@
 namespace rock_hero::common::audio
 {
 
-// Named so the Impl declaration in engine_impl.h can reference it.
-// Maps monitoring rebuild failures into plugin-host mutation errors. An if/return chain, not a
-// switch: the translation deliberately maps two specific codes and funnels every other (and
-// future) code into the coarse fallback, which -Wswitch-enum would otherwise force us to
-// re-enumerate on each source-enum addition.
+// Maps monitoring rebuild failures into plugin-host mutation errors; not file-local because the
+// mutation template in engine_impl.h calls it. An if/return chain, not a switch: the translation
+// deliberately maps two specific codes and funnels every other (and future) code into the coarse
+// fallback, which -Wswitch-enum would otherwise force us to re-enumerate on each source-enum
+// addition.
 [[nodiscard]] PluginHostError pluginHostErrorFromLiveInputError(const LiveInputError& error)
 {
     if (error.code == LiveInputErrorCode::MessageThreadRequired)
@@ -48,13 +48,13 @@ void copyPluginStatePreservingInstanceId(
 {
     juce::ValueTree target_state = target_plugin.state;
 
-    // Remove only properties the restored state no longer carries, then overwrite the rest in
-    // place. juce::ValueTree::setProperty is a no-op when the value is unchanged
-    // (NamedValueSet::set compares values - including binary blobs - by content and notifies
-    // listeners only on a real change), so invariant properties are left untouched instead of being
-    // wiped and re-added. The previous wipe-and-re-add re-applied IDs::layout, whose ExternalPlugin
-    // listener re-prepares the plugin (releaseResources + prepareToPlay); that fired once on
-    // removal and again on re-add (~74ms total) and was the entire undo/redo visual dropout.
+    // Remove only properties the restored state does not carry, then overwrite the rest in place.
+    // juce::ValueTree::setProperty is a no-op when the value is unchanged (NamedValueSet::set
+    // compares values - including binary blobs - by content and notifies listeners only on a real
+    // change), so invariant properties are left untouched. Do not wipe and re-add them: that
+    // re-applies IDs::layout, whose ExternalPlugin listener re-prepares the plugin
+    // (releaseResources + prepareToPlay) once on removal and again on re-add (~74ms total), which
+    // is a visible dropout on every undo/redo.
     for (int index = target_state.getNumProperties(); --index >= 0;)
     {
         const juce::Identifier property_name = target_state.getPropertyName(index);
@@ -885,7 +885,8 @@ std::vector<PluginCandidate> Engine::knownPluginCatalog() const
     return m_impl->knownPluginCatalog();
 }
 
-// Inserts a selected VST3 candidate into the instrument track's user-visible plugin chain.
+// Inserts a selected VST3 candidate into the audible tone's rack branch, scanning its file first
+// when the catalog does not know the candidate yet.
 std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCandidateToTrack(
     const PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
@@ -1031,14 +1032,14 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
     };
 }
 
-// Inserts a selected VST3 candidate into the instrument track's user-visible plugin chain.
+// Inserts a selected VST3 candidate into the user-visible chain of the audible tone.
 std::expected<PluginInsertResult, PluginHostError> Engine::insertPlugin(
     const PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
     return m_impl->insertPluginCandidateToTrack(plugin_candidate, chain_index);
 }
 
-// Moves a loaded plugin inside the instrument track and rebuilds monitoring around the mutation.
+// Moves a plugin within the audible tone's rack branch and rebuilds monitoring around the move.
 std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
     const std::string& instance_id, std::size_t destination_index)
 {
@@ -1119,7 +1120,7 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
     return m_impl->pluginChainSnapshot();
 }
 
-// Removes a loaded plugin from the instrument track and rebuilds monitoring around the mutation.
+// Removes a plugin from the audible tone's rack branch and rebuilds monitoring around the removal.
 std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
     const std::string& instance_id)
 {
@@ -1443,7 +1444,7 @@ void Engine::flushPendingPluginEdits()
     m_impl->flushPendingPluginEdits();
 }
 
-// Reports whether any user plugin edit is waiting for gesture end or debounce.
+// Reports whether any user plugin edit is still waiting for its debounce to settle.
 bool Engine::hasPendingPluginEdits() const
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -1489,6 +1490,7 @@ void Engine::setPluginWindowCommandObserver(PluginWindowCommandObserver observer
     m_impl->m_plugin_window_command_observer = std::move(observer);
 }
 
+// Replaces the chords every hosted plugin window claims; the bindings are window-class shared.
 void Engine::setPluginWindowShortcuts(PluginWindowShortcutBindings bindings)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())

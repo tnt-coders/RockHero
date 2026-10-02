@@ -35,10 +35,9 @@ float tabLaneCenterY(
     // which reads as one border being crisper than the other, and the head and the accent halo
     // inherit the same phase error.
     //
-    // The string line does NOT move: drawStringLines already snapped its own one-pixel line with
-    // `(int)y`, which is exactly `floor(c) + 0.5` as a row centre. This moves the tail and the
-    // head onto the row the renderer was already drawing, rather than the reverse, and lets that
-    // second snapping authority be deleted.
+    // The string line sits on the same row: drawStringLines derives its one-pixel line from this
+    // centre (a row centre less half a row) rather than snapping again, so the tail, the head and
+    // the line share this one snap.
     return std::floor(bounds_y + ((lane_index + 0.5f) * lane_height)) + 0.5f;
 }
 
@@ -109,11 +108,10 @@ TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
     // The tail's whole outer envelope, rails included, symmetric about the string line. Charter
     // spells this as an asymmetric body span plus a one-pixel border overhang at the top; folding
     // the overhang in here keeps the symmetry in ONE place instead of asking every consumer to
-    // re-balance it (the tremolo band and the hit-test rectangle both sagged a pixel low when
-    // they didn't).
-    // Rounded to a HALF pixel so that, with the lane centre on a row centre (C1 in
-    // tabLaneCenterY), both span edges land on whole pixel boundaries and the two rails cover
-    // identical rows. 19/3 + 1 = 7.3333 becomes 7.5 at the shipped tail height.
+    // re-balance it (without that, the tremolo band and the hit-test rectangle sag a pixel low).
+    // Rounded to a HALF pixel so that, with the lane centre on a row centre (tabLaneCenterY),
+    // both span edges land on whole pixel boundaries and the two rails cover identical rows.
+    // 19/3 + 1 = 7.3333 becomes 7.5 at the shipped tail height.
     const float half = std::round(((geometry.tail_height / 3.0f) + 1.0f) * 2.0f) / 2.0f;
     return TailSpan{
         .top = center_y - half,

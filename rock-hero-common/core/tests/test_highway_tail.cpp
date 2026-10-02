@@ -65,8 +65,8 @@ template <typename Curve>
 
 } // namespace
 
-// Adaptive sampling (the per-millisecond-tessellation fix): density follows the projected
-// screen length, bounded below by a drawable pair and above by the hard cap.
+// Adaptive sampling: density follows the projected screen length, bounded below by a drawable
+// pair and above by the hard cap.
 TEST_CASE("Highway tail sample count follows screen length under a cap", "[core][highway][tail]")
 {
     CHECK(highwayTailSampleCount(0.0, 4.0, 256) == 2);
@@ -174,9 +174,9 @@ TEST_CASE("Highway bend curve eases through same-direction points", "[core][high
 }
 
 // A BEND COMES TO REST AT THE UNBENT STRING TOO. The travel law is a square root there, so a curve
-// eased in pitch reached the string line at an angle — a visible corner wherever a bend starts
-// from rest or releases to it (sighted 2026-09-29). Eased in the drawn travel, the curve leaves and
-// arrives flat: over a small step the travel moves second-order, not first.
+// eased in pitch would reach the string line at an angle — a visible corner wherever a bend starts
+// from rest or releases to it. Eased in the drawn travel, the curve leaves and arrives flat: over a
+// small step the travel moves second-order, not first.
 TEST_CASE("Highway bend curve leaves and reaches the unbent string flat", "[core][highway][tail]")
 {
     // At rest until 11.0, up a whole step by 12.0, released by 13.0.
@@ -208,6 +208,8 @@ TEST_CASE("Highway bend inversion splits the displayed stack", "[core][highway][
     CHECK(highwayBendInverted(4, 5));
 }
 
+// Verifies an onset group's bends all point one way, chosen by a majority of its displayed lanes
+// with a tie going to the upper side, and that the inverted string order flips the vote.
 TEST_CASE("Highway bend inversion belongs to the onset group", "[core][highway][tail]")
 {
     const auto note_on_string = [](const int string) {
@@ -445,10 +447,9 @@ TEST_CASE("Highway wobbles are start-phased and bounded", "[core][highway][tail]
     }
 }
 
-// The board's whole vibrato reading, now that the channel states SPANS: which one is in force, the
-// envelope anchoring its wobble on the string line at that span's own ends, and the depth the
-// caller shows. The old note-anchored arithmetic is the special case where the span is the whole
-// tail, which is the identity every chart written before the channel could speak relies on.
+// The board's whole vibrato reading over the channel's SPANS: which one is in force, the envelope
+// anchoring its wobble on the string line at that span's own ends, and the depth the caller shows.
+// A span covering the whole tail reads exactly as a note-anchored wobble would.
 TEST_CASE("Highway vibrato displacement follows the span in force", "[core][highway][tail]")
 {
     const double period = g_highway_vibrato_period_seconds;
@@ -466,8 +467,8 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
             const double expected =
                 1.0 * highwayTailTaper(from_onset / 4.0, g_highway_tail_taper_fraction) * depth *
                 highwayVibratoWobble(from_onset);
-            // Bit-for-bit, not merely close: the whole frozen-visuals claim for the 3D surface is
-            // that this arithmetic did not change for content that states nothing mid-ring.
+            // Bit-for-bit, not merely close: content that states nothing mid-ring must draw
+            // exactly the note-anchored wobble.
             CHECK_THAT(
                 highwayVibratoDisplacementAt(whole_tail, seconds, 1.0),
                 Catch::Matchers::WithinULP(expected, 0));
@@ -775,8 +776,8 @@ TEST_CASE("Highway vibrato runs at one fixed rate", "[core][highway][tail]")
 // The turning-point pair is the ONE statement of where the span-anchored sine peaks: the renderer
 // pins a sample to each extreme so the drawn wave stays rigid on the note, and it must land on the
 // same phase highwayVibratoDisplacementAt reads. Skew either direction against the other and the
-// samples slide off the wave they are meant to trace, which is exactly the silent aliasing having
-// two copies of the anchor rule invited.
+// samples slide off the wave they are meant to trace, which is exactly the silent aliasing two
+// copies of the anchor rule would invite.
 TEST_CASE("Highway vibrato turning points invert the wobble phase", "[core][highway][tail]")
 {
     const double period = g_highway_vibrato_period_seconds;
@@ -873,10 +874,9 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
 }
 
 // THE SAMPLES GO WHERE THE CURVE MOVES. A quick slide at the end of a long hold crosses most of its
-// on-screen travel in a sliver of the tail's time; spent by duration, it got a sample or three and
-// drew its eased S-curve as straight legs with corners (sighted 2026-09-29). Each stretch between
-// exact times now takes its own travel's count, so the glide gets samples in proportion to how far
-// it moves.
+// on-screen travel in a sliver of the tail's time; spent by duration, it would get a sample or
+// three and draw its eased S-curve as straight legs with corners. Each stretch between exact times
+// takes its own travel's count, so the glide gets samples in proportion to how far it moves.
 TEST_CASE("Highway tail sample times gather where the curve travels", "[core][highway][tail]")
 {
     NoteViewState note;
@@ -905,8 +905,8 @@ TEST_CASE("Highway tail sample times gather where the curve travels", "[core][hi
 
 // The cap is one budget for the whole list. The exact times are never evicted — a turning point
 // the grid rounds is a visible error — so the in-between samples are what yield, down to none.
-// Before this the cap bounded only the grid, every exact time was appended past it, and a long
-// teethed open tail reached nearly twice the cap.
+// A cap bounding only the grid, with every exact time appended past it, would let a long teethed
+// open tail reach nearly twice the cap.
 TEST_CASE("Highway tail sample times hold the cap as one budget", "[core][highway][tail]")
 {
     NoteViewState note;

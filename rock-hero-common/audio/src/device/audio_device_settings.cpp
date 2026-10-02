@@ -622,9 +622,9 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     }
 
     // Opens the staged backend's control panel through the in-memory staged device so the panel
-    // remains available even though the active audio device is closed during the settings
-    // edit. ASIO drivers honor showControlPanel() against a non-open device because the type
-    // has already loaded the driver to populate the staged device's capability set.
+    // remains available even though the user's hardware is released for the settings edit. ASIO
+    // drivers honor showControlPanel() against a non-open device because the type has already
+    // loaded the driver to populate the staged device's capability set.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel()
     {
         // staged_device_error joins the guard because a failed-init driver's showControlPanel()
@@ -778,8 +778,8 @@ private:
     // Scans the current device type's device list only when the staged audio system has changed
     // since the last scan or an external configuration broadcast has invalidated the cache.
     // JUCE's scanForDevices is slow on WASAPI (hundreds of ms enumerating MMDevice endpoints), so
-    // calling it on every refreshState made apply() visibly laggy: repeated user-action refreshes
-    // would each rescan even though the audio system is unchanged.
+    // calling it on every refreshState would make apply() visibly laggy: repeated user-action
+    // refreshes would each rescan even though the audio system is unchanged.
     void scanCurrentDeviceTypeIfNeeded()
     {
         if (m_last_scanned_device_type == m_staged_device_type)
@@ -809,9 +809,8 @@ private:
 
     // Re-creates the staged preview device only when the audio system or device names change.
     // Format-only changes (sample rate, buffer size) and listener notifications that re-broadcast
-    // the same route therefore skip the rebuild. This is not about speed; it is about not doing
-    // unnecessary work when only the format part of the setup changed. Device-name changes
-    // unavoidably trigger a fresh JUCE createDevice and capability probe.
+    // the same route skip the rebuild; only a device-name change needs a fresh JUCE createDevice
+    // and capability probe.
     void refreshStagedDeviceIfRouteChanged()
     {
         if (m_staged_device != nullptr && m_cached_staged_device_type == m_staged_device_type &&
@@ -1062,10 +1061,10 @@ private:
         return last_error.toStdString();
     }
 
-    // Derives capability flags from the staged preview device. The settings edit keeps the
-    // active device closed, so capability gating is based on what the staged device (the loaded
-    // driver object behind the user's current selection) reports, not on the now-closed active
-    // device.
+    // Derives capability flags from the staged preview device. The settings edit releases the
+    // user's hardware to the silent device, so capability gating is based on what the staged
+    // device (the loaded driver object behind the user's current selection) reports, not on the
+    // device that is running.
     //
     // hasControlPanel() is a driver-class capability, not actionability: an ASIO driver whose
     // construction-time init failed (hardware unplugged, or the device held by another
@@ -1162,9 +1161,9 @@ private:
     }
 
     // Matches the currently selected device names while ignoring route and format staging edits.
-    // The active device is closed during a settings edit, so this returns false during the edit
-    // itself. It still returns true on the trailing refreshState() that runs after a
-    // successful apply, when the active route again matches the staged names.
+    // The silent device runs during a settings edit, so this returns false during the edit itself.
+    // It still returns true on the trailing refreshState() that runs after a successful apply,
+    // when the active route again matches the staged names.
     [[nodiscard]] bool stagedDeviceNamesMatchActiveRoute() const
     {
         const auto active_setup = m_device_manager.getAudioDeviceSetup();
@@ -1193,8 +1192,9 @@ private:
         m_staged_setup.outputChannels.setBit(right_channel);
     }
 
-    // Configuration port used to re-apply a chosen-but-unopenable route through the shared
-    // no-fallback restore, so its diagnostic reaches the port's status snapshot.
+    // Configuration port every route opens through (its no-fallback restore, so a failure's
+    // diagnostic reaches the port's status snapshot), and the source of the applied route's
+    // serialized state.
     IAudioDeviceConfiguration& m_audio_devices;
 
     // Where an applied route is saved as the user's choice.
@@ -1203,14 +1203,15 @@ private:
     // Audio device manager owned by the shared backend.
     juce::AudioDeviceManager& m_device_manager;
 
-    // Route active when the settings edit was constructed. cancel() and destructor fallback
-    // reopen this until an apply open attempt succeeds or fails.
+    // The user's route when the settings edit was constructed: the live hardware route, else the
+    // saved choice. cancel() and the destructor fallback reopen it while m_restore_pending is set.
     juce::AudioDeviceManager::AudioDeviceSetup m_previous_setup;
     juce::String m_previous_device_type;
 
-    // True between construction and an apply open attempt or cancel when there was an
-    // actually-open device to restore. Gates cancel() and ~Impl() so they cannot accidentally
-    // start audio from an originally-closed state.
+    // True while there is a route to give back: set at construction when hardware was open, and
+    // again by a failed apply (which stored the failed route as the choice); cleared by an apply
+    // that is adopted and by cancel(). Gates cancel() and ~Impl() so they cannot start audio from
+    // an originally-closed state.
     bool m_restore_pending{false};
 
     // Staged route edited independently from the active device manager until apply().

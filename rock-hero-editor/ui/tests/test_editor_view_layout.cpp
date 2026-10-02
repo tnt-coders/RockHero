@@ -169,7 +169,7 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
     const int track_height = arrangement_view.getHeight();
     // The timeline's own pixels are what a resize must not rescale. The canvas around them does
     // move: the gutter it keeps before time zero is a fraction of the view, so it tracks the
-    // window exactly as the playback follow park it mirrors does.
+    // window exactly as the playback follow's park column, which it mirrors, does.
     const int timeline_pixels = track_content.getWidth() - timelineGutterWidth(viewport);
 
     view.setBounds(0, 0, 1000, 500);

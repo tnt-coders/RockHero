@@ -158,7 +158,7 @@ struct StubTransport final : public common::audio::ITransport
     void removeListener(Listener& /*listener*/) override
     {}
 
-    // Seek target this stub records; the row itself no longer reads the transport position.
+    // Seek target this stub records; the row itself never reads the transport position.
     common::core::TimePosition current_position{};
 
     // Engaged normalized loop region; nullopt while looping is disengaged.
@@ -341,8 +341,8 @@ TEST_CASE("Tone track paints region borders through a window at high zoom", "[ui
 {
     ToneTrackHarness harness;
 
-    // A 4-minute song at the 1264 px/s zoom cap: the row is ~303k px wide. Split at 16 s; the
-    // second region (16..240 s) is active and selected, exactly the reported scenario.
+    // A 4-minute song at 1264 px/s: the row is ~303k px wide, already far past what the D2D peer
+    // strokes intact. Split at 16 s; the second region (16..240 s) is active and selected.
     const double duration = 240.0;
     const int width = static_cast<int>(duration * 1264.0);
     harness.view.setSize(width, 40);

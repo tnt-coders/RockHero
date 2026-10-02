@@ -128,7 +128,7 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
     HighwayAtlases atlases;
     atlases.glyph_layout = g_glyph_layout;
 
-    // Head atlas: the reference 4x4 channel-scheme asset (one art set for every consumer)
+    // Head atlas: the reference 4-column channel-scheme asset (one art set for every consumer)
     // uploads verbatim when it decodes; empty or undecodable bytes leave the handle invalid
     // and the layout empty, which the renderer rejects at create — required product content,
     // never silently substituted.

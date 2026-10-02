@@ -413,8 +413,8 @@ TEST_CASE(
     CHECK(view.close_call_count == 1);
 }
 
-// Async OK failure restores editing and pushes the backend error into view state so the existing
-// in-dialog error label can display the diagnostic.
+// Async OK failure restores editing and pushes the backend error into view state so the dialog's
+// error label can display the diagnostic.
 TEST_CASE(
     "AudioDeviceSettingsController restores editing on async OK failure",
     "[core][audio-device-settings]")
@@ -551,7 +551,8 @@ TEST_CASE(
     controller.onControlPanelRequested();
 
     CHECK(settings.control_panel_call_count == 0);
-    // The unavailability also reaches the view state so the button can gray out with its tooltip.
+    // The unavailability reaches the view as the staged-device error beside a still-supported
+    // control panel, so the button can gray out with its tooltip.
     CHECK(view.last_state.control_panel_supported);
     CHECK(view.last_state.staged_device_error.has_value());
 }

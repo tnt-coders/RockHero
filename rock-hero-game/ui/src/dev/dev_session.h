@@ -1,6 +1,6 @@
 /*!
 \file dev_session.h
-\brief Development fixture session: --dev-package loading, hot reload, seeks, stand-in clock.
+\brief Chart display session: package loading, hot reload, section seeks, stand-in clock.
 */
 
 #pragma once
@@ -19,13 +19,13 @@ namespace rock_hero::game::ui
 {
 
 /*!
-\brief Owns the --dev-package fixture for one shell run.
+\brief Owns the displayed chart of one loaded package for one shell run.
 
-Everything here is development machinery that later plans replace wholesale: plan 26's library
-supplies real song selection, plan 21's engine supplies the real playback clock. Until then this
-unit loads the package's first charted arrangement, publishes a stand-in clock that plays from
-load, watches the package source for edits (chart hot-reload, plan 20 Phase 4), and executes the
-diagnostics layer's seek-to-section intents by re-anchoring that clock.
+Serves both the --dev-package path and a song picked from the menu. It loads the package's first
+charted arrangement (preferring a guitar part), publishes a stand-in clock that plays from load for
+runs with no gameplay session driving song time, watches the package source for edits (chart hot
+reload, polled only in dev mode), and executes the diagnostics layer's seek-to-section intents by
+re-anchoring that clock.
 */
 class DevSession
 {

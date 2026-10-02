@@ -12,7 +12,7 @@ using testing::getPlayPauseButton;
 using testing::getStopButton;
 
 // Drives a key press through the command manager's mapping set exactly the way the window
-// shell's key-listener attachment does: chord matching, enablement, then perform.
+// shell's keyPressed dispatch does: chord matching, enablement, then perform.
 [[nodiscard]] bool pressCommandKey(EditorView& view, const juce::KeyPress& key)
 {
     juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
@@ -22,11 +22,11 @@ using testing::getStopButton;
 } // namespace
 
 // The marker verbs read the core's published VERB and nothing else — not the drawn selection, not
-// the project gate they used to keep. Phase 3 retired the grammar's rule 2 (a chord SELECTS the
-// marker at the cursor) and moved the restate off the selection's flags, so a chord over an
-// outlined chip authors nothing, and with every verb published as nothing all four presses are
-// inert: no select, no author, no prompt raised. Inert rather than declined, which is what keeps
-// JUCE from sounding the system alert for a chord its own mapping set matched.
+// a project gate of their own. A chord never SELECTS the marker at the cursor and the restate does
+// not read the selection's flags, so a chord over an outlined chip authors nothing, and with every
+// verb published as nothing all four presses are inert: no select, no author, no prompt raised.
+// Inert rather than declined, which is what keeps JUCE from sounding the system alert for a chord
+// its own mapping set matched.
 //
 // The branches that DO act open modal prompts or popup menus, which a headless view test cannot
 // dismiss; what each verb names is pinned in the core's own suites instead.
@@ -43,7 +43,8 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
     core::EditorViewState state{};
     state.project_loaded = true;
     // A chip and a region drawn SELECTED, with every published verb left at its default nothing:
-    // under the old rule the section chord would have restated the chip and Enter its name.
+    // a view that read the selection would have the section chord restate the chip and Enter
+    // rename it.
     state.sections = {
         core::SongSectionViewState{
             .seconds = 4.0,
@@ -654,8 +655,8 @@ TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][k
         }
     }
 
-    // Exact matching refuses the Alt-composed neighbor of Ctrl+T (the fine-tier authoring
-    // namespace) and the Shift-composed neighbor of Ctrl+Z (which belongs to Redo).
+    // Exact matching refuses the Alt-composed neighbor of Ctrl+T and the Shift-composed neighbor
+    // of Ctrl+Z (which belongs to Redo).
     const juce::KeyPress ctrl_alt_t{
         't',
         juce::ModifierKeys{juce::ModifierKeys::commandModifier | juce::ModifierKeys::altModifier},

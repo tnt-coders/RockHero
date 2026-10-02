@@ -16,7 +16,7 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Default scrape endpoints, corpus-derived (plan 55 Phase 2).
+\brief Default scrape endpoints, corpus-derived.
 
 Down-slides overwhelmingly start at the neck's high end (~70% at fret 13 and above) and end
 low (~80% at or below fret 7); up-slides mirror it.
@@ -33,8 +33,8 @@ Whole-note-referenced like every other duration bound (grid_arithmetic.h), never
 signature-beat-referenced, so a scrape authored in 12/8 gets a real quarter note rather than an
 eighth-note stub.
 
-Deliberately NOT the corpus median — recorded because the evidence was weighed and set aside rather
-than missed. A 102-song survey measures real notated scrapes at a median AND mode of 2 beats
+Deliberately NOT the corpus median, whose evidence is weighed and set aside here rather than
+missed. A 102-song survey measures real notated scrapes at a median AND mode of 2 beats
 (~0.92 s), but from only 23 gestures across 14 files (13.7%), with p10—p90 spanning 0.8 to 4.0
 beats; the point estimate also moves to 3.0 beats once one song's four-scrape burst is set aside,
 so the data cannot separate 2 from 3. Against that, a quarter note is the natural starting length
@@ -112,8 +112,8 @@ moves). Turnaround keyframes are authored later, never synthesized here — a de
 straight drag.
 
 \param note Note receiving the path; the caller owns setting the attack itself, and owns a ring
-long enough to hold a gesture (\ref g_minimum_slide_window) — every note rings, so
-there is no zero to extend here.
+long enough to hold a gesture (\ref g_minimum_slide_window) — every note rings, so there is no
+zero to extend here.
 \param upward True to scrape toward the neck's high end, false toward the low end.
 \param capo The tuning's capo, which floors the low endpoint (\ref pickSlideDefaultLowFret).
 */

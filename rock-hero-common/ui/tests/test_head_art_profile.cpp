@@ -339,7 +339,7 @@ TEST_CASE("The shipped head art satisfies its authoring contract", "[ui][highway
         return;
     }
 
-    // Centred art in both measured cells: the marks-final centring contract, read from the bytes.
+    // Centred art in both measured cells: the atlas's centring contract, read from the bytes.
     CHECK(std::abs(profile->center_x_texels) < 0.05);
     CHECK(std::abs(profile->center_y_texels) < 0.05);
     CHECK(std::abs(profile->node_center_x_texels) < 0.05);

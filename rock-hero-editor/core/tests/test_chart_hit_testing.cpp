@@ -354,12 +354,9 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
     CHECK(selection.empty());
 }
 
-// The selection unit is (kind, slot) and not the slot alone. Chart validation keeps a note and a
-// marker off the same slot, so this pairing never reaches the selection from a valid chart — it is
-// asserted anyway because the selection answers the question BEFORE any chart is consulted, and
-// because the identity has to survive a selectable that is not slot-unique at all (a note's own
-// keyframe, sharing the slot space with its note). A slot-only key would silently make one of
-// these two objects unselectable.
+// The selection unit is the kind's own key and not the slot alone: a note's keyframe shares the
+// slot space with its note, so the identity has to survive a selectable that is not slot-unique. A
+// slot-only key would silently make one of these two objects unselectable.
 TEST_CASE("Chart selection keys separate the kinds sharing one slot", "[core][chart]")
 {
     const ChartSlotKey slot = slotAt(2, 1);
@@ -478,7 +475,7 @@ TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
 }
 
 // The marquee reaches exactly what the click reaches, so a box drawn over a junction selects that
-// junction — and the collection order is notes, then markers, then keyframes.
+// junction — and the collection order is notes, then keyframes.
 TEST_CASE("Chart hit testing collects keyframe heads inside a marquee box", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeGlideTabState();

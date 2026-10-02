@@ -18,8 +18,8 @@ namespace rock_hero::game::core
 namespace
 {
 
-// Key names are an implementation detail (constraint (b)); consumer plans add keys through the
-// port, never by writing to the file directly.
+// Key names are an implementation detail; new settings add keys through the port, never by
+// writing to the file directly.
 constexpr const char* g_profile_id_key = "profileId";
 constexpr const char* g_profile_display_name_key = "profileDisplayName";
 constexpr const char* g_first_run_completed_key = "firstRunCompleted";
@@ -146,10 +146,10 @@ constexpr const char* g_default_profile_display_name = "Player";
 
 } // namespace
 
-// Opens the per-user store lazily; a missing file is simply an empty property set. Adopting the
-// shared options also fixed a divergence: the old local copy left JUCE's three-second save timer
-// armed, which the game's SDL loop would never have fired, so a setter's value now reaches disk
-// at the write (settings_file_options.h states why zero is the one non-negotiable field).
+// Opens the per-user store lazily; a missing file is simply an empty property set. The shared
+// options disarm JUCE's save timer, which the game's SDL loop would never fire, so a setter's
+// value reaches disk at the write (settings_file_options.h states why zero is the one
+// non-negotiable field).
 GameSettings::GameSettings()
     : m_properties{common::core::settingsFileOptions(common::core::gameApplicationName())}
 {}

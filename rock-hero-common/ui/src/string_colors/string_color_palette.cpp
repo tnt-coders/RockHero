@@ -42,7 +42,6 @@ constexpr ArgbColor g_opaque_alpha = 0xff000000U;
 // and the struck pair reads as near-duplicates at any saturation, while the 8th is the one
 // string whose fundamental folds outside visible light — no hue to represent — making the
 // achromatic (also the CIELAB sweep's pick, and Charter's own STRING_7) the honest false color.
-// See plan 45 open question 2.
 constexpr StringColorPalette g_charter_classic_palette{
     .id = "charter-classic",
     .standard =
@@ -74,7 +73,7 @@ static_assert(
 
 // Accent brightening that keeps the string's hue: java's brighter() clamps each channel
 // independently, so Charter's ring.brighter().brighter() bleaches saturated hues toward yellow
-// or white (an orange or green accent glow rendered yellow). One shared gain preserves the
+// or white (an orange or green accent glow would render yellow). One shared gain preserves the
 // channel ratios; it targets java's double-brighter intensity (1 / 0.7^2) and stops where the
 // hottest channel saturates. Rounded, not truncated, so a capped gain lands the hottest channel
 // exactly on 255.
@@ -96,7 +95,6 @@ static_assert(
 } // namespace
 
 // The six highest lanes take the standard set; lower lanes walk the extended tier downward.
-// Ported verbatim from the editor tab renderer so the extraction is behavior-preserving.
 ArgbColor stringLaneColor(
     int displayed_string, int displayed_string_count, const StringColorPalette& palette)
 {

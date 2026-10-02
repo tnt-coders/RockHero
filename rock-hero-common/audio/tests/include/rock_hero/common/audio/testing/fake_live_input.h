@@ -36,8 +36,8 @@ enum class LiveInputSetter : std::uint8_t
 \brief One recorded ILiveInput setter invocation, ordered across all three setters.
 
 The trace records every invocation, including ones that return an injected failure, so the ordered
-sequence characterizes the exact port-driving contract independent of which store or error type a
-later refactor uses.
+sequence characterizes the exact port-driving contract independent of the store or error types the
+code under test uses.
 */
 struct LiveInputSetterCall
 {
@@ -122,11 +122,10 @@ inline std::ostream& operator<<(std::ostream& stream, const LiveInputSetterCall&
 
 Use this when a test must characterize the exact live-input port-driving contract: the order across
 setInputGain, setLiveInputMonitoringEnabled, and setCalibrationInputMonitoringEnabled, and whether a
-given invocation failed. It mirrors the state-tracking of the shared transport fake (current gain,
-monitoring flags) so route snapshots and best-effort rollbacks behave as the production backend
-would, while adding the cross-setter ordered trace the transport fake lacks. Inject a one-shot
-failure through the matching next_set_*_error member; the failing call is still recorded in the
-trace, matching the production backend's "one setter call regardless of success" contract.
+given invocation failed. It also tracks the current gain and monitoring flags, so reads after a
+setter answer as the production backend would. Inject a one-shot failure through the matching
+next_set_*_error member; the failing call is still recorded in the trace, matching the production
+backend's "one setter call regardless of success" contract.
 */
 class FakeLiveInput final : public ILiveInput
 {
@@ -162,8 +161,8 @@ public:
     }
 
     /*!
-    \brief Returns the configured raw input meter level.
-    \return Latest raw input meter level.
+    \brief Returns the configured raw input meter level; reads never consume it.
+    \return Configured raw input meter level.
     */
     [[nodiscard]] AudioMeterLevel readRawInputMeterLevel() override
     {

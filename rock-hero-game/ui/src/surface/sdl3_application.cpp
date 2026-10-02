@@ -18,7 +18,7 @@ namespace
 // messages; this is a safety valve against a pathological self-posting burst, not a tuned value.
 constexpr int g_max_juce_messages_per_frame = 256;
 
-// Emits the Phase 3 timing channels: a per-frame trace record (dormant at the logger's default
+// Emits the frame timing channels: a per-frame trace record (dormant at the logger's default
 // Info runtime level; the --dev flag lowers the level to Trace) and a once-per-second pacing
 // summary at Info so steady-state logs stay readable. mirror_age_ns logs -1 while the playback
 // clock has never published. Returns the pacing summary when this frame closed a window so the
@@ -94,7 +94,7 @@ int SDL3Application::run()
         // Post-frame stamp: the frame boundary that paces the loop. It is a pacing anchor, not
         // photon time — bgfx presents the PREVIOUS frame at the top of each submit, and DXGI
         // queues presents ahead; plan 13's video-offset calibration owns that quasi-constant
-        // chain (magnitudes recorded in the plan-20 Phase 3 record).
+        // chain (magnitudes recorded in plan 20).
         const std::chrono::nanoseconds frame_boundary_time =
             std::chrono::steady_clock::now().time_since_epoch();
         const std::optional<core::FramePacingSummary> summary = logFrameInstrumentation(

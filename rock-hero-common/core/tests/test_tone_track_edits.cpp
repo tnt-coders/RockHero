@@ -42,6 +42,8 @@ constexpr const char* g_tone_y = "tones/y/tone.json";
 
 } // namespace
 
+// Verifies the containing-region lookup every edit starts from: a start belongs to the region it
+// opens, and a position before the first region lies in none.
 TEST_CASE("toneRegionAt names the last region starting at or before a position", "[core][tone]")
 {
     const ToneTrack track = makeAlternatingTrack();
@@ -56,6 +58,8 @@ TEST_CASE("toneRegionAt names the last region starting at or before a position",
     CHECK(toneRegionAt(late, at(1)) == nullptr); // before the first region: nowhere
 }
 
+// Verifies the boundary law: a region repeating its predecessor's tone is dropped, and the earlier
+// region's id and start survive.
 TEST_CASE("coalesceToneRegions keeps the earlier of two regions on one tone", "[core][tone]")
 {
     ToneTrack track;
@@ -76,6 +80,8 @@ TEST_CASE("coalesceToneRegions keeps the earlier of two regions on one tone", "[
     CHECK(track.regions[2].id == "e");
 }
 
+// Verifies a create splits its containing region at the position: the earlier tone runs up to the
+// marker and the new region begins there.
 TEST_CASE("createToneRegion splits the region containing the position", "[core][tone]")
 {
     ToneTrack track;
@@ -92,6 +98,7 @@ TEST_CASE("createToneRegion splits the region containing the position", "[core][
     CHECK(track.regions[1].tone_document_ref == g_tone_y);
 }
 
+// Verifies the split lands in the region containing the position, not the first or last one.
 TEST_CASE("createToneRegion splits the correct region among several", "[core][tone]")
 {
     ToneTrack track;
@@ -106,6 +113,7 @@ TEST_CASE("createToneRegion splits the correct region among several", "[core][to
     CHECK(track.regions[2].start == at(4));
 }
 
+// Verifies a create on an existing region start is refused and leaves the track unchanged.
 TEST_CASE("createToneRegion rejects a position on a region start", "[core][tone]")
 {
     ToneTrack track;
@@ -122,6 +130,7 @@ TEST_CASE("createToneRegion rejects a position on a region start", "[core][tone]
     CHECK(track.regions.size() == 2); // unchanged on failure
 }
 
+// Verifies a split onto the tone already sounding coalesces straight back out.
 TEST_CASE("createToneRegion with the containing region's tone changes nothing", "[core][tone]")
 {
     ToneTrack track;
@@ -134,6 +143,7 @@ TEST_CASE("createToneRegion with the containing region's tone changes nothing", 
     CHECK(track.regions[0].id == "a");
 }
 
+// Verifies a split onto the next region's tone moves that tone change back to the marker.
 TEST_CASE("createToneRegion with the next region's tone pulls that tone back", "[core][tone]")
 {
     ToneTrack track;
@@ -149,6 +159,7 @@ TEST_CASE("createToneRegion with the next region's tone pulls that tone back", "
     CHECK(track.regions[1].tone_document_ref == g_tone_y);
 }
 
+// Verifies a delete hands the removed span to the previous region.
 TEST_CASE("deleteToneRegion lets the previous region run on over the removed span", "[core][tone]")
 {
     ToneTrack track;
@@ -167,6 +178,7 @@ TEST_CASE("deleteToneRegion lets the previous region run on over the removed spa
     CHECK(track.regions[1].start == at(5)); // a runs on to here
 }
 
+// Verifies a delete that leaves two neighbors on one tone merges them into one region.
 TEST_CASE("deleteToneRegion merges the neighbors it brings together", "[core][tone]")
 {
     ToneTrack track = makeAlternatingTrack();
@@ -180,6 +192,8 @@ TEST_CASE("deleteToneRegion merges the neighbors it brings together", "[core][to
     CHECK(track.regions[0].tone_document_ref == g_tone_x);
 }
 
+// Verifies deleting the first region moves the next region's start back to the song start, so the
+// song stays covered.
 TEST_CASE("deleteToneRegion on the first region hands the song start to the next", "[core][tone]")
 {
     ToneTrack track;
@@ -193,6 +207,7 @@ TEST_CASE("deleteToneRegion on the first region hands the song start to the next
     CHECK(track.regions[0].start == at(1)); // extended back
 }
 
+// Verifies the last remaining region cannot be deleted: the song must always stay covered.
 TEST_CASE("deleteToneRegion refuses to remove the only region", "[core][tone]")
 {
     ToneTrack track;
@@ -205,6 +220,7 @@ TEST_CASE("deleteToneRegion refuses to remove the only region", "[core][tone]")
     CHECK(track.regions.size() == 1);
 }
 
+// Verifies a delete naming no region on the track is refused and changes nothing.
 TEST_CASE("deleteToneRegion rejects an unknown region", "[core][tone]")
 {
     ToneTrack track;
@@ -217,6 +233,7 @@ TEST_CASE("deleteToneRegion rejects an unknown region", "[core][tone]")
     CHECK(track.regions.size() == 2);
 }
 
+// Verifies a retone onto a tone neither neighbor uses changes only that region's tone.
 TEST_CASE("retoneToneRegion repoints a region between other tones", "[core][tone]")
 {
     ToneTrack track = makeAlternatingTrack();
@@ -228,6 +245,7 @@ TEST_CASE("retoneToneRegion repoints a region between other tones", "[core][tone
     CHECK(track.regions[1].tone_document_ref == "tones/z/tone.json");
 }
 
+// Verifies a retone onto the previous region's tone dissolves the region into its predecessor.
 TEST_CASE("retoneToneRegion onto the previous tone merges the region into it", "[core][tone]")
 {
     ToneTrack track = makeAlternatingTrack();
@@ -240,6 +258,7 @@ TEST_CASE("retoneToneRegion onto the previous tone merges the region into it", "
     CHECK(track.regions[0].start == at(1));
 }
 
+// Verifies a retone onto the next region's tone absorbs that next region.
 TEST_CASE("retoneToneRegion onto the next tone takes the next region into it", "[core][tone]")
 {
     ToneTrack track = makeAlternatingTrack();
@@ -254,6 +273,7 @@ TEST_CASE("retoneToneRegion onto the next tone takes the next region into it", "
     CHECK(track.regions[1].start == at(5));
 }
 
+// Verifies a retone naming no region on the track is refused and changes nothing.
 TEST_CASE("retoneToneRegion rejects an unknown region", "[core][tone]")
 {
     ToneTrack track = makeAlternatingTrack();
@@ -265,6 +285,8 @@ TEST_CASE("retoneToneRegion rejects an unknown region", "[core][tone]")
     CHECK(track.regions == makeAlternatingTrack().regions);
 }
 
+// Verifies a boundary moves freely strictly between its neighbors' starts, the last region's
+// boundary included.
 TEST_CASE("moveToneBoundary moves a region's start between its neighbors", "[core][tone]")
 {
     ToneTrack track = makeAlternatingTrack();
@@ -276,6 +298,8 @@ TEST_CASE("moveToneBoundary moves a region's start between its neighbors", "[cor
     CHECK(track.regions[2].start == at(8));
 }
 
+// Verifies the first region's start cannot move, no boundary may reach a neighbor's start, and an
+// unknown region is refused, leaving the track unchanged on every refusal.
 TEST_CASE("moveToneBoundary refuses the song start and a crossed neighbor", "[core][tone]")
 {
     ToneTrack track = makeAlternatingTrack();

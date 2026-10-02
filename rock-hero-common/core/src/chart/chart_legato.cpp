@@ -186,7 +186,7 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
     const std::vector<ChartNote>& notes = connections.saved_notes;
     // THE HOLD-UNDER DERIVATION, read off the connections this walk already resolved: a PULL-OFF
     // states the stop planted beneath its source, because a finger has to be waiting on a fret to
-    // be pulled off onto — whichever hand made the source's onset. It is a fact about the SLIDE-OUT
+    // be pulled off onto — whichever hand made the source's onset. It is a fact about the RELEASE
     // and no earlier instant, so what it may state to a grip is \ref gripStatement's to decide; it
     // is written NOWHERE, because the notation already states it, in the pull-off itself.
     std::vector<std::optional<int>> planted(notes.size());
@@ -209,8 +209,8 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
         // finger it proves is on the string AT THE RELEASE, and a finger arriving behind a sliding
         // one and waiting there when it lifts is the ordinary two-finger landing of a slid
         // pull-off. The Pull resolution already puts the stop strictly below the fret released
-        // from; no other bound exists (RULED 2026-09-29). The onset's traveled range bounds the
-        // RIDE instead (\ref gripStatement).
+        // from; no other bound exists. The onset's traveled range bounds the RIDE instead
+        // (\ref gripStatement).
         planted[onset] = stop;
     }
     return planted;

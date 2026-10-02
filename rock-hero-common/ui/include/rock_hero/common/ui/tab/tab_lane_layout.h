@@ -18,9 +18,9 @@ namespace rock_hero::common::ui
 /*!
 \brief Optional style variants of the shared notation renderer.
 
-The single home for future presentation variants; today it carries only the scale knob. The
-defaults reproduce the editor tab lane's shipped behavior exactly, so a default-constructed
-style keeps every existing consumer byte-identical.
+The single home for presentation variants; it carries only the scale knob. The defaults
+reproduce the editor tab lane's behavior exactly, so a default-constructed style draws every
+consumer the way the editor lane does.
 */
 struct TabLaneStyle
 {
@@ -79,7 +79,7 @@ struct TabBracketGeometry
 
 Whole pixels, because the bracket draws as pixel-snapped rectangles: the marks stay perfectly square
 instead of antialiasing into fuzz. It is a struct rather than four expressions because three passes
-now have to land on exactly the same edges — the fill that draws the bars, the string-line gap that
+have to land on exactly the same edges — the fill that draws the bars, the string-line gap that
 clears them, and the satellite digit that sits outboard of the closing bar — and an edge that missed
 its bar by half a pixel would look like a rendering bug rather than a spelling one.
 */
@@ -102,7 +102,7 @@ struct TabBracketColumns
 \brief The posture SATELLITE slot: the outboard digit column beside a bracket's closing bar.
 
 Where a posture fret prints when the head at the MARK'S OWN INSTANT sounds a different one — the
-two-hand tapping case, and now the ordinary case for any right-hand onset carrying a held stop. Two
+two-hand tapping case, and the ordinary case for any right-hand onset carrying a held stop. Two
 slots make that conflict unrepresentable instead of arbitrated: the head's centre carries what
 SOUNDS and this carries what the fretting hand HOLDS.
 
@@ -219,8 +219,8 @@ struct TabLaneGeometry
     line offset — the bars straddle the clearance radius — which is the same measure the layout
     manifest bounds the mark with.
 
-    \param center_x Mark's centre column: the instant the bracket prints at, which since [D2]'s
-           amendment 2 is not in general its span's start.
+    \param center_x Mark's centre column: the instant the bracket prints at, which is not in
+           general its span's start.
     \param center_y Lane centre of the bracket's string.
 
     \return The bars' outer columns and their shared top and bottom.

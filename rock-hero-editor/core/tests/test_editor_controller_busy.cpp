@@ -506,7 +506,8 @@ TEST_CASE("EditorController open completion clears busy and commits", "[core][ed
     CHECK(view.shown_errors.empty());
 }
 
-// A failed open clears busy first, then reports the error through the existing one-shot path.
+// A failed open clears busy first, then reports the error through the one-shot error path, so the
+// error is never shown over a busy overlay.
 TEST_CASE(
     "EditorController failed open clears busy then reports error", "[core][editor-controller]")
 {
@@ -755,9 +756,9 @@ TEST_CASE(
     CHECK(active_asset->path == std::filesystem::path{"second.wav"});
 }
 
-// Stop on the message thread is not required by the task runner contract, but the controller
-// must still call ISongAudio::prepareSong() during the message-thread commit stage rather than the
-// worker. The deferred runner exposes this: prepareSong is not called until completion runs.
+// The controller calls ISongAudio::prepareSong() in the message-thread commit stage, never on the
+// worker. The deferred runner exposes the split: the open's work runs at submit, but prepareSong
+// is not called until the completion runs.
 TEST_CASE(
     "EditorController prepareSong runs on message-thread completion stage",
     "[core][editor-controller]")

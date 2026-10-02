@@ -100,9 +100,9 @@ released at each note's drawn end, that light would dip at every margin trim and
 sustainless chug riff, so a dark gap has to be long enough to read as a rest rather than as a
 flicker before the light goes out. And a repeated tap within it is an established position, so its
 number is not printed again. Seconds rather than beats because that is a readability question, not
-a musical one — the minimum sustain distance, the same question for tails, sighted more
-consistently across slow and fast songs once it was time-based — and because the light's own rise
-and decay are already in seconds. The value is a sighting knob.
+a musical one — the minimum sustain distance, the same question for tails, reads consistently
+across slow and fast songs because it is time-based — and because the light's own rise and decay
+are already in seconds. The value is a sighting knob.
 */
 inline constexpr double g_hand_rest_seconds = 1.0;
 
@@ -110,7 +110,7 @@ inline constexpr double g_hand_rest_seconds = 1.0;
 \brief The picking hand's light merges its evidence under this gap (\ref mergeLitEvidence).
 
 Zero: every strike is its own light, and the dip between strikes mirrors the finger lifting. Strikes
-that overlap still merge, since their gap is negative. A look ruled on sight, distinct from the
+that overlap still merge, since their gap is negative. A look chosen on sight, distinct from the
 establishment rule (\ref g_hand_rest_seconds) the picking hand's labels still follow.
 */
 inline constexpr double g_pick_light_rest_seconds = 0.0;
@@ -124,9 +124,9 @@ splits, and a gap narrower than \ref g_onset_match_epsilon never does, so the me
 stay one light even under a zero tolerance. Each run folds into one stretch: the earliest start,
 the latest release, and the widest rise among the items starting within
 \ref g_onset_match_epsilon of that earliest start (a later item's rise ends at its own start,
-where the light is already full). Each stretch is then crowded after the
-one before it: its rise is clamped to the gap after the previous release, so a light never rises
-back through an earlier hold.
+where the light is already full). Each stretch is then crowded after the one before it: its rise
+is clamped to the gap after the previous release, so a light never rises back through an earlier
+hold.
 
 Taken by value on purpose: the merge sorts its evidence and folds it in place, returning the same
 storage.

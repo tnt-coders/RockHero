@@ -19,10 +19,10 @@ JuceEditorTaskRunner::~JuceEditorTaskRunner()
 }
 
 // Joins any prior worker, then spawns a new worker that runs work and posts completion to the
-// message thread through juce::MessageManager::callAsync. Holding only one worker at a time is
-// fine for Slice 1: Close and Exit supersede in-flight operations by advancing the controller's
-// current busy token, and the controller does not submit a new open or import while a prior one
-// is still in flight without an intervening supersede.
+// message thread through juce::MessageManager::callAsync. Holding only one worker at a time
+// suffices: Close and Exit supersede in-flight operations by advancing the controller's current
+// busy token, and the controller never submits a new operation while a prior one is in flight
+// without an intervening supersede.
 void JuceEditorTaskRunner::submit(std::function<void()> work, std::function<void()> completion)
 {
     if (m_worker.joinable())

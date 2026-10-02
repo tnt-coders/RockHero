@@ -49,6 +49,8 @@ LiveInputMonitor::LiveInputMonitor(
     , m_audio_config_store(audio_config_store)
 {}
 
+// The ordered gate: the first failing check names the status, and every check that fails turns
+// processed monitoring off, so the route is only ever live when all of them pass.
 LiveInputMonitoringStatus LiveInputMonitor::refresh(LiveInputMonitoringContext context)
 {
     // A measurement still running here was ended by the gate, not by its own result; one already
@@ -252,6 +254,8 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitCalibration(
     return {};
 }
 
+// Turns processed monitoring off and records why; a refusal is only logged, because the gate's
+// answer is the status either way.
 LiveInputMonitoringStatus LiveInputMonitor::disable(LiveInputMonitoringStatus status)
 {
     logIfRefused(m_live_input.setLiveInputMonitoringEnabled(false), "gate monitoring disable");

@@ -46,8 +46,8 @@ struct BoxMuteProfile
 
     /*!
     \brief Arm stroke half width as a fraction of the glyph rect height — the outermost
-    falling crossing of half the glyph's peak alpha, so faint or hollow cores and rims
-    authored below full opacity all anchor to the rim's outer edge.
+    falling crossing of half the glyph's peak coverage, so faint or hollow cores and rims
+    authored below full coverage all anchor to the rim's outer edge.
     */
     double stroke_half_fraction{0.0};
 

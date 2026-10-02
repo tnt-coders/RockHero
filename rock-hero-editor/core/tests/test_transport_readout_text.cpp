@@ -62,7 +62,7 @@ TEST_CASE("Beat position text tracks the transport position", "[core][readout]")
 
 // Verifies a mid-span downbeat displays as its own measure start. The seconds-to-beat inverse of
 // forward-mapped downbeat seconds can round to just under the whole beat (e.g. 3.9999...), and
-// the readout once floored that raw, showing 1.4.99 when the cursor sat exactly on measure 2.
+// flooring that raw would show 1.4.99 with the cursor exactly on measure 2.
 TEST_CASE("Beat position text lands on measure starts", "[core][readout]")
 {
     // Two 4/4 measures over 7.3s: measure 2's downbeat is not an anchor, so its seconds resolve

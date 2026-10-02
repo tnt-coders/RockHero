@@ -38,13 +38,19 @@ public:
     /*! \brief Copying is disabled because the store owns an inter-process lock. */
     AudioConfigStore(const AudioConfigStore&) = delete;
 
-    /*! \brief Copy assignment is disabled because the store owns an inter-process lock. */
+    /*!
+    \brief Copy assignment is disabled because the store owns an inter-process lock.
+    \return Reference to this store.
+    */
     AudioConfigStore& operator=(const AudioConfigStore&) = delete;
 
     /*! \brief Moving is disabled because the store's options point at its own lock. */
     AudioConfigStore(AudioConfigStore&&) = delete;
 
-    /*! \brief Move assignment is disabled because the store's options point at its own lock. */
+    /*!
+    \brief Move assignment is disabled because the store's options point at its own lock.
+    \return Reference to this store.
+    */
     AudioConfigStore& operator=(AudioConfigStore&&) = delete;
 
     /*! \brief Destroys the store. */
@@ -81,22 +87,17 @@ public:
         InputCalibrationState calibration_state) override;
 
 private:
-    /*!
-    \brief Opens the store at a resolved file; both public constructors delegate here.
-    \param file Audio-config file used for persisted state.
-    */
+    // Opens the store at a resolved file; both public constructors delegate here.
     explicit AudioConfigStore(juce::File file);
 
-    /*!
-    \brief Serializes access to the file across both products. Mutable because a read takes it
-    too: JUCE's reload() locks through m_options.
-    */
+    // Serializes access to the file across both products. Mutable because a read takes it too:
+    // JUCE's reload() locks through m_options.
     mutable juce::InterProcessLock m_lock;
 
-    /*! \brief Properties-file options naming m_lock as the file's process lock. */
+    // Properties-file options naming m_lock as the file's process lock.
     juce::PropertiesFile::Options m_options;
 
-    /*! \brief The audio-config file both products read and write. */
+    // The audio-config file both products read and write.
     juce::File m_file;
 };
 

@@ -28,8 +28,8 @@ namespace
 {
 
 // Minimal IAudioDeviceSettings fake: the native-setup driver only calls apply(); the staged select*
-// surface is what the SDL picker drives (plan 26 Phase 8), so it is a no-op here. apply() returns a
-// configurable result so the device-apply failure path can be exercised without audio hardware.
+// surface is what the device picker drives, so it is a no-op here. apply() returns a configurable
+// result so the device-apply failure path can be exercised without audio hardware.
 class FakeAudioDeviceSettings final : public common::audio::IAudioDeviceSettings
 {
 public:
@@ -87,8 +87,8 @@ public:
     std::optional<common::audio::AudioDeviceSettingsError> next_apply_error{};
 };
 
-// Test-local temp directory owning one test case's game settings
-// file, mirroring test_game_settings.
+// Test-local temp directory owning one test case's game settings file, mirroring
+// test_game_settings.
 class TemporarySettingsDirectory final
 {
 public:

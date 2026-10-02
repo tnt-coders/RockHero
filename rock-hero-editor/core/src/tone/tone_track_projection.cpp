@@ -21,7 +21,7 @@ common::core::TimeRange toneRegionSpanSeconds(
     // The baseline (first) region owns the pre-measure-1 lead-in, so it extends back to the
     // timeline origin; no one-based grid position can address time before measure 1. Later
     // regions use their authored grid start. Endpoints resolve sub-beat exactly — dropping the
-    // offset here once made cursor-follow disagree with the drawn spans on off-beat boundaries.
+    // offset here would make cursor-follow disagree with the drawn spans on off-beat boundaries.
     const common::core::GridPosition start = tone_track.regions[index].start;
     const common::core::GridPosition end = toneRegionEnd(tone_track, index, tempo_map);
     return common::core::TimeRange{

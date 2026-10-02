@@ -310,6 +310,8 @@ template <typename ActionVariant>
 
 } // namespace
 
+// No action or prompt value has a default state, and each subset variant refuses actions outside
+// its own set, so a caller cannot route an action it did not name.
 static_assert(!std::is_default_constructible_v<EditorAction::Action>);
 static_assert(!std::is_default_constructible_v<EditorAction::ProjectAction>);
 static_assert(!std::is_default_constructible_v<EditorAction::ProjectWriteAction>);

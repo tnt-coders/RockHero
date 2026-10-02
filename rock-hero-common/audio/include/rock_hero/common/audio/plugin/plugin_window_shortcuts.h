@@ -3,8 +3,8 @@
 \brief Injected, rebindable plugin-window shortcut bindings and their layout-neutral matcher.
 
 A hosted plugin editor window claims a small set of editor shortcuts before the plugin can
-swallow them (undo, redo, play/pause). The editor owns the actual chords now that all commands
-are user-rebindable, so it injects them here as layout-neutral values; the concrete window and
+swallow them (undo, redo, play/pause). Every command is user-rebindable, so the editor owns the
+actual chords and injects them here as layout-neutral values; the concrete window and
 its Win32 message hook match incoming keys against them. Keeping the value types and the pure
 matcher free of JUCE, Tracktion, and Win32 lets the matching logic be unit-tested headlessly and
 keeps the public port lean.
@@ -160,8 +160,8 @@ struct PluginWindowShortcutBindings
 /*!
 \brief The built-in bindings applied when the editor has injected none.
 
-Keeps the concrete engine behavior-identical to the historical hardcoded trio (Ctrl+Z, Ctrl+Y,
-Space) when it runs without an editor pushing bindings.
+Mirrors the editor's default keymap (Ctrl+Z; Ctrl+Y and Ctrl+Shift+Z; Space) so the concrete
+engine behaves like the editor's defaults when it runs without an editor pushing bindings.
 
 \return The default Undo/Redo/Play-Pause chords.
 */
@@ -181,8 +181,9 @@ Space) when it runs without an editor pushing bindings.
 
 Used by the JUCE `keyPressed` path and by the editor when it converts registry bindings for
 injection, so both sides agree on how a key press maps to a chord. Named keys are recognized by
-key code first (so Return/Tab/arrows/function keys become named chords), otherwise the key is a
-character chord keyed by its lowercased text character.
+key code first (so Return/Tab/arrows/function keys become named chords); numpad keys map to their
+main-row characters; otherwise the key is a character chord keyed by its lowercased key code,
+because the text character is unreliable while Ctrl is held.
 
 \param key JUCE key press.
 \return The equivalent chord.

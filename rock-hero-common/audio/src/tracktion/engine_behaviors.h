@@ -94,8 +94,7 @@ public:
     explicit RockHeroUIBehavior(PluginWindowCommandDispatcher command_dispatcher);
 
     /*!
-    \brief Creates windows only for normal plugin instances; rack windows will get their own UI
-    later.
+    \brief Creates windows only for normal plugin instances; racks get no host window.
     \param window_state Tracktion window state requesting a host window.
     \return The hosting window, or null for unsupported window kinds.
     */

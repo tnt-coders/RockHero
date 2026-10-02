@@ -31,9 +31,9 @@ A value parameter gives the heuristic nothing to key on, and matches JUCE's own 
         return &parent;
     }
 
-    // clang-tidy 21's misc-const-correctness pointee analysis cannot see that this pointer
-    // escapes through the non-const return and demands a pointee-const that would not compile;
-    // the false positive is fixed in clang-tidy 22, which CI and local tooling pin.
+    // The pointee stays non-const because the pointer escapes through the non-const return.
+    // clang-tidy 21's misc-const-correctness misses that escape and demands a pointee-const that
+    // would not compile; clang-tidy 22, which CI and local tooling pin, does not.
     juce::Component* matched_child = nullptr;
     for (int index = 0; index < parent.getNumChildComponents() && matched_child == nullptr; ++index)
     {

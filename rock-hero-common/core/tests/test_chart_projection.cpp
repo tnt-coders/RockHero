@@ -126,7 +126,7 @@ namespace
 
 } // namespace
 
-// The capo rides the projection so a surface can indicate the string floor (roadmap 25-Q6).
+// The capo rides the projection so a surface can indicate the string floor.
 TEST_CASE("Chart projection carries the tuning's capo", "[core][chart]")
 {
     Arrangement arrangement;
@@ -137,6 +137,8 @@ TEST_CASE("Chart projection carries the tuning's capo", "[core][chart]")
     CHECK(makeChartViewState(arrangement, makeTempoMap()).capo == 2);
 }
 
+// The full fixture end to end: every chart position resolves to seconds through the tempo map,
+// beside the derived spans, holds and visible-range indexes the scene carries.
 TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -555,8 +557,7 @@ TEST_CASE("Vibrato wide weight eases from each step and stays within the widths"
 // The vibrato channel reaches both surfaces as the SPANS it states rather than as a flag: each
 // leg of the ring states its own width, so vibrato can begin at a glide's arrival, stop mid-hold,
 // and begin again, and each span has to cover exactly the stretch the channel says it does. The
-// onset-only case is the identity that keeps every chart written before the channel could say
-// anything else drawing precisely what it drew.
+// onset-only case covers the whole ring, exactly as a whole-note vibrato flag would.
 TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -589,8 +590,8 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
-        // Exactly the ring's own two ends, which is what makes this the drawing both surfaces
-        // produced when the channel was one boolean.
+        // Exactly the ring's own two ends: the whole-ring vibrato both surfaces draw for a note
+        // that vibrates from onset to end.
         CHECK_THAT(
             view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
         CHECK_THAT(
@@ -909,6 +910,7 @@ TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[
     CHECK(state.fret_hand_positions[0].unpitched_ramp);
 }
 
+// Verifies an arrangement with no chart projects an empty scene that names no strings.
 TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
 {
     Arrangement arrangement = makeArrangementWithChart();
@@ -1269,8 +1271,8 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
 }
 
 // A shift slide's ARRIVAL is pitched even where the crop stops the ink before it, and only the
-// resolved relation says so. Reading it as a slide-out eased the window — and every open-string
-// band behind it — with the slide-out curve instead of the glide's.
+// resolved relation says so. Reading it as a slide-out would ease the window — and every
+// open-string band behind it — with the slide-out curve instead of the glide's.
 TEST_CASE("Chart projection keeps a cropped shift slide's arrival ramp pitched", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1444,8 +1446,8 @@ TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core]
 // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so a placement landing
 // on one must take the short margin morph rather than a ramp spanning the held stretch. Holds are
 // how a slide notated on a tied continuation records where it leaves from, so tying their span to
-// the window drifts the hand across the whole tied group to arrive at a fret it never left — the
-// picture at fret 11 of measure 50 of the acceptance song.
+// the window would drift the hand across the whole tied group to arrive at a fret it never left —
+// the picture at fret 11 of measure 50 of the acceptance song.
 TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1837,10 +1839,10 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
     }
 }
 
-// [D2]'s amendment 2, projected. A span an event states keeps its bracket at its own start, because
-// there the start IS the statement. A LANDING-OPENED span states nothing at its landing — a chord
-// slide keeps the fingers planted, so all that happens there is the fingers arriving — and its
-// bracket defers to the span's first interior sounding, where the ink follows the sound.
+// [D2]'s landing rule, projected. A span an event states keeps its bracket at its own start,
+// because there the start IS the statement. A LANDING-OPENED span states nothing at its landing —
+// a chord slide keeps the fingers planted, so all that happens there is the fingers arriving — and
+// its bracket defers to the span's first interior sounding, where the ink follows the sound.
 TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1938,7 +1940,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         REQUIRE(state.shapes.size() == 2);
         // BOX AT BOTH ENDS: the departing grip is struck whole and nothing strikes the successor at
         // all, so neither is an arpeggio and neither draws an opening mark. What the reader sees is
-        // the two boxes and the members' sliding tails between them — [D2] amendment 2's seamless
+        // the two boxes and the members' sliding tails between them — [D2]'s seamless
         // picture, falling out of the class law rather than a carve-out.
         CHECK_FALSE(state.shapes[0].arpeggio);
         CHECK_FALSE(state.shapes[1].arpeggio);

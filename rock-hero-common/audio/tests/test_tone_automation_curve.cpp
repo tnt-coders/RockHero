@@ -99,12 +99,12 @@ TEST_CASE(
         }
     }
 
-    // Segment shape left the port's vocabulary, so it is asserted against the backend curve where
-    // the write seam derives it: this stand-in is continuous, so every segment must be exactly a
-    // linear ramp — the anchor's included, which is what makes the anchor compose with the shape
-    // derivation instead of carrying a shape of its own. A discreteValueCount change that starts
-    // reporting steps for a plain knob fails loudly here instead of silently re-shaping every
-    // continuous curve.
+    // Segment shape is not in the port's vocabulary, so it is asserted against the backend curve
+    // where the write seam derives it: this stand-in is continuous, so every segment must be
+    // exactly a linear ramp — the anchor's included, which is what makes the anchor compose with
+    // the shape derivation instead of carrying a shape of its own. A discreteValueCount change that
+    // starts reporting steps for a plain knob fails loudly here instead of silently re-shaping
+    // every continuous curve.
     const tracktion::AutomatableParameter::Ptr parameter =
         plugin->getAutomatableParameterByID(juce::String{param_id});
     REQUIRE(parameter != nullptr);
@@ -213,8 +213,8 @@ TEST_CASE(
         CHECK(read_back->back().norm_value == Catch::Approx(authored_value));
     }
 
-    // The retroactive lone point is gone by construction: before the authored point the parameter
-    // ramps up FROM the tone state's value instead of already sitting at the point's future value.
+    // No lone point drags the lane retroactively: before the authored point the parameter ramps
+    // up FROM the tone state's value instead of already sitting at the point's future value.
     // Asserted by ordering, because the ramp interpolates in the parameter's own (possibly skewed)
     // range while the port speaks normalised values.
     const tracktion::AutomationCurve& curve = parameter->getCurve();
@@ -294,7 +294,7 @@ TEST_CASE(
     REQUIRE(writePluginParameterCurve(*plugin, parameter->paramID.toStdString(), points));
 
     // The stream Tracktion builds for playback discards any curve of one point or fewer
-    // (AutomationIterator::isEmpty), which is what left a single-point lane silent. The anchor
+    // (AutomationIterator::isEmpty), which would leave a single-point lane silent. The anchor
     // makes the curve two points, so the stream is real and the parameter is genuinely automated.
     const tracktion::AutomationIterator stream{*parameter};
     CHECK_FALSE(stream.isEmpty());

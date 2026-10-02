@@ -52,7 +52,7 @@ class FrameClock
 public:
     /*!
     \brief Creates a frame clock with the given extrapolation feel policy.
-    \param policy Smoothing parameters; defaults are the plan-12 starting values.
+    \param policy Smoothing parameters; the defaults are the shared policy's starting values.
     */
     explicit FrameClock(common::audio::PlaybackClockExtrapolationPolicy policy = {});
 

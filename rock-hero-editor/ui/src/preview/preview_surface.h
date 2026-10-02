@@ -23,8 +23,8 @@ namespace rock_hero::editor::ui
 /*!
 \brief Hosts the shared highway renderer inside the preview window.
 
-Owns a native child window embedded in the preview window's peer (the pattern the G20-RENDER
-spike proved as criterion S2), the process bgfx device, and the shared highway renderer. Frames
+Owns a native child window embedded in the preview window's peer (a pattern the G20-RENDER spike
+validated), the process bgfx device, and the shared highway renderer. Frames
 tick on the message thread at vblank cadence — the editor's established display-refresh
 mechanism — sampling song time from the playback clock while playing (block-quantized transport
 reads shimmer on a moving field) and from the marker rule while paused: the armed caret is THE
@@ -56,9 +56,16 @@ public:
     /*! \brief Detaches (if attached) and destroys the surface. */
     ~PreviewSurface() override;
 
+    /*! \brief Copying is disabled because the surface owns a native window and a GPU device. */
     PreviewSurface(const PreviewSurface&) = delete;
+
+    /*! \brief Copy assignment is disabled because the surface owns native and GPU state. */
     PreviewSurface& operator=(const PreviewSurface&) = delete;
+
+    /*! \brief Moving is disabled because the native child window is bound to this component. */
     PreviewSurface(PreviewSurface&&) = delete;
+
+    /*! \brief Move assignment is disabled because the native child window is bound to this. */
     PreviewSurface& operator=(PreviewSurface&&) = delete;
 
     /*! \brief Brings the render stack up on first open, resumes frame ticks on later opens. */
@@ -88,7 +95,10 @@ public:
     /*! \brief Repositions the embedded child window when the component moves. */
     void moved() override;
 
-    /*! \brief Paints the fallback background (visible only when the render stack is down). */
+    /*!
+    \brief Paints the fallback background (visible only when the render stack is down).
+    \param graphics Graphics context used for drawing.
+    */
     void paint(juce::Graphics& graphics) override;
 
 private:

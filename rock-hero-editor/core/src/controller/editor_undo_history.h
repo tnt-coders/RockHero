@@ -142,8 +142,10 @@ public:
     [[nodiscard]] virtual std::expected<void, EditorUndoFailureCode> redo(
         EditorEditContext& context) const = 0;
 
-    /*! \brief Returns the user-visible command label for menus and diagnostics.
-    \return Human-readable label for this edit. */
+    /*!
+    \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label for this edit.
+    */
     [[nodiscard]] virtual std::string label() const = 0;
 
     /*!
@@ -180,7 +182,7 @@ protected:
     IEdit() = default;
 
 public:
-    /*! \brief Copying and moving are disabled; edits are owned by the history. */
+    /*! \brief Copying is disabled; edits are owned by the history. */
     IEdit(const IEdit&) = delete;
 
     /*! \brief Copy assignment is disabled; edits are owned by the history. */
@@ -344,28 +346,40 @@ violations so the controller can fault the session.
 class EditorUndoHistory final
 {
 public:
-    /*! \brief Creates an empty history with a bounded entry depth.
-    \param max_entries Maximum retained undo entries before the oldest is dropped. */
+    /*!
+    \brief Creates an empty history with a bounded entry depth.
+    \param max_entries Maximum retained undo entries before the oldest is dropped.
+    */
     explicit EditorUndoHistory(std::size_t max_entries = 100);
 
-    /*! \brief Reports the number of entries currently available to undo.
-    \return Current undo depth. */
+    /*!
+    \brief Reports the number of entries currently available to undo.
+    \return Current undo depth.
+    */
     [[nodiscard]] std::size_t undoDepth() const noexcept;
 
-    /*! \brief Reports the number of entries currently available to redo.
-    \return Current redo depth. */
+    /*!
+    \brief Reports the number of entries currently available to redo.
+    \return Current redo depth.
+    */
     [[nodiscard]] std::size_t redoDepth() const noexcept;
 
-    /*! \brief Reports whether an undo transition can begin now.
-    \return True when an undo entry is available and no transition is pending. */
+    /*!
+    \brief Reports whether an undo transition can begin now.
+    \return True when an undo entry is available and no transition is pending.
+    */
     [[nodiscard]] bool canUndo() const noexcept;
 
-    /*! \brief Reports whether a redo transition can begin now.
-    \return True when a redo entry is available and no transition is pending. */
+    /*!
+    \brief Reports whether a redo transition can begin now.
+    \return True when a redo entry is available and no transition is pending.
+    */
     [[nodiscard]] bool canRedo() const noexcept;
 
-    /*! \brief Reports whether a transition is waiting for commit or abort.
-    \return True while a begun transition awaits commit() or abort(). */
+    /*!
+    \brief Reports whether a transition is waiting for commit or abort.
+    \return True while a begun transition awaits commit() or abort().
+    */
     [[nodiscard]] bool hasPendingTransition() const noexcept;
 
     /*!
@@ -381,8 +395,10 @@ public:
     */
     [[nodiscard]] bool hasUnsavedEdits() const noexcept;
 
-    /*! \brief Reports whether a clean marker is currently set and reachable.
-    \return True when markClean() ran and its position is still reachable. */
+    /*!
+    \brief Reports whether a clean marker is currently set and reachable.
+    \return True when markClean() ran and its position is still reachable.
+    */
     [[nodiscard]] bool hasReachableCleanMarker() const noexcept;
 
     /*!
@@ -399,16 +415,22 @@ public:
     */
     [[nodiscard]] bool isAtCleanState() const noexcept;
 
-    /*! \brief Returns the label of the entry that would be undone next.
-    \return Entry label, or empty when nothing can be undone. */
+    /*!
+    \brief Returns the label of the entry that would be undone next.
+    \return Entry label, or empty when nothing can be undone.
+    */
     [[nodiscard]] std::optional<std::string> undoLabel() const;
 
-    /*! \brief Returns the label of the entry that would be redone next.
-    \return Entry label, or empty when nothing can be redone. */
+    /*!
+    \brief Returns the label of the entry that would be redone next.
+    \return Entry label, or empty when nothing can be redone.
+    */
     [[nodiscard]] std::optional<std::string> redoLabel() const;
 
-    /*! \brief Returns a read-only snapshot of the entire stack for diagnostics/visualization.
-    \return All entry labels (oldest first), the cursor position, and any reachable clean marker. */
+    /*!
+    \brief Returns a read-only snapshot of the entire stack for diagnostics/visualization.
+    \return All entry labels (oldest first), the cursor position, and any reachable clean marker.
+    */
     [[nodiscard]] EditorUndoHistorySnapshot snapshot() const;
 
     /*!
@@ -474,15 +496,22 @@ public:
     [[nodiscard]] EditorUndoTransitionResult abort(
         const EditorUndoPendingTransition& pending, EditorUndoFailureCode failure_code);
 
-    /*! \brief Marks the current history position as the clean revision.
-    \return Transition result and events for controller logging. */
+    /*!
+    \brief Marks the current history position as the clean revision.
+    \return Transition result and events for controller logging.
+    */
     [[nodiscard]] EditorUndoTransitionResult markClean();
 
-    /*! \brief Clears all entries, pending state, and clean-marker state.
-    \return Transition result and events for controller logging. */
+    /*!
+    \brief Clears all entries, pending state, and clean-marker state.
+    \return Transition result and events for controller logging.
+    */
     [[nodiscard]] EditorUndoTransitionResult reset();
 
 private:
+    // Unreachable is sticky: once a redo truncation or the depth bound discards the saved position,
+    // no undo or redo can return to it, so the history reports unsaved edits until the next
+    // markClean() or reset().
     enum class CleanMarkerState : std::uint8_t
     {
         None,

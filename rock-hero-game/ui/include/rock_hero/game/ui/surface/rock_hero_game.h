@@ -42,10 +42,10 @@ public:
     /*!
     \brief Composition inputs for one game run: the loop's smoke hook plus injected collaborators.
 
-    The former GameShellOptions bag, split by owner: \ref frame_limit is loop state (handed to the
-    \ref SDL3Application base), and the rest describes the content the composition root builds — the
-    dev flags, the optional development package, the session workspace, the injected session, and
-    the optional scanned library that opens the menu.
+    Split by owner: \ref frame_limit is loop state (handed to the \ref SDL3Application base), and
+    the rest describes the content the composition root builds — the dev flags, the optional
+    development package, the session workspace, the injected session, and the optional scanned
+    library that opens the menu.
     */
     struct Config
     {

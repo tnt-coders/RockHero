@@ -271,8 +271,8 @@ TEST_CASE("Ctrl+double-click adds and removes the junctions at an instant", "[co
 
 // A caret armed on a lone keyframe rides its nudge exactly as one on a lone note does: the point's
 // slot moves a beat, and the caret moves with it rather than being left on the emptied slot. The
-// step back is the case that once dropped it — a run replaying to its origin RETIRES its entry
-// rather than replacing it, and the caret must ride that step home like any other.
+// step back is the subtle case — a run replaying to its origin RETIRES its entry rather than
+// replacing it, and the caret must ride that step home like any other.
 TEST_CASE("The caret rides a moved keyframe out and back", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -528,9 +528,9 @@ TEST_CASE("Delete takes the selected keyframe and undo puts it back", "[core][ch
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// Each technique is its own authored surface (user ruling, 2026-09-29): Delete on a junction that
-// also bends takes only its FRET, and the point, still bending, stays selected so the bend's own
-// verb is one key away; a second Delete takes it whole.
+// Each technique is its own authored surface: Delete on a junction that also bends takes only its
+// FRET, and the point, still bending, stays selected so the bend's own verb is one key away; a
+// second Delete takes it whole.
 TEST_CASE("Delete takes a bending junction's fret and keeps it selected", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
@@ -559,9 +559,9 @@ TEST_CASE("Delete takes a bending junction's fret and keeps it selected", "[core
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// The user's sighting: a junction retyped to the fret already in force, then vibrated. That fret
-// says nothing, so the point states no fret, and one Delete takes it whole — the vibrato, which was
-// all it said — rather than withdrawing a fret whose head looked the same without it.
+// A junction retyped to the fret already in force, then vibrated. That fret says nothing, so the
+// point states no fret, and one Delete takes it whole — the vibrato, which was all it said — rather
+// than withdrawing a fret whose head looked the same without it.
 TEST_CASE("Delete takes a point whose fret says nothing whole in one press", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -688,9 +688,9 @@ TEST_CASE("Typing recreates a head at the caret after undoing it", "[core][chart
     CHECK(head.fret == 3);
 }
 
-// `Shift+L` on a selected keyframe severs the gesture there (W10's addendum): the note's path ends
-// at the junction and a new head takes the remainder. One compound undo entry spanning both
-// products, reversed exactly.
+// `Shift+L` on a selected keyframe severs the gesture there: the note's path ends at the junction
+// and a new head takes the remainder. One compound undo entry spanning both products, reversed
+// exactly.
 TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -769,9 +769,9 @@ TEST_CASE("The junction toggle splits at a point a digit planted", "[core][chart
 }
 
 // The same door walked from NOTHING at the session's own default grid — the flow a charter
-// actually types, and the one the fixture's quarter-note grid hid. A note typed onto an empty slot
-// rings ONE GRID STEP, and at the default 1/16 that step is shorter than the glide-into-a-landing
-// margin: the commonest split there is, end to end through the controller.
+// actually types, which the fixture's quarter-note grid would not reach. A note typed onto an empty
+// slot rings ONE GRID STEP, and at the default 1/16 that step is shorter than the
+// glide-into-a-landing margin: the commonest split there is, end to end through the controller.
 //
 // Typed at the note's own fret, so the arrival is the SILENT one, which is the case that proves the
 // authoring state survives the verb's settle prologue and is still there to be cut.
@@ -820,7 +820,7 @@ TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[c
 // simply no operand — pressing it is inert, not an error, and leaves no entry. A head that cannot
 // be joined leaves no entry either, for a different reason: the fixture's glide is the only note
 // on its string, so nothing holds that string for its point to join, and the whole plan refuses.
-// Both silences look the same from here, which is W5's deferred feedback channel in one line.
+// Both look the same from here: the chart is unchanged and the history holds no entry.
 TEST_CASE("The junction toggle is inert with no operand to toggle", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -867,8 +867,8 @@ TEST_CASE("The junction toggle joins a split product back", "[core][chart]")
 }
 
 // The arrow move steps whichever kind the selection holds, each where it lives: a note by its
-// slot, a keyframe by its offset along the ring it rides (W13's ruling). The step is the placement
-// quantum's — one beat on this fixture's quarter-note grid.
+// slot, a keyframe by its offset along the ring it rides. The step is the placement quantum's —
+// one beat on this fixture's quarter-note grid.
 //
 // Every step RE-KEYS the selection, because a keyframe's identity IS its offset: the plan says so
 // itself, since the default follow would leave the key naming an offset nothing sits on. The second
@@ -937,8 +937,8 @@ TEST_CASE("A held move burst stops one step short of the ring's end", "[core][ch
     plain.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8})};
     KeyframeFixture fixture{std::move(plain)};
 
-    // The user's report: a ring digit typed four beats along the tail plants a point that travels
-    // from the onset's 5, and the arrows then drag it outward.
+    // A ring digit typed four beats along the tail plants a point that travels from the onset's
+    // 5, and the arrows then drag it outward.
     click(fixture.controller, g_junction_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(6);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
@@ -969,8 +969,8 @@ TEST_CASE("A held move burst stops one step short of the ring's end", "[core][ch
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(point() == common::core::Fraction{7});
 
-    // Nothing accumulated, so one press back is one step back — inside the same burst, which is
-    // what a wedged run could not do.
+    // Nothing accumulated, so one press back is one step back — inside the same burst, which a
+    // run that recorded its refused steps could not do.
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(point() == common::core::Fraction{6});
     // The whole run is still one entry beside the typed point's.
@@ -1005,9 +1005,9 @@ TEST_CASE("The arrow move carries a selected note's own keyframe along", "[core]
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// A typed digit states the selected keyframe's fret exactly as it states a head's (W13's ruling):
-// the flow, the pending window and the planner are the note flow's, and the SELECTION KIND is what
-// says which stop the digit reached — no third channel, no second entry kind.
+// A typed digit states the selected keyframe's fret exactly as it states a head's: the flow, the
+// pending window and the planner are the note flow's, and the SELECTION KIND is what says which
+// stop the digit reached — no third channel, no second entry kind.
 TEST_CASE("A typed digit retypes the selected keyframe's fret", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -1387,11 +1387,11 @@ TEST_CASE("A ring digit at a caret on a travel leg states a point", "[core][char
 }
 
 // A point stating a bend alone INHERITS the fret in force and states no stop of its own, so the two
-// planes read it apart (user ruling, 2026-09-29). The RING digit states its fret there, the bend
-// staying beside it on the same point, which now says where the hand is as well as how far the
-// string is pushed. The BARE digit addresses stops and finds none, so it means what it means on the
-// bare ring — a note here, cutting the ring, the new head carrying the bend in force. A fret SHIFT
-// moves stops, and the point has none, so it takes none.
+// planes read it apart. The RING digit states its fret there, the bend staying beside it on the
+// same point, which then says where the hand is as well as how far the string is pushed. The BARE
+// digit addresses stops and finds none, so it means what it means on the bare ring — a note here,
+// cutting the ring, the new head carrying the bend in force. A fret SHIFT moves stops, and the
+// point has none, so it takes none.
 TEST_CASE("The two planes' digits at a bend point", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
@@ -1715,9 +1715,9 @@ TEST_CASE("A digit on a selected slide-out retypes it", "[core][chart]")
 }
 
 // A SILENCED SLIDE-OUT LINGERS IN FOCUS AND GOES ON LEAVE, like every other silent point. The
-// charter's report: a slide-out to 6 on a fret-5 ring, then a 6 typed one step before the end. The
-// new point travels, so it stands — and it leaves the slide-out falling toward the fret the path
-// now holds. That slide-out draws its chip and can be reached, so nothing takes it while the note
+// scenario: a slide-out to 6 on a fret-5 ring, then a 6 typed one step before the end. The new
+// point travels, so it stands — and it leaves the slide-out falling toward the fret the path then
+// holds. That slide-out draws its chip and can be reached, so nothing takes it while the note
 // is in focus; the focus-leave sweep does, with no history entry, because none ever held it.
 TEST_CASE("A point typed before a slide-out silences it until focus leaves", "[core][chart]")
 {

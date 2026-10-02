@@ -41,7 +41,7 @@ and the ordinary depth here is ±0.345 (see g_highway_vibrato_depth_gaps). Liste
 wobble's speed partly from its width; production couples the two inversely at r = -0.62. So 6 Hz
 at this narrow swing is a different stimulus from 6.25 Hz at the wider one, and it reads calm
 where that one reads frantic. Keep the pairing in mind before moving either number alone:
-widening the depth without slowing the rate walks back toward the setting that failed.
+widening the depth without slowing the rate walks back toward the frantic pairing.
 */
 inline constexpr double g_highway_vibrato_period_seconds = 1.0 / 6.0;
 
@@ -157,9 +157,9 @@ Callers walk the half-cycles to place the wave's turning points exactly (see
 
 Modulating at full amplitude to the span's very ends would start and end the wobble off the
 string line; the taper is this project's deliberate fix so it always anchors on it. It applies
-only at a span's two true ends, never at a change of width inside one. Tremolo
-teeth ramp in their own phase units instead (see \ref g_highway_tremolo_ramp_cycles), because
-a fraction of duration is the wrong measure for a depth-spaced wave.
+only at a span's two true ends, never at a change of width inside one. Tremolo teeth ramp in their
+own phase units instead (see \ref g_highway_tremolo_ramp_cycles), because a fraction of duration is
+the wrong measure for a depth-spaced wave.
 */
 inline constexpr double g_highway_tail_taper_fraction = 0.1;
 
@@ -197,13 +197,13 @@ Each segment uses the same cosine ease as a pitched slide, run on the DISPLACEME
 (\ref bendTravel) rather than on pitch, so the drawn bend leaves one stated value and arrives at the
 next one tangentially — and therefore comes to REST at every authored point, a bend starting from
 or releasing to the unbent string included: the travel law is a square root there, so a pitch
-eased flat into zero would still meet the string line at an angle. That
-rest is the point's meaning: a two-step bend that goes straight to two has no point at one, so a
-point at one says the bend stops there, and the drawn shelf must show it (user ruling, 2026-09-24,
-replacing a monotone cubic that flowed through same-direction points). The curve hits every
-authored point exactly, never overshoots a segment's endpoints, and holds the last value after the
-last point. A curve whose first point is not at the onset eases from zero at the onset; a prebend
-whose first point is at the onset anchors that start value instead.
+eased flat into zero would still meet the string line at an angle. That rest is the point's
+meaning: a two-step bend that goes straight to two has no point at one, so a point at one says the
+bend stops there, and the drawn shelf must show it — a monotone curve flowing through
+same-direction points would hide it. The curve hits every authored point exactly, never
+overshoots a segment's endpoints, and holds the last value after the last point. A curve whose
+first point is not at the onset eases from zero at the onset; a prebend whose first point is at
+the onset anchors that start value instead.
 
 \param bend Bend curve points in ascending time order.
 \param onset_seconds The note's onset time (the zero anchor for the pre-first-point ramp).
@@ -342,7 +342,7 @@ note's drawn position, never a pitch fed through the bend's tension curve (see
 Each span carries one phase and one envelope, measured from where the vibrato STARTS: the wobble
 leaves the string line at every span's start instead of jumping in at whatever phase the onset
 happens to reach, keeps that phase across a change of width, and a span covering the whole tail
-reproduces the note-anchored arithmetic exactly, because its start IS the onset.
+phases from the onset, because its start IS the onset.
 
 \param vibrato The note's stated spans (\ref NoteViewState::vibrato), ascending and disjoint.
 \param seconds Absolute time to evaluate at.
@@ -410,15 +410,15 @@ points and a triangle wave its turning points instead of aliasing across them; b
 exact times the samples fall where the drawn curve MOVES. Each stretch takes its own count from how
 far the centerline travels on screen across it (\ref highwayTailSampleCount), spread evenly in time
 within it. A glide lasting a sliver of a long tail but crossing many frets is therefore sampled as
-densely as its travel needs, where one grid over the whole tail spent the samples by duration and
-drew a quick slide's eased S-curve as two or three straight legs with corners.
+densely as its travel needs, where one grid over the whole tail would spend the samples by
+duration and draw a quick slide's eased S-curve as two or three straight legs with corners.
 
 The cap is ONE budget for the whole list, and the in-between samples are what yield to it: the
 exact times carry the shape's correctness (a turning point the grid rounds is a visible error), so
 they are never evicted, and every stretch's share shrinks in proportion instead — down to none when
 the exact times alone fill the budget. A cap bounding only the grid, with every exact time appended
-past it, lets a long teethed open tail reach 477 samples against a cap of 256, and the accent batch
-it feeds can then exceed the 16-bit index budget and drop the whole group's light.
+past it, would let a long teethed open tail reach 477 samples against a cap of 256, and the accent
+batch it feeds could then exceed the 16-bit index budget and drop the whole group's light.
 
 A template on the projection so the per-frame render path hands its camera in without allocating,
 and two passes over the exact times — one to count, one to place — rather than a scratch list per

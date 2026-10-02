@@ -73,7 +73,7 @@ PreviewSurface::PreviewSurface(
 {
     setOpaque(true);
     // Hold the preview window's keyboard focus so transport shortcuts (space/F3) reach
-    // PreviewWindow::keyPressed and forward to the editor (44-Q4). Clicking the 3D view lands
+    // PreviewWindow::keyPressed and forward to the editor. Clicking the 3D view lands
     // OS focus on the embedded render child, whose window proc bounces it straight back to the
     // peer (see previewChildWindowProc) — the peer's focus-gain then restores this surface, so
     // focus can never strand where keystrokes would be swallowed.
@@ -299,8 +299,8 @@ PreviewSurface::PixelSize PreviewSurface::updateChildBounds()
 }
 
 // One message-thread frame at vblank cadence: coherent time sample, highway draw, present. With
-// vsync on and vblank-aligned ticks the present returns without long blocking (the S2 pattern:
-// surrounding JUCE paints were never starved).
+// vsync on and vblank-aligned ticks the present returns without long blocking, so surrounding
+// JUCE paints are not starved.
 void PreviewSurface::renderFrame()
 {
     if (!m_device.has_value() || !m_renderer.has_value())
@@ -309,7 +309,7 @@ void PreviewSurface::renderFrame()
     }
 #if JUCE_WINDOWS
     // Hardening: peer recreation (style-flag changes) would destroy the embedded child under a
-    // live swapchain. Unreachable today (every style call happens before first show), but a
+    // live swapchain. Unreachable while every style call happens before first show, but a
     // present into a dead window must never be the failure mode. Skip only — this frame runs
     // inside the vblank attachment's own callback, so the attachment must not destroy itself.
     if (m_child_window == nullptr || IsWindow(static_cast<HWND>(m_child_window)) == FALSE)

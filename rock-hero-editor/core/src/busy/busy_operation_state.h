@@ -89,6 +89,7 @@ public:
     [[nodiscard]] std::optional<BusyViewState> viewState() const;
 
 private:
+    // Progress payload that overrides the operation's default message and indicator.
     struct DeterminateProgress
     {
         std::string message;
@@ -97,6 +98,9 @@ private:
 
     std::optional<BusyOperation> m_operation{};
     std::optional<DeterminateProgress> m_determinate_progress{};
+
+    // Generation counter advanced by both begin() and end(), so a completion captured under an
+    // earlier operation never matches again, even after the state returns to idle.
     std::uint64_t m_current_token{0};
 };
 

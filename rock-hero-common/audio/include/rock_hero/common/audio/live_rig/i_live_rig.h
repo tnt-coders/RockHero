@@ -165,10 +165,10 @@ struct [[nodiscard]] LoadedToneChainIdentities
     \brief Sum of the chain plugins' self-reported latencies, in seconds, at load completion.
 
     With plugin-delay compensation off (the product stance), this is the real monitoring
-    latency the player hears while this tone is audible. Gameplay stays silent about it
-    (21-Q2); the consumer is the editor's authoring-time export warning, so a charter cannot
-    ship an unintentionally high-latency tone. Accuracy depends on each plugin's own
-    getLatencySeconds() report.
+    latency the player hears while this tone is audible. Gameplay stays silent about it; the
+    consumer is the editor's authoring-time export warning, so a charter cannot ship an
+    unintentionally high-latency tone. Accuracy depends on each plugin's own getLatencySeconds()
+    report.
     */
     double summed_reported_latency_seconds{0.0};
 };
@@ -282,13 +282,14 @@ public:
     virtual ~ILiveRig() = default;
 
     /*!
-    \brief Captures the audible tone's chain into package-relative song files.
+    \brief Captures every loaded tone's chain into its package-relative tone document.
 
-    Only the audible tone is user-editable (the panel binds to it), so non-audible tones cannot
-    drift from their tone documents and never need re-capturing.
+    Every branch is written, not only the audible one: undo restores plugin state by instance id
+    and plugin windows stay open across audibility switches, so any branch can drift from its
+    file. A rig without loaded branches writes nothing.
 
-    \param request Song workspace and arrangement identity for the capture.
-    \return Written tone document reference and display chain, or a typed failure.
+    \param request Song workspace, arrangement identity, and the audible chain's editor layout.
+    \return The audible chain and its output gain, or a typed failure.
     */
     [[nodiscard]] virtual std::expected<LiveRigSnapshot, LiveRigError> captureActiveRig(
         const LiveRigCaptureRequest& request) = 0;

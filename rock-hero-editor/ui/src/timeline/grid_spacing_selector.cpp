@@ -17,17 +17,17 @@ namespace
 constexpr int g_caption_width{36};
 
 // Thickness of the snap-off strike. One pixel is about 8% of the 12px digit ink height, which is
-// the weight a printed strikethrough carries; 2px was sighted and rejected — at this size it reads
-// as redaction, burying the digits instead of leaving them perfectly readable underneath.
+// the weight a printed strikethrough carries; 2px at this size reads as redaction, burying the
+// digits instead of leaving them perfectly readable underneath.
 constexpr float g_value_strike_thickness{1.0F};
 
 // Note-value presets offered as quick selections beside free fraction entry: the power-of-two
 // ladder interleaved with the triplet subdivisions (1/6 = quarter triplets, 1/12 = eighth
 // triplets, 1/24 = sixteenth triplets), which grid-native chart authoring needs within reach.
 // Turning snap off does not make these redundant: it quantizes to the tick, which is a lattice
-// fine enough to disappear, not a musical subdivision a tuplet can be placed against. The
-// raw-fraction labels are a recorded interim: friendlier REAPER-style names ("1/8 triplet") are a
-// deferred decision in docs/plans/in-progress/editing-interaction-model.md.
+// fine enough to disappear, not a musical subdivision a tuplet can be placed against. The labels
+// are raw fractions; friendlier REAPER-style names ("1/8 triplet") are an open decision in
+// docs/plans/in-progress/editing-interaction-model.md.
 constexpr std::array<common::core::Fraction, 9> g_note_value_presets{
     common::core::Fraction{1, 4},
     common::core::Fraction{1, 6},
@@ -225,12 +225,11 @@ void GridSpacingSelector::resized()
 
 // The snap-off indicator: one 1px horizontal rule through the value's own digits, and nothing else.
 //
-// It marks the VALUE, never the control. An earlier version quieted the whole readout under a veil
-// and ran the strike the width of the box; sighting rejected all of it. Darkening the surround
-// framed the caption and the box in a shadow that belonged to neither, dimming the chrome said
-// "unavailable" when the grid is still fully selectable, and a stroke reaching across the drop-down
-// arrow read as "do not click this". A struck number says the one true thing — this figure is not
-// binding right now — and leaves everything that is still live looking live.
+// It marks the VALUE, never the control. A veil over the whole readout would frame the caption and
+// the box in a shadow that belongs to neither, dimmed chrome says "unavailable" when the grid is
+// still fully selectable, and a stroke reaching across the drop-down arrow reads as "do not click
+// this". A struck number says the one true thing — this figure is not binding right now — and
+// leaves everything that is still live looking live.
 //
 // Horizontal rather than diagonal, and that is a grammar choice, not a taste one. A diagonal
 // through a figure is the prohibition mark — the slash of a "no" sign — which says the value may

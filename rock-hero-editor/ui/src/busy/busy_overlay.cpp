@@ -23,7 +23,7 @@ constexpr int g_surface_height_with_cancel = 164;
 constexpr int g_surface_padding = 16;
 constexpr int g_surface_corner_radius = 8;
 
-// Distance between the progress bar and message text inside the surface.
+// Child sizes and the gaps between the progress bar, the message text and the Cancel button.
 constexpr int g_progress_bar_height = 22;
 constexpr int g_progress_message_gap = 12;
 constexpr int g_cancel_button_height = 28;

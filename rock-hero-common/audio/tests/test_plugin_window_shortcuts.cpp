@@ -5,8 +5,8 @@
 namespace rock_hero::common::audio
 {
 
-// The built-in defaults keep an editor-less engine on the editor's default keymap: the
-// historical trio plus the Ctrl+Shift+Z redo alias.
+// The built-in defaults keep an editor-less engine on the editor's default keymap: Ctrl+Z,
+// Ctrl+Y and its Ctrl+Shift+Z alias, and Space.
 TEST_CASE("Plugin window shortcut defaults match the editor's default keymap", "[audio][plugin]")
 {
     const PluginWindowShortcutBindings bindings = defaultPluginWindowShortcutBindings();
@@ -43,7 +43,7 @@ TEST_CASE("Plugin window shortcut matching is exact", "[audio][plugin]")
     CHECK_FALSE(matchPluginWindowCommand(bindings, PluginWindowShortcutChord{}).has_value());
 
     // Injected bindings replace the defaults wholesale: an Alt+character chord and a named key
-    // both match once injected, and the previous default no longer does.
+    // both match once injected, and the replaced default stops matching.
     PluginWindowShortcutBindings custom;
     custom.play_pause.push_back(PluginWindowShortcutChord{.character = U';', .alt = true});
     custom.undo.push_back(

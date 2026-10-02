@@ -140,7 +140,7 @@ TEST_CASE("Game audio config setter replaces the previous config", "[core][setti
     CHECK(settings.gameAudioConfig().players.empty());
 }
 
-// Verifies the null fake satisfies the extended port with an empty config and accepting writes.
+// Verifies the null fake reports an empty game audio config and accepts writes.
 TEST_CASE("Null game settings reports an empty audio config", "[core][settings][audio]")
 {
     testing::NullGameSettings settings;

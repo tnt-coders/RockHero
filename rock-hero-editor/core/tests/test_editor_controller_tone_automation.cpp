@@ -209,8 +209,8 @@ constexpr float g_pointer_band_height = 40.0F;
 }
 
 // A Drag-phase event: same as pointerEvent but flagged as having crossed the framework's click→drag
-// threshold, so an existing-point grab actually advances (JUCE's mouseWasDraggedSinceMouseDown,
-// which the shipped view forwarded).
+// threshold, so an existing-point grab actually advances (the view fills the flag from JUCE's
+// mouseWasDraggedSinceMouseDown).
 [[nodiscard]] ToneAutomationPointerEvent dragEvent(
     float x, float y, ToneAutomationPointerModifiers modifiers = {}, bool is_discrete = false,
     int discrete_value_count = 0)
@@ -265,6 +265,8 @@ constexpr float g_pointer_band_height = 40.0F;
 
 } // namespace
 
+// Opening a lane authors nothing: the lane shows only its derived anchor at the tone state's
+// value until a point is added, and closing it removes it again.
 TEST_CASE(
     "EditorController opens an unauthored lane without authoring points", "[core][tone-automation]")
 {
@@ -289,6 +291,8 @@ TEST_CASE(
     CHECK(editor.automation().lanes.empty());
 }
 
+// A lane opens for a plugin whose runtime association has no tone yet, recovering the tone
+// from the selected region.
 TEST_CASE(
     "EditorController adds a lane for a plugin with no tone association yet",
     "[core][tone-automation]")
@@ -315,6 +319,8 @@ TEST_CASE(
     CHECK(std::is_eq(editor.automation().lanes.front().points.front().norm_value <=> 0.3F));
 }
 
+// Automation points are stored at musical positions; the derived curve and the published lane
+// carry their seconds.
 TEST_CASE(
     "EditorController stores musical automation points and derives seconds",
     "[core][tone-automation]")
@@ -345,6 +351,8 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().points.back().position == pointAt(2, 1, 1));
 }
 
+// A points edit round-trips through undo and redo, and redo brings the point it wrote back into
+// focus.
 TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][tone-automation]")
 {
     AutomationEditor editor;
@@ -376,14 +384,15 @@ TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][t
         std::optional{ToneAutomationSelectedPointRef{.lane_index = 0, .point_index = 0}});
 }
 
+// Removing a plugin takes its automation out of the model with it, and undo restores both.
 TEST_CASE(
     "EditorController removes a plugin's automation with it and restores it on undo",
     "[core][tone-automation]")
 {
     // Seed the load so g_instance is a removable plugin in both the editor chain (its automation
     // resolves through the tone-chain identity) and the fake backend (capture/remove/recreate act
-    // on it). This mirrors a loaded song whose tone already hosts a
-    // plugin, without the async insert.
+    // on it). This mirrors a loaded song whose tone already hosts a plugin, without the async
+    // insert.
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -473,6 +482,7 @@ TEST_CASE(
     CHECK(model.empty());
 }
 
+// Loading a song rebuilds the derived curves from its persisted musical automation.
 TEST_CASE(
     "EditorController rebuilds derived curves from persisted automation at load",
     "[core][tone-automation]")
@@ -501,6 +511,8 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().resolved);
 }
 
+// An open lane survives a rig reload by resolving through the plugin's durable id to its new
+// instance.
 TEST_CASE(
     "EditorController keeps automation lanes bound across rig reloads", "[core][tone-automation]")
 {
@@ -540,6 +552,8 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().name == "Gain");
 }
 
+// Rig-load completion mirrors the song's tempo map to the host, so hosted plugins follow the
+// song's tempo.
 TEST_CASE(
     "EditorController mirrors the song tempo map at rig-load completion", "[core][tone-automation]")
 {
@@ -556,6 +570,8 @@ TEST_CASE(
     }
 }
 
+// A selected automation point is the one editor-wide selection: it replaces the region
+// selection, arms the lane caret on itself, and clears on a seek.
 TEST_CASE(
     "EditorController owns the automation point selection editor-wide", "[core][tone-automation]")
 {
@@ -595,12 +611,14 @@ TEST_CASE(
     CHECK(caret->lane_index == 0);
     CHECK(caret->position == pointAt(2, 1));
 
-    // A seek is cursor motion: the cursor-coupled selection clears, exactly like the shipped
-    // tone-region rule.
+    // A seek is cursor motion: the cursor-coupled selection clears, exactly as a tone-region
+    // selection does.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{1.0});
     CHECK_FALSE(editor.automation().selected_point.has_value());
 }
 
+// A lane click arms the caret on the nearest grid slot, and Insert creates a point there on the
+// drawn curve without ever changing an existing one.
 TEST_CASE(
     "EditorController arms the lane caret on a lane click and Inserts on the curve",
     "[core][tone-automation]")
@@ -640,6 +658,7 @@ TEST_CASE(
     CHECK(selected->point_index == 0);
 }
 
+// The shared Delete intent removes the selected automation point as one undoable edit.
 TEST_CASE(
     "EditorController deletes the selected automation point through the one Delete dispatch",
     "[core][tone-automation]")
@@ -677,6 +696,8 @@ TEST_CASE(
     CHECK(editor.model().front().points.size() == 1);
 }
 
+// The shared move intent nudges the selected point's value and steps its position, carrying the
+// selection and the lane caret along, and never past the region window or the map's start.
 TEST_CASE(
     "EditorController moves the selected automation point through the one move dispatch",
     "[core][tone-automation]")
@@ -743,6 +764,8 @@ TEST_CASE(
     CHECK(editor.model().front().points.front().position == pointAt(1, 1));
 }
 
+// A move intent on an empty lane slot creates a point on the curve with the step applied, as one
+// undo entry.
 TEST_CASE(
     "EditorController creates on the curve when the move intent lands on an empty lane slot",
     "[core][tone-automation]")
@@ -777,6 +800,8 @@ TEST_CASE(
     CHECK(editor.model().front().points.size() == 2);
 }
 
+// The caret may rest on the region's end boundary, but no verb creates a point outside the
+// active region's window.
 TEST_CASE(
     "EditorController refuses lane point creation outside the active region window",
     "[core][tone-automation]")
@@ -810,6 +835,7 @@ TEST_CASE(
     CHECK(editor.model().front().points.front().position == pointAt(2, 4));
 }
 
+// Esc first dissolves the lane caret, then clears the selected point.
 TEST_CASE(
     "EditorController steps the Esc ladder on lane carets and point selections",
     "[core][tone-automation]")
@@ -837,6 +863,7 @@ TEST_CASE(
     CHECK_FALSE(editor.automation().selected_point.has_value());
 }
 
+// Lane caret stepping stops on off-grid points as well as on grid lines.
 TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][tone-automation]")
 {
     // Lane caret stepping runs on the marker's shared row axis, which needs a (noteless) chart
@@ -886,6 +913,7 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
     CHECK(selected->point_index == 1);
 }
 
+// The Alt-hover insert ghost snaps through the same placement seam an Alt+click lands through.
 TEST_CASE(
     "EditorController snaps the insert ghost through the placement seam, not the raw pixel time",
     "[core][tone-automation]")
@@ -896,9 +924,10 @@ TEST_CASE(
 
     // Geometry chosen so the two x->seconds conversions straddle a snap boundary. Over [0, 4] s
     // with a 401 px content width, the pixel x 225.3 maps to 2.253 s through the placement seam
-    // (timelinePositionForX divides by width - 1 and clamps) but to 2.247 s through Phase 1's
-    // secondsForX (which divides by width). The quarter-note grid boundary sits at 2.25 s, so the
-    // two paths snap to DIFFERENT slots — this is exactly the <=1px discrepancy Phase 2 erases.
+    // (timelinePositionForX divides by width - 1 and clamps) but to 2.247 s through a ÷width
+    // mapping (the hit-test's forward map, inverted). The quarter-note grid boundary sits at
+    // 2.25 s, so the two paths snap to DIFFERENT slots, one pixel apart; the ghost must take the
+    // placement seam's, so it previews exactly where an Alt+click lands.
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
@@ -934,8 +963,8 @@ TEST_CASE(
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
     CHECK(placement_slot == gridAt(2, 2));
 
-    // Phase 1's divide-by-width secondsForX would have snapped this same pixel to the EARLIER slot
-    // (2.0 s, measure 2 beat 1): the two paths genuinely disagree here.
+    // The ÷width mapping snaps this same pixel to the EARLIER slot (2.0 s, measure 2 beat 1): the
+    // two paths genuinely disagree here.
     const double phase1_seconds = visible.start.seconds + (static_cast<double>(boundary_x) /
                                                            static_cast<double>(content_width)) *
                                                               visible.duration().seconds;
@@ -944,9 +973,8 @@ TEST_CASE(
     CHECK(phase1_slot == gridAt(2, 1));
     CHECK(phase1_slot != placement_slot);
 
-    // The published ghost lands on the placement slot, not Phase 1's: the gap is closed. Its
-    // seconds match the placement path's secondsAtNote exactly (2.5 s), never the 2.0 s Phase 1
-    // would have produced.
+    // The published ghost lands on the placement slot, not the ÷width one: its seconds match the
+    // placement path's secondsAtNote exactly (2.5 s), never the ÷width slot's 2.0 s.
     REQUIRE(editor.automation().insert_ghost.has_value());
     if (editor.automation().insert_ghost.has_value())
     {
@@ -960,6 +988,7 @@ TEST_CASE(
     }
 }
 
+// A plain lane press arms the caret through the same placement seam an Alt+click lands through.
 TEST_CASE(
     "EditorController arms the lane caret through the placement seam, not the raw pixel time",
     "[core][tone-automation]")
@@ -970,9 +999,8 @@ TEST_CASE(
 
     // The same boundary geometry the ghost-snap test uses, so the caret's snap is proven against
     // the identical disagreement: over [0, 4] s at 401 px, the pixel x 225.3 inverts to 2.253 s
-    // through the placement seam (÷ (width - 1)) but to 2.247 s through the shipped view's ÷width
-    // secondsForX. The 1/4 grid boundary sits at 2.25 s, so the two paths
-    // arm the caret on DIFFERENT slots.
+    // through the placement seam (÷ (width - 1)) but to 2.247 s through a ÷width mapping. The 1/4
+    // grid boundary sits at 2.25 s, so the two paths arm the caret on DIFFERENT slots.
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
@@ -1012,8 +1040,8 @@ TEST_CASE(
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
     CHECK(placement_slot == gridAt(2, 2));
 
-    // The shipped ÷width secondsForX would have armed the caret one slot EARLIER (2.0 s, measure 2
-    // beat 1): the two paths genuinely disagree at this pixel.
+    // The ÷width mapping arms the caret one slot EARLIER (2.0 s, measure 2 beat 1): the two paths
+    // genuinely disagree at this pixel.
     const double phase1_seconds = visible.start.seconds + (static_cast<double>(boundary_x) /
                                                            static_cast<double>(content_width)) *
                                                               visible.duration().seconds;
@@ -1022,8 +1050,8 @@ TEST_CASE(
     CHECK(phase1_slot == gridAt(2, 1));
     CHECK(phase1_slot != placement_slot);
 
-    // The armed caret lands on the placement slot, not the shipped ÷width slot: the caret now sits
-    // exactly where an Alt+click / ghost would at this pixel, and the transport follows it there.
+    // The armed caret lands on the placement slot, not the ÷width slot: the caret sits exactly
+    // where an Alt+click / ghost would at this pixel, and the transport follows it there.
     REQUIRE(editor.automation().lane_caret.has_value());
     if (editor.automation().lane_caret.has_value())
     {
@@ -1035,6 +1063,8 @@ TEST_CASE(
     CHECK(editor.transport.position().seconds != Catch::Approx(2.0));
 }
 
+// The lane caret arms on the session's placement quantum: the grid with snap on, the tick
+// lattice with snap off.
 TEST_CASE(
     "EditorController arms the lane caret on the placement quantum, snap on or off",
     "[core][tone-automation]")
@@ -1108,6 +1138,8 @@ TEST_CASE(
     }
 }
 
+// The insert ghost previews only the Alt gesture, so a plain move or the pointer leaving the
+// lanes clears it.
 TEST_CASE(
     "EditorController clears the insert ghost on a non-Alt move and on pointer exit",
     "[core][tone-automation]")
@@ -1148,6 +1180,8 @@ TEST_CASE(
     CHECK_FALSE(editor.automation().insert_ghost.has_value());
 }
 
+// An Alt-press inserts a point on the drawn curve rather than at the pointer, and a drag pulls
+// it by the pointer's delta.
 TEST_CASE(
     "EditorController lands a mouse-inserted point on the curve and pulls it by delta",
     "[core][tone-automation]")
@@ -1201,6 +1235,8 @@ TEST_CASE(
     CHECK_THAT(pulled.model().front().points[1].norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 }
 
+// Dragging the read-only lane anchor authors a real point at the lane start, born on the
+// anchor's value.
 TEST_CASE(
     "EditorController authors a real point when the lane anchor is dragged",
     "[core][tone-automation]")
@@ -1239,6 +1275,7 @@ TEST_CASE(
         editor.model().front().points.front().norm_value, Catch::Matchers::WithinULP(0.65F, 1));
 }
 
+// A click on the lane anchor authors nothing; it arms the caret like any plain lane click.
 TEST_CASE(
     "EditorController authors nothing when the lane anchor is clicked", "[core][tone-automation]")
 {
@@ -1254,8 +1291,8 @@ TEST_CASE(
     CHECK(editor.model().empty());
     CHECK(editor.tone_automation.write_call_count == 0);
 
-    // The click falls through to what a plain lane-area click does at that pixel (§9b): x 0 snaps
-    // to the lane start, and the caret arms there on this lane.
+    // The click falls through to what a plain lane-area click does at that pixel: x 0 snaps to the
+    // lane start, and the caret arms there on this lane.
     REQUIRE(editor.automation().lane_caret.has_value());
     if (editor.automation().lane_caret.has_value())
     {
@@ -1264,6 +1301,8 @@ TEST_CASE(
     }
 }
 
+// A press in the anchor's column but away from its value is a plain lane press, not an anchor
+// grab.
 TEST_CASE(
     "EditorController leaves the anchor alone for a press away from it", "[core][tone-automation]")
 {
@@ -1279,6 +1318,8 @@ TEST_CASE(
     CHECK(editor.model().empty());
 }
 
+// Shift locks a point drag to its dominant axis: a horizontal drag keeps its value, a vertical
+// one keeps its position.
 TEST_CASE(
     "EditorController Shift-locks a mouse point drag to its dominant axis",
     "[core][tone-automation]")
@@ -1302,8 +1343,8 @@ TEST_CASE(
         editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 
     // A dominantly-vertical Shift drag instead locks the position: grab the same point and drag it
-    // down (5 px right, 20 px down) so the value moves while the
-    // position holds at measure 2 beat 1.
+    // down (5 px right, 20 px down) so the value moves while the position holds at measure 2
+    // beat 1.
     AutomationEditor vertical;
     vertical.seedPoints(
         {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
@@ -1319,6 +1360,8 @@ TEST_CASE(
         vertical.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
 }
 
+// A point drag cannot cross onto a neighbouring point's slot, so the points stay strictly
+// ascending.
 TEST_CASE(
     "EditorController neighbor-clamps a mouse point drag short of its neighbor",
     "[core][tone-automation]")
@@ -1330,8 +1373,8 @@ TEST_CASE(
 
     // Grab the second point and drag it left to measure 1 beat 2 (valid), then keep dragging left
     // onto the first point's own slot (measure 1 beat 1). The neighbor clamp refuses the crossing,
-    // so the preview stays at the last legal slot and the commit keeps
-    // the points strictly ascending.
+    // so the preview stays at the last legal slot and the commit keeps the points strictly
+    // ascending.
     editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
     editor.controller.onToneAutomationPointerDrag(dragEvent(50.0F, pointerYForValue(0.75F)));
     REQUIRE(editor.automation().drag_preview.has_value());
@@ -1352,6 +1395,7 @@ TEST_CASE(
     CHECK(editor.model().front().points.back().position == gridAt(1, 2));
 }
 
+// A point drag cannot leave the active region's window.
 TEST_CASE(
     "EditorController clamps a mouse point drag inside the editable window",
     "[core][tone-automation]")
@@ -1382,6 +1426,7 @@ TEST_CASE(
     CHECK(editor.model().front().points.front().position == gridAt(2, 1));
 }
 
+// A drag on a discrete parameter's lane snaps the value to the nearest state.
 TEST_CASE(
     "EditorController snaps a discrete mouse point drag to the nearest state",
     "[core][tone-automation]")
@@ -1416,6 +1461,7 @@ TEST_CASE(
     CHECK_THAT(low.model().front().points.front().norm_value, Catch::Matchers::WithinULP(0.0F, 0));
 }
 
+// A press on a point that never crosses the drag threshold selects it and commits nothing.
 TEST_CASE(
     "EditorController selects a clicked point without moving or committing",
     "[core][tone-automation]")
@@ -1448,6 +1494,7 @@ TEST_CASE(
     }
 }
 
+// An Alt-press whose slot already holds a point inserts nothing, matching the keyboard Insert.
 TEST_CASE(
     "EditorController refuses a mouse insert onto an occupied slot", "[core][tone-automation]")
 {
@@ -1459,8 +1506,8 @@ TEST_CASE(
 
     // Alt-press on empty lane area whose x snaps onto the occupied measure 2 beat 1 slot (x 200,
     // but y 40 is far from the point handle at y 15, so it is an area press, not a grab). Placement
-    // shares the keyboard Insert's occupied-slot refusal, so no
-    // gesture arms and no duplicate lands.
+    // shares the keyboard Insert's occupied-slot refusal, so no gesture arms and no duplicate
+    // lands.
     const ToneAutomationPointerModifiers alt{.alt = true, .shift = false};
     editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, 40.0F, alt));
     CHECK_FALSE(editor.automation().drag_preview.has_value());
@@ -1470,6 +1517,7 @@ TEST_CASE(
     REQUIRE(editor.model().front().points.size() == 2);
 }
 
+// The insert ghost hides over a slot that already holds a point.
 TEST_CASE(
     "EditorController hides the insert ghost over an occupied slot", "[core][tone-automation]")
 {
@@ -1480,9 +1528,8 @@ TEST_CASE(
 
     const ToneAutomationPointerModifiers alt{.alt = true, .shift = false};
 
-    // Over the occupied measure 2 beat 1 slot (x 200) the ring is hidden: an insert there would
-    // no-op, so the affordance must not advertise it (§7, and the
-    // placement refusal makes it honest).
+    // Over the occupied measure 2 beat 1 slot (x 200) the ring is hidden: placement refuses an
+    // insert there, so the affordance must not advertise one.
     editor.controller.onToneAutomationPointerMove(pointerEvent(200.0F, 40.0F, alt));
     CHECK_FALSE(editor.automation().insert_ghost.has_value());
 
@@ -1491,6 +1538,7 @@ TEST_CASE(
     CHECK(editor.automation().insert_ghost.has_value());
 }
 
+// A point drag survives a state rebuild mid-gesture, because the controller owns the drag.
 TEST_CASE(
     "EditorController keeps a mouse point drag across a mid-drag state rebuild",
     "[core][tone-automation]")
@@ -1521,6 +1569,7 @@ TEST_CASE(
         editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
 }
 
+// A point drag commits once, on release, as one undo entry.
 TEST_CASE(
     "EditorController commits a mouse point drag as one undoable edit", "[core][tone-automation]")
 {
@@ -1544,6 +1593,7 @@ TEST_CASE(
         editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 }
 
+// Escape mid-drag cancels the gesture, and the release after it commits nothing.
 TEST_CASE(
     "EditorController cancels a mouse point drag on Escape without committing",
     "[core][tone-automation]")
@@ -1569,6 +1619,8 @@ TEST_CASE(
         editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 }
 
+// A plain press on empty lane area arms the lane caret at the snapped slot without starting a
+// drag.
 TEST_CASE(
     "EditorController arms the lane caret on a plain empty-area press", "[core][tone-automation]")
 {
@@ -1590,10 +1642,10 @@ TEST_CASE(
     }
 }
 
-// The focus rows below the strings (docs/plans/completed/keyboard-focus-rows.md): Down from
-// string 1 selects the tone region holding the cursor, then arms the first lane, then selects the
-// "+" row, and Up retraces them. The caret is armed only on the string and the lane; the tone and
-// "+" rows are selections. Ctrl's reach jumps a whole group at a time, landing on its nearest row.
+// The focus rows below the strings: Down from string 1 selects the tone region holding the cursor,
+// then arms the first lane, then selects the "+" row, and Up retraces them. The caret is armed
+// only on the string and the lane; the tone and "+" rows are selections. Ctrl's reach jumps a
+// whole group at a time, landing on its nearest row.
 TEST_CASE("EditorController walks the focus rows below the strings", "[core][tone-automation]")
 {
     AutomationEditor editor{makeChartedAutomationSong()};

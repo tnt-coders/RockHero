@@ -12,9 +12,8 @@ namespace
 {
 
 // The controller wired for the attack-family scenarios at the bottom of this file: the shared
-// six-string chart opened through the normal route, the same shape the held-stop suite uses.
-// The scenarios above it predate the struct and still spell their own setup out; nothing about
-// them depends on the difference.
+// six-string chart opened through the normal route. The scenarios above them spell the same setup
+// out by hand; nothing about them depends on the difference.
 struct AttackToggleFixture
 {
     FakeTransport transport;
@@ -45,10 +44,10 @@ struct AttackToggleFixture
 } // namespace
 
 // The pick-slide toggle authors a scrape from a plain note and back within the session. The
-// second press lands inside the toggle window (D14 ruling 4, which the scrape follows too),
-// so it REVERSES the first press's entry exactly rather than authoring a second one — which is
-// what lets it restore things the plain clear law could never put back, like a sustain the
-// default grew or a glide a conversion consumed.
+// second press lands inside the toggle window every technique toggle shares, so it REVERSES the
+// first press's entry exactly rather than authoring a second one — which is what lets it restore
+// things the plain clear law could never put back, like a sustain the default grew or a glide a
+// conversion consumed.
 TEST_CASE("EditorController toggles pick slides with exact restoration", "[core][chart]")
 {
     FakeTransport transport;
@@ -98,8 +97,8 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
 }
 
 // Uniform scope on a mixed selection: any plain note present makes the whole selection become
-// scrapes; only an all-scrape selection reverts. Pins the all-of decision an any-of regression
-// would silently invert.
+// scrapes; only an all-scrape selection reverts. Pins the all-of decision an any-of reading would
+// silently invert.
 TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][chart]")
 {
     FakeTransport transport;
@@ -121,7 +120,7 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     click(controller, 40.0f, 220.0f);
     controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
 
-    // Marquee both measure-1 chord members: a scrape plus a plain note.
+    // Marquee both measure-2 chord members: a scrape plus a plain note.
     controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
     controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
@@ -325,8 +324,8 @@ TEST_CASE("EditorController emphasis toggle applies uniform scope", "[core][char
 }
 
 // Uniform scope: any selected note lacking the mute makes the press SET it on the whole
-// selection; only an all-muted selection clears. Pins the all-of decision an any-of regression
-// would silently invert.
+// selection; only an all-muted selection clears. Pins the all-of decision an any-of reading would
+// silently invert.
 TEST_CASE("EditorController mute toggle applies uniform scope", "[core][chart]")
 {
     FakeTransport transport;
@@ -553,7 +552,7 @@ TEST_CASE("EditorController toggles the right-hand tap with exact restoration", 
 }
 
 // Uniform scope over a chord, and the clear that follows once every member carries it. Pins the
-// all-of decision an any-of regression would silently invert, on a whole chord in one entry.
+// all-of decision an any-of reading would silently invert, on a whole chord in one entry.
 TEST_CASE("EditorController tap toggle levels a chord and then clears it", "[core][chart]")
 {
     AttackToggleFixture fixture;

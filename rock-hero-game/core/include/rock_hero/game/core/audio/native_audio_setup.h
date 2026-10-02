@@ -158,8 +158,8 @@ The driver is the thin side-effecting adapter over a pure NativeAudioSetupMachin
 shared staged device-settings workflow (whose apply saves the route in the shared audio-config
 store), writes the resolved input identity as the slot-0 player-to-route mapping through game/core
 settings, and then drives the shared calibrate-first LiveInputMonitor to measure and persist the
-route's input gain. Reaching Ready is the state a later GameplaySession Ready transition (plan 14
-Phase 4) needs to arm live-input monitoring.
+route's input gain. Reaching Ready is the state a later GameplaySession Ready transition needs to
+arm live-input monitoring.
 
 All operations are message-thread operations, matching the ports they drive.
 */

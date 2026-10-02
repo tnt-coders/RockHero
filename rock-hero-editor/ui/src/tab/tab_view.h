@@ -71,7 +71,7 @@ tab projection. On top of the notation it draws the chart-editing overlays the e
 selection rings, the white square of the armed caret, and the in-flight marquee. While a chart is
 displayed the lane owns its pointer events, converting them to lane-local chart pointer intents; the
 controller decides what a press means (select, caret arming, marquee, or — while playing — a plain
-seek). Without a chart the lane is pointer-transparent as before.
+seek). Without a chart the lane is pointer-transparent.
 */
 class TabView final : public juce::Component
 {

@@ -26,7 +26,7 @@ namespace
 }
 
 // Asserts a baked envelope point field-by-field; ToneGainPoint deliberately has no operator== of
-// its own (two raw float members), so field probes are the whole interface.
+// its own (two raw floating-point members), so field probes are the whole interface.
 void checkGainPoint(const ToneGainPoint& point, double seconds, float gain)
 {
     CHECK(point.seconds == Catch::Approx(seconds));

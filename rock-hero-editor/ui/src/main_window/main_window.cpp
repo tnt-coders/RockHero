@@ -129,17 +129,16 @@ void MainWindow::closeButtonPressed()
     requestExit();
 }
 
-// The command mapping set is the single chord-to-command matcher — since plan 53 Phase 1b every
-// keybind, grammar verbs included, dispatches through it — and the window shell is where a press
-// ends up, so this is the one place the typing gate has to live
-// (docs/plans/completed/keyboard-focus-rows.md, 4.0a). A focused text editor declines every key
-// it does not type — Tab, Insert, the F-keys, Ctrl chords, Ctrl+Z once its own history is spent —
-// and without the gate each of those would run a chart command behind the field. While the peer
-// has a text input target nothing is dispatched; the press then reaches only JUCE's unclaimed-Tab
-// fallback, which moves focus and so commits the value. Declining must have no side effects, since
-// macOS asks twice for a refused key while a text target exists. Key up/down no longer reaches the
-// mapping set at all: no command wants it today, and the first hold-style command needs a
-// keyStateChanged forward under this same condition.
+// The command mapping set is the single chord-to-command matcher — every keybind, grammar verbs
+// included, dispatches through it — and the window shell is where a press ends up, so this is the
+// one place the typing gate has to live. A focused text editor declines every key it does not
+// type — Tab, Insert, the F-keys, Ctrl chords, Ctrl+Z once its own history is spent — and without
+// the gate each of those would run a chart command behind the field. While the peer has a text
+// input target nothing is dispatched; the press then reaches only JUCE's unclaimed-Tab fallback,
+// which moves focus and so commits the value. Declining must have no side effects, since macOS
+// asks twice for a refused key while a text target exists. Key up/down never reaches the mapping
+// set: no command wants it, and a future hold-style command needs a keyStateChanged forward under
+// this same condition.
 bool MainWindow::keyPressed(const juce::KeyPress& key)
 {
     if (m_editor != nullptr)

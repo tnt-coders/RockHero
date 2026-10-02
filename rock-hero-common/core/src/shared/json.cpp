@@ -133,7 +133,7 @@ std::string Json::readOptionalString(
     return property_value.toString().toStdString();
 }
 
-// Keeps optional booleans lenient for metadata fields that can be absent in older documents.
+// Keeps optional booleans lenient so an absent or non-boolean field reads as the fallback.
 bool Json::readOptionalBool(const juce::var& object, std::string_view property_name, bool fallback)
 {
     const juce::var& property_value = value(object, property_name);
@@ -164,8 +164,8 @@ std::optional<double> Json::tryReadDouble(const juce::var& object, std::string_v
     return static_cast<double>(property_value);
 }
 
-// Keeps optional double fields lenient for gain and other numeric metadata that can be absent in
-// older tone documents.
+// Keeps optional double fields lenient so an absent or non-numeric gain or other numeric field
+// reads as the fallback.
 double Json::readOptionalDouble(
     const juce::var& object, std::string_view property_name, double fallback)
 {

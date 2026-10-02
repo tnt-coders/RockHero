@@ -139,9 +139,8 @@ struct PathStop
 // Whether the note's LAST keyframe says nothing its path does not already say. THE KEYFRAME COMMIT
 // LAW is defined on the path WITHOUT the point, so the point comes off a copy before the walk reads
 // it — which is also what makes the walk account for every earlier junction rather than the onset
-// alone. Written once here because two rules ask it of the same keyframe: the landing grant, which
-// refuses to bare a point that would state nothing, and the slide-out dissolve, which removes one
-// that already does. The note must carry at least one keyframe.
+// alone. Asked by the landing grant (ringEndMayLandOnLastKeyframe), which refuses to bare a point
+// that would state nothing. The note must carry at least one keyframe.
 [[nodiscard]] bool lastKeyframeSaysNothingNew(const ChartNote& note)
 {
     assert(!note.keyframes.empty() && "the commit law needs a last keyframe to judge");

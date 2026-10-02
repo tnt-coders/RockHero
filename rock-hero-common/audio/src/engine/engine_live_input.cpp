@@ -335,7 +335,7 @@ std::expected<void, LiveInputError> Engine::setInputGain(Gain gain)
     return {};
 }
 
-// Reads the live input meter used by the calibration window.
+// Reads and restarts the raw input meter window that calibration samples.
 AudioMeterLevel Engine::readRawInputMeterLevel()
 {
     return m_impl->readRawInputMeterLevel();

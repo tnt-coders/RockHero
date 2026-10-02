@@ -51,8 +51,8 @@ namespace
     return states;
 }
 
-// Fixed blocks have a product cap minimum, but the value type still allows recovery from any
-// oversized test or future migrated chain.
+// Fixed blocks never number fewer than the product cap, but grow with an oversized chain so its
+// placement stays representable instead of failing validation.
 [[nodiscard]] std::size_t blockCountFor(std::size_t plugin_count) noexcept
 {
     return std::max(common::audio::g_max_signal_chain_plugins, plugin_count);
@@ -247,7 +247,7 @@ void preserveDisplayTypeOverrides(
 }
 
 // Chooses the canonical placement for a fresh backend snapshot. Valid snapshot placement wins for
-// project loads, captures, and future undo restores; pure insertions and removals keep survivor
+// project loads, captures, and undo restores; pure insertions and removals keep survivor
 // blocks when the backend has no placement model of its own.
 [[nodiscard]] SignalChainBlockPlacement placementForSnapshot(
     const std::vector<PluginViewState>& previous_plugins,

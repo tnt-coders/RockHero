@@ -1,5 +1,6 @@
 // The corpus census rig — the measurement instrument the chart ruleset's census gates read
-// (docs/plans/in-progress/chart-ruleset.md, [D2] [D3] [D4] [D6] and LAW I's let-ring amendment).
+// (docs/plans/in-progress/chart-ruleset.md, including LAW I's let-ring figure law). The [D2] [D3]
+// [D4] [D6] tags name the gate families, and the printed report heads its sections with them.
 //
 // CORPUS FIREWALL (docs/plans/roadmap/23-detection-verification-harness.md, "Corpus firewall"):
 // this file names no song, no path and no per-song datum. It iterates whatever directory
@@ -11,14 +12,14 @@
 //
 // The pipeline is the production one end to end and NOTHING here re-implements it: `parseGpScore`
 // -> `buildGpSong` -> `chartResolutions` / `chartShapeArrivals`, read once. The let-ring extension
-// belongs to the shipped import (`letRingEnds` in gp_chart_builder.cpp), so every derived counter
-// below reports the built chart exactly as it ships.
+// belongs to the shipped import (`letRingFigureEnds` in gp_chart_builder.cpp), so every derived
+// counter below reports the built chart exactly as it ships.
 //
-// What survives of the walk is a MEASUREMENT of the source (`walkLetRing`): which of Guitar Pro's
-// three stops bounds each marked ring, and what those rings cross. That is the evidence base for
-// the two divergence candidates the ruleset leaves open at [D4] — a section-marker stop and a
-// region-end stop — and it stays a reading of the score rather than a second statement of the
-// import's rule.
+// The one walk this file does itself is a MEASUREMENT of the source (`walkLetRing`): which of
+// Guitar Pro's three stops bounds each marked ring, and what those rings cross. That is the
+// evidence base for the two divergence candidates the ruleset leaves open — a section-marker stop
+// and a region-end stop — and it stays a reading of the score rather than a second statement of
+// the import's rule.
 #include "project/gp_chart_builder.h"
 #include "project/gp_score.h"
 #include "project/gp_score_parser.h"
@@ -587,9 +588,8 @@ struct DerivationCounters
     long long travel_landings_crowded{0};
 
     // [D2] — the landing split. `zero_length_spans` is the split's headline population (empty but
-    // for the span a hand alone states), and `travel_landings_absorbed` is review F9's population:
-    // a landing the SOURCE side says should re-open, with no successor span standing at that
-    // instant.
+    // for the span a hand alone states), and `travel_landings_absorbed` counts a landing the
+    // SOURCE side says should re-open, with no successor span standing at that instant.
     //
     // `travel_short_of_landing_spans` is the amendment's promise read as an INVARIANT rather than
     // as a share. A span's extent is the minimum of its members' coverage, and a travelling
@@ -660,8 +660,8 @@ struct DerivationCounters
     // never merged — so where they disagree, one of them is describing a hand that cannot exist.
     // Every FRETTED stop a span's posture holds should lie inside the reach of the fret-hand
     // window covering that span's start ([fret, fret + width - 1], the width derived from the
-    // notes as every surface derives it). Open strings are excluded: a 0
-    // is a voicing member no finger holds.
+    // notes as every surface derives it). Open strings are excluded: a 0 is a voicing member no
+    // finger holds.
     //
     // PINNED WHERE IT STANDS, NEVER RULED TO ZERO. The two derivations are independent by design
     // and this is the instrument that says whether they agree; ruling the disagreement to zero
@@ -803,7 +803,7 @@ struct StreamIndex
 
     // Onsets per string. Every question this column answers is a question about sound — where a
     // ring's next same-string onset lands, and which note last sounded a string — so it holds
-    // exactly the set production reads for those (`sounding_rings` in chart_shapes.cpp).
+    // exactly the set production reads for those in chart_shapes.cpp.
     std::vector<std::vector<std::size_t>> by_string;
 };
 
@@ -923,8 +923,8 @@ void countDerivation(
     // where nothing fretted sounds. FRETTED is the HAND's fret (`fretFor`), the same answer the
     // generator fits its window to — a natural harmonic stores fret 0 but its finger stands on
     // the neck at the node's containing fret, and `generateFretHandPositions` anchors on exactly
-    // that, so reading the stored fret here scored the generator's most literal placement as an
-    // unjustified one. Only the open string moves no finger to the window's post.
+    // that, so reading the stored fret here would score the generator's most literal placement as
+    // an unjustified one. Only the open string moves no finger to the window's post.
     {
         std::map<Fraction, std::pair<bool, bool>> onsets; // beat -> {any note, any fretted}
         for (const ChartNote& note : saved)
@@ -1006,7 +1006,7 @@ void countDerivation(
     Fraction covered_through{};
 
     // Where the derivation's successors actually stand, so the travel reading below can ask
-    // whether the landing it just attributed re-opened or was ABSORBED (review F9). Collected
+    // whether the landing it just attributed re-opened or was ABSORBED. Collected
     // ahead of the walk because the landing is read from the span the travel STARTS in, which the
     // loop reaches before the successor it produced.
     std::set<Fraction> successor_starts;
@@ -1115,10 +1115,10 @@ void countDerivation(
             out.successor_spans_arpeggio += arpeggio ? 1 : 0;
             out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
 
-            // THE SOURCE-SIDE READING of the same opening (review #8): a LANDING is a ring
-            // crossing this instant whose fret channel comes to rest exactly here, which is the
-            // hand ARRIVING. Read per string off the last note before the front, because that is
-            // the record whose chain crosses.
+            // THE SOURCE-SIDE READING of the same opening: a LANDING is a ring crossing this
+            // instant whose fret channel comes to rest exactly here, which is the hand ARRIVING.
+            // Read per string off the last note before the front, because that is the record whose
+            // chain crosses.
             //
             // A CONVERGENCE CHECK, not a cause split (grip-tenure law rule 7): ring-out opens
             // nothing, so a member's DEATH is not a boundary that can open anything and every span
@@ -1285,8 +1285,8 @@ void countDerivation(
             // STAYED only where a hand could plausibly have held both at once.
             //
             // The carried fret is read off the DERIVED posture, so this measures whatever the rule
-            // folded in — the stop the ring's own fret channel states AT the crossing (the F1 fix),
-            // not the fret it was struck at. Reading the onset fret here instead would make the rig
+            // folded in — the stop the ring's own fret channel states AT the crossing, not the
+            // fret it was struck at. Reading the onset fret here instead would make the rig
             // a second statement of the rule it measures. The HAND's fret on both sides (the one
             // ceil law for a node), so a carried node measures its distance from the finger the
             // chord put down, not from a 0.
@@ -1536,10 +1536,10 @@ void countDerivation(
                 }
                 out.travel_landings_open += resting >= 2 ? 1 : 0;
                 out.travel_landings_crowded += resting >= 2 ? 0 : 1;
-                // Review F9's population, measured rather than inferred: the source side says
-                // this landing states a grip, and no successor stands at it. The walk ABSORBED it
-                // — another statement was already standing there, or the statement that should
-                // have handed off to it had already been replaced.
+                // The absorbed landings, measured rather than inferred: the source side says this
+                // landing states a grip, and no successor stands at it. The walk ABSORBED it —
+                // another statement was already standing there, or the statement that should have
+                // handed off to it had already been replaced.
                 out.travel_landings_absorbed +=
                     resting >= 2 && !successor_starts.contains(*lands) ? 1 : 0;
                 // ... and the reason a walk needs no state to hand the grip over: this span never
@@ -2200,10 +2200,9 @@ struct CrossCheck
     return expected > 0.0 ? 0.10 * expected : 0.0;
 }
 
-// Prints the cross-check table AND ENFORCES it (review #9). A signed expectation is a real
-// `CHECK`, because a marker printed into a report nobody diffs is not a gate: this case carries
-// the hidden `[.local-corpus]` tag and runs only where the corpus is, so failing it is exactly its
-// job.
+// Prints the cross-check table AND ENFORCES it. A signed expectation is a real `CHECK`, because a
+// marker printed into a report nobody diffs is not a gate: this case carries the hidden
+// `[.local-corpus]` tag and runs only where the corpus is, so failing it is exactly its job.
 //
 // TWO BLOCKS, because they are two different kinds of statement and mixing them teaches the reader
 // to skim both: the enforced rows are figures somebody signed, and the awaiting rows are
@@ -2646,10 +2645,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 113.0,
             },
             CrossCheck{
-                // THE DENOMINATOR every derived row is read against (review #9): the import's own
-                // output rather than a derivation of it, so no span law moves it — the rules
-                // change what the notes MEAN and never how many there are — which is exactly what
-                // makes it the row that says whether the parse itself drifted.
+                // THE DENOMINATOR every derived row is read against: the import's own output
+                // rather than a derivation of it, so no span law moves it — the rules change what
+                // the notes MEAN and never how many there are — which is exactly what makes it the
+                // row that says whether the parse itself drifted.
                 .label = "chart notes built",
                 .rig = static_cast<double>(census.chart_notes),
                 .expected = 245866.0,
@@ -2778,8 +2777,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // slides arriving at the grip they travel to. THE EXACT END OF A TAIL NEVER FOUNDS
                 // A SPAN, so a glide whose arrival stands on the head it slides into hands nothing
                 // over and opens nothing: only a ring running STRICTLY PAST its landing does. The
-                // SOURCE-side reading in section
-                // [5] attributes the same population edge by edge, independently of this count.
+                // SOURCE-side reading in section [5] attributes the same population edge by edge,
+                // independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
                 .expected = 988.0,
@@ -2838,9 +2837,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // finding a reader needs. The stop row beside it is the same population counted
                 // per STOP, since one span can hold several out-of-reach fingers.
                 //
-                // RE-PINNED by the derived-width rulings (user, 2026-09-25): a window reaches every
-                // stop held in its stretch, rings carried in included, and the import states a
-                // placement only where the fret changes.
+                // The pin reflects the derived width: a window reaches every stop held in its
+                // stretch, rings carried in included, and the import states a placement only where
+                // the fret changes.
                 .label = "spans holding a stop outside the window",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
                 .expected = 141.0,
@@ -2857,9 +2856,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // refinement's whole reach. The shift row beside it counts the ARRIVALS, since
                 // one long span can be crossed more than once.
                 //
-                // RE-PINNED by the derived-width rulings (user, 2026-09-25): a placement stores
-                // only its fret, and the import states one only where the fret changes, so no
-                // window that merely widens, narrows or restates its fret arrives inside a span.
+                // The pin reflects the derived width: a placement stores only its fret, and the
+                // import states one only where the fret changes, so no window that merely widens,
+                // narrows or restates its fret arrives inside a span.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
                 .expected = 376.0,
@@ -2875,18 +2874,16 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // move with nothing to move for. FRETTED is the HAND's fret, so a natural
                 // harmonic counts as the finger it stands on and only the open string is unfretted.
                 //
-                // RE-PINNED by the derived-width rulings (user, 2026-09-25): a placement is stated
-                // only where the fret changes, so none exists to change the width alone or to
-                // restate the fret before it.
+                // The pin reflects the derived width: a placement is stated only where the fret
+                // changes, so none exists to change the width alone or to restate the fret before
+                // it.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
                 .expected = 18149.0,
             },
             CrossCheck{
-                // UNSIGNED: the figure drifted from its signed pin before the derived-width
-                // rulings, with no build yet named as the cause (docs/tracking/backlog.md). Re-pin
-                // it once
-                // that drift is explained.
+                // UNSIGNED: the figure drifted from its last signed pin with no build yet named as
+                // the cause (docs/tracking/backlog.md). Re-pin it once that drift is explained.
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
             },
@@ -2897,11 +2894,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // count and not ruled to zero for the same reason as the convergence row above —
                 // the number is evidence about the generator, and it has to be free to be read.
                 //
-                // RE-PINNED by the derived-width rulings (user, 2026-09-25). The rig counts rings
-                // sounding at a window's arrival whose fretting-hand stop (fretHandStopAt) the
-                // window does not cover. The window's reach is derived to cover every stop held in
-                // its stretch, so what the rig can still find is a finger held BELOW the index
-                // finger the placement authors.
+                // The pin reflects the derived width. The rig counts rings sounding at a window's
+                // arrival whose fretting-hand stop (fretHandStopAt) the window does not cover. The
+                // window's reach is derived to cover every stop held in its stretch, so what the
+                // rig can still find is a finger held BELOW the index finger the placement authors.
                 .label = "windows arriving over a pinned finger",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
                 .expected = 88.0,

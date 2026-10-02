@@ -128,9 +128,8 @@ A span is every consecutive vibrating leg, whatever their widths: only a leg wit
 one. The wave is therefore ONE wave across a width change — one phase from the span's start, one
 envelope at its two true ends — whose width both surfaces read from \ref vibratoWideWeightAt.
 
-A note whose vibrato runs end to end — every chart written before the keyframe model, and most
-written after — yields exactly one span covering the whole ring, so the surfaces draw what they
-always drew without a case of their own.
+A note whose vibrato runs end to end yields exactly one span covering the whole ring, so that
+common case needs no branch of its own on either surface.
 */
 struct VibratoSpanViewState
 {
@@ -259,9 +258,9 @@ struct SlideStopViewState
 
     The leg into it takes the release curve and arrives still moving. Every other stop — a scrape's
     turnarounds included — is a place the travel reaches and turns from, so its leg takes the
-    pitched curve and arrives tangentially (re-ruled 2026-09-24: a scrape's interior legs took the
-    release curve and cornered at every turnaround). What a scrape's whole path shares is its DIM,
-    which the rail reads off the attack, not off this flag.
+    pitched curve and arrives tangentially; the release curve there would corner at every
+    turnaround. What a scrape's whole path shares is its DIM, which the rail reads off the attack,
+    not off this flag.
     */
     bool slide_out{false};
 
@@ -540,9 +539,8 @@ struct NoteViewState
     fretboard axis, selects the diamond head from it and prints the node as the head's label.
 
     A pinch's node lies off the neck where the thumb grazes, so ask `nodeIsOnNeck` before
-    anchoring a head to it or labeling a head with it. Both surfaces today draw only a pinch's
-    fretted stop — its left-hand half — and how the right-hand node will be shown is an open
-    question, not a ruling.
+    anchoring a head to it or labeling a head with it. Both surfaces draw only a pinch's fretted
+    stop — its left-hand half — and neither shows the right-hand node.
     */
     std::optional<double> harmonic_node{};
 
@@ -578,10 +576,10 @@ struct NoteViewState
     /*!
     \brief The stretches of the ring the string vibrates over, in ascending time order.
 
-    Empty when the note never vibrates, which is what "is this note played with vibrato" asks now
-    that the channel can start and stop mid-ring (\ref VibratoSpanViewState). A span the channel
-    never closes runs to \ref ring_end_seconds; a surface clips every span to the extent it draws,
-    exactly as it does the bend curve and the slide keyframes.
+    Empty when the note never vibrates, which is how "is this note played with vibrato" is asked,
+    the channel being able to start and stop mid-ring (\ref VibratoSpanViewState). A span the
+    channel never closes runs to \ref ring_end_seconds; a surface clips every span to the extent it
+    draws, exactly as it does the bend curve and the slide keyframes.
     */
     std::vector<VibratoSpanViewState> vibrato;
 
@@ -622,9 +620,8 @@ struct NoteViewState
 \brief The translucency of a tail's core on both surfaces: the ribbon's body between its rails is
 light laid over the lane, not paint.
 
-The highway drew its core this way from the start; the 2D lane took the same number at the
-2026-09-24 sighting, once the shared tip fade showed the two tails dissolving differently — a
-solid bar thinning into the background beside light dying away.
+Shared so the two surfaces' tails dissolve alike under the common tip fade, rather than a solid
+bar thinning into the background beside light dying away.
 */
 inline constexpr double g_tail_core_alpha = 96.0 / 255.0;
 
@@ -743,7 +740,7 @@ head is DRAWN is the extent's question (\ref instantDrawn), not this one's.
 
 Fret zero alone cannot answer this — a natural harmonic (and a tap harmonic on an open string)
 also stores fret 0, with the node carrying its position, and rendering one as an open string
-erased the harmonic from the board outright: every decision between the open-string treatment
+would erase the harmonic from the board outright: every decision between the open-string treatment
 (the hand-window bar, the window-spanning tail band, the faded tail edge) and the fretted treatment
 must ask this instead of testing `fret == 0`.
 
@@ -802,8 +799,8 @@ struct ShapeStringViewState
     A head LATER in the span suppresses nothing, because the opening bracket is the span's CHORD
     FRAME: it states the full membership at the moment the reader meets it, so an accumulation's
     members print their frets there and their own heads restate them as they arrive. Asking over
-    the whole span emptied that frame of everything still to come, and its inclusive end let the
-    onset that CLOSED the span decide the digits inside it.
+    the whole span would empty that frame of everything still to come, and its inclusive end would
+    let the onset that CLOSED the span decide the digits inside it.
 
     Absent is about the DIGIT alone wherever a bracket draws at all: the bars draw for every posture
     string either way. This entry is the SPAN's membership statement, and it is also what prints a
@@ -834,7 +831,7 @@ struct ShapeViewState
     \brief Where the span's furniture STOPS: the drawn extent, on every surface, every time.
 
     Rule 12a's answer and the only end anything draws unasked (\ref makeChartViewState, which is
-    where the whole of that rule now lives): the musical close pulled back to keep the minimum
+    where the whole of that rule lives): the musical close pulled back to keep the minimum
     sustain distance before the head that closed the span, so consecutive spans show the gap every
     other drawn element shows instead of butting exactly. The margin is a DISPLAY rule, so this is
     the field it is in and \ref close_seconds beside it stays the musical fact.
@@ -890,8 +887,8 @@ struct ShapeViewState
     sounds interiorly.
 
     Not the same fact as \ref arpeggio, which is the CLASS — what the span's rails and its name say
-    it is. This is where the span's one opening mark is drawn, and [D2]'s amendment 2 separated
-    them: a CARRY-OPENED SUCCESSOR is a span that draws no mark at its own start at all. Nothing is
+    it is. This is where the span's one opening mark is drawn, and the two part company at a
+    CARRY-OPENED SUCCESSOR, a span that draws no mark at its own start at all. Nothing is
     stated at a boundary — a chord slide keeps the fingers planted, so all that happens at a landing
     is the fingers arriving, and a member's death states nothing either — so the continued tails
     plus the chord NAME changing there are the whole statement. Its bracket DEFERS to the span's
@@ -915,8 +912,8 @@ struct ShapeViewState
     corner of one.
 
     Taken from the derivation's \ref ChartShape::bracket_position rather than re-scanned: the walk
-    is what knows which slots a statement covers, and a re-scan asked that grouping question a
-    second time against an extent the closing trim had already shortened.
+    is what knows which slots a statement covers, and a re-scan would ask that grouping question a
+    second time against an extent the closing trim has already shortened.
     */
     std::optional<double> bracket_seconds{};
 
@@ -979,7 +976,7 @@ struct FhpViewState
     unpitched glide's curve instead of the pitched one.
 
     The hand follows whatever the rail draws, and the two families are different functions of
-    progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve left the
+    progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve would leave the
     window and the rail sharing only their endpoints.
     */
     bool unpitched_ramp{false};
@@ -1067,8 +1064,8 @@ struct ChartViewState
     **The 2D lane does not read this.** It draws and hit-tests each note to the extent
     \ref drawnEndSeconds names and never further, so the ribbons under chugs inside the
     kept-sustain bound are simply absent there — the chord box over the strum already states how
-    long the posture is fretted, and a ribbon repeating that used the one mark that means "this
-    string is still ringing" to say something else. The board has no chord box, so pinning the
+    long the posture is fretted, and a ribbon repeating that would use the one mark that means
+    "this string is still ringing" to say something else. The board has no chord box, so pinning the
     heads is how it states the same fact (ruling 3 of
     `docs/plans/in-progress/note-sustain-model.md`). One chart, one hold, two idioms.
 

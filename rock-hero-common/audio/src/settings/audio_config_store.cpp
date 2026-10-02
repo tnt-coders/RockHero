@@ -132,7 +132,7 @@ constexpr const char* g_format_version_property{"formatVersion"};
            *format_version == g_settings_xml_format_version;
 }
 
-// Writes the physical-route identity attributes shared by calibration records and the active route.
+// Writes a calibration record's physical-route identity attributes.
 void writeIdentityAttributes(juce::XmlElement& element, const InputDeviceIdentity& identity)
 {
     element.setAttribute(
@@ -288,7 +288,7 @@ struct InputCalibrationCodec
     }
 
     // Converts one XML item into a validated record, dropping incomplete entries. The gain is
-    // stored raw here; normalized() clamps it when the record enters the store.
+    // read raw here; normalized() brings it to its normal form when the record enters the store.
     [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
     {
         const std::optional<double> gain_db = parseDoubleAttribute(element, g_gain_db_property);

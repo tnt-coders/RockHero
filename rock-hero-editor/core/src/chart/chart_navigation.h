@@ -19,9 +19,9 @@ namespace rock_hero::editor::core
 \brief Could another digit reach a fret this one alone cannot?
 
 The provisional/immediate split for the pending fret entry: {1, 2} at the 24-fret cap wait out
-the window, everything else settles in the same keystroke. 0 is deliberately immediate — arming
-the window for it served only a leading-zero path nobody types, making the open string (the
-commonest value on the instrument) wait out the window.
+the window, everything else settles in the same keystroke. 0 is deliberately immediate: arming
+the window for it would serve only a leading-zero path nobody types, and would make the open
+string (the commonest value on the instrument) wait out the window.
 
 \param value The fret typed so far.
 

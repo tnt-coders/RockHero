@@ -102,24 +102,61 @@ an action is available exactly when whyUnavailable() returns no reason.
 */
 enum class ActionUnavailableReason : std::uint8_t
 {
+    /*! \brief A busy operation owns the editor and the action does not supersede it. */
     Busy,
+
+    /*! \brief Cancel was requested, but the active busy operation cannot be cancelled. */
     BusyCancelUnavailable,
+
+    /*! \brief Cancel was requested with no busy operation active. */
     NotBusy,
+
+    /*! \brief The live backend is untrusted, so only project-replacing actions remain. */
     SessionFaulted,
+
+    /*! \brief The input calibration prompt owns the signal chain and the project. */
     InputCalibrationPrompt,
+
+    /*! \brief No editor project is open. */
     NoProject,
+
+    /*! \brief No arrangement is loaded, or no live signal chain exists to edit. */
     NoLoadedArrangement,
+
+    /*! \brief The current arrangement carries no chart. */
     NoChart,
+
+    /*! \brief The editor-wide selection holds no chart notes. */
     NoChartSelection,
+
+    /*! \brief The chart caret is not armed on any slot, string or lane. */
     NoArmedCaret,
+
+    /*! \brief No unsaved-changes prompt is active to resolve. */
     NoUnsavedChangesPrompt,
+
+    /*! \brief No Save As destination prompt is active to cancel. */
     NoSaveAsPrompt,
+
+    /*! \brief No tone-import confirmation prompt is active to resolve. */
     NoToneImportPrompt,
+
+    /*! \brief The undo history has no entry in the requested direction. */
     HistoryUnavailable,
+
+    /*! \brief The transport is playing and the action is paused-only. */
     TransportPlaying,
+
+    /*! \brief The action needs the Tone Designer, which is not active. */
     ToneDesignerInactive,
+
+    /*! \brief The signal chain cannot accept another user plugin. */
     PluginChainFull,
+
+    /*! \brief The plugin catalog has no candidates to insert. */
     NoPluginCandidates,
+
+    /*! \brief The live rig has no loaded plugin instances. */
     NoLoadedPlugins,
 };
 

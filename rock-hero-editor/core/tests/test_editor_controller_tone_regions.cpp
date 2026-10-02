@@ -186,6 +186,7 @@ struct LoadedToneEditor
 
 } // namespace
 
+// Cursor-follow honors a region boundary's sub-beat offset when deciding which region is active.
 TEST_CASE(
     "EditorController resolves cursor-follow regions with sub-beat boundaries",
     "[core][editor-controller]")
@@ -344,8 +345,7 @@ TEST_CASE(
 // transport plays (the tone designer edits mid-play and must stay undoable). It is the one way a
 // baked schedule can go stale, so the transition rebuilds it — and the next frame, keyed on the
 // AUDIBLE region rather than on the last transport move, carries the restored region into the
-// display. Restored from the insert-behind-the-playhead case that the forward gate retired — undo
-// is now the only verb that can reach this state.
+// display.
 TEST_CASE(
     "EditorController rebakes and redraws an undone tone-region delete under a standing playhead",
     "[core][editor-controller]")
@@ -473,6 +473,8 @@ TEST_CASE(
     CHECK(editor.tone_timeline.last_regions.size() == 1);
 }
 
+// Renaming a catalog tone changes the name every region on that tone reads, and round-trips
+// through undo and redo.
 TEST_CASE(
     "EditorController renames a catalog tone and its regions relabel", "[core][editor-controller]")
 {
@@ -489,6 +491,8 @@ TEST_CASE(
     CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref) == "Rhythm");
 }
 
+// Repointing a region at another catalog tone relabels the drawn region, names the tone in the undo
+// label, and round-trips through undo and redo.
 TEST_CASE(
     "EditorController repoints a tone region at another catalog tone", "[core][editor-controller]")
 {
@@ -518,6 +522,8 @@ TEST_CASE(
     CHECK(editor.regions()[1].tone_document_ref == g_third_tone_ref);
 }
 
+// Repointing the active region switches the rig onto the new tone at once, without waiting for
+// the cursor to move.
 TEST_CASE(
     "EditorController makes a repointed active region audible immediately",
     "[core][editor-controller]")
@@ -607,6 +613,8 @@ TEST_CASE(
     CHECK(editor.regions()[2].start == gridAt(2, 3));
 }
 
+// A retone onto the region's current tone records nothing, and a retone onto a ref outside the
+// catalog is refused.
 TEST_CASE(
     "EditorController records nothing for a retone to the current tone and refuses an unknown one",
     "[core][editor-controller]")
@@ -629,6 +637,8 @@ TEST_CASE(
     CHECK_FALSE(state_after->undo_label.has_value());
 }
 
+// Deleting a region hands its span to the previous region; undo restores the region with its id,
+// start and tone.
 TEST_CASE(
     "EditorController deletes a tone region into the previous region", "[core][editor-controller]")
 {
@@ -650,6 +660,8 @@ TEST_CASE(
     CHECK(editor.regions().front().id == g_region_a);
 }
 
+// Deleting the first region hands its span to the next one, which takes over the song's opening
+// start; undo restores both starts.
 TEST_CASE(
     "EditorController deletes the first tone region into the next region",
     "[core][editor-controller]")
@@ -669,6 +681,8 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == gridAt(2, 1));
 }
 
+// Creating a region inside another splits it at the requested position; undo and redo round-trip
+// the split.
 TEST_CASE("EditorController creates a tone-change region by splitting", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeSingleRegionSong()};
@@ -690,6 +704,7 @@ TEST_CASE("EditorController creates a tone-change region by splitting", "[core][
     CHECK(editor.regions()[1].id == g_region_new);
 }
 
+// Moving a shared boundary moves the later region's start, which resizes both neighbours at once.
 TEST_CASE(
     "EditorController moves a shared tone boundary across both neighbors",
     "[core][editor-controller]")
@@ -709,6 +724,7 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == gridAt(2, 3));
 }
 
+// A boundary move keeps a sub-beat target exactly.
 TEST_CASE(
     "EditorController moves a shared tone boundary to a sub-beat position",
     "[core][editor-controller]")
@@ -729,6 +745,7 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == gridAt(2, 1));
 }
 
+// A boundary move on the first region is ignored, since its start is the song's own.
 TEST_CASE(
     "EditorController ignores a boundary move on the first region", "[core][editor-controller]")
 {
@@ -741,6 +758,7 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == gridAt(2, 1));
 }
 
+// A boundary move that would leave a region with no length is rejected.
 TEST_CASE(
     "EditorController rejects a boundary move that empties a region", "[core][editor-controller]")
 {
@@ -844,6 +862,8 @@ TEST_CASE(
     CHECK(after->undo_history.labels.size() == entries_before);
 }
 
+// Creating a new tone mints it, adds it to the catalog and splits a region onto it as one undo
+// entry; redo replays the edit without minting again.
 TEST_CASE(
     "EditorController creates a new tone by minting and splitting", "[core][editor-controller]")
 {
@@ -880,6 +900,7 @@ TEST_CASE(
     CHECK(editor.live_rig.mint_call_count == 1);
 }
 
+// Deleting a tone's last region prunes the tone from the catalog, which frees its name for reuse.
 TEST_CASE(
     "EditorController frees a tone's name when its last region is deleted",
     "[core][editor-controller]")
@@ -910,6 +931,8 @@ TEST_CASE(
     CHECK(editor.view.shown_errors.empty());
 }
 
+// The song must stay covered, so deleting the sole region resets it onto a fresh empty "Default"
+// tone instead of removing it, and undo reloads the rig to restore the tone it replaced.
 TEST_CASE("EditorController resets the sole tone region on delete", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeSingleRegionSong()};
@@ -938,8 +961,8 @@ TEST_CASE("EditorController resets the sole tone region on delete", "[core][edit
     // Coverage is preserved: the region stays but is repointed to a fresh empty "Default" tone.
     REQUIRE(editor.regions().size() == 1);
     CHECK(editor.regions().front().id == only_id);
-    // A delete leaves NOTHING selected, and this one survives its own delete — so the reset
-    // deselects explicitly rather than riding the retone's own rule 4 selection.
+    // A delete leaves NOTHING selected, and this region survives its own delete — so the reset
+    // deselects explicitly rather than keeping the selection a retone gives the region it restates.
     CHECK(editor.selectedRegionId().empty());
     CHECK(editor.regions().front().tone_document_ref == g_minted_ref);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Default");
@@ -1003,10 +1026,10 @@ TEST_CASE(
     CHECK_FALSE(catalog_has(g_second_tone_ref));
 }
 
-// Delete leaves NOTHING selected. The absorbing neighbour used to inherit the selection so the
-// signal-chain panel stayed bound to a region, but the panel follows the ACTIVE tone (the cursor's)
-// while "selected" is only the Delete target — inheriting it armed Delete at a region the charter
-// never pointed at.
+// Delete leaves NOTHING selected, not even the neighbour that absorbs the deleted span. The
+// signal-chain panel follows the ACTIVE tone (the cursor's), while "selected" is only the Delete
+// target, so handing the selection to the neighbour would arm Delete at a region the charter never
+// pointed at.
 TEST_CASE(
     "EditorController leaves nothing selected after deleting a tone region",
     "[core][editor-controller]")
@@ -1106,9 +1129,9 @@ TEST_CASE(
     CHECK(std::holds_alternative<std::monostate>(editor.publishedToneChordTarget()));
 }
 
-// A restate SELECTS its target (grammar rule 4), from whichever input asked for it: the chord
-// authors at the cursor and selects nothing first, so the retone itself is what leaves the region
-// outlined for Enter, Ctrl+R and Delete.
+// A restate SELECTS its target, from whichever input asked for it: the chord authors at the cursor
+// and selects nothing first, so the retone itself is what leaves the region outlined for Enter,
+// Ctrl+R and Delete.
 TEST_CASE("EditorController selects the region a retone produced", "[core][editor-controller]")
 {
     common::core::Song song = makeTwoRegionSong();
@@ -1121,8 +1144,8 @@ TEST_CASE("EditorController selects the region a retone produced", "[core][edito
     CHECK(editor.selectedRegionId() == g_region_b);
 }
 
-// And when the retone merges the region away, the SURVIVOR is what stays selected — the region now
-// holding the start the charter pointed at, whatever its id.
+// When a retone merges the region away, the SURVIVOR is what stays selected — the region that then
+// holds the start the charter pointed at, whatever its id.
 TEST_CASE("EditorController selects the survivor of a merging retone", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};

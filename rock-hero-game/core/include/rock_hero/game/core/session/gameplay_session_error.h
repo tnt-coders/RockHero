@@ -33,7 +33,7 @@ enum class GameplaySessionErrorCode : std::uint8_t
     RigLoadFailed,
 
     /*!
-    \brief The song's tones reference plugins that are not installed (21-Q1: refuse to start).
+    \brief The song's tones reference plugins that are not installed, so the song refuses to start.
 
     The message lists every missing plugin so the player can install them all in one pass.
     */

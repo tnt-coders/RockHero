@@ -27,7 +27,7 @@ characters from plugin paths, so ID and log paths route through this helper inst
 [[nodiscard]] std::string pathToUtf8String(const std::filesystem::path& path);
 
 /*!
-\brief Builds a normalized, lowercased UTF-8 key for path-based deduplication.
+\brief Builds a normalized UTF-8 key for path-based deduplication, case-folded on Windows.
 \param path Path to normalize.
 \return Stable comparison key for the path.
 */
@@ -43,8 +43,9 @@ characters from plugin paths, so ID and log paths route through this helper inst
 /*!
 \brief Normalizes a persisted VST3 reference to its bundle directory.
 
-JUCE may persist a Windows VST3 either as the bundle directory or as the architecture-specific
-module inside Contents; both forms normalize to the bundle for UI display and path deduping.
+JUCE may persist a VST3 either as the bundle directory or as the architecture-specific module
+inside Contents, on every platform; both forms normalize to the bundle for UI display and path
+deduping.
 
 \param path Persisted plugin path in either form.
 \return Bundle path for display and deduplication.

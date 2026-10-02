@@ -28,9 +28,8 @@ struct AudioAsset
     \brief Normalization record describing the playback gain and its validation hash.
 
     Present after the editor has analyzed this asset against a loudness target and persisted the
-    resulting gain. Absent for assets loaded from packages that pre-date normalization metadata
-    or from formats that do not carry it; the open/import flow analyzes those before the project
-    becomes usable.
+    resulting gain. Absent for assets whose package or source format carries no normalization
+    record; the open/import flow analyzes those before the project becomes usable.
     */
     std::optional<AudioNormalization> normalization;
 

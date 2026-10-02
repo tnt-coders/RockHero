@@ -26,10 +26,10 @@ bool isValidToneParameterAutomation(
             return false;
         }
         // Written as a range the value must be INSIDE, not as the excursions it must avoid,
-        // because every comparison against a NaN is false: the excursion form accepted NaN, and
-        // the writer then emitted the bare token `nan`, which is not JSON — so one NaN from a
-        // hosted plugin made song.json permanently unparseable and the project unopenable. This is
-        // the only validator between a captured point and the file.
+        // because every comparison against a NaN is false: an excursion test would accept NaN, the
+        // writer would emit the bare token `nan`, which is not JSON, and one NaN from a hosted
+        // plugin would leave song.json unparseable and the project unopenable. This is the only
+        // validator between a captured point and the file.
         if (!(point.norm_value >= 0.0F && point.norm_value <= 1.0F))
         {
             return false;

@@ -23,13 +23,19 @@ public:
     /*! \brief Copying is disabled; the client registration is identity-based. */
     MeterReader(const MeterReader&) = delete;
 
-    /*! \brief Copy assignment is disabled; the client registration is identity-based. */
+    /*!
+    \brief Copy assignment is disabled; the client registration is identity-based.
+    \return Reference to this reader.
+    */
     MeterReader& operator=(const MeterReader&) = delete;
 
     /*! \brief Moving is disabled; Tracktion holds a pointer to the client member. */
     MeterReader(MeterReader&&) = delete;
 
-    /*! \brief Move assignment is disabled; Tracktion points at the client member. */
+    /*!
+    \brief Move assignment is disabled; Tracktion points at the client member.
+    \return Reference to this reader.
+    */
     MeterReader& operator=(MeterReader&&) = delete;
 
     /*! \brief Detaches from Tracktion before the reader's client storage is destroyed. */

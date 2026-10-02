@@ -119,7 +119,7 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
     // Second, given a stroke-half estimate, a sample within (stroke half - distance) of the
     // glyph rect boundary is owned by the tip clip — its wrapped rim brightens pixels even
     // on the centerline near the tips, which otherwise smears a radial gradient across a
-    // flat-painted fill (the sighted ghost inner X on the full mute). The survey pass runs
+    // flat-painted fill (a ghost inner X on the full mute). The survey pass runs
     // unguarded (it has no estimate yet); its stroke edge is set by the rim's sharp falloff,
     // which the tip smear does not move.
     const auto accumulate = [&](const double extent,

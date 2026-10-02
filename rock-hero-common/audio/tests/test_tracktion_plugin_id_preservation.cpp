@@ -9,8 +9,8 @@
 // undo stack would reference dead plugins; this test fails first.
 //
 // Instance-id allocation runs through the same EditItem path for built-in and external plugins, so
-// a built-in VolumeAndPanPlugin is a valid proxy (this exercises id
-// identity, not VST3 audio-state).
+// a built-in VolumeAndPanPlugin is a valid proxy (this exercises id identity, not VST3
+// audio-state).
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>

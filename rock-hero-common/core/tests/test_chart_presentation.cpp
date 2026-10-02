@@ -995,10 +995,10 @@ TEST_CASE("Inked tails and dead groups hold what they show", "[core][chart]")
 
     SECTION("a resting spill holds its own stored ring past the reach")
     {
-        // The first member LEAVES the span; the stroke rests anyway (the spill amendment),
-        // and the hold channel answers honestly on both sides of the reach: the spilling ring
-        // exceeds the span's four beats and keeps its own 9/2 (the string genuinely rings
-        // there), while its short partner is pinned to the reach — the tenure the grip states.
+        // The first member LEAVES the span; the stroke rests anyway, and the hold channel answers
+        // honestly on both sides of the reach: the spilling ring exceeds the span's four beats and
+        // keeps its own 9/2 (the string genuinely rings there), while its short partner is pinned
+        // to the reach — the tenure the grip states.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{9, 2}),
             note(at(1, 1), 2, Fraction{1, 2}, 7),
@@ -1340,6 +1340,8 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
     }
 }
 
+// A let-ring figure whose rings end together rests ribbonless end to end, its closer included:
+// the rails and the hold-pinned heads state the tenure.
 TEST_CASE("A co-terminating let-ring figure rests ribbonless", "[core][chart]")
 {
     const TempoMap map = fourFourMap();

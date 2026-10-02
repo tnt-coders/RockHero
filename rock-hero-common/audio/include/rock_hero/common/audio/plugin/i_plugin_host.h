@@ -231,8 +231,8 @@ public:
     /*!
     \brief Removes a loaded plugin instance from the hosted chain.
 
-    The first implementation removes from the linear Tracktion plugin list owned by the
-    instrument track. It stops and rebuilds backend playback graph state as needed.
+    Only an instance in the user-visible chain can be removed. The implementation stops and
+    rebuilds backend playback graph state as needed.
 
     \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \return Authoritative post-mutation chain snapshot, or a typed failure.
@@ -314,7 +314,7 @@ public:
     virtual void setPluginStateEditObserver(PluginStateEditObserver observer) = 0;
 
     /*!
-    \brief Installs callbacks for Undo/Redo shortcuts received by hosted plugin editor windows.
+    \brief Installs callbacks for shortcuts received by hosted plugin editor windows.
 
     The plugin host only forwards window-level shortcuts; the owning application remains
     responsible for deciding whether a command is available and how pending edits become undo
@@ -328,9 +328,9 @@ public:
     /*!
     \brief Replaces the shortcut chords hosted plugin windows claim before the plugin sees them.
 
-    The editor owns the actual chords now that every command is user-rebindable, so it pushes
-    them after keymap restore and again on every mapping change; until the first push, built-in
-    defaults matching the editor's default keymap apply. Empty chord lists are honored as "do
+    Every command is user-rebindable, so the editor owns the actual chords and pushes them after
+    keymap restore and again on every mapping change; until the first push, built-in defaults
+    matching the editor's default keymap apply. Empty chord lists are honored as "do
     not forward this command".
 
     \param bindings Chord lists for the forwarded Undo/Redo/Play-Pause commands.
@@ -341,8 +341,8 @@ public:
     /*!
     \brief Opens the hosted editor window for a loaded plugin instance.
 
-    The first implementation asks Tracktion to show the plugin's native/editor component and bring
-    it to the front if it is already open.
+    The instance may belong to any loaded tone, not only the audible one. An already-open window
+    is brought to the front.
 
     \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \return Empty success, or a typed failure.

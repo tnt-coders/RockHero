@@ -40,8 +40,7 @@ namespace rock_hero::common::audio
 // JUCE may persist a VST3 either as the bundle directory or as the architecture-specific module
 // inside Contents; the <name>.vst3/Contents/<arch>/ bundle layout is identical on every
 // platform, and the shape check makes the normalization self-guarding, so it runs
-// unconditionally (plan 33 Phase 1 removed the old Windows-only guard). Normalize both forms
-// to the bundle for UI display and path deduping.
+// unconditionally. Normalize both forms to the bundle for UI display and path deduping.
 [[nodiscard]] std::filesystem::path vst3DisplayPath(const std::filesystem::path& path)
 {
     const std::filesystem::path architecture_path = path.parent_path();

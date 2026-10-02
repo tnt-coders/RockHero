@@ -34,12 +34,9 @@ struct TimePosition
     \param rhs Right-hand timeline position.
     \return True when both positions store the same second value.
     */
-    // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
-    // named timing helpers at the algorithm call site, not operator==.
-    // This is not defaulted because the generated comparison uses direct floating-point ==,
-    // which is promoted to a build error by -Wfloat-equal under the shared warning policy.
-    // std::is_eq(lhs.seconds <=> rhs.seconds) preserves exact equality semantics while avoiding
-    // that compiler diagnostic.
+    // Exact by design; tolerance comparisons belong in named timing helpers at the call site.
+    // Not defaulted: the generated floating-point == is a -Wfloat-equal build error, while
+    // std::is_eq on <=> keeps the same exact semantics without the diagnostic.
     friend constexpr bool operator==(const TimePosition& lhs, const TimePosition& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds);
@@ -69,12 +66,9 @@ struct TimeDuration
     \param rhs Right-hand timeline duration.
     \return True when both durations store the same second value.
     */
-    // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
-    // named timing helpers at the algorithm call site, not operator==.
-    // This is not defaulted because the generated comparison uses direct floating-point ==,
-    // which is promoted to a build error by -Wfloat-equal under the shared warning policy.
-    // std::is_eq(lhs.seconds <=> rhs.seconds) preserves exact equality semantics while avoiding
-    // that compiler diagnostic.
+    // Exact by design; tolerance comparisons belong in named timing helpers at the call site.
+    // Not defaulted: the generated floating-point == is a -Wfloat-equal build error, while
+    // std::is_eq on <=> keeps the same exact semantics without the diagnostic.
     friend constexpr bool operator==(const TimeDuration& lhs, const TimeDuration& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds);

@@ -11,8 +11,8 @@ namespace
 
 // Sorted by model, every field listed. Behringer's UMC202HD, UMC204HD and UMC404HD are withheld:
 // Behringer's sheet gives -3 dBu and a community measurement +16.8 dBu, a 20 dB disagreement that
-// only a meter reading settles (the hardware checklist of the input-calibration rework plan). A row
-// that may be 20 dB wrong is worse than the automatic measurement those players fall back to.
+// only a meter reading settles. A row that may be 20 dB wrong is worse than the automatic
+// measurement those players fall back to.
 constexpr std::array g_known_interfaces{
     KnownInterface{
         .model = "Arturia MiniFuse",

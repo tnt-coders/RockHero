@@ -53,11 +53,10 @@ constexpr int g_camera_zone_measures = 2;
 
 // A member's position on its own rail at an instant: its sounding stop before any glide, eased
 // along each leg with the family the rail draws (highwaySlideEaseWeight, the family being the
-// stop's own slide-out flag), and the last stop's afterwards. A tap's unpitched slide-out
-// never moves the light; a scrape's stops, its slide-out included, ARE the hand's travel. The
-// DRAWN position
-// (highwayDrawnStop), so a path cannot walk off the board while the head it belongs to is held at
-// the edge.
+// stop's own slide-out flag), and the last stop's afterwards. A tap's unpitched slide-out never
+// moves the light; a scrape's stops, its slide-out included, ARE the hand's travel. The DRAWN
+// position (highwayDrawnStop), so a path cannot walk off the board while the head it belongs to is
+// held at the edge.
 [[nodiscard]] double memberPositionAt(const NoteViewState& note, const double seconds)
 {
     const bool scrape = isScrape(note.attack);
@@ -139,9 +138,9 @@ void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit
             const NoteViewState& note = notes[member];
             // Judged on where the note SOUNDS, so an open-string tap HARMONIC strikes its node. The
             // guard exists to keep a malformed chart from putting a light off the board, and the
-            // sounding position is what has to be on the board — reading `fret` instead dropped the
-            // light from a note the rules explicitly allow, since E4 accepts a tap that strikes a
-            // node in place of a fret. Asking for the DRAWN position closes the other end of that
+            // sounding position is what has to be on the board — reading `fret` instead would drop
+            // the light from a note the rules explicitly allow, since E4 accepts a tap that strikes
+            // a node in place of a fret. Asking for the DRAWN position closes the other end of that
             // guard: the zero test below catches a light below the nut, and the board cap catches
             // one past the last fret, which a node legally can be.
             // The integer fret CONTAINING the sounding place, since the light spans fret slots: a
@@ -173,7 +172,7 @@ void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit
 // every later one ramps over the leg from the arrival before it. An instant strike is not a lost
 // morph: the reading rule (highwayLitTrackTime) holds a light's window at its start through its
 // rise, so a ramp into a strike could never show — and one clamped against a release rather than
-// the previous arrival broke the track's ordering for a glide the next strike's margin cuts.
+// the previous arrival would break the track's ordering for a glide the next strike's margin cuts.
 void appendTapGroupPath(
     const std::vector<NoteViewState>& notes, const HighwayTapOnsetViewState& strike,
     const std::span<const std::size_t> members, std::vector<HighwayHandArrival>& track)
@@ -349,7 +348,7 @@ void clampStrikePops(
 //
 // Whether a box covers a cluster is the projection's answer, not a member count here: a second
 // reading of "is there a box here" would light both, or neither, wherever the two disagreed. BOTH
-// PRODUCERS (review R2(b)): a strum's own chord box, and the ARPEGGIO mark its covering span draws.
+// PRODUCERS count: a strum's own chord box, and the ARPEGGIO mark its covering span draws.
 // A lone note under a bracket wears no chord box, so reading the box alone would light its per-fret
 // lines straight through a mark already standing over them.
 //
@@ -546,7 +545,7 @@ HighwayViewState makeHighwayViewState(
     for (const SongSection& section : sections)
     {
         // Upper-cased here, once per projection, because the board draws every section name that
-        // way and doing it in the renderer meant a fresh allocation and transform per visible
+        // way and doing it in the renderer would mean a fresh allocation and transform per visible
         // section per frame for a value that only changes when the chart does.
         std::string name = asciiUppered(section.name);
         state.sections.push_back(

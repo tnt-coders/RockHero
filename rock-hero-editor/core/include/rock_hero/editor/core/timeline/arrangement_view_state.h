@@ -14,12 +14,6 @@
 namespace rock_hero::editor::core
 {
 
-/*!
-\brief View-facing state for the arrangement currently displayed by the editor.
-
-This state stays focused on the information the current editor UI can actually render. In the
-current stage that is one full-source waveform for the displayed arrangement.
-*/
 /*! \brief One selectable arrangement offered by the arrangement switcher. */
 struct ArrangementChoiceViewState
 {
@@ -42,6 +36,12 @@ struct ArrangementChoiceViewState
         const ArrangementChoiceViewState& lhs, const ArrangementChoiceViewState& rhs) = default;
 };
 
+/*!
+\brief View-facing state for the arrangement currently displayed by the editor.
+
+Holds only what the editor UI renders per arrangement: the backing audio behind the waveform and
+the choices offered by the arrangement switcher.
+*/
 struct ArrangementViewState
 {
     /*! \brief Backing audio currently rendered for the arrangement, if any. */

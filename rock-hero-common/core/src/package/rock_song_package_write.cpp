@@ -285,8 +285,8 @@ struct ArrangementDocumentEntry
         line += jsonString(entry.normalization->validation_sha256);
         line += " }";
     }
-    // Omit the offset when the audio starts at the score's first beat, so assets without an
-    // alignment offset round-trip byte-for-byte with pre-offset packages.
+    // Omit the offset when the audio starts at the score's first beat; the reader reads an absent
+    // offset as zero, so an unaligned asset adds nothing to song.json.
     if (std::is_neq(entry.start_offset.seconds <=> 0.0))
     {
         line += ", \"startOffset\": ";
@@ -480,11 +480,10 @@ struct SongDocumentForSave
     return std::expected<void, SongPackageError>{};
 }
 
-// Persists one arrangement's chart document: the in-memory chart is the authoritative form now
-// that chart editing exists, so saves serialize it back through the canonical writer instead of
-// only validating the file's presence. An arrangement carrying a reference without a loaded
-// in-memory chart (peek-shaped loads) still requires the file on disk — a dangling reference is
-// refused, never silently dropped. Path safety is checked before any write.
+// Persists one arrangement's chart document: the in-memory chart is the authoritative form, so a
+// save serializes it back through the canonical writer. An arrangement carrying a reference without
+// a loaded in-memory chart (peek-shaped loads) requires the file on disk instead — a dangling
+// reference is refused, never silently dropped. Path safety is checked before any write.
 [[nodiscard]] std::expected<void, SongPackageError> writeChartDocumentForSave(
     const std::filesystem::path& workspace_directory, const Arrangement& arrangement,
     const TempoMap& tempo_map)
@@ -872,12 +871,12 @@ std::expected<void, ArchiveError> writeWorkspaceToArchive(
     }
 
     // Built beside the target and renamed over it only once every byte is on disk. Writing in place
-    // meant truncating the user's existing package FIRST and then streaming into it, so any failure
-    // partway — a full disk, an indexer holding one workspace file open — left a truncated archive
-    // with no central directory where the project used to be, unreadable and unrecoverable. JUCE's
-    // builder stops at the first entry it cannot write, so that window was real rather than
-    // theoretical. A failed save now leaves the previous package exactly as it was, and the only
-    // casualty is a temp file this function removes on the way out.
+    // would truncate the user's existing package FIRST and then stream into it, so any failure
+    // partway — a full disk, an indexer holding one workspace file open — would leave a truncated
+    // archive with no central directory, unreadable and unrecoverable; JUCE's builder stops at the
+    // first entry it cannot write, so that window is real rather than theoretical. A failed save
+    // leaves the previous package exactly as it was, and the only casualty is a temp file this
+    // function removes on the way out.
     const std::filesystem::path staging_path = [&archive_path] {
         std::filesystem::path path = archive_path;
         path += ".saving";

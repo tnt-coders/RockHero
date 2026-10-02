@@ -34,14 +34,14 @@ namespace
 } // namespace
 
 // The 3D head's connection mark comes from the RESOLVED motion, and the two directions are one
-// atlas cell drawn two ways. The mapping had no witness while it lived inline in the draw pass,
-// where a mutation reading the stored attack instead — drawing a hammer for every `Legato` —
-// changed nothing any test could see.
+// atlas cell drawn two ways. Inside the draw pass the mapping would have no witness: a mutation
+// reading the stored attack instead — drawing a hammer for every `Legato` — would change nothing
+// any test could see.
 TEST_CASE("Highway legato cell follows the resolved motion", "[ui][highway]")
 {
     CHECK(highwayLegatoCell(common::core::LegatoMotion::Hammer) == HighwayLegatoCell::Upright);
     CHECK(highwayLegatoCell(common::core::LegatoMotion::Pull) == HighwayLegatoCell::Flipped);
-    // The whole no-indicator ruling: a claim nothing justifies draws what the plain pick draws.
+    // The no-indicator rule: a claim nothing justifies draws what the plain pick draws.
     CHECK(highwayLegatoCell(common::core::LegatoMotion::Unjustified) == HighwayLegatoCell::None);
 
     // The stored attack cannot reach the answer. A `Legato` whose claim broke draws nothing, and a
@@ -93,19 +93,19 @@ TEST_CASE("Highway tech head follows the drawn marks", "[ui][highway]")
     CHECK(highwayTechHead(
         noteWith(common::core::NoteAttack::PickSlide, common::core::LegatoMotion::Unjustified)));
 
-    // A node head is deliberately NOT a tech head anymore: it wears its own round base, which
-    // outranks the darkening.
+    // A node head is deliberately NOT a tech head: it wears its own diamond base, which outranks
+    // the darkening.
     common::core::NoteViewState artificial_harmonic =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     artificial_harmonic.harmonic_node = 17.0;
     CHECK_FALSE(highwayTechHead(artificial_harmonic));
 }
 
-// The round node base follows the board's own placement rule: exactly the heads DRAWN on a node
+// The diamond node base follows the board's own placement rule: exactly the heads DRAWN on a node
 // take it, so the base shape and the head station can never disagree.
 TEST_CASE("Highway node head follows the drawn sounding position", "[ui][highway]")
 {
-    // No node, no round base.
+    // No node, no diamond base.
     CHECK_FALSE(highwayNodeHead(
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified)));
 
@@ -130,7 +130,7 @@ TEST_CASE("Highway node head follows the drawn sounding position", "[ui][highway
     CHECK_FALSE(highwayNodeHead(pinch));
 
     // A node past the drawn board still draws AS a node (capped to the last fret), so it keeps
-    // the round base.
+    // the diamond base.
     common::core::NoteViewState far_node =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     far_node.harmonic_node = 40.0;
@@ -138,10 +138,9 @@ TEST_CASE("Highway node head follows the drawn sounding position", "[ui][highway
 }
 
 // The ORDER is the whole reason this authority exists. Hand-written in the open-string branch and
-// again in the fretted one, the two drift — one drawing the connection cell underneath everything
-// and no harmonic at all, the other the harmonic at the very bottom and the connection cell fifth.
-// Neither draw branch is reachable from a test, so a divergence there has no witness; stated as one
-// list here, it does.
+// again in the fretted one, two lists drift apart in where the connection cell and the harmonic
+// sit. Neither draw branch is reachable from a test, so a divergence there has no witness; stated
+// as one list here, it does.
 TEST_CASE("Highway head marks stack in override order", "[ui][highway]")
 {
     // Deliberately synthetic: every rung at once, which is also the provable maximum a head can

@@ -58,7 +58,7 @@ struct SongMetadata
 
 A Song owns all data needed to start a game or editing session:
 - Descriptive metadata such as title, artist, and album.
-- The song-level tempo map used by tone automation and future chart grid positions.
+- The song-level tempo map that resolves chart and tone-automation grid positions.
 - Playable Arrangements for authored parts.
 
 Arrangement-owned tone document references are interpreted exclusively by common/audio and the
@@ -70,7 +70,7 @@ struct Song
     /*! \brief Descriptive metadata for the song. */
     SongMetadata metadata;
 
-    /*! \brief Song-level beat grid used by tone automation and future chart timing. */
+    /*! \brief Song-level beat grid shared by chart timing and tone automation. */
     TempoMap tempo_map;
 
     /*! \brief Song-structure section markers, sorted by position. */

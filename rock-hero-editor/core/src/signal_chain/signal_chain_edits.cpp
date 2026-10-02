@@ -375,9 +375,9 @@ void eraseRemovedAutomation(const PluginRemoveEdit& edit, EditorEditContext& con
 {
     // No visible-chain preflight: every tone's chain stays loaded (muted rather than absent), and
     // the host resolves the instance across all of them, so the entry applies whichever tone is
-    // audible or on screen. Preflighting against the visible chain made undo die for the rest of
-    // the session once playback crossed onto another tone. A genuinely missing instance surfaces
-    // as the host's typed error below.
+    // audible or on screen. A visible-chain preflight would refuse every entry for a tone other
+    // than the visible one, so undo would stall once playback crossed onto another tone. A
+    // genuinely missing instance surfaces as the host's typed error below.
 
     // Plugin edits restore via full-chunk setPluginState so plugin-owned metadata such as preset
     // labels, dirty flags, and loaded file references stays consistent with parameter values.

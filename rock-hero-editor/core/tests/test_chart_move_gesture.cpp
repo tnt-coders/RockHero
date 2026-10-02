@@ -310,7 +310,7 @@ TEST_CASE("A caret move ends the move gesture", "[core][chart]")
 // gesture's own ending: the entry its first press pushed is taken back out, and the chart is
 // byte-identical to what the run found — the selection with it, since the landing IS the start.
 // The caret riding the lone note rides that last step home too: a retirement moves the chart
-// exactly as a replaced entry does, and once left the caret one step out.
+// exactly as a replaced entry does, so the caret must follow it rather than stay one step out.
 TEST_CASE("A reversed move gesture ends at the origin and leaves no entry", "[core][chart]")
 {
     MoveFixture fixture;
@@ -473,12 +473,12 @@ TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing",
     }
 }
 
-// THE burst record's own law, and a data-loss regression: the record must not outlive the edit it
-// names. An edit whose WRITTEN diff is empty — a point planted or stepped at the fret already in
+// THE burst record's own law, which guards against data loss: the record must not outlive the edit
+// it names. An edit whose WRITTEN diff is empty — a point planted or stepped at the fret already in
 // force — pushes no entry at all, and an entry-less edit moves the history position not at all, so
-// a record left naming the PREVIOUS edit's entry still passes the ownership proof. The next press
-// of a gesture then reconstructs its "pre-gesture" chart by reversing a stranger's plan, finds no
-// operand there, and retires that stranger's entry — which took a deleted note's only way back.
+// a record left naming the PREVIOUS edit's entry would still pass the ownership proof. The next
+// press of a gesture would then reconstruct its "pre-gesture" chart by reversing a stranger's plan,
+// find no operand there, and retire that stranger's entry — a deleted note's only way back.
 TEST_CASE("A silent point edit hands the next move gesture no record", "[core][chart]")
 {
     MoveFixture fixture;

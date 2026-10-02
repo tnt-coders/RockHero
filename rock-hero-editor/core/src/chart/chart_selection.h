@@ -81,8 +81,8 @@ struct ChartNoteKey
 \brief Stable identity of one selected keyframe: the note it rides, and where along that ring.
 
 The slot alone cannot name it — a note carries many keyframes — so the identity is (note slot,
-offset), which is what makes keyframes the reason the selection key became a sum rather than a
-slot plus a kind. The offset and not an index: removing an earlier keyframe shifts every later
+offset), which is why the selection key is a sum rather than a slot plus a kind. The offset and
+not an index: removing an earlier keyframe shifts every later
 index and moves no offset, so an index-keyed selection would silently point at a different
 keyframe after any edit that dropped one.
 
@@ -254,7 +254,7 @@ public:
     \brief Adds one object to the selection; already-selected objects stay selected.
 
     Production selection growth goes through \ref applyBox (the marquee) and \ref toggle
-    (Ctrl+click); this remains as their shared primitive and as a test convenience.
+    (Ctrl+click); this is their shared primitive and a test convenience.
 
     \param key Object to add.
     */
@@ -488,11 +488,10 @@ precondition every keyed lookup binary-searches.
 \brief Collects the keys of every authored object sharing one onset — the chord unit of the
 containment hierarchy.
 
-Selection granularity follows the containment hierarchy
-(docs/plans/in-progress/chart-span-and-selection-model.md §7): a single click selects the
-individual object, a DOUBLE click selects the whole onset group this collects — the double-click
-path is the sole consumer (the caret's re-derivation deliberately selects the single object
-under it, never the group).
+Selection granularity follows the containment hierarchy: a single click selects the individual
+object, a DOUBLE click selects the whole onset group this collects — the double-click path is the
+sole consumer (the caret's re-derivation deliberately selects the single object under it, never
+the group).
 
 A keyframe's group is the keyframes at ITS instant, on whatever notes carry them: a chord slide's
 junctions across strings are the hand arriving at one shape, exactly as a chord's heads are the hand

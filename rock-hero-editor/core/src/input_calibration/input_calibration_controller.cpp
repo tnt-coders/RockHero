@@ -74,7 +74,6 @@ void InputCalibrationController::onApplyRequested()
         return;
     }
 
-    // A stored gain ends the prompt, so the editor closes it; only a refusal comes back here.
     const auto applied = m_editor.onInputCalibrationApplied(m_state.gain_db);
     if (!applied.has_value())
     {

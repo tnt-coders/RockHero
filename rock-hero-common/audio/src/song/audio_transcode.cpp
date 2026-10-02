@@ -17,7 +17,7 @@ constexpr int g_flac_compression_index{2};
 // FLAC stores 16- or 24-bit integer samples (juce_FlacAudioFormat.cpp getPossibleBitDepths). Match
 // the source's declared precision rather than always writing 24-bit: a lossy 16-bit source (Ogg
 // Vorbis reports 16-bit) padded to 24-bit roughly doubles the file while storing only decode noise.
-// Sources above 16-bit (24-bit masters, or the platform MP3/AAC decoder's wider output) clamp to
+// Sources above 16-bit (24-bit masters, or an MP3/AAC decoder's wider output) clamp to
 // FLAC's 24-bit ceiling, which is lossless for any real integer source and beyond lossy precision.
 constexpr int g_flac_low_bit_depth{16};
 constexpr int g_flac_high_bit_depth{24};
@@ -31,6 +31,7 @@ constexpr int g_flac_high_bit_depth{24};
 
 } // namespace
 
+// Asks the same format registration transcodeToFlac() decodes through, so the two never disagree.
 bool canDecodeAudioExtension(const std::string& extension)
 {
     juce::AudioFormatManager formats;
@@ -40,12 +41,10 @@ bool canDecodeAudioExtension(const std::string& extension)
 
 // Decodes the source through JUCE's format manager and streams it into a lossless FLAC file, so
 // downstream playback and thumbnail reads share one decode-exact source. What that manager can
-// read is NARROWER than "anything the platform plays": WAV, AIFF, FLAC, Ogg Vorbis and MP3
-// everywhere (the in-tree software MP3 decoder, enabled 2026-09-02 — its patents expired 2017),
-// and AAC/.m4a ONLY on Apple
-// platforms — JUCE ships no AAC reader for Windows or Linux at all, which is why callers gate on
-// \ref canDecodeAudioExtension before staging a source here (the m4a import refusal, 2026-09-02).
-// FLAC sources are copied by the caller and never reach here.
+// read is NARROWER than "anything the platform plays" -- AAC/.m4a decodes ONLY on Apple platforms,
+// since JUCE ships no AAC reader for Windows or Linux -- which is why callers gate on
+// canDecodeAudioExtension() before staging a source here. FLAC sources are copied by the caller and
+// never reach here.
 std::expected<void, AudioTranscodeError> transcodeToFlac(
     const std::filesystem::path& source, const std::filesystem::path& destination)
 {

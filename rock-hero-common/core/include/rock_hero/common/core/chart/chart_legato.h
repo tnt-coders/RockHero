@@ -21,7 +21,7 @@ namespace rock_hero::common::core
 /*!
 \brief Index sentinel for \ref ChartResolutions::predecessors: nothing earlier on that string.
 
-Named once and shared, because the "nearest earlier note on the same string" relation now has one
+Named once and shared, because the "nearest earlier note on the same string" relation has one
 producer and more than one consumer.
 */
 inline constexpr std::size_t g_no_chart_predecessor{std::numeric_limits<std::size_t>::max()};
@@ -148,7 +148,7 @@ spans, the holds — can change a verdict here.
 That is why this is asked on its own rather than through \ref ChartResolutions. The settle sweep
 and the editor's legato verb want only these three vectors, and they run at every caret move,
 selection change, seek and playback start; deriving a whole song's ink ends, spans and holds to
-read one flag was a full pass over the chart thrown away on every keystroke.
+read one flag would be a full pass over the chart thrown away on every keystroke.
 
 Every vector is index-parallel to the note stream it was built from.
 */
@@ -177,7 +177,7 @@ struct ChartConnections
 
     The relation the forward walk already established to answer \ref legato, handed out rather than
     kept private: the `H` toggle asks the resolver its own hypothetical per selected note and needs
-    the same predecessor, and re-deriving it there was both a restatement of this rule and a
+    the same predecessor, and re-deriving it there would be both a restatement of this rule and a
     backward scan per selected note.
     */
     std::vector<std::size_t> predecessors;
@@ -268,7 +268,7 @@ successor states the stop the string falls to. EVERY fret derives alike, the ope
 pull onto the open string plants 0 — the stop beneath the source is the open string, always waiting,
 no finger needed. Only a destination the chart never defines derives nothing.
 
-BOUND BY THE RELEASE ALONE (RULED 2026-09-29): the finger it proves is on the string at the
+BOUND BY THE RELEASE ALONE: the finger it proves is on the string at the
 release, whatever path the source travelled first, so a slid source plants its stop exactly as an
 unslid one does; the Pull resolution already puts that stop strictly below the fret released from.
 The onset's TRAVELED RANGE (\ref travelsThroughFret) bounds THE RIDE instead (\ref gripStatement).
@@ -289,7 +289,7 @@ held table (\ref chartHeldStops).
 /*!
 \brief THE HELD TABLE: the fret the fretting hand presses under every head that sounds elsewhere.
 
-A held stop is DERIVED, never typed (RULED 2026-09-29). Every note a pull-off plants a stop beneath
+A held stop is DERIVED, never typed. Every note a pull-off plants a stop beneath
 (\ref chartPlantedStops) holds that stop, whichever hand made the onset. A note the PICKING HAND
 STOPS THE STRING FOR (\ref pickingHandStopsString) — a plain tap or a pick slide — with no plant
 holds THE DEFAULT: the fret the covering span's posture holds on its own string (coverage is
@@ -322,9 +322,9 @@ answered against.
 
 What is added here over \ref ChartConnections travels together because it is computed together —
 the holds need the saved stream, the ink ends, the tail law's verdict AND the spans to be answered
-at all — and because computing them separately is exactly how the tab lane, the highway, the
-gameplay build, and the reader came to disagree about the same chart. The connections are
-carried rather than restated, so a consumer of the whole picture still reads them from one place.
+at all — and because computing them separately would let the tab lane, the highway, the gameplay
+build, and the reader disagree about the same chart. The connections are carried rather than
+restated, so a consumer of the whole picture still reads them from one place.
 
 Every per-note vector is index-parallel to the note stream it was built from. Consumed once per
 chart revision, never per frame.

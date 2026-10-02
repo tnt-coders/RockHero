@@ -54,13 +54,19 @@ public:
     /*! \brief Copying is disabled; the window owns native window state. */
     PluginWindow(const PluginWindow&) = delete;
 
-    /*! \brief Copy assignment is disabled; the window owns native window state. */
+    /*!
+    \brief Copy assignment is disabled; the window owns native window state.
+    \return Reference to this window.
+    */
     PluginWindow& operator=(const PluginWindow&) = delete;
 
     /*! \brief Moving is disabled; Tracktion and the native hook hold stable pointers. */
     PluginWindow(PluginWindow&&) = delete;
 
-    /*! \brief Move assignment is disabled; Tracktion and the native hook hold stable pointers. */
+    /*!
+    \brief Move assignment is disabled; Tracktion and the native hook hold stable pointers.
+    \return Reference to this window.
+    */
     PluginWindow& operator=(PluginWindow&&) = delete;
 
     /*! \brief Flushes any plugin state touched by the editor before Tracktion releases the
@@ -72,8 +78,8 @@ public:
 
     Shared by all windows because they mirror one editor keymap. The editor pushes bindings
     through `IPluginHost::setPluginWindowShortcuts` after keymap restore and on every mapping
-    change; until the first push, the built-in defaults apply so an editor-less engine keeps the
-    historical behavior. Must be called on the message thread — the same thread the JUCE
+    change; until the first push, the built-in defaults apply so an editor-less engine behaves like
+    the editor's default keymap. Must be called on the message thread — the same thread the JUCE
     key-press path and the Win32 message hook read the bindings on, so no synchronization is
     needed.
 

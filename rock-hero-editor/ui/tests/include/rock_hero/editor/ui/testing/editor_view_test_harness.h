@@ -130,7 +130,7 @@ public:
         return 1.0;
     }
 
-    // Contract-shaped stub storing the normalized region; view tests do not drive loops today.
+    // Contract-shaped stub storing the normalized region; view tests do not drive loops.
     [[nodiscard]] std::expected<void, common::audio::TransportError> setLoopRegion(
         common::core::TimeRange region) override
     {

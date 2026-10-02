@@ -18,14 +18,13 @@ namespace rock_hero::editor::ui
 \brief The keyboard-shortcuts editor: registry commands, binding chips, capture, and reset.
 
 Custom-built against the public `juce::KeyPressMappingSet` API because the themed stock component
-read as off-product in live use (plan 46 Phase 3's custom-rebuild trigger). The view lists every
-registry command under its category, one row per command with its binding chips right-aligned;
-clicking a chip offers change/remove, the trailing `+` chip captures a new binding through a
-press-a-key dialog, and conflicts resolve through the overwrite-and-clear flow — a themed confirm
-naming the current owner, then remove-then-add, so exactly one owner keeps a chord (`addKeyPress`
-alone must never be trusted to resolve conflicts; its documented conflict removal does not exist
-in code). Every command is rebindable — the grammar verbs included (plan 53 Phase 1b, total
-rebindability).
+reads as off-product. The view lists every registry command under its category, one row per
+command with its binding chips right-aligned; clicking a chip offers change/remove, the trailing
+`+` chip captures a new binding through a press-a-key dialog, and conflicts resolve through the
+overwrite-and-clear flow — a themed confirm naming the current owner, then remove-then-add, so
+exactly one owner keeps a chord (`addKeyPress` alone must never be trusted to resolve conflicts;
+its documented conflict removal does not exist in code). Every command is rebindable, the grammar
+verbs included.
 
 Rows rebuild from the mapping set on every change broadcast, which also keeps the view live
 against rebinds arriving from anywhere else; the broadcasts are asynchronous, so a rebuild
@@ -55,7 +54,10 @@ public:
     /*! \brief Move assignment is disabled because child registrations are not movable. */
     KeymapEditorView& operator=(KeymapEditorView&&) = delete;
 
-    /*! \brief Fills the view background with the panel color. \param g Graphics context. */
+    /*!
+    \brief Fills the view background with the panel color.
+    \param g Graphics context.
+    */
     void paint(juce::Graphics& g) override;
 
     /*! \brief Lays out the scrolling row list above the reset strip. */
@@ -88,11 +90,9 @@ public:
     /*!
     \brief Restores one command's bindings to the registry defaults.
 
-    Offered per row (right-click, and in each chip's menu) — the affordance whose absence from
-    the stock component's private rows helped decide the custom build. One-owner semantics hold
-    through the reset: each default chord is first stripped from whatever command took it in
-    the meantime, because the mapping set's own per-command reset performs no conflict cleanup
-    of its own.
+    Offered per row (right-click, and in each chip's menu). One-owner semantics hold through the
+    reset: each default chord is first stripped from whatever command took it in the meantime,
+    because the mapping set's own per-command reset performs no conflict cleanup of its own.
 
     \param command Command to restore to its registry defaults.
     */

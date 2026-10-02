@@ -72,8 +72,8 @@ TEST_CASE("EditorController ignores play intent without audio", "[core][editor-c
     CHECK(transport.pause_call_count == 0);
 }
 
-// Without the user's audio hardware the engine runs its silent device, so the transport works as
-// ever: Play and Stop are available and both intents reach the transport.
+// Without the user's audio hardware the engine runs its silent device, so the transport stays
+// available: no unavailable reason is published and both Play and Stop reach the transport.
 TEST_CASE(
     "EditorController keeps the transport available without audio hardware",
     "[core][editor-controller]")

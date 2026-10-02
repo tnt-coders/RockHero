@@ -67,8 +67,9 @@ struct [[nodiscard]] GameWindowError
 /*!
 \brief Game-meaningful key actions translated from the platform event queue.
 
-The window translates raw key events into these so no SDL types cross the frame loop; today the
-set covers the dev-diagnostics layer (plan 20 Phase 4), and plan 26's menu input layer widens it.
+The window translates raw key events into these so no SDL types cross the frame loop. The set
+covers the dev-diagnostics layer and gameplay transport; menu navigation resolves the raw keycodes
+through its own bindings instead.
 */
 enum class GameKey : std::uint8_t
 {

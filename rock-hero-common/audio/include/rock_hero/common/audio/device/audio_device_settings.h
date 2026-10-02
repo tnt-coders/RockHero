@@ -321,10 +321,9 @@ protected:
 Construction captures the current route, closes the active audio device when one is open, and
 builds staged settings from that captured route. apply() opens the staged setup and saves it as
 the user's choice, in the engine and in the audio-config store, the only place a route is saved;
-cancel()
-reopens the captured previous setup only when there was an open device to restore. Destruction
-without an explicit cancel() also attempts that restore so a native window close does not leave
-an originally-open backend silent.
+cancel() reopens the captured previous setup only when there was an open device to restore.
+Destruction without an explicit cancel() also attempts that restore so a native window close does
+not leave an originally-open backend silent.
 */
 class AudioDeviceSettings final : public IAudioDeviceSettings
 {
@@ -345,13 +344,19 @@ public:
     /*! \brief Copying is disabled because the settings object owns listener registration. */
     AudioDeviceSettings(const AudioDeviceSettings&) = delete;
 
-    /*! \brief Copy assignment is disabled because listener ownership is fixed. */
+    /*!
+    \brief Copy assignment is disabled because listener ownership is fixed.
+    \return Reference to this settings edit.
+    */
     AudioDeviceSettings& operator=(const AudioDeviceSettings&) = delete;
 
     /*! \brief Moving is disabled because listener identity must remain stable. */
     AudioDeviceSettings(AudioDeviceSettings&&) = delete;
 
-    /*! \brief Move assignment is disabled because listener identity must remain stable. */
+    /*!
+    \brief Move assignment is disabled because listener identity must remain stable.
+    \return Reference to this settings edit.
+    */
     AudioDeviceSettings& operator=(AudioDeviceSettings&&) = delete;
 
     /*!

@@ -17,7 +17,7 @@ namespace rock_hero::game::core
 \brief Describes one native song package without extracting it.
 
 A thin seam over common/core's readRockSongPackageDescription so the scan engine is testable with a
-fake describer. It preserves the Phase-1 typed SongPackageError all the way to the engine — no
+fake describer. It preserves the typed SongPackageError all the way to the engine — no
 stringifying between stages — so the engine can turn a hard read failure into a warning entry with
 the real diagnostic (docs/design/architectural-principles.md "Typed Boundary Errors").
 */

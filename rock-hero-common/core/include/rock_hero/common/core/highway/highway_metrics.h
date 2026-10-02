@@ -84,7 +84,7 @@ struct HighwayMetrics
     units rather than seconds because the far edge sits at the same world z at every scroll
     speed (\ref highwayTimeToZ divides by the speed the visibility window multiplies by), so the
     band is one constant stretch of board. Zero turns the fade off. 10 units is 500 ms of travel
-    at scroll speed 1.0, signed on sight 2026-09-25 over 4.0, which read as a pop.
+    at scroll speed 1.0, chosen on sight: a much shorter band reads as a pop.
     */
     double far_fade_length_z{10.0};
 
@@ -97,8 +97,7 @@ struct HighwayMetrics
     double note_half_width{0.48};
 
     /*!
-    \brief Note head half-height, split from \ref note_half_width because measurement showed the
-    two are independent quantities.
+    \brief Note head half-height, a quantity independent of \ref note_half_width.
 
     The third-party reference's head is narrower for its fret slot than ours while matching our
     height against the string pitch, so matching it moves width alone. Width-derived geometry
@@ -121,7 +120,7 @@ struct HighwayMetrics
 
     0.2 reproduces Charter's fixed 5.0-unit height at the reference span and 16:9; other window
     shapes sit higher (about 6.7 at 4:3) or lower (about 4.4 at 21:9), which is exactly what
-    holds the edge where a fixed height let it drift. Must stay above
+    holds the edge where a fixed height would let it drift. Must stay above
     \ref ndc_pin_y, and at or below 1 for the whole window to show.
     */
     double far_edge_ndc_y{0.2};
@@ -174,11 +173,10 @@ struct HighwayMetrics
     it: the frame is nudged this far toward the body no matter which frets are being framed.
 
     Carried in fret widths so the whole fret axis rescales together. Charter's focus formula ends
-    in a raw `+1` world unit (`1 + middle * 0.9 + weighted * 0.1`), which silently changed meaning
-    when \ref first_fret_distance narrowed from Charter's 1.2 to ours — the same drift that had
-    already required hand-recomputing the whole-neck spot. One fret width is what the shift was
-    always meant to be, so the camera reads it through highwayFretLineX like every other fret
-    coordinate, which also makes the lefty mirror structural instead of a hand-written negation.
+    in a raw `+1` world unit (`1 + middle * 0.9 + weighted * 0.1`), whose meaning drifts with any
+    \ref first_fret_distance other than Charter's 1.2. One fret width is what the shift means, so
+    the camera reads it through highwayFretLineX like every other fret coordinate, which also makes
+    the lefty mirror structural instead of a hand-written negation.
     */
     double focus_body_shift_frets{1.0};
 
@@ -201,10 +199,9 @@ struct HighwayMetrics
 
     The camera's only rotation, deliberately. Charter also ships a forward pitch (rotX = 0.06),
     but that tilt skews the whole picture — verticals lean — and is not carried here: the wanted
-    angled-neck reading is this yaw's string slope alone. A pitch parameter was carried at zero
-    for a while and then removed; the camera chain has no X rotation at all now, which is *why*
-    fret lines project exactly vertical (a yaw never mixes world Y into clip W or X). That
-    exactness is regression-tested at the shipped defaults.
+    angled-neck reading is this yaw's string slope alone. The camera chain has no X rotation at
+    all, which is *why* fret lines project exactly vertical (a yaw never mixes world Y into clip W
+    or X). That exactness is regression-tested at the shipped defaults.
     */
     double camera_yaw_radians{0.03};
 
@@ -256,7 +253,7 @@ fractional values sit between them — used by the sliding hand window, whose ed
 the fixed lines. The lefty mirror reflects the fret axis through the nut, as pure math the
 renderer never sees. Integer call sites convert to double and get the identical value.
 
-A realistic taper toward the body remains an open product question (roadmap 25-Q1). It is *not*
+A realistic taper toward the body remains an open product question. It is *not*
 a constant flip: fret-relative note-head and chord-box widths would have to come with it, so the
 geometry lands here as a real change when the question is answered rather than as a dormant knob.
 
@@ -441,10 +438,9 @@ struct HighwayNoteOffset
 The one authority for where a note sits off its lane, because the lift alone is not a position. The
 bend rides the tension curve; a vibrato wobble is a displacement added after it, in lane gaps, so
 the wobble stays a plain sine wherever the bend has put the note. Applying
-\ref highwayBendLiftY raw put a two-whole-step bend on a middle lane of a six-string stack BELOW
-THE FLOOR — the floor is the origin and nothing draws beneath it — and put the mirrored case above
-the top fret line. Both are states the inversion rule's own rationale said could not happen, so the
-boundary is enforced here instead of merely asserted in a comment.
+\ref highwayBendLiftY raw would put a two-whole-step bend on a middle lane of a six-string stack
+BELOW THE FLOOR — the floor is the origin and nothing draws beneath it — and the mirrored case above
+the top fret line, so the boundary is enforced here rather than assumed.
 
 Saturating is a guard rather than part of the mapping. Under the tension law the full
 three-whole-step ceiling spans about 2.86 gaps, which any six-lane-or-taller grid holds on the

@@ -42,7 +42,7 @@ struct AudioNormalizationTarget
 
 Stores the playback gain and a validation hash that proves the gain still belongs to the current
 audio file. The hash covers both the audio file bytes and the gain value (formatted at one decimal
-places), so changing either invalidates the record and triggers re-analysis on next project open
+place), so changing either invalidates the record and triggers re-analysis on next project open
 or import.
 */
 struct AudioNormalization

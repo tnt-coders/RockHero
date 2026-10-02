@@ -25,13 +25,11 @@ A true rounding tolerance and nothing more: a nanosecond is four orders above th
 error at song scale and six orders below the finest grid the editor offers (a 1/128 note is 15 ms at
 120 BPM), so it can only ever absorb arithmetic noise, never join two musically distinct events.
 
-It was 1e-4 s, on the stated grounds that a note onset and a shape boundary resolve through
-different tempo-map paths and so land a rounding epsilon apart. They do not: the forward cursor is
-documented as returning bit-identical results and computes the same expression against the same
-anchor span as the plain resolver, so equal grid positions resolve to equal seconds. The oversized
-value was the sole reason the display's simultaneity rule could group notes at DISTINCT musical
-positions that the chart-side rule (the onset grouping inside `chartHolds`) refuses — a divergence
-`grid_arithmetic.h` recorded as deliberate. With the tolerance honest, the two rules agree.
+No wider tolerance is needed to bridge tempo-map paths: the forward cursor computes the same
+expression against the same anchor span as the plain resolver, so equal grid positions resolve to
+bit-identical seconds. A wider one would let the display's simultaneity rule group notes at
+DISTINCT musical positions that the chart-side rule (the onset grouping inside `chartHolds`) keeps
+apart; at this size the two rules agree.
 */
 inline constexpr double g_onset_match_epsilon = 1.0e-9;
 

@@ -37,13 +37,12 @@ Derived, never authored — the stops an onset's struck members hold (\ref Chart
 pressed, the open string, or a harmonic node touched), plus the stops a right-hand onset says the
 fretting hand is holding under it (\ref deriveChartShapes). A ring struck before the span never
 joins its grip and prints in no later bracket: a bracket states the onsets inside its span, and
-the tail says the ring is still sounding (ruled 2026-09-24, retiring the open-string texture that
-printed a drone's 0 in every bracket it rang under). A stop carries no provenance here on
-purpose: the posture is what the hand holds, so two spans holding an identical grip stay one
-deduplicated posture however each was learned — while a node grip and a fret grip printing the
-same number are two postures, because they are two grips. Chord names and fingerings carry no
-field here because nothing writes one; when they are authored they become a dictionary keyed by a
-posture rather than members of it.
+the tail already says the ring is still sounding. A stop carries no provenance here on purpose:
+the posture is what the hand holds, so two spans holding an identical grip stay one deduplicated
+posture however each was learned — while a node grip and a fret grip printing the same number are
+two postures, because they are two grips. Chord names and fingerings carry no field here because
+nothing writes one; when they are authored they become a dictionary keyed by a posture rather than
+members of it.
 */
 struct ChartPosture
 {
@@ -229,7 +228,7 @@ struct ChartShape
     the walk never has to ask, because riding the slot is what it did.
 
     Rings struck before the span never enter this count, however they sound under it: they are no
-    members, print in no bracket, and so class nothing (the retired open-string texture once did).
+    members, print in no bracket, and so class nothing.
     */
     bool sounds_in_parts{false};
 
@@ -359,7 +358,7 @@ it, so what the test governs is a charter's own crowded landing.
 \brief The grip a pull-off source states beneath the fret it sounds, where it states one.
 
 THE ONE AUTHORITY for the hold-under law, shared by the span derivation and the importer's let-ring
-figure walk. A pull-off proves a finger on its landing stop AT THE SLIDE-OUT and nothing about any
+figure walk. A pull-off proves a finger on its landing stop AT THE RELEASE and nothing about any
 earlier instant, so a DERIVED landing stop states nothing by itself: a source states the fret it
 sounds. The one thing the derivation may say is that a finger ADDED ABOVE a stop the string is
 demonstrably already at moves nothing — there the source states that stop, the fret it sounds is
@@ -438,11 +437,11 @@ only (c) is derived here, which is not an accident — a fact about WHICH SLOTS 
 has to come from the walk that grouped them, while whether a right-hand onset lands inside the span
 is a question about the extent this rule is handed.
 
-CLASSIFICATION READS THE STORED STREAM (same ruling), because the class is a fact about the HANDS:
-where the fingers are, and which of them the pick reached. The carry in (a) is the walk's own
-fold-in, which has always asked the stored ring, so a dead string's carry now classifies at a span's
-START exactly as it already did at an interior slot. E25 is untouched by this and stays what it
-always was — a DISPLAY rule, about what a surface draws of a ring nobody hears. What (c) reads off
+CLASSIFICATION READS THE STORED STREAM, because the class is a fact about the HANDS: where the
+fingers are, and which of them the pick reached. The carry in (a) is the walk's own fold-in, which
+asks the stored ring, so a dead string's carry classifies at a span's START exactly as at an
+interior slot. E25 does not apply: it is a DISPLAY rule, about what a surface draws of a ring nobody
+hears. What (c) reads off
 the note stream is positions and attacks alone, which presentation never touches — so the rule
 takes the stored stream, and \ref chartResolutions can answer the class before the bracket
 re-read that consumes it runs.

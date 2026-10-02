@@ -15,25 +15,23 @@ namespace rock_hero::editor::ui
 \brief Stable identifier for one editor command in the keybind registry.
 
 Values are the persistence contract: the keymap XML keys bindings off the hex value of these ids,
-so an id, once shipped, is locked forever. Growth conventions (plan 46; total rebindability per
-plan 53 Phase 1b):
+so an id, once shipped, is locked forever. Growth conventions:
 
-- New commands append new explicit values; never renumber, reuse, or reorder existing ones. Id
-  blocks group by category: 0x1x file/edit/transport/view/tone, 0x15xx navigation, 0x16xx
-  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom, 0x1Bxx menus. Blocks
-  are historical hints only — the registry row owns the display category (CancelDismiss,
-  0x1708, lists under Selection).
+- New commands append new explicit values; never renumber, reuse, or reorder existing ones. A
+  gap in the sequence is a spent id: a saved keymap may still name it, resolves it to no spec
+  and drops it, so it is never given to another command. Id blocks group by category: 0x1x
+  file/edit/transport/view/tone, 0x15xx navigation, 0x16xx selection, 0x17xx authoring, 0x18xx
+  value entry, 0x19xx grid & zoom, 0x1Bxx menus. Blocks are hints only — the registry row owns
+  the display category (CancelDismiss, 0x1708, lists under Selection).
 - One command per (chord, verb) pair: precision/reach tiers (`Ctrl` variants) are separate
   commands, so every binding is individually rebindable. The interaction grammar's modifier
-  algebra survives as the *shape of the default map*, not as an enforced restriction.
-- Today a chord keeps exactly one owner; the mapping set's dispatch loop skips disabled
-  commands and keeps looking (juce_KeyPressMappingSet.cpp:322-357), so enablement-partitioned
-  chord sharing is the recorded future mechanism for modal scopes (the plugin-chain section),
-  not something current commands use.
-- Commands whose old decoder branch declined silently (Esc with no rung, Delete with no
-  selection, digits with no typing surface) register always-active and self-gate in `perform`:
-  a disabled command whose chord matches makes JUCE play the system alert sound, and those
-  keys must stay silent no-ops.
+  algebra lives in the *shape of the default map*, not as an enforced restriction.
+- A chord keeps exactly one owner. The mapping set's dispatch loop skips disabled commands and
+  keeps looking (juce_KeyPressMappingSet.cpp:322-357), which leaves enablement-partitioned chord
+  sharing available to future modal scopes (the plugin-chain section); no command uses it.
+- Commands that must decline silently (Esc with no rung, Delete with no selection, digits with
+  no typing surface) register always-active and self-gate in `perform`: a disabled command whose
+  chord matches makes JUCE play the system alert sound, and those keys must stay silent no-ops.
 - These ids are presentation-layer command identities, distinct from `core::EditorActionId`
   (controller-action identity); the two enums never converge.
 */
@@ -99,10 +97,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief View > 3D Preview (`F3`). */
     TogglePreview3D = 0x1303,
 
-    // 0x1304 through 0x130E were sighting samplers (accent light, family scale, string spacing,
-    // harmonic size, head width, staged-atlas cycling, the 2D note trim, and the actual-ring
-    // rigs — the 3D floor mark with its two filters, and the 2D reveal's style flip), each
-    // deleted once its decision settled; retired ids are never revived.
+    // 0x1304-0x130E are spent ids; never reuse them.
 
     /*!
     \brief Insert a tone change at the cursor, or retone the region starting exactly there
@@ -132,8 +127,7 @@ enum class EditorCommandId : std::uint16_t
     */
     InsertSongSection = 0x1402,
 
-    // 0x1403 was Rename Section (F2), retired 2026-09-12 when the section chord took restating
-    // a selected section as its own second half; retired ids are never revived.
+    // 0x1403 is a spent id; never reuse it.
 
     /*!
     \brief Restate the selected marker (`Enter`).
@@ -153,8 +147,7 @@ enum class EditorCommandId : std::uint16_t
     shares, which is what the tone row's double-click renames. Silently inert on every kind with
     no name of its own. The core publishes the verb (`EditorViewState::rename_target`). It sits on
     the document plane with `Ctrl+S` and `Ctrl+G`, not on the marker plane: R is no marker's
-    letter, and the verb reads the selection, never the cursor. F2's retired id is not reused,
-    since saved keymaps key off the numeric id.
+    letter, and the verb reads the selection, never the cursor.
     */
     RenameSelection = 0x1405,
 
@@ -260,7 +253,7 @@ enum class EditorCommandId : std::uint16_t
 
     The default works on US Windows and Linux only: macOS key codes keep Shift, so the chord
     arrives as `?` there, and German, French, Nordic and Swiss layouts have no `/` key. Rebinding
-    is the answer until per-language keymaps exist (decision D1 of the focus-rows plan).
+    is the answer until per-language keymaps exist.
     */
     CaretJumpTimeSignatureRow = 0x1513,
 
@@ -318,9 +311,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Move the selection down (`Alt+Down`). */
     SelectionMoveDown = 0x160C,
 
-    // 0x160D-0x1610 were the fine-tier selection moves, retired with the Ctrl fine tier when grid
-    // snap took over off-grid placement (docs/plans/completed/grid-snap.md). The values stay
-    // spent: a stale persisted keymap naming one resolves to no spec and is dropped.
+    // 0x160D-0x1610 are spent ids; never reuse them.
 
     /*! \brief Delete the selection, whatever its kind (`Delete`). */
     SelectionDelete = 0x1611,
@@ -337,7 +328,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Shorten the selected sustain one grid step (`Alt+Shift+Left`). */
     SustainShorten = 0x1702,
 
-    // 0x1703-0x1704 were the fine-tier sustain steps, retired with the rest of the Ctrl fine tier.
+    // 0x1703-0x1704 are spent ids; never reuse them.
 
     /*! \brief Shift the selected notes' frets up (`Alt+Shift+Up`). */
     FretShiftUp = 0x1705,
@@ -385,8 +376,7 @@ enum class EditorCommandId : std::uint16_t
     \brief Toggle every selected junction — keyframe to head, head to point (`Shift+L`).
 
     The VALUE is the contract, never the name: it is what a saved keymap stores and what a
-    rebinding resolves through, so it stays 0x1713 across every rename this verb takes. This one
-    was `ChartKeyframeDisconnect` while only the split half existed.
+    rebinding resolves through, so it stays 0x1713 whatever this verb is named.
     */
     ChartJunctionToggle = 0x1713,
 
@@ -411,10 +401,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the pinch harmonic on the selected notes (`Shift+H`). */
     ChartPinchHarmonicToggle = 0x1719,
 
-    // 0x171A-0x171B were Insert Point (Alt+Insert) and Insert Note, Repeating Fret
-    // (Shift+Insert), retired with the fretless entry verbs. The values stay spent, so a stale
-    // persisted keymap naming one resolves to no spec and is dropped; the chart lane's insert
-    // returned under an id of its own below.
+    // 0x171A-0x171B are spent ids; never reuse them.
 
     /*!
     \brief The point on the ring at the chart caret, at the fret already in force (`Alt+Insert`):
@@ -475,9 +462,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Type digit 9 at the armed caret (`9`, numpad `9`). */
     TypeDigit9 = 0x180A,
 
-    // 0x180B-0x1814 were the first `Alt`+digit block ("Type Path Digit N"), retired 2026-09-22
-    // and superseded the next day by the ring plane below under fresh values. The values stay
-    // spent: a stale persisted keymap naming one resolves to no spec and is dropped.
+    // 0x180B-0x1814 are spent ids; never reuse them.
 
     /*!
     \brief Type digit 0 on the RING plane (`Alt`+`0`): "a point on the ring here"
@@ -529,9 +514,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Flip grid snap, which decides the placement quantum (`Ctrl+G`). */
     ToggleGridSnap = 0x1905,
 
-    // 0x1A01 was the `F6` span-minimum sighting toggle, deleted once the three-member accumulation
-    // minimum settled; like every retired sighting sampler, the value stays spent and is never
-    // revived.
+    // 0x1A01 is a spent id; never reuse it.
 
     /*! \brief Open the File menu (`Alt+F`), the platform's own menu-access convention. */
     OpenFileMenu = 0x1B01,

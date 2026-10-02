@@ -423,7 +423,7 @@ TEST_CASE("Rock song package directory generates arrangement IDs", "[core][rock-
     CHECK(read_song->arrangements.front().id == generated_id);
 }
 
-// Verifies package writing rejects legacy or user-facing arrangement names as durable IDs.
+// Verifies package writing rejects user-facing or otherwise non-UUID arrangement names as IDs.
 TEST_CASE("Rock song package write rejects non-UUID arrangement IDs", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
@@ -668,8 +668,8 @@ TEST_CASE("Rock song package rejects unsorted sections", "[core][rock-song-packa
     CHECK(read_song.error().message.find("ascending") != std::string::npos);
 }
 
-// Verifies the persisted "startOffset" key loads, and that packages omitting it (every package
-// written before the field existed) default the offset to zero.
+// Verifies the persisted "startOffset" key loads, and that a package omitting it defaults the
+// offset to zero.
 TEST_CASE("Rock song package reads an explicit audio start offset", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
@@ -708,7 +708,7 @@ TEST_CASE("Rock song package reads an explicit audio start offset", "[core][rock
         Catch::Matchers::WithinULP(0.5, 0));
 }
 
-// Verifies older packages whose audio entries omit normalization still load with empty optional.
+// Verifies a package whose audio entries omit normalization loads with an empty optional.
 TEST_CASE("Rock song package without normalization still loads", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
@@ -1025,6 +1025,8 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
     }
 }
 
+// Verifies authored tone regions persist as tone changes and load back with the same starts and
+// tones, sub-beat boundaries included.
 TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
@@ -1088,6 +1090,7 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     CHECK(loaded->arrangements.front().tones == song.arrangements.front().tones);
 }
 
+// Verifies plugin-parameter automation round-trips its ids, musical positions and values.
 TEST_CASE("Rock song package round-trips tone parameter automation", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
@@ -1125,6 +1128,7 @@ TEST_CASE("Rock song package round-trips tone parameter automation", "[core][roc
         loaded->arrangements.front().tone_automation == song.arrangements.front().tone_automation);
 }
 
+// Verifies the writer refuses automation that breaks the structural rules instead of saving it.
 TEST_CASE(
     "Rock song package write rejects invalid tone parameter automation",
     "[core][rock-song-package]")
@@ -1157,7 +1161,7 @@ TEST_CASE(
     CHECK_FALSE(writeRockSongPackageDirectory(package_directory, song).has_value());
 }
 
-// Tone data older than the lean spelling is not read: unrecognized keys are simply ignored, so a
+// Tone keys outside the current spelling are not read: unrecognized keys are simply ignored, so a
 // package without a "tones" array loads tone-less and the editor's load baseline takes over.
 TEST_CASE("Rock song package ignores unrecognized tone spellings", "[core][rock-song-package]")
 {
@@ -1201,6 +1205,7 @@ TEST_CASE("Rock song package ignores unrecognized tone spellings", "[core][rock-
     CHECK(read_song->arrangements.front().tone_track.regions.empty());
 }
 
+// Verifies a tone change naming a non-canonical tone id is refused on read.
 TEST_CASE("Rock song package read rejects malformed tone change ids", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
@@ -1231,6 +1236,7 @@ TEST_CASE("Rock song package read rejects malformed tone change ids", "[core][ro
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
+// Verifies a catalog entry with a non-canonical tone id is refused on read.
 TEST_CASE("Rock song package read rejects malformed catalog tone ids", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
@@ -1261,6 +1267,7 @@ TEST_CASE("Rock song package read rejects malformed catalog tone ids", "[core][r
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
+// Verifies the writer refuses tone regions whose starts are not strictly ascending.
 TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
@@ -1289,6 +1296,7 @@ TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][ro
     CHECK(written.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
+// Verifies the writer refuses a tone region starting at or past the tempo map's terminal anchor.
 TEST_CASE(
     "Rock song package write rejects tone regions past the terminal anchor",
     "[core][rock-song-package]")
@@ -1320,6 +1328,7 @@ TEST_CASE(
     CHECK(written.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
+// Verifies a tone change whose start token is not a valid grid position is refused on read.
 TEST_CASE(
     "Rock song package read rejects malformed tone change tokens", "[core][rock-song-package]")
 {
@@ -1357,6 +1366,7 @@ TEST_CASE(
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
+// Verifies an arrangement's chart reference and its chart document survive a save and reload.
 TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
@@ -1396,6 +1406,7 @@ TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-p
     }
 }
 
+// Verifies the writer refuses a chart reference with neither a loaded chart nor a file behind it.
 TEST_CASE("Rock song package write rejects missing chart documents", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
@@ -1412,7 +1423,7 @@ TEST_CASE("Rock song package write rejects missing chart documents", "[core][roc
     CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
 }
 
-// The mutable-chart pipeline (plan 40 Phase 2): saving serializes the in-memory chart back
+// The mutable-chart pipeline: saving serializes the in-memory chart back
 // through its reference, so an edit made after load survives save and reload instead of the save
 // silently keeping the stale on-disk document.
 TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][rock-song-package]")
@@ -1468,7 +1479,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
 
 // A save with no chart edits must leave the chart document byte-identical: the canonical
 // serializer produced the file, so rewriting the same chart reproduces the same bytes and saved
-// packages never churn (plan 40 Phase 2's stability requirement).
+// packages never churn.
 TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
@@ -1497,7 +1508,7 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
             // The scrape's required terminal: the keyframe at the ring's end, which is where a
-            // release is stated now.
+            // release is stated.
             .keyframes = {Keyframe{.offset = Fraction{3, 4}, .fret = 4}},
         },
     };
@@ -1521,10 +1532,10 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
     CHECK(read_document_bytes() == bytes_before);
 }
 
-// The one rule a note cannot obey alone (40-Q2-B): a document written before the ring model — or
-// by a converter that never learned it — can carry a tail ringing through its own string's next
-// onset. The load truncates it at that onset and REPORTS the conversion rather than refusing the
-// package or drawing a tail through a later head.
+// The one rule a note cannot obey alone: a hand-edited document, or one from a converter that does
+// not apply the rule, can carry a tail ringing through its own string's next onset. The load
+// truncates it at that onset and REPORTS the conversion rather than refusing the package or drawing
+// a tail through a later head.
 TEST_CASE(
     "Rock song package read truncates a tail past its own string", "[core][rock-song-package]")
 {
@@ -1631,6 +1642,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
     }
 }
 
+// Verifies a chart document breaking a structural chart rule fails the package read.
 TEST_CASE(
     "Rock song package read rejects charts that violate chart rules", "[core][rock-song-package]")
 {
@@ -1658,7 +1670,7 @@ TEST_CASE(
     song.arrangements.front().chart_ref = chart_ref;
     // Write the package first with a valid chart, then corrupt the chart file in place so the
     // failure exercises the read-side rule validation. The corruption has to be written as raw
-    // text: the writer itself now refuses a document the reader would refuse.
+    // text: the writer itself refuses a document the reader would refuse.
     Chart valid_chart = invalid_chart;
     valid_chart.notes[0].position.beat = 1;
     REQUIRE(writeFixtureChart(package_directory / chart_ref, valid_chart).has_value());
@@ -1670,7 +1682,7 @@ TEST_CASE(
         R"( "notes": [ { "position": "1:9", "string": 3, "fret": 5, "sustain": "1/8" } ] })");
 
     // A position off the grid is structural — no repair can express it — so the load refuses
-    // exactly as before the normalizer existed.
+    // the package rather than normalizing it.
     const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
@@ -1741,6 +1753,7 @@ TEST_CASE(
     }
 }
 
+// Verifies the writer refuses a tone region whose tone document is absent from the workspace.
 TEST_CASE(
     "Rock song package write rejects missing tone region documents", "[core][rock-song-package]")
 {
@@ -1937,10 +1950,10 @@ TEST_CASE("Rock song package rejects duplicate section positions", "[core][rock-
     CHECK(read_song.error().message.find("ascending") != std::string::npos);
 }
 
-// Pins the removed automation "shape" key as IGNORED, not refused — the opposite of the chart's
+// Pins a "shape" key on an automation point as IGNORED, not refused — the opposite of the chart's
 // removed keys. A refusal tripwire protects authored data a reader would otherwise discard
-// silently, and shape was never authorable, so no package can carry any; the reader's standing
-// normalize-don't-reject rule governs instead. Any value, even a wrong-typed one, loads clean.
+// silently, and no package carries shape data; the reader's standing normalize-don't-reject rule
+// governs instead. Any value, even a wrong-typed one, loads clean.
 TEST_CASE("Rock song package ignores a stale automation shape key", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;

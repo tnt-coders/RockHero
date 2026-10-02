@@ -1,6 +1,6 @@
 /*!
 \file diagnostics_overlay.h
-\brief Screen-space dev-diagnostics overlay content: the frame-time graph (plan 20 Phase 4).
+\brief Screen-space dev-diagnostics overlay content: the frame-time graph.
 */
 
 #pragma once

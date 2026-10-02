@@ -17,11 +17,11 @@ namespace rock_hero::editor::ui
 
 Interaction is entirely listener-based; this widget deals only in note values (fractions of a
 whole note), which are the product-wide grid unit, and forwards emitted selections through
-Listener without conversion or bounds policy. Presets cover the power-of-two note values through
-1/128, and the editable text box accepts free fractions such as 3/16 or 1/12. Text that does not
-parse as a positive fraction reverts to the currently applied value without emitting; entries the
-controller rejects revert the same way, because the applied value only changes through
-setNoteValue.
+Listener without conversion or bounds policy. Presets cover the power-of-two note values from 1/4
+through 1/128 interleaved with the quarter, eighth and sixteenth triplets, and the editable text
+box accepts free fractions such as 3/16 or 1/20. Text that does not parse as a positive fraction
+reverts to the currently applied value without emitting; entries the controller rejects revert
+the same way, because the applied value only changes through setNoteValue.
 */
 class GridSpacingSelector : public juce::Component
 {
@@ -142,7 +142,7 @@ private:
     // Static "Grid" caption drawn left of the combo box.
     juce::Label m_caption;
 
-    // Editable combo with power-of-two presets and free fraction entry.
+    // Editable combo with the note-value presets and free fraction entry.
     juce::ComboBox m_note_value_box;
 };
 

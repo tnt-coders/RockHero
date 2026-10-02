@@ -63,7 +63,7 @@ Every walkable lattice, minus the ones nobody means as a grid: nothing finer tha
 g_max_tempo_grid_note_value_term-th of a whole note. The session grid is the DRAWN one, generated
 and painted line by line across the visible span (\ref visibleTempoGridLines), which at full
 zoom-out is the whole song — so this bound is what keeps a typed 1/3840 out of the free-text grid
-box, where snapping alone (a binary search) would never have noticed it. The tick lattice placement
+box; snapping alone (a binary search) would accept it without cost. The tick lattice placement
 falls back on is never drawn, which is exactly why it passes \ref isValidTempoGridNoteValue and
 fails here.
 
@@ -191,10 +191,10 @@ result may lie outside any particular visible range; callers bound the seek them
 /*!
 \brief Finds the musical address of the tempo-grid line nearest to a target position.
 
-Same candidate lines and tie-breaking as nearestTempoGridTime, but the result is the line's exact
-musical position: the within-measure offset is an exact rational in the grid's note denominator,
-so snapped placements of any grid — including odd values like 1/13 — store the grid line itself
-rather than an approximation in some fixed fine grid.
+Same candidate lines and tie-breaking as nearestTempoGridTime, but the result is the line's
+musical position on the chart's tick lattice. A grid no tick divides (an odd value like 1/13)
+yields the tick nearest the line, which is where the line is drawn and the finest position a
+chart can store.
 
 \param tempo_map Song tempo map supplying signatures, the beat grid, and absolute beat times.
 \param grid_note_value Grid step as a fraction of a whole note; an invalid value falls back to
@@ -231,9 +231,9 @@ The one keyboard time-step primitive shared by the marker's caret stepping, the 
 and tone-region start nudges, and the duration verb's grid step, so no two surfaces can land on
 different slots for the same verb. It is \ref common::core::adjacentGridPosition under the
 editor's note-value validity policy (an invalid value falls back to the default grid, exactly as
-rendering and snapping do):
-from an off-grid position the result is the nearer line in the step direction (a step never jumps
-past the adjacent line); from the lattice, the neighbouring line, read off the lattice directly.
+rendering and snapping do): from an off-grid position the result is the nearer line in the step
+direction (a step never jumps past the adjacent line); from the lattice, the neighbouring line,
+read off the lattice directly.
 The walk is exact-rational end to end — no seconds round-trip — and precisely reversible on any
 grid and any meter, odd values and odd measure lengths included. At the grid origin stepping
 earlier collapses onto \p from; callers treat that as a refusal.

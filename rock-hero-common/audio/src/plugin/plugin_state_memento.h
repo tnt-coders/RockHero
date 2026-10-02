@@ -2,8 +2,8 @@
 \file plugin_state_memento.h
 \brief Parses opaque plugin-state mementos back into Tracktion plugin trees.
 
-Promoted from the plugin-host translation unit so the live-rig chain-restore path shares one
-parser instead of duplicating memento validation.
+Shared by the plugin host and the live-rig chain-restore path, so memento validation has one
+parser.
 */
 
 #pragma once

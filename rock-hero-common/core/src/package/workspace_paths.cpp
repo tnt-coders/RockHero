@@ -34,7 +34,7 @@ bool isSafeRelativePath(const std::filesystem::path& path)
 }
 
 // Resolves an asset path and reports its workspace-relative spelling. lexically_relative can walk
-// upward out of the workspace, so the result still passes the escape rule above.
+// upward out of the workspace, so the result is still put through the escape rule above.
 std::optional<std::filesystem::path> relativeWorkspacePath(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& asset_path)
 {

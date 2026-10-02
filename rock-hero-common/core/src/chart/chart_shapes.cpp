@@ -56,8 +56,8 @@ struct FretTravel
 
 // The whole of what a fret channel says from one offset onward (\ref statedStopFrom): which stop
 // the finger is on there, and the travel it makes away from it. One answer rather than two
-// queries, because a caller that had to name the stop itself was a second statement of this very
-// fact, free to disagree with the channel.
+// queries, because a caller that had to name the stop itself would be a second statement of this
+// very fact, free to disagree with the channel.
 struct StatedStop
 {
     // The stop the channel states at the queried offset — a fret pressed, the open string, or a
@@ -228,20 +228,19 @@ struct StringHand
 // sounds, so a harmonic ringing on is as hand-free as an open string ringing on (and a natural's
 // node states no grip at all, \ref nodeGrip). Asked at the landing alone, the one seam a member
 // crosses: a finger that slid carries its stop into the landed grip, and a string no finger holds
-// has none to carry. Not at
-// the displacement witness — that reads the SOUND, and a hand-free ring's sound is evidence a
-// strike can contradict even though no finger holds it.
+// has none to carry. Not at the displacement witness — that reads the SOUND, and a hand-free ring's
+// sound is evidence a strike can contradict even though no finger holds it.
 [[nodiscard]] bool handFree(const ChartStop& stop)
 {
     return stop.fret == 0;
 }
 
-// A NODE GRIP: a natural harmonic's stop, a node touched with nothing pressed. It states no grip
-// (re-ruled 2026-09-24): the finger rests over the node for the strike and lifts, holding no stop
-// a posture could keep, so a natural harmonic founds, grows and joins no span. Its STRIKE still
-// sounds — displacement and the grip contradiction read the sound, so a node struck on a string a
-// span holds at a fret still breaks that span. An artificial harmonic presses a fret under its node
-// and is a grip like any other (\ref harmonicOverPressedStop).
+// A NODE GRIP: a natural harmonic's stop, a node touched with nothing pressed. It states no grip:
+// the finger rests over the node for the strike and lifts, holding no stop a posture could keep,
+// so a natural harmonic founds, grows and joins no span. Its STRIKE still sounds — displacement and
+// the grip contradiction read the sound, so a node struck on a string a span holds at a fret still
+// breaks that span. An artificial harmonic presses a fret under its node and is a grip like any
+// other (\ref harmonicOverPressedStop).
 [[nodiscard]] bool nodeGrip(const ChartStop& stop)
 {
     return stop.node.has_value() && stop.fret == 0;
@@ -429,8 +428,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
     // has to be re-read — a strike stating it, a landing handing it on, and a carry folding into a
     // new span. The third moment is why this is a function at all: a landing NO SPAN WAS STANDING
     // TO WITNESS restarts coverage exactly as a witnessed one does, and without the re-read a lone
-    // glide's coverage stayed frozen at its first arrival forever, so the next span to fold that
-    // string in reached only as far as a landing long past.
+    // glide's coverage would stay frozen at its first arrival forever, so the next span to fold
+    // that string in would reach only as far as a landing long past.
     const auto coverage_at = [&saved_notes, &onset_beat, &arrives_into, &ring_end_of, &hand](
                                  const std::size_t string_index, const Fraction now) {
         const std::optional<std::size_t>& finger = hand[string_index].finger;
@@ -634,7 +633,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // pass's: a death may still be renewed by the slot standing at it (the per-string
                 // renewal in the quit arm), and where it is not, the ordinary break emits with
                 // the close capped at the reach. Closing here instead would end a chug at every
-                // restrike — the migration's own first bug.
+                // restrike.
                 return;
             }
             emit(boundary, std::nullopt);
@@ -753,7 +752,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         std::vector<Fraction> stated_since_here(string_count);
         // THE HOLD-UNDER LAW. Whether a stop this slot states and a stop already down on the string
         // are ONE HAND rather than two. A pull-off proves a finger on its landing stop at the
-        // SLIDE-OUT and at no earlier instant, so the derivation asserts nothing by itself; what it
+        // RELEASE and at no earlier instant, so the derivation asserts nothing by itself; what it
         // may say is that a finger ADDED above a stop a standing grip ALREADY HOLDS contradicts
         // nothing, and that the stop RE-EMERGING under it as that finger lifts lifts nothing. ONE
         // authority (\ref gripStatement), asked at the figure's two ends: the note stating
@@ -849,11 +848,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // includes a hand-free ring: a fret or a node struck on a string still ringing OPEN
             // changes what that string sounds, and the bracket the standing span would otherwise
             // print states the new stop from a front before which the string audibly rang open.
-            // The membership ruling briefly exempted hand-free rings here ("the hand arriving, not
-            // moving"); the user sighted the result — a harmonic chord struck over ringing opens
-            // growing the standing span, so its bracket printed the nodes over strings that were
-            // still ringing open under it — and the exemption came out. A hand-free ring is no
-            // member, but its SOUND is still evidence, and a strike that changes it breaks.
+            // Exempting hand-free rings here ("the hand arriving, not moving") would let a harmonic
+            // chord struck over ringing opens grow the standing span, so its bracket would print
+            // the nodes over strings still ringing open under it. A hand-free ring is no member,
+            // but its SOUND is still evidence, and a strike that changes it breaks.
             displaced_here[string_index] =
                 held.has_value() && differs_by_hand(string_index, *held, *stated_stop);
 
@@ -937,8 +935,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // harmonic's chime, an open ring dying under the shape — breaks rather than
                 // joins. The displacement above is this rule's special case, the ring still
                 // sounding at the strike; where the ring ended is no difference in what the hand
-                // did. Without it the fret joined and the bracket printed it over the chime's
-                // tail.
+                // did. Without it the fret would join and the bracket would print it over the
+                // chime's tail.
                 if (!stated.has_value() && statement.has_value() &&
                     open->front_beat < hand[string_index].foreign_until)
                 {
@@ -946,11 +944,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     continue;
                 }
             }
-            // THE TAP'S FLOOR (RULED 2026-09-29). A picking-hand stop sounds only ABOVE the finger
-            // holding its string, so a tap whose path reaches the standing grip's fret or below it
-            // — struck there, or slid there — says that finger is gone: the grip moved and the
-            // span splits. Over an open-string entry the tap proves nothing, since no finger is
-            // down.
+            // THE TAP'S FLOOR. A picking-hand stop sounds only ABOVE the finger holding its
+            // string, so a tap whose path reaches the standing grip's fret or below it — struck
+            // there, or slid there — says that finger is gone: the grip moved and the span splits.
+            // Over an open-string entry the tap proves nothing, since no finger is down.
             for (std::size_t string_index = 0; string_index < string_count && !contradiction;
                  ++string_index)
             {
@@ -988,13 +985,14 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         // the span FLOWING, so splitting it here would only move the fragmentation one slot
         // earlier.
         //
-        // What continues is exactly the chug chain: a never-in-parts span restruck at
-        // precisely its own grip. The FOUNDING slot never splits (no span stands at its own
-        // open). A differing fret on a stated
-        // string does not always break above — THE HOLD-UNDER LAW exempts a pull-off source
-        // planting the grip's stop — so the direction's arithmetic counts a string as touched
-        // only where the strike RESTATES the span's own stop; the source's ornament above the
-        // grip is neither the statement coming apart nor a restatement.
+        // What continues is exactly the chug chain: a never-in-parts span restruck at precisely
+        // its own grip. The FOUNDING slot never splits (no span stands at its own open). A
+        // differing fret on a stated string does not always break above — THE HOLD-UNDER LAW
+        // exempts a pull-off source planting the grip's stop — so the direction's arithmetic
+        // counts a string as touched only where the strike RESTATES the span's own stop; the
+        // source's ornament above the grip is neither the statement coming apart nor a
+        // restatement.
+        //
         // Whether any stated member's finger is MID-TRAVEL at this slot — the rule-8/10 fact
         // ("fingers travelling together carry the statement; the close belongs to the landing")
         // that the character split AND the class flip in the dispose arm both read: transit is
@@ -1045,7 +1043,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         // Whether a strike RESTATES a grip's own stop: it SOUNDS that very stop. A stroke says a
         // STOP, not a string: a strike at a DIFFERENT fret is not a restatement of this one.
         // Equality rather than presence is a no-op on any stream without the hold-under law (a
-        // differing fret on a stated string broke as a contradiction before reaching here) and
+        // differing fret on a stated string breaks as a contradiction before reaching here) and
         // load-bearing under it — a source striking above the grip is the figure's ornament, never
         // the stop restated. The touched count below reads it.
         const auto restates_stop = [&slot](
@@ -1228,10 +1226,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // its character in place — a lone re-pick turns it into parts where it stands (the
             // interior-class rule), splitting nothing. A member MID-TRAVEL blocks the direction
             // whole: fingers travelling together carry the statement (rule 8), the glide is not the
-            // figure coming apart, and the close belongs to the landing (rule
-            // 10) — so a restrike beside a travelling member rides, per member and not per slot
-            // (the mid-slide rule). And a span already IN PARTS wears the bracket that covers
-            // partial sounding, so partials ride it unchanged.
+            // figure coming apart, and the close belongs to the landing (rule 10) — so a restrike
+            // beside a travelling member rides, per member and not per slot (the mid-slide rule).
+            // And a span already IN PARTS wears the bracket that covers partial sounding, so
+            // partials ride it unchanged.
             partial_sounding = !restates_whole && touched_stated > 0 && !open->struck_in_parts &&
                                open->last_stated_beat.has_value() && !member_travelling;
             // THE PARTIAL-SLIDE SPLIT (the chord split mid sustain): a partial-slide slot touching
@@ -1265,8 +1263,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             {
                 open->last_stated_beat = slot.beat;
                 // Live only for the spans the character splits exclude — a landing successor's
-                // FIRST sounding, growth by strings the span never stated, and
-                // the ABSORBED whole-grip stroke the span now flows through — whose class still
+                // FIRST sounding, growth by strings the span never stated, and the ABSORBED
+                // whole-grip stroke the span flows through — whose class still
                 // turns in place, for every way a statement divides: sounding fewer members than
                 // sound, the partial slide, and a stroke that stated the whole grip but did not
                 // stand alone to state it. A partial beside a TRAVELLING member turns nothing: a
@@ -1288,11 +1286,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         else
         {
             // The grip broke here (a contradiction, or the statement no longer stands). The close
-            // carries this slot's sounding head where one exists; a slot of held fingers sounds
-            // nothing to keep a distance from.
-            // The close carries a sounding head only where the FRETTING hand strikes here — the
-            // display trim keeps its distance from a head that states the new grip, and a slot
-            // of held fingers or bare taps states none (the shipped convention, kept).
+            // carries a sounding head only where the FRETTING hand strikes here: the display trim
+            // keeps its distance from a head that states the new grip, and a slot of held fingers
+            // or bare taps states none.
             emit(
                 slot.beat,
                 slot.struck > 0 ? std::optional<GridPosition>{slot.position} : std::nullopt);
@@ -1367,10 +1363,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // founds no accumulation and folds into no new posture, until it is RESTRUCK,
                 // which is a statement and joins through `own` above. A bracket announces a stop
                 // once, in the span that struck it; afterwards the tail says it is still held,
-                // and no later bracket prints it — an open drone's 0 included (ruled 2026-09-24,
-                // retiring the texture that printed it under every span it rang through).
-                // Without that, two rings under a moving melody found a fresh bracket at every
-                // melody note, each restating the same two rings.
+                // and no later bracket prints it — an open drone's 0 included. Without that, two
+                // rings under a moving melody would found a fresh bracket at every melody note,
+                // each restating the same two rings.
                 //
                 // A ring struck AT the frontier belongs to the figure arriving there (the seam
                 // ownership), hence strict. This is what lets the open-position arpeggio — E0,
@@ -1388,9 +1383,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // \ref coverage_at names. Nothing was standing to restart this string at the
                 // landing it may have passed — the emit above closed whatever was — so without
                 // the re-read a lone glide would hand the span it joins a reach frozen at that
-                // landing, which is the span the sighted slide figure emitted over its own
-                // travel beats. A string a STANDING span states is never re-read: its cap is
-                // live, and that cap is what closes the span at its member's landing (rule 10).
+                // landing, emitting a span over the glide's own travel beats. A string a STANDING
+                // span states is never re-read: its cap is live, and that cap is what closes the
+                // span at its member's landing (rule 10).
                 hand[string_index].covers = covers;
                 ++total;
             }
@@ -1497,9 +1492,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // is spent up to that span's close (the frontier is read here, after this slot's own
             // close has advanced it), so a restrike of a stop the closed span held dates the next
             // span from the frontier rather than dating nothing: the hand never left the stop, and
-            // the two spans tile at the close. Without the clamp the inherited beginning fell
-            // behind the dating floor and the restrike could not date the span it founded, so
-            // the front slipped to the next member's onset (My Sacrifice, bar 11).
+            // the two spans tile at the close. Without the clamp the inherited beginning would
+            // fall behind the dating floor and the restrike could not date the span it founds, so
+            // the front would slip to the next member's onset (My Sacrifice, bar 11).
             string_hand.stated_since = std::max(stated_since_here[*string_index], covered);
             string_hand.covers = coverage_at(*string_index, slot.beat);
         }
@@ -1508,8 +1503,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
     }
 
     // The stream's end: run the whole landing chain out. The horizon is past every ring, because
-    // a chained second landing can lie past the first span's own reach (the migration's second
-    // bug — a single evaluation resolved only one link).
+    // a chained second landing can lie past the first span's own reach, and a single evaluation
+    // would resolve only one link.
     Fraction horizon{};
     for (std::size_t note = 0; note < saved_notes.size(); ++note)
     {

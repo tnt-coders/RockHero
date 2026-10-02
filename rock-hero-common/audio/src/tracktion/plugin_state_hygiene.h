@@ -24,10 +24,11 @@ void stripAutomationCurves(juce::ValueTree& plugin_state);
 /*!
 \brief Removes a persisted remapOnTempoChange flag from a plugin state tree.
 
-Tracktion wrote remapOnTempoChange="1" into every plugin created before RockHero overrode
-arePluginsRemappedWhenTempoChanges(). The flag must not ride through sidecars or restores: with it
-set, any future edit-tempo mutation would let Tracktion beat-remap RockHero's derived seconds
-curves behind the one-way tempo mirror's back.
+Tracktion writes remapOnTempoChange="1" into every plugin it creates while
+arePluginsRemappedWhenTempoChanges() is true, so a state tree from outside this engine (a
+hand-built sidecar or tone file) can carry it. The flag must not ride through sidecars or restores:
+with it set, any future edit-tempo mutation would let Tracktion beat-remap RockHero's derived
+seconds curves behind the one-way tempo mirror's back.
 
 \param plugin_state Plugin state tree to clean in place.
 */

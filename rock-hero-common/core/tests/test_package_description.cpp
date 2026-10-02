@@ -149,8 +149,8 @@ TEST_CASE("Package description peeks fields from the archive", "[core][package-d
 }
 
 // Verifies non-ASCII metadata survives the peek: song.json is UTF-8, so the description must
-// decode it as UTF-8 rather than through the ASCII juce::String constructor (which mangled bytes
-// above 127 and asserted in debug). The non-ASCII bytes are injected programmatically so this
+// decode it as UTF-8 rather than through the ASCII juce::String constructor (which mangles bytes
+// above 127 and asserts in debug). The non-ASCII bytes are injected programmatically so this
 // source file stays pure ASCII.
 TEST_CASE("Package description decodes non-ASCII metadata as UTF-8", "[core][package-description]")
 {

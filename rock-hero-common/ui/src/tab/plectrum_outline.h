@@ -18,9 +18,9 @@ namespace rock_hero::common::ui
 //
 // A hand-kept table of a measurement, which is exactly the shape that drifts when the art is
 // rebaked — so test_tab_paint_core.cpp re-measures the shipped PNG against every row here. The
-// highway graduated its own head measurements to load time (head_art_profile.h); this stays a
-// table because the lane is JUCE-painted wherever it appears and has no atlas load of its own,
-// and the test is what keeps the table honest.
+// highway measures its own head art at load time (head_art_profile.h); this stays a table
+// because the lane is JUCE-painted wherever it appears and has no atlas load of its own, and the
+// test is what keeps the table honest.
 //
 // Only the RIGHT half is stored, as the chain from the blunt top edge's right corner down to the
 // tip. The art is mirror-symmetric to the last measured sample (every boundary sample's mirror
@@ -29,8 +29,8 @@ namespace rock_hero::common::ui
 //
 // The x values carry the aspect. The cell measures 31.000 x 32.997 px at that level, so scaling
 // BOTH axes by the extent fits the silhouette's HEIGHT to the extent and leaves its width at
-// 0.9395 of it, the art's own proportion. The head therefore stands exactly as tall as the round
-// head it replaces and 6% narrower, which leaves the lane's vertical collision budget alone.
+// 0.9395 of it, the art's own proportion. The head therefore stands exactly as tall as the lane's
+// round head and 6% narrower, which leaves the lane's vertical collision budget alone.
 //
 // A rounded triangle is not a substitute for the table: the silhouette keeps widening for nine
 // rows below its topmost ink, and its widest row sits 0.1515 of the height ABOVE the box center,

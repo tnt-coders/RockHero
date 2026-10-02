@@ -21,9 +21,9 @@ apply results without touching JUCE or Tracktion state from the worker. The dest
 outstanding worker before allowing the runner to be destroyed, so Exit during an in-flight
 operation waits for the worker to finish before the app shuts down.
 
-Slice 1 processes at most one in-flight open or import at a time because Close and Exit
-supersede prior operations by advancing the controller's current busy token. If a later slice
-introduces concurrent submissions, this runner must grow a queue.
+The runner holds at most one in-flight operation because Close and Exit supersede a prior
+operation by advancing the controller's current busy token rather than running beside it.
+Concurrent submissions would require this runner to grow a queue.
 */
 class JuceEditorTaskRunner final : public IEditorTaskRunner
 {

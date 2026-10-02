@@ -231,9 +231,8 @@ TEST_CASE("TabView colors strings by their standard-window position", "[ui][tab-
     // Extended-range lanes push the standard window up and take tertiary colors below it.
     CHECK(tabStringColor(2, 7) == red);
     CHECK(tabStringColor(1, 7) == juce::Colour{0xff00b5a0});
-    // The eighth string takes the achromatic near-white (decided by the rendered magenta trial,
-    // plan 45 Q2); the seventh keeps teal. Eight is the current lane cap (g_max_chart_strings),
-    // so no ninth-or-beyond colors are exercised.
+    // The eighth string takes the achromatic near-white; the seventh keeps teal. Eight is the lane
+    // cap (g_max_chart_strings), so no ninth-or-beyond colors are exercised.
     CHECK(tabStringColor(1, 8) == juce::Colour{0xffb6b6b6});
     CHECK(tabStringColor(2, 8) == juce::Colour{0xff00b5a0});
 }
@@ -340,7 +339,7 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
 
     // NOTHING THE LANE DRAWS REACHES THE COLUMN: the chart and an empty lane are the SAME PICTURE
     // across the panel's columns. Asked as an identity over every mark rather than as a probe on
-    // one of them, because the ruling is about the whole content pass.
+    // one of them, because the rule is about the whole content pass.
     CHECK(worstPixelDeltaInColumns(charted, bare, column.getX(), column.getRight() - 1) == 0);
 
     // And the chart really had ink to lose -- past the column the very same pair disagrees, which
@@ -387,8 +386,8 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
 // stay on top of the furniture, because the one thing the column can never lose is which line is
 // which string.
 //
-// FAILS UNDER PRE-CHANGE CODE: the rails were drawn inside the lane pass, under the opaque scrim,
-// so the column showed nothing of them.
+// Rails drawn inside the lane pass would sit under the opaque scrim, and the column would show
+// nothing of them.
 TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -448,8 +447,8 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
 // through the same authority every scrolling placement draws through and simply given the pin's
 // column.
 //
-// FAILS UNDER PRE-CHANGE CODE: nothing was pinned at all, so a reader scrolled into the middle of
-// a song could not tell where the hand was without scrolling back to find the last marker.
+// Without the pin, a reader scrolled into the middle of a song could not tell where the hand is
+// without scrolling back to find the last marker.
 TEST_CASE("TabView pins the governing fret-hand position", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -502,8 +501,8 @@ TEST_CASE("TabView pins the governing fret-hand position", "[ui][tab-view]")
 // out its range, and its chip reaches past the panel's own edge over notation the reader cannot
 // see there.
 //
-// FAILS UNDER PRE-CHANGE CODE, deliberately: with the rule scoped to the legend panel, the strip
-// of chip past the panel's right edge answered a press as ordinary lane.
+// With the rule scoped to the legend panel alone, the strip of chip past the panel's right edge
+// would answer a press as ordinary lane.
 TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -555,14 +554,14 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
     CHECK(last_phase == core::ChartPointerPhase::Down);
 }
 
-// THE LEGEND IS INERT CHROME (the pointer half of its ruling): it stands permanently over one
+// THE LEGEND IS INERT CHROME to the pointer: it stands permanently over one
 // column of notation, so a press there would select or drag marks the reader cannot see. The lane
 // still CLAIMS the column — that is what keeps the press from falling through to the overlay's
 // click-to-seek, which would jump the playhead to the leftmost visible time whenever a reader
 // clicked a letter — and answers it with nothing.
 //
-// FAILS UNDER PRE-CHANGE CODE, deliberately: the column was draw-only, so the press went straight
-// through to the controller as a Down on hidden notation.
+// A draw-only column would send the press straight through to the controller as a Down on hidden
+// notation.
 TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -625,9 +624,9 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
     CHECK(last_phase == core::ChartPointerPhase::Down);
 }
 
-// The techniques/shapes/FHP pixel coverage moved to the shared paint core's suite
-// (rock-hero-common/ui/tests/test_tab_paint_core.cpp) when the drawers were extracted; the
-// head-drawing case above stays here as the TabView delegation guard.
+// Technique, shape and FHP pixel coverage lives in the shared paint core's suite
+// (rock-hero-common/ui/tests/test_tab_paint_core.cpp); the head-drawing case above is the TabView
+// delegation guard.
 
 // With a chart displayed the lane claims its band and forwards lane-local pointer intents with
 // the painted geometry; without one it stays pointer-transparent so seeking is untouched.

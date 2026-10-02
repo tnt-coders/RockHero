@@ -56,9 +56,9 @@ namespace
     // follows the aspect; wider viewports widen vertically instead.
     //
     // Both branches of that min() pair satisfy scale_y == scale_x * aspect, so the frustum is
-    // exactly square-pixel at every viewport shape (regression-tested). Charter added +0.05 to
-    // the vertical scale, which broke that identity by 5 to 10 percent depending on window shape
-    // and rendered world-square note heads as tall rectangles, so it is not carried here.
+    // exactly square-pixel at every viewport shape (regression-tested). Charter adds +0.05 to the
+    // vertical scale, which breaks that identity by 5 to 10 percent depending on window shape and
+    // renders world-square note heads as tall rectangles, so it is not carried here.
     // Recover on-screen size with frustum_scale_base, which scales both axes and preserves the
     // identity.
     const double screen_scale_x = std::min(0.5, 1.0 / aspect);
@@ -217,7 +217,7 @@ HighwayCameraTarget makeHighwayCameraTarget(
     }
 
     // A fretted note can sit outside the hand window: a two-hand tap floats far above the fretting
-    // hand, which no longer anchors it (taps are excluded from the fret-hand track, matching how
+    // hand, which does not anchor it (taps are excluded from the fret-hand track, matching how
     // charters place anchors). The window light stays on the left hand, but the camera still has to
     // frame the tap, so any fretted note defined in the scanned zones widens the range as if the
     // hand reached it. An open string's stop never reframes (played from anywhere, like the hand
@@ -304,15 +304,15 @@ HighwayCameraTarget makeHighwayCameraTarget(
     };
 }
 
-// Third-order critically damped smoother. A second-order spring left acceleration discontinuous —
-// from rest a step began with the peak acceleration x''(0) = -d w^2, an instant kick that read
-// as a jolt. Carrying acceleration as state too (three coincident real poles at -w) makes the
-// response C^2: from rest the motion eases in from zero acceleration, cubic in time (displacement
-// ~ d w^3 t^3 / 6), and lands with no overshoot. Three equal poles is the maximally smooth
-// arrangement at a given speed — spreading them apart only sharpens the onset — and the maximally
-// smooth, slow hover is what read most correct. The error relaxes as e(t) = (c0 + c1 t + c2 t^2)
-// e^{-w t}, and the update below is that exact closed-form solution over the frame, so smoothing
-// is exactly frame-rate independent; the first advance snaps at rest.
+// Third-order critically damped smoother. A second-order spring would leave acceleration
+// discontinuous — from rest a step would begin with the peak acceleration x''(0) = -d w^2, an
+// instant kick that reads as a jolt. Carrying acceleration as state too (three coincident real
+// poles at -w) makes the response C^2: from rest the motion eases in from zero acceleration, cubic
+// in time (displacement ~ d w^3 t^3 / 6), and lands with no overshoot. Three equal poles is the
+// maximally smooth arrangement at a given speed — spreading them apart only sharpens the onset —
+// and the maximally smooth, slow hover is what reads most correct. The error relaxes as
+// e(t) = (c0 + c1 t + c2 t^2) e^{-w t}, and the update below is that exact closed-form solution
+// over the frame, so smoothing is exactly frame-rate independent; the first advance snaps at rest.
 void HighwayCamera::advance(
     const HighwayCameraTarget& target, double dt_seconds, const HighwayMetrics& metrics)
 {

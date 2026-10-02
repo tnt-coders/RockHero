@@ -35,11 +35,10 @@ stepped back behind the note the charter is editing.
 THE EDITOR'S FOCUS, handed to the paint core, its overlays and the hit tester as one answer per
 note, so the picture and the reachable marks agree. A revealed note is drawn to its ring's end
 (\ref common::core::drawnEndSeconds) with every keyframe it stores at its true instant. A host
-easing its presence hands the
-painter the eased amounts, so a revealed tail GROWS from its crop and every mark riding it travels
-with it, and a head stepping back fades as it goes; what a press reaches reads the settled answer,
-the state the ease is heading for. A surface without an editor (the game's tab strips) presents
-every note plainly (\ref tabPresence).
+easing its presence hands the painter the eased amounts, so a revealed tail GROWS from its crop and
+every mark riding it travels with it, and a head stepping back fades as it goes; what a press
+reaches reads the settled answer, the state the ease is heading for. A surface without an editor
+(the game's tab strips) presents every note plainly (\ref tabPresence).
 */
 struct TabNotePresence
 {
@@ -176,8 +175,8 @@ struct TabLayoutRect
 **HEADS ARE TARGETS; TAILS ARE TESTIMONY**. A note is addressed at the one column where it happens
 — its onset — and a tail says how long the string rings, which is evidence and not a handle. A
 click in the lane moves the caret to the slot under the pointer, exactly as a click in empty lane
-does, rather than selecting a note whose onset is somewhere else entirely ("that selection is not
-under the caret").
+does, rather than selecting a note whose onset is somewhere else entirely and so is not under the
+caret.
 
 The rule is UNIFORM: a VISIBLE tail does not select either, not only ink a covering span's
 furniture owns. That is what lets this manifest publish head rectangles alone — a tail rectangle

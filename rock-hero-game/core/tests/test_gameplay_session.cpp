@@ -208,7 +208,8 @@ public:
         return {};
     }
 
-    // The session never mirrors tempo maps itself; recorded only to keep the fake honest.
+    // The session mirrors the song's tempo map on every load; no test asserts on it, so the fake
+    // accepts it silently.
     void mirrorTempoMap(const common::core::TempoMap& /*tempo_map*/) override
     {}
 
@@ -523,7 +524,7 @@ public:
             }});
     }
 
-    // Fires the captured completion with the aggregated missing-plugin refusal (21-Q1(A)).
+    // Fires the captured completion with the aggregated missing-plugin refusal.
     void completeWithMissingPlugins()
     {
         REQUIRE(pending_completion);
@@ -801,7 +802,7 @@ TEST_CASE("Gameplay session fails when the rig load fails", "[core][session]")
 }
 
 // Verifies the missing-plugin refusal maps to its own session code so UI can present an
-// "install these plugins" flow (21-Q1: refuse to start, listing the missing plugins).
+// "install these plugins" flow (the song refuses to start and lists every missing plugin).
 TEST_CASE("Gameplay session surfaces missing plugins distinctly", "[core][session]")
 {
     SessionHarness harness;
@@ -1039,7 +1040,7 @@ TEST_CASE("Gameplay session close releases and ignores stale completions", "[cor
 }
 
 // Verifies the three mix volumes round-trip to their single backend owners: master and backing
-// through the mix boundary, monitor through the live rig's output gain (21-Q3: global in v1).
+// through the mix boundary, monitor through the live rig's monitor stage.
 TEST_CASE("Gameplay session forwards mix volumes to their owners", "[core][session]")
 {
     SessionHarness harness;
@@ -1103,8 +1104,8 @@ TEST_CASE("Gameplay session arms live-input monitoring at Ready", "[core][sessio
 }
 
 // Verifies the gate stays silent (never arms processed monitoring, never applies a calibrated gain)
-// when the store holds no calibration for the active route -- the wired-but-silent default until a
-// game-side calibration exists. Reaching Ready is unaffected: disabled monitoring is non-fatal.
+// when the store holds no calibration for the active route -- the wired-but-silent default.
+// Reaching Ready is unaffected: disabled monitoring is non-fatal.
 TEST_CASE(
     "Gameplay session leaves monitoring silent without calibration", "[core][session][live-input]")
 {
