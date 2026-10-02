@@ -1,5 +1,8 @@
 # The Gain block and the meter-only signal-chain panel
 
+*Superseded 2026-10-02 by `one-document-and-the-signal-chain-panel.md`: the per-tone level and pan
+move under the tone's title, and the side columns become meters only.*
+
 *Parked 2026-09-18: the per-tone output level stands (`6c7d6935`); this direction was built as
 `d16429c8` and reverted the same day. Re-verify against the code before reopening.*
 
