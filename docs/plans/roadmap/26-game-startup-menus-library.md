@@ -501,9 +501,10 @@ forward and record it in both plans).
 - **Live input (input-calibration plan, 2026-10-01)**: a session refuses `play()` with
   `LiveInputOff` until live input is on. This phase owns the surface: show the refusal's message
   and dim Play while it holds, and offer calibration from it and from the pause menu. The wizard
-  renders `knownInterfaces()` with each row's input setting, the game's only manual path;
-  calibrating by playing is its fallback, like the editor popup's **Calibrate**, and asks the
-  pickup question first (`NativeAudioSetup::beginGainCalibration(PickupClass)`, with
+  follows the editor's calibration window: no in-app device list (the guide's generated Known
+  Audio Devices table is where a player finds a device's gain and input setting, and the gain is
+  typed), with measuring by playing (**Measure**, beside **Pickup type**) as the fallback, and
+  asks the pickup question first (`NativeAudioSetup::beginGainCalibration(PickupClass)`, with
   `pickupTypes()` for the names and descriptions, the table the guide's Pickup Types is
   generated from).
   The gate

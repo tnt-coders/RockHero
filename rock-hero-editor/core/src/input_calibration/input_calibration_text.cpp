@@ -21,7 +21,7 @@ std::string signedGainText(double gain_db)
 std::string idleText()
 {
     return "Most accurate: type your audio device's gain from the guide (?). Not listed? Choose "
-           "your pickup type and click \"Calibrate\" to measure it by playing.";
+           "your pickup type and click \"Measure\" to calibrate by playing.";
 }
 
 std::string guideMissingText()

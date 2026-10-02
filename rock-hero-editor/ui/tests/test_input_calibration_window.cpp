@@ -29,7 +29,7 @@ using testing::findRequiredDescendant;
 
 } // namespace
 
-// Calibrate starts a measurement and becomes Stop, the gain, the pickups and Apply waiting while it
+// Measure starts a measurement and becomes Stop, the gain, the pickups and Apply waiting while it
 // runs; Stop ends it. The window keeps its size throughout, so its native window never resizes.
 TEST_CASE("InputCalibrationWindow measures at one size", "[ui][input-calibration]")
 {
@@ -42,8 +42,8 @@ TEST_CASE("InputCalibrationWindow measures at one size", "[ui][input-calibration
     const juce::Component* const content = window.getContentComponent();
     REQUIRE(content != nullptr);
     const juce::Rectangle<int> size = content->getLocalBounds();
-    auto& calibrate =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
+    auto& measure =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_measure_button");
     const auto& apply =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_apply_button");
     const auto& slider =
@@ -51,18 +51,18 @@ TEST_CASE("InputCalibrationWindow measures at one size", "[ui][input-calibration
     const auto& pickups =
         findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
 
-    REQUIRE(calibrate.onClick);
-    calibrate.onClick();
+    REQUIRE(measure.onClick);
+    measure.onClick();
     CHECK(content->getLocalBounds() == size);
-    CHECK(calibrate.getButtonText() == "Stop");
+    CHECK(measure.getButtonText() == "Stop");
     CHECK_FALSE(apply.isEnabled());
     CHECK_FALSE(slider.isEnabled());
     CHECK_FALSE(pickups.isEnabled());
 
-    calibrate.onClick();
+    measure.onClick();
     CHECK(controller.input_calibration_stop_count == 1);
     CHECK(content->getLocalBounds() == size);
-    CHECK(calibrate.getButtonText() == "Calibrate");
+    CHECK(measure.getButtonText() == "Measure");
     CHECK(apply.isEnabled());
 }
 
@@ -78,8 +78,8 @@ TEST_CASE("InputCalibrationWindow marks the pickups' strum target", "[ui][input-
 
     const auto& meter = findRequiredDescendant<AudioLevelMeter>(window, "input_calibration_meter");
     auto& pickups = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
-    auto& calibrate =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
+    auto& measure =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_measure_button");
 
     CHECK(
         meter.targetDb() == std::optional{common::audio::inputCalibrationTargetPeakDb(
@@ -90,8 +90,8 @@ TEST_CASE("InputCalibrationWindow marks the pickups' strum target", "[ui][input-
         meter.targetDb() == std::optional{common::audio::inputCalibrationTargetPeakDb(
                                 common::audio::PickupClass::SingleCoil)});
 
-    REQUIRE(calibrate.onClick);
-    calibrate.onClick();
+    REQUIRE(measure.onClick);
+    measure.onClick();
     CHECK_FALSE(meter.targetDb().has_value());
 }
 

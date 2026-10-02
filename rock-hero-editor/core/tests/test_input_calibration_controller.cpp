@@ -167,7 +167,7 @@ TEST_CASE("Input calibration controller keeps a refused Apply open", "[core][inp
     CHECK(view.lastState().message == "The calibration store is unavailable.");
 }
 
-// Calibrate measures the chosen pickups and follows the capture from waiting to listening; while
+// Measure measures the chosen pickups and follows the capture from waiting to listening; while
 // it runs, the gain, the pickups and Apply wait.
 TEST_CASE("Input calibration controller follows a measurement", "[core][input-calibration]")
 {
@@ -177,7 +177,7 @@ TEST_CASE("Input calibration controller follows a measurement", "[core][input-ca
     controller.attachView(view);
     controller.onPickupsSelected(common::audio::PickupClass::SingleCoil);
 
-    controller.onCalibrateRequested();
+    controller.onMeasureRequested();
     CHECK(host.last_start_pickups == std::optional{common::audio::PickupClass::SingleCoil});
     CHECK(view.lastState().measuring);
     CHECK(view.lastState().message == measuringText(common::audio::InputCalibrationWaiting{}));
@@ -202,7 +202,7 @@ TEST_CASE("Input calibration controller fills in a measured gain", "[core][input
     RecordingInputCalibrationView view;
     InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
-    controller.onCalibrateRequested();
+    controller.onMeasureRequested();
 
     host.sample = sampleWith(
         common::audio::InputCalibrationMeasured{
@@ -229,7 +229,7 @@ TEST_CASE("Input calibration controller reports a failed measurement", "[core][i
     RecordingInputCalibrationView view;
     InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
-    controller.onCalibrateRequested();
+    controller.onMeasureRequested();
 
     host.sample = sampleWith(common::audio::InputCalibrationFailed{"Input clipped."});
     controller.onSampleTick();
@@ -248,22 +248,22 @@ TEST_CASE("Input calibration controller reports start failure", "[core][input-ca
     InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
 
-    controller.onCalibrateRequested();
+    controller.onMeasureRequested();
 
     CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().message == "No input route is selected.");
 }
 
-// Calibrate again stops the measurement through the host; Cancel closes.
+// Measure again stops the measurement through the host; Cancel closes.
 TEST_CASE("Input calibration controller stops and closes", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
     InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
-    controller.onCalibrateRequested();
+    controller.onMeasureRequested();
 
-    controller.onCalibrateRequested();
+    controller.onMeasureRequested();
     CHECK(host.stop_count == 1);
     CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().message == idleText());
@@ -285,7 +285,7 @@ TEST_CASE("Input calibration controller meters the candidate gain", "[core][inpu
     controller.onSampleTick();
     CHECK(view.lastState().input_meter_level.peak_db == Catch::Approx(-18.0));
 
-    controller.onCalibrateRequested();
+    controller.onMeasureRequested();
     CHECK(view.lastState().input_meter_level.peak_db == Catch::Approx(-20.0));
 }
 

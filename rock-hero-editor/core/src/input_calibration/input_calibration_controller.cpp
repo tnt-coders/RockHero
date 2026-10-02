@@ -97,7 +97,7 @@ void InputCalibrationController::onPickupsSelected(common::audio::PickupClass pi
 
 // Starts a measurement once the host has handed over the route, or stops the running one. A
 // refused start says why.
-void InputCalibrationController::onCalibrateRequested()
+void InputCalibrationController::onMeasureRequested()
 {
     if (m_state.measuring)
     {

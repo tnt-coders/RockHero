@@ -179,9 +179,9 @@ public:
         addAndMakeVisible(m_pickup_chooser);
 
         // One button that starts a measurement and, while one runs, stops it.
-        m_calibrate_button.setComponentID("input_calibration_calibrate_button");
-        m_calibrate_button.onClick = [this] { m_calibration_controller.onCalibrateRequested(); };
-        addAndMakeVisible(m_calibrate_button);
+        m_measure_button.setComponentID("input_calibration_measure_button");
+        m_measure_button.onClick = [this] { m_calibration_controller.onMeasureRequested(); };
+        addAndMakeVisible(m_measure_button);
 
         m_message.setComponentID("input_calibration_message");
         m_message.setJustificationType(juce::Justification::topLeft);
@@ -267,7 +267,7 @@ private:
         m_pickup_label.setBounds(pickup_row.removeFromLeft(g_label_width));
         m_pickup_chooser.setBounds(pickup_row.removeFromLeft(g_pickup_chooser_width));
         pickup_row.removeFromLeft(g_gap);
-        m_calibrate_button.setBounds(pickup_row);
+        m_measure_button.setBounds(pickup_row);
         area.removeFromTop(g_gap);
 
         auto gain_row = area.removeFromTop(g_row_height);
@@ -295,7 +295,7 @@ private:
         m_pickup_chooser.setTooltip(
             juce::String{std::string{common::audio::pickupType(state.pickups).covers}});
         m_pickup_chooser.setEnabled(!state.measuring);
-        m_calibrate_button.setButtonText(state.measuring ? "Stop" : "Calibrate");
+        m_measure_button.setButtonText(state.measuring ? "Stop" : "Measure");
         m_apply_button.setEnabled(!state.measuring);
         m_message.setText(juce::String{state.message}, juce::dontSendNotification);
         m_input_meter.setLevel(state.input_meter_level);
@@ -362,7 +362,7 @@ private:
     juce::Slider m_gain_slider;
     juce::Label m_pickup_label;
     juce::ComboBox m_pickup_chooser;
-    juce::TextButton m_calibrate_button;
+    juce::TextButton m_measure_button;
     juce::Label m_message;
     AudioLevelMeter m_input_meter;
     juce::TextButton m_apply_button;

@@ -9,7 +9,7 @@ Live input stays off until the selected input is calibrated, so every player hea
 the same level. The editor opens input calibration by itself the first time it sees an input
 without a calibration. **Cancel** closes it for that input until the input changes or the editor
 restarts; the **Calibrate** button under the signal chain's input meter opens it again at any
-time. (Inside the calibration window, its own **Calibrate** button measures by playing.)
+time.
 
 # Calibrating
 
@@ -94,7 +94,7 @@ Sources for the reference:
    list describes the chosen kind (see also **Pickup Types** below).
 3. Plug the guitar straight into the interface's instrument (Hi-Z) input, set to 1 MOhm where it
    has a choice, with no pedals in between. Turn the guitar's volume and tone all the way up and
-   select one pickup, then click **Calibrate**.
+   select one pickup, then click **Measure**.
 4. Play as hard as you play in a song, on all strings, until the countdown ends. The measured gain
    fills in; click **Apply** to save it.
 5. If the input clips, the window says so: lower the interface's input gain and calibrate again.

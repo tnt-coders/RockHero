@@ -125,12 +125,12 @@ Doxygen includes its output.
 
 The editor's calibration popup is one fixed-size screen: the message with the "?" (the
 calibration guide, whose generated table is how a player finds their device's gain) at its
-corner, the input meter, **Pickup type** with **Calibrate**, the **Gain** slider, then **Apply**
+corner, the input meter, **Pickup type** with **Measure**, the **Gain** slider, then **Apply**
 and **Cancel**. It is sized once, for its longest message, and never resized, because a native
 window resize under the Direct2D renderer flashes a frame of the old size.
 
-`InputCalibrationViewState::measuring` is true while a measurement runs. **Calibrate** is one
-intent, `onCalibrateRequested`: it starts a measurement, or stops the running one (through the
+`InputCalibrationViewState::measuring` is true while a measurement runs. **Measure** is one
+intent, `onMeasureRequested`: it starts a measurement, or stops the running one (through the
 host, `onInputCalibrationMeasurementStopped`, keeping the popup open), when the button reads
 **Stop**; the gain, the pickup type and **Apply** wait meanwhile. A finished measurement fills the
 gain and leaves `measuredText` as the message; nothing is stored until **Apply**. The meter

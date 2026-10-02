@@ -141,7 +141,7 @@ public:
     \brief Starts a measurement, or stops the running one without a result. A refused start says
     why.
     */
-    void onCalibrateRequested();
+    void onMeasureRequested();
 
     /*!
     \brief Samples the raw input once, following a running measurement.

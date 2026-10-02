@@ -57,7 +57,7 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     auto& meter = findRequiredDescendant<juce::Component>(window, "input_calibration_meter");
     auto& pickups = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
     auto& calibrate =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_measure_button");
     auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
     auto& apply_button =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_apply_button");
@@ -70,7 +70,7 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     REQUIRE(help_button.onClick);
     CHECK(help_button.getTooltip() == "Open the input calibration guide");
     CHECK(message.getText() == juce::String{core::idleText()});
-    CHECK(calibrate.getButtonText() == "Calibrate");
+    CHECK(calibrate.getButtonText() == "Measure");
     CHECK(apply_button.getButtonText() == "Apply");
     CHECK(cancel_button.getButtonText() == "Cancel");
     // A message, not a field: it draws no box and is never squeezed.
@@ -83,7 +83,7 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     CHECK(master_meter.getWidth() <= meter.getWidth());
     CHECK(window.getContentComponent()->getWidth() < 520);
     // Top to bottom: the message with the guide at its corner, the meter, the pickup type with
-    // Calibrate, the gain the measurement fills, then Apply before Cancel at the trailing edge.
+    // Measure, the gain the measurement fills, then Apply before Cancel at the trailing edge.
     CHECK(message.getBounds().getRight() <= help_button.getBounds().getX());
     CHECK(message.getBounds().getBottom() <= meter.getBounds().getY());
     CHECK(meter.getBounds().getBottom() <= pickups.getBounds().getY());
@@ -296,7 +296,7 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
 }
 
 // The pickup chooser lists the five kinds, opens on humbuckers and offers the chosen kind's
-// description on hover; "Calibrate" then measures the chosen pickups.
+// description on hover; "Measure" then measures the chosen pickups.
 TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -316,7 +316,7 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
     auto& calibrate =
-        findRequiredDescendant<juce::TextButton>(window, "input_calibration_calibrate_button");
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_measure_button");
 
     CHECK(chooser.getNumItems() == 5);
     CHECK(chooser.getText() == "Humbucker");
