@@ -24,9 +24,6 @@ struct [[nodiscard]] InputCalibrationMeasured
 {
     /*! \brief The calibration gain the measurement derived. */
     Gain gain;
-
-    /*! \brief The pickups the measurement assumed. */
-    PickupClass pickups{};
 };
 
 /*! \brief A measurement that ended with nothing stored. */

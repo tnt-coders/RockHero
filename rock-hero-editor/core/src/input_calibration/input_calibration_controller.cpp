@@ -142,7 +142,7 @@ void InputCalibrationController::onSampleTick()
             std::get_if<common::audio::InputCalibrationMeasured>(&progress))
     {
         setGain(measured->gain.db);
-        finishMeasurement(measuredText(m_state.gain_db, measured->pickups));
+        finishMeasurement(measuredText(m_state.gain_db, m_state.pickups));
         return;
     }
     finishMeasurement(std::get<common::audio::InputCalibrationFailed>(progress).message);

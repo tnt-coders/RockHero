@@ -51,9 +51,12 @@ LiveInputMonitor::LiveInputMonitor(
 
 LiveInputMonitoringStatus LiveInputMonitor::refresh(LiveInputMonitoringContext context)
 {
-    // A measurement still running here was ended by the gate, not by its own result.
-    m_measurement_interrupted = m_measurement.has_value();
-    m_measurement.reset();
+    // A measurement still running here was ended by the gate, not by its own result; one already
+    // interrupted stays so until a sample reports it.
+    if (std::holds_alternative<Measurement>(m_measurement))
+    {
+        m_measurement = InterruptedMeasurement{};
+    }
     logIfRefused(
         m_live_input.setCalibrationInputMonitoringEnabled(false), "gate calibration disable");
 
@@ -106,7 +109,8 @@ LiveInputMonitoringStatus LiveInputMonitor::refresh(LiveInputMonitoringContext c
 
 LiveInputMonitoringStatus LiveInputMonitor::status() const noexcept
 {
-    return m_measurement.has_value() ? LiveInputMonitoringStatus::Measuring : m_status;
+    return std::holds_alternative<Measurement>(m_measurement) ? LiveInputMonitoringStatus::Measuring
+                                                              : m_status;
 }
 
 const std::optional<InputDeviceIdentity>& LiveInputMonitor::route() const noexcept
@@ -150,31 +154,31 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::beginMeasurement(
         return backendRejectedError(std::move(calibration_monitoring.error()));
     }
 
-    m_measurement_interrupted = false;
-    m_measurement.emplace(
-        Measurement{
-            .pickups = pickups,
-            .capture = InputCalibrationCapture{inputCalibrationTargetPeakDb(pickups)},
-        });
+    m_measurement = Measurement{
+        .pickups = pickups,
+        .capture = InputCalibrationCapture{inputCalibrationTargetPeakDb(pickups)},
+    };
     return {};
 }
 
 LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
 {
     const AudioMeterLevel raw_level = m_live_input.readRawInputMeterLevel();
-    if (!m_measurement.has_value())
+    if (std::holds_alternative<InterruptedMeasurement>(m_measurement))
     {
-        if (!std::exchange(m_measurement_interrupted, false))
-        {
-            return LiveInputSample{.raw_level = raw_level, .measurement = std::nullopt};
-        }
+        m_measurement = NoMeasurement{};
         return LiveInputSample{
             .raw_level = raw_level,
             .measurement = InputCalibrationFailed{"Calibration was interrupted. Try again."},
         };
     }
+    auto* const measurement = std::get_if<Measurement>(&m_measurement);
+    if (measurement == nullptr)
+    {
+        return LiveInputSample{.raw_level = raw_level, .measurement = std::nullopt};
+    }
 
-    InputCalibrationStep step = m_measurement->capture.pushSample(raw_level);
+    InputCalibrationStep step = measurement->capture.pushSample(raw_level);
     if (const auto* const progress = std::get_if<InputCalibrationRunning>(&step))
     {
         return LiveInputSample{.raw_level = raw_level, .measurement = *progress};
@@ -182,8 +186,8 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
 
     // The measurement ends here by its own result, so it is reset before the gate takes the route
     // back; storing a result is the driver's decision, through commitCalibration().
-    const PickupClass measured_pickups = m_measurement->pickups;
-    m_measurement.reset();
+    const PickupClass measured_pickups = measurement->pickups;
+    m_measurement = NoMeasurement{};
     refresh(context);
     if (auto* const error = std::get_if<InputCalibrationError>(&step))
     {
@@ -205,33 +209,27 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
         gain.db);
     return LiveInputSample{
         .raw_level = raw_level,
-        .measurement = InputCalibrationMeasured{.gain = gain, .pickups = measured_pickups},
+        .measurement = InputCalibrationMeasured{.gain = gain},
     };
 }
 
 void LiveInputMonitor::cancelMeasurement(LiveInputMonitoringContext context)
 {
-    if (m_measurement.has_value())
+    if (std::holds_alternative<Measurement>(m_measurement))
     {
-        m_measurement.reset();
+        m_measurement = NoMeasurement{};
         refresh(context);
     }
-}
-
-std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitCalibration(
-    double gain_db, LiveInputMonitoringContext context)
-{
-    const std::optional<InputDeviceIdentity> route =
-        m_device_configuration.currentInputDeviceIdentity();
-    if (!route.has_value())
+    else
     {
-        return noRouteError();
+        // A measurement the gate already ended has nothing left to tell the driver that ended it.
+        m_measurement = NoMeasurement{};
     }
-
-    return storeAndApply(*route, gain_db, context);
 }
 
-std::expected<void, LiveInputMonitorError> LiveInputMonitor::storeAndApply(
+// Stores the gain for the route before the gate applies it: the gain is a fact about the route,
+// true even if the backend then refuses the route.
+std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitCalibration(
     const InputDeviceIdentity& route, double gain_db, LiveInputMonitoringContext context)
 {
     auto saved = m_audio_config_store.saveInputCalibration(

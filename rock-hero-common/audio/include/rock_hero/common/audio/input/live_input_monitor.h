@@ -17,6 +17,7 @@
 #include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/shared/gain.h>
+#include <variant>
 
 namespace rock_hero::common::audio
 {
@@ -129,17 +130,25 @@ public:
     void cancelMeasurement(LiveInputMonitoringContext context);
 
     /*!
-    \brief Stores a calibration gain for the current route, then runs the gate.
+    \brief Stores a calibration gain for a route, then runs the gate.
 
     The one way a gain is stored, whether it was typed, derived from a known device or measured.
+    The caller names the route the gain was set for, so a device change between setting it and
+    storing it cannot file the gain under the wrong route.
+    \param route The route the gain was set for.
     \param gain_db Calibration gain in decibels; clamped to the supported range.
     \param context Session facts the gate evaluates.
     \return Empty success, or a coarse monitoring failure.
     */
     [[nodiscard]] std::expected<void, LiveInputMonitorError> commitCalibration(
-        double gain_db, LiveInputMonitoringContext context);
+        const InputDeviceIdentity& route, double gain_db, LiveInputMonitoringContext context);
 
 private:
+    // No measurement holds the route.
+    struct NoMeasurement
+    {
+    };
+
     // A measurement in progress: the pickups it assumes and its capture.
     struct Measurement
     {
@@ -147,10 +156,11 @@ private:
         InputCalibrationCapture capture;
     };
 
-    // Stores the gain for the route before the gate applies it: the gain is a fact about the
-    // route, true even if the backend then refuses the route.
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> storeAndApply(
-        const InputDeviceIdentity& route, double gain_db, LiveInputMonitoringContext context);
+    // A measurement a gate run ended before it finished, reported once at the next sample.
+    struct InterruptedMeasurement
+    {
+    };
+
     LiveInputMonitoringStatus disable(LiveInputMonitoringStatus status);
 
     ILiveInput& m_live_input;
@@ -162,12 +172,9 @@ private:
     std::optional<InputDeviceIdentity> m_route{};
     std::optional<InputCalibrationState> m_calibration{};
 
-    // The measurement holding the route; empty while the gate owns the route.
-    std::optional<Measurement> m_measurement{};
-
-    // True once a gate run has ended a measurement that had not finished, until the next sample
-    // reports it: a measurement that began reports its end exactly once.
-    bool m_measurement_interrupted{false};
+    // Whether a measurement holds the route, or one the gate ended awaits its report: a
+    // measurement that began reports its end exactly once.
+    std::variant<NoMeasurement, Measurement, InterruptedMeasurement> m_measurement;
 };
 
 } // namespace rock_hero::common::audio

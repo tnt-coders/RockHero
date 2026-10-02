@@ -93,11 +93,21 @@ common::audio::LiveInputSample EditorController::Impl::onInputCalibrationSampled
     return sample;
 }
 
-// Stores the prompt's gain for the current route, whether typed, from a known device or measured.
+// Stores the prompt's gain, typed or measured, for the route the prompt was opened for: a device
+// change since then cannot file the gain under the wrong route.
 std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl::
     onInputCalibrationApplied(double gain_db)
 {
-    auto committed = m_live_input_monitor.commitCalibration(gain_db, monitoringContext());
+    const std::optional<common::audio::InputDeviceIdentity> route = m_calibration_prompt_route;
+    if (!route.has_value())
+    {
+        return std::unexpected{common::audio::LiveInputMonitorError{
+            common::audio::LiveInputMonitorErrorCode::InvalidRequest,
+            "No input calibration prompt is open.",
+        }};
+    }
+
+    auto committed = m_live_input_monitor.commitCalibration(*route, gain_db, monitoringContext());
     updateView();
     return committed;
 }

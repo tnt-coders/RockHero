@@ -204,11 +204,8 @@ TEST_CASE("Input calibration controller fills in a measured gain", "[core][input
     controller.attachView(view);
     controller.onMeasureRequested();
 
-    host.sample = sampleWith(
-        common::audio::InputCalibrationMeasured{
-            .gain = common::audio::Gain{8.0},
-            .pickups = common::audio::PickupClass::Humbucker,
-        });
+    host.sample =
+        sampleWith(common::audio::InputCalibrationMeasured{.gain = common::audio::Gain{8.0}});
     controller.onSampleTick();
 
     CHECK_FALSE(view.lastState().measuring);

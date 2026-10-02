@@ -260,12 +260,12 @@ TEST_CASE("LiveInputMonitor reports a finished measurement", "[audio][live-input
     const auto* const measured = std::get_if<InputCalibrationMeasured>(&progress);
     REQUIRE(measured != nullptr);
     CHECK_THAT(measured->gain.db, Catch::Matchers::WithinULP(12.7, 0));
-    CHECK(measured->pickups == PickupClass::Humbucker);
     CHECK(harness.store.input_calibrations.empty());
     CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
     CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);
 
-    REQUIRE(harness.monitor.commitCalibration(measured->gain.db, g_ready).has_value());
+    REQUIRE(
+        harness.monitor.commitCalibration(harness.route, measured->gain.db, g_ready).has_value());
     REQUIRE(harness.store.input_calibrations.size() == 1);
     CHECK(harness.store.input_calibrations.front().input_device_identity == harness.route);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
@@ -285,7 +285,6 @@ TEST_CASE("LiveInputMonitor measures against the stated pickups", "[audio][live-
     const auto* const measured = std::get_if<InputCalibrationMeasured>(&progress);
     REQUIRE(measured != nullptr);
     CHECK_THAT(measured->gain.db, Catch::Matchers::WithinULP(6.7, 0));
-    CHECK(measured->pickups == PickupClass::SingleCoil);
 }
 
 // A measurement that fails (here, on a clipped input) hands the route back to the stored
@@ -321,7 +320,7 @@ TEST_CASE("LiveInputMonitor commits a manual calibration", "[audio][live-input]"
 {
     Harness harness;
 
-    REQUIRE(harness.monitor.commitCalibration(3.1, g_ready).has_value());
+    REQUIRE(harness.monitor.commitCalibration(harness.route, 3.1, g_ready).has_value());
 
     REQUIRE(harness.store.input_calibrations.size() == 1);
     CHECK_THAT(
@@ -338,7 +337,7 @@ TEST_CASE("LiveInputMonitor keeps the stored calibration when a save fails", "[a
     harness.store.next_save_input_calibration_error =
         AudioConfigError{AudioConfigErrorCode::CouldNotSave, "disk full"};
 
-    const auto committed = harness.monitor.commitCalibration(8.0, g_ready);
+    const auto committed = harness.monitor.commitCalibration(harness.route, 8.0, g_ready);
 
     REQUIRE_FALSE(committed.has_value());
     CHECK(committed.error().code == LiveInputMonitorErrorCode::CalibrationStoreUnavailable);
@@ -353,7 +352,7 @@ TEST_CASE("LiveInputMonitor commits a calibration the backend refuses", "[audio]
     Harness harness;
     harness.live_input.next_set_input_gain_error = routeUnavailable();
 
-    REQUIRE(harness.monitor.commitCalibration(4.0, g_ready).has_value());
+    REQUIRE(harness.monitor.commitCalibration(harness.route, 4.0, g_ready).has_value());
 
     CHECK(harness.store.input_calibrations.size() == 1);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::BackendUnavailable);
@@ -380,6 +379,39 @@ TEST_CASE("LiveInputMonitor session close ends monitoring and measurement", "[au
     CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
     CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::SessionNotReady);
+}
+
+// Two gate runs before a driver's next sample still report the ended measurement once: the second
+// run must not erase what the first ended.
+TEST_CASE("LiveInputMonitor reports an interrupt across gate runs", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    REQUIRE(harness.monitor.beginMeasurement(PickupClass::Humbucker, g_ready).has_value());
+
+    harness.monitor.refresh(g_ready);
+    harness.monitor.refresh(g_ready);
+
+    const LiveInputSample ended = harness.monitor.sample(g_ready);
+    REQUIRE(ended.measurement.has_value());
+    if (ended.measurement.has_value())
+    {
+        CHECK(std::holds_alternative<InputCalibrationFailed>(*ended.measurement));
+    }
+    CHECK_FALSE(harness.monitor.sample(g_ready).measurement.has_value());
+}
+
+// A driver that stops a measurement the gate already ended hears nothing more about it.
+TEST_CASE("LiveInputMonitor cancel clears an unreported interrupt", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    REQUIRE(harness.monitor.beginMeasurement(PickupClass::Humbucker, g_ready).has_value());
+    harness.monitor.refresh(g_ready);
+
+    harness.monitor.cancelMeasurement(g_ready);
+
+    CHECK_FALSE(harness.monitor.sample(g_ready).measurement.has_value());
 }
 
 } // namespace rock_hero::common::audio
