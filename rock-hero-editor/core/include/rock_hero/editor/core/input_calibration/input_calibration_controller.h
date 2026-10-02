@@ -128,7 +128,10 @@ public:
     */
     void onManualGainChanged(double gain_db);
 
-    /*! \brief Stores the shown gain and closes; a refused store stays open with the reason. */
+    /*!
+    \brief Stores the shown gain through the host, whose success ends the prompt; a refused store
+    says why.
+    */
     void onApplyRequested();
 
     /*!
@@ -150,7 +153,7 @@ public:
     */
     void onSampleTick();
 
-    /*! \brief Reports that local input calibration documentation could not be opened. */
+    /*! \brief Reports that the installed input calibration guide could not be opened. */
     void onDocumentationUnavailable();
 
     /*! \brief Closes the popup through the host without storing anything. */

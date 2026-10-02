@@ -31,7 +31,7 @@ mark assumes:
   of a song you play. Not harder than you ever play, and not single notes.
 - **What to watch:** the meter shows the peak of each moment, so it jumps on every strum. Watch
   the top of those jumps, not where the meter sits on average: when the gain is right, your
-  hardest strums peak at the blue mark, and the rest of your playing peaks below it.
+  hardest strums peak at the **Peak target** mark, and the rest of your playing peaks below it.
 - **Reading it:** if your hardest strums stop clearly short of the mark, the gain is too low;
   if they regularly pass it, too high. An occasional strum a little past it is fine: the
   measurement itself ignores the loudest 5% of moments.

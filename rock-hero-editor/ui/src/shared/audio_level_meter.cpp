@@ -1,6 +1,7 @@
 #include "audio_level_meter.h"
 
 #include "shared/editor_theme.h"
+#include "shared/text_metrics.h"
 
 #include <algorithm>
 #include <array>
@@ -15,6 +16,10 @@ namespace
 
 constexpr double g_clip_hold_ms{1500.0};
 constexpr int g_horizontal_label_width{48};
+// The band above a captioned meter: the caption's line, then the arrow down to the bar.
+constexpr int g_target_caption_height{20};
+constexpr float g_target_caption_font_size{11.0f};
+constexpr float g_target_arrow_height{6.0f};
 constexpr double g_display_min_db{-60.0};
 constexpr double g_display_max_db{6.0};
 constexpr double g_display_range_db{g_display_max_db - g_display_min_db};
@@ -224,11 +229,19 @@ common::audio::AudioMeterLevel AudioLevelMeter::level() const noexcept
 
 void AudioLevelMeter::setTargetDb(std::optional<double> target_db)
 {
+    jassert(m_orientation == AudioLevelMeterOrientation::Horizontal);
     if (target_db != m_target_db)
     {
         m_target_db = target_db;
         repaint();
     }
+}
+
+void AudioLevelMeter::setTargetCaption(juce::String caption)
+{
+    jassert(m_orientation == AudioLevelMeterOrientation::Horizontal);
+    m_target_caption = std::move(caption);
+    repaint();
 }
 
 std::optional<double> AudioLevelMeter::targetDb() const noexcept
@@ -245,6 +258,12 @@ void AudioLevelMeter::paint(juce::Graphics& g)
     {
         return;
     }
+
+    // A captioned meter keeps its caption band always, so the bar sits still as the mark comes
+    // and goes; the band comes off first, so the label sits level with the bar.
+    const juce::Rectangle<int> caption_band = m_target_caption.isNotEmpty()
+                                                  ? area.removeFromTop(g_target_caption_height)
+                                                  : juce::Rectangle<int>{};
 
     if (m_orientation == AudioLevelMeterOrientation::Horizontal && m_label.isNotEmpty())
     {
@@ -303,32 +322,51 @@ void AudioLevelMeter::paint(juce::Graphics& g)
         drawVerticalTickLabels(g, inner);
     }
 
-    // The target, in the accent: a mark across the meter where the owner wants the signal to land.
+    // The target, in the accent: a mark across the meter where the owner wants the signal to land,
+    // and its caption above with an arrow whose tip meets the bar at the mark's own x.
     const std::optional<double> target_db = m_target_db;
-    if (target_db.has_value())
+    if (target_db.has_value() && m_orientation == AudioLevelMeterOrientation::Horizontal)
     {
         constexpr int target_thickness{2};
-        const double target_fraction = displayFraction(*target_db);
+        const int target_x =
+            inner.getX() +
+            static_cast<int>(std::round(inner.getWidth() * displayFraction(*target_db)));
         g.setColour(editorTheme().accent);
-        if (m_orientation == AudioLevelMeterOrientation::Horizontal)
+        g.fillRect(
+            target_x - (target_thickness / 2), inner.getY(), target_thickness, inner.getHeight());
+
+        if (!caption_band.isEmpty())
         {
-            const int target_x =
-                inner.getX() + static_cast<int>(std::round(inner.getWidth() * target_fraction));
-            g.fillRect(
-                target_x - (target_thickness / 2),
-                inner.getY(),
-                target_thickness,
-                inner.getHeight());
-        }
-        else
-        {
-            const int target_y = inner.getBottom() -
-                                 static_cast<int>(std::round(inner.getHeight() * target_fraction));
-            g.fillRect(
-                inner.getX(),
-                target_y - (target_thickness / 2),
-                inner.getWidth(),
-                target_thickness);
+            const auto tip_x = static_cast<float>(target_x);
+            const auto tip_y = static_cast<float>(area.getY());
+            juce::Path arrow;
+            arrow.addTriangle(
+                tip_x - (g_target_arrow_height / 2.0f),
+                tip_y - g_target_arrow_height,
+                tip_x + (g_target_arrow_height / 2.0f),
+                tip_y - g_target_arrow_height,
+                tip_x,
+                tip_y);
+            g.fillPath(arrow);
+
+            // The caption centres on the arrow, kept inside the band near either end.
+            const juce::Font caption_font{juce::FontOptions{g_target_caption_font_size}};
+            g.setFont(caption_font);
+            const int caption_width = textWidth(caption_font, m_target_caption);
+            const int caption_x = std::clamp(
+                target_x - (caption_width / 2),
+                caption_band.getX(),
+                std::max(caption_band.getX(), caption_band.getRight() - caption_width));
+            g.drawText(
+                m_target_caption,
+                juce::Rectangle<int>{
+                    caption_x,
+                    caption_band.getY(),
+                    caption_width,
+                    caption_band.getHeight() - static_cast<int>(g_target_arrow_height),
+                },
+                juce::Justification::centred,
+                false);
         }
     }
 

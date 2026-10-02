@@ -132,7 +132,7 @@ public:
     /*!
     \brief Stores a calibration gain for a route, then runs the gate.
 
-    The one way a gain is stored, whether it was typed, derived from a known device or measured.
+    The one way a gain is stored, whether it was typed or measured.
     The caller names the route the gain was set for, so a device change between setting it and
     storing it cannot file the gain under the wrong route.
     \param route The route the gain was set for.

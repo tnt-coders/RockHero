@@ -24,9 +24,23 @@ std::string idleText()
            "your pickup type and click \"Measure\" to calibrate by playing.";
 }
 
-std::string guideMissingText()
+std::string guideUnavailableText()
 {
-    return "The calibration guide is not installed.";
+    return "The calibration guide could not be opened.";
+}
+
+std::string gainFormulaText()
+{
+    return std::format(
+        "Gain = your audio device's dBu at 0 dBFS, minus {:.0f}.",
+        common::audio::inputLevelReferenceDbu());
+}
+
+std::string peakTargetText(common::audio::PickupClass pickups)
+{
+    return std::format(
+        "A hard strum on {} pickups peaks at the target when the gain is right.",
+        common::audio::pickupType(pickups).name);
 }
 
 std::string measuringText(const common::audio::InputCalibrationRunning& running)

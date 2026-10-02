@@ -299,9 +299,10 @@ TEST_CASE(
         std::holds_alternative<common::audio::InputCalibrationMeasured>(
             measureAndApply(controller, transport, -19.5)));
 
+    // A stored gain is what the prompt was for, so Apply ends it.
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK(final_state->signal_chain.disabled_message.empty());
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
@@ -319,7 +320,8 @@ TEST_CASE(
     }
 }
 
-// Verifies retry starts from a neutral measurement gain after a completed prompt calibration.
+// Verifies a retry, from calibration reopened after an Apply, starts from a neutral measurement
+// gain.
 TEST_CASE(
     "Input calibration retry resets committed gain before measuring", "[core][editor-controller]")
 {
@@ -358,10 +360,11 @@ TEST_CASE(
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto* const prompt_state = stateOrNull(view.last_state);
-    REQUIRE(prompt_state != nullptr);
-    CHECK(prompt_state->input_calibration_prompt.has_value());
+    const auto* const applied_state = stateOrNull(view.last_state);
+    REQUIRE(applied_state != nullptr);
+    CHECK_FALSE(applied_state->input_calibration_prompt.has_value());
 
+    controller.onInputCalibrationRequested();
     const auto retry_measurement_started =
         controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(retry_measurement_started.has_value());
@@ -1609,7 +1612,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Calibrated,
                                              .disabled_message = {},
-                                             .prompt_present = true,
+                                             .prompt_present = false,
                                          });
 
     controller.onInputCalibrationClosed();
@@ -1926,7 +1929,7 @@ TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Unavailable,
                                              .disabled_message = "Live input backend unavailable.",
-                                             .prompt_present = true,
+                                             .prompt_present = false,
                                          });
 }
 
@@ -1993,7 +1996,7 @@ TEST_CASE("Live input commit reports refused monitoring", "[core][editor-control
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Unavailable,
                                              .disabled_message = "Live input backend unavailable.",
-                                             .prompt_present = true,
+                                             .prompt_present = false,
                                          });
 }
 

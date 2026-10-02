@@ -58,8 +58,8 @@ void EditorController::Impl::openCalibrationPrompt()
     }
 }
 
-// Opens the calibration prompt for the current route on explicit user request, after a
-// "Later" too. The gate re-reads the store first, so the prompt opens on a gain the other
+// Opens the calibration prompt for the current route on explicit user request, after a Cancel
+// too. The gate re-reads the store first, so the prompt opens on a gain the other
 // product may have saved since.
 void EditorController::Impl::onInputCalibrationRequested()
 {
@@ -108,6 +108,11 @@ std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl
     }
 
     auto committed = m_live_input_monitor.commitCalibration(*route, gain_db, monitoringContext());
+    if (committed.has_value())
+    {
+        // A stored gain is what the prompt was for, so it ends here.
+        m_calibration_prompt_route.reset();
+    }
     updateView();
     return committed;
 }

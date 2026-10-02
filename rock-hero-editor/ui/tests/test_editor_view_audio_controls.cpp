@@ -1,9 +1,11 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstddef>
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <string>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -124,7 +126,7 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
 }
 
-// Apply stores the shown gain and closes the prompt.
+// Apply stores the shown gain; the editor then ends the prompt.
 TEST_CASE("Calibration Apply saves the shown gain and closes", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -150,7 +152,6 @@ TEST_CASE("Calibration Apply saves the shown gain and closes", "[ui][editor-view
     apply_button.onClick();
 
     CHECK(controller.input_calibration_apply_count == 1);
-    CHECK(controller.input_calibration_close_count == 1);
     // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
     // the rounded-zero test above).
     REQUIRE(controller.last_input_calibration_gain_db.has_value());
@@ -318,7 +319,7 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
     auto& calibrate =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_measure_button");
 
-    CHECK(chooser.getNumItems() == 5);
+    CHECK(static_cast<std::size_t>(chooser.getNumItems()) == common::audio::pickupTypes().size());
     CHECK(chooser.getText() == "Humbucker");
     CHECK(
         chooser.getTooltip() ==
@@ -326,7 +327,9 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
             std::string{common::audio::pickupType(common::audio::PickupClass::Humbucker).covers}
         });
 
-    chooser.setSelectedItemIndex(1, juce::sendNotificationSync);
+    chooser.setSelectedItemIndex(
+        static_cast<int>(std::to_underlying(common::audio::PickupClass::SingleCoil)),
+        juce::sendNotificationSync);
     CHECK(chooser.getText() == "Single-coil");
     CHECK(
         chooser.getTooltip() ==

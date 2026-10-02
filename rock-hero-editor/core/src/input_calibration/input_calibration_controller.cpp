@@ -66,7 +66,7 @@ void InputCalibrationController::onManualGainChanged(double gain_db)
     publishState();
 }
 
-// Stores the shown gain and closes; a refused store stays open with the reason.
+// Stores the shown gain; the editor then closes the prompt. A refused store stays with the reason.
 void InputCalibrationController::onApplyRequested()
 {
     if (m_state.measuring)
@@ -74,14 +74,13 @@ void InputCalibrationController::onApplyRequested()
         return;
     }
 
+    // A stored gain ends the prompt, so the editor closes it; only a refusal comes back here.
     const auto applied = m_host.applyInputCalibration(m_state.gain_db);
     if (!applied.has_value())
     {
         m_state.message = applied.error().message;
         publishState();
-        return;
     }
-    m_host.closeInputCalibration();
 }
 
 void InputCalibrationController::onPickupsSelected(common::audio::PickupClass pickups)
@@ -151,7 +150,7 @@ void InputCalibrationController::onSampleTick()
 // Reports a failed help request without coupling the core controller to filesystem lookup.
 void InputCalibrationController::onDocumentationUnavailable()
 {
-    m_state.message = guideMissingText();
+    m_state.message = guideUnavailableText();
     publishState();
 }
 
@@ -174,12 +173,20 @@ void InputCalibrationController::finishMeasurement(std::string message)
 }
 
 // Pushes the cached state to the attached view if one is present. The meter previews the shown
-// gain, except while a measurement runs, when it shows the raw input as the measurement hears it.
+// gain against the chosen pickups' peak target, except while a measurement runs: it then shows
+// the raw input as the measurement hears it, with no target to play to.
 void InputCalibrationController::publishState()
 {
-    m_state.input_meter_level = m_state.measuring
-                                    ? m_last_raw_meter_level
-                                    : applyDisplayGain(m_last_raw_meter_level, m_state.gain_db);
+    if (m_state.measuring)
+    {
+        m_state.input_meter_level = m_last_raw_meter_level;
+        m_state.meter_target_db.reset();
+    }
+    else
+    {
+        m_state.input_meter_level = applyDisplayGain(m_last_raw_meter_level, m_state.gain_db);
+        m_state.meter_target_db = common::audio::inputCalibrationTargetPeakDb(m_state.pickups);
+    }
     if (m_view != nullptr)
     {
         m_view->setState(m_state);

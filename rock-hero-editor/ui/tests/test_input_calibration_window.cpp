@@ -9,6 +9,7 @@
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -85,7 +86,9 @@ TEST_CASE("InputCalibrationWindow marks the pickups' strum target", "[ui][input-
         meter.targetDb() == std::optional{common::audio::inputCalibrationTargetPeakDb(
                                 common::audio::PickupClass::Humbucker)});
 
-    pickups.setSelectedItemIndex(1, juce::sendNotificationSync);
+    pickups.setSelectedItemIndex(
+        static_cast<int>(std::to_underlying(common::audio::PickupClass::SingleCoil)),
+        juce::sendNotificationSync);
     CHECK(
         meter.targetDb() == std::optional{common::audio::inputCalibrationTargetPeakDb(
                                 common::audio::PickupClass::SingleCoil)});

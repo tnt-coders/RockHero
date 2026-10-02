@@ -30,9 +30,22 @@ decimal. Each surface appends its own unit.
 
 /*!
 \brief Words why the guide did not open.
-\return The guide-missing message.
+\return The message for a guide that is installed but would not open.
 */
-[[nodiscard]] std::string guideMissingText();
+[[nodiscard]] std::string guideUnavailableText();
+
+/*!
+\brief Words the gain formula, for a player typing a gain.
+\return The formula against the one reference.
+*/
+[[nodiscard]] std::string gainFormulaText();
+
+/*!
+\brief Words what the meter's peak target means for the chosen pickups.
+\param pickups The chosen pickups.
+\return The sentence for the meter's tooltip.
+*/
+[[nodiscard]] std::string peakTargetText(common::audio::PickupClass pickups);
 
 /*!
 \brief Words what a running measurement asks of the player.

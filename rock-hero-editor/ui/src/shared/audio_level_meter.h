@@ -47,10 +47,17 @@ public:
     [[nodiscard]] common::audio::AudioMeterLevel level() const noexcept;
 
     /*!
-    \brief Marks a level the signal should reach, or clears the mark.
+    \brief Marks a level the signal should reach, or clears the mark. Horizontal meters only.
     \param target_db The level to mark in dBFS, or empty for no mark.
     */
     void setTargetDb(std::optional<double> target_db);
+
+    /*!
+    \brief Names the mark with a caption above the meter and an arrow down to it. A meter with a
+    caption keeps the caption's band whether or not a mark shows, so its bar never moves.
+    \param caption The caption; empty for none.
+    */
+    void setTargetCaption(juce::String caption);
 
     /*!
     \brief Returns the level the meter marks.
@@ -76,6 +83,9 @@ private:
 
     // The level the owner wants the signal to reach, drawn as a mark across the meter.
     std::optional<double> m_target_db;
+
+    // The mark's name, drawn above the meter with an arrow down to the mark.
+    juce::String m_target_caption;
 
     // Clip indicator remains visible briefly so a single clipped block is noticeable.
     bool m_clip_indicator_active{false};

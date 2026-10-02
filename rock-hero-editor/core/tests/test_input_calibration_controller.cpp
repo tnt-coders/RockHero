@@ -136,7 +136,8 @@ TEST_CASE("Input calibration controller opens idle", "[core][input-calibration]"
     CHECK(view.lastState().gain_db == Catch::Approx(common::audio::defaultGainDb()));
 }
 
-// Apply stores the shown gain through the host and closes the popup.
+// Apply stores the shown gain through the host, whose success ends the prompt; the popup asks for
+// no close of its own.
 TEST_CASE("Input calibration controller applies the shown gain", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
@@ -149,7 +150,7 @@ TEST_CASE("Input calibration controller applies the shown gain", "[core][input-c
 
     CHECK(host.apply_count == 1);
     CHECK(host.last_applied_gain_db == std::optional{3.5});
-    CHECK(host.close_count == 1);
+    CHECK(host.close_count == 0);
 }
 
 // A refused store keeps the popup open with the reason.
@@ -269,8 +270,8 @@ TEST_CASE("Input calibration controller stops and closes", "[core][input-calibra
     CHECK(host.close_count == 1);
 }
 
-// The meter previews the shown gain, and shows the raw input, as the measurement hears it, while
-// one runs.
+// The meter previews the shown gain against the chosen pickups' peak target; while a measurement
+// runs it shows the raw input, as the measurement hears it, with no target to play to.
 TEST_CASE("Input calibration controller meters the candidate gain", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
@@ -281,9 +282,20 @@ TEST_CASE("Input calibration controller meters the candidate gain", "[core][inpu
     host.sample = sampleWith(std::nullopt);
     controller.onSampleTick();
     CHECK(view.lastState().input_meter_level.peak_db == Catch::Approx(-18.0));
+    CHECK(
+        view.lastState().meter_target_db ==
+        std::optional{common::audio::inputCalibrationTargetPeakDb(
+            common::audio::PickupClass::Humbucker)});
+
+    controller.onPickupsSelected(common::audio::PickupClass::SingleCoil);
+    CHECK(
+        view.lastState().meter_target_db ==
+        std::optional{common::audio::inputCalibrationTargetPeakDb(
+            common::audio::PickupClass::SingleCoil)});
 
     controller.onMeasureRequested();
     CHECK(view.lastState().input_meter_level.peak_db == Catch::Approx(-20.0));
+    CHECK_FALSE(view.lastState().meter_target_db.has_value());
 }
 
 // The one gain formatter: signed, one decimal, and zero without a sign.

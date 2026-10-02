@@ -9,14 +9,12 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <string>
-#include <string_view>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -33,7 +31,8 @@ constexpr int g_row_height{28};
 // Wide enough that "Pickup type" draws at full width rather than squeezed by the Label's scale.
 constexpr int g_label_width{96};
 constexpr int g_gap{8};
-constexpr int g_meter_height{26};
+// The meter's bar and, above it, the band its peak target caption and arrow sit in.
+constexpr int g_meter_height{46};
 constexpr int g_button_width{96};
 constexpr int g_pickup_chooser_width{150};
 
@@ -66,13 +65,6 @@ constexpr int g_pickup_chooser_width{150};
     const juce::File build_tree_documentation =
         juce::File{ROCK_HERO_BUILD_DOCS_DIR}.getChildFile(documentation_file_name);
     return build_tree_documentation.existsAsFile() ? build_tree_documentation : juce::File{};
-}
-
-// Opens the local HTML file directly so Windows handles it as a normal filesystem document.
-[[nodiscard]] bool openDocumentation()
-{
-    const juce::File documentation = documentationFile();
-    return documentation.existsAsFile() && documentation.startAsProcess();
 }
 
 // The height a label needs to show text wrapped at its width, read from the label's own font and
@@ -111,10 +103,8 @@ void configureGainSlider(juce::Slider& slider)
     slider.textFromValueFunction = [](double value) {
         return juce::String{core::signedGainText(value)};
     };
-    // The one place a player meets the reference: the player typing a gain needs the formula.
-    slider.setTooltip(
-        "Gain = your audio device's dBu at 0 dBFS, minus " +
-        juce::String{common::audio::inputLevelReferenceDbu(), 0} + ".");
+    // The player typing a gain needs the formula where they type it.
+    slider.setTooltip(juce::String{core::gainFormulaText()});
 }
 
 } // namespace
@@ -132,13 +122,19 @@ public:
         const core::InputCalibrationPrompt& prompt)
         : m_owner(owner)
         , m_editor_controller(controller)
+        , m_guide(documentationFile())
         , m_calibration_controller(*this, prompt)
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
         const std::unique_ptr<juce::Drawable> help_icon =
             juce::Drawable::createFromImageData(BinaryData::help_svg, BinaryData::help_svgSize);
         m_help_button.setComponentID("input_calibration_help_button");
-        m_help_button.setTooltip("Open the input calibration guide");
+        // Resolved once: a build without its docs disables the "?" and says why, instead of
+        // failing when clicked.
+        m_help_button.setEnabled(m_guide.existsAsFile());
+        m_help_button.setTooltip(
+            m_guide.existsAsFile() ? "Open the input calibration guide"
+                                   : "The input calibration guide is not installed.");
         m_help_button.setWantsKeyboardFocus(false);
         m_help_button.setMouseClickGrabsKeyboardFocus(false);
         m_help_button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
@@ -190,6 +186,7 @@ public:
         addAndMakeVisible(m_message);
 
         m_input_meter.setComponentID("input_calibration_meter");
+        m_input_meter.setTargetCaption("Peak target");
         addAndMakeVisible(m_input_meter);
 
         m_apply_button.setComponentID("input_calibration_apply_button");
@@ -299,18 +296,10 @@ private:
         m_apply_button.setEnabled(!state.measuring);
         m_message.setText(juce::String{state.message}, juce::dontSendNotification);
         m_input_meter.setLevel(state.input_meter_level);
-        // Where a hard strum on the chosen pickups lands at the right gain: strumming to the mark
-        // checks a typed or measured gain. A running measurement meters the raw input, which the
-        // mark does not describe.
-        const std::string_view pickup_name = common::audio::pickupType(state.pickups).name;
-        m_input_meter.setTargetDb(
-            state.measuring
-                ? std::nullopt
-                : std::optional{common::audio::inputCalibrationTargetPeakDb(state.pickups)});
+        m_input_meter.setTargetDb(state.meter_target_db);
         m_input_meter.setTooltip(
-            state.measuring ? juce::String{}
-                            : "A hard strum on " + juce::String{std::string{pickup_name}} +
-                                  " pickups peaks at the blue mark when the gain is right.");
+            state.meter_target_db.has_value() ? juce::String{core::peakTargetText(state.pickups)}
+                                              : juce::String{});
     }
 
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
@@ -340,10 +329,11 @@ private:
         m_editor_controller.onInputCalibrationClosed();
     }
 
-    // Reports missing generated docs in the popup instead of letting the help button fail silently.
+    // Opens the local HTML file directly so Windows handles it as a normal filesystem document; a
+    // guide that will not open says so rather than failing silently.
     void openGuide()
     {
-        if (!openDocumentation())
+        if (!m_guide.startAsProcess())
         {
             m_calibration_controller.onDocumentationUnavailable();
         }
@@ -356,6 +346,8 @@ private:
 
     InputCalibrationWindow& m_owner;
     core::IEditorController& m_editor_controller;
+    // The guide the "?" opens; a default File when the build has no docs.
+    juce::File m_guide;
     core::InputCalibrationController m_calibration_controller;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
     juce::Label m_gain_label;

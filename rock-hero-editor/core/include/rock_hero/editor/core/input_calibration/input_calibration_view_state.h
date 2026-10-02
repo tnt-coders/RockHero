@@ -6,6 +6,7 @@
 #pragma once
 
 #include <compare>
+#include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <string>
@@ -34,6 +35,12 @@ struct InputCalibrationViewState
     */
     common::audio::AudioMeterLevel input_meter_level;
 
+    /*!
+    \brief Where a hard strum on the chosen pickups peaks at the right gain, marked on the
+    meter; empty while a measurement runs, so nobody plays to it.
+    */
+    std::optional<double> meter_target_db;
+
     /*! \brief The popup's one message: what to do, what is happening, a result or an error. */
     std::string message;
 
@@ -53,7 +60,7 @@ struct InputCalibrationViewState
     {
         return std::is_eq(lhs.gain_db <=> rhs.gain_db) && lhs.pickups == rhs.pickups &&
                lhs.measuring == rhs.measuring && lhs.input_meter_level == rhs.input_meter_level &&
-               lhs.message == rhs.message;
+               lhs.meter_target_db == rhs.meter_target_db && lhs.message == rhs.message;
     }
 };
 

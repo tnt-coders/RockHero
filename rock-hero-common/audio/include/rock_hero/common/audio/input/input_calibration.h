@@ -24,8 +24,8 @@ namespace rock_hero::common::audio
 \brief Returns the calibrated domain's reference: the dBu an interface input reads at 0 dBFS.
 
 Every calibration derives from this one figure. An interface whose input reaches 0 dBFS at L dBu
-needs a gain of L minus this reference, and the automatic measurement aims at the level a 1 V peak
-source reaches against it.
+needs a gain of L minus this reference, and the automatic measurement aims each pickup kind's
+hard strum at the level its peak voltage reaches against it.
 \return Reference level in dBu.
 */
 [[nodiscard]] constexpr double inputLevelReferenceDbu() noexcept
@@ -48,7 +48,7 @@ source reaches against it.
 \brief Returns where a hard strum on these pickups lands after the gain: what the automatic
 measurement puts the playing's ceiling on.
 \param pickups The pickups the player measures with.
-\return Target peak in decibels full scale: -6.8 for humbuckers, -12.8 for single coils.
+\return Target peak in decibels full scale.
 */
 [[nodiscard]] inline double inputCalibrationTargetPeakDb(PickupClass pickups) noexcept
 {

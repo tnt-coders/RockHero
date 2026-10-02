@@ -133,12 +133,16 @@ window resize under the Direct2D renderer flashes a frame of the old size.
 intent, `onMeasureRequested`: it starts a measurement, or stops the running one (through the
 host, `onInputCalibrationMeasurementStopped`, keeping the popup open), when the button reads
 **Stop**; the gain, the pickup type and **Apply** wait meanwhile. A finished measurement fills the
-gain and leaves `measuredText` as the message; nothing is stored until **Apply**. The meter
-previews the shown gain, and shows the raw input, as the measurement hears it, while one runs. It
-marks `inputCalibrationTargetPeakDb(pickups)`, where a hard strum on the chosen kind lands at the
-right gain (`AudioLevelMeter::setTargetDb`), so a strum checks a typed or measured gain; the mark is
-hidden while a measurement runs, so the player does not play to it. The pickup chooser's tooltip is
-the chosen kind's `covers` text. The popup's own sentences come from `editor/core`
+gain and leaves `measuredText` as the message; nothing is stored until **Apply**, whose success
+ends the prompt for its route (the editor closes the popup; the popup asks for no close of its
+own). The meter previews the shown gain, and shows the raw input, as the measurement hears it,
+while one runs. `InputCalibrationViewState::meter_target_db` is
+`inputCalibrationTargetPeakDb(pickups)`, where a hard strum on the chosen kind lands at the right
+gain, so a strum checks a typed or measured gain; the meter draws it as a mark under a
+**Peak target** caption whose arrow points at it (`AudioLevelMeter::setTargetDb` and
+`setTargetCaption`). It is empty while a measurement runs, so the player does not play to it. The
+"?" is disabled, with a tooltip saying so, when the guide is not installed. The pickup chooser's
+tooltip is the chosen kind's `covers` text. The popup's own sentences come from `editor/core`
 `input_calibration/input_calibration_text.h`, and refusal and failure reasons are passed through
 from `common/audio` as they are; gains go through `signedGainText`, the slider's text box
 included.
