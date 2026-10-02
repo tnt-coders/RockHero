@@ -1,7 +1,9 @@
 # The Gain block and the meter-only signal-chain panel
 
-*Superseded 2026-10-02 by `docs/plans/completed/tone-output-pan-knob.md` (built the same day): the
-per-tone level stays beside the output meter and gains a pan knob above it.*
+*Phase 2 (the meter-only panel) is superseded 2026-10-02 by
+`docs/plans/completed/tone-output-pan-knob.md` (built the same day): the per-tone level stays
+beside the output meter and gains a pan knob above it. Phase 1, the Gain block, stands, and is
+ruled to be the same plugin type as the tone's output stage.*
 
 *Parked 2026-09-18: the per-tone output level stands (`6c7d6935`); this direction was built as
 `d16429c8` and reverted the same day. Re-verify against the code before reopening.*
