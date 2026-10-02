@@ -27,8 +27,8 @@ using testing::findRequiredDescendant;
 
 // The window opens on the interface and the gain; measuring waits behind its header, which opens
 // the pickup and the start button under it and fits the window to them, then closes them again.
-// A running measurement locks the section's controls but not its header: the player is on that
-// path, so the header stays live.
+// A running measurement locks the section and its header, since the controller holds the section
+// open until it ends.
 TEST_CASE("InputCalibrationWindow keeps measuring behind its header", "[ui][input-calibration]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -43,6 +43,10 @@ TEST_CASE("InputCalibrationWindow keeps measuring behind its header", "[ui][inpu
         findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
     const auto& calibrate =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
+    auto& pickup_help = findRequiredDescendant<juce::DrawableButton>(
+        window, "input_calibration_pickup_help_button");
+    const auto& pickup_label =
+        findRequiredDescendant<juce::Label>(window, "input_calibration_pickup_label");
     const auto& apply =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_manual_apply_button");
     const auto& slider =
@@ -58,32 +62,38 @@ TEST_CASE("InputCalibrationWindow keeps measuring behind its header", "[ui][inpu
     const int closed_height = content->getHeight();
     CHECK(later.getBottom() + margin == closed_height);
 
-    CHECK(disclosure.getButtonText() == "Not listed? Measure by playing");
+    CHECK(disclosure.getButtonText() == "Audio device not listed? Calibrate by playing");
     CHECK(disclosure.isEnabled());
     CHECK_FALSE(pickups.isVisible());
     CHECK_FALSE(calibrate.isVisible());
     CHECK(apply.isEnabled());
     CHECK(slider.isEnabled());
 
-    disclosure.setToggleState(true, juce::sendNotificationSync);
+    REQUIRE(disclosure.onClick);
+    disclosure.onClick();
+    CHECK(disclosure.getToggleState());
     CHECK(pickups.isVisible());
+    CHECK(pickup_help.isVisible());
+    CHECK(pickup_help.getTooltip() == "Open the pickup types table");
+    CHECK(pickups.getRight() <= pickup_help.getX());
+    CHECK(pickup_label.getText() == "Pickup type");
     CHECK(calibrate.isVisible());
     CHECK(calibrate.isEnabled());
-    CHECK(calibrate.getButtonText() == "Start measuring");
+    CHECK(calibrate.getButtonText() == "Start Calibration");
     CHECK(disclosure.getBounds().getBottom() <= pickups.getY());
     CHECK(pickups.getBottom() <= calibrate.getY());
     CHECK(content->getHeight() > closed_height);
     CHECK(later.getBottom() + margin == content->getHeight());
 
-    disclosure.setToggleState(false, juce::sendNotificationSync);
+    disclosure.onClick();
     CHECK_FALSE(pickups.isVisible());
     CHECK_FALSE(calibrate.isVisible());
     CHECK(content->getHeight() == closed_height);
 
-    disclosure.setToggleState(true, juce::sendNotificationSync);
+    disclosure.onClick();
     REQUIRE(calibrate.onClick);
     calibrate.onClick();
-    CHECK(disclosure.isEnabled());
+    CHECK_FALSE(disclosure.isEnabled());
     CHECK_FALSE(pickups.isEnabled());
     CHECK_FALSE(calibrate.isEnabled());
 }

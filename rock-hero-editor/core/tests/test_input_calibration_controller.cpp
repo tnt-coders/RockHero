@@ -136,7 +136,8 @@ TEST_CASE(
 
     CHECK(
         view.lastState().status_message ==
-        "Live input stays off until you calibrate. Choose your interface, or measure by playing.");
+        "Live input stays off until you calibrate. Choose your audio device, or calibrate by "
+        "playing.");
     CHECK(view.lastState().input_gain_db == Catch::Approx(common::audio::defaultGainDb()));
     CHECK(view.lastState().dismiss_button_text == "Later");
 }
@@ -158,6 +159,49 @@ TEST_CASE("Input calibration controller applies manual gain", "[core][input-cali
     CHECK(view.lastState().status_message == "Saved: +3.5 dB.");
     CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().dismiss_button_text == "Close");
+}
+
+// The measuring section opens closed. Opening it gives the setup before anything starts, and Start
+// then asks for the playing; a running measurement keeps the section open, and closing it returns
+// to what the status said before the section's own texts.
+TEST_CASE("Input calibration controller opens the measuring section", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(2.0)};
+    controller.attachView(view);
+    CHECK_FALSE(view.lastState().measurement_section_open);
+
+    controller.onMeasurementSectionToggled(true);
+    CHECK(view.lastState().measurement_section_open);
+    CHECK(
+        view.lastState().status_message ==
+        "No pedals. Volume and tone all the way up, one pickup selected, then click Start "
+        "Calibration.");
+    CHECK(host.start_count == 0);
+
+    controller.onMeasurementStartRequested();
+    CHECK(view.lastState().status_message == "Play as hard as you play in a song, on all strings.");
+    controller.onMeasurementSectionToggled(false);
+    CHECK(view.lastState().measurement_section_open);
+
+    host.sample =
+        sampleWith(common::audio::InputCalibrationCommitted{.gain = common::audio::Gain{3.0}});
+    controller.onSampleTick();
+    controller.onMeasurementSectionToggled(false);
+    CHECK_FALSE(view.lastState().measurement_section_open);
+    CHECK(view.lastState().status_message == "Saved: +3.0 dB, measured with humbucker pickups.");
+
+    controller.onInterfaceSelected(0);
+    const std::string interface_text = view.lastState().status_message;
+    controller.onMeasurementSectionToggled(true);
+    controller.onMeasurementSectionToggled(false);
+    CHECK(view.lastState().status_message == interface_text);
+
+    controller.onManualGainChanged(1.5);
+    controller.onMeasurementSectionToggled(true);
+    controller.onMeasurementSectionToggled(false);
+    CHECK(view.lastState().status_message == "Click Apply to save this gain.");
 }
 
 // A running measurement locks the controls and reports its stage.
@@ -313,7 +357,7 @@ TEST_CASE("Input calibration controller applies a chosen interface", "[core][inp
     CHECK(view.lastState().input_gain_db == Catch::Approx(2.3));
     CHECK(
         view.lastState().status_message ==
-        "Estimated figure. Set the interface to the instrument input, 1 MOhm, at 0.0 dB input "
+        "Estimated figure. Set the audio device to the instrument input, 1 MOhm, at 0.0 dB input "
         "level, then click Apply.");
 
     controller.onManualApplyRequested();

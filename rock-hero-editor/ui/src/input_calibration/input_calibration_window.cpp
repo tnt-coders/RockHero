@@ -30,18 +30,17 @@ constexpr int g_input_calibration_preferred_width{
     g_input_calibration_meter_width + (g_input_calibration_content_margin * 2)
 };
 constexpr int g_row_height{28};
-// Wide enough that "Interface:" draws at full width rather than squeezed by the Label's scale.
-constexpr int g_label_width{74};
+// Wide enough that "Audio device" draws at full width rather than squeezed by the Label's scale.
+constexpr int g_label_width{96};
 constexpr int g_gap{8};
 constexpr int g_status_height{48};
 constexpr int g_status_to_meter_gap{10};
 constexpr int g_meter_height{26};
 
-// Resolves installed docs from the executable location and falls back to build-tree docs.
-[[nodiscard]] juce::File inputCalibrationDocumentationFile()
+// Resolves an installed docs page from the executable location and falls back to build-tree docs.
+[[nodiscard]] juce::File documentationFile(const juce::String& documentation_file_name)
 {
     constexpr int maximum_directory_search_depth{8};
-    const juce::String documentation_file_name{"user_input_calibration.html"};
     juce::File search_root =
         juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
 
@@ -68,11 +67,24 @@ constexpr int g_meter_height{26};
     return build_tree_documentation.existsAsFile() ? build_tree_documentation : juce::File{};
 }
 
-// Opens the local HTML file directly so Windows handles it as a normal filesystem document.
-[[nodiscard]] bool openInputCalibrationDocumentation()
+// Opens the local HTML file directly so Windows handles it as a normal filesystem document. Each
+// help target is a page of its own: the shell drops a #fragment from a file URL, so a page is the
+// finest target a help button can open.
+[[nodiscard]] bool openDocumentation(const juce::String& documentation_file_name)
 {
-    const juce::File documentation = inputCalibrationDocumentationFile();
+    const juce::File documentation = documentationFile(documentation_file_name);
     return documentation.existsAsFile() && documentation.startAsProcess();
+}
+
+// A row's "?": the help icon, opening one guide page.
+void configureHelpButton(
+    juce::DrawableButton& button, const juce::Drawable* icon, const juce::String& tooltip)
+{
+    button.setTooltip(tooltip);
+    button.setWantsKeyboardFocus(false);
+    button.setMouseClickGrabsKeyboardFocus(false);
+    button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    button.setImages(icon);
 }
 
 // The chooser's item index for a pickup class: its position in common::audio::pickupClasses().
@@ -105,19 +117,18 @@ void configureManualInputGainSlider(juce::Slider& slider)
     };
     // The one place a player meets the reference: the player typing a gain needs the formula.
     slider.setTooltip(
-        "Gain = your interface's dBu at 0 dBFS, minus " +
+        "Gain = your audio device's dBu at 0 dBFS, minus " +
         juce::String{common::audio::inputLevelReferenceDbu(), 0} + ".");
 }
 
-// A disclosure header: a chevron and a line of text, no fill, that opens the section under it. The
-// toggle state is the open state, so the button is the one authority for it.
+// A disclosure header: a chevron and a line of text, no fill, that opens the section under it. Its
+// toggle state renders the open state its owner pushes; a click only asks for the other one.
 class DisclosureButton final : public juce::Button
 {
 public:
     explicit DisclosureButton(const juce::String& header_text)
         : juce::Button(header_text)
     {
-        setClickingTogglesState(true);
         setWantsKeyboardFocus(false);
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
     }
@@ -184,24 +195,25 @@ public:
         , m_calibration_controller(*this, prompt)
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
-        m_help_icon =
+        const std::unique_ptr<juce::Drawable> help_icon =
             juce::Drawable::createFromImageData(BinaryData::help_svg, BinaryData::help_svgSize);
         m_help_button.setComponentID("input_calibration_help_button");
-        m_help_button.setTooltip("Open input calibration guide");
-        m_help_button.setWantsKeyboardFocus(false);
-        m_help_button.setMouseClickGrabsKeyboardFocus(false);
-        m_help_button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
-        m_help_button.setImages(m_help_icon.get());
-        m_help_button.onClick = [this] { openDocumentation(); };
+        configureHelpButton(m_help_button, help_icon.get(), "Open the input calibration guide");
+        m_help_button.onClick = [this] { openGuidePage("user_input_calibration.html"); };
         addAndMakeVisible(m_help_button);
 
+        m_pickup_help_button.setComponentID("input_calibration_pickup_help_button");
+        configureHelpButton(m_pickup_help_button, help_icon.get(), "Open the pickup types table");
+        m_pickup_help_button.onClick = [this] { openGuidePage("user_pickup_types.html"); };
+        addChildComponent(m_pickup_help_button);
+
         m_interface_label.setComponentID("input_calibration_interface_label");
-        m_interface_label.setText("Interface:", juce::dontSendNotification);
+        m_interface_label.setText("Audio device", juce::dontSendNotification);
         m_interface_label.setJustificationType(juce::Justification::centredLeft);
         addAndMakeVisible(m_interface_label);
 
         m_interface_chooser.setComponentID("input_calibration_interface");
-        m_interface_chooser.setTextWhenNothingSelected("Choose your interface");
+        m_interface_chooser.setTextWhenNothingSelected("Choose your audio device");
         int interface_id = 1;
         for (const common::audio::KnownInterface& row : common::audio::knownInterfaces())
         {
@@ -219,7 +231,7 @@ public:
         addAndMakeVisible(m_interface_chooser);
 
         m_pickup_label.setComponentID("input_calibration_pickup_label");
-        m_pickup_label.setText("Pickup:", juce::dontSendNotification);
+        m_pickup_label.setText("Pickup type", juce::dontSendNotification);
         m_pickup_label.setJustificationType(juce::Justification::centredLeft);
         addChildComponent(m_pickup_label);
 
@@ -246,7 +258,7 @@ public:
         addAndMakeVisible(m_input_meter);
 
         m_manual_label.setComponentID("input_calibration_manual_label");
-        m_manual_label.setText("Gain:", juce::dontSendNotification);
+        m_manual_label.setText("Gain", juce::dontSendNotification);
         m_manual_label.setJustificationType(juce::Justification::centredLeft);
         addAndMakeVisible(m_manual_label);
 
@@ -275,11 +287,14 @@ public:
         // Measuring is the fallback for an interface the list lacks, so it waits behind a header
         // and the window opens on the two direct routes.
         m_measure_disclosure.setComponentID("input_calibration_measure_disclosure");
-        m_measure_disclosure.onClick = [this] { syncMeasureDisclosure(); };
+        m_measure_disclosure.onClick = [this] {
+            m_calibration_controller.onMeasurementSectionToggled(
+                !m_measure_disclosure.getToggleState());
+        };
         addAndMakeVisible(m_measure_disclosure);
 
         m_calibrate_button.setComponentID("input_calibration_start_button");
-        m_calibrate_button.setButtonText("Start measuring");
+        m_calibrate_button.setButtonText("Start Calibration");
         m_calibrate_button.onClick = [this] {
             m_calibration_controller.onMeasurementStartRequested();
         };
@@ -290,7 +305,7 @@ public:
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
-        syncMeasureDisclosure();
+        // Attaching pushes the first state, which sizes the window to it.
         m_calibration_controller.attachView(*this);
         startTimerHz(common::audio::inputCalibrationSampleRateHz());
     }
@@ -345,6 +360,8 @@ private:
             auto pickup_row = area.removeFromTop(g_row_height);
             m_pickup_label.setBounds(pickup_row.removeFromLeft(g_label_width));
             m_pickup_chooser.setBounds(pickup_row.removeFromLeft(160));
+            pickup_row.removeFromLeft(g_gap);
+            m_pickup_help_button.setBounds(pickup_row.removeFromLeft(g_row_height).reduced(2));
         }
         area.removeFromTop(g_gap);
         auto buttons = area.removeFromTop(g_row_height);
@@ -353,12 +370,13 @@ private:
         return area.getY() - bounds.getY() + g_input_calibration_content_margin;
     }
 
-    // Shows or hides the measuring section to match its header, and fits the window to it.
-    void syncMeasureDisclosure()
+    // Opens or closes the measuring section under its header, and fits the window to it.
+    void showMeasurementSection(bool open)
     {
-        const bool open = m_measure_disclosure.getToggleState();
+        m_measure_disclosure.setToggleState(open, juce::dontSendNotification);
         m_pickup_label.setVisible(open);
         m_pickup_chooser.setVisible(open);
+        m_pickup_help_button.setVisible(open);
         m_calibrate_button.setVisible(open);
         constexpr int unbounded_height{1 << 15};
         setSize(
@@ -381,9 +399,11 @@ private:
             pickupClassIndex(state.pickups), juce::dontSendNotification);
         m_pickup_chooser.setEnabled(!state.measuring);
         m_calibrate_button.setEnabled(!state.measuring);
+        m_measure_disclosure.setEnabled(!state.measuring);
         m_manual_gain_slider.setEnabled(!state.measuring);
         m_manual_apply_button.setEnabled(!state.measuring);
         m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
+        showMeasurementSection(state.measurement_section_open);
     }
 
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
@@ -408,10 +428,10 @@ private:
         m_editor_controller.onInputCalibrationDismissed();
     }
 
-    // Reports missing generated docs in the popup instead of letting the help button fail silently.
-    void openDocumentation()
+    // Reports missing generated docs in the popup instead of letting a help button fail silently.
+    void openGuidePage(const juce::String& documentation_file_name)
     {
-        if (openInputCalibrationDocumentation())
+        if (openDocumentation(documentation_file_name))
         {
             return;
         }
@@ -428,8 +448,10 @@ private:
     core::IEditorController& m_editor_controller;
     core::InputCalibrationController m_calibration_controller;
     AudioLevelMeter m_input_meter;
-    std::unique_ptr<juce::Drawable> m_help_icon;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
+    juce::DrawableButton m_pickup_help_button{
+        "input_calibration_pickup_help", juce::DrawableButton::ImageFitted
+    };
     juce::Label m_interface_label;
     juce::ComboBox m_interface_chooser;
     juce::Label m_pickup_label;
@@ -438,12 +460,12 @@ private:
     juce::Slider m_manual_gain_slider;
     juce::TextButton m_manual_apply_button;
     juce::Label m_status;
-    DisclosureButton m_measure_disclosure{"Not listed? Measure by playing"};
+    DisclosureButton m_measure_disclosure{"Audio device not listed? Calibrate by playing"};
     juce::TextButton m_calibrate_button;
     juce::TextButton m_cancel_button;
 
     // A single application-wide tooltip window (created on first use, shared across all windows)
-    // renders the help button's hover text. Using SharedResourcePointer instead of a
+    // renders the help buttons' hover text. Using SharedResourcePointer instead of a
     // per-window instance is JUCE's documented fix for the duplicate-tooltip artifact: two live
     // TooltipWindow instances each register a global mouse listener and can paint overlaid tips.
     // Default (desktop) parent gives the native soft-corner drop-shadow window.

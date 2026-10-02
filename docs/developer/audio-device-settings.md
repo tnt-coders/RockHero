@@ -107,15 +107,19 @@ was established (`KnownInterfaceBasis`) and its source; `knownInterfaceGain()` d
 from the one reference through the one quantizer, and `knownInterfaceBasisText()` words how far to
 trust it. No row stores a gain, and no document copies a figure.
 
-The editor's calibration popup offers the table as its primary path: an **Interface** chooser over
+The editor's calibration popup offers the table as its primary path: an **Audio device** chooser over
 the rows in table order, the row index being the contract (`InputCalibrationViewState::
 selected_interface`, never persisted). Choosing one fills the gain slider through the same
-quantizer, and the status says `<basis sentence> Set the interface to <unity_input>, then click
+quantizer, and the status says `<basis sentence> Set the audio device to <unity_input>, then click
 Apply.` A gain changed by hand, or a measurement, clears the choice. Every gain the popup prints
 goes through `signedGainText` (`editor/core` `input_calibration/input_calibration_text.h`), the
-slider's text box included. The measurement is the fallback, so the popup keeps it closed behind a
-**Not listed? Measure by playing** header; the header's toggle state is view-only, and opening it
-shows the Pickup chooser and **Start measuring**.
+slider's text box included. The measurement is the fallback, so the popup keeps it closed behind an
+**Audio device not listed? Calibrate by playing** header. The open state is the controller's
+(`InputCalibrationViewState::measurement_section_open`), because the status follows it: opening
+shows the setup before Start, since the capture then waits only ten seconds for the first strum.
+The section holds the **Pickup type** chooser, whose "?" opens the guide's own Pickup Types page
+(the shell drops a `#fragment` from a file URL, so each help target is a page), and
+**Start Calibration**.
 
 # The game's first-run setup
 
@@ -146,5 +150,5 @@ mapping is the seed of future multiplayer input plumbing.
    `savedRouteAudioConfigStore()`.
 5. Adding a known interface is one row in `known_interfaces.cpp`, in model order, every field
    named: the model as its maker spells it, the input setting as a lower-case phrase completing
-   "Set the interface to ___", the dBu at 0 dBFS, the basis and the source. The table test
+   "Set the audio device to ___", the dBu at 0 dBFS, the basis and the source. The table test
    enforces the order and the phrasing; nothing else needs updating.

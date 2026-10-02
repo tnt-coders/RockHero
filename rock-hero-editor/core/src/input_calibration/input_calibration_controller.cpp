@@ -34,9 +34,9 @@ namespace
 // until then. Both paths are named, so a player with no listed interface finds the second.
 [[nodiscard]] std::string inputCalibrationIdleText(bool calibrated)
 {
-    return calibrated ? "Calibrated. Choose an interface or change the gain to recalibrate."
-                      : "Live input stays off until you calibrate. Choose your interface, or "
-                        "measure by playing.";
+    return calibrated ? "Calibrated. Choose an audio device or change the gain to recalibrate."
+                      : "Live input stays off until you calibrate. Choose your audio device, or "
+                        "calibrate by playing.";
 }
 
 // Status text after the gain is changed by hand: the one thing left to do.
@@ -50,16 +50,22 @@ namespace
 [[nodiscard]] std::string interfaceSelectedText(const common::audio::KnownInterface& row)
 {
     return std::string{common::audio::knownInterfaceBasisText(row.basis)} +
-           " Set the interface to " + std::string{row.unity_input} + ", then click Apply.";
+           " Set the audio device to " + std::string{row.unity_input} + ", then click Apply.";
 }
 
-// Status text shown while the capture waits for the player to start: the guitar's free levers
-// pinned, then the playing the measurement assumes.
+// Status text while the measuring section is open: the setup, read before Start because the capture
+// then waits only ten seconds for the first strum. Pedals lead, as the costliest mistake.
+[[nodiscard]] std::string inputCalibrationSetupText()
+{
+    return "No pedals. Volume and tone all the way up, one pickup selected, then click Start "
+           "Calibration.";
+}
+
+// Status text shown while the capture waits for the player to start: the playing the measurement
+// assumes, the setup having been read when the section opened.
 [[nodiscard]] std::string inputCalibrationWaitingText()
 {
-    return "Volume and tone all the way up, one pickup selected, then play as hard as you play in "
-           "a "
-           "song, on all strings.";
+    return "Play as hard as you play in a song, on all strings.";
 }
 
 // Status text shown while the capture listens, counting down the whole seconds it has left.
@@ -93,7 +99,7 @@ InputCalibrationController::InputCalibrationController(
     : m_host(host)
     , m_committed_input_gain_db(prompt.stored_gain_db)
 {
-    m_state.status_message = inputCalibrationIdleText(m_committed_input_gain_db.has_value());
+    setRestingStatus(inputCalibrationIdleText(m_committed_input_gain_db.has_value()));
     setDisplayedInputGain(m_committed_input_gain_db.value_or(common::audio::defaultGainDb()));
 }
 
@@ -123,7 +129,21 @@ void InputCalibrationController::onManualGainChanged(double gain_db)
 
     setDisplayedInputGain(gain_db);
     m_state.selected_interface.reset();
-    m_state.status_message = inputCalibrationEditedText();
+    setRestingStatus(inputCalibrationEditedText());
+    publishState();
+}
+
+// Opens or closes the measuring section; the status follows, giving the setup while it is open.
+void InputCalibrationController::onMeasurementSectionToggled(bool open)
+{
+    if (m_state.measuring)
+    {
+        return;
+    }
+
+    m_state.measurement_section_open = open;
+    // Closing returns to what the status said before the section's own texts took over.
+    m_state.status_message = open ? inputCalibrationSetupText() : m_resting_status;
     publishState();
 }
 
@@ -152,7 +172,7 @@ void InputCalibrationController::onInterfaceSelected(std::size_t index)
     const common::audio::KnownInterface& row = rows[index];
     setDisplayedInputGain(common::audio::knownInterfaceGain(row).db);
     m_state.selected_interface = index;
-    m_state.status_message = interfaceSelectedText(row);
+    setRestingStatus(interfaceSelectedText(row));
     publishState();
 }
 
@@ -167,17 +187,17 @@ void InputCalibrationController::onManualApplyRequested()
     const auto applied = m_host.applyManualInputCalibration(m_state.input_gain_db);
     if (!applied.has_value())
     {
-        m_state.status_message = applied.error().message;
+        setRestingStatus(applied.error().message);
         publishState();
         return;
     }
 
     const std::optional<std::size_t> selected = m_state.selected_interface;
-    m_state.status_message = savedText(
+    setRestingStatus(savedText(
         m_state.input_gain_db,
         selected.has_value()
             ? " for the " + std::string{common::audio::knownInterfaces()[*selected].model}
-            : std::string{});
+            : std::string{}));
     m_committed_input_gain_db = m_state.input_gain_db;
     publishState();
 }
@@ -193,7 +213,7 @@ void InputCalibrationController::onMeasurementStartRequested()
     const auto started = m_host.startInputCalibrationMeasurement(m_state.pickups);
     if (!started.has_value())
     {
-        m_state.status_message = started.error().message;
+        setRestingStatus(started.error().message);
         publishState();
         return;
     }
@@ -240,7 +260,7 @@ void InputCalibrationController::onSampleTick()
 // Reports a failed help request without coupling the core controller to filesystem lookup.
 void InputCalibrationController::onDocumentationUnavailable()
 {
-    m_state.status_message = inputCalibrationDocumentationUnavailableText();
+    setRestingStatus(inputCalibrationDocumentationUnavailableText());
     publishState();
 }
 
@@ -262,10 +282,10 @@ void InputCalibrationController::finishMeasurementSuccess(double gain_db)
 {
     setDisplayedInputGain(gain_db);
     // The pickups are named so a player who left the default sees what was assumed.
-    m_state.status_message = savedText(
+    setRestingStatus(savedText(
         m_state.input_gain_db,
         ", measured with " + std::string{common::audio::pickupClassText(m_state.pickups)} +
-            " pickups");
+            " pickups"));
     m_committed_input_gain_db = m_state.input_gain_db;
     m_state.measuring = false;
     publishState();
@@ -275,9 +295,16 @@ void InputCalibrationController::finishMeasurementSuccess(double gain_db)
 void InputCalibrationController::finishMeasurementError(std::string message)
 {
     setDisplayedInputGain(m_committed_input_gain_db.value_or(common::audio::defaultGainDb()));
-    m_state.status_message = std::move(message);
+    setRestingStatus(std::move(message));
     m_state.measuring = false;
     publishState();
+}
+
+// Sets the status every action leaves behind; closing the measuring section returns to it.
+void InputCalibrationController::setRestingStatus(std::string text)
+{
+    m_resting_status = text;
+    m_state.status_message = std::move(text);
 }
 
 // Pushes the cached state to the attached view if one is present. The dismissal words follow the

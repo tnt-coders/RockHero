@@ -66,16 +66,18 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
 
     // The reference reaches the player only as the formula behind the gain slider.
     CHECK(findDescendant(window, "input_calibration_target") == nullptr);
-    CHECK(slider.getTooltip() == "Gain = your interface's dBu at 0 dBFS, minus 12.");
-    CHECK(status.getText() == "Calibrated. Choose an interface or change the gain to recalibrate.");
+    CHECK(slider.getTooltip() == "Gain = your audio device's dBu at 0 dBFS, minus 12.");
+    CHECK(
+        status.getText() ==
+        "Calibrated. Choose an audio device or change the gain to recalibrate.");
     CHECK(status.isVisible());
     // A message, not a field: the status draws no box.
     CHECK_FALSE(status.isColourSpecified(juce::Label::backgroundColourId));
     CHECK_THAT(status.getMinimumHorizontalScale(), Catch::Matchers::WithinULP(1.0f, 0));
     CHECK_FALSE(status.getText().startsWith("Info:"));
     REQUIRE(help_button.onClick);
-    CHECK(help_button.getTooltip() == "Open input calibration guide");
-    CHECK(manual_label.getText() == "Gain:");
+    CHECK(help_button.getTooltip() == "Open the input calibration guide");
+    CHECK(manual_label.getText() == "Gain");
     // The popup meter keeps the master meter's preferred 384px width. The live master meter can
     // flex narrower than that, because the window-centered playback transport has layout
     // priority over the meter's preferred width.
@@ -199,7 +201,7 @@ TEST_CASE("Calibration chooser selects a known interface", "[ui][editor-view]")
 
     CHECK(chooser.getNumItems() == static_cast<int>(rows.size()));
     CHECK(chooser.getSelectedId() == 0);
-    CHECK(chooser.getTextWhenNothingSelected() == "Choose your interface");
+    CHECK(chooser.getTextWhenNothingSelected() == "Choose your audio device");
 
     const auto quad_cortex = std::ranges::find(
         rows, std::string_view{"Neural DSP Quad Cortex"}, &common::audio::KnownInterface::model);
@@ -210,8 +212,9 @@ TEST_CASE("Calibration chooser selects a known interface", "[ui][editor-view]")
     CHECK(chooser.getSelectedId() == quad_cortex_id);
     CHECK(slider.getTextFromValue(slider.getValue()) == "+2.3 dB");
     CHECK(
-        status.getText() == "Estimated figure. Set the interface to the instrument input, 1 MOhm, "
-                            "at 0.0 dB input level, then click Apply.");
+        status.getText() ==
+        "Estimated figure. Set the audio device to the instrument input, 1 MOhm, "
+        "at 0.0 dB input level, then click Apply.");
 }
 
 // Verifies that moving the output gain slider emits a controller intent.
@@ -348,7 +351,7 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
 }
 
 // Behind the measuring header, the pickup chooser lists the five kinds and opens on humbuckers;
-// "Start measuring" then measures the chosen pickups.
+// "Start Calibration" then measures the chosen pickups.
 TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -372,7 +375,8 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
     auto& start_button =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
 
-    disclosure.setToggleState(true, juce::sendNotificationSync);
+    REQUIRE(disclosure.onClick);
+    disclosure.onClick();
     CHECK(start_button.isShowing());
     CHECK(chooser.getNumItems() == 5);
     CHECK(chooser.getText() == "Humbucker");

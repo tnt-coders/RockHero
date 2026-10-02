@@ -43,8 +43,14 @@ struct InputCalibrationViewState
     std::optional<std::size_t> selected_interface;
 
     /*!
-    \brief The pickups "Measure by playing" assumes; humbuckers until the player says otherwise,
-    since three of the four pickup kinds peak like them.
+    \brief True while the "Calibrate by playing" section is open. The measurement is the
+    fallback, so the popup opens with it closed; the status gives the setup while it is open.
+    */
+    bool measurement_section_open{false};
+
+    /*!
+    \brief The pickups the measurement assumes; humbuckers until the player says otherwise, the
+    commonest kind.
     */
     common::audio::PickupClass pickups{common::audio::PickupClass::Humbucker};
 
@@ -66,7 +72,9 @@ struct InputCalibrationViewState
                std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db) &&
                lhs.status_message == rhs.status_message && lhs.measuring == rhs.measuring &&
                lhs.dismiss_button_text == rhs.dismiss_button_text &&
-               lhs.selected_interface == rhs.selected_interface && lhs.pickups == rhs.pickups;
+               lhs.selected_interface == rhs.selected_interface &&
+               lhs.measurement_section_open == rhs.measurement_section_open &&
+               lhs.pickups == rhs.pickups;
     }
 };
 

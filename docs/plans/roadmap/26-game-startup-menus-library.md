@@ -502,7 +502,7 @@ forward and record it in both plans).
   `LiveInputOff` until live input is on. This phase owns the surface: show the refusal's message
   and dim Play while it holds, and offer calibration from it and from the pause menu. The wizard
   renders `knownInterfaces()` with the same basis-plus-unity sentence as the editor's popup
-  (`knownInterfaceBasisText`), the game's only manual path; "Measure by playing" is its fallback,
+  (`knownInterfaceBasisText`), the game's only manual path; "Calibrate by playing" is its fallback,
   and asks the pickup question first (`NativeAudioSetup::beginGainCalibration(PickupClass)`, with
   `pickupClassText` for the names; the user guide's Pickup Types table for the descriptions).
   The gate

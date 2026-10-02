@@ -132,6 +132,13 @@ public:
     void onInterfaceSelected(std::size_t index);
 
     /*!
+    \brief Opens or closes the "Calibrate by playing" section. Opening shows the setup the
+    measurement needs; closing returns to the idle message. Ignored while measuring.
+    \param open True to open the section.
+    */
+    void onMeasurementSectionToggled(bool open);
+
+    /*!
     \brief Chooses the pickups the automatic measurement assumes.
     \param pickups The pickups the player will measure with.
     */
@@ -160,6 +167,7 @@ private:
     void setDisplayedInputGain(double gain_db);
     void finishMeasurementSuccess(double gain_db);
     void finishMeasurementError(std::string message);
+    void setRestingStatus(std::string text);
     void publishState();
 
     Host& m_host;
@@ -168,6 +176,8 @@ private:
     common::audio::AudioMeterLevel m_last_raw_meter_level;
     // The route's committed gain, absent until this input is calibrated.
     std::optional<double> m_committed_input_gain_db;
+    // The status outside the measuring section's own texts (setup, waiting, countdown).
+    std::string m_resting_status;
 };
 
 } // namespace rock_hero::editor::core
