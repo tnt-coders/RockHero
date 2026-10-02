@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <expected>
 #include <optional>
+#include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/settings/audio_config_error.h>
@@ -26,8 +27,8 @@ namespace rock_hero::common::audio::testing
 Use this when a test needs a fully readable and writable audio-config store without touching disk:
 controller device-route restore/persist and any consumer of the port can round-trip state through
 it. It mirrors the concrete store's validity posture (identity validation, physical-route dedup,
-empty-blob-clears) so the fake and the JUCE-backed store behave alike; it clamps a saved gain but,
-unlike the concrete store, does not round it to the calibration step. Each next_*_error member
+empty-blob-clears, and the calibration gain's normal form) so the fake and the JUCE-backed store
+behave alike. Each next_*_error member
 injects one typed failure into the next matching call, following the FakeLiveInput
 one-shot-failure pattern, so tests can exercise the typed-failure branches.
 */
@@ -127,7 +128,8 @@ public:
             }};
         }
 
-        calibration_state.calibration_gain = clampGain(calibration_state.calibration_gain);
+        calibration_state.calibration_gain =
+            normalizedInputCalibrationGain(calibration_state.calibration_gain.db);
         std::erase_if(input_calibrations, [&calibration_state](const InputCalibrationState& state) {
             return samePhysicalInputRoute(
                 state.input_device_identity, calibration_state.input_device_identity);

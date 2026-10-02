@@ -965,13 +965,16 @@ TEST_CASE(
 
     // The ÷width mapping snaps this same pixel to the EARLIER slot (2.0 s, measure 2 beat 1): the
     // two paths genuinely disagree here.
-    const double phase1_seconds = visible.start.seconds + (static_cast<double>(boundary_x) /
-                                                           static_cast<double>(content_width)) *
-                                                              visible.duration().seconds;
-    const common::core::GridPosition phase1_slot = nearestTempoGridPosition(
-        tempo_map, common::core::Fraction{1, 4}, common::core::TimePosition{phase1_seconds});
-    CHECK(phase1_slot == gridAt(2, 1));
-    CHECK(phase1_slot != placement_slot);
+    const double width_division_seconds =
+        visible.start.seconds +
+        (static_cast<double>(boundary_x) / static_cast<double>(content_width)) *
+            visible.duration().seconds;
+    const common::core::GridPosition width_division_slot = nearestTempoGridPosition(
+        tempo_map,
+        common::core::Fraction{1, 4},
+        common::core::TimePosition{width_division_seconds});
+    CHECK(width_division_slot == gridAt(2, 1));
+    CHECK(width_division_slot != placement_slot);
 
     // The published ghost lands on the placement slot, not the ÷width one: its seconds match the
     // placement path's secondsAtNote exactly (2.5 s), never the ÷width slot's 2.0 s.
@@ -1042,13 +1045,16 @@ TEST_CASE(
 
     // The ÷width mapping arms the caret one slot EARLIER (2.0 s, measure 2 beat 1): the two paths
     // genuinely disagree at this pixel.
-    const double phase1_seconds = visible.start.seconds + (static_cast<double>(boundary_x) /
-                                                           static_cast<double>(content_width)) *
-                                                              visible.duration().seconds;
-    const common::core::GridPosition phase1_slot = nearestTempoGridPosition(
-        tempo_map, common::core::Fraction{1, 4}, common::core::TimePosition{phase1_seconds});
-    CHECK(phase1_slot == gridAt(2, 1));
-    CHECK(phase1_slot != placement_slot);
+    const double width_division_seconds =
+        visible.start.seconds +
+        (static_cast<double>(boundary_x) / static_cast<double>(content_width)) *
+            visible.duration().seconds;
+    const common::core::GridPosition width_division_slot = nearestTempoGridPosition(
+        tempo_map,
+        common::core::Fraction{1, 4},
+        common::core::TimePosition{width_division_seconds});
+    CHECK(width_division_slot == gridAt(2, 1));
+    CHECK(width_division_slot != placement_slot);
 
     // The armed caret lands on the placement slot, not the ÷width slot: the caret sits exactly
     // where an Alt+click / ghost would at this pixel, and the transport follows it there.
@@ -1057,7 +1063,7 @@ TEST_CASE(
     {
         CHECK(editor.automation().lane_caret->lane_index == 0);
         CHECK(editor.automation().lane_caret->position == placement_slot);
-        CHECK(editor.automation().lane_caret->position != phase1_slot);
+        CHECK(editor.automation().lane_caret->position != width_division_slot);
     }
     CHECK(editor.transport.position().seconds == Catch::Approx(2.5));
     CHECK(editor.transport.position().seconds != Catch::Approx(2.0));

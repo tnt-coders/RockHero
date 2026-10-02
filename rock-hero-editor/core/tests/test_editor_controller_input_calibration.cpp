@@ -547,14 +547,14 @@ TEST_CASE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
     controller.onInputCalibrationRequested();
-    const auto calibration_set = controller.onInputCalibrationApplied(3.25);
+    const auto calibration_set = controller.onInputCalibrationApplied(3.2);
     REQUIRE(calibration_set.has_value());
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK(final_state->signal_chain.disabled_message.empty());
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(3.25, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(3.2, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 
@@ -564,7 +564,7 @@ TEST_CASE(
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(3.25, 0));
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(3.2, 0));
         CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
     }
 }
@@ -599,7 +599,7 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
     controller.onInputCalibrationRequested();
-    REQUIRE(controller.onInputCalibrationApplied(3.25).has_value());
+    REQUIRE(controller.onInputCalibrationApplied(3.2).has_value());
     REQUIRE(transport.live_input_monitoring_enabled);
     REQUIRE_FALSE(transport.calibration_input_monitoring_enabled);
     const auto* const enabled_state = stateOrNull(view.last_state);

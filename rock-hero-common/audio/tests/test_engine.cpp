@@ -2803,8 +2803,7 @@ TEST_CASE("Engine clock publishes clamped seek positions", "[audio][engine][cloc
 // position write, which rewinds the transport to zero. The clock has to report where the transport
 // actually is: publishing the requested end position instead would strand the clock -- and the
 // tone rack a boundary publish drags with it -- on end-of-song values with the playhead at the
-// origin. Guarded on the transport actually entering play, so a headless run that never starts
-// playback asserts nothing it did not set up.
+// origin.
 TEST_CASE("Engine clock follows the auto-stop on a seek to the end", "[audio][engine][clock]")
 {
     EngineTestHarness harness;
@@ -2812,14 +2811,12 @@ TEST_CASE("Engine clock follows the auto-stop on a seek to the end", "[audio][en
     REQUIRE(duration.seconds > 0.0);
 
     harness.engine.play();
-    if (harness.engine.state().playing)
-    {
-        harness.engine.seek(common::core::TimePosition{duration.seconds});
+    REQUIRE(harness.engine.state().playing);
+    harness.engine.seek(common::core::TimePosition{duration.seconds});
 
-        CHECK(harness.engine.snapshot().position == common::core::TimePosition{});
-        CHECK(harness.engine.snapshot().position == harness.engine.position());
-        CHECK_FALSE(harness.engine.snapshot().playing);
-    }
+    CHECK(harness.engine.snapshot().position == common::core::TimePosition{});
+    CHECK(harness.engine.snapshot().position == harness.engine.position());
+    CHECK_FALSE(harness.engine.snapshot().playing);
 }
 
 // Without hardware the silent device runs, so playback still advances and the transport plays;
@@ -2873,9 +2870,7 @@ TEST_CASE("Engine clock capture stamps never decrease across publishes", "[audio
 
 // While the transport plays, a message-thread republisher restamps the clock at render-adjacent
 // cadence; once stopped it is retired. Headless tests drive the real timer through JUCE's public
-// synchronous-timer hook because no message loop is pumped here. The playing branch is guarded on
-// the published flag (see below); the retired-timer half of the contract is what must hold
-// unconditionally.
+// synchronous-timer hook because no message loop is pumped here.
 TEST_CASE("Engine clock republisher runs only while playing", "[audio][engine][clock]")
 {
     EngineTestHarness harness;
@@ -2884,22 +2879,18 @@ TEST_CASE("Engine clock republisher runs only while playing", "[audio][engine][c
     harness.engine.play();
     const PlaybackClockSnapshot play_snapshot = harness.engine.snapshot();
 
-    // The republisher arms exactly when the play boundary published playing=true, so that
-    // published flag — not a later transport read — is the correct precondition. Headless
-    // transports may report playing only after asynchronous context work, in which case the
-    // republisher correctly stayed off and there is nothing to observe here.
-    if (play_snapshot.playing)
+    // The republisher arms exactly when the play boundary published playing=true; the silent
+    // device runs without hardware, so that boundary always publishes it.
+    REQUIRE(play_snapshot.playing);
+    bool republished = false;
+    for (int attempt = 0; attempt < 10 && !republished; ++attempt)
     {
-        bool republished = false;
-        for (int attempt = 0; attempt < 10 && !republished; ++attempt)
-        {
-            juce::Thread::sleep(20);
-            juce::Timer::callPendingTimersSynchronously();
-            republished = harness.engine.snapshot().monotonic_capture_time >
-                          play_snapshot.monotonic_capture_time;
-        }
-        CHECK(republished);
+        juce::Thread::sleep(20);
+        juce::Timer::callPendingTimersSynchronously();
+        republished =
+            harness.engine.snapshot().monotonic_capture_time > play_snapshot.monotonic_capture_time;
     }
+    CHECK(republished);
 
     harness.engine.stop();
     const std::chrono::nanoseconds stop_stamp = harness.engine.snapshot().monotonic_capture_time;
