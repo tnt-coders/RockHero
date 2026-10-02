@@ -1,6 +1,7 @@
 /*!
 \file audio_device_status_text.h
-\brief Formats audio-device state for the editor menu-bar status button.
+\brief The editor's audio-device sentences: the menu-bar status and the notice while the settings
+window is open.
 */
 
 #pragma once
@@ -47,5 +48,11 @@ rate, bit depth, active channels, buffer size, latency, and backend type.
 \return Bracketed status text for the editor menu bar.
 */
 [[nodiscard]] std::string audioDeviceStatusText(const common::audio::AudioDeviceStatus& status);
+
+/*!
+\brief Words why the whole editor is unavailable while the audio-device settings window is open.
+\return The notice drawn over the editor.
+*/
+[[nodiscard]] std::string audioDeviceSettingsOpenText();
 
 } // namespace rock_hero::editor::core

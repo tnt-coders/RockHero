@@ -1,5 +1,7 @@
 #include "busy_overlay.h"
 
+#include "shared/editor_theme.h"
+
 #include <algorithm>
 #include <juce_graphics/juce_graphics.h>
 #include <memory>
@@ -10,10 +12,6 @@ namespace rock_hero::editor::ui
 
 namespace
 {
-
-// Dim layer alpha behind the centered progress surface. Light enough to keep editor content
-// recognizable underneath, dark enough to make "this is not interactive right now" obvious.
-constexpr float g_dim_alpha = 0.55F;
 
 // Centered surface dimensions in pixels. The overlay scales the surface within these bounds at
 // the smaller dimension when EditorView is narrow.
@@ -196,7 +194,7 @@ void BusyOverlay::setCancelCallback(std::function<void()> callback)
 // top. Child widgets paint themselves above this background.
 void BusyOverlay::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colours::black.withAlpha(g_dim_alpha));
+    g.fillAll(editorTheme().blocked_dim);
 
     const juce::Rectangle<int> bounds = getLocalBounds();
     const int surface_width = juce::jmin(g_surface_width, bounds.getWidth() - g_surface_padding);

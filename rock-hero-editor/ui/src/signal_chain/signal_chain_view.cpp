@@ -1,6 +1,7 @@
 #include "signal_chain_view.h"
 
 #include "shared/editor_theme.h"
+#include "shared/notice_plate.h"
 #include "signal_chain/insert_slot_view.h"
 #include "signal_chain/plugin_drag.h"
 #include "signal_chain/plugin_tile_view.h"
@@ -44,10 +45,6 @@ const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
 const juce::Colour g_signal_path_slot_marker{juce::Colours::white.withAlpha(0.12f)};
-
-// The chain's opacity while no chain verb is available: still the user's tone, readable, but
-// visibly not touchable — the alpha the menu bar's disabled text uses.
-constexpr float g_inert_chain_alpha{0.5f};
 
 // Width of the break the signal line leaves at each fixed cell centre, sized to clear the 28 px
 // "+" insert affordance (insert_slot_view.cpp) with a little air so the glyph reads against the
@@ -379,14 +376,6 @@ void SignalChainView::applyState()
     m_input_meter.setTooltip(juce::String{m_state.disabled_message});
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain.db, juce::dontSendNotification);
-    // The chain always shows — hiding it would read as a lost tone — and dims as ONE layer while
-    // no chain verb is available, so the rail never shows through a translucent tile. Inertness is
-    // read off the verbs the view is told about, never off the message, which says something else.
-    const bool chain_inert =
-        !(m_state.insert_plugin_enabled || m_state.move_plugins_enabled ||
-          m_state.remove_plugins_enabled || m_state.open_plugins_enabled ||
-          m_state.display_type_override_enabled);
-    m_chain_content->setAlpha(chain_inert ? g_inert_chain_alpha : 1.0f);
     m_chain_content->setBlockCount(m_block_layout.blockCount());
     rebuildPluginTiles();
     resized();
@@ -457,6 +446,32 @@ void SignalChainView::paint(juce::Graphics& g)
     const juce::Font title_font{juce::FontOptions{16.0f, juce::Font::bold}};
     g.setFont(title_font);
     g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
+}
+
+// The chain always shows (hiding it would read as a lost tone) and, while no chain verb is
+// available, takes the editor's one "unavailable" dim over it as a single layer, so the rail never
+// shows through a translucent tile. The notice, when there is one, says why, on the shared plate.
+void SignalChainView::paintOverChildren(juce::Graphics& g)
+{
+    if (chainInert())
+    {
+        g.setColour(editorTheme().blocked_dim);
+        g.fillRect(m_chain_viewport.getBounds());
+    }
+    if (!m_state.chain_notice.empty())
+    {
+        paintNoticePlate(g, m_chain_viewport.getBounds(), juce::String{m_state.chain_notice});
+    }
+}
+
+// Inertness is read off the verbs the view is told about, never off a message, which says
+// something else.
+bool SignalChainView::chainInert() const noexcept
+{
+    return !(
+        m_state.insert_plugin_enabled || m_state.move_plugins_enabled ||
+        m_state.remove_plugins_enabled || m_state.open_plugins_enabled ||
+        m_state.display_type_override_enabled);
 }
 
 // Keeps gain sliders on the sides and plugin tiles in the center.

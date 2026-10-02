@@ -111,6 +111,13 @@ struct EditorTheme
 
     /*! \brief De-emphasized status and placeholder text over dark surfaces. */
     juce::Colour muted_text{0xff9aa1ab};
+
+    /*!
+    \brief Dim laid over the whole editor while it is unavailable. Light enough to keep editor
+    content recognizable underneath, dark enough to make "this is not interactive right now"
+    obvious.
+    */
+    juce::Colour blocked_dim{0x8c000000};
 };
 
 /*!

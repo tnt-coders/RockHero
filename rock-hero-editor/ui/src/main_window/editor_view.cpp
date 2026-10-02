@@ -8,6 +8,7 @@
 #include "main_window/menu_look_and_feel.h"
 #include "preview/preview_window.h"
 #include "shared/editor_theme.h"
+#include "shared/notice_plate.h"
 #include "shared/themed_message_box.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/grid_snap_warning_dialog.h"
@@ -3159,6 +3160,18 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
     m_presented_input_calibration_prompt = prompt;
     m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
         m_controller, *prompt, m_input_calibration_guide, this);
+}
+
+// The settings window can sit behind the editor; dim everything and say why, on the same plate the
+// signal chain uses. Nothing intercepts input: the window's modality already blocks the editor.
+void EditorView::paintOverChildren(juce::Graphics& g)
+{
+    if (m_state.editor_notice.empty())
+    {
+        return;
+    }
+    g.fillAll(editorTheme().blocked_dim);
+    paintNoticePlate(g, getLocalBounds(), juce::String{m_state.editor_notice});
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.

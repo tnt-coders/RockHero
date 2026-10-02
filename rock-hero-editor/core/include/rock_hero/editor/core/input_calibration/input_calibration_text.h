@@ -1,6 +1,6 @@
 /*!
 \file input_calibration_text.h
-\brief The input calibration popup's sentences. Gains print through
+\brief Input calibration's sentences. Gains print through
 common::audio::inputCalibrationGainText().
 */
 
@@ -18,6 +18,12 @@ namespace rock_hero::editor::core
 \return The idle message.
 */
 [[nodiscard]] std::string idleText();
+
+/*!
+\brief Words why the signal chain is unavailable while the calibration window is open.
+\return The notice drawn over the chain.
+*/
+[[nodiscard]] std::string inputCalibrationInProgressText();
 
 /*!
 \brief Words why the guide did not open.

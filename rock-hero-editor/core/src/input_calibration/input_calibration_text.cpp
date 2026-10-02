@@ -13,6 +13,11 @@ std::string idleText()
            "your pickup type and click \"Measure\" to calibrate by playing.";
 }
 
+std::string inputCalibrationInProgressText()
+{
+    return "Input calibration in progress";
+}
+
 std::string guideUnavailableText()
 {
     return "The calibration guide could not be opened.";

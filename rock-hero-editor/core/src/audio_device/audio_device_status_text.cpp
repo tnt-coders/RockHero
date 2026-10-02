@@ -77,4 +77,9 @@ std::string audioDeviceStatusText(const common::audio::AudioDeviceStatus& status
         backendDisplayName(status.backend_name));
 }
 
+std::string audioDeviceSettingsOpenText()
+{
+    return "Audio device settings are open";
+}
+
 } // namespace rock_hero::editor::core

@@ -1,8 +1,11 @@
+#include "audio_device/audio_device_status_text.h"
+
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <optional>
 #include <ostream>
 #include <rock_hero/common/audio/testing/fake_live_input.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <variant>
 
@@ -233,6 +236,57 @@ TEST_CASE("Input calibration is available without a loaded project", "[core][edi
     const auto* const prompt_state = stateOrNull(harness.view.last_state);
     REQUIRE(prompt_state != nullptr);
     CHECK(prompt_state->input_calibration_prompt.has_value());
+}
+
+// A window that holds part of the editor says so over what it holds: the calibration prompt over
+// the chain, whose every verb it makes unavailable (the notice's plate covers the tiles), and the
+// modal settings window over the whole editor. Closing each window clears its notice.
+TEST_CASE("Editor windows explain what they hold", "[core][editor-controller]")
+{
+    CalibrationHarness harness;
+    harness.audio_devices.current_input_identity = makeInputDeviceIdentity();
+    EditorController& controller = harness.start();
+    REQUIRE(loadArrangement(
+        controller, harness.project_services, harness.audio, std::filesystem::path{"song.wav"}));
+
+    controller.onInputCalibrationRequested();
+    const auto* const calibrating = stateOrNull(harness.view.last_state);
+    REQUIRE(calibrating != nullptr);
+    if (calibrating != nullptr)
+    {
+        const SignalChainViewState& chain = calibrating->signal_chain;
+        CHECK(chain.chain_notice == inputCalibrationInProgressText());
+        CHECK_FALSE(chain.insert_plugin_enabled);
+        CHECK_FALSE(chain.move_plugins_enabled);
+        CHECK_FALSE(chain.remove_plugins_enabled);
+        CHECK_FALSE(chain.open_plugins_enabled);
+        CHECK_FALSE(chain.display_type_override_enabled);
+        CHECK(calibrating->editor_notice.empty());
+    }
+
+    controller.onInputCalibrationClosed();
+    const auto* const closed = stateOrNull(harness.view.last_state);
+    REQUIRE(closed != nullptr);
+    if (closed != nullptr)
+    {
+        CHECK(closed->signal_chain.chain_notice.empty());
+    }
+
+    controller.onAudioDeviceSettingsOpenRequested();
+    const auto* const settings = stateOrNull(harness.view.last_state);
+    REQUIRE(settings != nullptr);
+    if (settings != nullptr)
+    {
+        CHECK(settings->editor_notice == audioDeviceSettingsOpenText());
+    }
+
+    controller.onAudioDeviceSettingsClosed();
+    const auto* const settled = stateOrNull(harness.view.last_state);
+    REQUIRE(settled != nullptr);
+    if (settled != nullptr)
+    {
+        CHECK(settled->editor_notice.empty());
+    }
 }
 
 // An uncalibrated route is offered calibration by itself, once: the prompt opens at startup and

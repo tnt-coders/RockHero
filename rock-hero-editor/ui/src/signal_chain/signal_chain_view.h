@@ -201,6 +201,13 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
+    /*!
+    \brief Dims the chain while no chain verb is available, and draws the chain notice over it at
+    full strength.
+    \param g Graphics context used for drawing.
+    */
+    void paintOverChildren(juce::Graphics& g) override;
+
     /*! \brief Lays out the signal-chain controls. */
     void resized() override;
 
@@ -208,6 +215,9 @@ private:
     class InsertSlotView;
     class PluginTileView;
     class SignalPathContent;
+
+    // True while no chain verb is available, so the chain shows dimmed and answers nothing.
+    [[nodiscard]] bool chainInert() const noexcept;
 
     enum class TileLayoutMotion : std::uint8_t
     {

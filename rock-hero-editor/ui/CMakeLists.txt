@@ -56,6 +56,8 @@ target_sources(
             src/shared/audio_level_meter.h
             src/shared/editor_theme.cpp
             src/shared/editor_theme.h
+            src/shared/notice_plate.cpp
+            src/shared/notice_plate.h
             src/shared/themed_message_box.cpp
             src/shared/themed_message_box.h
             src/shared/text_metrics.cpp

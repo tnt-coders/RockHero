@@ -10,6 +10,7 @@
 #include "editor_controller_impl.h"
 #include "editor_undo_history.h"
 #include "input_calibration/input_calibration_projection.h"
+#include "input_calibration/input_calibration_text.h"
 #include "playback_unavailable_text.h"
 #include "project/gp_song_importer.h"
 #include "project/project_io.h"
@@ -2613,6 +2614,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
         .display_type_override_enabled =
             isActionAvailable(EditorAction::Id::SetPluginDisplayTypeOverride, action_conditions),
         .plugins = m_signal_chain.plugins(),
+        .chain_notice =
+            input_calibration.prompt.has_value() ? inputCalibrationInProgressText() : std::string{},
         .input_calibration_status = input_calibration.status,
         .input_calibrate_enabled = input_calibration.calibrate_enabled,
         .disabled_message = input_calibration.disabled_message,
@@ -2917,6 +2920,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_lost_prompt = m_audio_device_lost_prompt;
 
     state.busy = m_busy.viewState();
+    // Busy wins: its own overlay already dims the editor and says what it is doing.
+    if (m_audio_device_settings_open && !state.busy.has_value())
+    {
+        state.editor_notice = audioDeviceSettingsOpenText();
+    }
 
     // The grid-locked time selection resolves both endpoints to seconds so the full-canvas overlay
     // maps them to pixels exactly as it maps the cursor. Grid positions -> seconds through the same

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <optional>
@@ -1382,8 +1383,8 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
 }
 
 // While no chain verb is available — the calibration prompt owns the chain, say — the chain still
-// SHOWS: hiding it would read as a lost tone. Its tiles stay, dimmed as one layer, and a click
-// opens nothing.
+// SHOWS: hiding it would read as a lost tone. Its tiles stay, under the editor's one dim, and a
+// click opens nothing. The dim is read as the tile's average brightness, so no glyph decides it.
 TEST_CASE(
     "Signal-chain shows its tiles inert while no chain verb is available", "[ui][editor-view]")
 {
@@ -1401,10 +1402,24 @@ TEST_CASE(
             },
         });
 
+    // Mean brightness of a tile as the panel draws it, over the whole tile.
+    const auto tile_brightness = [&view](const juce::Component& probed) {
+        const juce::Rectangle<int> area = view.getLocalArea(&probed, probed.getLocalBounds());
+        const juce::Image image = view.createComponentSnapshot(area, true, 1.0f);
+        double sum = 0.0;
+        for (int y = 0; y < image.getHeight(); ++y)
+        {
+            for (int x = 0; x < image.getWidth(); ++x)
+            {
+                sum += image.getPixelAt(x, y).getBrightness();
+            }
+        }
+        return sum / std::max(1, image.getWidth() * image.getHeight());
+    };
+
     auto& tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
-    REQUIRE(tile.getParentComponent() != nullptr);
     CHECK(tile.isVisible());
-    CHECK(tile.getParentComponent()->getAlpha() < 1.0f);
+    const double inert_brightness = tile_brightness(tile);
 
     const juce::MouseEvent event = testing::makeMouseDownEvent(tile, 8.0f, 8.0f);
     tile.mouseDown(event);
@@ -1420,8 +1435,7 @@ TEST_CASE(
             },
         });
     auto& live_tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
-    REQUIRE(live_tile.getParentComponent() != nullptr);
-    CHECK(live_tile.getParentComponent()->getAlpha() >= 1.0f);
+    CHECK(tile_brightness(live_tile) > inert_brightness);
 }
 
 // Why live input is off lives on the controls it is about, as their tooltip; it clears with the

@@ -51,6 +51,13 @@ struct SignalChainViewState
     /*! \brief Current linear plugin chain. */
     std::vector<PluginViewState> plugins{};
 
+    /*!
+    \brief Why the chain is unavailable, drawn over it at full strength while another window holds
+    it; empty when there is nothing to explain. Set only while every chain verb is unavailable:
+    the notice's plate covers the tiles.
+    */
+    std::string chain_notice{};
+
     /*! \brief Live input calibration status for the current input route. */
     InputCalibrationStatus input_calibration_status{InputCalibrationStatus::NoActiveInputDevice};
 

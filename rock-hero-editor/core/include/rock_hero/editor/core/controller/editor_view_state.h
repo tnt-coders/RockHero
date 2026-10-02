@@ -1014,6 +1014,12 @@ struct EditorViewState
     bool audio_device_settings_open{false};
 
     /*!
+    \brief Why the whole editor is unavailable, drawn over it while a modal window holds it and
+    nothing is busy; empty when there is nothing to explain.
+    */
+    std::string editor_notice{};
+
+    /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.
     */
     common::core::TimeRange visible_timeline{};

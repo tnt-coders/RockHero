@@ -184,6 +184,13 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
+    /*!
+    \brief Dims the whole editor and draws the editor notice over it while a modal window holds
+    the editor.
+    \param g Graphics context used for drawing.
+    */
+    void paintOverChildren(juce::Graphics& g) override;
+
     /*! \brief Lays out the menu, transport controls, timeline viewport, and signal-chain panel. */
     void resized() override;
 

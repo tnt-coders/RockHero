@@ -38,6 +38,13 @@ the editor's busy overlay. With no dispatcher supplied, the controller runs sync
 is exactly how its tests drive it. Reach for this shape when a modal feature owns a genuine
 multi-step transaction of its own; reach for the ordinary action pipeline otherwise.
 
+The dialog is modal, and it can sit behind the editor, so while it is open and nothing is busy
+the controller sets `EditorViewState::editor_notice` (`audioDeviceSettingsOpenText()`), and
+`EditorView::paintOverChildren` dims the whole editor with the theme's `blocked_dim` and draws the
+notice on the shared notice plate (`shared/notice_plate.h`). Nothing intercepts input there: the
+modality already blocks the editor, and a click on it brings the dialog back. The signal chain uses
+the same dim and plate while the calibration prompt holds it (`SignalChainViewState::chain_notice`).
+
 Beside the dialog sits one main-MVC piece, `audioDeviceStatusText` (the menu-bar status line).
 The editor never blocks itself without hardware: the engine runs its silent device
 (`null_audio_device.h`), so playback, the chain and every edit keep working with the audio going
