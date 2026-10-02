@@ -21,9 +21,23 @@ time. (Inside the calibration window, its own **Calibrate** button measures by p
    the formula below and type that. Otherwise, measure it by playing (see **Automatic
    Calibration** below).
 
-To check a gain before you apply it, set **Pickup type** to your pickups and strum hard: the
-input meter's blue mark shows where a hard strum on those pickups peaks when the gain is right.
-The mark is hidden while a measurement runs, so the measurement hears your normal playing.
+## Checking a Gain with the Mark
+
+To check a gain before you apply it, set **Pickup type** to your pickups, set the guitar up as for
+a measurement (volume and tone all the way up, one pickup selected, no pedals), and play the way the
+mark assumes:
+
+- **How hard:** strum full chords across all six strings with a pick, as hard as the loudest part
+  of a song you play. Not harder than you ever play, and not single notes.
+- **What to watch:** the meter shows the peak of each moment, so it jumps on every strum. Watch
+  the top of those jumps, not where the meter sits on average: when the gain is right, your
+  hardest strums peak at the blue mark, and the rest of your playing peaks below it.
+- **Reading it:** if your hardest strums stop clearly short of the mark, the gain is too low;
+  if they regularly pass it, too high. An occasional strum a little past it is fine: the
+  measurement itself ignores the loudest 5% of moments.
+
+The mark is hidden while a measurement runs, so you play the way you normally do rather than
+aiming at it.
 
 # Recommended Method
 
@@ -87,7 +101,8 @@ Sources for the reference:
    If nothing is heard, check the input and click **Stop**.
 
 Rock Hero waits for you to start, however long that takes, then listens for ten seconds from your
-first strum and sets the gain from the loudest of your playing, ignoring a single stray spike.
+first strum and sets the gain from the peaks of your hardest strums, ignoring the loudest 5% of
+moments.
 
 ## Pickup Types {#pickup-types}
 
