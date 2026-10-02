@@ -1,6 +1,7 @@
 /*!
 \file input_calibration_text.h
-\brief The input calibration popup's sentences, and the one formatter for calibration gains.
+\brief The input calibration popup's sentences. Gains print through
+common::audio::inputCalibrationGainText().
 */
 
 #pragma once
@@ -11,16 +12,6 @@
 
 namespace rock_hero::editor::core
 {
-
-/*!
-\brief Formats a calibration gain as a signed number at the slider's 0.1 dB resolution.
-
-Every sentence and the gain slider print through this, so they can never disagree on a sign or a
-decimal. Each surface appends its own unit.
-\param gain_db Gain in decibels.
-\return "+2.3", "-0.5" or "0.0"; zero carries no sign.
-*/
-[[nodiscard]] std::string signedGainText(double gain_db);
 
 /*!
 \brief Words what the popup offers before anything happens: the two ways to a gain.

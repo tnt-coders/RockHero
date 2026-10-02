@@ -110,6 +110,16 @@ TEST_CASE("Input calibration quantizes a near-zero gain to +0", "[audio][input-c
     CHECK_THAT(quantized, Catch::Matchers::WithinAbs(0.0, 1e-12));
 }
 
+// The one gain formatter: signed, one decimal, and zero without a sign, even a gain that only
+// rounds to zero.
+TEST_CASE("Input calibration gain text prints sign and one decimal", "[audio][input-calibration]")
+{
+    CHECK(inputCalibrationGainText(2.3) == "+2.3");
+    CHECK(inputCalibrationGainText(-0.5) == "-0.5");
+    CHECK(inputCalibrationGainText(0.0) == "0.0");
+    CHECK(inputCalibrationGainText(-0.04) == "0.0");
+}
+
 // Steady playing at L puts its ceiling on the target: the gain is the target less L.
 TEST_CASE("Input calibration sets the ceiling on the target", "[audio][input-calibration]")
 {

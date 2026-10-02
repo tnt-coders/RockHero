@@ -1,10 +1,11 @@
+#include "known_interfaces.h"
+
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cctype>
 #include <compare>
 #include <cstddef>
-#include <rock_hero/common/audio/input/known_interfaces.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <string_view>
 

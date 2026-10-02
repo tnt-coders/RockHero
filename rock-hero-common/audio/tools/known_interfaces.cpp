@@ -1,8 +1,7 @@
-#include "input/known_interfaces.h"
-
-#include "input/input_calibration.h"
+#include "known_interfaces.h"
 
 #include <array>
+#include <rock_hero/common/audio/input/input_calibration.h>
 
 namespace rock_hero::common::audio
 {

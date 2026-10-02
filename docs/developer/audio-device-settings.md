@@ -114,14 +114,36 @@ game's `LiveInputOff` refusal both take their sentence from it, never their own 
 # Known interfaces
 
 The primary calibration path is the player's interface, not a measurement: `knownInterfaces()`
-(`common/audio` `input/known_interfaces.h`) is the table of interfaces whose instrument-input
-level at 0 dBFS is known. Each row authors that dBu figure, the input setting it holds for, how it
-was established (`KnownInterfaceBasis`) and its source; `knownInterfaceGain()` derives the gain
-from the one reference through the one quantizer, and `knownInterfaceBasisText()` words how far to
-trust it. No row stores a gain, and no document copies a figure: the user guide's Known Audio
-Devices table is generated from the rows by `rock_hero_calibration_doc`
+is the table of interfaces whose instrument-input level at 0 dBFS is known. Each row authors that
+dBu figure, the input setting it holds for, how it was established (`KnownInterfaceBasis`) and its
+source; `knownInterfaceGain()` derives the gain from the one reference through the one quantizer,
+and `knownInterfaceBasisText()` words how far to trust it. No row stores a gain.
+
+The table is documentation data. The calibration window has no device list, so only the user
+guide reads the rows, and they live beside its generator in `common/audio` `tools/`
+(`known_interfaces.h`, built as the small `rock_hero_known_interfaces` library that the generator
+and `test_known_interfaces.cpp` link), out of the shipped library. The window last carried a device
+chooser at `97ffea19` ("Let the measurement report its gain; Apply stores and closes"); it arrived
+in `6c96a0b5` ("Let the player choose their interface in the calibration window") and left in
+`98b22cf8` ("Made input calibration one fixed-size screen"). The subjects find the commits if
+history is rewritten. Bringing a chooser back starts from that commit and moves the table back into
+`common/audio` `input/`.
+
+The user guide copies no figure the code owns. `rock_hero_calibration_doc`
 (`common/audio` `tools/calibration_doc_main.cpp`), which the docs targets build and run before
-Doxygen includes its output.
+Doxygen, writes the Known Audio Devices and Pickup Types tables as markdown the guide includes,
+and `calibration_figures.doxyfile`, Doxygen aliases for the figures its prose quotes: the
+reference (`\calibrationReference`, `\calibrationReferenceValue`), the listen
+(`\calibrationListenSeconds`), the ignored share of peaks (`\calibrationIgnoredPercent`), the
+strum instruction (`\hardStrumInstruction`) and a worked gain example
+(`\calibrationGainExample`). `docs/Doxyfile.in` includes that file. A figure the guide needs
+becomes a new alias there, never a number typed into the guide.
+
+How to play while measuring or checking a gain is one sentence, `hardStrumInstructionText()`
+(`input/input_calibration.h`): how the strums behind the pickup types' peaks were played (full
+chords with a pick; single notes peak 6-10 dB lower). The window's measuring message and the guide
+both quote it. Every calibration gain prints through `inputCalibrationGainText()` beside it: the
+window's sentences, its slider's text box and the guide's table.
 
 The editor's calibration popup is one fixed-size screen: the message with the "?" (the
 calibration guide, whose generated table is how a player finds their device's gain) at its
@@ -146,8 +168,7 @@ gain, so a strum checks a typed or measured gain; the meter draws it as a mark u
 "?" is disabled, with a tooltip saying so, when the guide is not installed. The pickup chooser's
 tooltip is the chosen kind's `covers` text. The popup's own sentences come from `editor/core`
 `input_calibration/input_calibration_text.h`, and refusal and failure reasons are passed through
-from `common/audio` as they are; gains go through `signedGainText`, the slider's text box
-included.
+from `common/audio` as they are.
 
 # The game's first-run setup
 
@@ -176,7 +197,7 @@ mapping is the seed of future multiplayer input plumbing.
    `ConfigurableAudioDeviceConfiguration` and `InMemoryAudioConfigStore`. An empty store is a first
    run, which opens the settings window, so an editor test of anything else starts from
    `savedRouteAudioConfigStore()`.
-5. Adding a known interface is one row in `known_interfaces.cpp`, in model order, every field
+5. Adding a known interface is one row in `tools/known_interfaces.cpp`, in model order, every field
    named: the model as its maker spells it, the input setting as a lower-case phrase completing
    "Set it to ___" (the guide table's column), the dBu at 0 dBFS, the basis and the source. The
-   table test enforces the order and the phrasing; nothing else needs updating.
+   table test enforces the order and the phrasing; the guide's table regenerates with the docs.

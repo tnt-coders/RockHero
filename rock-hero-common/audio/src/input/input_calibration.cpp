@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <cstddef>
+#include <format>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -36,6 +39,16 @@ namespace
 }
 
 } // namespace
+
+std::string inputCalibrationGainText(double gain_db)
+{
+    const double shown_db = quantizeInputCalibrationGainDb(gain_db);
+    if (std::is_eq(shown_db <=> 0.0))
+    {
+        return "0.0";
+    }
+    return std::format("{:+.1f}", shown_db);
+}
 
 // The listen must hold a sample, or it would end before it began.
 static_assert(inputCalibrationListenSampleCount() > 0);

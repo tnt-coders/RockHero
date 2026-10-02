@@ -144,7 +144,7 @@ TEST_CASE("Input calibration controller follows a measurement", "[core][input-ca
     const common::audio::InputCalibrationListening listening{.windows_remaining = 271};
     editor.input_calibration_sample = sampleWith(listening);
     controller.onSampleTick();
-    CHECK(view.lastState().message == "Keep playing that hard. 10 s left.");
+    CHECK(view.lastState().message == "Keep strumming that hard. 10 s left.");
 
     controller.onManualGainChanged(5.0);
     controller.onPickupsSelected(common::audio::PickupClass::Humbucker);
@@ -258,15 +258,6 @@ TEST_CASE("Input calibration controller meters the candidate gain", "[core][inpu
     CHECK_FALSE(view.lastState().meter_target_db.has_value());
 }
 
-// The one gain formatter: signed, one decimal, and zero without a sign.
-TEST_CASE("Signed gain text prints sign and one decimal", "[core][input-calibration]")
-{
-    CHECK(signedGainText(2.3) == "+2.3");
-    CHECK(signedGainText(-0.5) == "-0.5");
-    CHECK(signedGainText(0.0) == "0.0");
-    CHECK(signedGainText(-0.04) == "0.0");
-}
-
 // The countdown reaches 1 s before it ends, never 0 s.
 TEST_CASE("Measuring text counts down whole seconds", "[core][input-calibration]")
 {
@@ -274,9 +265,9 @@ TEST_CASE("Measuring text counts down whole seconds", "[core][input-calibration]
         return measuringText(
             common::audio::InputCalibrationListening{.windows_remaining = windows_remaining});
     };
-    CHECK(at(271) == "Keep playing that hard. 10 s left.");
-    CHECK(at(270) == "Keep playing that hard. 9 s left.");
-    CHECK(at(1) == "Keep playing that hard. 1 s left.");
+    CHECK(at(271) == "Keep strumming that hard. 10 s left.");
+    CHECK(at(270) == "Keep strumming that hard. 9 s left.");
+    CHECK(at(1) == "Keep strumming that hard. 1 s left.");
 }
 
 } // namespace rock_hero::editor::core

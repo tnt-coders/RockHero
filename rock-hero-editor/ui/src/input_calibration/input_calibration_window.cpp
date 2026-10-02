@@ -101,7 +101,7 @@ void configureGainSlider(juce::Slider& slider)
     // JUCE appends the suffix after this function (juce_Slider.cpp getTextFromValue), so it
     // supplies only the number.
     slider.textFromValueFunction = [](double value) {
-        return juce::String{core::signedGainText(value)};
+        return juce::String{common::audio::inputCalibrationGainText(value)};
     };
     // The player typing a gain needs the formula where they type it.
     slider.setTooltip(juce::String{core::gainFormulaText()});

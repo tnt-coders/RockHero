@@ -29,7 +29,6 @@ target_sources(
             src/engine/engine_tone_timeline.cpp
             src/engine/engine_transport.cpp
             src/input/input_calibration.cpp
-            src/input/known_interfaces.cpp
             src/input/live_input_error.cpp
             src/input/live_input_monitor.cpp
             src/input/live_input_monitor_error.cpp
@@ -106,31 +105,39 @@ target_link_libraries(
             rock_hero::tracktion_graph
             libebur128::ebur128)
 
-# The user guide's calibration tables (the known audio devices and the pickup types) are generated
-# from the code's rows, so the guide never restates a figure the code owns. The tables need none of
-# the library's dependencies, so their two source files compile a second time into a small tool the
-# docs targets run first.
+# The known audio devices are documentation data: only the user guide's generator reads them (the
+# calibration window has no device list), so they live beside the generator, out of the shipped
+# library, with the tests that hold their rows to the reference.
+add_library(rock_hero_known_interfaces STATIC tools/known_interfaces.cpp)
+target_include_directories(rock_hero_known_interfaces PUBLIC tools include)
+target_link_libraries(rock_hero_known_interfaces PRIVATE rock_hero::build_policy)
+
+# The user guide's calibration tables and figures are generated from the code, so the guide never
+# restates a figure the code owns. They need none of the library's dependencies, so the few source
+# files they read compile a second time into a small tool the docs targets run first.
 if(TARGET docs)
     add_executable(
-        rock_hero_calibration_doc tools/calibration_doc_main.cpp src/input/known_interfaces.cpp
+        rock_hero_calibration_doc tools/calibration_doc_main.cpp src/input/input_calibration.cpp
                                   src/input/pickup_types.cpp)
-    target_include_directories(rock_hero_calibration_doc PRIVATE include
-                                                                 include/rock_hero/common/audio src)
-    target_link_libraries(rock_hero_calibration_doc PRIVATE rock_hero::build_policy)
+    target_include_directories(rock_hero_calibration_doc PRIVATE include/rock_hero/common/audio src)
+    target_link_libraries(rock_hero_calibration_doc PRIVATE rock_hero_known_interfaces
+                                                            rock_hero::build_policy)
 
     set(ROCK_HERO_CALIBRATION_DOC_DIR "${CMAKE_BINARY_DIR}/docs/generated")
     add_custom_command(
         OUTPUT "${ROCK_HERO_CALIBRATION_DOC_DIR}/known_interfaces.md"
                "${ROCK_HERO_CALIBRATION_DOC_DIR}/pickup_types.md"
+               "${ROCK_HERO_CALIBRATION_DOC_DIR}/calibration_figures.doxyfile"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${ROCK_HERO_CALIBRATION_DOC_DIR}"
         COMMAND rock_hero_calibration_doc "${ROCK_HERO_CALIBRATION_DOC_DIR}"
         DEPENDS rock_hero_calibration_doc
-        COMMENT "Generating the calibration tables"
+        COMMENT "Generating the calibration tables and figures"
         VERBATIM)
     add_custom_target(
         rock_hero_calibration_doc_fragments
         DEPENDS "${ROCK_HERO_CALIBRATION_DOC_DIR}/known_interfaces.md"
-                "${ROCK_HERO_CALIBRATION_DOC_DIR}/pickup_types.md")
+                "${ROCK_HERO_CALIBRATION_DOC_DIR}/pickup_types.md"
+                "${ROCK_HERO_CALIBRATION_DOC_DIR}/calibration_figures.doxyfile")
     add_dependencies(docs rock_hero_calibration_doc_fragments)
     add_dependencies(project_config_docs_for_development rock_hero_calibration_doc_fragments)
 endif()

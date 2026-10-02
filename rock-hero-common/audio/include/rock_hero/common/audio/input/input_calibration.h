@@ -14,6 +14,7 @@
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -135,6 +136,23 @@ so a quantized 11.2 dB equals the literal 11.2.
     return (std::round(gain_db * inputCalibrationGainStepsPerDb()) /
             inputCalibrationGainStepsPerDb()) +
            0.0;
+}
+
+/*!
+\brief Words a calibration gain the one way every surface shows it, the guide's tables included.
+\param gain_db Calibration gain in decibels.
+\return The quantized gain, signed to one decimal, and "0.0" without a sign for no change.
+*/
+[[nodiscard]] std::string inputCalibrationGainText(double gain_db);
+
+/*!
+\brief Returns the one instruction for how to play while a gain is measured or checked against
+the meter's mark: how the strums the pickup types' peaks come from were played.
+\return A sentence ending in a period.
+*/
+[[nodiscard]] constexpr std::string_view hardStrumInstructionText() noexcept
+{
+    return "Strum full chords with a pick, as hard as the loudest part of a song you play.";
 }
 
 /*!
