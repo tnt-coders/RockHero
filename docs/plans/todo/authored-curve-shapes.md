@@ -9,6 +9,11 @@ design: the authoring gesture and the drawn curve are open questions, deliberate
 
 > "I deliberately INTEND to add curve shapes to the model in the future." — user, 2026-08-25
 
+Restated on 2026-10-01: automation needs *different curve shapes* available between points, and
+**straight is the default**. A point nobody shaped plays and draws as a straight segment, so the
+restored field defaults to straight. A set of named shapes may fit that request better than a
+free bend handle; that is part of the open authoring question below.
+
 ## Why the field was deleted anyway
 
 It was dead authored storage. `curve_shape` was `0.0F` at every production creation site, no
