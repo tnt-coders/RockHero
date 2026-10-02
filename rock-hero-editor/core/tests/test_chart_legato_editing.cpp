@@ -245,7 +245,7 @@ TEST_CASE("EditorController Shift+T toggles the left-hand tap", "[core][chart]")
     SECTION("a second press inside the toggle window reverses the tap exactly")
     {
         click(controller, 80.0f, 220.0f);
-        const common::core::ChartNote original = note(5);
+        const common::core::ChartNote original = chartOrNull(controller)->notes[5];
 
         controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
         CHECK(note(5).attack == common::core::NoteAttack::LeftTap);
