@@ -1348,7 +1348,18 @@ against the tree on the date above.
 - **The editor's live-input context says "ready" during a project load while the Tone Designer
   is up.** `monitoringContext()` (`input_calibration_handlers.cpp`) is `(project audio ready and
   an arrangement) or designer active`, and the designer stays active until the new project
-  commits, so the three project-load sites in `project_handlers.cpp` pass an explicit
-  `session_ready = false` to switch the gate off. A load-in-progress term in the one context would
-  make it honest and let those sites call `refresh(monitoringContext())`. Raised by the simplicity
-  review of the calibration monitor rewrite.
+  commits, so the three project-load sites in `project_handlers.cpp` share `beginRigReplacement()`,
+  which passes an explicit `session_ready = false` to switch the gate off. A load-in-progress term
+  in the one context would make it honest and let `beginRigReplacement()` call
+  `refresh(monitoringContext())`; it needs that term cleared on every load completion and failure
+  path. Raised by the simplicity review of the calibration monitor rewrite.
+- **The editor's calibration tests build the same controller fixture 39 times.**
+  `test_editor_controller_input_calibration.cpp` spells out the fakes, the store, the monitor and
+  the `EditorController` in every test: 28 with the transport fake as the live input and 11 with a
+  separate `FakeLiveInput` whose setter calls form a trace. Each test configures the store and the
+  devices before the controller is built, because the constructor runs the live-input gate. One
+  harness holding the fakes, with `start()` and `startTracingLiveInput()` that build the monitor and
+  the controller after configuration, would shrink the file substantially. The rollback tests that
+  pin the monitor's setter order through `onInputCalibrationMeasurementStarted` (a pass-through)
+  belong in `test_live_input_monitor.cpp`, leaving one editor test that a refused start returns
+  the error and re-derives the view. Raised by the final simplicity review of input calibration.
