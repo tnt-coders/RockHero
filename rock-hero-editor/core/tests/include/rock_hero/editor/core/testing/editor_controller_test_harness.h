@@ -950,23 +950,23 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return {};
     }
 
-    // Returns the current output gain stored by setOutputGain or the default.
-    [[nodiscard]] common::audio::Gain outputGain() const override
+    // Returns the current output stage stored by setToneOutput or the default.
+    [[nodiscard]] common::audio::ToneOutput toneOutput() const override
     {
-        return current_output_gain;
+        return current_tone_output;
     }
 
-    // Records the output gain and returns success.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
-        common::audio::Gain gain) override
+    // Records the output stage and returns success.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setToneOutput(
+        common::audio::ToneOutput output) override
     {
-        if (next_set_output_gain_error.has_value())
+        if (next_set_tone_output_error.has_value())
         {
-            return std::unexpected{*next_set_output_gain_error};
+            return std::unexpected{*next_set_tone_output_error};
         }
 
-        current_output_gain = common::audio::clampGain(gain);
-        set_output_gain_call_count += 1;
+        current_tone_output = common::audio::clampToneOutput(output);
+        set_tone_output_call_count += 1;
         return {};
     }
 
@@ -1054,7 +1054,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
                     .display_type_override = {},
                 },
             },
-        .output_gain = common::audio::Gain{},
+        .output = common::audio::ToneOutput{},
     };
 
     // Result returned by the next successful load.
@@ -1072,7 +1072,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
                     .display_type_override = {},
                 },
             },
-        .output_gain = common::audio::Gain{},
+        .output = common::audio::ToneOutput{},
     };
 
     // Optional capture error returned instead of the configured snapshot.
@@ -1084,8 +1084,8 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     // Optional clear error returned instead of success.
     std::optional<common::audio::LiveRigError> next_clear_error{};
 
-    // Optional output-gain error returned instead of success.
-    std::optional<common::audio::LiveRigError> next_set_output_gain_error{};
+    // Optional output-stage error returned instead of success.
+    std::optional<common::audio::LiveRigError> next_set_tone_output_error{};
 
     // Optional audible-tone error returned instead of success.
     std::optional<common::audio::LiveRigError> next_set_audible_tone_error{};
@@ -1174,11 +1174,11 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     // Number of clear calls received.
     int clear_call_count{0};
 
-    // Current output gain value stored by setOutputGain.
-    common::audio::Gain current_output_gain{};
+    // Current output stage stored by setToneOutput.
+    common::audio::ToneOutput current_tone_output{};
 
-    // Number of setOutputGain calls received.
-    int set_output_gain_call_count{0};
+    // Number of setToneOutput calls received.
+    int set_tone_output_call_count{0};
 
     // Current monitor gain value stored by setMonitorGain; the editor never writes it.
     common::audio::Gain current_monitor_gain{};

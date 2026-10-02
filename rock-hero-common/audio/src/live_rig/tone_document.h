@@ -13,7 +13,7 @@
 #include <optional>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
-#include <rock_hero/common/audio/shared/gain.h>
+#include <rock_hero/common/audio/shared/tone_output.h>
 #include <string>
 #include <tracktion_engine/tracktion_engine.h>
 #include <vector>
@@ -65,8 +65,8 @@ struct ToneDocument
     /*! \brief Persisted plugin chain in playback order. */
     std::vector<PluginRecord> chain;
 
-    /*! \brief The tone's authored output level, applied by its branch gain after the chain. */
-    Gain output_gain;
+    /*! \brief The tone's authored output stage, applied after the chain. */
+    ToneOutput output;
 };
 
 /*!

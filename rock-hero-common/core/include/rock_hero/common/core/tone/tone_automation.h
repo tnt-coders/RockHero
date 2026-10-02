@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -50,15 +51,27 @@ struct ToneAutomationPoint
 };
 
 /*!
+\brief Builds the durable plugin id of a tone's output stage, whose level and pan are automatable.
+
+A tone has exactly one output stage, so its id derives from the tone reference instead of being
+minted: no document carries it, and it can never collide with a minted plugin id (a UUID).
+
+\param tone_document_ref Package-relative tone document reference that owns the stage.
+\return The plugin id a Volume or Pan lane of that tone is keyed by.
+*/
+[[nodiscard]] std::string toneOutputPluginId(std::string_view tone_document_ref);
+
+/*!
 \brief One plugin parameter's automation curve within an arrangement.
 
-Keyed by the plugin's durable minted id (carried through the tone document's plugin records) plus
-the parameter id, so the association survives chain reorder and remove. An entry whose plugin id no
-longer resolves to a live plugin stays persisted and renders as an unresolved lane.
+Keyed by the plugin's durable id plus the parameter id, so the association survives chain reorder
+and remove. A chain plugin's id is minted and carried through the tone document's plugin records;
+a tone's output stage has the derived \ref toneOutputPluginId. An entry whose plugin id no longer
+resolves to a live plugin stays persisted and renders as an unresolved lane.
 */
 struct ToneParameterAutomation
 {
-    /*! \brief Durable minted id of the plugin that owns the parameter. */
+    /*! \brief Durable id of the plugin that owns the parameter. */
     std::string plugin_id;
 
     /*! \brief Parameter id within the plugin. */

@@ -1,7 +1,9 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <optional>
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
+#include <rock_hero/common/audio/shared/tone_output.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <rock_hero/editor/core/testing/input_calibration_fixtures.h>
@@ -167,21 +169,85 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
-                .output_gain_controls_enabled = true,
+                .output_controls_enabled = true,
             },
         });
 
     auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
     output_slider.setValue(-6.0, juce::sendNotificationSync);
 
-    CHECK(controller.output_gain_change_count == 1);
-    CHECK(controller.output_gain_preview_change_count == 0);
+    CHECK(controller.tone_output_change_count == 1);
+    CHECK(controller.tone_output_preview_change_count == 0);
     // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
     // the rounded-zero test above).
-    REQUIRE(controller.last_output_gain_db.has_value());
-    if (controller.last_output_gain_db.has_value())
+    REQUIRE(controller.last_tone_output.has_value());
+    if (controller.last_tone_output.has_value())
     {
-        CHECK_THAT(*controller.last_output_gain_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
+        CHECK_THAT(controller.last_tone_output->level.db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
+    }
+}
+
+// Verifies the pan knob emits the whole stored stage with only the pan moved, previewing through a
+// drag and committing once on release, and that its tooltip shows the stored value.
+TEST_CASE("Pan knob previews then commits the stage with the stored level", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .output_controls_enabled = true,
+                .output = common::audio::ToneOutput{
+                    .level = common::audio::Gain{-6.0},
+                    .pan = common::audio::Pan{0.25},
+                },
+            },
+        });
+
+    auto& pan_knob = findRequiredDescendant<juce::Slider>(view, "output_pan_knob");
+    CHECK(pan_knob.getTooltip().contains("Pan R25"));
+    REQUIRE(static_cast<bool>(pan_knob.onDragStart));
+    REQUIRE(static_cast<bool>(pan_knob.onDragEnd));
+
+    pan_knob.onDragStart();
+    pan_knob.setValue(-0.5, juce::sendNotificationSync);
+
+    CHECK(controller.tone_output_preview_change_count == 1);
+    CHECK(controller.tone_output_change_count == 0);
+    REQUIRE(controller.last_tone_output_preview.has_value());
+    if (controller.last_tone_output_preview.has_value())
+    {
+        CHECK(
+            controller.last_tone_output_preview == std::optional{common::audio::ToneOutput{
+                                                       .level = common::audio::Gain{-6.0},
+                                                       .pan = common::audio::Pan{-0.5},
+                                                   }});
+    }
+
+    pan_knob.onDragEnd();
+
+    CHECK(controller.tone_output_change_count == 1);
+    REQUIRE(controller.last_tone_output.has_value());
+    if (controller.last_tone_output.has_value())
+    {
+        CHECK(
+            controller.last_tone_output == std::optional{common::audio::ToneOutput{
+                                               .level = common::audio::Gain{-6.0},
+                                               .pan = common::audio::Pan{-0.5},
+                                           }});
+    }
+
+    // A double-click returns the knob to centre through the same commit path.
+    pan_knob.setValue(pan_knob.getDoubleClickReturnValue(), juce::sendNotificationSync);
+    CHECK(controller.tone_output_change_count == 2);
+    REQUIRE(controller.last_tone_output.has_value());
+    if (controller.last_tone_output.has_value())
+    {
+        CHECK(controller.last_tone_output->pan == common::audio::Pan{});
     }
 }
 
@@ -197,7 +263,7 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
-                .output_gain_controls_enabled = true,
+                .output_controls_enabled = true,
             },
         });
 
@@ -209,24 +275,25 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
     output_slider.setValue(-3.0, juce::sendNotificationSync);
     output_slider.setValue(-6.0, juce::sendNotificationSync);
 
-    CHECK(controller.output_gain_preview_change_count == 2);
-    CHECK(controller.output_gain_change_count == 0);
+    CHECK(controller.tone_output_preview_change_count == 2);
+    CHECK(controller.tone_output_change_count == 0);
     // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
     // the rounded-zero test above).
-    REQUIRE(controller.last_output_gain_preview_db.has_value());
-    if (controller.last_output_gain_preview_db.has_value())
+    REQUIRE(controller.last_tone_output_preview.has_value());
+    if (controller.last_tone_output_preview.has_value())
     {
-        CHECK_THAT(*controller.last_output_gain_preview_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
+        CHECK_THAT(
+            controller.last_tone_output_preview->level.db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
     }
 
     output_slider.onDragEnd();
 
-    CHECK(controller.output_gain_preview_change_count == 2);
-    CHECK(controller.output_gain_change_count == 1);
-    REQUIRE(controller.last_output_gain_db.has_value());
-    if (controller.last_output_gain_db.has_value())
+    CHECK(controller.tone_output_preview_change_count == 2);
+    CHECK(controller.tone_output_change_count == 1);
+    REQUIRE(controller.last_tone_output.has_value());
+    if (controller.last_tone_output.has_value())
     {
-        CHECK_THAT(*controller.last_output_gain_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
+        CHECK_THAT(controller.last_tone_output->level.db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
     }
 }
 

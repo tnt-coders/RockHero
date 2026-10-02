@@ -51,6 +51,7 @@ target_sources(
             src/shared/device_state_xml.cpp
             src/shared/device_state_xml.h
             src/shared/meter_reader.h
+            src/shared/pan.cpp
             src/song/audio_normalization.cpp
             src/song/audio_transcode.cpp
             src/song/song_audio_error.cpp
@@ -70,6 +71,8 @@ target_sources(
             src/tracktion/tone_automation_curve.h
             src/tracktion/tone_branch_gain_plugin.cpp
             src/tracktion/tone_branch_gain_plugin.h
+            src/tracktion/tone_output_plugin.cpp
+            src/tracktion/tone_output_plugin.h
             src/tracktion/plugin_window.cpp
             src/tracktion/plugin_window.h
             src/tracktion/tempo_mirror.cpp

@@ -1038,16 +1038,16 @@ public:
     virtual void onInputCalibrationMeasurementStopped() = 0;
 
     /*!
-    \brief Handles a preview-only output gain change while the user is dragging the slider.
-    \param gain_db Desired output gain in decibels.
+    \brief Handles a preview-only output stage change while the user drags the fader or pan knob.
+    \param output Desired level and pan for the audible tone.
     */
-    virtual void onOutputGainPreviewChanged(double gain_db) = 0;
+    virtual void onToneOutputPreviewChanged(common::audio::ToneOutput output) = 0;
 
     /*!
-    \brief Handles a committed change to the output gain slider.
-    \param gain_db Desired output gain in decibels.
+    \brief Handles a committed change to the output stage from the fader or the pan knob.
+    \param output Desired level and pan for the audible tone.
     */
-    virtual void onOutputGainChanged(double gain_db) = 0;
+    virtual void onToneOutputChanged(common::audio::ToneOutput output) = 0;
 
     /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.

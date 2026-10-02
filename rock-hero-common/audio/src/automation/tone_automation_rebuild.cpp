@@ -12,12 +12,11 @@ std::unordered_map<std::string, ToneAutomationBinding> makeToneAutomationBinding
     std::unordered_map<std::string, ToneAutomationBinding> bindings;
     for (const LoadedToneChainIdentities& chain : tone_chains)
     {
-        for (const LoadedTonePluginIdentity& plugin : chain.plugins)
-        {
+        const auto bind = [&bindings, &chain](const LoadedTonePluginIdentity& plugin) {
             // A plugin without a minted durable id cannot be referenced by persisted automation.
             if (plugin.stable_id.empty())
             {
-                continue;
+                return;
             }
             bindings.insert_or_assign(
                 plugin.stable_id,
@@ -25,7 +24,12 @@ std::unordered_map<std::string, ToneAutomationBinding> makeToneAutomationBinding
                     .instance_id = plugin.instance_id,
                     .tone_document_ref = chain.tone_document_ref,
                 });
+        };
+        for (const LoadedTonePluginIdentity& plugin : chain.plugins)
+        {
+            bind(plugin);
         }
+        bind(chain.output);
     }
     return bindings;
 }

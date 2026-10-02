@@ -1,6 +1,7 @@
 #include "tracktion/tone_automation_curve.h"
 
 #include <algorithm>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -174,6 +175,18 @@ void collectAutomatableParameters(
 
 } // namespace
 
+std::vector<AutomatableParamInfo> listPluginAutomatableParameters(const tracktion::Plugin& plugin)
+{
+    std::vector<AutomatableParamInfo> parameters;
+    collectAutomatableParameters(
+        *plugin.getParameterTree().rootNode,
+        juce::String{},
+        plugin.itemID.toString().toStdString(),
+        plugin.getName().toStdString(),
+        parameters);
+    return parameters;
+}
+
 std::vector<AutomatableParamInfo> listChainAutomatableParameters(
     std::span<const tracktion::Plugin::Ptr> chain)
 {
@@ -184,14 +197,12 @@ std::vector<AutomatableParamInfo> listChainAutomatableParameters(
         {
             continue;
         }
-        const std::string instance_id = plugin->itemID.toString().toStdString();
-        const std::string plugin_name = plugin->getName().toStdString();
-        collectAutomatableParameters(
-            *plugin->getParameterTree().rootNode,
-            juce::String{},
-            instance_id,
-            plugin_name,
-            parameters);
+        std::vector<AutomatableParamInfo> plugin_parameters =
+            listPluginAutomatableParameters(*plugin);
+        parameters.insert(
+            parameters.end(),
+            std::make_move_iterator(plugin_parameters.begin()),
+            std::make_move_iterator(plugin_parameters.end()));
     }
     return parameters;
 }

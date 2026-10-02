@@ -406,13 +406,13 @@ public:
         return common::audio::LiveRigLoadResult{};
     }
 
-    [[nodiscard]] common::audio::Gain outputGain() const override
+    [[nodiscard]] common::audio::ToneOutput toneOutput() const override
     {
         return {};
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
-        common::audio::Gain) override
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setToneOutput(
+        common::audio::ToneOutput) override
     {
         return {};
     }

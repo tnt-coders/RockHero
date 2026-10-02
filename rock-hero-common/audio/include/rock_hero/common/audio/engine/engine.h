@@ -481,10 +481,10 @@ public:
     [[nodiscard]] Gain inputGain() const override;
 
     /*!
-    \brief Reads the audible tone's authored output level.
-    \return The audible tone's level, or the default when no tone is loaded.
+    \brief Reads the audible tone's authored output stage (level and pan).
+    \return The audible tone's output stage, or the default when no tone is loaded.
     */
-    [[nodiscard]] Gain outputGain() const override;
+    [[nodiscard]] ToneOutput toneOutput() const override;
 
     /*!
     \brief Reads the monitor level applied after the whole rig.
@@ -534,11 +534,11 @@ public:
         bool enabled) override;
 
     /*!
-    \brief Sets the audible tone's authored output level.
-    \param gain Desired level for the audible tone; clamped to the accepted range.
+    \brief Sets the audible tone's authored output stage (level and pan).
+    \param output Desired level and pan for the audible tone; clamped to the accepted ranges.
     \return Empty success, or a typed failure when no tone is loaded.
     */
-    [[nodiscard]] std::expected<void, LiveRigError> setOutputGain(Gain gain) override;
+    [[nodiscard]] std::expected<void, LiveRigError> setToneOutput(ToneOutput output) override;
 
     /*!
     \brief Sets the monitor level applied after the whole rig.

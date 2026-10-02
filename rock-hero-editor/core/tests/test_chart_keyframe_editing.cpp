@@ -1682,7 +1682,10 @@ TEST_CASE("A transition with no focus keeps a selected end statement", "[core][c
     const std::vector<ChartKeyframeRef> selected =
         publishedState(fixture.view).chart_edit.selected_keyframes;
     REQUIRE(selected.size() == 1);
-    fixture.controller.onOutputGainChanged(-12.0);
+    fixture.controller.onToneOutputChanged(
+        common::audio::ToneOutput{
+            .level = common::audio::Gain{-12.0}, .pan = common::audio::Pan{}
+        });
 
     // Both directions of the transition leave the glide and its slide-out exactly as authored, so
     // the key goes on naming the statement it named.

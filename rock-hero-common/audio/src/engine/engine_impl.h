@@ -72,9 +72,9 @@ struct LiveRigLoadOperation
         // Display names precomputed once so progress messages stay stable across resume points.
         std::vector<std::string> display_names;
 
-        // Output gain from the parsed tone document, set on this tone's branch gain when the rack
-        // is assembled.
-        Gain output_gain;
+        // Output stage from the parsed tone document, set on this tone's output plugin when the
+        // rack is assembled.
+        ToneOutput output;
 
         // Plugins restored so far, held free-floating until the rack assembles them.
         std::vector<tracktion::Plugin::Ptr> loaded_plugins;
@@ -133,8 +133,8 @@ struct ToneChainReplaceOperation
     // finalize step refuses ONCE with the complete list (same policy as LiveRigLoadOperation).
     std::vector<std::string> missing_plugin_names;
 
-    // Output gain the replacement chain should carry.
-    Gain output_gain;
+    // Output stage the replacement chain should carry.
+    ToneOutput output;
 
     // Retained panel layout to install for the replaced chain (empty vectors for memento
     // restores — the editor's undo entry owns and reapplies the authoritative layout).
@@ -313,8 +313,8 @@ private:
     // Returns the audible tone's branch index within the rack, when a rig is loaded.
     [[nodiscard]] std::optional<std::size_t> audibleBranchIndex() const;
 
-    // Returns the branch gain plugin carrying the audible tone's level, or null without a rig.
-    [[nodiscard]] ToneBranchGainPlugin* audibleBranchGain() const;
+    // Returns the output stage carrying the audible tone's level and pan, or null without a rig.
+    [[nodiscard]] ToneOutputPlugin* audibleToneOutput() const;
 
     // Records the given loaded tone as audible, switching the branch gains onto it unless a baked
     // schedule owns them. Writes no level: each tone's level rides its own branch.
@@ -375,10 +375,10 @@ private:
 
     // Swaps the audible branch's user chain for already-instantiated replacement plugins: remove
     // old, insert new, monitor reroute with rollback, window/parameter hygiene for the outgoing
-    // chain, then gain + retained-layout bookkeeping. Shared by the async tone-file replace and
-    // the synchronous undo-memento restore.
+    // chain, then output stage + retained-layout bookkeeping. Shared by the async tone-file replace
+    // and the synchronous undo-memento restore.
     [[nodiscard]] std::expected<void, LiveRigError> swapAudibleChainPlugins(
-        const std::vector<tracktion::Plugin::Ptr>& replacements, Gain output_gain,
+        const std::vector<tracktion::Plugin::Ptr>& replacements, ToneOutput output,
         const std::vector<std::size_t>& block_indices,
         const std::vector<std::string>& display_type_overrides);
 

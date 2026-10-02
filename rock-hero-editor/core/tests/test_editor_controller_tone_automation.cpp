@@ -126,6 +126,8 @@ struct AutomationEditor
                     .instance_id = g_instance,
                     .stable_id = g_plugin_id,
                 }},
+                .output = {},
+                .summed_reported_latency_seconds = 0.0,
             },
         };
         project_services.next_song = std::move(song);
@@ -433,6 +435,8 @@ TEST_CASE(
                 .instance_id = g_instance,
                 .stable_id = g_plugin_id,
             }},
+            .output = {},
+            .summed_reported_latency_seconds = 0.0,
         },
     };
     project_services.next_song = makeAutomationSong();
@@ -538,6 +542,8 @@ TEST_CASE(
                 .instance_id = reloaded_instance,
                 .stable_id = g_plugin_id,
             }},
+            .output = {},
+            .summed_reported_latency_seconds = 0.0,
         },
     };
     editor.controller.onToneCreateNewRequested(
@@ -550,6 +556,67 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().resolved);
     CHECK(editor.automation().lanes.front().instance_id == reloaded_instance);
     CHECK(editor.automation().lanes.front().name == "Gain");
+}
+
+// The tone's output stage opens Volume and Pan lanes exactly like a chain plugin: the load reports
+// its runtime id under the derived durable id, and the lane persists keyed by that id, so a reload
+// that gives the stage a new runtime id still resolves the lane.
+TEST_CASE(
+    "EditorController opens and rebinds the tone output stage's pan lane",
+    "[core][tone-automation]")
+{
+    constexpr const char* output_instance = "output-stage-1";
+    const std::string output_plugin_id = common::core::toneOutputPluginId(g_tone_document_ref);
+    const auto make_pan_param = [](const char* instance_id) {
+        common::audio::AutomatableParamInfo pan = makeParam();
+        pan.instance_id = instance_id;
+        pan.param_id = "pan";
+        pan.name = "Pan";
+        pan.plugin_name = "Output";
+        return pan;
+    };
+
+    AutomationEditor editor;
+    editor.tone_automation.parameters.push_back(make_pan_param(output_instance));
+    editor.live_rig.next_load_result.tone_chains.front().output =
+        common::audio::LoadedTonePluginIdentity{
+            .instance_id = output_instance,
+            .stable_id = output_plugin_id,
+        };
+    // A reload (not the fast branch add) is what merges the reported identities.
+    editor.live_rig.next_add_branch_error = common::audio::LiveRigError{
+        common::audio::LiveRigErrorCode::InvalidRequest, "forced fallback"
+    };
+    editor.controller.onToneCreateNewRequested(
+        common::core::GridPosition{.measure = 2, .beat = 1}, "Solo");
+    editor.controller.onToneRegionSelected(g_region);
+
+    editor.controller.onToneAutomationLaneAddRequested(output_instance, "pan");
+    editor.controller.onToneAutomationPointsEditRequested(
+        output_instance,
+        "pan",
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 2), .norm_value = 0.25F}});
+    REQUIRE(editor.model().size() == 1);
+    CHECK(editor.model().front().plugin_id == output_plugin_id);
+    CHECK(editor.model().front().param_id == "pan");
+
+    // The stage comes back under a new runtime id; the derived durable id rebinds the lane.
+    constexpr const char* reloaded_output = "output-stage-2";
+    editor.tone_automation.parameters.clear();
+    editor.tone_automation.parameters.push_back(make_pan_param(reloaded_output));
+    editor.live_rig.next_load_result.tone_chains.front().output =
+        common::audio::LoadedTonePluginIdentity{
+            .instance_id = reloaded_output,
+            .stable_id = output_plugin_id,
+        };
+    editor.controller.onToneCreateNewRequested(
+        common::core::GridPosition{.measure = 3, .beat = 1}, "Outro");
+    editor.controller.onToneRegionSelected(g_region);
+    REQUIRE(editor.automation().lanes.size() == 1);
+    CHECK(editor.automation().lanes.front().resolved);
+    CHECK(editor.automation().lanes.front().instance_id == reloaded_output);
+    CHECK(editor.automation().lanes.front().plugin_name == "Output");
+    CHECK(editor.automation().lanes.front().name == "Pan");
 }
 
 // Rig-load completion mirrors the song's tempo map to the host, so hosted plugins follow the

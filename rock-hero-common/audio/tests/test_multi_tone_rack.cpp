@@ -81,28 +81,37 @@ TEST_CASE("Multi-tone rack wires one branch per tone", "[audio][multi-tone-rack]
     REQUIRE(built->rack_type != nullptr);
     REQUIRE(built->branches.size() == 2);
 
-    // Two chain stand-ins plus two branch gains live in the rack.
-    CHECK(built->rack_type->getPlugins().size() == 4);
+    // Two chain stand-ins plus each branch's output stage and branch gain live in the rack.
+    CHECK(built->rack_type->getPlugins().size() == 6);
 
     const ToneRackBranch& chain_branch = built->branches[0];
     REQUIRE(chain_branch.chain.size() == 2);
+    REQUIRE(chain_branch.output != nullptr);
     REQUIRE(chain_branch.branch_gain != nullptr);
     CHECK(chain_branch.tone_document_ref == requests[0].tone_document_ref);
     CHECK(hasStereoConnection(*built->rack_type, {}, chain_branch.chain[0]->itemID));
     CHECK(hasStereoConnection(
         *built->rack_type, chain_branch.chain[0]->itemID, chain_branch.chain[1]->itemID));
     CHECK(hasStereoConnection(
-        *built->rack_type, chain_branch.chain[1]->itemID, chain_branch.branch_gain->itemID));
+        *built->rack_type, chain_branch.chain[1]->itemID, chain_branch.output->itemID));
+    CHECK(hasStereoConnection(
+        *built->rack_type, chain_branch.output->itemID, chain_branch.branch_gain->itemID));
     CHECK(hasStereoConnection(*built->rack_type, chain_branch.branch_gain->itemID, {}));
 
     const ToneRackBranch& passthrough_branch = built->branches[1];
     REQUIRE(passthrough_branch.chain.empty());
+    REQUIRE(passthrough_branch.output != nullptr);
     REQUIRE(passthrough_branch.branch_gain != nullptr);
-    CHECK(hasStereoConnection(*built->rack_type, {}, passthrough_branch.branch_gain->itemID));
+    CHECK(hasStereoConnection(*built->rack_type, {}, passthrough_branch.output->itemID));
+    CHECK(hasStereoConnection(
+        *built->rack_type,
+        passthrough_branch.output->itemID,
+        passthrough_branch.branch_gain->itemID));
     CHECK(hasStereoConnection(*built->rack_type, passthrough_branch.branch_gain->itemID, {}));
 
-    // Every hop is stereo: (2 chain hops + gain hop + output hop) + (gain hop + output hop).
-    CHECK(built->rack_type->getConnections().size() == 12);
+    // Every hop is stereo: (2 chain hops + stage hop + gain hop + output hop) + (stage hop + gain
+    // hop + output hop).
+    CHECK(built->rack_type->getConnections().size() == 16);
 }
 
 // Verifies branch gains start audible and adjust independently per tone.
@@ -198,23 +207,27 @@ TEST_CASE("Multi-tone rack branches carry their own level", "[audio][multi-tone-
     auto built = buildToneRack(edit, requests);
     REQUIRE(built.has_value());
 
-    // A freshly built branch starts at unity, the level an empty tone document loads as.
-    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(defaultGainDb()));
+    // A freshly built branch starts at unity and centre, the stage an empty tone document loads as.
+    REQUIRE(built->branches[0].output != nullptr);
+    REQUIRE(built->branches[1].output != nullptr);
+    CHECK(built->branches[0].output->output() == ToneOutput{});
 
-    built->branches[0].branch_gain->setOutputGain(Gain{-6.0});
-    built->branches[1].branch_gain->setOutputGain(Gain{3.0});
-    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(-6.0));
-    CHECK(built->branches[1].branch_gain->outputGain().db == Catch::Approx(3.0));
+    built->branches[0].output->setOutput(ToneOutput{.level = Gain{-6.0}, .pan = Pan{-0.5}});
+    built->branches[1].output->setOutput(ToneOutput{.level = Gain{3.0}, .pan = Pan{0.25}});
+    CHECK(built->branches[0].output->output() == ToneOutput{.level = Gain{-6.0}, .pan = Pan{-0.5}});
+    CHECK(built->branches[1].output->output() == ToneOutput{.level = Gain{3.0}, .pan = Pan{0.25}});
 
-    // Switching audibility moves the branch gain and no level: the two are separate facts on the
-    // same plugin, multiplied together only when the audio thread renders.
+    // Switching audibility moves the branch gain and no output stage: the two are separate plugins
+    // in series, multiplied together only when the audio thread renders.
     setAudibleBranch(*built, 1);
-    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(-6.0));
-    CHECK(built->branches[1].branch_gain->outputGain().db == Catch::Approx(3.0));
+    CHECK(built->branches[0].output->output() == ToneOutput{.level = Gain{-6.0}, .pan = Pan{-0.5}});
+    CHECK(built->branches[1].output->output() == ToneOutput{.level = Gain{3.0}, .pan = Pan{0.25}});
 
-    // The accepted range is the shared gain policy's, not a second opinion.
-    built->branches[0].branch_gain->setOutputGain(Gain{-100.0});
-    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(minimumGainDb()));
+    // The accepted ranges are the shared gain and pan policies', not a second opinion.
+    built->branches[0].output->setOutput(ToneOutput{.level = Gain{-100.0}, .pan = Pan{4.0}});
+    CHECK(
+        built->branches[0].output->output() ==
+        ToneOutput{.level = Gain{minimumGainDb()}, .pan = Pan{maximumPanPosition()}});
 }
 
 // Verifies chain mutations rewire branch hops and never disturb the other branch.
@@ -235,7 +248,9 @@ TEST_CASE("Multi-tone rack inserts removes and moves within a branch", "[audio][
     };
     auto built = buildToneRack(edit, requests);
     REQUIRE(built.has_value());
-    const tracktion::EditItemID gain_id = built->branches[0].branch_gain->itemID;
+    // The chain feeds the branch's output stage; the branch gain behind it never rewires.
+    const tracktion::EditItemID stage_id = built->branches[0].output->itemID;
+    const tracktion::EditItemID other_stage_id = built->branches[1].output->itemID;
     const tracktion::EditItemID other_gain_id = built->branches[1].branch_gain->itemID;
 
     // Insert first into the empty branch, then prepend a second plugin in front of it.
@@ -248,8 +263,8 @@ TEST_CASE("Multi-tone rack inserts removes and moves within a branch", "[audio][
     CHECK(built->branches[0].chain[1] == second);
     CHECK(hasStereoConnection(*built->rack_type, {}, first->itemID));
     CHECK(hasStereoConnection(*built->rack_type, first->itemID, second->itemID));
-    CHECK(hasStereoConnection(*built->rack_type, second->itemID, gain_id));
-    CHECK_FALSE(hasStereoConnection(*built->rack_type, {}, gain_id));
+    CHECK(hasStereoConnection(*built->rack_type, second->itemID, stage_id));
+    CHECK_FALSE(hasStereoConnection(*built->rack_type, {}, stage_id));
 
     // Move the first plugin behind the second one.
     REQUIRE(moveWithinBranch(*built, 0, 0, 1).has_value());
@@ -257,18 +272,19 @@ TEST_CASE("Multi-tone rack inserts removes and moves within a branch", "[audio][
     CHECK(built->branches[0].chain[1] == first);
     CHECK(hasStereoConnection(*built->rack_type, {}, second->itemID));
     CHECK(hasStereoConnection(*built->rack_type, second->itemID, first->itemID));
-    CHECK(hasStereoConnection(*built->rack_type, first->itemID, gain_id));
+    CHECK(hasStereoConnection(*built->rack_type, first->itemID, stage_id));
 
-    // Remove the now-first plugin; the survivor bridges input to gain around it.
+    // Remove the now-first plugin; the survivor bridges input to the output stage around it.
     REQUIRE(removeFromBranch(*built, 0, 0).has_value());
     REQUIRE(built->branches[0].chain.size() == 1);
     CHECK(built->branches[0].chain[0] == first);
     CHECK(hasStereoConnection(*built->rack_type, {}, first->itemID));
-    CHECK(hasStereoConnection(*built->rack_type, first->itemID, gain_id));
+    CHECK(hasStereoConnection(*built->rack_type, first->itemID, stage_id));
     CHECK(built->rack_type->getPluginForID(second->itemID) == nullptr);
 
-    // The untouched branch still runs input -> gain -> output.
-    CHECK(hasStereoConnection(*built->rack_type, {}, other_gain_id));
+    // The untouched branch still runs input -> output stage -> gain -> output.
+    CHECK(hasStereoConnection(*built->rack_type, {}, other_stage_id));
+    CHECK(hasStereoConnection(*built->rack_type, other_stage_id, other_gain_id));
     CHECK(hasStereoConnection(*built->rack_type, other_gain_id, {}));
 
     // Out-of-range coordinates are rejected without changing the chain.

@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <compare>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
+#include <rock_hero/common/audio/shared/pan.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <string>
 #include <utility>
@@ -101,10 +103,10 @@ public:
     void onInputCalibrationPressed() override
     {}
 
-    void onOutputGainPreviewChanged(double /*gain_db*/) override
+    void onToneOutputPreviewChanged(common::audio::ToneOutput /*output*/) override
     {}
 
-    void onOutputGainChanged(double /*gain_db*/) override
+    void onToneOutputChanged(common::audio::ToneOutput /*output*/) override
     {}
 
     void onNewTonePressed() override
@@ -215,6 +217,49 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
     CHECK(std::is_eq(output_slider.getMinimum() <=> common::audio::minimumGainDb()));
     CHECK(std::is_eq(output_slider.getMaximum() <=> common::audio::maximumGainDb()));
     CHECK(std::is_eq(output_slider.getDoubleClickReturnValue() <=> common::audio::defaultGainDb()));
+
+    // The pan knob shares the fader's enabled flag and has no text box; its value lives in the
+    // drag popup and the tooltip, both in the one shared format.
+    auto& pan_knob = findRequiredDescendant<juce::Slider>(view, "output_pan_knob");
+    CHECK_FALSE(pan_knob.isEnabled());
+    CHECK(pan_knob.getSliderStyle() == juce::Slider::RotaryHorizontalVerticalDrag);
+    CHECK(pan_knob.getTextBoxPosition() == juce::Slider::NoTextBox);
+    CHECK(pan_knob.isDoubleClickReturnEnabled());
+    CHECK_THAT(pan_knob.getDoubleClickReturnValue(), Catch::Matchers::WithinULP(0.0, 0));
+    CHECK_FALSE(pan_knob.isScrollWheelEnabled());
+    CHECK(std::is_eq(pan_knob.getMinimum() <=> common::audio::minimumPanPosition()));
+    CHECK(std::is_eq(pan_knob.getMaximum() <=> common::audio::maximumPanPosition()));
+    CHECK(pan_knob.getTextFromValue(-0.35) == "L35");
+    CHECK(pan_knob.getTextFromValue(0.0) == "C");
+    CHECK(pan_knob.getTooltip().contains("Pan C"));
+}
+
+// Verifies the pan knob sits in the fader's lane with its top on the meter's top, and that the
+// fader starts below it while the meter keeps its full height.
+TEST_CASE("Pan knob sits above the output fader in its lane", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    view.setBounds(0, 0, 1280, 720);
+
+    const auto& pan_knob = findRequiredDescendant<juce::Slider>(view, "output_pan_knob");
+    const auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+    const auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
+
+    const juce::Rectangle<int> knob = pan_knob.getBounds();
+    const juce::Rectangle<int> meter = output_meter.getBounds();
+    const juce::Rectangle<int> fader = output_slider.getBounds();
+    CHECK(knob.getWidth() == 28);
+    CHECK(knob.getHeight() == 28);
+    CHECK(knob.getY() == meter.getY());
+    CHECK(knob.getRight() <= meter.getX());
+    CHECK(fader.getY() >= knob.getBottom());
+    CHECK(fader.getBottom() >= meter.getBottom());
+    CHECK(fader.getX() <= knob.getX());
+    CHECK(fader.getRight() >= knob.getRight());
 }
 
 // Verifies the global and live-rig meter widgets are present in the composed editor view.
@@ -352,8 +397,10 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
                 .input_calibrate_enabled = true,
-                .output_gain_controls_enabled = true,
-                .output_gain = common::audio::Gain{-24.0},
+                .output_controls_enabled = true,
+                .output = common::audio::ToneOutput{
+                    .level = common::audio::Gain{-24.0}, .pan = common::audio::Pan{}
+                },
             },
         });
 

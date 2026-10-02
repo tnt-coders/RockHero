@@ -1,6 +1,7 @@
 #include "engine_impl.h"
 #include "tracktion/tone_automation_curve.h"
 
+#include <iterator>
 #include <juce_events/juce_events.h>
 #include <span>
 #include <string>
@@ -31,8 +32,9 @@ namespace
     return nullptr;
 }
 
-// Finds a plugin within a branch chain by its runtime instance id, or null when absent.
-[[nodiscard]] tracktion::Plugin* findChainPlugin(
+// Finds an automatable plugin on a branch by its runtime instance id — a chain plugin or the
+// tone's output stage, which exposes the Volume and Pan lanes — or null when absent.
+[[nodiscard]] tracktion::Plugin* findBranchPlugin(
     const ToneRackBranch& branch, const std::string& instance_id)
 {
     const juce::String target_id{instance_id};
@@ -42,6 +44,10 @@ namespace
         {
             return plugin.get();
         }
+    }
+    if (branch.output != nullptr && branch.output->itemID.toString() == target_id)
+    {
+        return branch.output;
     }
     return nullptr;
 }
@@ -64,7 +70,19 @@ std::expected<std::vector<AutomatableParamInfo>, ToneAutomationError> Engine::
         }};
     }
 
-    return listChainAutomatableParameters(branch->chain);
+    // The output stage lists last, in signal order after the chain, so the picker offers Volume
+    // and Pan under "Output" even for a tone with no plugins at all.
+    std::vector<AutomatableParamInfo> parameters = listChainAutomatableParameters(branch->chain);
+    if (branch->output != nullptr)
+    {
+        std::vector<AutomatableParamInfo> output_parameters =
+            listPluginAutomatableParameters(*branch->output);
+        parameters.insert(
+            parameters.end(),
+            std::make_move_iterator(output_parameters.begin()),
+            std::make_move_iterator(output_parameters.end()));
+    }
+    return parameters;
 }
 
 std::expected<std::vector<AutomationCurvePoint>, ToneAutomationError> Engine::readParameterCurve(
@@ -84,7 +102,7 @@ std::expected<std::vector<AutomationCurvePoint>, ToneAutomationError> Engine::re
         }};
     }
 
-    tracktion::Plugin* const plugin = findChainPlugin(*branch, instance_id);
+    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -121,7 +139,7 @@ std::expected<float, ToneAutomationError> Engine::readParameterBaselineNormValue
         }};
     }
 
-    tracktion::Plugin* const plugin = findChainPlugin(*branch, instance_id);
+    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -157,7 +175,7 @@ std::expected<std::string, ToneAutomationError> Engine::formatParameterValue(
         }};
     }
 
-    tracktion::Plugin* const plugin = findChainPlugin(*branch, instance_id);
+    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -193,7 +211,7 @@ std::expected<float, ToneAutomationError> Engine::parseParameterValue(
         }};
     }
 
-    tracktion::Plugin* const plugin = findChainPlugin(*branch, instance_id);
+    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -229,7 +247,7 @@ std::expected<void, ToneAutomationError> Engine::writeParameterCurve(
         }};
     }
 
-    tracktion::Plugin* const plugin = findChainPlugin(*branch, instance_id);
+    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{

@@ -258,7 +258,9 @@ TEST_CASE(
                     .display_type_override = {},
                 },
             },
-        .output_gain = common::audio::Gain{-7.5},
+        .output = common::audio::ToneOutput{
+            .level = common::audio::Gain{-7.5}, .pan = common::audio::Pan{}
+        },
     };
 
     // Park the transport inside the first region through the seek entry: that is what records the
@@ -294,7 +296,7 @@ TEST_CASE(
     REQUIRE(crossed_state != nullptr);
     REQUIRE(crossed_state->signal_chain.plugins.size() == 1);
     CHECK(crossed_state->signal_chain.plugins[0].name == "Dirty Amp");
-    CHECK_THAT(crossed_state->signal_chain.output_gain.db, Catch::Matchers::WithinULP(-7.5, 0));
+    CHECK_THAT(crossed_state->signal_chain.output.level.db, Catch::Matchers::WithinULP(-7.5, 0));
 
     // The next frame finds the same region under the playhead, so the debounce holds: no second
     // push for a crossing that already happened.
@@ -309,7 +311,7 @@ TEST_CASE(
     CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
     const EditorViewState* const stopped_state = stateOrNull(editor.view.last_state);
     REQUIRE(stopped_state != nullptr);
-    CHECK_THAT(stopped_state->signal_chain.output_gain.db, Catch::Matchers::WithinULP(-7.5, 0));
+    CHECK_THAT(stopped_state->signal_chain.output.level.db, Catch::Matchers::WithinULP(-7.5, 0));
 }
 
 // The boundary crossing is the frame handler's ONLY input, because a playing transport admits no
@@ -949,6 +951,8 @@ TEST_CASE("EditorController resets the sole tone region on delete", "[core][edit
         common::audio::LoadedToneChainIdentities{
             .tone_document_ref = g_minted_ref,
             .plugins = {},
+            .output = {},
+            .summed_reported_latency_seconds = 0.0,
         },
     };
     const int loads_before = editor.live_rig.load_call_count;

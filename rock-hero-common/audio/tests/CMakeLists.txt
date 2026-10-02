@@ -34,6 +34,7 @@ add_executable(
     test_live_rig_gain_plugin.cpp
     test_multi_tone_rack.cpp
     test_null_audio_device.cpp
+    test_pan.cpp
     test_playback_clock.cpp
     test_playback_clock_extrapolator.cpp
     test_plugin_state_hygiene.cpp
@@ -43,6 +44,7 @@ add_executable(
     test_tone_automation_rebuild.cpp
     test_tone_branch_gain_plugin.cpp
     test_tone_file.cpp
+    test_tone_output_plugin.cpp
     test_thumbnail_source.cpp
     test_transport.cpp
     test_engine.cpp

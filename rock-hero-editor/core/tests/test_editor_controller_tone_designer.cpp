@@ -95,7 +95,10 @@ struct ToneDesignerHarness
     // Dirties the designer document through a committed, undoable output-gain edit.
     void dirtyDocument(double gain_db)
     {
-        controller.onOutputGainChanged(gain_db);
+        controller.onToneOutputChanged(
+            common::audio::ToneOutput{
+                .level = common::audio::Gain{gain_db}, .pan = common::audio::Pan{}
+            });
     }
 };
 
@@ -149,7 +152,7 @@ TEST_CASE("Startup without a project enters a clean tone designer", "[core][edit
     CHECK(state.tone_designer.document_name == "Untitled");
     CHECK_FALSE(state.tone_designer.dirty);
     CHECK_FALSE(state.tone_designer.has_destination);
-    CHECK(state.signal_chain.output_gain_controls_enabled);
+    CHECK(state.signal_chain.output_controls_enabled);
 }
 
 // Closing a project falls back to a fresh clean designer document.
@@ -551,6 +554,7 @@ TEST_CASE("Project tone import confirms before dropping automation", "[core][edi
                         .stable_id = "durable-1",
                     },
                 },
+            .output = {},
             .summed_reported_latency_seconds = 0.0,
         },
     };

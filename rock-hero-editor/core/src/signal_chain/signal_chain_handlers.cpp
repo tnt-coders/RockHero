@@ -112,28 +112,33 @@ void EditorController::Impl::cancelActiveScanToken()
     }
 }
 
-// Pushes a net-changed output-gain command into product-level history.
-void EditorController::Impl::pushOutputGainUndoEntry(
-    common::audio::Gain before_gain, common::audio::Gain after_gain)
+// Pushes a net-changed output-stage command into product-level history.
+void EditorController::Impl::pushToneOutputUndoEntry(
+    common::audio::ToneOutput before, common::audio::ToneOutput after)
 {
-    if (before_gain == after_gain)
+    if (before == after)
     {
         return;
     }
 
     RH_LOG_INFO(
         "editor.controller",
-        "Completed output gain edit before_db={} after_db={}",
-        before_gain.db,
-        after_gain.db);
-    auto edit = std::make_unique<OutputGainEdit>();
-    edit->before_gain = before_gain;
-    edit->after_gain = after_gain;
+        "Completed tone output edit before_db={} after_db={} before_pan={} after_pan={}",
+        before.level.db,
+        after.level.db,
+        before.pan.position,
+        after.pan.position);
+    auto edit = std::make_unique<ToneOutputEdit>();
+    edit->before = before;
+    edit->after = after;
     pushUndoEntry(std::move(edit));
 }
 
-// Applies output gain previews immediately, but records only committed values in undo history.
-void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainChangeIntent intent)
+// Applies output-stage previews immediately, but records only committed values in undo history.
+// The fader and the pan knob share this path: each sends the whole stage with its own value
+// moved, so one preview/commit pair and one undo entry cover both.
+void EditorController::Impl::applyToneOutputChange(
+    common::audio::ToneOutput output, ToneOutputChangeIntent intent)
 {
     // Project mode additionally requires the project's audio to be ready; the designer's resting
     // rig is ready the moment it stands up.
@@ -143,56 +148,54 @@ void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainCha
         return;
     }
 
-    const bool is_commit = intent == OutputGainChangeIntent::Commit;
+    const bool is_commit = intent == ToneOutputChangeIntent::Commit;
     if (is_commit)
     {
-        if (!m_output_gain_preview_before.has_value())
+        if (!m_tone_output_preview_before.has_value())
         {
-            flushPendingPluginEdits("plugin_edit.output_gain_commit");
+            flushPendingPluginEdits("plugin_edit.tone_output_commit");
         }
     }
-    else if (!m_output_gain_preview_before.has_value())
+    else if (!m_tone_output_preview_before.has_value())
     {
-        flushPendingPluginEdits("plugin_edit.output_gain_preview");
-        m_output_gain_preview_before = common::audio::Gain{m_output_gain_db};
+        flushPendingPluginEdits("plugin_edit.tone_output_preview");
+        m_tone_output_preview_before = m_tone_output;
     }
 
-    const common::audio::Gain before_gain =
-        m_output_gain_preview_before.value_or(common::audio::Gain{m_output_gain_db});
-    const auto gain = common::audio::clampGain(common::audio::Gain{gain_db});
-    // Exact inequality via is_neq keeps -Wfloat-equal builds clean; change detection on the
-    // stored fader value is deliberately exact, not tolerance-based.
-    const bool needs_live_update = std::is_neq(gain.db <=> m_output_gain_db);
+    const common::audio::ToneOutput before = m_tone_output_preview_before.value_or(m_tone_output);
+    const common::audio::ToneOutput clamped = common::audio::clampToneOutput(output);
+    // Change detection on the stored values is deliberately exact, not tolerance-based.
+    const bool needs_live_update = clamped != m_tone_output;
 
     if (!needs_live_update)
     {
-        if (is_commit && m_output_gain_preview_before.has_value())
+        if (is_commit && m_tone_output_preview_before.has_value())
         {
-            pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
-            m_output_gain_preview_before.reset();
+            pushToneOutputUndoEntry(before, m_tone_output);
+            m_tone_output_preview_before.reset();
             updateView();
         }
         return;
     }
 
-    const auto result = m_live_rig.setOutputGain(gain);
+    const auto result = m_live_rig.setToneOutput(clamped);
     if (!result.has_value())
     {
-        reportError(std::string{"Could not set output gain: "} + result.error().message);
-        if (is_commit && m_output_gain_preview_before.has_value())
+        reportError(std::string{"Could not set the tone output: "} + result.error().message);
+        if (is_commit && m_tone_output_preview_before.has_value())
         {
-            pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
+            pushToneOutputUndoEntry(before, m_tone_output);
         }
-        m_output_gain_preview_before.reset();
+        m_tone_output_preview_before.reset();
         updateView();
         return;
     }
 
-    m_output_gain_db = gain.db;
+    m_tone_output = clamped;
     if (is_commit)
     {
-        pushOutputGainUndoEntry(before_gain, gain);
-        m_output_gain_preview_before.reset();
+        pushToneOutputUndoEntry(before, clamped);
+        m_tone_output_preview_before.reset();
     }
     updateView();
 }
@@ -758,15 +761,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& a
 }
 
 // Applies a live output gain preview without adding an undo entry until the final commit arrives.
-void EditorController::Impl::onOutputGainPreviewChanged(double gain_db)
+void EditorController::Impl::onToneOutputPreviewChanged(common::audio::ToneOutput output)
 {
-    applyOutputGainChange(gain_db, OutputGainChangeIntent::Preview);
+    applyToneOutputChange(output, ToneOutputChangeIntent::Preview);
 }
 
 // Applies a clamped output gain to the live rig and records the committed value in undo history.
-void EditorController::Impl::onOutputGainChanged(double gain_db)
+void EditorController::Impl::onToneOutputChanged(common::audio::ToneOutput output)
 {
-    applyOutputGainChange(gain_db, OutputGainChangeIntent::Commit);
+    applyToneOutputChange(output, ToneOutputChangeIntent::Commit);
 }
 
 } // namespace rock_hero::editor::core

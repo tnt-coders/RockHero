@@ -687,17 +687,11 @@ public:
     /*! \brief Stops a running calibration measurement, keeping the prompt open. */
     void onInputCalibrationMeasurementStopped() override;
 
-    /*!
-    \brief Handles a preview-only output gain change while the user is dragging the slider.
-    \param gain_db Desired output gain in decibels.
-    */
-    void onOutputGainPreviewChanged(double gain_db) override;
+    /*! \copydoc IEditorController::onToneOutputPreviewChanged */
+    void onToneOutputPreviewChanged(common::audio::ToneOutput output) override;
 
-    /*!
-    \brief Handles a committed change to the output gain slider.
-    \param gain_db Desired output gain in decibels.
-    */
-    void onOutputGainChanged(double gain_db) override;
+    /*! \copydoc IEditorController::onToneOutputChanged */
+    void onToneOutputChanged(common::audio::ToneOutput output) override;
 
     /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.

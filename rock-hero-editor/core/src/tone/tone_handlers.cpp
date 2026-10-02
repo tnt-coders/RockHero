@@ -384,19 +384,18 @@ void EditorController::Impl::syncAudibleTone()
 
     // The panel binds to the audible tone, so the rig's answer is handed to it whole; replacing is
     // itself idempotent, so an answer the panel already renders costs it nothing.
-    const double switched_gain_db = switched->output_gain.db;
+    const common::audio::ToneOutput switched_output = switched->output;
     m_signal_chain.replaceSnapshot(
         common::audio::PluginChainSnapshot{.plugins = std::move(switched->plugins)});
 
-    // The fader is a separate fact, and the only one that is PREVIEWED ahead of a committed value,
-    // so it moves only when the rig answers with a gain the editor is not already showing —
-    // otherwise a mid-drag preview would lose the value its undo entry is measured from. Exact
-    // comparison via the three-way operator keeps -Wfloat-equal builds clean, exactly as the
-    // fader's own change detection does; the stored value is compared, not approximated.
-    if (std::is_neq(switched_gain_db <=> m_output_gain_db))
+    // The output stage is a separate fact, and the only one that is PREVIEWED ahead of a committed
+    // value, so it moves only when the rig answers with a stage the editor is not already showing —
+    // otherwise a mid-drag preview would lose the value its undo entry is measured from. The
+    // stored value is compared exactly, not approximated.
+    if (switched_output != m_tone_output)
     {
-        m_output_gain_db = switched_gain_db;
-        m_output_gain_preview_before.reset();
+        m_tone_output = switched_output;
+        m_tone_output_preview_before.reset();
     }
 }
 
@@ -1204,8 +1203,14 @@ void EditorController::Impl::mergeToneChainIdentities(
     m_tone_plugin_bindings.clear();
     for (const common::audio::LoadedToneChainIdentities& chain : tone_chains)
     {
-        for (const common::audio::LoadedTonePluginIdentity& plugin : chain.plugins)
-        {
+        const auto associate = [this,
+                                &chain](const common::audio::LoadedTonePluginIdentity& plugin) {
+            // A rig that reports no runtime id for a stage (a fake rig's empty answer) has nothing
+            // a lane could resolve to, so it binds nothing rather than an empty instance.
+            if (plugin.instance_id.empty())
+            {
+                return;
+            }
             const std::string plugin_id =
                 plugin.stable_id.empty() ? common::core::generatePackageId() : plugin.stable_id;
             m_tone_plugin_identities.insert_or_assign(
@@ -1220,7 +1225,14 @@ void EditorController::Impl::mergeToneChainIdentities(
                     .instance_id = plugin.instance_id,
                     .tone_document_ref = chain.tone_document_ref,
                 });
+        };
+        for (const common::audio::LoadedTonePluginIdentity& plugin : chain.plugins)
+        {
+            associate(plugin);
         }
+        // The output stage's Volume and Pan lanes resolve exactly like a chain plugin's; its
+        // durable id arrives derived from the tone reference, so nothing is minted for it.
+        associate(chain.output);
     }
 }
 

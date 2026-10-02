@@ -232,14 +232,14 @@ struct [[nodiscard]] PluginStateEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 };
 
-/*! \brief Edit that restores the fixed output-gain plugin value. */
-struct [[nodiscard]] OutputGainEdit final : IEdit
+/*! \brief Edit that restores the tone's output stage (level and pan) as one value. */
+struct [[nodiscard]] ToneOutputEdit final : IEdit
 {
-    /*! \brief Output gain before the edit. */
-    common::audio::Gain before_gain;
+    /*! \brief Output stage before the edit. */
+    common::audio::ToneOutput before;
 
-    /*! \brief Output gain after the edit. */
-    common::audio::Gain after_gain;
+    /*! \brief Output stage after the edit. */
+    common::audio::ToneOutput after;
 
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
         EditorEditContext& context) const override;

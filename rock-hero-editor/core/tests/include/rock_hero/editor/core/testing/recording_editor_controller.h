@@ -774,23 +774,23 @@ public:
     }
 
     /*!
-    \brief Records output gain preview intents emitted by the signal-chain panel.
-    \param gain_db Output gain preview selected by the view.
+    \brief Records output stage preview intents emitted by the signal-chain panel.
+    \param output Output stage preview selected by the view.
     */
-    void onOutputGainPreviewChanged(double gain_db) override
+    void onToneOutputPreviewChanged(common::audio::ToneOutput output) override
     {
-        last_output_gain_preview_db = gain_db;
-        output_gain_preview_change_count += 1;
+        last_tone_output_preview = output;
+        tone_output_preview_change_count += 1;
     }
 
     /*!
-    \brief Records output gain commit intents emitted by the signal-chain panel.
-    \param gain_db Output gain selected by the view.
+    \brief Records output stage commit intents emitted by the signal-chain panel.
+    \param output Output stage selected by the view.
     */
-    void onOutputGainChanged(double gain_db) override
+    void onToneOutputChanged(common::audio::ToneOutput output) override
     {
-        last_output_gain_db = gain_db;
-        output_gain_change_count += 1;
+        last_tone_output = output;
+        tone_output_change_count += 1;
     }
 
     /*!
@@ -1263,11 +1263,11 @@ public:
     /*! \brief Last input calibration gain value emitted by the calibration popup. */
     std::optional<double> last_input_calibration_gain_db{};
 
-    /*! \brief Last output gain value emitted by the signal-chain panel. */
-    std::optional<double> last_output_gain_db{};
+    /*! \brief Last output stage emitted by the signal-chain panel. */
+    std::optional<common::audio::ToneOutput> last_tone_output{};
 
-    /*! \brief Last output gain preview value emitted by the signal-chain panel. */
-    std::optional<double> last_output_gain_preview_db{};
+    /*! \brief Last output stage preview emitted by the signal-chain panel. */
+    std::optional<common::audio::ToneOutput> last_tone_output_preview{};
 
     /*! \brief Number of input calibration intents received. */
     int input_calibration_request_count{0};
@@ -1296,11 +1296,11 @@ public:
     /*! \brief Number of calibration measurement stop intents received. */
     int input_calibration_stop_count{0};
 
-    /*! \brief Number of output gain change intents received. */
-    int output_gain_change_count{0};
+    /*! \brief Number of output stage change intents received. */
+    int tone_output_change_count{0};
 
-    /*! \brief Number of output gain preview intents received. */
-    int output_gain_preview_change_count{0};
+    /*! \brief Number of output stage preview intents received. */
+    int tone_output_preview_change_count{0};
 
     /*! \brief Last audio-device change callback handed to onAudioDeviceChangeRequested(). */
     std::function<void()> last_audio_device_change{};

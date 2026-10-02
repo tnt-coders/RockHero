@@ -1,7 +1,11 @@
 # Parallel signal paths in a tone, and automatable tone volume and pan
 
-Status: **DEFERRED. Requested 2026-10-01; nothing designed or built.** This records intent and the
-facts a design must respect. Re-read the code and the design docs before designing from it.
+Status: **DEFERRED for parallel paths; the volume and pan lanes (request 2) were BUILT 2026-10-02**
+with `tone-output-pan-knob.md`, which records what shipped. A tone's output stage
+(`ToneOutputPlugin`, level + pan) is automatable through the same lane model as a plugin parameter,
+keyed by the derived `toneOutputPluginId(ref)`; the switch crossfade stays on its own plugin, so no
+lane can reach it. This file now records only the parallel-paths intent. Re-read the code and the
+design docs before designing from it.
 
 ## The user's requests
 

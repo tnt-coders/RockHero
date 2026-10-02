@@ -80,7 +80,7 @@ struct ScopedTempDirectory
             .display_type_override = "",
             .stable_id = "",
         });
-    document.output_gain = Gain{-3.5};
+    document.output = ToneOutput{.level = Gain{-3.5}, .pan = Pan{0.25}};
     return document;
 }
 
@@ -152,7 +152,7 @@ TEST_CASE("Tone file round-trips document records and plugin state", "[audio][to
     CHECK(payload->document.chain[1].tracktion_state_ref == "state/plugin-2.tracktion-plugin");
     CHECK(payload->document.chain[1].id == "plugin-b");
 
-    CHECK(payload->document.output_gain.db == Catch::Approx(-3.5));
+    CHECK(payload->document.output == ToneOutput{.level = Gain{-3.5}, .pan = Pan{0.25}});
 
     CHECK(payload->plugin_states[0].getProperty("testMarker").toString() == "amp");
     CHECK(payload->plugin_states[1].getProperty("testMarker").toString() == "cab");

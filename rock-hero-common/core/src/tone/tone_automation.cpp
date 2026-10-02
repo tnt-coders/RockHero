@@ -5,6 +5,13 @@
 namespace rock_hero::common::core
 {
 
+std::string toneOutputPluginId(std::string_view tone_document_ref)
+{
+    // The reference is a path (`tones/<uuid>/tone.json`), so the suffix can never spell a minted
+    // UUID, and the `#` keeps the stage distinct from any file the reference could name.
+    return std::string{tone_document_ref} + "#output";
+}
+
 bool isValidToneParameterAutomation(
     const ToneParameterAutomation& automation, const TempoMap& tempo_map)
 {

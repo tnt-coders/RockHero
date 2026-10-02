@@ -9,11 +9,14 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
 # The three layers
 
 - **UI** (`rock-hero-editor/ui/src/signal_chain/`): `SignalChainPanel` is a thin host whose only
-  member is `SignalChainView` — the real renderer, owning the meters, the output-gain slider,
-  the tone-file button strip, and a scrolling strip of `PluginTileView` (one per plugin) and
-  `InsertSlotView` (one per fixed visual block, the "+" cells and drop targets). Everything the
-  user does becomes a `SignalChainView::Listener` intent — including the deliberate split of
-  `onOutputGainPreviewChanged` (drag) vs `onOutputGainChanged` (release). The plugin browser is a
+  member is `SignalChainView` — the real renderer, owning the meters, the Output fader and the pan
+  knob above it (one `OutputStageLookAndFeel` draws both; the knob's value shows in its drag popup
+  and tooltip through `formatPan`), the tone-file button strip, and a scrolling strip of
+  `PluginTileView` (one per plugin) and `InsertSlotView` (one per fixed visual block, the "+" cells
+  and drop targets). Everything the user does becomes a `SignalChainView::Listener` intent —
+  including the deliberate split of `onToneOutputPreviewChanged` (drag) vs `onToneOutputChanged`
+  (release), which both the fader and the knob emit as one whole `ToneOutput` with their own value
+  moved. The plugin browser is a
   separate `PluginBrowserWindow` that renders controller-derived catalog state and never scans or
   mutates anything itself.
 - **Editor core** (`rock-hero-editor/core/src/signal_chain/`): two workflow objects hold all
@@ -31,8 +34,10 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
   **tone rack** (`src/tracktion/multi_tone_rack.cpp`) — one parallel branch per tone, summed,
   with click-free smoothed switching. The editor always edits exactly one branch: the audible
   (selected) tone's chain. Hidden structural plugins (`LiveRigGainPlugin` for the input and monitor
-  gain stages, `ToneBranchGainPlugin` terminating each branch with that tone's audibility and its
-  authored level, meters) are excluded from the user-visible `chain_index`.
+  gain stages, `ToneOutputPlugin` applying each tone's authored level and pan — the panel's Output
+  fader and pan knob, and the Volume and Pan automation lanes — then `ToneBranchGainPlugin`
+  terminating each branch with that tone's audibility, meters) are excluded from the user-visible
+  `chain_index`.
 
 # Flow: inserting a plugin
 

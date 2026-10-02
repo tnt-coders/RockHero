@@ -76,7 +76,7 @@ namespace rock_hero::editor::core
 {
 
 /*! \brief Distinguishes live slider audition from a value that should enter undo history. */
-enum class OutputGainChangeIntent : std::uint8_t
+enum class ToneOutputChangeIntent : std::uint8_t
 {
     /*! \brief Drag-scoped audition value; applied live but never recorded. */
     Preview,
@@ -646,8 +646,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     onInputCalibrationApplied(double gain_db);
     void onInputCalibrationClosed();
     void onInputCalibrationMeasurementStopped();
-    void onOutputGainPreviewChanged(double gain_db);
-    void onOutputGainChanged(double gain_db);
+    void onToneOutputPreviewChanged(common::audio::ToneOutput output);
+    void onToneOutputChanged(common::audio::ToneOutput output);
     void onAudioDeviceChangeRequested(
         std::function<void()> change_audio_device, std::function<void()> after_busy_cleared);
     void onAudioDeviceSettingsOpenRequested();
@@ -717,7 +717,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Drops the history's top entry once the edit it described has been walked back; a refusal
     // leaves the chart standing untracked, exactly as a refused push does.
     bool dropUndoTop();
-    void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
+    void pushToneOutputUndoEntry(common::audio::ToneOutput before, common::audio::ToneOutput after);
     void enterFaultedSession();
     void faultSessionAfterRollbackContractViolation(
         std::string_view context, const EditorUndoPendingTransition& pending);
@@ -732,7 +732,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const EditorUndoPendingTransition& pending,
         std::expected<void, EditorUndoFailureCode> applied);
     void applyUndoTransitionBehindBusy(const EditorUndoPendingTransition& pending);
-    void applyOutputGainChange(double gain_db, OutputGainChangeIntent intent);
+    void applyToneOutputChange(common::audio::ToneOutput output, ToneOutputChangeIntent intent);
     void resetUndoHistory(std::string_view context);
     void markUndoHistoryClean(std::string_view context);
     void markUntrackedUnsavedChanges() noexcept;
@@ -1022,7 +1022,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     std::uint64_t m_transition_focus_count{0};
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
-    double m_output_gain_db{0.0};
+    common::audio::ToneOutput m_tone_output{};
 
     // Timeline grid step as a note value (fraction of a whole note), initialized to the editor
     // default because the Fraction default of 0/1 is a degenerate step. Restored per project
@@ -1883,7 +1883,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     int m_tab_minimum_displayed_strings{0};
 
     // Present only while a live slider preview is waiting for its final commit.
-    std::optional<common::audio::Gain> m_output_gain_preview_before{};
+    std::optional<common::audio::ToneOutput> m_tone_output_preview_before{};
 
     // True only after arrangement audio and the live rig restore have both committed.
     bool m_project_audio_ready{false};

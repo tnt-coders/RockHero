@@ -12,8 +12,10 @@ each unit is for and the design ideas that repeat across them.
 # The audible graph: one rack, many tone branches
 
 `multi_tone_rack.{h,cpp}` builds the live rig's processing graph as a **tone rack**: one parallel
-branch per tone in the song — each branch holding that tone's plugin chain and a hidden
-`ToneBranchGainPlugin` (`tone_branch_gain_plugin.h`, an automatable per-branch gain) — summed to
+branch per tone in the song — each branch holding that tone's plugin chain, then a hidden
+`ToneOutputPlugin` (`tone_output_plugin.h`, the tone's output stage: its automatable level and
+pan, the Volume and Pan lanes), then a hidden `ToneBranchGainPlugin` (`tone_branch_gain_plugin.h`,
+the automatable per-branch switch gain) — summed to
 one rack output placed on the instrument track. Switching tones is `setAudibleBranch(...)`: a
 click-free, per-sample-smoothed gain crossfade, not a graph rebuild. Two properties matter when
 extending it:
@@ -26,10 +28,10 @@ extending it:
 
 `live_rig_gain_plugin.h` is the same hidden-plugin idea applied to the rig's input and monitor gain
 stages: a private `tracktion::Plugin` that cannot be moved or added to racks, applying a
-smoothed `common::audio::Gain`. A tone's own authored level is NOT one of these — it lives on that
-tone's `ToneBranchGainPlugin`, so a switch carries it. Hidden structural plugins like these are
-excluded from the
-user-visible `chain_index`.
+smoothed `common::audio::Gain`. A tone's own output stage is NOT one of these — it lives on that
+tone's `ToneOutputPlugin`, so a switch carries it, and its two parameters are the only ones a lane
+can reach there (the switch gain is a separate plugin, so no lane can touch the crossfade). Hidden
+structural plugins like these are excluded from the user-visible `chain_index`.
 
 # Plugin hygiene and undo capture
 

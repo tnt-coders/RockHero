@@ -2349,7 +2349,8 @@ TEST_CASE("EditorController keeps placement undo after output gain", "[core][edi
         edited_state->undo_label ==
         std::optional<std::string>{"Rearrange Plugin Blocks on Default"});
 
-    controller.onOutputGainChanged(-6.0);
+    controller.onToneOutputChanged(
+        common::audio::ToneOutput{.level = common::audio::Gain{-6.0}, .pan = common::audio::Pan{}});
 
     const EditorViewState* gain_state = stateOrNull(view.last_state);
     REQUIRE(gain_state != nullptr);
@@ -2522,7 +2523,7 @@ TEST_CASE("EditorController faults after rollback violation", "[core][editor-con
     CHECK_FALSE(faulted_state->signal_chain.insert_plugin_enabled);
     CHECK_FALSE(faulted_state->signal_chain.move_plugins_enabled);
     CHECK_FALSE(faulted_state->signal_chain.remove_plugins_enabled);
-    CHECK_FALSE(faulted_state->signal_chain.output_gain_controls_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.output_controls_enabled);
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(
         view.shown_errors.back() ==

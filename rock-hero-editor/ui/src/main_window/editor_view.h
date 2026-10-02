@@ -453,10 +453,10 @@ private:
     void onInputCalibrationPressed() override;
 
     // SignalChainView::Listener implementation.
-    void onOutputGainPreviewChanged(double gain_db) override;
+    void onToneOutputPreviewChanged(common::audio::ToneOutput output) override;
 
     // SignalChainView::Listener implementation.
-    void onOutputGainChanged(double gain_db) override;
+    void onToneOutputChanged(common::audio::ToneOutput output) override;
 
     // SignalChainView::Listener implementation.
     void onNewTonePressed() override;

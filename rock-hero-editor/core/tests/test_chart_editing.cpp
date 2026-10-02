@@ -678,7 +678,10 @@ TEST_CASE("EditorController focuses a chord an undo restores with the cursor", "
     CHECK(transport.position().seconds == Catch::Approx(chord_seconds));
     const std::uint64_t focused = state->transition_focus_count;
 
-    controller.onOutputGainChanged(-12.0);
+    controller.onToneOutputChanged(
+        common::audio::ToneOutput{
+            .level = common::audio::Gain{-12.0}, .pan = common::audio::Pan{}
+        });
     controller.onUndoRequested();
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0, 1});
     CHECK(state->transition_focus_count == focused);

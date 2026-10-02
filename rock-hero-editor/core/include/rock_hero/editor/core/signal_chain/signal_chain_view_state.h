@@ -6,7 +6,7 @@
 #pragma once
 
 #include <cstdint>
-#include <rock_hero/common/audio/shared/gain.h>
+#include <rock_hero/common/audio/shared/tone_output.h>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
 #include <string>
 #include <vector>
@@ -71,11 +71,16 @@ struct SignalChainViewState
     */
     std::string disabled_message{};
 
-    /*! \brief Enables or disables the output gain control. */
-    bool output_gain_controls_enabled{false};
+    /*! \brief Enables or disables the output stage controls (the fader and the pan knob). */
+    bool output_controls_enabled{false};
 
-    /*! \brief Current output gain after the signal chain. */
-    common::audio::Gain output_gain{};
+    /*!
+    \brief The tone's stored output stage after the signal chain.
+
+    The stored value, which a Volume or Pan lane anchors on, never the value a playing lane holds
+    at the playhead.
+    */
+    common::audio::ToneOutput output{};
 
     /*! \brief Enables the project-mode Import Tone command (copies a tone file's rig in). */
     bool tone_import_enabled{false};

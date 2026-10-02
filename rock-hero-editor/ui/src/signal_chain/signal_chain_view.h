@@ -88,16 +88,16 @@ public:
         virtual void onInputCalibrationPressed() = 0;
 
         /*!
-        \brief Called when the user previews output gain during a slider drag.
-        \param gain_db New output gain in decibels.
+        \brief Called when the user previews the output stage during a fader or pan knob drag.
+        \param output The stored stage with the dragged control's value moved.
         */
-        virtual void onOutputGainPreviewChanged(double gain_db) = 0;
+        virtual void onToneOutputPreviewChanged(common::audio::ToneOutput output) = 0;
 
         /*!
-        \brief Called when the user commits the output gain slider value.
-        \param gain_db New output gain in decibels.
+        \brief Called when the user commits a fader or pan knob value.
+        \param output The stored stage with the committed control's value moved.
         */
-        virtual void onOutputGainChanged(double gain_db) = 0;
+        virtual void onToneOutputChanged(common::audio::ToneOutput output) = 0;
 
         /*! \brief Called when the user starts a fresh untitled Tone Designer document. */
         virtual void onNewTonePressed() = 0;
@@ -290,11 +290,15 @@ private:
     juce::TextButton m_tone_import_button;
     juce::TextButton m_tone_export_button;
 
-    // Slider look-and-feel that keeps the default textbox while compacting the track.
-    std::unique_ptr<juce::LookAndFeel> m_output_gain_slider_look_and_feel;
+    // Look-and-feel shared by the fader (compacted track beside the meter) and the pan knob (the
+    // custom rotary drawing); both read the stage's layout from it.
+    std::unique_ptr<juce::LookAndFeel> m_output_look_and_feel;
 
-    // Output gain slider positioned within the right-side output gain group.
+    // Output level fader positioned within the right-side output group, below the pan knob.
     juce::Slider m_output_gain_slider;
+
+    // Pan knob in the fader's lane, its top aligned with the meter's top.
+    juce::Slider m_output_pan_knob;
 
     // The application-wide tooltip window (created on first use, shared with every other holder),
     // without which the slider's tooltip would be set but never painted: the main window holds no
@@ -303,8 +307,11 @@ private:
     // listener and paint overlaid tips.
     juce::SharedResourcePointer<juce::TooltipWindow> m_tooltip_window;
 
-    // True while JUCE is issuing drag-scoped output gain value changes.
-    bool m_output_gain_dragging{false};
+    // Reads the output stage the fader and the pan knob currently show.
+    [[nodiscard]] common::audio::ToneOutput controlledOutput() const;
+
+    // True while JUCE is issuing drag-scoped value changes from the fader or the pan knob.
+    bool m_output_dragging{false};
 
     // Post-output-gain peak meter positioned beside the output slider.
     AudioLevelMeter m_output_meter;

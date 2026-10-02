@@ -8,9 +8,12 @@
 #include "signal_chain/signal_chain_view_metrics.h"
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
 #include <rock_hero/common/audio/shared/gain.h>
+#include <rock_hero/common/audio/shared/pan.h>
+#include <rock_hero/common/audio/shared/tone_output.h>
 #include <string>
 #include <utility>
 
@@ -41,6 +44,19 @@ constexpr int g_calibrate_button_height{26};
 constexpr int g_output_gain_visual_width{
     g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width
 };
+// The pan knob sits in the fader's 32 px lane with its top on the meter's top; the fader starts
+// below it, and the meter, the "Output" title and the dB box keep their places.
+constexpr int g_pan_knob_size{28};
+constexpr int g_pan_knob_gap{2};
+// The knob's track sweeps ±135° about 12 o'clock, so centre is straight up and L100/R100 point at
+// the lower corners. JUCE wants non-negative rotary angles, so the sweep is spelled around one
+// full turn: 12 o'clock is 2π.
+constexpr float g_pan_knob_sweep_radians{juce::MathConstants<float>::pi * 0.75f};
+constexpr float g_pan_knob_start_angle{
+    juce::MathConstants<float>::twoPi - g_pan_knob_sweep_radians
+};
+constexpr float g_pan_knob_end_angle{juce::MathConstants<float>::twoPi + g_pan_knob_sweep_radians};
+constexpr float g_pan_knob_ring_stroke{2.5f};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
@@ -95,13 +111,16 @@ constexpr int g_signal_path_node_gap{34};
     return bounds;
 }
 
-// Keeps JUCE's normal editable slider textbox while shifting only the vertical track left enough
-// to sit as a compact pair beside the output meter.
-class OutputGainSliderLookAndFeel final : public juce::LookAndFeel_V4
+// The output stage's look: keeps JUCE's normal editable fader textbox while shifting only the
+// vertical track left enough to sit as a compact pair beside the output meter, and draws the pan
+// knob itself. Stock LookAndFeel_V4::drawRotarySlider insets its bounds by 10 px (a 28 px knob
+// would draw as an 8 px disc) and fills from the start angle, so centre would paint half-full.
+class OutputStageLookAndFeel final : public juce::LookAndFeel_V4
 {
 public:
     // Reuses the stock drawing while aligning the track with the meter column and the textbox
-    // with the bottom control row.
+    // with the bottom control row. The fader's bounds already start below the pan knob, so the
+    // track's top is the knob's bottom edge.
     juce::Slider::SliderLayout getSliderLayout(juce::Slider& slider) override
     {
         auto layout = juce::LookAndFeel_V4::getSliderLayout(slider);
@@ -125,6 +144,62 @@ public:
         }
 
         return layout;
+    }
+
+    // A dark body, a muted ring over the whole sweep, an accent arc from 12 o'clock to the value
+    // (so centre draws no arc) and a white pointer. Disabled, it dims like the fader.
+    void drawRotarySlider(
+        juce::Graphics& g, int x, int y, int width, int height, float slider_pos_proportional,
+        float rotary_start_angle, float rotary_end_angle, juce::Slider& slider) override
+    {
+        const auto bounds = juce::Rectangle<int>{x, y, width, height}.toFloat().reduced(1.0f);
+        const float radius = std::min(bounds.getWidth(), bounds.getHeight()) / 2.0f;
+        const juce::Point<float> centre = bounds.getCentre();
+        const float ring_radius = radius - (g_pan_knob_ring_stroke / 2.0f) - 0.25f;
+        // The knob is bipolar: zero sits at the middle of the sweep, and the value arc grows from
+        // there in either direction.
+        const float centre_angle = (rotary_start_angle + rotary_end_angle) / 2.0f;
+        const float value_angle = rotary_start_angle + (slider_pos_proportional *
+                                                        (rotary_end_angle - rotary_start_angle));
+        const float alpha = slider.isEnabled() ? 1.0f : 0.5f;
+
+        g.setColour(editorTheme().panel_background.withAlpha(alpha));
+        g.fillEllipse(bounds.withSizeKeepingCentre(radius * 2.0f, radius * 2.0f).reduced(3.0f));
+
+        juce::Path track;
+        track.addCentredArc(
+            centre.x,
+            centre.y,
+            ring_radius,
+            ring_radius,
+            0.0f,
+            rotary_start_angle,
+            rotary_end_angle,
+            true);
+        g.setColour(editorTheme().muted_text.withAlpha(0.35f * alpha));
+        g.strokePath(track, juce::PathStrokeType{g_pan_knob_ring_stroke});
+
+        // The arc runs from 12 o'clock (centre, pan 0) to the value in either direction; a knob
+        // resting at centre draws none, which is what makes C readable at a glance.
+        if (std::abs(value_angle - centre_angle) > 0.001f)
+        {
+            juce::Path fill;
+            fill.addCentredArc(
+                centre.x,
+                centre.y,
+                ring_radius,
+                ring_radius,
+                0.0f,
+                centre_angle,
+                value_angle,
+                true);
+            g.setColour(editorTheme().accent.withAlpha(alpha));
+            g.strokePath(fill, juce::PathStrokeType{g_pan_knob_ring_stroke});
+        }
+
+        const juce::Point<float> tip = centre.getPointOnCircumference(radius - 6.0f, value_angle);
+        g.setColour(editorTheme().primary_text.withAlpha(alpha));
+        g.drawLine(centre.x, centre.y, tip.x, tip.y, 2.0f);
     }
 };
 
@@ -218,7 +293,7 @@ void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
 SignalChainView::SignalChainView(Listener& listener)
     : m_listener(listener)
     , m_input_meter(AudioLevelMeterOrientation::Vertical)
-    , m_output_gain_slider_look_and_feel(std::make_unique<OutputGainSliderLookAndFeel>())
+    , m_output_look_and_feel(std::make_unique<OutputStageLookAndFeel>())
     , m_output_meter(AudioLevelMeterOrientation::Vertical)
     , m_chain_content(std::make_unique<SignalPathContent>())
     , m_block_layout(g_signal_path_min_block_count)
@@ -267,26 +342,49 @@ SignalChainView::SignalChainView(Listener& listener)
     });
 
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
-    // The header above the slider names only the stage, so the tooltip says which tone's level the
-    // control writes.
+    // The header above the controls names only the stage, so the tooltips say which tone's output
+    // they write.
     m_output_gain_slider.setTooltip("Sets the output level for the current tone.");
-    m_output_gain_slider.setLookAndFeel(m_output_gain_slider_look_and_feel.get());
-    m_output_gain_slider.onDragStart = [this] { m_output_gain_dragging = true; };
-    m_output_gain_slider.onValueChange = [this] {
-        const double gain_db = m_output_gain_slider.getValue();
-        if (m_output_gain_dragging)
-        {
-            m_listener.onOutputGainPreviewChanged(gain_db);
-            return;
-        }
+    m_output_gain_slider.setLookAndFeel(m_output_look_and_feel.get());
 
-        m_listener.onOutputGainChanged(gain_db);
+    m_output_pan_knob.setComponentID("output_pan_knob");
+    m_output_pan_knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    m_output_pan_knob.setRotaryParameters(g_pan_knob_start_angle, g_pan_knob_end_angle, true);
+    m_output_pan_knob.setRange(
+        common::audio::minimumPanPosition(), common::audio::maximumPanPosition(), 0.01);
+    m_output_pan_knob.setDoubleClickReturnValue(true, 0.0);
+    // No room for a text box in the fader's lane: the value shows in the drag popup and the
+    // tooltip, both through the one shared pan format.
+    m_output_pan_knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    m_output_pan_knob.setPopupDisplayEnabled(true, false, this);
+    m_output_pan_knob.textFromValueFunction = [](double position) {
+        return juce::String{common::audio::formatPan(common::audio::Pan{position})};
     };
-    m_output_gain_slider.onDragEnd = [this] {
-        m_output_gain_dragging = false;
-        m_listener.onOutputGainChanged(m_output_gain_slider.getValue());
+    // An idle wheel over the panel must never write an undo entry.
+    m_output_pan_knob.setScrollWheelEnabled(false);
+    m_output_pan_knob.setLookAndFeel(m_output_look_and_feel.get());
+
+    // Both controls edit the ONE output stage: each sends the whole stage with its own value
+    // moved, so the controller keeps one preview/commit pair and one undo entry for both.
+    const auto wire_output_control = [this](juce::Slider& control) {
+        control.onDragStart = [this] { m_output_dragging = true; };
+        control.onValueChange = [this] {
+            if (m_output_dragging)
+            {
+                m_listener.onToneOutputPreviewChanged(controlledOutput());
+                return;
+            }
+            m_listener.onToneOutputChanged(controlledOutput());
+        };
+        control.onDragEnd = [this] {
+            m_output_dragging = false;
+            m_listener.onToneOutputChanged(controlledOutput());
+        };
     };
+    wire_output_control(m_output_gain_slider);
+    wire_output_control(m_output_pan_knob);
     addAndMakeVisible(m_output_gain_slider);
+    addAndMakeVisible(m_output_pan_knob);
     m_output_meter.setComponentID("output_gain_meter");
     // The meter is visually inside the slider component's textbox-width footprint. Let it
     // consume pointer hits so meter clicks do not pass through as slider adjustments.
@@ -318,6 +416,17 @@ SignalChainView::~SignalChainView()
 
     m_chain_viewport.setViewedComponent(nullptr, false);
     m_output_gain_slider.setLookAndFeel(nullptr);
+    m_output_pan_knob.setLookAndFeel(nullptr);
+}
+
+// The output stage as the two controls currently show it: the dragged control carries the new
+// value and the other one the stored value, so the pair always describes one whole stage.
+common::audio::ToneOutput SignalChainView::controlledOutput() const
+{
+    return common::audio::ToneOutput{
+        .level = common::audio::Gain{m_output_gain_slider.getValue()},
+        .pan = common::audio::Pan{m_output_pan_knob.getValue()},
+    };
 }
 
 // Repaints the header title with the selected tone's name appended.
@@ -374,8 +483,14 @@ void SignalChainView::applyState()
     // Why live input is off, on the controls it is about; the caption only says that it is.
     m_input_calibrate_button.setTooltip(juce::String{m_state.disabled_message});
     m_input_meter.setTooltip(juce::String{m_state.disabled_message});
-    m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
-    m_output_gain_slider.setValue(m_state.output_gain.db, juce::dontSendNotification);
+    m_output_gain_slider.setEnabled(m_state.output_controls_enabled);
+    m_output_gain_slider.setValue(m_state.output.level.db, juce::dontSendNotification);
+    m_output_pan_knob.setEnabled(m_state.output_controls_enabled);
+    m_output_pan_knob.setValue(m_state.output.pan.position, juce::dontSendNotification);
+    // The knob has no readout of its own, so its tooltip carries the stored value.
+    m_output_pan_knob.setTooltip(
+        "Pan " + juce::String{common::audio::formatPan(m_state.output.pan)} +
+        ". Sets the stereo balance for the current tone; double-click returns to centre.");
     m_chain_content->setBlockCount(m_block_layout.blockCount());
     rebuildPluginTiles();
     resized();
@@ -501,7 +616,17 @@ void SignalChainView::resized()
         output_slider_area.getX() + ((g_output_gain_width - g_output_gain_visual_width) / 2) +
         g_gain_slider_width + g_gain_meter_gap);
     output_meter_area.setWidth(g_gain_meter_width);
-    m_output_gain_slider.setBounds(output_slider_area);
+    // The pan knob takes the top of the fader's lane, its top on the meter's top; the fader's
+    // bounds start below it so its look-and-feel lays the track out from there.
+    const int lane_x =
+        output_slider_area.getX() + ((g_output_gain_width - g_output_gain_visual_width) / 2);
+    m_output_pan_knob.setBounds(
+        lane_x + ((g_gain_slider_width - g_pan_knob_size) / 2),
+        output_slider_area.getY() + g_gain_meter_vertical_inset,
+        g_pan_knob_size,
+        g_pan_knob_size);
+    m_output_gain_slider.setBounds(output_slider_area.withTrimmedTop(
+        g_gain_meter_vertical_inset + g_pan_knob_size + g_pan_knob_gap));
     m_output_meter.setBounds(output_meter_area.reduced(0, g_gain_meter_vertical_inset));
 
     // Leave a gap between the sliders and the center content.

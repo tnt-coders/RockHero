@@ -1459,14 +1459,14 @@ TEST_CASE("Engine live rig clear preserves input gain", "[audio][engine][integra
     REQUIRE(load_result.has_value());
 
     REQUIRE(live_input.setInputGain(Gain{12.0}).has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-12.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-12.0}, .pan = Pan{}}).has_value());
     REQUIRE(live_rig.setMonitorGain(Gain{-4.0}).has_value());
 
     const auto result = live_rig.clearLiveRig();
 
     CHECK(result.has_value());
     CHECK(live_input.inputGain().db == Catch::Approx(12.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(defaultGainDb()));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(defaultGainDb()));
     CHECK(live_rig.monitorGain().db == Catch::Approx(-4.0));
 }
 
@@ -1477,11 +1477,11 @@ TEST_CASE("Engine live rig refuses a tone level with no tone loaded", "[audio][e
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
 
-    const auto refused = live_rig.setOutputGain(Gain{-6.0});
+    const auto refused = live_rig.setToneOutput(ToneOutput{.level = Gain{-6.0}, .pan = Pan{}});
 
     REQUIRE_FALSE(refused.has_value());
     CHECK(refused.error().code == LiveRigErrorCode::InvalidRequest);
-    CHECK(live_rig.outputGain().db == Catch::Approx(defaultGainDb()));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(defaultGainDb()));
 }
 
 // Verifies minting a new tone persists a canonical, empty tone document file on disk.
@@ -1522,7 +1522,7 @@ TEST_CASE("Engine exports the audible tone to a tone file", "[audio][engine][int
         load_result = std::move(value);
     });
     REQUIRE(load_result.has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-6.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-6.0}, .pan = Pan{}}).has_value());
 
     const auto exported = live_rig.exportAudibleTone(
         ToneFileExportRequest{
@@ -1535,7 +1535,7 @@ TEST_CASE("Engine exports the audible tone to a tone file", "[audio][engine][int
     const auto payload = readToneFile(tone_file);
     REQUIRE(payload.has_value());
     CHECK(payload->document.chain.empty());
-    CHECK(payload->document.output_gain.db == Catch::Approx(-6.0));
+    CHECK(payload->document.output.level.db == Catch::Approx(-6.0));
 }
 
 // Verifies the whole-chain undo memento is refused without a rig and captures the audible
@@ -1555,12 +1555,12 @@ TEST_CASE("Engine captures the audible tone chain state", "[audio][engine][integ
         load_result = std::move(value);
     });
     REQUIRE(load_result.has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-3.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-3.0}, .pan = Pan{}}).has_value());
 
     const auto state = live_rig.captureAudibleToneState();
     REQUIRE(state.has_value());
     CHECK(state->plugin_states.empty());
-    CHECK(state->output_gain.db == Catch::Approx(-3.0));
+    CHECK(state->output.level.db == Catch::Approx(-3.0));
 }
 
 // Verifies a tone-file replace applies the file's chain and gain to the audible branch, and that
@@ -1574,7 +1574,10 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
 
     // An empty-chain tone file carrying only an authored gain exercises the full transactional
     // read + swap path without needing an installed plugin.
-    REQUIRE(writeToneFile(tone_file, ToneDocument{.chain = {}, .output_gain = Gain{-4.5}}, {})
+    REQUIRE(writeToneFile(
+                tone_file,
+                ToneDocument{.chain = {}, .output = ToneOutput{.level = Gain{-4.5}, .pan = Pan{}}},
+                {})
                 .has_value());
 
     std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
@@ -1599,7 +1602,7 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
         load_result = std::move(value);
     });
     REQUIRE(load_result.has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{2.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{2.0}, .pan = Pan{}}).has_value());
 
     replace_result.reset();
     live_rig.replaceAudibleToneFromFile(
@@ -1614,9 +1617,9 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
     {
         REQUIRE(replace_result->has_value());
         CHECK((*replace_result)->plugins.empty());
-        CHECK((*replace_result)->output_gain.db == Catch::Approx(-4.5));
+        CHECK((*replace_result)->output.level.db == Catch::Approx(-4.5));
     }
-    CHECK(live_rig.outputGain().db == Catch::Approx(-4.5));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-4.5));
 
     replace_result.reset();
     live_rig.replaceAudibleToneFromFile(
@@ -1633,7 +1636,7 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
         CHECK(replace_result->error().code == LiveRigErrorCode::CouldNotReadToneFile);
     }
     // The failed replace never touched the live chain.
-    CHECK(live_rig.outputGain().db == Catch::Approx(-4.5));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-4.5));
 }
 
 // Verifies a tone file naming an uninstalled plugin is refused with the aggregated
@@ -1660,7 +1663,7 @@ TEST_CASE("Engine tone-file replace refuses missing plugins", "[audio][engine][i
             .display_type_override = {},
             .stable_id = {},
         });
-    document.output_gain = Gain{};
+    document.output = ToneOutput{.level = Gain{}, .pan = Pan{}};
     juce::ValueTree state{tracktion::IDs::PLUGIN};
     state.setProperty(tracktion::IDs::type, tracktion::ExternalPlugin::xmlTypeName, nullptr);
     const std::vector<juce::ValueTree> states{state};
@@ -1672,7 +1675,7 @@ TEST_CASE("Engine tone-file replace refuses missing plugins", "[audio][engine][i
         load_result = std::move(value);
     });
     REQUIRE(load_result.has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-1.5}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-1.5}, .pan = Pan{}}).has_value());
 
     std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
         replace_result;
@@ -1691,7 +1694,7 @@ TEST_CASE("Engine tone-file replace refuses missing plugins", "[audio][engine][i
         CHECK(replace_result->error().code == LiveRigErrorCode::MissingPlugins);
     }
     // Refusal is transactional: the previous chain state stays untouched.
-    CHECK(live_rig.outputGain().db == Catch::Approx(-1.5));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-1.5));
 }
 
 // Verifies the memento restore round trip: capture, mutate, restore, and the audible chain's
@@ -1707,17 +1710,17 @@ TEST_CASE("Engine restores the audible tone chain from a memento", "[audio][engi
         load_result = std::move(value);
     });
     REQUIRE(load_result.has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-3.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-3.0}, .pan = Pan{}}).has_value());
 
     const auto state = live_rig.captureAudibleToneState();
     REQUIRE(state.has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{6.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{6.0}, .pan = Pan{}}).has_value());
 
     const auto restore_result = live_rig.restoreAudibleToneState(*state);
 
     REQUIRE(restore_result.has_value());
-    CHECK(restore_result->output_gain.db == Catch::Approx(-3.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-3.0));
+    CHECK(restore_result->output.level.db == Catch::Approx(-3.0));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-3.0));
 }
 
 // Verifies empty tone loads clear project tone state without clearing input calibration.
@@ -1742,8 +1745,8 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         const auto& load_result = result.value();
         REQUIRE(load_result.has_value());
         CHECK(load_result->plugins.empty());
-        CHECK_THAT(load_result->output_gain.db, Catch::Matchers::WithinULP(0.0, 0));
-        CHECK_THAT(live_rig.outputGain().db, Catch::Matchers::WithinULP(0.0, 0));
+        CHECK_THAT(load_result->output.level.db, Catch::Matchers::WithinULP(0.0, 0));
+        CHECK_THAT(live_rig.toneOutput().level.db, Catch::Matchers::WithinULP(0.0, 0));
         CHECK(live_input.inputGain().db == Catch::Approx(18.0));
         CHECK(live_rig.monitorGain().db == Catch::Approx(-18.0));
     }
@@ -1781,7 +1784,7 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
     }
     REQUIRE(first_load->has_value());
 
-    REQUIRE(live_rig.setOutputGain(Gain{-9.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-9.0}, .pan = Pan{}}).has_value());
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
             .song_directory = song_directory.path(),
@@ -1794,7 +1797,7 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
 
     REQUIRE(snapshot.has_value());
     REQUIRE(live_input.setInputGain(Gain{9.0}).has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{3.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{3.0}, .pan = Pan{}}).has_value());
 
     std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
         result;
@@ -1814,8 +1817,8 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
         const auto& load_result = result.value();
         REQUIRE(load_result.has_value());
         CHECK(load_result->plugins.empty());
-        CHECK(load_result->output_gain.db == Catch::Approx(-9.0));
-        CHECK(live_rig.outputGain().db == Catch::Approx(-9.0));
+        CHECK(load_result->output.level.db == Catch::Approx(-9.0));
+        CHECK(live_rig.toneOutput().level.db == Catch::Approx(-9.0));
         CHECK(live_input.inputGain().db == Catch::Approx(9.0));
     }
 }
@@ -1839,12 +1842,13 @@ TEST_CASE("Engine live rig output gain persists through capture", "[audio][engin
     REQUIRE(load_result.has_value());
 
     const auto input_result = live_input.setInputGain(Gain{24.0});
-    const auto output_result = live_rig.setOutputGain(Gain{-24.0});
+    const auto output_result =
+        live_rig.setToneOutput(ToneOutput{.level = Gain{-24.0}, .pan = Pan{}});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
     CHECK(live_input.inputGain().db == Catch::Approx(24.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-24.0));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-24.0));
 
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
@@ -1858,7 +1862,7 @@ TEST_CASE("Engine live rig output gain persists through capture", "[audio][engin
 
     REQUIRE(snapshot.has_value());
     CHECK(snapshot->plugins.empty());
-    CHECK(snapshot->output_gain.db == Catch::Approx(-24.0));
+    CHECK(snapshot->output.level.db == Catch::Approx(-24.0));
 }
 
 // Verifies live input and live rig gain setters clamp requested gain to the public range.
@@ -1877,14 +1881,15 @@ TEST_CASE(
     REQUIRE(load_result.has_value());
 
     const auto input_result = live_input.setInputGain(Gain{25.0});
-    const auto output_result = live_rig.setOutputGain(Gain{-100.0});
+    const auto output_result =
+        live_rig.setToneOutput(ToneOutput{.level = Gain{-100.0}, .pan = Pan{}});
     const auto monitor_result = live_rig.setMonitorGain(Gain{100.0});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
     REQUIRE(monitor_result.has_value());
     CHECK(live_input.inputGain().db == Catch::Approx(maximumGainDb()));
-    CHECK(live_rig.outputGain().db == Catch::Approx(minimumGainDb()));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(minimumGainDb()));
     CHECK(live_rig.monitorGain().db == Catch::Approx(maximumGainDb()));
 }
 
@@ -1923,7 +1928,7 @@ TEST_CASE("Engine live rig captures every loaded tone branch", "[audio][engine][
 
     // Author a gain on the audible (first) tone, then capture: both documents must be rewritten,
     // the first carrying the authored gain and the second keeping its minted unity gain.
-    REQUIRE(live_rig.setOutputGain(Gain{-6.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-6.0}, .pan = Pan{}}).has_value());
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
             .song_directory = song_directory.path(),
@@ -1934,14 +1939,14 @@ TEST_CASE("Engine live rig captures every loaded tone branch", "[audio][engine][
             .stable_ids = {},
         });
     REQUIRE(snapshot.has_value());
-    CHECK(snapshot->output_gain.db == Catch::Approx(-6.0));
+    CHECK(snapshot->output.level.db == Catch::Approx(-6.0));
 
     const auto first_document = readToneDocument(song_directory.path(), *first_ref);
     const auto second_document = readToneDocument(song_directory.path(), *second_ref);
     REQUIRE(first_document.has_value());
     REQUIRE(second_document.has_value());
-    CHECK(first_document->output_gain.db == Catch::Approx(-6.0));
-    CHECK(second_document->output_gain.db == Catch::Approx(defaultGainDb()));
+    CHECK(first_document->output.level.db == Catch::Approx(-6.0));
+    CHECK(second_document->output.level.db == Catch::Approx(defaultGainDb()));
 }
 
 // Verifies the master gain reports the backend's fresh-edit default truthfully (the port never
@@ -2187,9 +2192,9 @@ TEST_CASE("Engine keeps each tone's level on its own branch", "[audio][engine][i
 
     // Author a level on each tone the only way the editor's fader ever does: while that tone is
     // the audible one.
-    REQUIRE(live_rig.setOutputGain(Gain{-1.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-1.0}, .pan = Pan{}}).has_value());
     REQUIRE(live_rig.setAudibleTone(second_ref).has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-6.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-6.0}, .pan = Pan{}}).has_value());
 
     // Switching back brings the first tone's level with it, and the post-rack monitor stage has
     // taken no part in any of it.
@@ -2199,8 +2204,8 @@ TEST_CASE("Engine keeps each tone's level on its own branch", "[audio][engine][i
     {
         return;
     }
-    CHECK(to_first->output_gain.db == Catch::Approx(-1.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-1.0));
+    CHECK(to_first->output.level.db == Catch::Approx(-1.0));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-1.0));
     CHECK(live_rig.monitorGain().db == Catch::Approx(defaultGainDb()));
 
     // With a schedule baked the audio thread owns the branch gains. The switch records the new
@@ -2213,8 +2218,8 @@ TEST_CASE("Engine keeps each tone's level on its own branch", "[audio][engine][i
     {
         return;
     }
-    CHECK(scheduled_switch->output_gain.db == Catch::Approx(-6.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-6.0));
+    CHECK(scheduled_switch->output.level.db == Catch::Approx(-6.0));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-6.0));
     checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
     CHECK(live_rig.monitorGain().db == Catch::Approx(defaultGainDb()));
 }
@@ -2234,13 +2239,13 @@ TEST_CASE("Engine monitor gain is separate from a tone's level", "[audio][engine
         return;
     }
 
-    REQUIRE(live_rig.setOutputGain(Gain{-2.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-2.0}, .pan = Pan{}}).has_value());
     checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
 
     REQUIRE(live_rig.setMonitorGain(Gain{-9.0}).has_value());
 
     CHECK(live_rig.monitorGain().db == Catch::Approx(-9.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-2.0));
+    CHECK(live_rig.toneOutput().level.db == Catch::Approx(-2.0));
     // Audibility is the branch gain's whole meaning, so the monitor must not have touched it.
     checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
 }
@@ -2547,7 +2552,7 @@ TEST_CASE("Engine live rig adds an empty tone branch incrementally", "[audio][en
     // The new branch is switchable and capture persists it like any loaded branch, proving the
     // parallel bookkeeping arrays stayed coherent.
     CHECK(live_rig.setAudibleTone(*second_ref).has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-3.0}).has_value());
+    REQUIRE(live_rig.setToneOutput(ToneOutput{.level = Gain{-3.0}, .pan = Pan{}}).has_value());
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
             .song_directory = song_directory.path(),
@@ -2560,7 +2565,7 @@ TEST_CASE("Engine live rig adds an empty tone branch incrementally", "[audio][en
     REQUIRE(snapshot.has_value());
     const auto second_document = readToneDocument(song_directory.path(), *second_ref);
     REQUIRE(second_document.has_value());
-    CHECK(second_document->output_gain.db == Catch::Approx(-3.0));
+    CHECK(second_document->output.level.db == Catch::Approx(-3.0));
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.

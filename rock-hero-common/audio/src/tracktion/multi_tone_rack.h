@@ -6,6 +6,7 @@
 #pragma once
 
 #include "tracktion/tone_branch_gain_plugin.h"
+#include "tracktion/tone_output_plugin.h"
 
 #include <expected>
 #include <rock_hero/common/audio/live_rig/live_rig_error.h>
@@ -22,7 +23,7 @@ namespace rock_hero::common::audio
 
 The chain plugins must already exist through the edit's plugin cache; assembly only moves them
 into the rack and wires connections. An empty chain is valid and produces a passthrough branch
-(rack input straight into the branch gain).
+(rack input straight into the tone's output stage).
 */
 struct ToneRackBranchRequest
 {
@@ -47,6 +48,9 @@ struct ToneRackBranch
     /*! \brief Ordered user plugin chain for this tone; may be empty. */
     std::vector<tracktion::Plugin::Ptr> chain;
 
+    /*! \brief The tone's output stage (authored level and pan) fed by the chain's last plugin. */
+    ToneOutputPlugin* output{nullptr};
+
     /*! \brief Branch-terminating gain whose automation curve carries the region schedule. */
     ToneBranchGainPlugin* branch_gain{nullptr};
 };
@@ -67,8 +71,9 @@ struct ToneRack
 \brief Builds one rack with a parallel branch per requested tone.
 
 Each branch runs rack stereo input through the request's plugin chain in order, then through a
-new \ref ToneBranchGainPlugin, into the rack's summed stereo output. Branch gains default to
-fully audible; schedule baking and selection control them afterwards.
+new \ref ToneOutputPlugin and a new \ref ToneBranchGainPlugin, into the rack's summed stereo
+output. Output stages start at unity and centre; branch gains default to fully audible, and
+schedule baking and selection control them afterwards.
 
 \param edit Tracktion edit that owns the rack list and plugin cache.
 \param requests Branches to wire, one per tone, in display order.
@@ -81,8 +86,8 @@ fully audible; schedule baking and selection control them afterwards.
 \brief Appends one empty (passthrough) branch for a tone to an already-built live rack.
 
 Rack mutations are ValueTree edits that Tracktion coalesces into one asynchronous graph rebuild
-which reuses every live plugin instance, so adding an empty branch — one \ref ToneBranchGainPlugin
-plus its stereo wiring — never re-instantiates existing plugins or stops playback. This is the
+which reuses every live plugin instance, so adding an empty branch — the two terminal stages plus
+their stereo wiring — never re-instantiates existing plugins or stops playback. This is the
 fast path for creating a new (empty) tone; branches with persisted plugins still load through
 \ref buildToneRack.
 
@@ -107,8 +112,8 @@ fast path for creating a new (empty) tone; branches with persisted plugins still
 \brief Makes exactly one branch audible and silences the others.
 
 Audibility moves through each branch plugin's per-sample smoother, so switching is click-free. Each
-branch keeps its own authored level, which the same smoother carries, so nothing outside the rack
-has to restore a level on a switch. This is the direct selection-driven switch path; while a
+branch keeps its own output stage ahead of that gain, so nothing outside the rack has to restore a
+level or pan on a switch. This is the direct selection-driven switch path; while a
 schedule is baked the audio thread drives the same gains from the curves instead, and nothing
 calls this.
 

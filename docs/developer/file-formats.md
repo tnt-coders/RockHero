@@ -138,7 +138,10 @@ Region ids are session-scoped and never persisted. A `toneChanges` tone missing 
 normalized in as an unnamed catalog entry.
 
 `toneAutomation[]`: `{plugin, param, points[]}` with at most one entry per (plugin, param); points
-are `{position: <grid token>, value: <normalized number>}`. Musical positions are the persisted
+are `{position: <grid token>, value: <normalized number>}`. `plugin` is a chain plugin's minted
+`stableId`, or — for the tone's own output stage, whose `level` (the Volume lane) and `pan` are
+automatable — the derived id `<tone ref>#output` (`toneOutputPluginId`), which no document
+carries. Musical positions are the persisted
 truth; seconds are derived caches. A point carries **no segment shape**: the shape between two
 points is derived at the Tracktion write seam from the parameter itself (stepped holds, continuous
 ramps linearly), so there is nothing per point to author or persist. The removed `shape` key is the
@@ -213,7 +216,8 @@ must be `1`.
 |---|---|---|---|
 | `slots` | array ≥1 | req | **Only `slots[0]` is read.** |
 | `slots[0].chain[]` | array | req | Ordered plugin records; capped at the signal-chain maximum. |
-| `slots[0].outputGainDb` | number | opt | Clamped on read (default gain). |
+| `slots[0].outputGainDb` | number | opt | The output stage's level; clamped on read (default 0 dB). |
+| `slots[0].outputPan` | number | opt | The output stage's balance, -1 (left) to 1 (right); clamped on read (default 0, centre). |
 | `chain[].id` | string | req | Plugin record id. |
 | `chain[].tracktionState` | string | req | Canonical sidecar ref under `state/`; must exist. |
 | `chain[].blockIndex` | int | opt | Editor-owned visual block (`0`); opaque to audio. |

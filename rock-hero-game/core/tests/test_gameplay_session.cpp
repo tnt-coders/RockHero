@@ -469,18 +469,18 @@ public:
         }};
     }
 
-    // The audible tone's authored level is charter-owned and never touched in gameplay.
-    [[nodiscard]] common::audio::Gain outputGain() const override
+    // The audible tone's output stage is charter-owned and never touched in gameplay.
+    [[nodiscard]] common::audio::ToneOutput toneOutput() const override
     {
         return {};
     }
 
-    // The session never authors a tone's level; fail loudly if it ever writes one.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
-        common::audio::Gain /*gain*/) override
+    // The session never authors a tone's output stage; fail loudly if it ever writes one.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setToneOutput(
+        common::audio::ToneOutput /*output*/) override
     {
         return std::unexpected{common::audio::LiveRigError{
-            common::audio::LiveRigErrorCode::InvalidRequest, "tone level write not expected"
+            common::audio::LiveRigErrorCode::InvalidRequest, "tone output write not expected"
         }};
     }
 
@@ -1260,7 +1260,7 @@ TEST_CASE(
     harness.live_rig.completeSuccessfully(
         common::audio::LiveRigLoadResult{
             .plugins = {},
-            .output_gain = {},
+            .output = {},
             .tone_chains = {
                 common::audio::LoadedToneChainIdentities{
                     .tone_document_ref = "tones/x/tone.json",

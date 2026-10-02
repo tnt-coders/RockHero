@@ -1,11 +1,29 @@
 # The tone's output stage: level and a pan knob
 
-Status: **DEFERRED. Designed 2026-10-02 with the user, and the layout was sighted on a render
-(the knob above the fader, the panel at its tall height). Nothing is built.** Re-verify every
-`file:line` below against the code before executing; they were read on 2026-10-02.
+Status: **BUILT 2026-10-02**, together with the Volume and Pan automation lanes from
+`tone-parallel-paths-and-mix-lanes.md`. What shipped, and where it departed from the text below:
 
-The Volume and Pan automation lanes live in `tone-parallel-paths-and-mix-lanes.md`. This plan
-builds the static values those lanes anchor to, and the control that sets pan.
+- `ToneOutput { Gain level; Pan pan; }` (`shared/tone_output.h`, `shared/pan.h` with
+  `formatPan`/`parsePan`) travels through `ILiveRig::toneOutput()/setToneOutput()`, the snapshot,
+  load result and audible state, the tone document (`outputGainDb` + new `outputPan`), the editor's
+  `ToneOutputEdit` and one `applyToneOutputChange` preview/commit pair, and the view state.
+- `ToneOutputPlugin` (level + pan as real `AutomatableParameter`s, explicit values, never attached)
+  sits between the chain and `ToneBranchGainPlugin`, which keeps only the crossfade.
+- The lanes needed no sum type: the output stage is a plugin on the branch, so every automation
+  port call resolves it through the same `instance_id` lookup as a chain plugin. Its durable
+  `plugin_id` is derived, `toneOutputPluginId(ref)` = `<tone ref>#output`, reported by the load
+  result as `LoadedToneChainIdentities::output` and bound by both the editor's merge and the shared
+  `makeToneAutomationBindings`, so the game plays the lanes too. The picker lists it last, in
+  signal order, as the "Output" submenu with "Volume" and "Pan".
+- The mono guitar input reaches the stereo rack as L = R
+  (`tracktion_WaveInputDeviceNode.cpp:77-81` copies the last channel into every extra one), so a
+  hard pan is never silent.
+- Values round through the parameters' `float` storage (the level already did); the tests use
+  exactly representable values.
+- The knob's drag mapping is spelled -1..1 step 0.01 so that only the formatter knows "percent";
+  JUCE wants non-negative rotary angles, so the ±135° sweep is spelled around 2π.
+- Still open, recorded in `docs/tracking/backlog.md`: the "disabled" sub-caption, the stereo meter,
+  the Ctrl+S gap and the Audio menu.
 
 ## Rulings
 

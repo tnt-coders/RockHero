@@ -107,8 +107,8 @@ struct [[nodiscard]] EditorEditContext
     const std::unordered_map<std::string, common::audio::ToneAutomationBinding>&
         tone_plugin_bindings;
 
-    /*! \brief Controller-owned output-gain mirror refreshed after output-gain undo/redo. */
-    double& output_gain_db;
+    /*! \brief Controller-owned output-stage mirror refreshed after an edit moves it. */
+    common::audio::ToneOutput& tone_output;
 
     /*!
     \brief Tone Designer document state updated by document-replace edits.

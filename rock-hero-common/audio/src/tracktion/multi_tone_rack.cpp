@@ -46,12 +46,12 @@ constexpr int g_right_pin{2};
     return chain_index == 0 ? tracktion::EditItemID{} : branch.chain[chain_index - 1]->itemID;
 }
 
-// Endpoint fed by chain position `chain_index`: the next chain plugin, or the branch gain.
+// Endpoint fed by chain position `chain_index`: the next chain plugin, or the tone's output stage.
 [[nodiscard]] tracktion::EditItemID downstreamOfChainIndex(
     const ToneRackBranch& branch, std::size_t chain_index)
 {
     return chain_index < branch.chain.size() ? branch.chain[chain_index]->itemID
-                                             : branch.branch_gain->itemID;
+                                             : branch.output->itemID;
 }
 
 // Validates the branch/chain coordinates shared by the branch mutation entry points.
@@ -61,6 +61,7 @@ constexpr int g_right_pin{2};
 {
     if (rack.rack_type == nullptr || branch_index >= rack.branches.size() ||
         chain_index >= rack.branches[branch_index].chain.size() + chain_index_limit_offset ||
+        rack.branches[branch_index].output == nullptr ||
         rack.branches[branch_index].branch_gain == nullptr)
     {
         return std::unexpected{LiveRigError{
@@ -94,6 +95,68 @@ constexpr int g_right_pin{2};
     return removeStereoConnection(rack, upstream, plugin_id) &&
            removeStereoConnection(rack, plugin_id, downstream) &&
            addStereoConnection(rack, upstream, downstream);
+}
+
+// The two hidden stages every branch ends in: the tone's output stage feeding the switch gain.
+struct BranchStages
+{
+    ToneOutputPlugin* output{nullptr};
+    ToneBranchGainPlugin* branch_gain{nullptr};
+};
+
+// Creates a private plugin of type `PrivatePlugin` through the edit's plugin cache and places it
+// in the rack without auto-connection, so the explicit branch wiring stays the only topology.
+template <typename PrivatePlugin>
+[[nodiscard]] PrivatePlugin* placePrivatePlugin(
+    tracktion::Edit& edit, tracktion::RackType& rack, juce::Point<float> position)
+{
+    const tracktion::Plugin::Ptr plugin =
+        edit.getPluginCache().createNewPlugin(PrivatePlugin::createState());
+    auto* const typed_plugin = dynamic_cast<PrivatePlugin*>(plugin.get());
+    if (typed_plugin == nullptr || !rack.addPlugin(plugin, position, false))
+    {
+        return nullptr;
+    }
+    return typed_plugin;
+}
+
+// Creates both terminal stages of one branch at the columns after its chain and wires output stage
+// -> branch gain -> rack output on both stereo pins. The caller wires whatever feeds the output
+// stage (the chain's last plugin, or the rack input for an empty chain).
+[[nodiscard]] std::expected<BranchStages, LiveRigError> addBranchStages(
+    tracktion::Edit& edit, tracktion::RackType& rack, std::size_t branch_index,
+    std::size_t chain_size, std::size_t branch_count, const std::string& tone_document_ref)
+{
+    BranchStages stages;
+    stages.output = placePrivatePlugin<ToneOutputPlugin>(
+        edit, rack, branchPluginPosition(branch_index, chain_size, branch_count));
+    if (stages.output == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not place the tone output stage into the multi-tone rack for " +
+                tone_document_ref,
+        }};
+    }
+    stages.branch_gain = placePrivatePlugin<ToneBranchGainPlugin>(
+        edit, rack, branchPluginPosition(branch_index, chain_size + 1, branch_count));
+    if (stages.branch_gain == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not place the tone branch gain into the multi-tone rack for " +
+                tone_document_ref,
+        }};
+    }
+    if (!addStereoConnection(rack, stages.output->itemID, stages.branch_gain->itemID) ||
+        !addStereoConnection(rack, stages.branch_gain->itemID, {}))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not wire the multi-tone rack branch for " + tone_document_ref,
+        }};
+    }
+    return stages;
 }
 
 // Removes a just-created rack from the persistent edit unless the build commits. Tracktion's
@@ -155,18 +218,7 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
     {
         const ToneRackBranchRequest& request = requests[branch_index];
 
-        const tracktion::Plugin::Ptr gain_plugin =
-            edit.getPluginCache().createNewPlugin(ToneBranchGainPlugin::createState());
-        auto* const branch_gain = dynamic_cast<ToneBranchGainPlugin*>(gain_plugin.get());
-        if (branch_gain == nullptr)
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Could not create the tone branch gain for " + request.tone_document_ref,
-            }};
-        }
-
-        // Chain plugins first, then the terminating gain, all without auto-connection so the
+        // Chain plugins first, then the terminating stages, all without auto-connection so the
         // explicit branch wiring below stays the only topology.
         for (std::size_t column = 0; column < request.chain.size(); ++column)
         {
@@ -183,20 +235,20 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
                 }};
             }
         }
-        if (!rack_type->addPlugin(
-                gain_plugin,
-                branchPluginPosition(branch_index, request.chain.size(), requests.size()),
-                false))
+        auto stages = addBranchStages(
+            edit,
+            *rack_type,
+            branch_index,
+            request.chain.size(),
+            requests.size(),
+            request.tone_document_ref);
+        if (!stages.has_value())
         {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Could not place the tone branch gain into the multi-tone rack for " +
-                    request.tone_document_ref,
-            }};
+            return std::unexpected{std::move(stages.error())};
         }
 
-        // Wire rack input -> chain -> branch gain -> rack output on both stereo pins. An empty
-        // chain wires the rack input straight into the branch gain.
+        // Wire rack input -> chain -> output stage on both stereo pins (the stages wired the rest).
+        // An empty chain wires the rack input straight into the output stage.
         tracktion::EditItemID upstream{};
         bool wired = true;
         for (const tracktion::Plugin::Ptr& chain_plugin : request.chain)
@@ -204,8 +256,7 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
             wired = wired && addStereoConnection(*rack_type, upstream, chain_plugin->itemID);
             upstream = chain_plugin->itemID;
         }
-        wired = wired && addStereoConnection(*rack_type, upstream, branch_gain->itemID);
-        wired = wired && addStereoConnection(*rack_type, branch_gain->itemID, {});
+        wired = wired && addStereoConnection(*rack_type, upstream, stages->output->itemID);
         if (!wired)
         {
             return std::unexpected{LiveRigError{
@@ -218,7 +269,8 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
             ToneRackBranch{
                 .tone_document_ref = request.tone_document_ref,
                 .chain = request.chain,
-                .branch_gain = branch_gain,
+                .output = stages->output,
+                .branch_gain = stages->branch_gain,
             });
     }
 
@@ -238,35 +290,23 @@ std::expected<void, LiveRigError> addEmptyToneBranch(
     }
 
     // Rack mutations are ValueTree edits that Tracktion coalesces into one asynchronous graph
-    // rebuild, and that rebuild reuses every live plugin instance — so an empty branch (one gain
-    // plugin plus its wiring) never touches the existing plugins or stops playback.
-    const tracktion::Plugin::Ptr gain_plugin =
-        edit.getPluginCache().createNewPlugin(ToneBranchGainPlugin::createState());
-    auto* const branch_gain = dynamic_cast<ToneBranchGainPlugin*>(gain_plugin.get());
-    if (branch_gain == nullptr)
+    // rebuild, and that rebuild reuses every live plugin instance — so an empty branch (the two
+    // terminal stages plus their wiring) never touches the existing plugins or stops playback.
+    auto stages = addBranchStages(
+        edit,
+        *rack.rack_type,
+        rack.branches.size(),
+        0,
+        rack.branches.size() + 1,
+        tone_document_ref);
+    if (!stages.has_value())
     {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::PluginRestoreFailed,
-            "Could not create the tone branch gain for " + tone_document_ref,
-        }};
+        return std::unexpected{std::move(stages.error())};
     }
 
-    if (!rack.rack_type->addPlugin(
-            gain_plugin,
-            branchPluginPosition(rack.branches.size(), 0, rack.branches.size() + 1),
-            false))
-    {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::PluginRestoreFailed,
-            "Could not place the tone branch gain into the multi-tone rack for " +
-                tone_document_ref,
-        }};
-    }
-
-    // Wire rack input -> branch gain -> rack output on both stereo pins, matching buildToneRack's
-    // empty-chain branch shape.
-    if (!addStereoConnection(*rack.rack_type, {}, branch_gain->itemID) ||
-        !addStereoConnection(*rack.rack_type, branch_gain->itemID, {}))
+    // Wire rack input -> output stage on both stereo pins, matching buildToneRack's empty-chain
+    // branch shape.
+    if (!addStereoConnection(*rack.rack_type, {}, stages->output->itemID))
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::PluginRestoreFailed,
@@ -278,7 +318,8 @@ std::expected<void, LiveRigError> addEmptyToneBranch(
         ToneRackBranch{
             .tone_document_ref = tone_document_ref,
             .chain = {},
-            .branch_gain = branch_gain,
+            .output = stages->output,
+            .branch_gain = stages->branch_gain,
         });
     return {};
 }

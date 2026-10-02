@@ -60,6 +60,8 @@ TEST_CASE(
                     // No minted durable id: persisted automation can never reference this plugin.
                     LoadedTonePluginIdentity{.instance_id = "instance-2", .stable_id = ""},
                 },
+            // The output stage's durable id is derived, so it binds like a minted plugin.
+            .output = LoadedTonePluginIdentity{.instance_id = "output-x", .stable_id = "x#output"},
             .summed_reported_latency_seconds = 0.0,
         },
         LoadedToneChainIdentities{
@@ -68,6 +70,7 @@ TEST_CASE(
                 {
                     LoadedTonePluginIdentity{.instance_id = "instance-3", .stable_id = "plugin-b"},
                 },
+            .output = LoadedTonePluginIdentity{.instance_id = "output-y", .stable_id = "y#output"},
             .summed_reported_latency_seconds = 0.0,
         },
     };
@@ -75,9 +78,12 @@ TEST_CASE(
     const std::unordered_map<std::string, ToneAutomationBinding> bindings =
         makeToneAutomationBindings(tone_chains);
 
-    REQUIRE(bindings.size() == 2);
+    REQUIRE(bindings.size() == 4);
     CHECK(bindings.at("plugin-a").instance_id == "instance-1");
     CHECK(bindings.at("plugin-a").tone_document_ref == "tones/x/tone.json");
+    CHECK(bindings.at("x#output").instance_id == "output-x");
+    CHECK(bindings.at("x#output").tone_document_ref == "tones/x/tone.json");
+    CHECK(bindings.at("y#output").instance_id == "output-y");
     CHECK(bindings.at("plugin-b").instance_id == "instance-3");
     CHECK(bindings.at("plugin-b").tone_document_ref == "tones/y/tone.json");
 }

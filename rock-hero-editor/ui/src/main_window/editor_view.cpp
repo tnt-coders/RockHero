@@ -3491,14 +3491,14 @@ void EditorView::onInputCalibrationPressed()
     m_controller.onInputCalibrationRequested();
 }
 
-// Forwards live output gain preview changes while the slider is being dragged.
-void EditorView::onOutputGainPreviewChanged(double gain_db)
+// Forwards live output-stage previews while the fader or pan knob is being dragged.
+void EditorView::onToneOutputPreviewChanged(common::audio::ToneOutput output)
 {
-    if (!m_state.signal_chain.output_gain_controls_enabled)
+    if (!m_state.signal_chain.output_controls_enabled)
     {
         return;
     }
-    m_controller.onOutputGainPreviewChanged(gain_db);
+    m_controller.onToneOutputPreviewChanged(output);
 }
 
 // Routes a tone-region selection intent to the controller.
@@ -3837,14 +3837,14 @@ void EditorView::onToneRenamePromptRequested(
         });
 }
 
-// Forwards committed output gain slider changes to the controller when controls are enabled.
-void EditorView::onOutputGainChanged(double gain_db)
+// Forwards committed fader or pan knob values to the controller when the controls are enabled.
+void EditorView::onToneOutputChanged(common::audio::ToneOutput output)
 {
-    if (!m_state.signal_chain.output_gain_controls_enabled)
+    if (!m_state.signal_chain.output_controls_enabled)
     {
         return;
     }
-    m_controller.onOutputGainChanged(gain_db);
+    m_controller.onToneOutputChanged(output);
 }
 
 // Forwards browser rescan intent to the workflow controller.

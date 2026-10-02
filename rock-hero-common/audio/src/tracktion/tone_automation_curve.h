@@ -16,11 +16,22 @@ namespace rock_hero::common::audio
 {
 
 /*!
+\brief Lists the automatable parameters of one plugin.
+
+Walks the plugin's grouped parameter tree, tagging every parameter with the plugin's instance id
+and group name, and skipping the synthetic dry/wet mix parameters. Values are normalised to
+`[0, 1]`.
+
+\param plugin Plugin to enumerate.
+\return The plugin's automatable parameters in tree order.
+*/
+[[nodiscard]] std::vector<AutomatableParamInfo> listPluginAutomatableParameters(
+    const tracktion::Plugin& plugin);
+
+/*!
 \brief Lists the automatable parameters of every plugin in a tone chain.
 
-Walks each plugin's grouped parameter tree, tagging every parameter with its owning plugin's
-instance id and group name, and skipping the synthetic dry/wet mix parameters. Values are
-normalised to `[0, 1]`.
+\ref listPluginAutomatableParameters over each plugin, concatenated in chain order.
 
 \param chain Ordered tone-chain plugins to enumerate.
 \return The chain's automatable parameters in plugin-then-tree order.

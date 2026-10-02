@@ -14,8 +14,8 @@ is **two-phase application**:
 
 1. `beginUndo()` / `beginRedo()` return a pending transition *without* moving the cursor.
 2. The caller applies the edit's side effects through `EditorEditContext` (a bundle of the
-   session and the ports: signal chain, plugin host, live rig, tone automation, output gain,
-   tone designer).
+   session and the ports: signal chain, plugin host, live rig, tone automation, the tone's output
+   stage, tone designer).
 3. Only on success does the caller `commit(pending)`; on failure it `abort(pending, code)` and
    the cursor never moved. Pending transitions carry a token, so a stale commit is rejected.
 
@@ -200,7 +200,7 @@ you write an edit whose failure path cannot restore the before-state, returning
 2. If apply needs a port the `EditorEditContext` doesn't carry, extend the context — don't reach
    around it.
 3. Push through `pushUndoEntry` at gesture end, once per gesture (preview changes push nothing —
-   see the output-gain preview/commit split in \ref guide_signal_chain).
+   see the tone-output preview/commit split in \ref guide_signal_chain).
 4. If the domain is on the timeline, override `IEdit::focus` so its transitions bring their
    change into focus. Nothing fails to compile without it — the default focuses nothing, and the
    transition is silently blind again.

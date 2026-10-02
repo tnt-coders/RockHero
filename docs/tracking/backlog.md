@@ -1353,3 +1353,13 @@ against the tree on the date above.
   in the one context would make it honest and let `beginRigReplacement()` call
   `refresh(monitoringContext())`; it needs that term cleared on every load completion and failure
   path. Raised by the simplicity review of the calibration monitor rewrite.
+- **The muted "disabled" sub-caption under "Input" pushes the title off centre.** While live input
+  is off, `SignalChainView::paint` splits the Input label area to fit the word, so "Input" no longer
+  sits level with "Output". Keep the word, stop it moving the title. Deferred by the pan-knob work
+  (`docs/plans/completed/tone-output-pan-knob.md`).
+- **The output meter is a single bar, so a hard pan shows no visible change in the panel.** A
+  stereo meter is a separate decision; the pan knob ships without one. Same source.
+- **The Ctrl+S gap in the Tone Designer.** Ctrl+S belongs to the disabled Save Project, and Save
+  Tone has no shortcut. Same source.
+- **An Audio menu with "Audio Device Settings..." and "Calibrate Input...".** Not needed while the
+  Calibrate button stays, but it would make both reachable from the keyboard. Same source.

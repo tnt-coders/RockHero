@@ -404,25 +404,25 @@ void eraseRemovedAutomation(const PluginRemoveEdit& edit, EditorEditContext& con
     return {};
 }
 
-// Applies an output-gain edit in one direction through the live-rig boundary.
-[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyOutputGainEdit(
-    const OutputGainEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
+// Applies an output-stage edit in one direction through the live-rig boundary.
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyToneOutputEdit(
+    const ToneOutputEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
-    const common::audio::Gain gain =
-        direction == EditorUndoDirection::Undo ? edit.before_gain : edit.after_gain;
-    const common::audio::Gain opposite_gain =
-        direction == EditorUndoDirection::Undo ? edit.after_gain : edit.before_gain;
-    if (gain == opposite_gain)
+    const common::audio::ToneOutput output =
+        direction == EditorUndoDirection::Undo ? edit.before : edit.after;
+    const common::audio::ToneOutput opposite =
+        direction == EditorUndoDirection::Undo ? edit.after : edit.before;
+    if (output == opposite)
     {
         return std::unexpected{EditorUndoFailureCode::NoNetMutation};
     }
 
-    if (const auto applied = context.live_rig.setOutputGain(gain); !applied.has_value())
+    if (const auto applied = context.live_rig.setToneOutput(output); !applied.has_value())
     {
         return std::unexpected{EditorUndoFailureCode::RepairedFailure};
     }
 
-    context.output_gain_db = gain.db;
+    context.tone_output = output;
     return {};
 }
 
@@ -543,20 +543,25 @@ std::string PluginStateEdit::label() const
     return text;
 }
 
-std::expected<void, EditorUndoFailureCode> OutputGainEdit::undo(EditorEditContext& context) const
+std::expected<void, EditorUndoFailureCode> ToneOutputEdit::undo(EditorEditContext& context) const
 {
-    return applyOutputGainEdit(*this, EditorUndoDirection::Undo, context);
+    return applyToneOutputEdit(*this, EditorUndoDirection::Undo, context);
 }
 
-std::expected<void, EditorUndoFailureCode> OutputGainEdit::redo(EditorEditContext& context) const
+std::expected<void, EditorUndoFailureCode> ToneOutputEdit::redo(EditorEditContext& context) const
 {
-    return applyOutputGainEdit(*this, EditorUndoDirection::Redo, context);
+    return applyToneOutputEdit(*this, EditorUndoDirection::Redo, context);
 }
 
-std::string OutputGainEdit::label() const
+std::string ToneOutputEdit::label() const
 {
-    // Report the value the gain became, so history reads "Set Output Gain to -6 dB".
-    return "Set Output Gain to " + std::format("{}", after_gain.db) + " dB";
+    // Report the value the moved control became, so history reads "Set Output Gain to -6 dB" or
+    // "Set Pan to L35". One control moves per gesture; a level move is named first if both did.
+    if (before.level != after.level)
+    {
+        return "Set Output Gain to " + std::format("{}", after.level.db) + " dB";
+    }
+    return "Set Pan to " + common::audio::formatPan(after.pan);
 }
 
 } // namespace rock_hero::editor::core

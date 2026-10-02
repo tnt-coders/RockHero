@@ -164,10 +164,10 @@ struct LoadedSectionEditor
     }
 
     // The published output fader value, which a preview moves ahead of any committed value.
-    [[nodiscard]] double publishedOutputGainDb() const
+    [[nodiscard]] double publishedOutputLevelDb() const
     {
         const EditorViewState* const state = stateOrNull(view.last_state);
-        return state != nullptr ? state->signal_chain.output_gain.db : 0.0;
+        return state != nullptr ? state->signal_chain.output.level.db : 0.0;
     }
 
     // True while the published state offers an undo, which is how a refusal proves it pushed
@@ -467,22 +467,25 @@ TEST_CASE("Section rename leaves the audible tone's published state alone", "[co
     // Drag the output fader without releasing. FakeLiveRig answers setAudibleTone with its canned
     // load result rather than the gain it was just set to (docs/tracking/backlog.md), so the canned
     // result is made to agree with the fader — which is what the real rig reports back.
-    editor.controller.onOutputGainPreviewChanged(-6.0);
-    editor.live_rig.next_load_result.output_gain = common::audio::Gain{-6.0};
+    editor.controller.onToneOutputPreviewChanged(
+        common::audio::ToneOutput{.level = common::audio::Gain{-6.0}, .pan = common::audio::Pan{}});
+    editor.live_rig.next_load_result.output =
+        common::audio::ToneOutput{.level = common::audio::Gain{-6.0}, .pan = common::audio::Pan{}};
 
     editor.controller.onSongSectionSelected(downbeat(2));
     editor.controller.onSongSectionRenameRequested(downbeat(2), "Chorus");
     REQUIRE(editor.sections().front().name == "Chorus");
 
     CHECK(editor.publishedPlugins() == chain_before);
-    CHECK(std::is_eq(editor.publishedOutputGainDb() <=> -6.0));
+    CHECK(std::is_eq(editor.publishedOutputLevelDb() <=> -6.0));
 
     // Releasing the fader records the whole drag as one entry from the value it started at, which
     // is only possible while the preview survived the rename. Undo therefore answers the fader, not
     // the rename.
-    editor.controller.onOutputGainChanged(-6.0);
+    editor.controller.onToneOutputChanged(
+        common::audio::ToneOutput{.level = common::audio::Gain{-6.0}, .pan = common::audio::Pan{}});
     editor.controller.onUndoRequested();
-    CHECK(std::is_eq(editor.publishedOutputGainDb() <=> 0.0));
+    CHECK(std::is_eq(editor.publishedOutputLevelDb() <=> 0.0));
     CHECK(editor.sections().front().name == "Chorus");
 }
 
