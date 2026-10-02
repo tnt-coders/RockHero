@@ -122,10 +122,7 @@ which `rock_hero_common_audio` links publicly and the guide's generator links al
 
 Why live input is off is worded once, by `liveInputStatusText` beside `LiveInputMonitoringStatus`
 (`common/audio` `input/live_input_monitoring_status.h`): the editor's signal-chain message and the
-game's `LiveInputOff` refusal both take their sentence from it, never their own copy. The one
-exception is an unready session on a calibrated route, which the shared sentence can only call
-"not ready": the editor knows why, so its projection (`input_calibration_projection.cpp`) says
-whether the audio settings window holds the route or the project's audio is still loading.
+game's `LiveInputOff` refusal both take their sentence from it, never their own copy.
 
 # Known interfaces
 

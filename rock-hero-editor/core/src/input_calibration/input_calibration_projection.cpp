@@ -12,13 +12,10 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Says why live input is off, or nothing while it plays. The route's own state comes first, since
-// it is what the player can fix; a calibrated route then reports what the gate is doing, with the
-// editor's two reasons for an unready session named instead of the shared generic sentence. A
-// fault keeps its own sentence, so an unreadable store is not reported as a backend failure.
+// Words the editor's four-way status with the one shared authority. A fault keeps its own
+// sentence, so an unreadable store is not reported as a backend failure.
 [[nodiscard]] std::string_view disabledMessageFor(
-    InputCalibrationStatus status, common::audio::LiveInputMonitoringStatus monitor_status,
-    bool settings_open)
+    InputCalibrationStatus status, common::audio::LiveInputMonitoringStatus monitor_status)
 {
     switch (status)
     {
@@ -38,12 +35,7 @@ namespace
         }
         case InputCalibrationStatus::Calibrated:
         {
-            if (monitor_status != common::audio::LiveInputMonitoringStatus::SessionNotReady)
-            {
-                return common::audio::liveInputStatusText(monitor_status);
-            }
-            return settings_open ? "Live input is paused while the audio settings are open."
-                                 : "Live input starts once the project's audio has loaded.";
+            return {};
         }
     }
 
@@ -77,8 +69,7 @@ InputCalibrationProjection makeInputCalibrationProjection(
         .status = status,
         .calibrate_enabled = monitor.route().has_value() && !settings_open,
         .audio_device_settings_enabled = !prompt_route.has_value() && !settings_open,
-        .disabled_message =
-            std::string{disabledMessageFor(status, monitor.status(), settings_open)},
+        .disabled_message = std::string{disabledMessageFor(status, monitor.status())},
         .prompt = std::nullopt,
     };
 

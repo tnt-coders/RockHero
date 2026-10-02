@@ -27,7 +27,10 @@ struct InputCalibrationProjection
     /*! \brief True when audio-device settings may be opened. */
     bool audio_device_settings_enabled{true};
 
-    /*! \brief Disabled-state message shown by the signal-chain panel. */
+    /*!
+    \brief Why the current input route cannot play live, or empty when it can; see
+    SignalChainViewState::disabled_message.
+    */
     std::string disabled_message;
 
     /*! \brief Prompt request shown by the editor view, if calibration UI should be visible. */

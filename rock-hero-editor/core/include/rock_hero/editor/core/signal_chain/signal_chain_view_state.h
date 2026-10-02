@@ -57,7 +57,11 @@ struct SignalChainViewState
     /*! \brief Enables or disables the manual calibrate command. */
     bool input_calibrate_enabled{false};
 
-    /*! \brief Message shown when live guitar audition is disabled. */
+    /*!
+    \brief Why the current input route cannot play live (no device, no calibration, a fault), or
+    empty when it can. A session holding live input off for a moment (the settings window open,
+    the project's audio loading) is not a route problem and leaves it empty.
+    */
     std::string disabled_message{};
 
     /*! \brief Enables or disables the output gain control. */
