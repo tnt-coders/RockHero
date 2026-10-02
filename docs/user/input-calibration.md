@@ -13,8 +13,8 @@ time.
 
 # Calibrating
 
-There are two ways to a gain. Typing your audio device's gain is the most accurate; measuring it by
-playing works for any device but is an estimate.
+You can set the gain in two ways. Typing your audio device's gain is the most accurate. Measuring it
+by playing works with any device, but gives an estimate.
 
 1. Select the correct input device and input channel in the audio settings.
 2. Find your device in **Known Audio Devices** below, set it up exactly as its row says, type its
