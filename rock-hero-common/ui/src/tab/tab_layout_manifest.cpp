@@ -41,15 +41,11 @@ namespace
     {
         return false;
     }
-    return std::visit(
-        common::core::Overloaded{
-            [&note](const common::core::KeyframeStopMark& stop) {
-                return common::core::linkedKeyframe(note.slides[stop.stop]);
-            },
-            [](const common::core::KeyframeRestMark&) { return true; },
-            [](const common::core::KeyframeCurveMark&) { return false; },
-        },
-        keyframe->mark);
+    if (const auto* const stop = std::get_if<common::core::KeyframeStopMark>(&keyframe->mark))
+    {
+        return common::core::linkedKeyframe(note.slides[stop->stop]);
+    }
+    return std::holds_alternative<common::core::KeyframeRestMark>(keyframe->mark);
 }
 
 // The box of a bend chip centred on a column: half a tail above the curve at the amount it prints,

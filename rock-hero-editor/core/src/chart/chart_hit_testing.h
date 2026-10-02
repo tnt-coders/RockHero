@@ -82,8 +82,8 @@ struct ChartBendChipHit
     \param rhs Right-hand hit.
     \return True when both name the same object's chip.
     */
-    friend constexpr bool operator==(
-        const ChartBendChipHit& lhs, const ChartBendChipHit& rhs) noexcept = default;
+    friend constexpr bool operator==(const ChartBendChipHit& lhs, const ChartBendChipHit& rhs) =
+        default;
 };
 
 /*!

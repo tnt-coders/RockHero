@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -168,6 +169,9 @@ try
 }
 catch (const std::exception& error)
 {
-    std::cerr << "rock_hero_calibration_doc: " << error.what() << '\n';
+    // fputs cannot throw, where a stream insertion could.
+    static_cast<void>(std::fputs("rock_hero_calibration_doc: ", stderr));
+    static_cast<void>(std::fputs(error.what(), stderr));
+    static_cast<void>(std::fputs("\n", stderr));
     return 1;
 }
