@@ -89,7 +89,8 @@ constexpr ArgbColor g_lit_lane_dotted_color = 0x40185C94;
 // the edge, gone half a band outside, full half a band inside), in world units. The centered
 // placement carries the lit region's width; this constant alone sets settled-edge sharpness.
 constexpr double g_window_light_falloff = 0.55;
-// How strongly the light dims while it sweeps through a transition, at full steepness. The
+// How strongly the light dims while it sweeps through a transition, at full steepness, for a
+// window that leaves every lane it lit. The
 // motion-dim model, chosen over widening the edges, which either bulges the silhouette or
 // collapses the lit core: the exterior shape keeps the settled fade cross-section along the
 // entire eased contour, and the transition's fading lives in overall brightness instead — a
@@ -2150,7 +2151,9 @@ struct HighwayRenderer::Impl
     window is travelling (highwayHandLegAt, the one lookup the window itself eases through) dims
     along a sin-squared bell over its own progress — full brightness at the ramp's start and end,
     deepest exactly mid-transition — whose depth scales with the leg's overall steepness on the
-    board (lateral travel over the z its ramp spans), so a slow glide keeps most of its glow.
+    board (lateral travel over the z its ramp spans), so a slow glide keeps most of its glow, and
+    with the share of the window that leaves the lanes it lit: lanes both windows cover stay lit
+    throughout, so a one-fret shift of a wide window dims far less than a jump clear of it.
     Outside every leg the light is undimmed.
     */
     [[nodiscard]] double motionDim(
@@ -2174,7 +2177,16 @@ struct HighwayRenderer::Impl
         const double slope =
             std::max(travel_x(from.low_line, to.low_line), travel_x(from.high_line, to.high_line)) /
             common::core::highwayTimeToZ(to.ramp_seconds, scroll_speed, metrics);
-        const double depth = g_window_morph_dim * (slope / std::sqrt(1.0 + (slope * slope)));
+        // A lane both of the leg's windows cover stays lit throughout; only the rest of the window
+        // sweeps, so the dim is the window's average over its lanes. Every window is at least one
+        // fret line wide (FHP widths, and the picking hand's one-lane light), so the width is
+        // never zero.
+        const double shared = std::max(
+            0.0, std::min(from.high_line, to.high_line) - std::max(from.low_line, to.low_line));
+        const double sweeping_share =
+            1.0 - (shared / std::max(from.high_line - from.low_line, to.high_line - to.low_line));
+        const double depth =
+            g_window_morph_dim * sweeping_share * (slope / std::sqrt(1.0 + (slope * slope)));
         const double bell = std::sin(std::numbers::pi * leg->progress);
         return 1.0 - (depth * bell * bell);
     }

@@ -498,8 +498,10 @@ of the picking hand reads as jarring (sighted twice, 2026-09-25 included).
 **THE BRIGHTNESS RULE** is the one formula every layer draws, at any fret line and instant:
 `max over lights of coverage(highwayLitWindowAt(track, stretch, t), line) ×
 highwayLightLevel(stretch, t) × motionDim(track, highwayLitTrackTime(track, stretch, t))`, where the
-motion dim is the sin-squared bell a window sweeping across lanes dims by, whichever hand moves it —
-read off the leg `highwayHandLegAt` finds, the same lookup the window eases through. Each light
+motion dim is the sin-squared bell a window sweeping across lanes dims by, whichever hand moves it,
+as deep as the leg is steep and as the share of the window that leaves its lanes (lanes both
+windows cover stay lit) — read off the leg `highwayHandLegAt` finds, the same lookup the window
+eases through. Each light
 also contributes what the line keeps after the light LEFT it, and the larger of the two terms
 wins: `highwayLitLineAfterglowAt` is the LEAVING RULE, under which a line goes dark over the layer's
 decay from the instant its light leaves it — at the release for a light still standing on it, or at

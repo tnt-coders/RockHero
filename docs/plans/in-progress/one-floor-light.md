@@ -54,8 +54,8 @@ hand on its own code path is a defect.
   merge, never a branch. Sighted the same day: with one decay for every layer the lane-border
   ribbons flickered on every right-hand strike, so the ribbon layer's 0.45 s decay is back
   (section 2.4).
-- **The motion dim (D2)** is universal: a light moving across lanes dims by its slope, whichever
-  hand moves it.
+- **The motion dim (D2)** is universal: a light moving across lanes dims by its slope and the share
+  of its lanes it leaves, whichever hand moves it.
 - **The soft edge (D3)** is drawn in full for both hands. The tap light today ends in a hard 50%
   line exactly on its edge (it draws only the slots it touches, and the shader's band straddles
   the edge), which is the "missing side highlight" the user saw beside a tapped chord.
