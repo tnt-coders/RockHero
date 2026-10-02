@@ -99,9 +99,17 @@ public:
         // Published before the thread starts and cleared after it joins, so the render loop reads
         // it without a lock.
         m_callback = callback;
-        static_cast<void>(startRealtimeThread(
+        // Linux grants a realtime thread only to a user with an rtprio allowance. Without one the
+        // device still has to clock the engine, so it falls back to the ordinary high-priority
+        // thread JUCE's own ALSA device runs on.
+        const juce::Thread::RealtimeOptions realtime =
             juce::Thread::RealtimeOptions{}.withApproximateAudioProcessingTime(
-                g_null_block_size, g_null_sample_rate_hz)));
+                g_null_block_size, g_null_sample_rate_hz);
+        if (!startRealtimeThread(realtime) && !startThread(juce::Thread::Priority::high))
+        {
+            m_callback = nullptr;
+            callback->audioDeviceStopped();
+        }
     }
 
     void stop() override
