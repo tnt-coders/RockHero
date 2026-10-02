@@ -56,25 +56,26 @@ measurement puts the playing's ceiling on.
     return peakVoltsToDbu(pickupType(pickups).hard_strum_peak_volts) - inputLevelReferenceDbu();
 }
 
-/*! \brief Stable failure reasons for input calibration measurement. */
-enum class InputCalibrationErrorCode : std::uint8_t
+/*! \brief Why a calibration measurement ended without a gain. */
+enum class InputCalibrationFailure : std::uint8_t
 {
-    /*! \brief Measurement did not contain enough signal to produce a useful gain. */
+    /*! \brief Too little of the listen was heard as playing to set a gain from. */
     NoUsableSignal,
 
-    /*! \brief Measurement clipped and the hardware input gain must be lowered. */
+    /*! \brief The input clipped, which no gain can undo; the hardware input gain must come down. */
     InputClipped,
+
+    /*! \brief The route changed or the session closed before the measurement finished. */
+    Interrupted,
 };
 
-/*! \brief Recoverable input calibration failure with displayable detail. */
-struct [[nodiscard]] InputCalibrationError
-{
-    /*! \brief Stable error code used by callers for branching. */
-    InputCalibrationErrorCode code{};
-
-    /*! \brief Human-readable diagnostic suitable for UI display. */
-    std::string message;
-};
+/*!
+\brief Words a failure the one way every surface shows it.
+\param failure Why the measurement ended.
+\return A sentence ending in a period, suitable for display.
+*/
+[[nodiscard]] std::string_view inputCalibrationFailureText(
+    InputCalibrationFailure failure) noexcept;
 
 /*! \brief Gain result produced from a successful input calibration measurement. */
 struct [[nodiscard]] InputCalibrationResult
@@ -139,6 +140,17 @@ so a quantized 11.2 dB equals the literal 11.2.
 }
 
 /*!
+\brief Returns a calibration gain in its normal form: rounded to the step and clamped to the
+supported range. Every calibration gain, typed, measured, derived or stored, takes this form.
+\param gain_db Raw calibration gain in decibels.
+\return The normalized gain.
+*/
+[[nodiscard]] inline Gain normalizedInputCalibrationGain(double gain_db) noexcept
+{
+    return clampGain(Gain{quantizeInputCalibrationGainDb(gain_db)});
+}
+
+/*!
 \brief Words a calibration gain the one way every surface shows it, the guide's tables included.
 \param gain_db Calibration gain in decibels.
 \return The quantized gain, signed to one decimal, and "0.0" without a sign for no change.
@@ -154,6 +166,23 @@ the meter's mark: how the strums the pickup types' peaks come from were played.
 {
     return "Strum full chords with a pick, as hard as the loudest part of a song you play.";
 }
+
+/*!
+\brief Returns the one instruction for setting the guitar up before a gain is measured or checked
+against the meter's mark: the setup the pickup types' peaks assume.
+\return Sentences ending in a period.
+*/
+[[nodiscard]] constexpr std::string_view guitarSetupInstructionText() noexcept
+{
+    return "Plug the guitar straight into the instrument (Hi-Z) input, with no pedals in between. "
+           "Turn its volume and tone all the way up and select one pickup.";
+}
+
+/*!
+\brief Words the gain formula against the one reference, for a player typing a gain.
+\return A sentence ending in a period.
+*/
+[[nodiscard]] std::string inputCalibrationGainFormulaText();
 
 /*!
 \brief Returns how often a driver samples the raw input meter during a measurement.
@@ -222,7 +251,7 @@ using InputCalibrationRunning = std::variant<InputCalibrationWaiting, InputCalib
 \brief Outcome of one capture sample: still running at a stage, finished with a result, or failed.
 */
 using InputCalibrationStep =
-    std::variant<InputCalibrationRunning, InputCalibrationResult, InputCalibrationError>;
+    std::variant<InputCalibrationRunning, InputCalibrationResult, InputCalibrationFailure>;
 
 /*!
 \brief Deterministic state machine for one automatic input calibration capture.
@@ -231,7 +260,7 @@ The player plays as hard as they will play in a song. The capture waits, with no
 first window above the listening threshold (ignoring a short settle span first), then listens for a
 fixed span from it and sets the gain so the playing's ceiling lands on the target it was given. A
 clipped window after the settle span fails the capture at once, since no gain can undo a clip at
-the interface. A capture is discarded once a sample returns a result or an error.
+the audio device. A capture is discarded once a sample returns a result or a failure.
 */
 class InputCalibrationCapture final
 {
@@ -271,7 +300,7 @@ not set the gain.
 \return Calibration gain with the ceiling it was set from, or NoUsableSignal when fewer than
         minimumInputCalibrationActiveSampleCount() windows were heard.
 */
-[[nodiscard]] std::expected<InputCalibrationResult, InputCalibrationError>
+[[nodiscard]] std::expected<InputCalibrationResult, InputCalibrationFailure>
 calculateInputCalibration(std::vector<double> active_peak_db, double target_peak_db);
 
 } // namespace rock_hero::common::audio

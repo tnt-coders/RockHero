@@ -64,16 +64,12 @@ InputCalibrationProjection makeInputCalibrationProjection(
     const std::optional<common::audio::InputDeviceIdentity>& prompt_route, bool settings_open)
 {
     const InputCalibrationStatus status = inputCalibrationStatusFor(monitor);
-    const bool audition_available =
-        status == InputCalibrationStatus::Calibrated && !prompt_route.has_value() && !settings_open;
 
     InputCalibrationProjection projection{
         .status = status,
         .calibrate_enabled = monitor.route().has_value() && !settings_open,
         .audio_device_settings_enabled = !prompt_route.has_value() && !settings_open,
-        .disabled_message = audition_available
-                                ? std::string{}
-                                : std::string{disabledMessageFor(status, monitor.status())},
+        .disabled_message = std::string{disabledMessageFor(status, monitor.status())},
         .prompt = std::nullopt,
     };
 

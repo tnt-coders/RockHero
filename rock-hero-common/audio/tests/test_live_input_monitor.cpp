@@ -75,16 +75,23 @@ struct Harness
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         const LiveInputSample reading = harness.monitor.sample(g_ready);
-        if (!reading.measurement.has_value())
-        {
-            return InputCalibrationFailed{"The measurement was not running."};
-        }
-        if (!std::holds_alternative<InputCalibrationRunning>(*reading.measurement))
+        REQUIRE(reading.measurement.has_value());
+        if (reading.measurement.has_value() &&
+            !std::holds_alternative<InputCalibrationRunning>(*reading.measurement))
         {
             return *reading.measurement;
         }
     }
-    return InputCalibrationFailed{"The measurement did not finish."};
+    FAIL("The measurement did not finish.");
+    return InputCalibrationRunning{InputCalibrationWaiting{}};
+}
+
+// Reports whether a measurement ended without a gain, for the given reason.
+[[nodiscard]] bool endedWith(
+    const InputCalibrationProgress& progress, InputCalibrationFailure failure)
+{
+    const auto* const ended = std::get_if<InputCalibrationFailure>(&progress);
+    return ended != nullptr && *ended == failure;
 }
 
 } // namespace
@@ -248,8 +255,8 @@ TEST_CASE("LiveInputMonitor cancel restores the stored calibration", "[audio][li
     CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
 
-// A finished measurement reports its gain and pickups, stores nothing and hands the route back;
-// committing the reported gain then stores it for the route and arms it.
+// A finished measurement reports its gain and the route it heard, stores nothing and hands the
+// route back; committing the reported gain then stores it for that route and arms it.
 TEST_CASE("LiveInputMonitor reports a finished measurement", "[audio][live-input]")
 {
     Harness harness;
@@ -261,32 +268,38 @@ TEST_CASE("LiveInputMonitor reports a finished measurement", "[audio][live-input
     const auto* const measured = std::get_if<InputCalibrationMeasured>(&progress);
     REQUIRE(measured != nullptr);
     CHECK_THAT(measured->gain.db, Catch::Matchers::WithinULP(12.7, 0));
+    CHECK(measured->route == harness.route);
     CHECK(harness.store.input_calibrations.empty());
     CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
     CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);
 
     REQUIRE(
-        harness.monitor.commitCalibration(harness.route, measured->gain.db, g_ready).has_value());
+        harness.monitor.commitCalibration(measured->route, measured->gain, g_ready).has_value());
     REQUIRE(harness.store.input_calibrations.size() == 1);
     CHECK(harness.store.input_calibrations.front().input_device_identity == harness.route);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
     CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
 }
 
-// The same playing measured as single-coil pickups stores a gain 6 dB higher than as humbuckers:
-// a single coil's hard strum is taken to be half the voltage.
+// The same playing measured as single-coil pickups yields a lower gain than as humbuckers, by
+// exactly the gap between the two kinds' assumed peaks.
 TEST_CASE("LiveInputMonitor measures against the stated pickups", "[audio][live-input]")
 {
-    Harness single_coil_harness;
-    REQUIRE(
-        single_coil_harness.monitor.beginMeasurement(PickupClass::SingleCoil, g_ready).has_value());
+    const auto measure = [](PickupClass pickups) {
+        Harness harness;
+        REQUIRE(harness.monitor.beginMeasurement(pickups, g_ready).has_value());
+        const InputCalibrationProgress progress =
+            runMeasurement(harness, AudioMeterLevel{.peak_db = -19.5});
+        const auto* const measured = std::get_if<InputCalibrationMeasured>(&progress);
+        REQUIRE(measured != nullptr);
+        return measured != nullptr ? measured->gain.db : 0.0;
+    };
 
-    const InputCalibrationProgress progress =
-        runMeasurement(single_coil_harness, AudioMeterLevel{.peak_db = -19.5});
-
-    const auto* const measured = std::get_if<InputCalibrationMeasured>(&progress);
-    REQUIRE(measured != nullptr);
-    CHECK_THAT(measured->gain.db, Catch::Matchers::WithinULP(6.7, 0));
+    const double expected_gap = inputCalibrationTargetPeakDb(PickupClass::Humbucker) -
+                                inputCalibrationTargetPeakDb(PickupClass::SingleCoil);
+    CHECK_THAT(
+        measure(PickupClass::Humbucker) - measure(PickupClass::SingleCoil),
+        Catch::Matchers::WithinAbs(expected_gap, 0.1));
 }
 
 // A measurement that fails (here, on a clipped input) hands the route back to the stored
@@ -300,7 +313,7 @@ TEST_CASE("LiveInputMonitor hands the route back after a failed measurement", "[
     const InputCalibrationProgress progress =
         runMeasurement(harness, AudioMeterLevel{.peak_db = 3.0, .clipping = true});
 
-    CHECK(std::holds_alternative<InputCalibrationFailed>(progress));
+    CHECK(endedWith(progress, InputCalibrationFailure::InputClipped));
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
     CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
@@ -323,7 +336,7 @@ TEST_CASE("LiveInputMonitor commits a manual calibration", "[audio][live-input]"
 {
     Harness harness;
 
-    REQUIRE(harness.monitor.commitCalibration(harness.route, 3.1, g_ready).has_value());
+    REQUIRE(harness.monitor.commitCalibration(harness.route, Gain{3.1}, g_ready).has_value());
 
     REQUIRE(harness.store.input_calibrations.size() == 1);
     CHECK_THAT(
@@ -340,7 +353,7 @@ TEST_CASE("LiveInputMonitor keeps the stored calibration when a save fails", "[a
     harness.store.next_save_input_calibration_error =
         AudioConfigError{AudioConfigErrorCode::CouldNotSave, "disk full"};
 
-    const auto committed = harness.monitor.commitCalibration(harness.route, 8.0, g_ready);
+    const auto committed = harness.monitor.commitCalibration(harness.route, Gain{8.0}, g_ready);
 
     REQUIRE_FALSE(committed.has_value());
     CHECK(committed.error().code == LiveInputMonitorErrorCode::CalibrationStoreUnavailable);
@@ -355,7 +368,7 @@ TEST_CASE("LiveInputMonitor commits a calibration the backend refuses", "[audio]
     Harness harness;
     harness.live_input.next_set_input_gain_error = routeUnavailable();
 
-    REQUIRE(harness.monitor.commitCalibration(harness.route, 4.0, g_ready).has_value());
+    REQUIRE(harness.monitor.commitCalibration(harness.route, Gain{4.0}, g_ready).has_value());
 
     CHECK(harness.store.input_calibrations.size() == 1);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::BackendUnavailable);
@@ -376,7 +389,7 @@ TEST_CASE("LiveInputMonitor session close ends monitoring and measurement", "[au
     REQUIRE(ended.measurement.has_value());
     if (ended.measurement.has_value())
     {
-        CHECK(std::holds_alternative<InputCalibrationFailed>(*ended.measurement));
+        CHECK(endedWith(*ended.measurement, InputCalibrationFailure::Interrupted));
     }
     CHECK_FALSE(harness.monitor.sample(g_not_ready).measurement.has_value());
     CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
@@ -399,8 +412,34 @@ TEST_CASE("LiveInputMonitor reports an interrupt across gate runs", "[audio][liv
     REQUIRE(ended.measurement.has_value());
     if (ended.measurement.has_value())
     {
-        CHECK(std::holds_alternative<InputCalibrationFailed>(*ended.measurement));
+        CHECK(endedWith(*ended.measurement, InputCalibrationFailure::Interrupted));
     }
+    CHECK_FALSE(harness.monitor.sample(g_ready).measurement.has_value());
+}
+
+// A measurement hears one route throughout: another route ends it, reported once, and the gate
+// takes the new route. An unknown route (a refresh in flight) adds only silence, so it does not.
+TEST_CASE("LiveInputMonitor interrupts a measurement whose route changed", "[audio][live-input]")
+{
+    Harness harness;
+    REQUIRE(harness.monitor.beginMeasurement(PickupClass::Humbucker, g_ready).has_value());
+
+    harness.devices.current_input_identity.reset();
+    const LiveInputSample unknown = harness.monitor.sample(g_ready);
+    REQUIRE(unknown.measurement.has_value());
+    if (unknown.measurement.has_value())
+    {
+        CHECK(std::holds_alternative<InputCalibrationRunning>(*unknown.measurement));
+    }
+
+    harness.devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
+    const LiveInputSample changed = harness.monitor.sample(g_ready);
+    REQUIRE(changed.measurement.has_value());
+    if (changed.measurement.has_value())
+    {
+        CHECK(endedWith(*changed.measurement, InputCalibrationFailure::Interrupted));
+    }
+    CHECK(harness.monitor.route() == harness.devices.current_input_identity);
     CHECK_FALSE(harness.monitor.sample(g_ready).measurement.has_value());
 }
 

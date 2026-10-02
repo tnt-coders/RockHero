@@ -19,6 +19,15 @@ common::audio::LiveInputMonitoringContext EditorController::Impl::monitoringCont
     };
 }
 
+// Marks the project's audio not ready and takes live input off before the rig is replaced. The
+// gate is off whatever monitoringContext() says, since a resting Tone Designer rig would otherwise
+// keep it on while the rig under it is torn down.
+void EditorController::Impl::beginRigReplacement()
+{
+    m_project_audio_ready = false;
+    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
+}
+
 // The one projection of the monitor and the editor's own calibration and settings windows, read by
 // the view derivation, the action gates and the handlers alike.
 InputCalibrationProjection EditorController::Impl::inputCalibrationProjection() const
@@ -107,7 +116,8 @@ std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl
         }};
     }
 
-    auto committed = m_live_input_monitor.commitCalibration(*route, gain_db, monitoringContext());
+    auto committed = m_live_input_monitor.commitCalibration(
+        *route, common::audio::Gain{gain_db}, monitoringContext());
     if (committed.has_value())
     {
         // A stored gain is what the prompt was for, so it ends here.
@@ -117,8 +127,8 @@ std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl
     return committed;
 }
 
-// Closes the calibration prompt after Apply or Cancel; live input stays off unless the route is
-// calibrated.
+// Closes the prompt without storing (Cancel or the window's close button), ending any measurement;
+// live input stays off unless the route is calibrated.
 void EditorController::Impl::onInputCalibrationClosed()
 {
     m_live_input_monitor.cancelMeasurement(monitoringContext());

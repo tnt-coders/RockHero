@@ -434,9 +434,7 @@ TEST_CASE(
     audio.next_set_active_arrangement_result = true;
     controller.attachView(view);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-    controller.onInputCalibrationRequested();
-    REQUIRE(controller.onInputCalibrationApplied(0.0).has_value());
-    controller.onInputCalibrationClosed();
+    calibrateCurrentRoute(controller);
     controller.onToneRegionSelected(g_region);
 
     REQUIRE(view.last_state.has_value());

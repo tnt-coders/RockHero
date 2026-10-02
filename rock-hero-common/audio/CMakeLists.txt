@@ -28,12 +28,10 @@ target_sources(
             src/engine/engine_tone_automation.cpp
             src/engine/engine_tone_timeline.cpp
             src/engine/engine_transport.cpp
-            src/input/input_calibration.cpp
             src/input/live_input_error.cpp
             src/input/live_input_monitor.cpp
             src/input/live_input_monitor_error.cpp
             src/input/live_input_monitoring_status.cpp
-            src/input/pickup_types.cpp
             src/live_rig/live_rig_error.cpp
             src/live_rig/tone_document.cpp
             src/live_rig/tone_document.h
@@ -92,7 +90,7 @@ target_include_directories(
 # and libebur128 are normalization-only private dependencies.
 target_link_libraries(
     rock_hero_common_audio
-    PUBLIC rock_hero::common::core rock_hero::juce_gui_basics
+    PUBLIC rock_hero::common::audio_calibration rock_hero::common::core rock_hero::juce_gui_basics
     PRIVATE rock_hero::build_policy
             rock_hero::juce_audio_devices
             rock_hero::juce_audio_formats
@@ -105,23 +103,35 @@ target_link_libraries(
             rock_hero::tracktion_graph
             libebur128::ebur128)
 
+# The calibration policy (the reference, the pickup table, the capture, the shared sentences) needs
+# none of the audio library's dependencies, so it is a library of its own: the audio library, the
+# known audio devices and the user guide's generator all link the one copy.
+add_library(rock_hero_common_audio_calibration STATIC src/input/input_calibration.cpp
+                                                      src/input/pickup_types.cpp)
+add_library(rock_hero::common::audio_calibration ALIAS rock_hero_common_audio_calibration)
+target_include_directories(
+    rock_hero_common_audio_calibration
+    PUBLIC include
+    PRIVATE include/rock_hero/common/audio)
+target_link_libraries(rock_hero_common_audio_calibration PRIVATE rock_hero::build_policy)
+
 # The known audio devices are documentation data: only the user guide's generator reads them (the
 # calibration window has no device list), so they live beside the generator, out of the shipped
 # library, with the tests that hold their rows to the reference.
-add_library(rock_hero_known_interfaces STATIC tools/known_interfaces.cpp)
-target_include_directories(rock_hero_known_interfaces PUBLIC tools include)
-target_link_libraries(rock_hero_known_interfaces PRIVATE rock_hero::build_policy)
+add_library(rock_hero_common_audio_known_interfaces STATIC tools/known_interfaces.cpp)
+add_library(rock_hero::common::audio_known_interfaces ALIAS rock_hero_common_audio_known_interfaces)
+target_include_directories(rock_hero_common_audio_known_interfaces PUBLIC tools)
+target_link_libraries(
+    rock_hero_common_audio_known_interfaces
+    PUBLIC rock_hero::common::audio_calibration
+    PRIVATE rock_hero::build_policy)
 
 # The user guide's calibration tables and figures are generated from the code, so the guide never
-# restates a figure the code owns. They need none of the library's dependencies, so the few source
-# files they read compile a second time into a small tool the docs targets run first.
+# restates a figure the code owns. The docs targets build and run the generator first.
 if(TARGET docs)
-    add_executable(
-        rock_hero_calibration_doc tools/calibration_doc_main.cpp src/input/input_calibration.cpp
-                                  src/input/pickup_types.cpp)
-    target_include_directories(rock_hero_calibration_doc PRIVATE include/rock_hero/common/audio src)
-    target_link_libraries(rock_hero_calibration_doc PRIVATE rock_hero_known_interfaces
-                                                            rock_hero::build_policy)
+    add_executable(rock_hero_calibration_doc tools/calibration_doc_main.cpp)
+    target_link_libraries(rock_hero_calibration_doc
+                          PRIVATE rock_hero::common::audio_known_interfaces rock_hero::build_policy)
 
     set(ROCK_HERO_CALIBRATION_DOC_DIR "${CMAKE_BINARY_DIR}/docs/generated")
     add_custom_command(

@@ -160,9 +160,7 @@ namespace
 void EditorController::Impl::openProject(
     const std::filesystem::path& file, bool clear_last_open_project_on_failure)
 {
-    m_project_audio_ready = false;
-    // The rig is about to be replaced, so the gate is off whatever monitoringContext() says.
-    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
+    beginRigReplacement();
 
     auto state = std::make_shared<OpenTaskState>();
     state->file = file;
@@ -385,9 +383,7 @@ void EditorController::Impl::reportProjectLoadNotices()
 // shape as openProject(): busy + worker dispatch here, commit in completeImportSongSource().
 void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
-    m_project_audio_ready = false;
-    // The rig is about to be replaced, so the gate is off whatever monitoringContext() says.
-    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
+    beginRigReplacement();
 
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
@@ -868,9 +864,7 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::ExitApplication 
 // discards itself rather than committing on top of a now-empty session.
 bool EditorController::Impl::closeProject(bool reenter_tone_designer)
 {
-    m_project_audio_ready = false;
-    // The rig is about to be replaced, so the gate is off whatever monitoringContext() says.
-    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
+    beginRigReplacement();
 
     // Close resets to the resting state: the designer flag drops before teardown so the tail can
     // re-enter with a fresh clean document and passthrough rig (skipped only on app exit). A

@@ -891,6 +891,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::audio::LiveInputMonitoringContext monitoringContext() const;
     [[nodiscard]] InputCalibrationProjection inputCalibrationProjection() const;
     void refreshLiveInput();
+    void beginRigReplacement();
     void openCalibrationPrompt();
     void clearActiveArrangementBestEffort(std::string_view context);
     void updateView();

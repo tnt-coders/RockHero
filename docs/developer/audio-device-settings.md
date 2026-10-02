@@ -81,12 +81,21 @@ Both products run the strum measurement the same way: `LiveInputMonitor::beginMe
 while a measurement runs, an `InputCalibrationProgress`: still running, either waiting for the first
 strum (`InputCalibrationWaiting`, with no count: the wait has no limit, and the driver ends a
 measurement nobody plays) or listening with the windows it has left (`InputCalibrationListening`;
-the editor's countdown reads them, never a count of its own); a measured gain; or a failure. A
-measurement only reports its gain (`InputCalibrationMeasured`) and hands the route back to the
-gate; storing it is the driver's decision, through the one store path `commitCalibration`: the
-editor's window on Apply, the game's setup at once. The measurement listens to the player's hardest
-playing for a fixed span from the first window it hears and sets the gain so the playing's
-ceiling, a high percentile of the window peaks, lands on `inputCalibrationTargetPeakDb(pickups)`:
+the editor's countdown reads them, never a count of its own); a measured gain; or an
+`InputCalibrationFailure` (no usable signal, a clip, or an interruption), worded once by
+`inputCalibrationFailureText`. A measurement only reports its gain, with the route it heard
+(`InputCalibrationMeasured`), and hands the route back to the gate; storing it is the driver's
+decision, through the one store path `commitCalibration(route, gain)`: the editor's window on
+Apply, the game's setup at once, for the measured route. A measurement hears one route
+throughout: `sample()` reads the route live, and a different route ends the measurement as
+interrupted; an unknown route (a device refresh in flight) only adds silence, so it does not.
+Every calibration gain takes one normal form, `normalizedInputCalibrationGain()` (rounded to the
+slider's step, clamped to the range): the measurement's result, a known device's gain, the
+window's typed gain and, as the fixpoint, every record the store writes.
+
+The measurement listens to the player's hardest playing for a fixed span from the first window it
+hears and sets the gain so the playing's ceiling, a high percentile of the window peaks, lands on
+`inputCalibrationTargetPeakDb(pickups)`:
 where a hard strum on the stated `PickupClass` lands, from that kind's authored
 `hard_strum_peak_volts` and the one reference, `inputLevelReferenceDbu()`
 (`input/input_calibration.h`).
@@ -103,9 +112,13 @@ takes the pickups and keeps them with the measurement, and each finished measure
 `pickups`, the raw `ceiling_peak_db` and the gain. The log states facts, not volts: volts need the
 interface's true full scale, which is what the measurement estimates. On an interface with a known
 figure, volts = its full-scale peak volts x 10^(ceiling_peak_db / 20), which is how a run re-centres
-a row's `hard_strum_peak_volts`. A measurement a gate run ended (a device change, a session
-closing) reports itself as a failure at the next sample, once, so neither driver keeps its own
-record of having started one.
+a row's `hard_strum_peak_volts`. A measurement a gate run or a route change ended reports
+`Interrupted` at the next sample, once, so neither driver keeps its own record of having started
+one.
+
+The calibration policy (`input/input_calibration.cpp`, `input/pickup_types.cpp`) needs none of the
+audio library's dependencies, so it builds as its own `rock_hero_common_audio_calibration` library,
+which `rock_hero_common_audio` links publicly and the guide's generator links alone.
 
 Why live input is off is worded once, by `liveInputStatusText` beside `LiveInputMonitoringStatus`
 (`common/audio` `input/live_input_monitoring_status.h`): the editor's signal-chain message and the
@@ -121,29 +134,31 @@ and `knownInterfaceBasisText()` words how far to trust it. No row stores a gain.
 
 The table is documentation data. The calibration window has no device list, so only the user
 guide reads the rows, and they live beside its generator in `common/audio` `tools/`
-(`known_interfaces.h`, built as the small `rock_hero_known_interfaces` library that the generator
-and `test_known_interfaces.cpp` link), out of the shipped library. The window last carried a device
-chooser at `97ffea19` ("Let the measurement report its gain; Apply stores and closes"); it arrived
-in `6c96a0b5` ("Let the player choose their interface in the calibration window") and left in
-`98b22cf8` ("Made input calibration one fixed-size screen"). The subjects find the commits if
-history is rewritten. Bringing a chooser back starts from that commit and moves the table back into
-`common/audio` `input/`.
+(`known_interfaces.h`, built as the small `rock_hero_common_audio_known_interfaces` library that
+the generator and `test_known_interfaces.cpp` link), out of the shipped library. The window last
+carried a device chooser at `97ffea19` ("Let the measurement report its gain; Apply stores and
+closes"); it arrived in `6c96a0b5` ("Let the player choose their interface in the calibration
+window") and left in `98b22cf8` ("Made input calibration one fixed-size screen"). The subjects
+find the commits if history is rewritten. Bringing a chooser back starts from that commit and
+moves the table back into `common/audio` `input/`.
 
 The user guide copies no figure the code owns. `rock_hero_calibration_doc`
 (`common/audio` `tools/calibration_doc_main.cpp`), which the docs targets build and run before
 Doxygen, writes the Known Audio Devices and Pickup Types tables as markdown the guide includes,
-and `calibration_figures.doxyfile`, Doxygen aliases for the figures its prose quotes: the
-reference (`\calibrationReference`, `\calibrationReferenceValue`), the listen
-(`\calibrationListenSeconds`), the ignored share of peaks (`\calibrationIgnoredPercent`), the
-strum instruction (`\hardStrumInstruction`) and a worked gain example
-(`\calibrationGainExample`). `docs/Doxyfile.in` includes that file. A figure the guide needs
-becomes a new alias there, never a number typed into the guide.
+and `calibration_figures.doxyfile`, Doxygen aliases for the figures and sentences its prose
+quotes: the reference (`\calibrationReference`), the gain formula (`\calibrationGainFormula`), the
+listen (`\calibrationListenSeconds`), the ignored share of peaks (`\calibrationIgnoredPercent`),
+the guitar setup (`\guitarSetupInstruction`), the strum (`\hardStrumInstruction`) and a worked
+gain example (`\calibrationGainExample`). `docs/Doxyfile.in` includes that file. A figure the guide
+needs becomes a new alias there, never a number typed into the guide.
 
-How to play while measuring or checking a gain is one sentence, `hardStrumInstructionText()`
-(`input/input_calibration.h`): how the strums behind the pickup types' peaks were played (full
-chords with a pick; single notes peak 6-10 dB lower). The window's measuring message and the guide
-both quote it. Every calibration gain prints through `inputCalibrationGainText()` beside it: the
-window's sentences, its slider's text box and the guide's table.
+How to set the guitar up and how to play while measuring or checking a gain are one sentence each,
+`guitarSetupInstructionText()` and `hardStrumInstructionText()` (`input/input_calibration.h`):
+the setup and the strums behind the pickup types' peaks (full chords with a pick; single notes
+peak 6-10 dB lower). The window's measuring message and the guide both quote them, as both quote
+`inputCalibrationGainFormulaText()`. Every calibration gain prints through
+`inputCalibrationGainText()` beside them: the window's sentences, its slider's text box and the
+guide's table.
 
 The editor's calibration popup is one fixed-size screen: the message with the "?" (the
 calibration guide, whose generated table is how a player finds their device's gain) at its
@@ -153,22 +168,21 @@ window resize under the Direct2D renderer flashes a frame of the old size. Its h
 `InputCalibrationController` sends every intent straight to `IEditorController`'s
 `onInputCalibration*` methods; it has no boundary interface of its own to keep in step with them.
 
-`InputCalibrationViewState::measuring` is true while a measurement runs. **Measure** is one
-intent, `onMeasureRequested`: it starts a measurement, or stops the running one (through the
-host, `onInputCalibrationMeasurementStopped`, keeping the popup open), when the button reads
-**Stop**; the gain, the pickup type and **Apply** wait meanwhile. A finished measurement fills the
-gain and leaves `measuredText` as the message; nothing is stored until **Apply**, whose success
-ends the prompt for its route (the editor closes the popup; the popup asks for no close of its
-own). The meter previews the shown gain, and shows the raw input, as the measurement hears it,
-while one runs. `InputCalibrationViewState::meter_target_db` is
-`inputCalibrationTargetPeakDb(pickups)`, where a hard strum on the chosen kind lands at the right
-gain, so a strum checks a typed or measured gain; the meter draws it as a mark under a
-**Peak target** caption whose arrow points at it (`AudioLevelMeter::setTargetDb` and
-`setTargetCaption`). It is empty while a measurement runs, so the player does not play to it. The
-"?" is disabled, with a tooltip saying so, when the guide is not installed. The pickup chooser's
-tooltip is the chosen kind's `covers` text. The popup's own sentences come from `editor/core`
-`input_calibration/input_calibration_text.h`, and refusal and failure reasons are passed through
-from `common/audio` as they are.
+`InputCalibrationViewState::measuring` is true while a measurement runs. **Measure** is one intent,
+`onMeasureRequested`: it starts a measurement, or stops the running one (through
+`IEditorController::onInputCalibrationMeasurementStopped`, keeping the popup open), when the button
+reads **Stop**; the gain, the pickup type and **Apply** wait meanwhile. A finished measurement fills
+the gain and leaves `measuredText` as the message; nothing is stored until **Apply**, whose success
+ends the prompt for its route (the editor closes the popup; the popup asks for no close of its own).
+The meter previews the shown gain, and shows the raw input, as the measurement hears it, while one
+runs. `InputCalibrationViewState::meter_target_db` is `inputCalibrationTargetPeakDb(pickups)`, where
+a hard strum on the chosen kind lands at the right gain, so a strum checks a typed or measured gain;
+the meter draws it as a mark under a **Peak target** caption whose arrow points at it
+(`AudioLevelMeter::setTargetDb` and `setTargetCaption`). It is empty while a measurement runs, so
+the player does not play to it. The "?" is disabled, with a tooltip saying so, when the guide is not
+installed. The pickup chooser's tooltip is the chosen kind's `covers` text. The popup's own
+sentences come from `editor/core` `input_calibration/input_calibration_text.h`, and refusal and
+failure reasons are passed through from `common/audio` as they are.
 
 # The game's first-run setup
 

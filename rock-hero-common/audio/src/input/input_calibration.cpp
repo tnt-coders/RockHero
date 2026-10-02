@@ -6,39 +6,32 @@
 #include <cstddef>
 #include <format>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 namespace rock_hero::common::audio
 {
 
-namespace
+std::string_view inputCalibrationFailureText(InputCalibrationFailure failure) noexcept
 {
-
-// The one wording per capture failure, so every site that reports a code says the same thing.
-[[nodiscard]] InputCalibrationError inputCalibrationError(InputCalibrationErrorCode code)
-{
-    switch (code)
+    switch (failure)
     {
-        case InputCalibrationErrorCode::NoUsableSignal:
+        case InputCalibrationFailure::NoUsableSignal:
         {
-            return InputCalibrationError{
-                .code = code,
-                .message = "No usable input signal was detected. Check the input and try again.",
-            };
+            return "No usable input signal was detected. Check the input and try again.";
         }
-        case InputCalibrationErrorCode::InputClipped:
+        case InputCalibrationFailure::InputClipped:
         {
-            return InputCalibrationError{
-                .code = code,
-                .message = "Input clipped. Lower the interface input gain and try again.",
-            };
+            return "Input clipped. Lower the audio device's input gain and try again.";
+        }
+        case InputCalibrationFailure::Interrupted:
+        {
+            return "Calibration was interrupted. Try again.";
         }
     }
-    return InputCalibrationError{.code = code, .message = "Input calibration failed."};
+    return "Calibration failed. Try again.";
 }
-
-} // namespace
 
 std::string inputCalibrationGainText(double gain_db)
 {
@@ -48,6 +41,13 @@ std::string inputCalibrationGainText(double gain_db)
         return "0.0";
     }
     return std::format("{:+.1f}", shown_db);
+}
+
+std::string inputCalibrationGainFormulaText()
+{
+    return std::format(
+        "Gain (dB) = your audio device's level at 0 dBFS (dBu) - {:.0f}.",
+        inputLevelReferenceDbu());
 }
 
 // The listen must hold a sample, or it would end before it began.
@@ -76,7 +76,7 @@ InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
 
     if (level.clipping)
     {
-        return inputCalibrationError(InputCalibrationErrorCode::InputClipped);
+        return InputCalibrationFailure::InputClipped;
     }
 
     const bool heard = level.peak_db >= minimumInputCalibrationSignalDb();
@@ -102,7 +102,7 @@ InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
     auto result = calculateInputCalibration(std::move(m_active_peak_db), m_target_peak_db);
     if (!result.has_value())
     {
-        return std::move(result.error());
+        return result.error();
     }
     return *result;
 }
@@ -118,12 +118,12 @@ InputCalibrationRunning InputCalibrationCapture::progress() const noexcept
 }
 
 // Sets the gain that puts the playing's ceiling, its nearest-rank percentile peak, on the target.
-std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalibration(
+std::expected<InputCalibrationResult, InputCalibrationFailure> calculateInputCalibration(
     std::vector<double> active_peak_db, double target_peak_db)
 {
     if (active_peak_db.size() < minimumInputCalibrationActiveSampleCount())
     {
-        return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::NoUsableSignal)};
+        return std::unexpected{InputCalibrationFailure::NoUsableSignal};
     }
 
     const auto rank = static_cast<std::size_t>(std::ceil(
@@ -132,8 +132,7 @@ std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalib
     std::ranges::nth_element(active_peak_db, ceiling);
 
     return InputCalibrationResult{
-        .calibration_gain =
-            clampGain(Gain{quantizeInputCalibrationGainDb(target_peak_db - *ceiling)}),
+        .calibration_gain = normalizedInputCalibrationGain(target_peak_db - *ceiling),
         .ceiling_peak_db = *ceiling,
     };
 }

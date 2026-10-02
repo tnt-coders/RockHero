@@ -22,12 +22,9 @@ namespace
         return level;
     }
 
-    level.peak_db = std::clamp(
-        level.peak_db + gain_db,
-        common::audio::minimumAudioMeterDb(),
-        common::audio::maximumAudioMeterDb());
-    level.clipping = level.clipping || level.peak_db >= common::audio::clippingAudioMeterDb();
-    return level;
+    common::audio::AudioMeterLevel shown = common::audio::audioMeterLevel(level.peak_db + gain_db);
+    shown.clipping = shown.clipping || level.clipping;
+    return shown;
 }
 
 } // namespace
@@ -134,8 +131,8 @@ void InputCalibrationController::onSampleTick()
     const common::audio::InputCalibrationProgress& progress = *sample.measurement;
     if (const auto* const running = std::get_if<common::audio::InputCalibrationRunning>(&progress))
     {
-        // Every tick rewrites the message, so a guide-missing report made mid-measurement shows
-        // for a tick; only a build without its docs can make one.
+        // Every tick rewrites the message, so a guide that fails to open mid-measurement is
+        // reported for one tick only; the "?" is disabled outright when the guide is missing.
         m_state.message = measuringText(*running);
         publishState();
         return;
@@ -147,7 +144,9 @@ void InputCalibrationController::onSampleTick()
         finishMeasurement(measuredText(m_state.gain_db, m_state.pickups));
         return;
     }
-    finishMeasurement(std::get<common::audio::InputCalibrationFailed>(progress).message);
+    finishMeasurement(
+        std::string{common::audio::inputCalibrationFailureText(
+            std::get<common::audio::InputCalibrationFailure>(progress))});
 }
 
 // Reports a failed help request without coupling the core controller to filesystem lookup.
@@ -165,7 +164,7 @@ void InputCalibrationController::onCloseRequested()
 
 void InputCalibrationController::setGain(double gain_db)
 {
-    m_state.gain_db = common::audio::quantizeInputCalibrationGainDb(gain_db);
+    m_state.gain_db = common::audio::normalizedInputCalibrationGain(gain_db).db;
 }
 
 void InputCalibrationController::finishMeasurement(std::string message)

@@ -133,16 +133,12 @@ std::expected<common::audio::InputCalibrationProgress, NativeAudioSetupError> Na
         }};
     }
 
-    // The setup menu saves a measured gain at once, for the route it measured: the gate took that
-    // route back when the measurement ended. The monitor only reports the gain.
-    const std::optional<common::audio::InputDeviceIdentity> measured_route =
-        m_live_input_monitor.route();
+    // The setup menu saves a measured gain at once, for the route the measurement heard.
     if (const auto* const measured =
-            std::get_if<common::audio::InputCalibrationMeasured>(&*progress);
-        measured != nullptr && measured_route.has_value())
+            std::get_if<common::audio::InputCalibrationMeasured>(&*progress))
     {
         if (auto committed = m_live_input_monitor.commitCalibration(
-                *measured_route, measured->gain.db, g_setup_menu_context);
+                measured->route, measured->gain, g_setup_menu_context);
             !committed.has_value())
         {
             return std::unexpected{NativeAudioSetupError{

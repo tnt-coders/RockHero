@@ -166,7 +166,7 @@ TEST_CASE("Input calibration rejects sparse active input", "[audio][input-calibr
         steadyPeaks(-24.0, minimumInputCalibrationActiveSampleCount() - 1), g_single_coil_target);
 
     REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code == InputCalibrationErrorCode::NoUsableSignal);
+    CHECK(result.error() == InputCalibrationFailure::NoUsableSignal);
 }
 
 // The settle span is part of the wait: what it hears, even playing or a clip, neither starts the
@@ -186,7 +186,7 @@ TEST_CASE("Input capture waits as long as it takes", "[audio][input-calibration]
 {
     InputCalibrationCapture capture{g_single_coil_target};
     InputCalibrationStep step = settle(capture, AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
-    // A minute of silence, six times the wait the capture used to give up after.
+    // A minute of silence.
     for (std::size_t sample = 0;
          sample < static_cast<std::size_t>(inputCalibrationSampleRateHz()) * 60;
          ++sample)
@@ -244,9 +244,9 @@ TEST_CASE("Input capture counts only windows heard as playing", "[audio][input-c
     CHECK(result->calibration_gain.db == Catch::Approx(17.2));
 
     const InputCalibrationStep silent = listen(minimumAudioMeterDb());
-    const auto* const error = std::get_if<InputCalibrationError>(&silent);
-    REQUIRE(error != nullptr);
-    CHECK(error->code == InputCalibrationErrorCode::NoUsableSignal);
+    const auto* const failure = std::get_if<InputCalibrationFailure>(&silent);
+    REQUIRE(failure != nullptr);
+    CHECK(*failure == InputCalibrationFailure::NoUsableSignal);
 }
 
 // A clip after the settle span fails the capture at once, before the listen and during it alike:
@@ -255,8 +255,8 @@ TEST_CASE("Input capture fails at the first clip", "[audio][input-calibration]")
 {
     const AudioMeterLevel clip{.peak_db = 3.0, .clipping = true};
     const auto fails = [](const InputCalibrationStep& step) {
-        const auto* const error = std::get_if<InputCalibrationError>(&step);
-        return error != nullptr && error->code == InputCalibrationErrorCode::InputClipped;
+        const auto* const failure = std::get_if<InputCalibrationFailure>(&step);
+        return failure != nullptr && *failure == InputCalibrationFailure::InputClipped;
     };
 
     InputCalibrationCapture waiting{g_single_coil_target};

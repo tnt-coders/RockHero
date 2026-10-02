@@ -311,7 +311,12 @@ TEST_CASE("Native setup reports a measurement a device change ended", "[core][au
     REQUIRE(progress.has_value());
     if (progress.has_value())
     {
-        CHECK(std::holds_alternative<common::audio::InputCalibrationFailed>(*progress));
+        const auto* const failure = std::get_if<common::audio::InputCalibrationFailure>(&*progress);
+        REQUIRE(failure != nullptr);
+        if (failure != nullptr)
+        {
+            CHECK(*failure == common::audio::InputCalibrationFailure::Interrupted);
+        }
     }
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::CalibratingGain);
 }

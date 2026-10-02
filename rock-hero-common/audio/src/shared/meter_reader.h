@@ -93,10 +93,7 @@ public:
             }
         }
 
-        return AudioMeterLevel{
-            .peak_db = std::clamp(peak_db, minimumAudioMeterDb(), maximumAudioMeterDb()),
-            .clipping = peak_db >= clippingAudioMeterDb(),
-        };
+        return audioMeterLevel(peak_db);
     }
 
 private:

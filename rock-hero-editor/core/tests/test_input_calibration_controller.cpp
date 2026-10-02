@@ -4,6 +4,7 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/input/live_input_sample.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <rock_hero/editor/core/testing/input_calibration_fixtures.h>
@@ -87,7 +88,7 @@ TEST_CASE("Input calibration controller applies the shown gain", "[core][input-c
 {
     RecordingEditorController editor;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{editor, makeInputCalibrationPrompt(-0.04)};
+    InputCalibrationController controller{editor, makeInputCalibrationPrompt(2.0)};
     controller.attachView(view);
 
     controller.onManualGainChanged(3.5);
@@ -153,8 +154,11 @@ TEST_CASE("Input calibration controller fills in a measured gain", "[core][input
     controller.attachView(view);
     controller.onMeasureRequested();
 
-    editor.input_calibration_sample =
-        sampleWith(common::audio::InputCalibrationMeasured{.gain = common::audio::Gain{8.0}});
+    editor.input_calibration_sample = sampleWith(
+        common::audio::InputCalibrationMeasured{
+            .route = common::audio::testing::makeInputDeviceIdentity(),
+            .gain = common::audio::Gain{8.0},
+        });
     controller.onSampleTick();
 
     CHECK_FALSE(view.lastState().measuring);
@@ -178,11 +182,13 @@ TEST_CASE("Input calibration controller reports a failed measurement", "[core][i
     controller.onMeasureRequested();
 
     editor.input_calibration_sample =
-        sampleWith(common::audio::InputCalibrationFailed{"Input clipped."});
+        sampleWith(common::audio::InputCalibrationFailure::InputClipped);
     controller.onSampleTick();
 
     CHECK_FALSE(view.lastState().measuring);
-    CHECK(view.lastState().message == "Input clipped.");
+    CHECK(
+        view.lastState().message == common::audio::inputCalibrationFailureText(
+                                        common::audio::InputCalibrationFailure::InputClipped));
     CHECK(view.lastState().gain_db == Catch::Approx(2.0));
 }
 

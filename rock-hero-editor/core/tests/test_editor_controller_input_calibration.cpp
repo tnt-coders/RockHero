@@ -45,16 +45,15 @@ template <typename LiveInput>
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         const common::audio::LiveInputSample reading = controller.onInputCalibrationSampled();
-        if (!reading.measurement.has_value())
-        {
-            return common::audio::InputCalibrationFailed{"The measurement was not running."};
-        }
-        if (!std::holds_alternative<common::audio::InputCalibrationRunning>(*reading.measurement))
+        REQUIRE(reading.measurement.has_value());
+        if (reading.measurement.has_value() &&
+            !std::holds_alternative<common::audio::InputCalibrationRunning>(*reading.measurement))
         {
             return *reading.measurement;
         }
     }
-    return common::audio::InputCalibrationFailed{"The measurement did not finish."};
+    FAIL("The measurement did not finish.");
+    return common::audio::InputCalibrationRunning{common::audio::InputCalibrationWaiting{}};
 }
 
 // Runs a measurement to its end and, when it measured a gain, applies that gain as the prompt's
@@ -144,7 +143,7 @@ TEST_CASE("Input calibration is available without a loaded project", "[core][edi
 }
 
 // An uncalibrated route is offered calibration by itself, once: the prompt opens at startup and
-// pauses playback, "Later" keeps it closed for that route, and the user can still ask for it.
+// pauses playback, Cancel keeps it closed for that route, and the user can still ask for it.
 TEST_CASE("Missing input calibration offers the prompt once per route", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -178,7 +177,7 @@ TEST_CASE("Missing input calibration offers the prompt once per route", "[core][
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
-    // Later holds across the project load: the same route is not offered again.
+    // Cancel holds across the project load: the same route is not offered again.
     const auto* const gated_state = stateOrNull(view.last_state);
     REQUIRE(gated_state != nullptr);
     CHECK_FALSE(gated_state->input_calibration_prompt.has_value());
@@ -194,7 +193,7 @@ TEST_CASE("Missing input calibration offers the prompt once per route", "[core][
     CHECK(prompt_state->input_calibration_prompt.has_value());
 }
 
-// A route change offers the new route calibration even after "Later" on the old one.
+// A route change offers the new route calibration even after a Cancel on the old one.
 TEST_CASE("Missing input calibration offers a new route again", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -601,7 +600,6 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
 
     controller.onInputCalibrationRequested();
     REQUIRE(controller.onInputCalibrationApplied(3.25).has_value());
-    controller.onInputCalibrationClosed();
     REQUIRE(transport.live_input_monitoring_enabled);
     REQUIRE_FALSE(transport.calibration_input_monitoring_enabled);
     const auto* const enabled_state = stateOrNull(view.last_state);
@@ -1469,8 +1467,6 @@ TEST_CASE(
     const auto applied = controller.onInputCalibrationApplied(measured_gain_db);
     CHECK(applied.has_value());
 
-    controller.onInputCalibrationClosed();
-
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
@@ -1555,8 +1551,8 @@ std::ostream& operator<<(std::ostream& stream, const SettledCalibrationState& st
 
 } // namespace
 
-// Pins the exact ILiveInput setter sequence for the canonical open-calibrate-commit-close arc. This
-// trace touches only ILiveInput, so it is store- and error-type-agnostic: moving the calibration
+// Pins the exact ILiveInput setter sequence for the canonical open-measure-apply arc. This trace
+// touches only ILiveInput, so it is store- and error-type-agnostic: moving the calibration
 // state or its error type anywhere must leave it unchanged.
 TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-controller]")
 {
@@ -1615,14 +1611,6 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
                                              .prompt_present = false,
                                          });
 
-    controller.onInputCalibrationClosed();
-    CHECK(
-        settledCalibrationState(view) == SettledCalibrationState{
-                                             .status = InputCalibrationStatus::Calibrated,
-                                             .disabled_message = {},
-                                             .prompt_present = false,
-                                         });
-
     const std::vector<LiveInputSetterCall> golden_trace{
         // onInputCalibrationRequested: the gate re-reads the store; the route is uncalibrated.
         setCalibrationInputMonitoringCall(false),
@@ -1639,7 +1627,6 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(12.7),
         setLiveInputMonitoringCall(true),
-        // onInputCalibrationClosed: no setters (the measurement already ended).
     };
     CHECK(live_input.calls == golden_trace);
 }

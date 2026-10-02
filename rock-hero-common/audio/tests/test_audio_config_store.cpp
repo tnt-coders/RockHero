@@ -210,20 +210,28 @@ TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][c
     }
 }
 
-// Out-of-range gains are clamped to the supported calibration range on the way into the store.
-TEST_CASE("AudioConfigStore clamps calibration gain", "[audio][config-store]")
+// Every gain takes the calibration normal form on the way into the store: clamped to the
+// supported range and rounded to the step.
+TEST_CASE("AudioConfigStore keeps calibration gains in normal form", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_clamp_gain.settings"};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
     AudioConfigStore store{settings_file.path()};
 
     REQUIRE(store.saveInputCalibration(calibrationFor(identity, 100.0)).has_value());
-
-    const auto stored = inputCalibrationFor(store, identity);
-    REQUIRE(stored.has_value());
-    if (stored.has_value())
+    const auto clamped = inputCalibrationFor(store, identity);
+    REQUIRE(clamped.has_value());
+    if (clamped.has_value())
     {
-        CHECK_THAT(stored->calibration_gain.db, Catch::Matchers::WithinULP(maximumGainDb(), 0));
+        CHECK_THAT(clamped->calibration_gain.db, Catch::Matchers::WithinULP(maximumGainDb(), 0));
+    }
+
+    REQUIRE(store.saveInputCalibration(calibrationFor(identity, 3.14)).has_value());
+    const auto rounded = inputCalibrationFor(store, identity);
+    REQUIRE(rounded.has_value());
+    if (rounded.has_value())
+    {
+        CHECK_THAT(rounded->calibration_gain.db, Catch::Matchers::WithinULP(3.1, 0));
     }
 }
 

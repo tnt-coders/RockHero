@@ -41,7 +41,7 @@ NAM calibration metadata, like most interface manuals, states an input's calibra
 level of a 1 kHz sine wave that reaches `0 dBFS` peak. Rock Hero's reference is
 \calibrationReference, so the gain is that level less the reference:
 
-**Rock Hero gain (dB) = the device's level at 0 dBFS (dBu) - \calibrationReferenceValue**
+**\calibrationGainFormula**
 
 \calibrationGainExample Use the exact model and generation: device families reuse names, but their
 instrument input headroom can change between generations.
@@ -65,9 +65,8 @@ listed.
 1. Select the correct input device and input channel in the audio settings.
 2. In the calibration window, set **Pickup type** to the pickups you will play; hovering the list
    describes the chosen kind.
-3. Plug the guitar straight into the device's instrument (Hi-Z) input, set to 1 MOhm where it has
-   a choice, with no pedals in between. Turn the guitar's volume and tone all the way up and select
-   one pickup, then click **Measure**.
+3. \guitarSetupInstruction Where the input offers a choice of impedance, set it to 1 MOhm. Then
+   click **Measure**.
 4. \hardStrumInstruction Keep strumming until the countdown ends. The measured gain fills in;
    click **Apply** to save it.
 5. If the input clips, the window says so at once: lower the device's input gain and measure
@@ -100,11 +99,10 @@ The sources and the arithmetic are in `docs/tracking/2026-10-01-hard-strum-peak-
 
 # Checking a Gain with the Mark
 
-The meter in the calibration window shows the shown gain applied to your input, with a
+The meter in the calibration window previews your input at the gain on the slider, with a
 **Peak target** mark where your hardest strums should peak. To check a gain before you apply it,
-typed or measured, set **Pickup type** to your pickups, set the guitar up as for a measurement
-(volume and tone all the way up, one pickup selected, no pedals), and play the way the mark
-assumes:
+typed or measured, set **Pickup type** to your pickups and set the guitar up as for a measurement:
+\guitarSetupInstruction Then play the way the mark assumes:
 
 - **How hard:** \hardStrumInstruction Not harder than you ever play, and not single notes, which
   peak well below chords.

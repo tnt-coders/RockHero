@@ -428,10 +428,7 @@ TEST_CASE("EditorController cancel scan keeps known plugins", "[core][editor-con
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     runner.runPendingCompletions();
-    controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationApplied(0.0);
-    REQUIRE(calibrated.has_value());
-    controller.onInputCalibrationClosed();
+    calibrateCurrentRoute(controller);
     controller.onPluginBrowserRequested();
 
     controller.onPluginCatalogScanRequested();
@@ -521,10 +518,7 @@ TEST_CASE("EditorController cancel scan stops the scan worker", "[core][editor-c
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     runner.runWork();
     runner.runCompletions();
-    controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationApplied(0.0);
-    REQUIRE(calibrated.has_value());
-    controller.onInputCalibrationClosed();
+    calibrateCurrentRoute(controller);
     controller.onPluginBrowserRequested();
 
     controller.onPluginCatalogScanRequested();

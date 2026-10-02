@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <ranges>
+#include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -265,11 +266,11 @@ struct InputCalibrationCodec
         AudioConfigErrorCode::InvalidInputCalibrationHistory
     };
 
-    // Every gain is clamped on the way into the store, so out-of-range persisted or caller
-    // values cannot escape the supported calibration range.
+    // Every gain takes the calibration normal form on the way into the store, so no persisted or
+    // caller value escapes the supported range or the step.
     [[nodiscard]] static State normalized(State state)
     {
-        state.calibration_gain = clampGain(state.calibration_gain);
+        state.calibration_gain = normalizedInputCalibrationGain(state.calibration_gain.db);
         return state;
     }
 

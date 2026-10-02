@@ -93,7 +93,10 @@ void configureGainSlider(juce::Slider& slider)
 {
     slider.setComponentID("input_calibration_manual_gain");
     slider.setSliderStyle(juce::Slider::LinearHorizontal);
-    slider.setRange(common::audio::minimumGainDb(), common::audio::maximumGainDb(), 0.1);
+    slider.setRange(
+        common::audio::minimumGainDb(),
+        common::audio::maximumGainDb(),
+        1.0 / common::audio::inputCalibrationGainStepsPerDb());
     slider.setValue(common::audio::defaultGainDb(), juce::dontSendNotification);
     slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
     slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 22);
@@ -104,7 +107,14 @@ void configureGainSlider(juce::Slider& slider)
         return juce::String{common::audio::inputCalibrationGainText(value)};
     };
     // The player typing a gain needs the formula where they type it.
-    slider.setTooltip(juce::String{core::gainFormulaText()});
+    slider.setTooltip(juce::String{common::audio::inputCalibrationGainFormulaText()});
+}
+
+// The pickup chooser's item for a kind, read both ways, so the chooser never depends on the
+// table's order. JUCE reserves item ID 0 for "nothing selected".
+[[nodiscard]] int pickupItemId(common::audio::PickupClass pickups)
+{
+    return static_cast<int>(std::to_underlying(pickups)) + 1;
 }
 
 } // namespace
@@ -152,22 +162,21 @@ public:
         m_pickup_label.setText("Pickup type", juce::dontSendNotification);
         addAndMakeVisible(m_pickup_label);
 
-        // The items are common::audio::pickupTypes() in order, so an item's index is its row.
         m_pickup_chooser.setComponentID("input_calibration_pickup");
-        int pickup_id = 1;
         for (const common::audio::PickupType& row : common::audio::pickupTypes())
         {
             m_pickup_chooser.addItem(
-                juce::String{common::audio::pickupTypeLabel(row.pickups)}, pickup_id);
-            ++pickup_id;
+                juce::String{common::audio::pickupTypeLabel(row.pickups)},
+                pickupItemId(row.pickups));
         }
         m_pickup_chooser.onChange = [this] {
-            const int chosen_index = m_pickup_chooser.getSelectedItemIndex();
-            const auto rows = common::audio::pickupTypes();
-            if (chosen_index >= 0 && static_cast<std::size_t>(chosen_index) < rows.size())
+            const int chosen_id = m_pickup_chooser.getSelectedId();
+            for (const common::audio::PickupType& row : common::audio::pickupTypes())
             {
-                m_calibration_controller.onPickupsSelected(
-                    rows[static_cast<std::size_t>(chosen_index)].pickups);
+                if (pickupItemId(row.pickups) == chosen_id)
+                {
+                    m_calibration_controller.onPickupsSelected(row.pickups);
+                }
             }
         };
         addAndMakeVisible(m_pickup_chooser);
@@ -232,8 +241,8 @@ private:
     {
         auto area = bounds.reduced(g_margin);
 
-        // The message first, the "?" at its corner, tall enough for the popup's own sentences; the
-        // error reasons it passes through are shorter.
+        // The message first, the "?" at its corner, tall enough for every sentence the popup words
+        // itself; the refusal reasons it passes through from the audio backend are shorter.
         const int message_width = area.getWidth() - g_row_height - g_gap;
         const auto fitted = [this, message_width](const std::string& text) {
             return wrappedLabelHeight(m_message, juce::String{text}, message_width);
@@ -241,7 +250,17 @@ private:
         int message_height = std::max(
             {g_row_height,
              fitted(core::idleText()),
+             fitted(core::guideUnavailableText()),
              fitted(core::measuringText(common::audio::InputCalibrationWaiting{}))});
+        for (const common::audio::InputCalibrationFailure failure :
+             {common::audio::InputCalibrationFailure::NoUsableSignal,
+              common::audio::InputCalibrationFailure::InputClipped,
+              common::audio::InputCalibrationFailure::Interrupted})
+        {
+            message_height = std::max(
+                message_height,
+                fitted(std::string{common::audio::inputCalibrationFailureText(failure)}));
+        }
         for (const common::audio::PickupType& row : common::audio::pickupTypes())
         {
             message_height = std::max(
@@ -278,14 +297,13 @@ private:
     }
 
     // Renders the pushed state. While a measurement runs, the gain, the pickups and Apply wait,
-    // and the calibrate button stops it.
+    // and Measure, reading Stop, stops it.
     void setState(const core::InputCalibrationViewState& state) override
     {
         m_gain_slider.setValue(state.gain_db, juce::dontSendNotification);
         m_gain_slider.updateText();
         m_gain_slider.setEnabled(!state.measuring);
-        m_pickup_chooser.setSelectedItemIndex(
-            static_cast<int>(std::to_underlying(state.pickups)), juce::dontSendNotification);
+        m_pickup_chooser.setSelectedId(pickupItemId(state.pickups), juce::dontSendNotification);
         // The chosen kind's description, on demand: the list holds names only.
         m_pickup_chooser.setTooltip(
             juce::String{std::string{common::audio::pickupType(state.pickups).covers}});

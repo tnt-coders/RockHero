@@ -2150,6 +2150,18 @@ mints one.
 }
 
 /*!
+\brief Calibrates the current input route the way a player does: the prompt opens and Apply
+stores a neutral gain, which ends the prompt.
+\param controller Controller under test.
+*/
+inline void calibrateCurrentRoute(EditorController& controller)
+{
+    controller.onInputCalibrationRequested();
+    const auto calibrated = controller.onInputCalibrationApplied(0.0);
+    REQUIRE(calibrated.has_value());
+}
+
+/*!
 \brief Loads arrangement audio and applies a neutral calibration for plugin-chain tests.
 \param controller Controller under test.
 \param project_services Project services fake used by the controller.
@@ -2171,14 +2183,7 @@ mints one.
     }
 
     controller.onInputCalibrationRequested();
-    const auto calibrated = controller.onInputCalibrationApplied(0.0);
-    if (!calibrated.has_value())
-    {
-        return false;
-    }
-
-    controller.onInputCalibrationClosed();
-    return true;
+    return controller.onInputCalibrationApplied(0.0).has_value();
 }
 
 /*!

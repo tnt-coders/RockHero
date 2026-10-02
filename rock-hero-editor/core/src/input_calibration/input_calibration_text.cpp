@@ -18,13 +18,6 @@ std::string guideUnavailableText()
     return "The calibration guide could not be opened.";
 }
 
-std::string gainFormulaText()
-{
-    return std::format(
-        "Gain = your audio device's dBu at 0 dBFS, minus {:.0f}.",
-        common::audio::inputLevelReferenceDbu());
-}
-
 std::string peakTargetText(common::audio::PickupClass pickups)
 {
     return std::format(
@@ -38,8 +31,8 @@ std::string measuringText(const common::audio::InputCalibrationRunning& running)
     if (listening == nullptr)
     {
         return std::format(
-            "Plug the guitar straight into the instrument input, no pedals. Volume and tone all "
-            "the way up, one pickup selected. Then: {}",
+            "{} {}",
+            common::audio::guitarSetupInstructionText(),
             common::audio::hardStrumInstructionText());
     }
 

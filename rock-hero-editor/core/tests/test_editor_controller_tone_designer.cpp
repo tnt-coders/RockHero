@@ -567,9 +567,7 @@ TEST_CASE("Project tone import confirms before dropping automation", "[core][edi
     harness.controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     REQUIRE(harness.state().project_loaded);
     // Calibrate the input route so the chain-mutation gates (which import shares) pass.
-    harness.controller.onInputCalibrationRequested();
-    REQUIRE(harness.controller.onInputCalibrationApplied(0.0).has_value());
-    harness.controller.onInputCalibrationClosed();
+    calibrateCurrentRoute(harness.controller);
 
     harness.controller.onImportToneFileRequested(std::filesystem::path{"B.tone"});
 

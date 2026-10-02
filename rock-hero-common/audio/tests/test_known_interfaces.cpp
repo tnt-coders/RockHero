@@ -12,7 +12,7 @@
 namespace rock_hero::common::audio
 {
 
-// The table is authored in model order with one row per model, so a chooser lists it as is.
+// The table is authored in model order, one row per model, so the guide lists it as is.
 TEST_CASE("Known interfaces are sorted and unique by model", "[audio][known-interfaces]")
 {
     const auto rows = knownInterfaces();

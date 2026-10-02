@@ -1,5 +1,6 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/pickup_types.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
@@ -34,7 +35,8 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     CHECK(controller.input_calibration_request_count == 1);
 }
 
-// Verifies the calibration popup starts with target, status, and documentation controls.
+// The calibration popup is one fixed screen: the message with the guide, the meter, the pickup type
+// with Measure, the gain, then Apply and Cancel.
 TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -66,7 +68,7 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
 
     // The reference reaches the player only as the formula behind the gain slider.
-    CHECK(slider.getTooltip() == "Gain = your audio device's dBu at 0 dBFS, minus 12.");
+    CHECK(slider.getTooltip() == juce::String{common::audio::inputCalibrationGainFormulaText()});
     REQUIRE(help_button.onClick);
     CHECK(help_button.getTooltip() == "Open the input calibration guide");
     CHECK(message.getText() == juce::String{core::idleText()});
@@ -118,11 +120,10 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     // rounding these tests also assert is unaffected either way.
     CHECK_THAT(slider.getValue(), Catch::Matchers::WithinAbs(0.0, 1e-9));
     CHECK_FALSE(slider.getTextFromValue(slider.getValue()).startsWith("-0.0"));
-    CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
 }
 
 // Apply stores the shown gain; the editor then ends the prompt.
-TEST_CASE("Calibration Apply saves the shown gain and closes", "[ui][editor-view]")
+TEST_CASE("Calibration Apply sends the shown gain", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;

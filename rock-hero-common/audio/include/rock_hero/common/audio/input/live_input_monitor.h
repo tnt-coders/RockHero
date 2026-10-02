@@ -114,10 +114,11 @@ public:
     /*!
     \brief Reads the raw input meter once and advances a measurement in progress by that reading.
 
-    A measurement that finishes reports the gain it derived and hands the route back to the gate;
-    storing that gain is the driver's decision, through commitCalibration(). One that fails hands
-    the route back too. A measurement a gate run ended (a device change, a session closing) reports
-    that as a failure at the next sample, once, so a driver needs no memory of having started one.
+    A measurement that finishes reports the gain it derived, with the route it measured, and hands
+    the route back to the gate; storing that gain is the driver's decision, through
+    commitCalibration(). One that fails hands the route back too. A measurement whose route changed
+    under it, or that a gate run ended (a session closing), reports Interrupted at the next sample,
+    once, so a driver needs no memory of having started one.
     \param context Session facts the gate re-runs with when a measurement ends.
     \return The raw level read, and the measurement's progress if one was running.
     */
@@ -136,12 +137,12 @@ public:
     The caller names the route the gain was set for, so a device change between setting it and
     storing it cannot file the gain under the wrong route.
     \param route The route the gain was set for.
-    \param gain_db Calibration gain in decibels; clamped to the supported range.
+    \param gain Calibration gain; the store keeps it in its normal form.
     \param context Session facts the gate evaluates.
     \return Empty success, or a coarse monitoring failure.
     */
     [[nodiscard]] std::expected<void, LiveInputMonitorError> commitCalibration(
-        const InputDeviceIdentity& route, double gain_db, LiveInputMonitoringContext context);
+        const InputDeviceIdentity& route, Gain gain, LiveInputMonitoringContext context);
 
 private:
     // No measurement holds the route.
@@ -149,9 +150,10 @@ private:
     {
     };
 
-    // A measurement in progress: the pickups it assumes and its capture.
+    // A measurement in progress: the route it hears, the pickups it assumes and its capture.
     struct Measurement
     {
+        InputDeviceIdentity route;
         PickupClass pickups;
         InputCalibrationCapture capture;
     };

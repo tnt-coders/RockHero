@@ -672,14 +672,14 @@ public:
     [[nodiscard]] common::audio::LiveInputSample onInputCalibrationSampled() override;
 
     /*!
-    \brief Applies and stores a manually entered input calibration gain.
+    \brief Stores the prompt's gain, typed or measured; success ends the prompt.
     \param gain_db Input gain in decibels.
     \return Empty success, or a typed monitoring failure.
     */
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationApplied(double gain_db) override;
 
-    /*! \brief Closes the calibration prompt, after an Apply or a Cancel. */
+    /*! \brief Closes the calibration prompt without storing (Cancel or the close button). */
     void onInputCalibrationClosed() override;
 
     /*! \brief Stops a running calibration measurement, keeping the prompt open. */

@@ -20,7 +20,7 @@ constexpr int g_horizontal_label_width{48};
 constexpr int g_target_caption_height{20};
 constexpr float g_target_caption_font_size{11.0f};
 constexpr float g_target_arrow_height{6.0f};
-constexpr double g_display_min_db{-60.0};
+constexpr double g_display_min_db{common::audio::minimumAudioMeterDb()};
 constexpr double g_display_max_db{6.0};
 constexpr double g_display_range_db{g_display_max_db - g_display_min_db};
 const juce::Colour g_meter_background{juce::Colours::black.withAlpha(0.42f)};
@@ -198,7 +198,8 @@ void AudioLevelMeter::setLevel(common::audio::AudioMeterLevel level)
         level.peak_db = common::audio::minimumAudioMeterDb();
     }
 
-    level.peak_db = std::clamp(level.peak_db, common::audio::minimumAudioMeterDb(), 12.0);
+    level.peak_db = std::clamp(
+        level.peak_db, common::audio::minimumAudioMeterDb(), common::audio::maximumAudioMeterDb());
 
     const common::audio::AudioMeterLevel previous_level = m_level;
     const bool previous_clip_state = m_clip_indicator_active;
@@ -290,7 +291,7 @@ void AudioLevelMeter::paint(juce::Graphics& g)
         return;
     }
 
-    const double capped_db = std::min(m_level.peak_db, 0.0);
+    const double capped_db = std::min(m_level.peak_db, common::audio::clippingAudioMeterDb());
     const double fill_fraction = displayFraction(capped_db);
 
     if (m_orientation == AudioLevelMeterOrientation::Horizontal)
@@ -375,7 +376,7 @@ void AudioLevelMeter::paint(juce::Graphics& g)
         return;
     }
 
-    const double clip_start = displayFraction(0.0);
+    const double clip_start = displayFraction(common::audio::clippingAudioMeterDb());
     g.setColour(g_meter_clip);
     if (m_orientation == AudioLevelMeterOrientation::Horizontal)
     {

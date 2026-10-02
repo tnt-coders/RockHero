@@ -1012,14 +1012,15 @@ public:
     /*!
     \brief Reads the raw input once for the calibration prompt, advancing a measurement.
 
-    A measurement that finishes here has stored its gain for the route it measured.
+    A measurement that finishes here reports its gain; nothing is stored until
+    onInputCalibrationApplied().
     \return The raw level, and the measurement's progress if one was running.
     */
     [[nodiscard]] virtual common::audio::LiveInputSample onInputCalibrationSampled() = 0;
 
     /*!
-    \brief Stores the calibration gain the prompt applies, whether typed, derived from a known
-    device or measured.
+    \brief Stores the prompt's gain, typed or measured, for the route the prompt was opened for;
+    success ends the prompt.
     \param gain_db Input gain in decibels.
     \return Empty success, or a typed live-input failure.
     */
@@ -1027,8 +1028,8 @@ public:
     onInputCalibrationApplied(double gain_db) = 0;
 
     /*!
-    \brief Closes the calibration prompt, after an Apply or a Cancel, ending any measurement; live
-    input stays off unless the route is calibrated.
+    \brief Closes the calibration prompt without storing (Cancel or the window's close button),
+    ending any measurement; live input stays off unless the route is calibrated.
     */
     virtual void onInputCalibrationClosed() = 0;
 

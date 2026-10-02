@@ -24,8 +24,8 @@ struct InputCalibrationViewState
     common::audio::PickupClass pickups{common::audio::PickupClass::Humbucker};
 
     /*!
-    \brief True while a measurement runs. The gain, the pickups and Apply then wait, and the
-    calibrate button stops it.
+    \brief True while a measurement runs. The gain, the pickups and Apply then wait, and Measure,
+    reading Stop, stops it.
     */
     bool measuring{false};
 

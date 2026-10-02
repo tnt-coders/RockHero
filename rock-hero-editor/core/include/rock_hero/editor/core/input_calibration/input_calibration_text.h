@@ -26,12 +26,6 @@ namespace rock_hero::editor::core
 [[nodiscard]] std::string guideUnavailableText();
 
 /*!
-\brief Words the gain formula, for a player typing a gain.
-\return The formula against the one reference.
-*/
-[[nodiscard]] std::string gainFormulaText();
-
-/*!
 \brief Words what the meter's peak target means for the chosen pickups.
 \param pickups The chosen pickups.
 \return The sentence for the meter's tooltip.

@@ -64,6 +64,20 @@ struct AudioMeterLevel
     }
 };
 
+/*!
+\brief Returns the meter reading for a peak: held to the meter's range, and clipping at or above
+clippingAudioMeterDb().
+\param peak_db Peak level in decibels full scale.
+\return The meter reading.
+*/
+[[nodiscard]] constexpr AudioMeterLevel audioMeterLevel(double peak_db) noexcept
+{
+    return AudioMeterLevel{
+        .peak_db = std::clamp(peak_db, minimumAudioMeterDb(), maximumAudioMeterDb()),
+        .clipping = peak_db >= clippingAudioMeterDb(),
+    };
+}
+
 static_assert(sizeof(AudioMeterLevel) <= 16);
 static_assert(std::is_trivially_copyable_v<AudioMeterLevel>);
 
@@ -91,18 +105,5 @@ struct AudioMeterSnapshot
 
 static_assert(sizeof(AudioMeterSnapshot) <= 48);
 static_assert(std::is_trivially_copyable_v<AudioMeterSnapshot>);
-
-/*!
-\brief Maps a meter level to a display fraction.
-\param peak_db Peak decibel value to map.
-\return Fraction in [0, 1], where 1.0 is clipping.
-*/
-[[nodiscard]] constexpr double audioMeterFraction(double peak_db) noexcept
-{
-    return std::clamp(
-        (peak_db - minimumAudioMeterDb()) / (clippingAudioMeterDb() - minimumAudioMeterDb()),
-        0.0,
-        1.0);
-}
 
 } // namespace rock_hero::common::audio
