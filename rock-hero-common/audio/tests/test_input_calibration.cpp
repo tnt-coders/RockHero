@@ -24,7 +24,8 @@ const double g_single_coil_target = inputCalibrationTargetPeakDb(PickupClass::Si
 [[nodiscard]] std::vector<double> steadyPeaks(
     double peak_db, std::size_t count = minimumInputCalibrationActiveSampleCount())
 {
-    return std::vector<double>(count, peak_db);
+    std::vector<double> peaks(count, peak_db);
+    return peaks;
 }
 
 // Reports whether a capture step is still waiting for the first strum.
