@@ -1353,13 +1353,3 @@ against the tree on the date above.
   in the one context would make it honest and let `beginRigReplacement()` call
   `refresh(monitoringContext())`; it needs that term cleared on every load completion and failure
   path. Raised by the simplicity review of the calibration monitor rewrite.
-- **The editor's calibration tests build the same controller fixture 39 times.**
-  `test_editor_controller_input_calibration.cpp` spells out the fakes, the store, the monitor and
-  the `EditorController` in every test: 28 with the transport fake as the live input and 11 with a
-  separate `FakeLiveInput` whose setter calls form a trace. Each test configures the store and the
-  devices before the controller is built, because the constructor runs the live-input gate. One
-  harness holding the fakes, with `start()` and `startTracingLiveInput()` that build the monitor and
-  the controller after configuration, would shrink the file substantially. The rollback tests that
-  pin the monitor's setter order through `onInputCalibrationMeasurementStarted` (a pass-through)
-  belong in `test_live_input_monitor.cpp`, leaving one editor test that a refused start returns
-  the error and re-derives the view. Raised by the final simplicity review of input calibration.

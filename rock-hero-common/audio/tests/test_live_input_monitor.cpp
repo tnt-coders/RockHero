@@ -222,18 +222,46 @@ TEST_CASE("LiveInputMonitor refuses a measurement without a route", "[audio][liv
     CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
 }
 
-// A refused measurement start hands the route back to the gate, which restores the stored gain.
-TEST_CASE("LiveInputMonitor recovers a refused measurement start", "[audio][live-input]")
+// A measurement start refused at any of its three steps hands the route straight back to the
+// gate, which re-arms the stored calibration: the backend sees the steps up to the refused one,
+// then the gate's own run, and no measurement holds the route.
+TEST_CASE(
+    "LiveInputMonitor hands a refused measurement start back to the gate", "[audio][live-input]")
 {
     Harness harness{3.0};
     harness.monitor.refresh(g_ready);
-    harness.live_input.next_set_calibration_input_monitoring_error = routeUnavailable();
+    std::vector<LiveInputSetterCall> trace;
+    SECTION("disabling processed monitoring")
+    {
+        harness.live_input.next_set_live_input_monitoring_error = routeUnavailable();
+        trace = {setLiveInputMonitoringCall(false)};
+    }
+    SECTION("resetting the gain to unity")
+    {
+        harness.live_input.next_set_input_gain_error = routeUnavailable();
+        trace = {setLiveInputMonitoringCall(false), setInputGainCall(0.0)};
+    }
+    SECTION("opening the calibration path")
+    {
+        harness.live_input.next_set_calibration_input_monitoring_error = routeUnavailable();
+        trace = {
+            setLiveInputMonitoringCall(false),
+            setInputGainCall(0.0),
+            setCalibrationInputMonitoringCall(true),
+        };
+    }
+    trace.insert(
+        trace.end(),
+        {setCalibrationInputMonitoringCall(false),
+         setInputGainCall(3.0),
+         setLiveInputMonitoringCall(true)});
+    harness.live_input.calls.clear();
 
     const auto began = harness.monitor.beginMeasurement(PickupClass::Humbucker, g_ready);
 
     REQUIRE_FALSE(began.has_value());
     CHECK(began.error().code == LiveInputMonitorErrorCode::BackendRejected);
-    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    CHECK(harness.live_input.calls == trace);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
     CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
