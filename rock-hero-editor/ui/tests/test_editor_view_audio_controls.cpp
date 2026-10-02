@@ -70,7 +70,16 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     // The reference reaches the player only as the formula behind the gain slider.
     CHECK(slider.getTooltip() == juce::String{common::audio::inputCalibrationGainFormulaText()});
     REQUIRE(help_button.onClick);
-    CHECK(help_button.getTooltip() == "Open the input calibration guide");
+    // The guide exists only where the docs were generated, which a build without the docs target
+    // never does, so the "?" is checked against whichever case this build tree is in.
+    const bool guide_built = juce::File{ROCK_HERO_BUILD_DOCS_DIR}
+                                 .getChildFile("user_input_calibration.html")
+                                 .existsAsFile();
+    CHECK(help_button.isEnabled() == guide_built);
+    const juce::String guide_tooltip = guide_built
+                                           ? "Open the input calibration guide"
+                                           : "The input calibration guide is not installed.";
+    CHECK(help_button.getTooltip() == guide_tooltip);
     CHECK(message.getText() == juce::String{core::idleText()});
     CHECK(calibrate.getButtonText() == "Measure");
     CHECK(apply_button.getButtonText() == "Apply");

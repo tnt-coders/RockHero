@@ -51,5 +51,10 @@ target_link_libraries(
     PRIVATE rock_hero::editor::ui rock_hero::common::audio_testing rock_hero::editor::core_testing
             rock_hero::editor::ui_testing rock_hero::build_policy Catch2::Catch2WithMain)
 
+# The calibration window finds its guide in the generated docs, which exist only where the docs
+# target ran; the test reads the same directory to know which case its build tree is in.
+target_compile_definitions(rock_hero_editor_ui_tests
+                           PRIVATE ROCK_HERO_BUILD_DOCS_DIR="${PROJECT_CONFIG_DOCS_OUTPUT_DIR}")
+
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_editor_ui_tests ADD_TAGS_AS_LABELS)
