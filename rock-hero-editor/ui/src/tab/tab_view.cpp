@@ -175,7 +175,11 @@ void TabView::flashRefusal(core::ChartRefusalFlash flash)
         const auto join = [](auto& into, const auto& from) {
             for (const auto& element : from)
             {
-                if (std::ranges::find(into, element) == into.end())
+                // A predicate, not a value find: under clang, the MSVC STL sends a value find over
+                // a trivially comparable 16-byte element down a vectorized path that has no
+                // 16-byte case, which fails to compile.
+                if (std::ranges::none_of(
+                        into, [&element](const auto& held) { return held == element; }))
                 {
                     into.push_back(element);
                 }
