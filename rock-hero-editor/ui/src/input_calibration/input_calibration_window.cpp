@@ -4,6 +4,7 @@
 #include "shared/editor_theme.h"
 
 #include <BinaryData.h>
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -74,10 +75,11 @@ constexpr int g_meter_height{26};
     return documentation.existsAsFile() && documentation.startAsProcess();
 }
 
-// The chooser's id for a pickup class: its value plus one, since 0 means none in a ComboBox.
-[[nodiscard]] int pickupClassId(common::audio::PickupClass pickups)
+// The chooser's item index for a pickup class: its position in common::audio::pickupClasses().
+[[nodiscard]] int pickupClassIndex(common::audio::PickupClass pickups)
 {
-    return static_cast<int>(pickups) + 1;
+    const auto classes = common::audio::pickupClasses();
+    return static_cast<int>(std::ranges::find(classes, pickups) - classes.begin());
 }
 
 // The chooser's item text: the one class name, capitalized for a list.
@@ -163,27 +165,24 @@ public:
         m_pickup_label.setJustificationType(juce::Justification::centredLeft);
         addAndMakeVisible(m_pickup_label);
 
-        // Item ids are the PickupClass values plus one, since 0 means none in a ComboBox.
+        // The items are common::audio::pickupClasses() in order, so an item's index is its class.
         m_pickup_chooser.setComponentID("input_calibration_pickup");
-        for (const common::audio::PickupClass pickups :
-             {common::audio::PickupClass::Humbucker, common::audio::PickupClass::SingleCoil})
+        int pickup_id = 1;
+        for (const common::audio::PickupClass pickups : common::audio::pickupClasses())
         {
-            m_pickup_chooser.addItem(pickupClassName(pickups), pickupClassId(pickups));
+            m_pickup_chooser.addItem(pickupClassName(pickups), pickup_id);
+            ++pickup_id;
         }
         m_pickup_chooser.onChange = [this] {
-            const int chosen_id = m_pickup_chooser.getSelectedId();
-            if (chosen_id > 0)
+            const int chosen_index = m_pickup_chooser.getSelectedItemIndex();
+            const auto classes = common::audio::pickupClasses();
+            if (chosen_index >= 0 && static_cast<std::size_t>(chosen_index) < classes.size())
             {
                 m_calibration_controller.onPickupsSelected(
-                    static_cast<common::audio::PickupClass>(chosen_id - 1));
+                    classes[static_cast<std::size_t>(chosen_index)]);
             }
         };
         addAndMakeVisible(m_pickup_chooser);
-
-        m_pickup_note.setComponentID("input_calibration_pickup_note");
-        m_pickup_note.setJustificationType(juce::Justification::centredLeft);
-        m_pickup_note.setColour(juce::Label::textColourId, editorTheme().muted_text);
-        addAndMakeVisible(m_pickup_note);
 
         m_input_meter.setComponentID("input_calibration_meter");
         addAndMakeVisible(m_input_meter);
@@ -267,9 +266,7 @@ public:
         area.removeFromBottom(g_gap);
         auto pickup_row = area.removeFromBottom(g_row_height);
         m_pickup_label.setBounds(pickup_row.removeFromLeft(g_label_width));
-        m_pickup_chooser.setBounds(pickup_row.removeFromLeft(130));
-        pickup_row.removeFromLeft(g_gap);
-        m_pickup_note.setBounds(pickup_row);
+        m_pickup_chooser.setBounds(pickup_row.removeFromLeft(160));
     }
 
     void requestDismissal()
@@ -301,11 +298,9 @@ private:
         m_interface_chooser.setSelectedId(
             selected.has_value() ? static_cast<int>(*selected) + 1 : 0, juce::dontSendNotification);
         m_interface_chooser.setEnabled(!state.measuring);
-        m_pickup_chooser.setSelectedId(pickupClassId(state.pickups), juce::dontSendNotification);
+        m_pickup_chooser.setSelectedItemIndex(
+            pickupClassIndex(state.pickups), juce::dontSendNotification);
         m_pickup_chooser.setEnabled(!state.measuring);
-        m_pickup_note.setText(
-            juce::String{std::string{common::audio::pickupClassNote(state.pickups)}},
-            juce::dontSendNotification);
         m_calibrate_button.setEnabled(!state.measuring);
         m_manual_gain_slider.setEnabled(!state.measuring);
         m_manual_apply_button.setEnabled(!state.measuring);
@@ -361,7 +356,6 @@ private:
     juce::ComboBox m_interface_chooser;
     juce::Label m_pickup_label;
     juce::ComboBox m_pickup_chooser;
-    juce::Label m_pickup_note;
     juce::Label m_manual_label;
     juce::Slider m_manual_gain_slider;
     juce::TextButton m_manual_apply_button;

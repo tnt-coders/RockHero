@@ -220,7 +220,7 @@ TEST_CASE("Input calibration controller completes a measurement", "[core][input-
     controller.onSampleTick();
 
     CHECK(view.lastState().input_gain_db == Catch::Approx(8.0));
-    CHECK(view.lastState().status_message == "Saved: +8.0 dB, measured on a humbucker.");
+    CHECK(view.lastState().status_message == "Saved: +8.0 dB, measured with humbucker pickups.");
     CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().dismiss_button_text == "Close");
 }
@@ -363,7 +363,7 @@ TEST_CASE("Input calibration controller measures the chosen pickups", "[core][in
     host.sample =
         sampleWith(common::audio::InputCalibrationCommitted{.gain = common::audio::Gain{4.1}});
     controller.onSampleTick();
-    CHECK(view.lastState().status_message == "Saved: +4.1 dB, measured on a single-coil.");
+    CHECK(view.lastState().status_message == "Saved: +4.1 dB, measured with single-coil pickups.");
 }
 
 } // namespace rock_hero::editor::core

@@ -1,10 +1,13 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <cstddef>
 #include <rock_hero/common/audio/input/input_calibration.h>
+#include <string_view>
 #include <variant>
+#include <vector>
 
 namespace rock_hero::common::audio
 {
@@ -52,8 +55,8 @@ void pushSteadySamples(InputCalibrationAccumulator& accumulator, double peak_db)
 
 } // namespace
 
-// The target is where a hard strum on the stated pickups lands against the +12 dBu reference:
-// 2 V for humbuckers, 1 V for single coils, a humbucker's two coils 6 dB apart from one.
+// The target is where a hard strum on the stated pickups lands against the +12 dBu reference: a
+// humbucker's 2 V at -6.8 dBFS, a single coil's 1 V a humbucker's two coils (6 dB) below it.
 TEST_CASE("Input calibration target derives from the pickups", "[audio][input-calibration]")
 {
     const double humbucker = inputCalibrationTargetPeakDb(PickupClass::Humbucker);
@@ -61,15 +64,32 @@ TEST_CASE("Input calibration target derives from the pickups", "[audio][input-ca
     CHECK_THAT(humbucker, Catch::Matchers::WithinAbs(-6.77, 0.01));
     CHECK_THAT(single_coil, Catch::Matchers::WithinAbs(-12.79, 0.01));
     CHECK_THAT(humbucker - single_coil, Catch::Matchers::WithinAbs(6.02, 0.01));
+    CHECK_THAT(
+        inputCalibrationTargetPeakDb(PickupClass::MiniHumbucker),
+        Catch::Matchers::WithinAbs(-11.21, 0.01));
+    CHECK_THAT(
+        inputCalibrationTargetPeakDb(PickupClass::Active), Catch::Matchers::WithinAbs(-6.35, 0.01));
 }
 
-// Each pickup class has one name and one note, so every surface words it the same.
+// Each pickup class has one name, so every surface words it the same, and every listed class has
+// its own.
 TEST_CASE("Pickup class words every class once", "[audio][input-calibration]")
 {
+    std::vector<std::string_view> names;
+    for (const PickupClass pickups : pickupClasses())
+    {
+        const std::string_view name = pickupClassText(pickups);
+        CHECK_FALSE(name.empty());
+        CHECK(std::ranges::find(names, name) == names.end());
+        names.push_back(name);
+    }
+    CHECK(names.size() == 5);
+
     CHECK(pickupClassText(PickupClass::Humbucker) == "humbucker");
     CHECK(pickupClassText(PickupClass::SingleCoil) == "single-coil");
-    CHECK(pickupClassNote(PickupClass::Humbucker) == "Also P-90 and active.");
-    CHECK(pickupClassNote(PickupClass::SingleCoil) == "Passive, except P-90.");
+    CHECK(pickupClassText(PickupClass::P90) == "P-90");
+    CHECK(pickupClassText(PickupClass::MiniHumbucker) == "mini-humbucker");
+    CHECK(pickupClassText(PickupClass::Active) == "active");
 }
 
 // A gain that rounds to zero is stored and shown as zero, never as negative zero.

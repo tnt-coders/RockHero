@@ -1,6 +1,7 @@
 #include "input/input_calibration.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -9,6 +10,15 @@ namespace rock_hero::common::audio
 
 namespace
 {
+
+// Every pickup class, in chooser order; the commonest first.
+constexpr std::array g_pickup_classes{
+    PickupClass::Humbucker,
+    PickupClass::SingleCoil,
+    PickupClass::P90,
+    PickupClass::MiniHumbucker,
+    PickupClass::Active,
+};
 
 // The one wording per capture failure, so every site that reports a code says the same thing.
 [[nodiscard]] InputCalibrationError inputCalibrationError(InputCalibrationErrorCode code)
@@ -35,6 +45,11 @@ namespace
 
 } // namespace
 
+std::span<const PickupClass> pickupClasses() noexcept
+{
+    return g_pickup_classes;
+}
+
 std::string_view pickupClassText(PickupClass pickups) noexcept
 {
     switch (pickups)
@@ -47,24 +62,20 @@ std::string_view pickupClassText(PickupClass pickups) noexcept
         {
             return "single-coil";
         }
+        case PickupClass::P90:
+        {
+            return "P-90";
+        }
+        case PickupClass::MiniHumbucker:
+        {
+            return "mini-humbucker";
+        }
+        case PickupClass::Active:
+        {
+            return "active";
+        }
     }
     return "humbucker";
-}
-
-std::string_view pickupClassNote(PickupClass pickups) noexcept
-{
-    switch (pickups)
-    {
-        case PickupClass::Humbucker:
-        {
-            return "Also P-90 and active.";
-        }
-        case PickupClass::SingleCoil:
-        {
-            return "Passive, except P-90.";
-        }
-    }
-    return "Also P-90 and active.";
 }
 
 // Records the loudest level and keeps every window loud enough to count as playing.

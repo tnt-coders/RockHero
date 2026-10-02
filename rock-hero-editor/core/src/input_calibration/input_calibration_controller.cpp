@@ -261,10 +261,11 @@ void InputCalibrationController::setDisplayedInputGain(double gain_db)
 void InputCalibrationController::finishMeasurementSuccess(double gain_db)
 {
     setDisplayedInputGain(gain_db);
-    // The class is named so a single-coil player who left the default sees what was assumed.
+    // The pickups are named so a player who left the default sees what was assumed.
     m_state.status_message = savedText(
         m_state.input_gain_db,
-        ", measured on a " + std::string{common::audio::pickupClassText(m_state.pickups)});
+        ", measured with " + std::string{common::audio::pickupClassText(m_state.pickups)} +
+            " pickups");
     m_committed_input_gain_db = m_state.input_gain_db;
     m_state.measuring = false;
     publishState();

@@ -83,7 +83,7 @@ editor's countdown reads them, never a count of its own), a committed gain, or a
 measurement listens to the player's hardest playing for a fixed span from the first window it
 hears and sets the gain so the playing's ceiling, a high percentile of the window peaks, lands on
 `inputCalibrationTargetPeakDb(pickups)`: where a hard strum on the stated `PickupClass` lands,
-from the authored `hardStrumPeakVolts()` (2 V humbucker, 1 V single coil;
+from the authored `hardStrumPeakVolts()` (one value per type, its evidence beside it;
 `docs/tracking/2026-10-01-hard-strum-peak-research.md`) and the one reference,
 `inputLevelReferenceDbu()` (`input/input_calibration.h`). `LiveInputMonitor::beginMeasurement`
 takes the pickups and keeps them with the measurement, and each committed measurement logs

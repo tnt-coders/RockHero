@@ -344,8 +344,8 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
             .isVisible());
 }
 
-// The pickup chooser opens on humbuckers with its note; choosing single coils changes the note,
-// and "Measure by playing" then measures the chosen pickups.
+// The pickup chooser lists the five kinds and opens on humbuckers; "Measure by playing" then
+// measures the chosen pickups.
 TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -364,16 +364,14 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
-    auto& note = findRequiredDescendant<juce::Label>(window, "input_calibration_pickup_note");
     auto& start_button =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
 
+    CHECK(chooser.getNumItems() == 5);
     CHECK(chooser.getText() == "Humbucker");
-    CHECK(note.getText() == "Also P-90 and active.");
 
     chooser.setSelectedItemIndex(1, juce::sendNotificationSync);
     CHECK(chooser.getText() == "Single-coil");
-    CHECK(note.getText() == "Passive, except P-90.");
 
     REQUIRE(start_button.onClick);
     start_button.onClick();
