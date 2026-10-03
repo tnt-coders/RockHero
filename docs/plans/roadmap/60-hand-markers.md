@@ -199,9 +199,12 @@ without them in view.
   and no selected-span ground; no rail geometry is exported (`tabShapeRailBounds` does not exist).
 - **No template, dictionary, zone or fingering storage exists anywhere.** The GP parser reads no
   fingering and no chord diagrams (`gp_score.h`), so nothing could write a finger today.
-- **Measurement.** The ground-truth dataset (16 shards, 4,555 arrangements) and the Python
-  harness (`expert/final.py`, `combined.py`) live in local scratch outside the repo, per the
-  corpus firewall; no C++ reads it. The GP corpus census (`test_corpus_census.cpp`, hidden
+- **Measurement.** The ground-truth dataset (16 shards, 4,555 arrangements) lives in local
+  scratch outside every repo, per the corpus firewall; no C++ reads it. The Python harness
+  (`final.py`, `combined.py` and the dataset's consistency sweeps) is committed in the importer
+  repo under `custom-song-importer/tools/fhp-harness/` since 2026-10-02 and finds the dataset
+  through `ROCKHERO_FHP_DATASET_DIR`; run from there it reproduces the 88.03% headline (verified
+  the same day). The GP corpus census (`test_corpus_census.cpp`, hidden
   `[.local-corpus]`, `ROCKHERO_GP_CORPUS_DIR`) carries the travel-aware pinned-finger counter,
   the hand-coupling gate counters and the unfretted-arrival counters; three fret-hand-window rows
   have drifted below their pins since 2026-09-24 (`watch-items.md`). The sighted offender
