@@ -23,14 +23,6 @@ namespace rock_hero::common::core
 inline constexpr std::string_view g_song_document_name{"song.json"};
 
 /*!
-\brief Fixed decimal precision for persisted anchor seconds.
-
-Anchor seconds are the only absolute time stored in a package, persisted at a fixed three-decimal
-(millisecond) grid. This matches the Song Data Model note in docs/design/architecture.md.
-*/
-inline constexpr int g_timing_decimals = 3;
-
-/*!
 \brief Reports whether an audio path names a FLAC file, RockHero's only package audio format.
 \param path Package-relative or source audio path.
 \return True when the extension is `.flac`, compared case-insensitively.

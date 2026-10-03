@@ -152,6 +152,32 @@ public:
     [[nodiscard]] double quarterNoteBpmAtSeconds(double seconds) const noexcept;
 
     /*!
+    \brief Returns the quarter-note length of one anchor span.
+
+    Span \p span runs from anchor \p span to the anchor after it, so its tempo is this length over
+    the two anchors' seconds; a meter change inside the span does not alter it.
+
+    \param span Zero-based span index.
+    \return Quarter notes between the span's two anchors, or zero when the span does not exist.
+    */
+    [[nodiscard]] double spanQuarterLength(std::size_t span) const noexcept;
+
+    /*!
+    \brief Returns the terminal anchor grown to cover a time.
+
+    The terminal moves to the first downbeat at or after its own measure whose time reaches
+    \p cover_until_seconds, timed from the last anchor before it at \p seconds_per_quarter and
+    rounded to the millisecond grid once, so a long extension carries no accumulated rounding. A
+    terminal that already covers the time comes back unchanged: it never moves earlier.
+
+    \param cover_until_seconds Time the map must reach, such as the end of the song's audio.
+    \param seconds_per_quarter Tempo the last span keeps, as seconds per quarter note.
+    \return The covering terminal anchor.
+    */
+    [[nodiscard]] BeatAnchor terminalCovering(
+        double cover_until_seconds, double seconds_per_quarter) const;
+
+    /*!
     \brief Finds the beat count for the measure's active time signature.
     \param measure One-based measure to query.
     \return Beats per measure.

@@ -1,8 +1,10 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <compare>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 #include <utility>
 #include <vector>
 
@@ -266,6 +268,63 @@ TEST_CASE("TempoMap clamps beat positions below the first anchor", "[core][tempo
     // anchor's beat index as before.
     CHECK(tempo_map.secondsAtBeat(2, 3) == Catch::Approx(12.0));
     CHECK(tempo_map.beatPositionAtSeconds(9.0) == Catch::Approx(4.0));
+}
+
+// Verifies a span's quarter length follows the meters inside it: 6/8 holds three quarters.
+TEST_CASE("TempoMap reports each anchor span's quarter length", "[core][tempo-map]")
+{
+    const TempoMap map{
+        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+         TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8}},
+        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+         BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0},
+         BeatAnchor{.measure = 3, .beat = 1, .seconds = 3.5}}
+    };
+
+    CHECK(map.spanQuarterLength(0) == Catch::Approx(4.0));
+    CHECK(map.spanQuarterLength(1) == Catch::Approx(3.0));
+    CHECK(map.spanQuarterLength(2) == Catch::Approx(0.0));
+}
+
+// Verifies the default map ends on the first downbeat at or past the audio, one measure at least.
+TEST_CASE("TempoMap default map ends on the first downbeat covering the audio", "[core][tempo-map]")
+{
+    const auto terminal_of = [](const double audio_seconds) {
+        return TempoMap::defaultMap(TimeDuration{audio_seconds}).anchors().back();
+    };
+
+    CHECK(terminal_of(0.0) == BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0});
+    CHECK(terminal_of(8.0) == BeatAnchor{.measure = 5, .beat = 1, .seconds = 8.0});
+    CHECK(terminal_of(3.9996) == BeatAnchor{.measure = 3, .beat = 1, .seconds = 4.0});
+    CHECK(terminal_of(4.0004) == BeatAnchor{.measure = 4, .beat = 1, .seconds = 6.0});
+    CHECK(terminal_of(93.5) == BeatAnchor{.measure = 48, .beat = 1, .seconds = 94.0});
+}
+
+// Verifies the covering terminal walks a meter change measure by measure, times every candidate
+// from the anchor before it, and never moves a terminal that already covers the time.
+TEST_CASE("TempoMap grows its terminal to cover a time", "[core][tempo-map]")
+{
+    const TempoMap map{
+        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+         TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8}},
+        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+         BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0}}
+    };
+
+    CHECK(map.terminalCovering(5.0, 0.5) == BeatAnchor{.measure = 4, .beat = 1, .seconds = 5.5});
+    CHECK(map.terminalCovering(1.0, 0.5) == map.anchors().back());
+
+    // 241 quarter notes a minute over five minutes: one rounding, not one per measure.
+    const TempoMap fast{
+        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+         BeatAnchor{.measure = 2, .beat = 1, .seconds = 0.996}}
+    };
+    const BeatAnchor grown = fast.terminalCovering(300.0, 60.0 / 241.0);
+    const double quarters = static_cast<double>(grown.measure - 1) * 4.0;
+    CHECK(grown.seconds == Catch::Approx(std::round(quarters * 60.0 / 241.0 * 1000.0) / 1000.0));
+    CHECK(grown.seconds >= 300.0);
+    CHECK(grown.seconds - 4.0 * 60.0 / 241.0 < 300.0);
 }
 
 } // namespace rock_hero::common::core

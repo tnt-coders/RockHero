@@ -19,6 +19,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -231,18 +232,18 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
 
 // Snaps anchor seconds onto the package format's millisecond grid. Guitar Pro's frame offsets
 // divided by 44100 almost never land on a whole millisecond, but the package stores anchor
-// seconds at three decimals, so an unrounded map imports fine yet cannot be saved. Rounding uses
-// the same integer-millisecond quantum the writer uses, and any anchor that would collide with or
-// regress past its predecessor is nudged one millisecond later to keep the map strictly ordered.
+// seconds at three decimals, so an unrounded map imports fine yet cannot be saved. Rounding asks
+// the tempo-map rules' own grid, and any anchor that would collide with or regress past its
+// predecessor is nudged one millisecond later to keep the map strictly ordered.
 void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors)
 {
     double previous_seconds = -1.0;
     for (common::core::BeatAnchor& anchor : anchors)
     {
-        double snapped = static_cast<double>(std::llround(anchor.seconds * 1000.0)) / 1000.0;
+        double snapped = common::core::nearestAnchorSeconds(anchor.seconds);
         if (snapped <= previous_seconds)
         {
-            snapped = previous_seconds + 0.001;
+            snapped = previous_seconds + common::core::g_anchor_seconds_step;
         }
         anchor.seconds = snapped;
         previous_seconds = snapped;
@@ -380,7 +381,8 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
             common::core::BeatAnchor{
                 .measure = total_measures + 1,
                 .beat = 1,
-                .seconds = std::max(terminal_seconds, last_sync_seconds + 0.001),
+                .seconds = std::max(
+                    terminal_seconds, last_sync_seconds + common::core::g_anchor_seconds_step),
             });
     }
 

@@ -68,6 +68,8 @@ add_executable(
     test_signal_chain_block_placement.cpp
     test_signal_chain_workflow.cpp
     test_tempo_grid_geometry.cpp
+    test_tempo_map_edits.cpp
+    test_tempo_span_text.cpp
     test_timeline_geometry.cpp
     test_transport_readout_text.cpp
     test_load_notice.cpp

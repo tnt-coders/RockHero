@@ -1,13 +1,11 @@
 #include "rock_song_package_format.h"
 
-#include <cmath>
-#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_tokens.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <set>
 #include <string>
@@ -16,161 +14,19 @@
 namespace rock_hero::common::core
 {
 
-namespace
-{
-
-// Decimal quantum (10^g_timing_decimals) used to verify that anchor seconds are exactly on the
-// persisted grid. Computed from g_timing_decimals so the on-grid check can never drift from the
-// writer's fixed-precision output.
-constexpr int g_seconds_grid_units = [] {
-    int units = 1;
-    for (int decimal = 0; decimal < g_timing_decimals; ++decimal)
-    {
-        units *= 10;
-    }
-    return units;
-}();
-
-constexpr double g_timing_epsilon = 1.0e-9;
-
-[[nodiscard]] bool isValidTimingValue(double value) noexcept
-{
-    return std::isfinite(value) && value >= 0.0;
-}
-
-// Rounds a seconds value to the integer quantum used by the persisted three-decimal format.
-[[nodiscard]] std::int64_t secondsGridUnits(double value) noexcept
-{
-    return static_cast<std::int64_t>(
-        std::llround(value * static_cast<double>(g_seconds_grid_units)));
-}
-
-// Reports whether a seconds value is already on the persisted three-decimal grid.
-[[nodiscard]] bool isOnSecondsGrid(double value) noexcept
-{
-    if (!std::isfinite(value))
-    {
-        return false;
-    }
-
-    const double grid_value =
-        static_cast<double>(secondsGridUnits(value)) / static_cast<double>(g_seconds_grid_units);
-    return std::abs(value - grid_value) <= g_timing_epsilon;
-}
-
-// A meter's beat is a power-of-two note value, as notation writes meters, and one that is a whole
-// number of ticks: a 512th-note beat would leave every position in its measure, downbeats
-// included, between two ticks, which the chart rules refuse.
-[[nodiscard]] bool isRepresentableDenominator(int denominator) noexcept
-{
-    return denominator > 0 && (denominator & (denominator - 1)) == 0 &&
-           g_tick_quantum_denominator % denominator == 0;
-}
-
-} // namespace
-
 [[nodiscard]] bool hasFlacExtension(const std::filesystem::path& path)
 {
     return hasExtensionIgnoringCase(path, ".flac");
 }
 
-[[nodiscard]] std::expected<void, SongPackageError> validateTempoMap(const TempoMap& tempo_map)
+// Translates the shared tempo-map domain rules into the package error surface.
+std::expected<void, SongPackageError> validateTempoMap(const TempoMap& tempo_map)
 {
-    const std::vector<TimeSignatureChange>& time_signatures = tempo_map.timeSignatures();
-    if (time_signatures.empty())
+    if (const auto structural = validateTempoMapRules(tempo_map); !structural.has_value())
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            "tempoMap.timeSignatures must contain at least one entry",
-        }};
-    }
-
-    if (time_signatures.front().measure != 1)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            "tempoMap.timeSignatures must start at measure 1",
-        }};
-    }
-
-    int previous_measure = 0;
-    for (const TimeSignatureChange& signature : time_signatures)
-    {
-        if (signature.measure <= previous_measure || signature.numerator <= 0 ||
-            !isRepresentableDenominator(signature.denominator))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.timeSignatures must be strictly ordered meters with a power-of-two "
-                "denominator of at most 256",
-            }};
-        }
-        previous_measure = signature.measure;
-    }
-
-    const std::vector<BeatAnchor>& anchors = tempo_map.anchors();
-    if (anchors.size() < 2)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            "tempoMap.anchors must contain start and terminal anchors",
-        }};
-    }
-
-    if (anchors.front().measure != 1 || anchors.front().beat != 1)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            "tempoMap.anchors must start at measure 1 beat 1",
-        }};
-    }
-
-    std::int64_t previous_index = -1;
-    double previous_seconds = -1.0;
-    for (const BeatAnchor& anchor : anchors)
-    {
-        if (anchor.measure <= 0 || anchor.beat <= 0 || !isValidTimingValue(anchor.seconds))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.anchors must use positive addresses and finite non-negative seconds",
-            }};
-        }
-
-        if (!isOnSecondsGrid(anchor.seconds))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.anchors seconds must use three-decimal storage precision",
-            }};
-        }
-
-        if (anchor.beat > tempo_map.beatsPerMeasureAt(anchor.measure))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.anchors beat exceeds the active measure length",
-            }};
-        }
-
-        const std::int64_t anchor_index = tempo_map.globalBeatIndex(anchor.measure, anchor.beat);
-        if (anchor_index <= previous_index || anchor.seconds <= previous_seconds)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.anchors must be strictly ordered by beat and seconds",
-            }};
-        }
-
-        previous_index = anchor_index;
-        previous_seconds = anchor.seconds;
-    }
-
-    if (anchors.back().beat != 1)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            "tempoMap terminal anchor must be on a downbeat",
+            "tempoMap: " + structural.error().message,
         }};
     }
 

@@ -27,6 +27,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <set>
 #include <string>
 #include <string_view>
@@ -142,7 +143,7 @@ constexpr int g_zip_compression_level = 9;
 // Formats native timing values at the fixed package precision.
 [[nodiscard]] std::string formatTimingValue(double value)
 {
-    return std::format("{:.{}f}", value, g_timing_decimals);
+    return std::format("{:.{}f}", value, g_anchor_seconds_decimals);
 }
 
 // Formats non-timing JSON numbers through the shared round-trip-exact form. Unlike the timing

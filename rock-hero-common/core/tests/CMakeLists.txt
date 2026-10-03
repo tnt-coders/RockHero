@@ -35,6 +35,7 @@ add_executable(
     test_highway_tail.cpp
     test_highway_window.cpp
     test_tempo_map.cpp
+    test_tempo_map_rules.cpp
     test_tone_track_rules.cpp
     test_tone_track_edits.cpp
     test_tone_track_normalize.cpp

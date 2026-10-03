@@ -40,6 +40,7 @@ target_sources(
             src/song/song.cpp
             src/song/song_section_rules.cpp
             src/timeline/tempo_map.cpp
+            src/timeline/tempo_map_rules.cpp
             src/tone/tone_automation.cpp
             src/tone/tone_track_rules.cpp
             src/tone/tone_track_edits.cpp

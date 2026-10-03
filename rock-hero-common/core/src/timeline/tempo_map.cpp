@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <limits>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <utility>
 
 namespace rock_hero::common::core
@@ -188,34 +190,81 @@ double TempoMap::quarterPositionAtBeatPosition(double global_beat_position) cons
 // Creates the editor fallback grid used before imported songs receive authored timing.
 TempoMap TempoMap::defaultMap(TimeDuration audio_duration)
 {
-    const double safe_duration =
-        std::isfinite(audio_duration.seconds) ? std::max(0.0, audio_duration.seconds) : 0.0;
-    const auto beat_count = static_cast<int>(std::ceil(safe_duration / g_default_seconds_per_beat));
-    const int content_measures =
-        std::max(1, (beat_count + g_default_beats_per_measure - 1) / g_default_beats_per_measure);
-
+    // The one-measure default grown by the one covering rule, so this map's end and the end a
+    // typed tempo grows to can never be two different answers.
+    const TempoMap seed;
     return TempoMap{
+        seed.m_time_signatures,
         std::vector{
-            TimeSignatureChange{
-                .measure = 1,
-                .numerator = g_default_beats_per_measure,
-                .denominator = 4,
-            },
-        },
-        std::vector{
-            BeatAnchor{
-                .measure = 1,
-                .beat = 1,
-                .seconds = 0.0,
-            },
-            BeatAnchor{
-                .measure = content_measures + 1,
-                .beat = 1,
-                .seconds = static_cast<double>(content_measures * g_default_beats_per_measure) *
-                           g_default_seconds_per_beat,
-            },
+            seed.m_anchors.front(),
+            seed.terminalCovering(audio_duration.seconds, g_default_seconds_per_beat),
         },
     };
+}
+
+BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds_per_quarter) const
+{
+    if (m_anchors.size() < 2)
+    {
+        return m_anchors.empty() ? BeatAnchor{} : m_anchors.back();
+    }
+    const BeatAnchor& terminal = m_anchors.back();
+    if (!std::isfinite(cover_until_seconds) || !std::isfinite(seconds_per_quarter) ||
+        seconds_per_quarter <= 0.0 || terminal.seconds >= cover_until_seconds)
+    {
+        return terminal;
+    }
+
+    // Every candidate downbeat is timed from the last anchor before the terminal and rounded once,
+    // never by stepping from a rounded time, so the error stays half a millisecond however far the
+    // terminal travels.
+    const BeatAnchor& opener = m_anchors[m_anchors.size() - 2];
+    const auto seconds_at = [&opener, seconds_per_quarter](const double quarter_count) {
+        return nearestAnchorSeconds(opener.seconds + quarter_count * seconds_per_quarter);
+    };
+    const auto measure_quarters = [this](const int at_measure) {
+        const TimeSignatureChange signature = timeSignatureAt(at_measure);
+        return static_cast<double>(signature.numerator) * 4.0 /
+               static_cast<double>(signature.denominator);
+    };
+
+    int measure = terminal.measure;
+    double quarters = spanQuarterLength(m_anchors.size() - 2);
+
+    // Measure by measure through any meter change still ahead of the terminal...
+    const int last_change = m_time_signatures.back().measure;
+    while (measure < last_change && seconds_at(quarters) < cover_until_seconds)
+    {
+        quarters += measure_quarters(measure);
+        ++measure;
+    }
+
+    // ...past which every measure is the same length, so the count still missing is solved in one
+    // step and settled against the rounding, however fast the tempo.
+    if (seconds_at(quarters) < cover_until_seconds)
+    {
+        const double per_measure = measure_quarters(measure);
+        const double missing =
+            (cover_until_seconds - opener.seconds) / seconds_per_quarter - quarters;
+        const double most_steps = static_cast<double>(std::numeric_limits<int>::max() - measure);
+        auto steps =
+            static_cast<int>(std::clamp(std::ceil(missing / per_measure), 0.0, most_steps));
+        while (steps > 0 && seconds_at(quarters + static_cast<double>(steps - 1) * per_measure) >=
+                                cover_until_seconds)
+        {
+            --steps;
+        }
+        while (steps < std::numeric_limits<int>::max() - measure &&
+               seconds_at(quarters + static_cast<double>(steps) * per_measure) <
+                   cover_until_seconds)
+        {
+            ++steps;
+        }
+        measure += steps;
+        quarters += static_cast<double>(steps) * per_measure;
+    }
+
+    return BeatAnchor{.measure = measure, .beat = 1, .seconds = seconds_at(quarters)};
 }
 
 // Exposes time signatures as read-only package data.
@@ -337,8 +386,7 @@ double TempoMap::quarterNoteBpmAtSeconds(double seconds) const noexcept
     const std::size_t span_start =
         std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
 
-    const double quarter_span =
-        m_anchor_quarter_positions[span_start + 1] - m_anchor_quarter_positions[span_start];
+    const double quarter_span = spanQuarterLength(span_start);
     const double seconds_span = m_anchors[span_start + 1].seconds - m_anchors[span_start].seconds;
     if (quarter_span <= 0.0 || seconds_span <= 0.0)
     {
@@ -346,6 +394,15 @@ double TempoMap::quarterNoteBpmAtSeconds(double seconds) const noexcept
     }
 
     return quarter_span / seconds_span * 60.0;
+}
+
+double TempoMap::spanQuarterLength(std::size_t span) const noexcept
+{
+    if (span + 1 >= m_anchor_quarter_positions.size())
+    {
+        return 0.0;
+    }
+    return m_anchor_quarter_positions[span + 1] - m_anchor_quarter_positions[span];
 }
 
 // Converts sparse measure/beat addresses into a continuous beat axis for interpolation.
