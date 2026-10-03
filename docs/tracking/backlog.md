@@ -44,7 +44,8 @@ the user picks which way the two surfaces reconcile.
   `identity.unique_id`, then `identity.deprecated_uid`, against `knownPluginList.getTypes()` BEFORE
   any path-bearing key, in that one function; the path stays a hint for the rescan fallback. Test:
   a known description whose `fileOrIdentifier` differs from the persisted one is found. Found by
-  `docs/plans/todo/bundled-gain-plugin.md` R6; not a prerequisite of that plan.
+  `docs/plans/todo/rock-hero-plugins-and-gain.md` (the identity ruling); not a prerequisite of
+  that plan, whose hosted plugins carry a fixed identifier instead of a path.
 
 ## Raised while adopting the silent audio device (2026-10-01)
 
