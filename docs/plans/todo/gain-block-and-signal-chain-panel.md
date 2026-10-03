@@ -40,8 +40,9 @@ there is no per-tone input gain.
 
 ## Phase 1 — the Gain block
 
-Phase 1 is now delivered as a hosted JUCE processor from our own plugin repo, ruled 2026-10-02 in
-`bundled-gain-plugin.md` (R1-R8): no built-in type and none of the seams below are built. From
+Phase 1 is now delivered as a hosted JUCE processor from the in-repo `rock-hero-plugins/` scope,
+ruled 2026-10-02 in `bundled-gain-plugin.md` (R1-R9): no built-in type and none of the seams
+below are built. From
 here to the Tests paragraph is the record of route (A), a Tracktion built-in, kept because the
 rulings about the SLOT (the stage's position, store, id and UI) still hold and because the
 comparison in that plan rests on these seams.
@@ -132,12 +133,12 @@ building):
 
 ### What Phase 1 builds now (2026-10-02)
 
-The hosted route, steps 0-6 under "First deliverable" in `bundled-gain-plugin.md`: the plugin
-repo's `GainProcessor` and its knob editor, the `RockHero` `juce::AudioPluginFormat` in
-`common/audio/src/tracktion/`, its registration, and the catalog constant. Tracktion's
-`ExternalPlugin` is the adapter, already written: parameters, state, editor, lanes and undo all
-come for free. The identity authority, the generalised refusals and the built-in editor of route
-(A) are withdrawn with it. Size: about two days plus the repository bootstrap.
+The hosted route, steps 1-5 under "First deliverable" in `bundled-gain-plugin.md`: the
+`rock-hero-plugins/gain` scope's `GainProcessor` and its knob editor, the `RockHero`
+`juce::AudioPluginFormat` in `common/audio/src/tracktion/`, its registration, and the catalog
+constant. Tracktion's `ExternalPlugin` is the adapter, already written: parameters, state,
+editor, lanes and undo all come for free. The identity authority, the generalised refusals and
+the built-in editor of route (A) are withdrawn with it. Size: about two days, all in this repo.
 
 **Tests.** Catalog lists Gain with format "RockHero" and no file; insert creates it in the audible
 branch at the chosen slot as an `ExternalPlugin` holding a `GainProcessor`;
