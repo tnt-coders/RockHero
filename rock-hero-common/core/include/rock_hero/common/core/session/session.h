@@ -145,13 +145,24 @@ public:
     [[nodiscard]] std::vector<SongSection>& songSections() noexcept;
 
     /*!
+    \brief Replaces the song's tempo map, then advances chartRevision().
+
+    The sixth narrow mutation surface, song-level like the sections. The tempo map places every
+    chart note in time, so a tempo change IS a change to every chart projection: it advances the
+    same revision a chart write does rather than keying the caches on a second counter.
+
+    \param tempo_map Tempo map the caller has already validated.
+    */
+    void setTempoMap(TempoMap tempo_map);
+
+    /*!
     \brief Returns the chart revision counter that keys chart-projection caches.
 
-    Advances every time a writeChart() write ends. View-state caches pair it with the arrangement
-    id so chart edits invalidate memoized projections without any explicit notification path that
-    could be forgotten.
+    Advances every time a writeChart() write ends and every time the tempo map is replaced.
+    View-state caches pair it with the arrangement id so chart and tempo edits invalidate memoized
+    projections without any explicit notification path that could be forgotten.
 
-    \return Monotonic count of chart writes.
+    \return Monotonic count of chart and tempo-map writes.
     */
     [[nodiscard]] std::uint64_t chartRevision() const noexcept;
 

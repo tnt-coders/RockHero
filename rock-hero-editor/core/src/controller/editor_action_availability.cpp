@@ -83,9 +83,12 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ChooseChartBend:
         case EditorAction::Id::SetChartBend:
         case EditorAction::Id::ToggleChartJunction:
-        // The section and hand-marker verbs edit the project the calibration prompt is parked over.
+        // The section, tempo and hand-marker verbs edit the project the calibration prompt is
+        // parked over.
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::InsertTempoAnchor:
+        case EditorAction::Id::SetTempoSpanBpm:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
         case EditorAction::Id::ClearFretHandEnd:
         {
@@ -203,6 +206,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
+            case EditorAction::Id::InsertTempoAnchor:
+            case EditorAction::Id::SetTempoSpanBpm:
             case EditorAction::Id::SelectTempoAnchor:
             case EditorAction::Id::SelectTimeSignature:
             case EditorAction::Id::SelectFretHandPosition:
@@ -418,6 +423,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::InsertTempoAnchor:
+        case EditorAction::Id::SetTempoSpanBpm:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
         {
@@ -505,6 +512,8 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::InsertTempoAnchor:
+        case EditorAction::Id::SetTempoSpanBpm:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
         case EditorAction::Id::SelectFretHandPosition:

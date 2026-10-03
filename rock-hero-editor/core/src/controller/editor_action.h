@@ -946,6 +946,34 @@ struct EditorAction
         std::string name;
     };
 
+    /*!
+    \brief Insert a tempo anchor at a beat, pinning the time the map already gives that beat.
+
+    Carries the beat the surface captured at the press, like the section insert, so the verb never
+    re-reads the cursor. An occupied beat, or one at or past the terminal anchor, refuses.
+    */
+    struct InsertTempoAnchor
+    {
+        /*! \brief Beat the anchor is asked for, with no offset. */
+        common::core::GridPosition position{};
+    };
+
+    /*!
+    \brief Type the quarter-note tempo of the span the anchor at a beat opens.
+
+    The anchor stays put and every later anchor ripples by the same whole-millisecond amount, so
+    every later span keeps its tempo. Position-anchored like the section rename, so the chord at
+    the cursor and Enter on a selected chip reach a span the same way.
+    */
+    struct SetTempoSpanBpm
+    {
+        /*! \brief Beat of the anchor opening the span. */
+        common::core::GridPosition position{};
+
+        /*! \brief Typed tempo in quarter notes per minute; a non-positive one refuses. */
+        double quarter_bpm{};
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, ExportSong>;
 
@@ -974,8 +1002,9 @@ struct EditorAction
         DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
         ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
-        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, SelectFretHandPosition,
-        AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject, JumpToFocusRow>;
+        RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm,
+        SelectTimeSignature, SelectFretHandPosition, AuthorFretHandPositionAtCursor,
+        ClearFretHandEnd, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

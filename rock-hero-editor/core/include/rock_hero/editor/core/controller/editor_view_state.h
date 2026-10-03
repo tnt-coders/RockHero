@@ -465,6 +465,54 @@ commit would refuse it, and the view keeps no gate of its own.
 using SectionChordTarget = std::variant<std::monostate, RenameSectionTarget, InsertSectionTarget>;
 
 /*!
+\brief The verb that types the tempo of the span a tempo anchor opens.
+
+Published as the tempo chord's or the restate verb's answer
+(\ref EditorViewState::tempo_chord_target, \ref EditorViewState::restate_target); the view opens
+the BPM prompt this names and nothing else.
+*/
+struct SetTempoTarget
+{
+    /*! \brief Beat the anchor stands on; the typed tempo addresses its span by this. */
+    common::core::GridPosition position{};
+
+    /*! \brief The span's tempo as its chip prints it, the prompt's starting text. */
+    std::string bpm_text{};
+
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both name the same anchor under the same printed tempo.
+    */
+    bool operator==(const SetTempoTarget&) const = default;
+};
+
+/*!
+\brief The verb that inserts a tempo anchor at a beat the core has already found free and able to
+carry one.
+*/
+struct InsertTempoAnchorTarget
+{
+    /*! \brief Beat the new anchor will stand on. */
+    common::core::GridPosition position{};
+
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both name the same beat.
+    */
+    bool operator==(const InsertTempoAnchorTarget&) const = default;
+};
+
+/*!
+\brief What `Ctrl+B` would do right now: type the tempo of the span the anchor standing exactly at
+the cursor's beat opens, insert an anchor there, or nothing.
+
+The tempo twin of \ref SectionChordTarget: derived from the cursor read at the tick and floored to
+its beat, never from the selection. Nothing while the transport plays, with no song, or at or past
+the terminal anchor, which opens no span.
+*/
+using TempoChordTarget = std::variant<std::monostate, SetTempoTarget, InsertTempoAnchorTarget>;
+
+/*!
 \brief The verb that repoints a tone region at another tone: the region, and the tone it sounds
 now, which the picker leaves out because choosing it would change nothing.
 */
@@ -550,15 +598,17 @@ struct OpenBendPickerTarget
 };
 
 /*!
-\brief What `Enter` would do to the selection right now: rename a selected section, retone a
-selected tone region, open the "+" row's picker, open the bend picker on a bend chip, or nothing.
+\brief What `Enter` would do to the selection right now: rename a selected section, type the tempo
+of a selected tempo anchor's span, retone a selected tone region, open the "+" row's picker, open
+the bend picker on a bend chip, or nothing.
 
 The selection's own verb, dispatched on its kind here rather than in the view: restating a section
-is renaming it, restating a tone region is repointing it, restating a bend is choosing its amount.
+is renaming it, restating a tempo anchor is typing its span's tempo, restating a tone region is
+repointing it, restating a bend is choosing its amount.
 */
 using RestateTarget = std::variant<
-    std::monostate, RenameSectionTarget, RetoneRegionTarget, OpenAutomationPickerTarget,
-    OpenBendPickerTarget>;
+    std::monostate, RenameSectionTarget, SetTempoTarget, RetoneRegionTarget,
+    OpenAutomationPickerTarget, OpenBendPickerTarget>;
 
 /*!
 \brief What `Ctrl+R` would do to the selection right now: rename a selected section, rename a
@@ -1089,6 +1139,14 @@ struct EditorViewState
     gate of its own, since "nothing" is that gate.
     */
     SectionChordTarget section_chord_target{};
+
+    /*!
+    \brief What the tempo chord (`Ctrl+B`) would do at the cursor right now.
+
+    The tempo twin of \ref section_chord_target, read at the tick and floored to its beat: type the
+    tempo of the span the anchor standing there opens, insert an anchor there, or nothing.
+    */
+    TempoChordTarget tempo_chord_target{};
 
     /*!
     \brief What the tone chord (`Ctrl+T`) would do at the cursor right now.

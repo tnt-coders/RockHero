@@ -1,7 +1,6 @@
 #include "controller/editor_controller_impl.h"
 #include "project/load_notice.h"
 #include "shared/editor_controller_logging.h"
-#include "tone/tone_automation_edits.h"
 
 #include <cassert>
 #include <cmath>
@@ -581,9 +580,10 @@ void EditorController::Impl::startLiveRigLoadStage(
                 m_tone_output = rig_result->output;
                 m_tone_output_preview_before.reset();
                 // Load-fresh plugin identities key the arrangement's musical automation; merge
-                // them, then rebuild the derived playback curves, which no saved file carries.
+                // them, then build the rig's tempo-derived caches (the playback curves, which no
+                // saved file carries, and the host-tempo mirror) from the map as it stands.
                 mergeToneChainIdentities(rig_result->tone_chains);
-                rebuildDerivedToneCurves(editContext());
+                pushTempoDerivedAudio();
                 m_loaded_tone_refs.clear();
                 m_loaded_tone_refs.reserve(rig_result->tone_chains.size());
                 for (const common::audio::LoadedToneChainIdentities& chain :
@@ -591,10 +591,6 @@ void EditorController::Impl::startLiveRigLoadStage(
                 {
                     m_loaded_tone_refs.push_back(chain.tone_document_ref);
                 }
-                // One-way host-tempo mirror so hosted plugins see the song's real tempo map
-                // instead of the backend default. Any flow that edits the tempo map must re-mirror
-                // after the change, alongside rebuildDerivedToneCurves().
-                m_song_audio.mirrorTempoMap(session().song().tempo_map);
                 refreshLiveInput();
                 if (!report_progress)
                 {
@@ -1226,6 +1222,8 @@ std::filesystem::path EditorController::Impl::currentSongDirectory() const
 void EditorController::Impl::clearLiveRig()
 {
     m_loaded_tone_refs.clear();
+    // The released rig takes its tempo-derived caches with it.
+    m_engine_tempo_map.reset();
     const auto cleared = m_live_rig.clearLiveRig();
     if (!cleared.has_value())
     {

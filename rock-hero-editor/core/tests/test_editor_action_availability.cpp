@@ -344,6 +344,8 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
     CHECK(isActionAvailable(ActionId::InsertSongSection, conditions));
     CHECK(isActionAvailable(ActionId::RenameSongSection, conditions));
     CHECK(isActionAvailable(ActionId::SelectTempoAnchor, conditions));
+    CHECK(isActionAvailable(ActionId::InsertTempoAnchor, conditions));
+    CHECK(isActionAvailable(ActionId::SetTempoSpanBpm, conditions));
     CHECK(isActionAvailable(ActionId::SelectTimeSignature, conditions));
 
     conditions.transport_playing = true;
@@ -362,6 +364,8 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
     CHECK_FALSE(isActionAvailable(ActionId::InsertSongSection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RenameSongSection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SelectTempoAnchor, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertTempoAnchor, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetTempoSpanBpm, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SelectTimeSignature, conditions));
 
     CHECK_FALSE(isActionAvailable(ActionId::RenameTone, conditions));

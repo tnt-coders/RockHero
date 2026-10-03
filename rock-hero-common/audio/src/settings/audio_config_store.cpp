@@ -2,13 +2,13 @@
 
 #include <algorithm>
 #include <charconv>
-#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <ranges>
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/shared/gain.h>
+#include <rock_hero/common/core/shared/decimal_text.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/settings_file_options.h>
 #include <string_view>
@@ -77,29 +77,6 @@ constexpr const char* g_format_version_property{"formatVersion"};
     return value;
 }
 
-// Parses text as a finite double, rejecting empty, malformed, or non-finite input so a corrupt
-// entry reads as absent rather than a bogus number. juce::CharacterFunctions rather than
-// std::from_chars: Apple's libc++ ships no floating-point from_chars overloads, and the JUCE
-// parser is equally locale-independent; the advanced cursor gives the same whole-string
-// strictness check.
-[[nodiscard]] std::optional<double> parseFiniteDouble(const juce::String& text)
-{
-    const juce::String trimmed = text.trim();
-    if (trimmed.isEmpty())
-    {
-        return std::nullopt;
-    }
-
-    juce::String::CharPointerType cursor = trimmed.getCharPointer();
-    const double value = juce::CharacterFunctions::readDoubleValue(cursor);
-    if (!cursor.isEmpty() || !std::isfinite(value))
-    {
-        return std::nullopt;
-    }
-
-    return value;
-}
-
 // Reads an XML attribute as a finite double without accepting malformed numeric text.
 [[nodiscard]] std::optional<double> parseDoubleAttribute(
     const juce::XmlElement& element, const char* attribute_name)
@@ -109,7 +86,8 @@ constexpr const char* g_format_version_property{"formatVersion"};
         return std::nullopt;
     }
 
-    return parseFiniteDouble(element.getStringAttribute(attribute_name));
+    return common::core::parseFiniteDecimal(
+        element.getStringAttribute(attribute_name).toStdString());
 }
 
 // Reads a required XML string attribute while allowing the caller to validate emptiness.

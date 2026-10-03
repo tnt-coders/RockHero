@@ -329,6 +329,9 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     settleChartFretEntry();
     m_selection = std::move(selection);
     disarmChartVerbWindow();
+    // A selection change is a commit point for a held marker move too, even back onto the same
+    // marker: commitMarkerMove survives only its own landing select, by holding the run aside.
+    m_marker_move_origin.reset();
     static_cast<void>(settleChart());
     // The selection is one of the three inputs the audible tone is derived from (syncAudibleTone),
     // so every replacement re-derives it here: a selected region IS the active tone, and a
@@ -2007,6 +2010,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
         moveSelectedSongSection(selected, direction);
         return;
     }
+    if (const auto* const anchor = std::get_if<TempoAnchorSelection>(&m_selection))
+    {
+        // One on-screen pixel per press, in free time: the anchor defines the grid, so no grid
+        // line can be its step.
+        const TempoAnchorSelection selected = *anchor;
+        moveSelectedTempoAnchor(selected, direction);
+        return;
+    }
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
         const FretHandPositionSelection selected = *placement;
@@ -2268,8 +2279,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
 // run of deletes walks back along the row instead of dropping the keyboard off it. Where the
 // deleted marker was the row's first, nothing is left selected, as Shift+Tab is inert there. A
 // note's delete is not this rule: it leaves the caret on the emptied slot, which is the entry
-// plane's own continuation. A row with no delete verb (the tempo anchor and the time signature)
-// deletes nothing, and the selection stays.
+// plane's own continuation. A row with no delete verb (the time signature) deletes nothing, and the
+// selection stays.
 void EditorController::Impl::deleteSelectedMarker()
 {
     const std::optional<SelectedMarker> marker = selectedMarker();
@@ -2289,6 +2300,11 @@ void EditorController::Impl::deleteSelectedMarker()
     {
         const SongSectionSelection selected = *section;
         deleteSelectedSongSection(selected);
+    }
+    else if (const auto* const anchor = std::get_if<TempoAnchorSelection>(&m_selection))
+    {
+        const TempoAnchorSelection selected = *anchor;
+        deleteSelectedTempoAnchor(selected);
     }
     else if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {

@@ -658,6 +658,28 @@ public:
         common::core::GridPosition position, std::string name) = 0;
 
     /*!
+    \brief Handles a request to insert a tempo anchor at a beat.
+
+    The anchor pins the time the map already gives that beat, so the insert moves nothing. Refused
+    when an anchor already stands there or the beat lies at or past the terminal anchor.
+
+    \param position Beat the anchor is asked for, as the published tempo chord named it.
+    */
+    virtual void onTempoAnchorInsertRequested(common::core::GridPosition position) = 0;
+
+    /*!
+    \brief Handles a typed tempo for the span the anchor at a beat opens.
+
+    The text is parsed here, in the core, so the prompt stays a plain text field: surrounding
+    whitespace is ignored and anything else that is not one whole decimal number is refused and
+    logged, changing nothing. The anchor stays put and every later anchor ripples.
+
+    \param position Beat of the anchor opening the span.
+    \param text Tempo as typed, in quarter notes per minute.
+    */
+    virtual void onTempoSpanBpmRequested(common::core::GridPosition position, std::string text) = 0;
+
+    /*!
     \brief Handles a deliberate selection of a tone region on the tone track (a click).
 
     The selection is the Delete target and is drawn with a distinct outline; it is cleared by any

@@ -38,9 +38,21 @@ in, so a failed precondition part way through leaves the chart entirely untouche
 kind, carrying that kind's whole model before and after; every marker verb commits through one
 funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the produced model,
 validates it, refuses it whole, records nothing when nothing changed, releases a selection naming a
-marker that is gone, resyncs the audible tone and publishes once. Verbs build their result on a
+marker that is gone, resyncs the audible tone and the engine's tempo-derived caches
+(`syncTempoDerivedAudio`) and publishes once. Verbs build their result on a
 COPY and hand both sides over, so a refusal leaves the live model untouched by construction —
-there is no restore path. Three snapshots plug in today: `ToneModelSnapshot`
+there is no restore path. Every marker MOVE verb (`Alt+←/→` on a section, tempo anchor, hand
+position or tone change) commits through `commitMarkerMove` beside it instead, which adds the
+held-run rule: a run of presses on one selected marker is ONE entry, however fast or slow, because
+a press continuing the run widens the run's entry (`replaceTop`) from the model before its first
+press, and a press that walks the run back to where it began drops the entry (`dropTop`). No timer
+decides it — the run ends at any other commit point: another edit, a selection change, undo or
+redo, a save. It makes the landing selection itself, since a selection change ends the run and
+only the funnel may survive its own. Four snapshots plug in today: `TempoMapSnapshot`
+(`timeline/tempo_map_snapshot.h` — the song's whole tempo map behind anchor insert, typed tempo,
+move and delete; its `validate` is the shared `validateTempoMapRules`, and its apply goes through
+`Session::setTempoMap()`, which advances the chart revision because the map places every note),
+`ToneModelSnapshot`
 (`tone_model_snapshot.h` — the whole tone model, catalog plus track, behind split, delete, retone,
 rename and boundary-move; its `normalize` prunes catalog tones no region references and its
 `validate` is `validateToneTrackRules` plus catalog coverage), `SongSectionsSnapshot`

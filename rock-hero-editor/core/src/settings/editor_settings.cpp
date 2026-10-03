@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/decimal_text.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/settings_file_options.h>
 #include <string>
@@ -29,29 +30,6 @@ constexpr const char* g_waveform_visible_key{"waveformVisible"};
 constexpr const char* g_tone_file_directory_key{"toneFileDirectory"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
 constexpr const char* g_keymap_xml_key{"keymapXml"};
-
-// Parses text as a finite double, rejecting empty, malformed, or non-finite input so a corrupt
-// entry reads as absent rather than a bogus number. juce::CharacterFunctions rather than
-// std::from_chars: Apple's libc++ ships no floating-point from_chars overloads, and the JUCE
-// parser is equally locale-independent; the advanced cursor gives the same whole-string
-// strictness check.
-[[nodiscard]] std::optional<double> parseFiniteDouble(const juce::String& text)
-{
-    const juce::String trimmed = text.trim();
-    if (trimmed.isEmpty())
-    {
-        return std::nullopt;
-    }
-
-    juce::String::CharPointerType cursor = trimmed.getCharPointer();
-    const double value = juce::CharacterFunctions::readDoubleValue(cursor);
-    if (!cursor.isEmpty() || !std::isfinite(value))
-    {
-        return std::nullopt;
-    }
-
-    return value;
-}
 
 // Converts project paths into stable app-settings keys without requiring callers to pre-normalize
 // chooser, restore, and test paths. Shared by every per-project record family.
@@ -342,7 +320,7 @@ namespace
 {
 
 // Formats seconds with shortest-round-trip precision (std::to_chars) so a stored passive
-// marker reloads at exactly the paused time; parseFiniteDouble reads it back.
+// marker reloads at exactly the paused time; parseFiniteDecimal reads it back.
 [[nodiscard]] juce::String formatExactSeconds(double seconds)
 {
     std::array<char, 32> buffer{};
@@ -398,7 +376,8 @@ std::optional<EditorProjectMarker> EditorSettings::projectMarkerFor(
         juce::StringArray::fromTokens(m_properties.getValue(key), ":", "");
     if (parts.size() == 3 && parts[0] == "cursor")
     {
-        const std::optional<double> seconds = parseFiniteDouble(parts[1]);
+        const std::optional<double> seconds =
+            common::core::parseFiniteDecimal(parts[1].toStdString());
         const EditorProjectCursor cursor{
             .seconds = seconds.value_or(-1.0), .string = parts[2].getIntValue()
         };
@@ -502,7 +481,8 @@ std::optional<double> EditorSettings::projectTimelineZoomFor(
         return std::nullopt;
     }
 
-    const std::optional<double> pixels_per_second = parseFiniteDouble(m_properties.getValue(key));
+    const std::optional<double> pixels_per_second =
+        common::core::parseFiniteDecimal(m_properties.getValue(key).toStdString());
     if (!pixels_per_second.has_value() || *pixels_per_second <= 0.0)
     {
         return std::nullopt;

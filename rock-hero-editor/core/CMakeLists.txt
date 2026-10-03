@@ -89,8 +89,11 @@ target_sources(
             src/timeline/song_sections_snapshot.cpp
             src/timeline/song_sections_snapshot.h
             src/timeline/tempo_grid_geometry.cpp
+            src/timeline/tempo_handlers.cpp
             src/timeline/tempo_map_edits.cpp
             src/timeline/tempo_map_edits.h
+            src/timeline/tempo_map_snapshot.cpp
+            src/timeline/tempo_map_snapshot.h
             src/timeline/tempo_span_text.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/transport_readout_text.cpp

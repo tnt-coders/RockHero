@@ -508,10 +508,8 @@ TEST_CASE("EditorController moves the selected section a measure", "[core][secti
     CHECK(editor.sections().front().position == downbeat(2));
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
 
-    editor.controller.onUndoRequested();
-    CHECK(editor.sections().front().position == downbeat(3));
-    editor.controller.onUndoRequested();
-    CHECK(editor.sections().front().position == downbeat(2));
+    // Both presses are one held run, which walked back to where it began and so recorded nothing.
+    CHECK(editor.undoEntryCount() == 0);
 }
 
 // A section move refuses rather than swapping or merging: a step onto a downbeat another section

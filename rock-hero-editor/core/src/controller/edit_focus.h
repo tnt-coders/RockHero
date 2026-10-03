@@ -52,9 +52,7 @@ then shown by its former start, where Delete would have left the cursor).
 struct MarkerEditFocus
 {
     /*! \brief The marker to select, or nothing when the transition removed it. */
-    std::variant<
-        std::monostate, SongSectionSelection, FretHandPositionSelection, ToneRegionSelection>
-        marker;
+    std::optional<MarkerSelection> marker;
 
     /*! \brief Start of the changed marker, where the cursor goes to show it. */
     common::core::GridPosition start{};

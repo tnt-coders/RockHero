@@ -211,6 +211,12 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Select a tempo chip on the ruler (the beat anchor it marks). */
     SelectTempoAnchor,
 
+    /*! \brief Insert a tempo anchor at a beat, pinning the time the map already gives it. */
+    InsertTempoAnchor,
+
+    /*! \brief Type the tempo of the span the anchor at a beat opens, rippling later anchors. */
+    SetTempoSpanBpm,
+
     /*! \brief Select a time-signature chip on the ruler (the change it marks). */
     SelectTimeSignature,
 

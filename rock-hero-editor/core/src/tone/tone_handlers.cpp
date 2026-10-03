@@ -51,6 +51,27 @@ namespace
     return region == tone_track.regions.end() ? nullptr : &*region;
 }
 
+// Moves the start of a region within a tone model, or logs why the tone track's rules refuse it —
+// the first region, whose start is the song's; a start reaching a neighbour's; a start outside the
+// song. The one boundary move the pointer drag and the keyboard share, so both refuse exactly the
+// same moves; each then commits it its own way.
+[[nodiscard]] bool movedToneBoundary(
+    ToneModelSnapshot& model, const std::string& region_id,
+    const common::core::GridPosition position)
+{
+    if (const auto moved = common::core::moveToneBoundary(model.tone_track, region_id, position);
+        !moved.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Rejected tone boundary move region_id={:?} detail={:?}",
+            region_id,
+            moved.error().message);
+        return false;
+    }
+    return true;
+}
+
 // Snaps a raw normalised value onto a discrete parameter's real states (k/(count-1)); a
 // continuous parameter passes through — the model-side sibling of the lanes view's own snap,
 // so keyboard-authored values land exactly where pointer-authored ones do.
@@ -663,7 +684,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
     if (commitMarkerModel(
             std::move(before),
             std::move(after),
-            "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name)))
+            "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name)) !=
+        MarkerCommit::Refused)
     {
         // The insert selects what it made; a selection made after the commit publishes with this
         // refresh, because the commit's own publish ran before it existed.
@@ -758,7 +780,8 @@ void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
     // No duplicate-name check, unlike the three verbs that take a TYPED name: the sole region was
     // the only reference any tone had, so the commit's prune leaves this freshly minted "Default"
     // alone in the catalog and there is nothing left for it to collide with.
-    if (!commitMarkerModel(std::move(before), std::move(after), "Delete Tone Region"))
+    if (commitMarkerModel(std::move(before), std::move(after), "Delete Tone Region") ==
+        MarkerCommit::Refused)
     {
         return;
     }
@@ -902,10 +925,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
     // the track's first region begins at or before it, and a retone never empties the track — it
     // can only coalesce neighbours, which keeps the earlier of each pair.
     const std::string surviving_region_id = common::core::toneRegionAt(after.tone_track, start)->id;
-    if (!commitMarkerModel(
+    if (commitMarkerModel(
             std::move(before),
             std::move(after),
-            "Change Tone of Region to " + (after_name.empty() ? std::string{"tone"} : after_name)))
+            "Change Tone of Region to " +
+                (after_name.empty() ? std::string{"tone"} : after_name)) == MarkerCommit::Refused)
     {
         return;
     }
@@ -926,32 +950,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
     }
 }
 
-// Moves the boundary a region opens. Grid positions are audio-inert: the rig switches tones by
-// document ref, so moving a boundary never touches the audio graph.
+// Moves the boundary a region opens (the pointer drag, committed once on release). Grid positions
+// are audio-inert: the rig switches tones by document ref, so moving a boundary never touches the
+// audio graph. A refusal leaves the model as it was; a move onto the start it already has records
+// nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBoundary& action)
-{
-    commitToneBoundaryMove(action.right_region_id, action.position);
-}
-
-// A refusal — the first region, whose start is the song's; a start reaching a neighbour's; a start
-// outside the song — leaves the model as it was and is logged by the tone model's rules, from the
-// keyboard as from the pointer; a move onto the start it already has records nothing.
-bool EditorController::Impl::commitToneBoundaryMove(
-    const std::string& region_id, const common::core::GridPosition position)
 {
     ToneModelSnapshot before = ToneModelSnapshot::capture(session());
     ToneModelSnapshot after = before;
-    if (const auto moved = common::core::moveToneBoundary(after.tone_track, region_id, position);
-        !moved.has_value())
+    if (!movedToneBoundary(after, action.right_region_id, action.position))
     {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Rejected tone boundary move region_id={:?} detail={:?}",
-            region_id,
-            moved.error().message);
-        return false;
+        return;
     }
-    return commitMarkerModel(std::move(before), std::move(after), "Move Tone Boundary");
+    commitMarkerModel(std::move(before), std::move(after), "Move Tone Boundary");
 }
 
 // A region's start IS the tone change it opens, so the start is the marker a keyboard move
@@ -975,7 +986,19 @@ void EditorController::Impl::moveSelectedToneRegionStart(
     }
     const common::core::GridPosition target =
         steppedNudgePosition(region->start, direction == ChartStepDirection::Right);
-    if (commitToneBoundaryMove(region_id, target))
+    ToneModelSnapshot before = ToneModelSnapshot::capture(session());
+    ToneModelSnapshot after = before;
+    if (!movedToneBoundary(after, region_id, target))
+    {
+        return;
+    }
+    // A region is identified by its id, which a move keeps, so the run's selection is the one the
+    // press started from.
+    if (commitMarkerMove(
+            std::move(before),
+            std::move(after),
+            "Move Tone Boundary",
+            ToneRegionSelection{.region_id = region_id}))
     {
         followMovedMarker(target);
     }
@@ -1029,10 +1052,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     // there (the same reasoning as CreateToneRegion above).
     const std::string created_region_id =
         common::core::toneRegionAt(after.tone_track, action.position)->id;
-    if (!commitMarkerModel(
+    if (commitMarkerModel(
             std::move(before),
             std::move(after),
-            "Add " + (action.name.empty() ? std::string{"Tone"} : action.name)))
+            "Add " + (action.name.empty() ? std::string{"Tone"} : action.name)) ==
+        MarkerCommit::Refused)
     {
         return;
     }

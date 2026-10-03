@@ -145,7 +145,7 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     return std::nullopt;
 }
 
-EditorController::Impl::MarkerSelection EditorController::Impl::markerSelectionAt(
+MarkerSelection EditorController::Impl::markerSelectionAt(
     const MarkerRow row, const std::size_t index) const
 {
     const common::core::GridPosition start = markerStarts(row).at(index);
@@ -294,6 +294,14 @@ void EditorController::Impl::releaseMarkerSelectionNamingNothing()
     }
 }
 
+void EditorController::Impl::finishMarkerCommit()
+{
+    releaseMarkerSelectionNamingNothing();
+    syncAudibleTone();
+    syncTempoDerivedAudio();
+    updateView();
+}
+
 void EditorController::Impl::onTempoAnchorSelected(const common::core::GridPosition position)
 {
     runAction(EditorAction::SelectTempoAnchor{.position = position});
@@ -406,10 +414,11 @@ std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget()
 }
 
 // Enter's verb, dispatched on the selection's kind here so the view opens what it names and
-// decides nothing: a section restates on its name, a tone region on its tone (the signal chain has
-// no keyboard model to drill into), the "+" row opens the parameter picker, a bend chip the caret
-// stands on restates its bend through the picker `B` opens, and every other kind has no restate — a
-// fret-hand position included, since its fret has no entry to re-open.
+// decides nothing: a section restates on its name, a tempo anchor on the tempo of the span it
+// opens, a tone region on its tone (the signal chain has no keyboard model to drill into), the "+"
+// row opens the parameter picker, a bend chip the caret stands on restates its bend through the
+// picker `B` opens, and every other kind has no restate — a fret-hand position included, since its
+// fret has no entry to re-open.
 RestateTarget EditorController::Impl::restateTarget() const
 {
     if (chartCaretFace() == ChartCaretFace::BendChip)
@@ -420,6 +429,10 @@ RestateTarget EditorController::Impl::restateTarget() const
         section.has_value())
     {
         return *section;
+    }
+    if (const std::optional<SetTempoTarget> tempo = selectedTempoTarget(); tempo.has_value())
+    {
+        return *tempo;
     }
     if (const std::optional<RetoneRegionTarget> region = selectedRegionTarget(); region.has_value())
     {

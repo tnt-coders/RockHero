@@ -637,6 +637,37 @@ TEST_CASE(
     }
 }
 
+// The engine's curves are seconds-domain copies of the musical points baked through the map, so a
+// tempo edit re-derives them, and so do its undo and redo: the point keeps its beat and moves in
+// time with it.
+TEST_CASE(
+    "EditorController re-derives automation curves through tempo edits and their undo",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(2, 1, 1), .norm_value = 0.8F}});
+    const auto curve_seconds = [&editor]() {
+        const auto written = editor.tone_automation.curves.find(
+            FakeToneAutomation::curveKey(g_tone_document_ref, g_instance, g_param));
+        return written == editor.tone_automation.curves.end() || written->second.empty()
+                   ? -1.0
+                   : written->second.front().seconds;
+    };
+    // Global beat 4.5 at the default 120 BPM.
+    CHECK(curve_seconds() == Catch::Approx(2.25));
+
+    // Half the tempo over the whole song puts the same beat at 4.5 s.
+    editor.controller.onTempoSpanBpmRequested(gridAt(1, 1), "60");
+    CHECK(curve_seconds() == Catch::Approx(4.5));
+
+    editor.controller.onUndoRequested();
+    CHECK(curve_seconds() == Catch::Approx(2.25));
+
+    editor.controller.onRedoRequested();
+    CHECK(curve_seconds() == Catch::Approx(4.5));
+}
+
 // A selected automation point is the one editor-wide selection: it replaces the region
 // selection, arms the lane caret on itself, and clears on a seek.
 TEST_CASE(

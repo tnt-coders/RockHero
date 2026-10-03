@@ -159,6 +159,12 @@ std::vector<SongSection>& Session::songSections() noexcept
     return m_song.sections;
 }
 
+void Session::setTempoMap(TempoMap tempo_map)
+{
+    m_song.tempo_map = std::move(tempo_map);
+    ++m_chart_revision;
+}
+
 // Returns the monotonic chart-write count that keys projection caches.
 std::uint64_t Session::chartRevision() const noexcept
 {

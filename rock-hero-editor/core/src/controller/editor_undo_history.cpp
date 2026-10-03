@@ -84,6 +84,12 @@ bool EditorUndoHistory::isAtCleanState() const noexcept
     return m_clean_marker_state == CleanMarkerState::Reachable && m_clean_position == m_position;
 }
 
+bool EditorUndoHistory::canCoalesceTop() const noexcept
+{
+    return !m_pending.has_value() && !m_entries.empty() && m_position == m_entries.size() &&
+           !isAtCleanState();
+}
+
 std::optional<std::string> EditorUndoHistory::undoLabel() const
 {
     if (!canUndo())
@@ -160,11 +166,9 @@ EditorUndoTransitionResult EditorUndoHistory::replaceTop(std::unique_ptr<IEdit> 
         return nonCommitFailure(EditorUndoFailureCode::TransitionAlreadyPending);
     }
 
-    // Only the newest entry may coalesce, and only while the cursor sits on it: after any undo
-    // the "top" is history the user already walked away from. A reachable clean marker AT the
-    // top also refuses: the saved state was produced by the entry being replaced, and widening
-    // it would make "return to clean" restore different content than the file holds.
-    if (edit == nullptr || m_entries.empty() || m_position != m_entries.size() || isAtCleanState())
+    // Only the newest entry may coalesce, and only while the cursor sits on it, never the clean
+    // state (canCoalesceTop states why).
+    if (edit == nullptr || !canCoalesceTop())
     {
         return nonCommitFailure(EditorUndoFailureCode::PreflightRejected);
     }
@@ -192,11 +196,8 @@ EditorUndoTransitionResult EditorUndoHistory::dropTop()
         return nonCommitFailure(EditorUndoFailureCode::TransitionAlreadyPending);
     }
 
-    // replaceTop's guards, for the same reasons: only the newest entry may be taken back, only
-    // while the cursor sits on it, and never while it is the reachable clean state — the saved
-    // file holds what this entry produced, so erasing it would make "return to clean" restore
-    // different content than the file holds.
-    if (m_entries.empty() || m_position != m_entries.size() || isAtCleanState())
+    // replaceTop's precondition, for the same reasons.
+    if (!canCoalesceTop())
     {
         return nonCommitFailure(EditorUndoFailureCode::PreflightRejected);
     }

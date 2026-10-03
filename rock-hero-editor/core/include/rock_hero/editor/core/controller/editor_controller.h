@@ -523,6 +523,12 @@ public:
     void onSongSectionRenameRequested(
         common::core::GridPosition position, std::string name) override;
 
+    /*! \copydoc IEditorController::onTempoAnchorInsertRequested */
+    void onTempoAnchorInsertRequested(common::core::GridPosition position) override;
+
+    /*! \copydoc IEditorController::onTempoSpanBpmRequested */
+    void onTempoSpanBpmRequested(common::core::GridPosition position, std::string text) override;
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 

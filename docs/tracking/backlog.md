@@ -28,6 +28,24 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the tempo-editing reviews (plan 41, 2026-10-02)
+
+- **Anchor seconds could be whole milliseconds** (offered to the user, unanswered when written).
+  `BeatAnchor::seconds` is a `double` that must sit on the 1 ms grid, so `nearestAnchorSeconds`
+  is called at seven sites, the rules carry an off-grid check with an epsilon, and a ripple's
+  "later spans unchanged" holds in whole milliseconds rather than bit for bit. Storing an integer
+  millisecond count and rounding once at the input boundaries would delete most of that; it
+  touches about 20 readers and 136 initializers in 22 files.
+- **`chartEditFocusOf` reads `ChartCursor::column` without its tolerance check**
+  (`rock-hero-editor/core/src/chart/chart_handlers.cpp:~1064`). Every other reader trusts the column
+  only when its seconds under the current map match the transport to 1 ms
+  (`pausedCursorPosition`); after a tempo edit a chart edit made from a passive cursor would record
+  the old column as its undo focus. Ask the one reader instead.
+- **The chart's coalescing windows restate part of `EditorUndoHistory::canCoalesceTop()`**
+  (`chart_handlers.cpp:~3263` checks only the clean state; the settle fold at `~3966` tests
+  `position != size` for its own reason). Not exactly equivalent today, so left; decide whether
+  each should ask the one predicate.
+
 ## Found by the bundled-plugin plan (2026-10-02)
 
 - **Plugin identity is path-bound: a tone refuses a plugin the catalog knows at another path.**

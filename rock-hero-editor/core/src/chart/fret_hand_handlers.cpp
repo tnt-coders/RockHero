@@ -171,7 +171,8 @@ void EditorController::Impl::performActionImpl(
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
     after.placements.push_back(insert->placement);
-    if (commitMarkerModel(std::move(before), std::move(after), "Add Hand Position"))
+    if (commitMarkerModel(std::move(before), std::move(after), "Add Hand Position") !=
+        MarkerCommit::Refused)
     {
         // The insert selects what it made, and a selection made after the commit publishes with
         // this refresh: the commit's own publish ran before it existed.
@@ -206,12 +207,15 @@ void EditorController::Impl::moveSelectedFretHandPosition(
     }
 
     match->position = target;
-    if (commitMarkerModel(std::move(before), std::move(after), label))
+    if (commitMarkerMove(
+            std::move(before),
+            std::move(after),
+            label,
+            FretHandPositionSelection{.position = target}))
     {
-        // The position IS the placement's identity, so the commit released a selection that now
-        // names nothing; the moved placement is re-selected here, and followMovedMarker publishes
-        // it together with the cursor it brings along.
-        selectMarker(FretHandPositionSelection{.position = target});
+        // The position IS the placement's identity, so the commit selects the moved placement
+        // under its new one; followMovedMarker publishes it together with the cursor it brings
+        // along.
         followMovedMarker(target);
     }
 }

@@ -429,6 +429,19 @@ public:
         last_renamed_song_section_name = std::move(name);
     }
 
+    /*! \copydoc IEditorController::onTempoAnchorInsertRequested */
+    void onTempoAnchorInsertRequested(common::core::GridPosition position) override
+    {
+        last_inserted_tempo_anchor_position = position;
+    }
+
+    /*! \copydoc IEditorController::onTempoSpanBpmRequested */
+    void onTempoSpanBpmRequested(common::core::GridPosition position, std::string text) override
+    {
+        last_tempo_span_bpm_position = position;
+        last_tempo_span_bpm_text = std::move(text);
+    }
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override
     {
@@ -950,6 +963,15 @@ public:
 
     /*! \brief Last name reported through onSongSectionRenameRequested(). */
     std::string last_renamed_song_section_name{};
+
+    /*! \brief Last beat reported through onTempoAnchorInsertRequested(). */
+    std::optional<common::core::GridPosition> last_inserted_tempo_anchor_position{};
+
+    /*! \brief Last anchor beat reported through onTempoSpanBpmRequested(). */
+    std::optional<common::core::GridPosition> last_tempo_span_bpm_position{};
+
+    /*! \brief Last tempo text reported through onTempoSpanBpmRequested(). */
+    std::string last_tempo_span_bpm_text{};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

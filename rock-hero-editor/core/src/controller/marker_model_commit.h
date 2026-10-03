@@ -60,9 +60,10 @@ std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerMod
 // actually changed. A refusal of any kind changes none of the three, and neither does a commit that
 // matched the model it found, so both leave the view exactly as they found it and push nothing. The
 // one publish a landed commit makes therefore always carries a real change, and a verb that selects
-// what it just made publishes that selection itself, afterwards. Returns false only for a refusal.
+// what it just made publishes that selection itself, afterwards.
 template <typename Snapshot>
-bool EditorController::Impl::commitMarkerModel(Snapshot before, Snapshot after, std::string label)
+EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
+    Snapshot before, Snapshot after, std::string label)
 {
     std::expected<Snapshot, ChartPlanRefusal> judged = judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
@@ -70,23 +71,97 @@ bool EditorController::Impl::commitMarkerModel(Snapshot before, Snapshot after, 
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&judged.error()))
         {
             logMarkerRefusal(label, invalid->reason);
-            return false;
+            return MarkerCommit::Refused;
         }
-        return true;
+        return MarkerCommit::Unchanged;
     }
 
     if (!judged->applyTo(m_session))
     {
         logMarkerRefusal(label, "no model to apply onto");
-        return false;
+        return MarkerCommit::Refused;
     }
 
     pushUndoEntry(
         std::make_unique<MarkerModelEdit<Snapshot>>(
             std::move(before), std::move(*judged), std::move(label)));
-    releaseMarkerSelectionNamingNothing();
-    syncAudibleTone();
-    updateView();
+    finishMarkerCommit();
+    return MarkerCommit::Landed;
+}
+
+// The marker move verbs' commit: one held run of Alt+arrow presses on one selected marker is ONE
+// undo entry, describing the model before the run's first press → the model now (the run's law is
+// stated at m_marker_move_origin). A press that starts a run is an ordinary funnel commit, which
+// arms the run when it recorded an entry; a press that continues one is judged against the run's
+// ORIGIN by the funnel's own front half and replaces the run's entry — or, where it walks the run
+// back to its origin, drops it, so a run that went nowhere leaves no Ctrl+Z that changes nothing.
+// Either way the moved marker ends selected, made here rather than by the verb, because a
+// selection change ends the run and only this commit may survive its own. A refused press leaves
+// the model, the entry and the run exactly as they stood.
+template <typename Snapshot>
+bool EditorController::Impl::commitMarkerMove(
+    Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed)
+{
+    // Held aside, so this press's own landing select below does not end the run it continues.
+    std::optional<MarkerModelSnapshot> held = std::exchange(m_marker_move_origin, std::nullopt);
+    const Snapshot* origin = nullptr;
+    if (held.has_value() && m_undo_history.canCoalesceTop())
+    {
+        origin = std::get_if<Snapshot>(&*held);
+    }
+
+    if (origin == nullptr)
+    {
+        const MarkerCommit committed =
+            commitMarkerModel(before, std::move(after), std::move(label));
+        if (committed == MarkerCommit::Refused)
+        {
+            return false;
+        }
+        selectMarker(landed);
+        if (committed == MarkerCommit::Landed)
+        {
+            m_marker_move_origin = std::move(before);
+        }
+        return true;
+    }
+
+    std::expected<Snapshot, ChartPlanRefusal> judged = judgeMarkerModel(*origin, std::move(after));
+    if (!judged.has_value())
+    {
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&judged.error()))
+        {
+            logMarkerRefusal(label, invalid->reason);
+            m_marker_move_origin = std::move(held);
+            return false;
+        }
+    }
+    // A press that walks the run back to its origin lands the origin itself.
+    const bool walked_back = !judged.has_value();
+    const Snapshot* const landing = judged.has_value() ? &*judged : origin;
+    if (!landing->applyTo(m_session))
+    {
+        logMarkerRefusal(label, "no model to apply onto");
+        m_marker_move_origin = std::move(held);
+        return false;
+    }
+
+    if (judged.has_value())
+    {
+        static_cast<void>(replaceUndoTop(
+            std::make_unique<MarkerModelEdit<Snapshot>>(
+                *origin, std::move(*judged), std::move(label))));
+    }
+    else
+    {
+        static_cast<void>(dropUndoTop());
+    }
+    finishMarkerCommit();
+    selectMarker(landed);
+    if (!walked_back)
+    {
+        m_marker_move_origin = std::move(held);
+    }
     return true;
 }
 

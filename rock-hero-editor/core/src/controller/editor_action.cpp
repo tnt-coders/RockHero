@@ -267,6 +267,14 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SelectTempoAnchor;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::InsertTempoAnchor>)
+    {
+        return EditorAction::Id::InsertTempoAnchor;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SetTempoSpanBpm>)
+    {
+        return EditorAction::Id::SetTempoSpanBpm;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::SelectTimeSignature>)
     {
         return EditorAction::Id::SelectTimeSignature;

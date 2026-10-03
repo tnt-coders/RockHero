@@ -116,8 +116,9 @@ Rulings of 2026-10-02 (user, after the simplicity review):
    is REFUSED, never clamped — the marker law.
 9. **One held nudge is one undo entry, for every marker kind.** A run of `Alt+←/→` presses on one
    selected marker coalesces into one entry, however fast or slow the presses, until any other
-   commit point (another edit, a selection change, a caret move) — the rule notes already use.
-   No timed settle window: a timer would split the slow, careful run.
+   commit point (another edit, a selection change, an undo or redo, a save) — the rule notes
+   already use. No timed settle window: a timer would split the slow, careful run. A run that walks
+   back to where it began leaves no entry.
 10. **`Ctrl+B` follows `Ctrl+M`.** On an empty beat it inserts an anchor, pinning the time the map
     already gives that beat (time-neutral to 0.5 ms), selects it and opens no prompt. On a beat
     where an anchor stands it selects that anchor and opens the BPM prompt, selected beforehand or
@@ -125,8 +126,10 @@ Rulings of 2026-10-02 (user, after the simplicity review):
     the tick and floored to its beat. Inert while playing, with no song, and at or past the
     terminal. No digit-to-prompt for now.
 11. **The chip prints what was typed.** It prints the shortest decimal (0–2 places) whose span
-    length lies within ±1 ms of the stored one, so typing 137 prints 137 and an insert leaves both
-    halves printing the parent's value.
+    length lies within ±1 ms of the stored one, so typing 137 prints 137 and an insert into a span
+    of a typed tempo leaves both halves printing it. (A span whose stored length is already most of
+    a millisecond off its printed value can split into a half printing more decimals; no tolerance
+    removes that, found in the Phase 1 review.)
 12. **The terminal grows, never shrinks.** A faster typed BPM can pull the terminal before the end
     of the audio; the ripple then extends it to the first downbeat at or past the latest
     arrangement's audio end, at the last span's tempo.
@@ -183,13 +186,15 @@ a simplicity review before its commit, and verifies with a build and the touched
 ### Phase 2 — Editor-core verbs
 
 - **`TempoMapSnapshot`** through `commitMarkerModel`: capture / applyTo / normalize / validate
-  (`validateTempoMapRules`) / equality. No bespoke actions, no `tempo_handlers.cpp`, no
-  inverse-command edits (the 2026-07-06 Phase 2 is deleted).
+  (`validateTempoMapRules`) / equality, and `Session::setTempoMap`, which advances the revision
+  the tab and highway projection caches key on. No inverse-command edits (the 2026-07-06 Phase 2
+  is deleted); the verbs live in `tempo_handlers.cpp` beside their actions, as the section's do.
 - **`syncTempoDerivedAudio()`** — the one authority for the engine's tempo-derived caches. It
   keeps the map it last pushed; when the session's map differs it calls
-  `rebuildDerivedToneCurves` and `mirrorTempoMap`. Called from the funnel beside
-  `syncAudibleTone`, once when an undo or redo transition completes, and at rig load in place of
-  the two lines at `project_handlers.cpp:586-597`. Phase 6's meter edits inherit it.
+  `rebuildDerivedToneCurves` and `mirrorTempoMap` through `pushTempoDerivedAudio()`. Called from
+  the funnel's shared tail and once when an undo or redo transition completes; rig load calls the
+  push unconditionally, before the project's audio is marked ready. Phase 6's meter edits inherit
+  it.
 - **The verbs**, through the existing dispatches (checklist steps 1–8): a published `Ctrl+B`
   chord target (nothing / restate-with-prompt / insert, the section's shape), a set-tempo arm in
   `restateTarget()`, and tempo arms in `Delete` and `MoveSelection`. The move step reads the
@@ -198,9 +203,10 @@ a simplicity review before its commit, and verifies with a build and the touched
 - **Run coalescing for every marker kind** (decision 9): generalize the chart's gesture
   authority over the funnel, so a marker move continuing a run on the same selection widens the
   top entry (`replaceUndoTop`) instead of pushing; any other commit point ends the run.
-- **Verify while building**: after a ripple or delete, the paused cursor's seconds and its musical
-  column can disagree. Under decision 4 the cursor keeps its musical place; read every
-  `ChartCursor::column` reader and re-seek if needed.
+- **The cursor keeps its musical place** (decision 4): the paused cursor's authority is the
+  transport's seconds, so Insert, Set Tempo and Delete capture the cursor's musical position before
+  the commit and seek back to it after; undo and redo already seek through their focus, and a move
+  rides its anchor.
 - **Tests** (controller suites): each verb and refusal; `Ctrl+B` twice prompts; undo and redo
   restore the map exactly AND re-derive the automation curves and host tempo (the
   `ConfigurableSongAudio.last_mirrored_tempo_map` fixture); a held run is one entry for a

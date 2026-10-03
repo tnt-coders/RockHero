@@ -113,7 +113,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSec
     SongSectionsSnapshot after = before;
     after.sections.push_back(common::core::SongSection{.position = downbeat, .name = name});
 
-    if (commitMarkerModel(std::move(before), std::move(after), "Add " + name))
+    if (commitMarkerModel(std::move(before), std::move(after), "Add " + name) !=
+        MarkerCommit::Refused)
     {
         // The insert selects what it made, and a selection made after the commit publishes with
         // this refresh: the commit's own publish ran before it existed.
@@ -143,7 +144,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
     const std::string name = common::core::trimmedSongSectionName(action.name);
     match->name = name;
     if (commitMarkerModel(
-            std::move(before), std::move(after), "Rename Section " + before_name + " to " + name))
+            std::move(before), std::move(after), "Rename Section " + before_name + " to " + name) !=
+        MarkerCommit::Refused)
     {
         selectMarker(SongSectionSelection{.position = action.position});
         updateView();
@@ -175,12 +177,14 @@ void EditorController::Impl::moveSelectedSongSection(
     }
 
     match->position = target;
-    if (commitMarkerModel(std::move(before), std::move(after), "Move Section"))
+    if (commitMarkerMove(
+            std::move(before),
+            std::move(after),
+            "Move Section",
+            SongSectionSelection{.position = target}))
     {
-        // The position IS the section's identity, so the commit released a selection that now
-        // names nothing; the moved section is re-selected here, and followMovedMarker publishes it
-        // together with the cursor it brings along.
-        selectMarker(SongSectionSelection{.position = target});
+        // The position IS the section's identity, so the commit selects the moved section under
+        // its new one; followMovedMarker publishes it together with the cursor it brings along.
         followMovedMarker(target);
     }
 }

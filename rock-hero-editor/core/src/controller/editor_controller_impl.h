@@ -26,6 +26,8 @@ definitions, no state added just to make a translation-unit split work.
 #include "project/project_io.h"
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
+#include "timeline/song_sections_snapshot.h"
+#include "timeline/tempo_map_snapshot.h"
 #include "tone/tone_automation_projection.h"
 #include "tone/tone_model_snapshot.h"
 #include "tone_designer/tone_designer_edits.h"
@@ -55,6 +57,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -579,6 +582,31 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const SongSectionSelection& selection, ChartStepDirection direction);
     // Deletes the selected section (the Delete-key dispatch for the section alternative).
     void deleteSelectedSongSection(const SongSectionSelection& selection);
+    // Tempo anchors (src/timeline/tempo_handlers.cpp). Song-level like the sections: the one map
+    // places every arrangement in time, so they reach the session's map directly.
+    void onTempoAnchorInsertRequested(common::core::GridPosition position);
+    void onTempoSpanBpmRequested(common::core::GridPosition position, const std::string& text);
+    // What the tempo chord would do at the cursor right now (the published verb; see the
+    // definition for the rule it derives).
+    [[nodiscard]] TempoChordTarget tempoChordTarget() const;
+    // Moves the selected anchor one on-screen pixel in time (the Alt+arrow dispatch for the tempo
+    // alternative). Left or Right only; the move dispatch refuses a vertical direction for every
+    // marker kind.
+    void moveSelectedTempoAnchor(
+        const TempoAnchorSelection& selection, ChartStepDirection direction);
+    // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative).
+    void deleteSelectedTempoAnchor(const TempoAnchorSelection& selection);
+    // The one commit of a whole tempo map (insert, typed tempo, delete): selects `landed` when
+    // given and keeps the cursor on its musical place under the new map (see the definition).
+    void commitTempoMap(
+        TempoMapSnapshot before, common::core::TempoMap after, std::string label,
+        std::optional<TempoAnchorSelection> landed);
+    // Brings the engine's tempo-derived caches up to the session's map when it changed (see the
+    // definition).
+    void syncTempoDerivedAudio();
+    // Builds the engine's tempo-derived caches from the session's map, unconditionally: the one
+    // push both the rig load and syncTempoDerivedAudio() make.
+    void pushTempoDerivedAudio();
     // Fret-hand positions (src/chart/fret_hand_handlers.cpp), the hand row's markers. Arrangement-
     // scoped like the tone regions: the placements are the current chart's own stream.
     // Moves the selected placement one placement-quantum line (the Alt+arrow dispatch for the
@@ -593,9 +621,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void deleteSelectedMarker();
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position);
-    // The one boundary move the pointer drag and the keyboard share: moves the start of a region
-    // and commits it as one undo entry. Returns whether the move was committed.
-    bool commitToneBoundaryMove(const std::string& region_id, common::core::GridPosition position);
     // Moves the selected tone region's start one placement-quantum line (the Alt+arrow dispatch
     // for the tone-region alternative). Left or Right only; the move dispatch refuses a vertical
     // direction for every marker kind.
@@ -693,6 +718,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::ClearFretHandEnd action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
+    void performActionImpl(const EditorAction::InsertTempoAnchor& action);
+    void performActionImpl(const EditorAction::SetTempoSpanBpm& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
     void performActionImpl(const EditorAction::SetToneAutomationPoints& action);
@@ -1427,11 +1454,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     [[nodiscard]] std::optional<SelectedMarker> selectedMarker() const;
 
-    // The selection kinds that name a marker, one per row.
-    using MarkerSelection = std::variant<
-        SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection,
-        FretHandPositionSelection, ToneRegionSelection>;
-
     // The selection naming a row's marker by index (selectedMarker's inverse). The index must be in
     // range of the row's markerStarts.
     [[nodiscard]] MarkerSelection markerSelectionAt(MarkerRow row, std::size_t index) const;
@@ -1461,6 +1483,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The selected section, as the rename verb would address it; nothing when no section is
     // selected or the selected one is gone.
     [[nodiscard]] std::optional<RenameSectionTarget> selectedSectionTarget() const;
+    // The selected tempo anchor's span, as the restate verb would address it; nothing when no
+    // anchor is selected or the selected one is gone.
+    [[nodiscard]] std::optional<SetTempoTarget> selectedTempoTarget() const;
     // The selected tone region and the tone it sounds; nothing when no region is selected or the
     // selected one is gone.
     [[nodiscard]] std::optional<RetoneRegionTarget> selectedRegionTarget() const;
@@ -1474,10 +1499,46 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // it), exactly as Delete leaves nothing behind. Asked after every marker commit and every undo.
     void releaseMarkerSelectionNamingNothing();
 
+    // What the marker funnel did with a produced model.
+    enum class MarkerCommit : std::uint8_t
+    {
+        // It broke a rule, or had nowhere to land: logged, and nothing changed.
+        Refused,
+        // It matched the model it would replace: nothing changed and nothing was recorded.
+        Unchanged,
+        // It landed and was pushed as one undo entry (a refused push resets the history instead).
+        Landed,
+    };
+
     // The one commit every marker verb of every kind ends in; defined in marker_model_commit.h,
     // which is where the rules it enforces are written down.
     template <typename Snapshot>
-    bool commitMarkerModel(Snapshot before, Snapshot after, std::string label);
+    MarkerCommit commitMarkerModel(Snapshot before, Snapshot after, std::string label);
+
+    // The commit every marker MOVE verb ends in: commitMarkerModel, except that a press continuing
+    // a held run widens the run's one entry instead of pushing another, and it leaves `landed`
+    // (the moved marker) selected itself. Returns false only for a refusal. Defined beside the
+    // funnel in marker_model_commit.h.
+    template <typename Snapshot>
+    bool commitMarkerMove(
+        Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed);
+
+    // What both funnels do once a model has landed: release a selection naming a marker that is
+    // gone, re-derive the audible tone and the engine's tempo-derived caches, and publish.
+    void finishMarkerCommit();
+
+    // The marker models a move can change, one per movable marker kind.
+    using MarkerModelSnapshot = std::variant<
+        SongSectionsSnapshot, TempoMapSnapshot, FretHandPositionsSnapshot, ToneModelSnapshot>;
+
+    // A held run of marker moves (decision 9 of the tempo plan): every Alt+arrow press on one
+    // selected marker is ONE undo entry, however fast or slow, until any other commit point. No
+    // timer and no proof to re-check: the run is the model before its first press, held only
+    // while nothing else has happened, because every other commit point ends it — pushUndoEntry
+    // (any other edit), undo, redo, a history reset, a save (markUndoHistoryClean) and every
+    // selection change (setSelection), which commitMarkerMove survives only for its own landing
+    // select by holding the run aside. A widened entry therefore always reads origin → now.
+    std::optional<MarkerModelSnapshot> m_marker_move_origin{};
 
     // The funnel's front half, asked by the commit and by anything that must know in advance what
     // the commit would do with a model (a pending fret entry's red box): the produced model
@@ -1887,6 +1948,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // True only after arrangement audio and the live rig restore have both committed.
     bool m_project_audio_ready{false};
+
+    // The tempo map the engine's tempo-derived caches — the seconds-domain tone automation curves
+    // and the plugins' host-tempo mirror — were last built from; empty before any rig holds them.
+    // syncTempoDerivedAudio() compares the session's map against it, so a transition that leaves
+    // the map alone costs nothing.
+    std::optional<common::core::TempoMap> m_engine_tempo_map{};
 
     // Shared calibrate-first live-input monitoring service. The controller drives it at lifecycle
     // edges (refresh) and delegates calibration measurement and commits to it.

@@ -42,6 +42,7 @@ add_executable(
     test_tone_schedule.cpp
     test_package_description.cpp
     test_timeline.cpp
+    test_decimal_text.cpp
     test_juce_path.cpp
     test_logger.cpp
     test_rock_song_package.cpp)

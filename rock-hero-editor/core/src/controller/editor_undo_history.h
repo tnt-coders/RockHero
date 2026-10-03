@@ -416,6 +416,18 @@ public:
     [[nodiscard]] bool isAtCleanState() const noexcept;
 
     /*!
+    \brief Reports whether the newest entry may be widened or taken back right now.
+
+    THE precondition of \ref replaceTop and \ref dropTop, asked by both and by any caller that must
+    decide in advance whether its gesture may continue: no transition is pending, the cursor sits
+    exactly on top of at least one entry (after an undo the top is history already walked away
+    from), and the cursor is not the clean state (the file holds what the newest entry produced).
+
+    \return True when the newest entry may be coalesced.
+    */
+    [[nodiscard]] bool canCoalesceTop() const noexcept;
+
+    /*!
     \brief Returns the label of the entry that would be undone next.
     \return Entry label, or empty when nothing can be undone.
     */

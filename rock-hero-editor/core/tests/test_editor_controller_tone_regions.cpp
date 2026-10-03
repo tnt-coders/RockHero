@@ -799,11 +799,11 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == gridAt(2, 1));
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
 
-    // Each landed press is its own undo entry.
-    editor.controller.onUndoRequested();
-    CHECK(editor.regions()[1].start == gridAt(2, 2));
-    editor.controller.onUndoRequested();
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    // The two presses are one held run on one selected region, and it walked back to where it
+    // began, so it leaves no entry behind.
+    const EditorViewState* const walked_back = stateOrNull(editor.view.last_state);
+    REQUIRE(walked_back != nullptr);
+    CHECK(walked_back->undo_history.labels.empty());
 }
 
 // A refused move changes nothing, the cursor included: the first region's start is the song's, a

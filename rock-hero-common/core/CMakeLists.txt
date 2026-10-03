@@ -32,6 +32,7 @@ target_sources(
             src/package/song_package_error.cpp
             src/package/workspace_paths.cpp
             src/session/session.cpp
+            src/shared/decimal_text.cpp
             src/shared/json.cpp
             src/shared/juce_path.cpp
             src/shared/logger.cpp

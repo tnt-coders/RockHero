@@ -354,6 +354,14 @@ namespace
         {
             return "RenameSongSection";
         }
+        case EditorAction::Id::InsertTempoAnchor:
+        {
+            return "InsertTempoAnchor";
+        }
+        case EditorAction::Id::SetTempoSpanBpm:
+        {
+            return "SetTempoSpanBpm";
+        }
     }
 
     return "Unknown";
@@ -985,6 +993,17 @@ void EditorController::onSongSectionRenameRequested(
     common::core::GridPosition position, std::string name)
 {
     m_impl->onSongSectionRenameRequested(position, std::move(name));
+}
+
+void EditorController::onTempoAnchorInsertRequested(const common::core::GridPosition position)
+{
+    m_impl->onTempoAnchorInsertRequested(position);
+}
+
+void EditorController::onTempoSpanBpmRequested(
+    const common::core::GridPosition position, std::string text)
+{
+    m_impl->onTempoSpanBpmRequested(position, text);
 }
 
 void EditorController::onToneRegionSelected(std::string region_id)
@@ -1774,6 +1793,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
     // it discards an armed pending entry.
     static_cast<void>(dissolveSilentKeyframes([](const ChartSlotKey&) { return false; }));
     m_chart_notes_top.reset();
+    m_marker_move_origin.reset();
     disarmChartVerbWindow();
     const EditorUndoBeginResult begin = m_undo_history.beginUndo();
     logEditorUndoTransitionResult("undo.begin", begin.result);
@@ -1785,6 +1805,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
 {
     static_cast<void>(dissolveSilentKeyframes([](const ChartSlotKey&) { return false; }));
     m_chart_notes_top.reset();
+    m_marker_move_origin.reset();
     disarmChartVerbWindow();
     const EditorUndoBeginResult begin = m_undo_history.beginRedo();
     logEditorUndoTransitionResult("redo.begin", begin.result);
@@ -1873,6 +1894,9 @@ void EditorController::Impl::completeUndoTransition(
     }
     releaseMarkerSelectionNamingNothing();
     reconcileToneDesignerCleanMarker();
+    // Before the rig-reload check below, which returns early: a reload rebuilds the rig's tone
+    // branches, not the curves this derives from the map.
+    syncTempoDerivedAudio();
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer
     // references; undoing or redoing them can restore references to those dropped tones (reset
@@ -1986,21 +2010,18 @@ void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
 
 void EditorController::Impl::applyEditFocus(const MarkerEditFocus& focus)
 {
-    std::visit(
-        [this](const auto& marker) {
-            if constexpr (std::is_same_v<std::decay_t<decltype(marker)>, std::monostate>)
-            {
-                // A marker the transition took away leaves nothing to select, exactly as Delete
-                // does; the cursor still goes to where it stood.
-                dissolveChartCaretInPlace();
-                setSelection(std::monostate{});
-            }
-            else
-            {
-                selectMarker(marker);
-            }
-        },
-        focus.marker);
+    // Bound once so the guard and the read are provably the same optional.
+    if (const std::optional<MarkerSelection>& marker = focus.marker; marker.has_value())
+    {
+        selectMarker(*marker);
+    }
+    else
+    {
+        // A marker the transition took away leaves nothing to select, exactly as Delete does; the
+        // cursor still goes to where it stood.
+        dissolveChartCaretInPlace();
+        setSelection(std::monostate{});
+    }
     moveCursorTo(focus.start);
 }
 
@@ -2090,9 +2111,11 @@ bool EditorController::Impl::dropUndoTop()
     return true;
 }
 
-// Pushes one already-applied user edit into the project-level history stack.
+// Pushes one already-applied user edit into the project-level history stack. The one push site, so
+// it is where any other edit ends a held marker-move run.
 bool EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
 {
+    m_marker_move_origin.reset();
     const bool had_edit = edit != nullptr;
     const EditorUndoTransitionResult result = m_undo_history.push(std::move(edit));
     logEditorUndoTransitionResult("undo.push", result);
@@ -2147,14 +2170,17 @@ void EditorController::Impl::resetUndoHistory(std::string_view context)
     m_tone_output_preview_before.reset();
     // Every entry the coalescing windows name is gone with the stack.
     m_chart_notes_top.reset();
+    m_marker_move_origin.reset();
     disarmChartVerbWindow();
     const EditorUndoTransitionResult result = m_undo_history.reset();
     logEditorUndoTransitionResult(context, result);
 }
 
-// Marks the current undo position as matching the saved project state.
+// Marks the current undo position as matching the saved project state. A save is a commit point,
+// so it ends a held marker-move run: the file now holds what the run's entry produced.
 void EditorController::Impl::markUndoHistoryClean(std::string_view context)
 {
+    m_marker_move_origin.reset();
     const EditorUndoTransitionResult result = m_undo_history.markClean();
     logEditorUndoTransitionResult(context, result);
 }
@@ -2595,6 +2621,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // a marker rule of its own: the raw position the tone chord compares against region starts,
     // and the measure downbeat the section chord snaps to.
     state.section_chord_target = sectionChordTarget();
+    state.tempo_chord_target = tempoChordTarget();
     state.tone_chord_target = toneChordTarget();
     state.restate_target = restateTarget();
     state.rename_target = renameTarget();

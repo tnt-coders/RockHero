@@ -790,8 +790,9 @@ TEST_CASE("EditorController refuses a row jump while playing", "[core][marker-ro
 }
 
 // Enter and Ctrl+R are the SELECTION's verbs, published as the verb each selected kind has: a
-// section restates and renames on its own name, while a tempo anchor and a time signature state no
-// name at all and answer nothing to either — as does an empty selection.
+// section restates and renames on its own name, a tempo anchor restates on the tempo of the span it
+// opens and has no name to rename, and a time signature answers nothing to either — as does an
+// empty selection.
 TEST_CASE(
     "EditorController publishes the selection's restate and rename verbs", "[core][marker-rows]")
 {
@@ -813,7 +814,11 @@ TEST_CASE(
 
     editor.controller.onTempoAnchorSelected(downbeat(5));
     REQUIRE(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
-    CHECK(std::holds_alternative<std::monostate>(editor.state().restate_target));
+    const RestateTarget& tempo_restate = editor.state().restate_target;
+    const auto* const restate_tempo = std::get_if<SetTempoTarget>(&tempo_restate);
+    REQUIRE(restate_tempo != nullptr);
+    CHECK(restate_tempo->position == downbeat(5));
+    CHECK(restate_tempo->bpm_text == "90");
     CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
 
     editor.controller.onTimeSignatureSelected(5);

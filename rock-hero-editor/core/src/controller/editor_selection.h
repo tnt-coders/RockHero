@@ -41,8 +41,8 @@ struct SongSectionSelection
 };
 
 // A formally selected tempo chip on the ruler: the beat anchor it marks, identified by the beat it
-// pins, which is unique because anchors strictly advance. Selectable so the keyboard can stand on
-// the tempo row; it carries no verbs until tempo editing gives it some.
+// pins, which is unique because anchors strictly advance. Its verbs are Enter (type the tempo of
+// the span it opens), Delete and Alt+arrows (move it in time); a move never changes its beat.
 struct TempoAnchorSelection
 {
     // Beat the anchor pins, as a grid position with no offset.
@@ -53,8 +53,8 @@ struct TempoAnchorSelection
 };
 
 // A formally selected time-signature chip on the ruler: the change it marks, identified by the
-// measure it starts, since a signature changes only on a downbeat. Verb-less for the same reason
-// as the tempo chip.
+// measure it starts, since a signature changes only on a downbeat. Selectable so the keyboard can
+// stand on the time-signature row; it carries no verbs until meter editing gives it some.
 struct TimeSignatureSelection
 {
     // Measure the signature change starts.
@@ -134,6 +134,12 @@ struct AddAutomationLaneRowSelection
         const AddAutomationLaneRowSelection& lhs,
         const AddAutomationLaneRowSelection& rhs) = default;
 };
+
+// The selection kinds that name a timeline marker, one per marker row: the one list of marker
+// kinds, shared by the selection walk, the move funnel and an undo's marker focus.
+using MarkerSelection = std::variant<
+    SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, FretHandPositionSelection,
+    ToneRegionSelection>;
 
 // Exactly one selection exists editor-wide (the interaction model): chart notes, a tone region, a
 // song section, a tempo or time-signature chip, a fret-hand position, an automation point, the "+"
