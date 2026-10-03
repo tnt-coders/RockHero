@@ -7,6 +7,15 @@ unless they start with a product folder). Re-verify before executing.
 The user's request: make the Gain block loadable in the chain now, have it ship with the app so
 every user can load it, and make it modular so people can use our plugins in their own DAWs.
 
+## First deliverable: the in-app Gain block, with nothing distributed
+
+Ruled 2026-10-02 after the user asked for the simplest path to "insert it like a normal VST in
+our signal chain" first. That path is Phase 1 of `gain-block-and-signal-chain-panel.md`, under
+its heading "The simplest path, ordered": one layer, no format change, two to three days, and no
+dependency on anything below. The shared `GainStage` core (Phase 1 here) is NOT a prerequisite —
+it deletes nothing on that path — and the catalog filter (R5) waits until a VST3 of ours exists.
+Everything below this line is LATER work, in the order given.
+
 ## The answer in one paragraph
 
 Inside the app the Gain block is a Tracktion **built-in**: it appears in the plugin picker with no
@@ -127,7 +136,7 @@ rock-hero-common/audio/
   src/
     shared/pan.cpp                           - unchanged (formatPan / parsePan)
     gain_stage/gain_stage.cpp                - NEW: the ramp and the apply loop
-    tracktion/tone_output_plugin.{h,cpp}     - becomes an adapter over GainStage
+    tracktion/gain_plugin.{h,cpp}            - the renamed ToneOutputPlugin, as an adapter
   tests/test_gain_stage.cpp                  - NEW: laws, ramp, parameter table
   CMakeLists.txt                             - adds rock_hero::common::audio_gain_stage (JUCE-free,
                                                POSITION_INDEPENDENT_CODE ON); common::audio links
@@ -207,17 +216,17 @@ must settle inside the branch crossfade; the VST3's is its own constant with no 
    Windows and would pollute every developer's DAW; `VST3_AUTO_MANIFEST` stays on so
    `moduleinfo.json` is generated (`JUCEUtils.cmake:1829`, `:1275`).
 
-## Phases
+## Phases (all later than the first deliverable above)
 
 Each phase ships on its own.
 
 **Phase 1 — the core, and the built-in re-based on it.** Small: about a day. Add `gain_stage/`
-and the `audio_gain_stage` sub-library; `ToneOutputPlugin` deletes its two smoothers, its pan law
-and its dB conversion and keeps only parameter plumbing and `applyToBuffer` calling
-`GainStage::process`. `test_tone_output_plugin.cpp` keeps passing; `test_gain_stage.cpp` pins the
-laws at the range ends, the ramp length in samples, and the table's ids and order. No CI change.
-Then the gain-block plan's Phase 1 (the eight seams) proceeds as written; its item 8, folding
-`LiveRigGainPlugin` in, becomes a third `GainStage` caller and deletes that class's own ramp.
+and the `audio_gain_stage` sub-library; `GainPlugin` (the renamed `ToneOutputPlugin`) deletes its
+two smoothers, its pan law and its dB conversion and keeps only parameter plumbing and
+`applyToBuffer` calling `GainStage::process`. Its tests keep passing; `test_gain_stage.cpp` pins
+the laws at the range ends, the ramp length in samples, and the table's ids and order. No CI
+change. The gain-block plan's deferred item 8, folding `LiveRigGainPlugin` in, becomes a third
+`GainStage` caller and deletes that class's own ramp.
 
 **Phase 2 — the VST3 product.** Medium: two to three days, most of it CI on three OSes. The
 `rock-hero-plugins/gain` target with `GenericAudioProcessorEditor`; `gain_processor.cpp` builds
@@ -297,8 +306,8 @@ which by then costs one folder under `rock-hero-plugins/`.
 ## Relation to other records
 
 - `docs/plans/todo/gain-block-and-signal-chain-panel.md` — Phase 1 there is the in-app Gain block
-  and stands; this plan's Phase 1 is its prerequisite in spirit (the adapter it builds on) but not
-  in order: either can land first.
+  and is the first deliverable; everything in this plan comes after it and builds on the type it
+  renames and the identity authority it introduces.
 - `docs/tracking/backlog.md` (2026-10-02) — the identity defect of R6.
 - `docs/tracking/backlog.md` "standard tones built only from plugins we ship" — this plan is the
   first plugin that could back such a tone, as a built-in, with no file dependency.

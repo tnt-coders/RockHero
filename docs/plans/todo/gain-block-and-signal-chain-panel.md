@@ -130,8 +130,103 @@ building):
    track-level automatable stage would be the first outside that guarantee, so the fold states the
    policy with `setWritingAutomation(false)` at `createEdit`.
 
-**Deletions in Phase 1.** None yet; the block lands beside the panel's output stage so it can be
-sighted against it.
+### The simplest path, ordered (2026-10-02; this is the first deliverable)
+
+Re-read against `5c0299a8` for the question "what is the least that makes Gain insertable like a
+normal plugin, with nothing distributed". Everything below stays in `common/audio`; the editor's
+picker, tile, window-open, undo and automation paths are already generic over candidates,
+chain entries and `tracktion::Plugin` (no editor production file changes; `rg` 2026-10-02:
+`editor/` reads only `format_name` from a candidate, never `file_path`). No tone-document or
+project format change: the identity object gains no key, and the two authored values ride in the
+sidecar's existing `<PLUGIN>` tree as properties. The `GainStage` core of
+`bundled-gain-plugin.md` is NOT a prerequisite — it deletes nothing on this path — and the catalog
+filter there (R5) waits until a VST3 of ours exists.
+
+**One discriminator replaces the six refusals.** Every `dynamic_cast<ExternalPlugin*>` in the
+tree is one of two kinds. The REFUSALS (`engine_live_rig.cpp:770`, `:1530`, `:1587`;
+`engine_plugin_host.cpp:1216`, `:1400`; `plugin_state_memento.cpp:46`) and the restores that treat
+a non-external result as failure (`engine_live_rig.cpp:1410`, `:1735`, `:1852`;
+`engine_plugin_host.cpp:1292`) all ask one question — is this a user chain plugin, and what is its
+identity? — so they collapse into ONE authority:
+
+```cpp
+// plugin_scan.h: the identity of a plugin the sidecar carries; nullopt = not a chain plugin.
+std::optional<PluginIdentity> pluginIdentityOf(const tracktion::Plugin& plugin);
+//   ExternalPlugin -> makePluginIdentity(desc);  ToneOutputPlugin -> builtInGainIdentity();
+```
+
+State capture is already generic: `flushPluginStateToValueTree()` is virtual on
+`tracktion::Plugin` (`tracktion_Plugin.h:133`), so `cleanPluginStateCopy` and `capturePluginState`
+take a `Plugin&` and the built-in's flush is a no-op because its state is always current. Restore
+is generic because `Plugin` is a `ValueTreeAllEventListener` (`tracktion_Plugin.h:113`, `:425`):
+`copyPluginStatePreservingInstanceId` overwrites the properties in place and the built-in reacts
+in `valueTreePropertyChanged`; `restorePluginStateFromValueTree` is `ExternalPlugin`-only
+(`tracktion_ExternalPlugin.h:52`) and stays behind a cast that no longer refuses. The EXTRAS stay
+as casts that fall through — `getLoadError()`, the no-instance warning, VST3 key routing
+(`plugin_window.cpp:410`), discrete steps (`tone_automation_curve.cpp:43`) — because they are
+facts only an external plugin has.
+
+The discriminator's persisted spelling is the identity's existing `format` key: the built-in
+writes `g_builtin_plugin_format_name` ("Built-in") where a scanned plugin writes "VST3", with
+`name` "Gain", `manufacturer` "Rock Hero", every path and hash key empty (already a legal value —
+hints are optional today). Nothing about it can depend on a file path. `hasKnownPluginForIdentity`
+answers true for that format before any path-bearing key; the candidate's `id` and the chain
+entry's `plugin_id` are the plugin's `xmlTypeName`, the one key `getOrCreatePluginFor` already
+dispatches on through `createCustomPlugin` (`engine_behaviors.cpp:111`). The picker's third column
+and the tile's format caption show "Built-in" for free (`plugin_browser_window.cpp:319`,
+`plugin_tile_view.cpp:187`).
+
+Steps, in order; each builds and its tests pass before the next:
+
+1. **Rename the type and lock it**: `ToneOutputPlugin` → `GainPlugin`, `xmlTypeName`
+   `"rockHeroGain"`, `getName()` "Gain". Free today because the string is never saved; the first
+   saved Gain block makes it a persisted format, so this lands first and never changes again.
+2. **State-backed values** (seam 1): `level` and `pan` become properties of the plugin's state
+   tree, written only by `setOutput` and seeded in the constructor; `valueTreePropertyChanged`
+   pushes a changed property to the parameter's explicit value, so an in-place restore and an
+   undo both apply. Test: create from a state carrying −6 dB, read −6 dB; overwrite the property,
+   hear the new gain.
+3. **The identity authority**: `pluginIdentityOf`, `builtInGainIdentity`, the format constant, and
+   the gate's one new first line. Tests: the gate accepts the built-in identity; a non-chain
+   plugin yields nullopt.
+4. **Generalise capture and restore through it** (seam 3): the six refusals and four restore
+   casts above; `plugin_state_memento.cpp:46` drops its `ExternalPlugin` type test (an unknown
+   type already fails in `getOrCreatePluginFor`); `PluginParameterDirtyTracker` and
+   `PluginDirtyStateTracker` take `tracktion::Plugin&` (they use nothing else of
+   `ExternalPlugin`; `plugin_dirty_tracking.cpp` verified 2026-10-02), and the observer loop at
+   `engine_plugin_host.cpp:721` stops skipping non-external chain plugins. Tests: save/load,
+   export/import and the memento round-trip a chain holding a Gain block at −6 dB.
+5. **Catalog and insert** (seam 2): `knownPluginCatalog` lists the built-in candidate first;
+   `insertPluginCandidateToTrack` branches once on the format to
+   `createNewPlugin(GainPlugin::createState())`. Tests: the catalog's first entry; insert at head
+   and tail; move; remove.
+6. **The window** (seam 4): `createEditor()` returns a `Plugin::EditorComponent` holding two plain
+   `juce::Slider`s — a linear level fader in dB and a rotary pan with the C/L35/R100 text through
+   `formatPan`/`parsePan` — bound to the two parameters with `parameterChangeGestureBegin/End`
+   around each drag so the existing gesture-only dirty tracker emits the undo entry. Tracktion
+   offers nothing generic here: `createEditor` defaults to nothing (`tracktion_Plugin.h:386`) and
+   the engine ships no parameter editor for internal plugins, so without this step "Open" is a
+   silent no-op (`plugin_window.cpp:37-41`). The themed fader-and-knob look (item 4's move of the
+   drawing to `common/ui`) is polish, later.
+7. **The stage's label** (seam 5): the type is "Gain"; the automation listing that already
+   appends the stage separately (`engine_tone_automation.cpp:74-84`) labels it "Output", the slot's
+   name. No per-instance name in state.
+8. **Sight**: the sighting below, plus undo of insert, move, remove and a value drag.
+
+Deferred from the eight seams: 6 (the value in the tile caption — the window shows it) and 8 (the
+`LiveRigGainPlugin` fold); both are polish with no bearing on insertability.
+
+**Size, honestly.** One layer (`common/audio`), about ten production files (`gain_plugin.{h,cpp}`
+renamed, a new `gain_plugin_editor.{h,cpp}`, `plugin_scan.{h,cpp}`, `engine_plugin_host.cpp`,
+`engine_live_rig.cpp`, `plugin_state_memento.cpp`, `plugin_dirty_tracking.{h,cpp}`,
+`engine_tone_automation.cpp`, `engine_behaviors.cpp`) and six test files; no format change; two
+to three days including tests and the sighting. Risk is low-to-medium and sits in one place: the
+dirty tracker's gesture gate has only ever observed an `ExternalPlugin`, so step 6 is probed
+against the undo stack before the window is called done.
+
+**Deletions in Phase 1.** The six `ExternalPlugin`-only refusals and their four restore twins
+become one authority; nothing else goes yet, since the block lands beside the panel's output stage
+so it can be sighted against it.
 
 **Tests.** Catalog lists the built-in; insert creates it in the audible branch at the chosen slot;
 save/load round-trips a chain containing it with its dB; undo of a value edit restores through the
