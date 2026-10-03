@@ -2,6 +2,7 @@
 
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 
 namespace rock_hero::common::core

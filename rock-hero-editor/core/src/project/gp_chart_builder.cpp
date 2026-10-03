@@ -20,6 +20,7 @@
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <utility>
 #include <vector>

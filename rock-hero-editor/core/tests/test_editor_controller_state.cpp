@@ -1,4 +1,5 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <rock_hero/editor/core/testing/scoped_settings_file.h>

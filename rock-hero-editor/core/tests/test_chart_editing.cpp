@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>

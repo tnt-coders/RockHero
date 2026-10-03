@@ -13,9 +13,9 @@ author; **seconds** are what renderers and audio consume. Exactly one type conve
   helpers at call sites, never hidden inside `operator==`.
 - `Fraction` (`timeline/fraction.h`) — a gcd-reduced rational, so subdivisions like 1/3 or 3/16
   are exact, not floating-point approximations.
-- `GridPosition` (`chart/chart.h`) — `{measure, beat, Fraction offset}` with `offset ∈ [0,1)`:
-  the exact musical address every authored thing uses (notes, tone boundaries, automation
-  points). Fully ordered, so positions sort and compare exactly.
+- `GridPosition` (`timeline/grid_position.h`, re-exported by `chart/chart.h`) —
+  `{measure, beat, Fraction offset}` with `offset ∈ [0,1)`: the exact musical address every
+  authored thing uses (notes, tone boundaries, automation points). Fully ordered, so positions sort and compare exactly.
 
 # The chart model, briefly
 
@@ -66,7 +66,8 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
 - `predecessorHoldReaches(...)` — the connection hold test, and it is plain: true when the
   predecessor's stored ring reaches the onset. Strict adjacency against the stored ring, with no
   kept-bound assumption and no margin slack, because the stored ring is the real one.
-- `nearestTick(numerator, denominator)` and `isOnTickLattice(tempo_map, position)` — THE one
+- `nearestTick(numerator, denominator)` and `isOnTickLattice(tempo_map, position)` (both in
+  `timeline/tick_lattice.h`, beside `isValidGridPosition`, so the tempo map can ask them) — THE one
   rounding rule onto the tick lattice (the nearest whole tick, a tie to the earlier) and the test
   every stored position passes. The lattice is the finest position a chart may store: validation
   refuses an onset, ring end or keyframe between two ticks, and every producer of an exact instant
@@ -82,8 +83,8 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   neighbouring line in a direction); the adjacent line is read off the lattice rather than found by
   stepping and re-snapping, which is what keeps a step back from any line landing on the line it
   came from in every meter.
-- `wholeNotePosition`, `wholeNoteDistance`, `advanceGridPositionByWholeNotes` — the same
-  conversions on the WHOLE-NOTE axis (`TempoMap::wholeNotePositionAt`), the one axis a meter change
+- `TempoMap::wholeNotePositionAt(position)`, `wholeNoteDistance`, `advanceGridPositionByWholeNotes`
+  — the same conversions on the WHOLE-NOTE axis, the one axis a meter change
   does not bend and the axis the tick lattice is ruled on. A beat count means a different duration
   in every meter, so a verb that carries an instant across a signature change — the move verb, and
   the rings the insert and scrape verbs author — walks here and measures the beat count the chart

@@ -1,6 +1,6 @@
 #include "tone/tone_automation.h"
 
-#include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 
 namespace rock_hero::common::core
 {

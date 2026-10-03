@@ -6,6 +6,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -478,10 +479,10 @@ TEST_CASE("The whole-note axis measures the same duration in every meter", "[cor
     const TempoMap map = signatureChangeMap();
     // Two 4/4 measures are two whole notes, and three and a half quarter-note beats are 7/8 of one.
     const GridPosition late_in_two{.measure = 2, .beat = 4, .offset = Fraction{1, 2}};
-    CHECK(wholeNotePosition(map, late_in_two) == Fraction{15, 8});
-    CHECK(wholeNotePosition(map, GridPosition{.measure = 3, .beat = 1}) == Fraction{2});
+    CHECK(map.wholeNotePositionAt(late_in_two) == Fraction{15, 8});
+    CHECK(map.wholeNotePositionAt(GridPosition{.measure = 3, .beat = 1}) == Fraction{2});
     // Past the last signature the 7/8 reign keeps going: seven more measures of 7/8.
-    CHECK(wholeNotePosition(map, GridPosition{.measure = 10, .beat = 1}) == Fraction{65, 8});
+    CHECK(map.wholeNotePositionAt(GridPosition{.measure = 10, .beat = 1}) == Fraction{65, 8});
 
     // A quarter note on from m2:4.5 lands one eighth-note beat into measure 3 — where one BEAT on
     // lands half an eighth later, the quarter-note beat re-read as an eighth-note one.

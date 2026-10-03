@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <utility>
 #include <vector>
@@ -200,21 +201,19 @@ public:
         std::int64_t global_beat_index) const noexcept;
 
     /*!
-    \brief Converts a global beat plus a sub-beat offset to its position on the whole-note axis.
+    \brief Converts a grid position to its position on the whole-note axis.
 
     The whole-note axis is the one axis a meter change does not bend: a beat is one
     signature-denominator note, so the same musical duration is a different beat count on either
-    side of a change but the same whole-note count throughout. It is also the axis the chart's
-    tick lattice is ruled on (a tick is 1/3840 of a whole note), which is what lets a whole-note
-    step carry a stored position from one meter into another without leaving the lattice. Exact
+    side of a change but the same whole-note count throughout. It is also the axis the tick
+    lattice is ruled on (\ref g_tick_quantum_note_value), which is what lets a whole-note step
+    carry a stored position from one meter into another without leaving the lattice. Exact
     rationals throughout, unlike the metronome's quarter-note axis, which is a double for time.
 
-    \param global_beat_index Zero-based beat index counted from measure 1 beat 1.
-    \param offset Exact fraction from that beat toward the next beat.
+    \param position Valid grid position.
     \return Whole notes from measure 1 beat 1.
     */
-    [[nodiscard]] Fraction wholeNotePositionAt(
-        std::int64_t global_beat_index, Fraction offset) const noexcept;
+    [[nodiscard]] Fraction wholeNotePositionAt(GridPosition position) const noexcept;
 
     /*!
     \brief Inverts the whole-note axis back to a global beat plus a sub-beat offset.

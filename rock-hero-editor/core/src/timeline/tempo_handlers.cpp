@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <string>
 #include <string_view>

@@ -8,6 +8,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>

@@ -175,19 +175,6 @@ struct [[nodiscard]] ChartError
 };
 
 /*!
-\brief Reports whether a grid position names a real place on the tempo map's grid.
-
-Shared with song-level validation (section markers live on the same grid), so the on-grid rule
-cannot drift between chart and song documents. A usable position lies on the tick lattice
-(\ref isOnTickLattice): the chart can state no instant between two ticks.
-
-\param position Grid position to test.
-\param tempo_map Song tempo map defining the grid.
-\return True when the position's measure, beat, and sub-beat offset are all usable.
-*/
-[[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map);
-
-/*!
 \brief Whether a timeline marker — a section, a tone change, a fret-hand position — may start at a
 position: on the tempo map's grid and strictly before its terminal anchor.
 

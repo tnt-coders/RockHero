@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <utility>
 #include <vector>
 
@@ -249,16 +250,10 @@ Fraction beatDistance(const TempoMap& tempo_map, GridPosition from, GridPosition
     return Fraction{static_cast<int>(index_delta)} + (to.offset - from.offset);
 }
 
-Fraction wholeNotePosition(const TempoMap& tempo_map, const GridPosition position)
-{
-    return tempo_map.wholeNotePositionAt(
-        tempo_map.globalBeatIndex(position.measure, position.beat), position.offset);
-}
-
 Fraction wholeNoteDistance(
     const TempoMap& tempo_map, const GridPosition from, const GridPosition to)
 {
-    return wholeNotePosition(tempo_map, to) - wholeNotePosition(tempo_map, from);
+    return tempo_map.wholeNotePositionAt(to) - tempo_map.wholeNotePositionAt(from);
 }
 
 // The whole-note axis is the tempo map's own; this only addresses its answer back onto the grid.
@@ -266,7 +261,7 @@ GridPosition advanceGridPositionByWholeNotes(
     const TempoMap& tempo_map, const GridPosition position, const Fraction whole_notes)
 {
     const auto [beat_index, offset] =
-        tempo_map.beatAtWholeNotePosition(wholeNotePosition(tempo_map, position) + whole_notes);
+        tempo_map.beatAtWholeNotePosition(tempo_map.wholeNotePositionAt(position) + whole_notes);
     const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
     return GridPosition{.measure = measure, .beat = beat, .offset = offset};
 }
@@ -291,13 +286,6 @@ bool predecessorHoldReaches(
     const TempoMap& tempo_map)
 {
     return sustain >= beatDistance(tempo_map, predecessor, onset);
-}
-
-// A reduced fraction of a whole note is a whole number of ticks exactly when its denominator
-// divides the tick's.
-bool isOnTickLattice(const TempoMap& tempo_map, const GridPosition& position)
-{
-    return g_tick_quantum_denominator % wholeNotePosition(tempo_map, position).denominator == 0;
 }
 
 // Mirrors the editor timeline grid's semantics exactly (tempo_grid_geometry.h): measure-anchored

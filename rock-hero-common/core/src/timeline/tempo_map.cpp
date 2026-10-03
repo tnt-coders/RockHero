@@ -416,13 +416,12 @@ std::pair<int, int> TempoMap::beatAtGlobalIndex(std::int64_t global_beat_index) 
 
 // The segment holds its own denominator, so a whole-note position is the segment's downbeat plus
 // the beats into it, each worth one signature-denominator note.
-Fraction TempoMap::wholeNotePositionAt(
-    const std::int64_t global_beat_index, const Fraction offset) const noexcept
+Fraction TempoMap::wholeNotePositionAt(const GridPosition position) const noexcept
 {
-    const std::int64_t target = normalizedGlobalBeatIndex(global_beat_index);
+    const std::int64_t target = globalBeatIndex(position.measure, position.beat);
     const SignatureSegment& segment = segmentForBeatIndex(target);
     const Fraction beats_into_segment =
-        Fraction{static_cast<int>(target - segment.start_beat_index)} + offset;
+        Fraction{static_cast<int>(target - segment.start_beat_index)} + position.offset;
     return segment.start_whole_note_position +
            beats_into_segment * Fraction{1, segment.denominator};
 }

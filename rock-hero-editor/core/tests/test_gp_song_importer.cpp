@@ -27,6 +27,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <system_error>
 #include <utility>

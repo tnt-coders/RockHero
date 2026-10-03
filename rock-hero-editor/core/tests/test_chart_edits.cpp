@@ -19,6 +19,7 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string_view>

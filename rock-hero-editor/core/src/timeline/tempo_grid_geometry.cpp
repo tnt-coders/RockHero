@@ -8,6 +8,7 @@
 #include <limits>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 
 namespace rock_hero::editor::core
 {

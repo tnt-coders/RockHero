@@ -6,6 +6,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <utility>
 #include <variant>

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>

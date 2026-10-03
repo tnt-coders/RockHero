@@ -9,6 +9,7 @@
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>

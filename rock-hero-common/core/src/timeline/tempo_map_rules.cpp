@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include <expected>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <utility>
 #include <vector>

@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -106,14 +107,6 @@ void dropNotePath(ChartNote& note)
         keyframe.fret.reset();
         return stated;
     }));
-}
-
-bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map)
-{
-    return position.measure >= 1 && position.beat >= 1 &&
-           position.beat <= tempo_map.beatsPerMeasureAt(position.measure) &&
-           position.offset.numerator >= 0 && position.offset < Fraction{1} &&
-           isOnTickLattice(tempo_map, position);
 }
 
 // The grid rule plus the song's end: every marker kind asks this one question, so a section, a tone

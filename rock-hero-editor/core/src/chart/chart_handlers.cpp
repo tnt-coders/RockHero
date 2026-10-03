@@ -25,6 +25,7 @@
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
