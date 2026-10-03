@@ -59,7 +59,7 @@ phase it blocks cannot start without it.
 | **G41-TS** — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Nothing now — Phase 1's time-signature work may start on A |
 | **G43-METADATA** — 43-Q1..Q6. NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5, so only Q6 (an authored chart version field; recommended: none) still stands | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Nothing in the release unless Q6 is ruled B — the four-field subset adds no format field |
 | ~~**The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G**~~ — CLOSED 2026-09-28 with Phase 3: W9-F resolved, W9-G ruled, the anchor moved to a watch item; bundle items 1–3 carried, not blocking | `technique-review-walkthrough.md` W9, Phase 3 below | Nothing |
-| **G60-RULINGS** — 60-Q1..Q5, a law-by-law session | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 (Phase 0 of plan 60 is ungated) |
+| **G60-RULINGS** — 60-Q1..Q5, a law-by-law session. **RULED 2026-10-02** (Q1 signed conditional on re-measuring rules 12–13; Q3/Q5 deferred to a Phase 5 session). Still unruled from the items this plan carried into it: harmonic follow-up #4 and the span-end margin #59 | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 open; #4 and #59 ruled at Phase 3's session |
 | **G52-RANGE-EDIT** — all of 52-Q1..Q8, individually | `docs/plans/roadmap/52-range-edit-operations.md` Phase 0 | Phase 5 |
 
 Signing sessions are cheap and unblock the most; run them ahead of the phase that needs them rather
@@ -244,12 +244,14 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
 `span-derivation-ground-up.md`, `docs/plans/todo/span-marker-redesign.md`,
 `docs/plans/todo/chord-dictionary.md`.
 
-- Run the G60 law-by-law ruling session.
-- Phase 0 — strict uniqueness for stored `fhps` (ungated; can land now).
-- Phases 1–2 — the derived 11-rule tracker and stream. Rule 12 (ruled 2026-09-18) is not satisfied
-  by today's generator.
-- Phase 3 — the hand marker record, the `Ctrl+H` / `Ctrl+Shift+H` chords, the one hand row, pointer
-  selection, the boundary gestures.
+- ~~Run the G60 law-by-law ruling session.~~ DONE 2026-10-02 (plan 60 §9).
+- ~~Phase 0 — strict uniqueness for stored `fhps`.~~ DONE.
+- Phases 1–2 — the derived 13-rule tracker and stream, Phase 1 opening with the re-measurement of
+  rules 12 and 13 the sign is conditional on. Rule 12 (ruled 2026-09-18) is not satisfied by
+  today's generator.
+- Phase 3 — the hand row's remainder: the derived events as its objects, the authored tell, rail
+  selection, the marker-only `Alt+←/→` (the content-editing front gesture is struck; the END
+  gesture is that phase's open question), "drop markers that state nothing".
 - Phase 4 — span-free zones and the settlement census, including re-signing the four derivation rows
   against plan 60's correction polarities and the FHP counter rows that were left UNSIGNED on
   purpose for this bundle.
@@ -258,7 +260,8 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
   the arpeggio-bracket posture verb's dictionary dependency, and forced chord naming if D6 wants it.
 - Phase 6 — the let-ring hand coupling.
 - **An authored span swallows what validly fits** (user direction 2026-09-19, from the hold-under
-  re-ruling; to be signed in the G60 session and built with plan 60's boundary gestures). The
+  re-ruling; SIGNED 2026-10-02 as plan 60 §9 item 9, the fit test of whichever verb admits a note
+  to a span). The
   derivation states a held stop only where it can prove one; everything past that is the
   charter's to say, and they say it ONCE, with the span's extent — never with a second per-note
   field. By default an authored span's edge stops where the derivation would split. An EXTEND verb
@@ -276,11 +279,12 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
     "no finger here" would be a third state of one field.
   - A hand-authored grip may name EITHER stop of a note that has two (the sounding fret or the
     held one beneath it); every other note has one.
-  - Invariant to hold in the G60 session: the span decides extent and which provable stops it
-    prints; it must never become a second way to assert what `held` already asserts on a tap.
+  - Invariant, held by the G60 session's item 8 (only the marker moves; the span's extent stays
+    derived from the sound): the span decides extent and which provable stops it prints; with
+    `held` derived-only since 2026-09-29 there is no second assertion left for it to become.
 - **Span-end margin** (`note-sustain-model.md` item #59) and the **PROVISIONAL arpeggio
-  shrink-split** (`chart-span-and-selection-model.md` §5) are both met by this work; rule #59 in the
-  G60 session.
+  shrink-split** (`chart-span-and-selection-model.md` §5) are both met by this work; #59 was not
+  reached in the G60 session and is ruled at Phase 3's session with the END gesture.
 
 Exit: FHPs and spans are authored through the hand marker surface, not imported-only data — and the
 acceptance criterion carried from the accumulation sighting holds: **author a span over crossing

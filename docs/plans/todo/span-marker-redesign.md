@@ -558,6 +558,11 @@ answer — the watch registry's phrase-tier entries (the B figure foremost) are 
 the author can make, and today the correction is a hand-built batch of tail trims and extends.
 The author is the tier above physics, grammar, and hand; this gesture is that tier's verb.
 
+**STRUCK 2026-10-02 (plan 60 §9 item 8): only the MARKER moves, by the placement quantum; the
+content-editing front move below is not built. A front moved without its tails would state a hold
+the note does not make, and moved with them is a second authority over the extent. The END
+gesture further down is carried to Phase 3's session as an open question.**
+
 THE GESTURE: with a span selected, **Alt+Left / Alt+Right moves the span's START** to the
 adjacent member onset (never a grid step — fronts date from onsets, so between-onset positions
 are meaningless). The move stops where it would (a) cross a CONTRADICTION of the span's grip, or

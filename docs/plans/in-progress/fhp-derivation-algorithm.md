@@ -1,6 +1,7 @@
 # The Finalized FHP Derivation Algorithm (#167)
 
-**Status: PROPOSED 2026-09-05, awaiting the user's sign-off. Not yet implemented.**
+**Status: SIGNED 2026-10-02 (plan 60 gate G60-RULINGS, item 1), conditional on re-measuring
+rules 12 and 13 in the harness with the headline holding. Not yet implemented — plan 60 Phase 1.**
 
 This is the outcome of the FHP accuracy push: a ground-truth dataset of 4,555 professionally
 reviewed arrangements (442,323 authored hand-position anchors; the dataset lives in local
@@ -257,17 +258,18 @@ The fingering conversation converged with the span-marker redesign's standing te
   under derived spans (impossible hands dropped with a report) and stamp free notes otherwise;
   either way they reach this algorithm as anchor evidence (+1.5–1.9 measured where present).
 
-## Open rulings for the user
+## The rulings (2026-10-02; the record is plan 60 §9)
 
-1. Sign the 11-rule algorithm (or amend rules before the build).
-2. The profiles question: accept the no-profile-UI recommendation, or overrule and pick which
-   parameters surface anyway.
-3. The fingering model above (grip templates referenced from markers + free-note fingers) as
-   the format's fingering carrier and this algorithm's input — the single largest remaining
-   accuracy lever.
-4. The derived-stream proposal: delete the stored `fhps` stream and derive FHPs at read from
-   notes + the authored opinion layer — three record kinds: marker template references,
-   free-note fingers, and open-stretch window statements (manual FHP specification per the
-   context-split language above).
-5. The derived-default suggestion for unreferenced grips (flagged in the span-marker plan — it
-   reverses the killed auto-match of 2026-08-31 and needs explicit re-confirmation).
+The five open rulings this record carried were ruled in plan 60's law-by-law session
+(`docs/plans/roadmap/60-hand-markers.md` §9, items 1, 2, 10, 5 and 11 respectively):
+
+1. The algorithm, now 13 rules, is SIGNED conditional on re-measuring rules 12 and 13.
+2. Profiles: none at first release and no parameter; a future profile is a chart-scoped
+   parameter struct passed into the one pure derivation function, never a user preference.
+3. The fingering model is deferred to a Phase 5 session; the held grip (a marker's template
+   fingering) is the primary carrier and per-note fingers are a planned future item.
+4. The derived stream: yes. The "three record kinds" residue above is superseded — the marker's
+   own `fret` / `endFret` is the direct window statement (plan 60 §9 item 4), the free-note
+   finger waits for a writer, and the stored residue is the markers plus Phase 5's template
+   references. The mid-ring refusal above is superseded by the same item.
+5. The derived-default suggestion: NO for now, reopenable at Phase 5.
