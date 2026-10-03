@@ -18,7 +18,7 @@ bool SongSectionsSnapshot::applyTo(common::core::Session& session) const
 {
     // Assignment is the whole apply: sections are song-level, so no arrangement has to be resolved
     // first and nothing outside the list can be left inconsistent.
-    session.songSections() = sections;
+    session.setSongSections(sections);
     return true;
 }
 

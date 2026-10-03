@@ -546,7 +546,7 @@ HighwayViewState makeHighwayViewState(
     {
         // Upper-cased here, once per projection, because the board draws every section name that
         // way and doing it in the renderer would mean a fresh allocation and transform per visible
-        // section per frame for a value that only changes when the chart does.
+        // section per frame for a value that only changes when the projection is rebuilt.
         std::string name = asciiUppered(section.name);
         state.sections.push_back(
             HighwaySectionViewState{

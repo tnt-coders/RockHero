@@ -66,9 +66,9 @@ is the chart gate's own `validateFretHandPositions`, and its apply writes throug
 Whole-model in every case because a tone delete or retone can MERGE regions and a section or
 placement move re-sorts the list, so an inverse command would have to know every record the edit
 took; a handful of small structs costs nothing to copy, and the round trip is exact by assignment.
-The section snapshot reaches `Session::songSections()`, needs no arrangement, and never re-runs
-the fret-hand phrase-boundary generator: that generator reads section starts at IMPORT only, so
-re-running it on an authored edit would overwrite hand positions the charter placed),
+The section snapshot lands through `Session::setSongSections()`, needs no arrangement, and never
+re-runs the fret-hand phrase-boundary generator: that generator reads section starts at IMPORT
+only, so re-running it on an authored edit would overwrite hand positions the charter placed),
 `tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
 (document replace, tone import). Capture rules that keep fidelity:
 

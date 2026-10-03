@@ -152,11 +152,12 @@ Chart* Session::loadedChart() noexcept
     return &*chart;
 }
 
-// Returns mutable access to the song's structure sections. Song-level rather than
-// arrangement-scoped, so it needs no loaded-arrangement guard: every arrangement shares one list.
-std::vector<SongSection>& Session::songSections() noexcept
+// Song-level rather than arrangement-scoped, so it needs no loaded-arrangement guard: every
+// arrangement shares one list.
+void Session::setSongSections(std::vector<SongSection> sections)
 {
-    return m_song.sections;
+    m_song.sections = std::move(sections);
+    ++m_chart_revision;
 }
 
 void Session::setTempoMap(TempoMap tempo_map)
@@ -165,7 +166,7 @@ void Session::setTempoMap(TempoMap tempo_map)
     ++m_chart_revision;
 }
 
-// Returns the monotonic chart-write count that keys projection caches.
+// Returns the monotonic projection-input write count that keys projection caches.
 std::uint64_t Session::chartRevision() const noexcept
 {
     return m_chart_revision;

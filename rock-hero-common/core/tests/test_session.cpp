@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -322,6 +323,26 @@ TEST_CASE("Session writeChart advances the chart revision once the write ends", 
     CHECK(during == 0);
     CHECK(session.chartRevision() == 1);
     CHECK(session.writeChart([](Chart&) {}));
+    CHECK(session.chartRevision() == 2);
+}
+
+// The fifth narrow mutation surface: sections feed the highway projection's labels and camera
+// zones, so replacing them advances the same revision a chart write does, and the projection
+// caches keyed on it rebuild. Song-level, so it needs no loaded arrangement.
+TEST_CASE(
+    "Session setSongSections replaces the sections and advances the chart revision",
+    "[core][session]")
+{
+    Session session;
+    CHECK(session.chartRevision() == 0);
+
+    const std::vector<SongSection> sections{SongSection{.position = {}, .name = "verse"}};
+    session.setSongSections(sections);
+    CHECK(session.song().sections == sections);
+    CHECK(session.chartRevision() == 1);
+
+    session.setSongSections({});
+    CHECK(session.song().sections.empty());
     CHECK(session.chartRevision() == 2);
 }
 

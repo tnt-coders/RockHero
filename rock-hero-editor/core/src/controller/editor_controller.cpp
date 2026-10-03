@@ -1942,11 +1942,11 @@ void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
 
 // The chart projection resolves thousands of positions to seconds, so it is memoized per displayed
 // arrangement and chart revision: the arrangement id keys which chart is shown, and the session's
-// chart revision (bumped by every mutable chart acquisition) keys its edit state, so chart edits
-// invalidate without any explicit notification path. The 3D highway projection rides the same rule:
-// one shared scene-model snapshot per displayed arrangement, consumed by the preview window exactly
-// as the game consumes it. One refresh for both, because they share the key: a refresh of one alone
-// would advance the key past the other.
+// chart revision (bumped by every chart write, tempo-map replacement and section replacement) keys
+// its edit state, so those edits invalidate without any explicit notification path. The 3D highway
+// projection rides the same rule: one shared scene-model snapshot per displayed arrangement,
+// consumed by the preview window exactly as the game consumes it. One refresh for both, because
+// they share the key: a refresh of one alone would advance the key past the other.
 void EditorController::Impl::refreshChartProjections() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();

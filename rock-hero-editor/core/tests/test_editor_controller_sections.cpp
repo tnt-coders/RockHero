@@ -7,6 +7,7 @@
 #include <optional>
 #include <rock_hero/common/audio/plugin/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/shared/gain.h>
+#include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
@@ -147,6 +148,23 @@ struct LoadedSectionEditor
     {
         const EditorViewState* const state = stateOrNull(view.last_state);
         return state != nullptr ? state->sections : std::vector<SongSectionViewState>{};
+    }
+
+    // The section labels the published 3D highway state carries, in order, as the board draws them.
+    [[nodiscard]] std::vector<std::string> publishedHighwaySectionNames() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        if (state == nullptr || state->highway == nullptr)
+        {
+            return {};
+        }
+        std::vector<std::string> names;
+        names.reserve(state->highway->sections.size());
+        for (const common::core::HighwaySectionViewState& section : state->highway->sections)
+        {
+            names.push_back(section.name);
+        }
+        return names;
     }
 
     // True while the published state says a selection exists on some surface.
@@ -429,6 +447,25 @@ TEST_CASE("EditorController renames a section and round-trips it", "[core][secti
 
     editor.controller.onRedoRequested();
     CHECK(editor.sections().front().name == "Chorus");
+}
+
+// The 3D highway's labels and camera zones are projected from the sections, so a section edit must
+// rebuild that projection on its own — and so must its undo and redo — with no chart or tempo edit
+// in between to advance the revision the projection cache is keyed on.
+TEST_CASE("A section rename and its undo reach the published highway labels", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong(
+        {SongSection{.position = downbeat(2), .name = "Verse"}})};
+    CHECK(editor.publishedHighwaySectionNames() == std::vector<std::string>{"VERSE"});
+
+    editor.controller.onSongSectionRenameRequested(downbeat(2), "Chorus");
+    CHECK(editor.publishedHighwaySectionNames() == std::vector<std::string>{"CHORUS"});
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.publishedHighwaySectionNames() == std::vector<std::string>{"VERSE"});
+
+    editor.controller.onRedoRequested();
+    CHECK(editor.publishedHighwaySectionNames() == std::vector<std::string>{"CHORUS"});
 }
 
 // The package reader forbids an empty name, so the verb must refuse one rather than author a

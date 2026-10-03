@@ -133,16 +133,17 @@ public:
     }
 
     /*!
-    \brief Returns mutable access to the song's structure sections.
+    \brief Replaces the song's structure sections, then advances chartRevision().
 
-    The fifth narrow mutation surface, and the only song-level one: sections describe the song's
+    The fifth narrow mutation surface, and the first song-level one: sections describe the song's
     structure rather than one arrangement's tab, so section authoring reaches them here while
-    every other song field stays read-only through this session. A reference rather than a
-    pointer because the song always exists — there is no no-arrangement case to report.
+    every other song field stays read-only through this session. Sections feed the highway
+    projection's labels and camera zones, so a section change IS a projection change: it advances
+    the same revision a chart write does rather than keying the caches on a second counter.
 
-    \return The song's section markers, in ascending position order.
+    \param sections Section markers the caller has already validated, in ascending position order.
     */
-    [[nodiscard]] std::vector<SongSection>& songSections() noexcept;
+    void setSongSections(std::vector<SongSection> sections);
 
     /*!
     \brief Replaces the song's tempo map, then advances chartRevision().
@@ -158,11 +159,12 @@ public:
     /*!
     \brief Returns the chart revision counter that keys chart-projection caches.
 
-    Advances every time a writeChart() write ends and every time the tempo map is replaced.
-    View-state caches pair it with the arrangement id so chart and tempo edits invalidate memoized
-    projections without any explicit notification path that could be forgotten.
+    Advances every time a writeChart() write ends, every time the tempo map is replaced, and every
+    time the song sections are replaced. View-state caches pair it with the arrangement id so
+    chart, tempo and section edits invalidate memoized projections without any explicit
+    notification path that could be forgotten.
 
-    \return Monotonic count of chart and tempo-map writes.
+    \return Monotonic count of chart writes, tempo-map replacements and section replacements.
     */
     [[nodiscard]] std::uint64_t chartRevision() const noexcept;
 
