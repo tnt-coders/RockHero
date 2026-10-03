@@ -6,9 +6,9 @@
 code and the 2026-09-25..29 rulings; GATE G60-RULINGS RULED 2026-10-02.** This plan is the union
 of the former plan 60 (FHP derivation) and plan 61 (span-marker redesign), plus the two hand rows
 the keyboard-focus-rows plan had queued as its steps 4b and 4c. The law-by-law session the user
-asked for ran on 2026-10-02 and ruled every item of §9; Phase 1 is open, and its first task is the
-re-measurement item 1 conditions the sign on. FHPs and span markers are part of minimum required
-editing, not a post-editor pass.
+asked for ran on 2026-10-02 and ruled every item of §9; item 1's condition (rules 12 and 13
+re-measured) was discharged 2026-10-03, so Phase 1 is open with nothing in front of it. FHPs and
+span markers are part of minimum required editing, not a post-editor pass.
 
 What has landed since the merge, and what this revision folds in:
 
@@ -252,9 +252,10 @@ fold goes with them in Phase 2 (an inserted bare marker gets the derived floor f
 code deletion. The-project-lifecycle rules 5–9 (`docs/developer/the-project-lifecycle.md:293-334`)
 are rewritten to the three-sentence charter law of the design record.
 
-**Acceptance.** (a) Rules 12 and 13 re-measured in the Python harness BEFORE the port is
-written — Q1 signed conditional on this (§9 item 1); both populations are small and the
-expectation is no headline change, but a headline drop reopens the item. (b) The C++ port scored
+**Acceptance.** (a) DONE 2026-10-03: rules 12 and 13 re-measured in the Python harness
+(`rules12_13.py`) before the port — rule 12 +0.06 exact and every plant covered, rule 13 without
+a corpus population (§9 item 1). The port must implement rule 12 in the measured form: the plant
+is a demand from the source's onset, including a tapped source. (b) The C++ port scored
 against the same dataset through a hidden-tag test (`[.local-fhp-dataset]`, path from
 `ROCKHERO_FHP_DATASET_DIR`, the variable the Python harness already reads, exactly the census
 rig's pattern)
@@ -474,9 +475,13 @@ ruling; the full evidence lives in the design records.
    read out of the spans, which law 2 forbids the derivation to read, and the data already says
    taps float. The tap-correction (a) and the width amendment (b) of the former Q1 text stand as
    recorded in the design record. **RULED: SIGNED, conditional on re-measuring rules 12 and 13 in
-   the harness and the headline holding — Phase 1's first task.** The user signs it as the
-   starting point and expects a rework once common fingerings for known chords enter at Phase 5
-   (item 10); that rework is a Phase 5 question, not a reopening of this gate.
+   the harness and the headline holding — condition DISCHARGED 2026-10-03.** Rule 12 lifts the
+   headline from 88.03% to 88.09% exact and keeps 100% of the corpus's 34,405 plants in reach
+   (the authored anchors 99.72%, the 11-rule champion 91.46%), in the form where the plant is a
+   demand from the source's onset even when the source is a tap; rule 13 has no population in the
+   corpus (no open string is bent) and stands as ruled physics. The user signs it as the starting
+   point and expects a rework once common fingerings for known chords enter at Phase 5 (item 10);
+   that rework is a Phase 5 question, not a reopening of this gate.
 2. **60-Q2 — profiles.** The measured verdict was two surviving parameters, `rest_break_seconds`
    (off) and `section_breaks` (on); the second is now structurally a no-op (item 1a), and the
    first is off. The parameter vector is therefore EMPTY. **RULED: no profiles and no parameter

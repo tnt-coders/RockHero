@@ -1,7 +1,8 @@
 # The Finalized FHP Derivation Algorithm (#167)
 
-**Status: SIGNED 2026-10-02 (plan 60 gate G60-RULINGS, item 1), conditional on re-measuring
-rules 12 and 13 in the harness with the headline holding. Not yet implemented — plan 60 Phase 1.**
+**Status: SIGNED 2026-10-02 (plan 60 gate G60-RULINGS, item 1); the sign's condition — rules 12
+and 13 re-measured with the headline holding — was discharged 2026-10-03 (88.09% exact with
+rule 12; rule 13 has no corpus population). Not yet implemented — plan 60 Phase 1.**
 
 This is the outcome of the FHP accuracy push: a ground-truth dataset of 4,555 professionally
 reviewed arrangements (442,323 authored hand-position anchors; the dataset lives in local
@@ -109,7 +110,12 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
     the surface says the pressed fret and the satellite beside the head says it too); the window is
     what accounts for the finger waiting underneath. The plant is derived, never authored — it is
     the pull-off itself that states it (`chartPlantedStops`) — so this law costs the charter
-    nothing to read. *Status: the current generator does NOT satisfy it.*
+    nothing to read. *Status: MEASURED 2026-10-03 (`rules12_13.py` in the committed harness):
+    exact agreement 88.03% → 88.09%, moves 7.27 → 7.23 per 100 fretted notes, coverage
+    unchanged; the authored anchors keep 99.72% of the corpus's 34,405 plants inside the window
+    for the whole interval, the 11-rule champion only 91.46%, and rule 12 100% — provided the
+    plant is a demand from the source's ONSET even when the source itself demands nothing (a
+    tapped source), which is the form that ships. The current generator does NOT satisfy it.*
     `generateFretHandPositions` is plant-blind by construction — it is handed only the built notes
     (`gp_chart_builder.cpp:3614`), and its three coverage sources all read a note's own channel:
     the onset hull through `fretFor` (`:2340`), the slide-keyframe hull through `fretFor` plus the
@@ -127,7 +133,9 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
     source. A special mark for the behind-the-nut bend itself was considered and deferred; FHP 1
     is the clean first step, and it asserts only what the chart proves (the hand is at the nut).
     The behind-the-nut bend is a supported technique (`technique-compatibility-and-hardening.md`
-    E28), so plan 42's `open_string_bend` lint was withdrawn.
+    E28), so plan 42's `open_string_bend` lint was withdrawn. *Status: UNMEASURABLE in the
+    ground-truth corpus (2026-10-03) — among its 442,323 anchors no open string is bent, so the
+    rule costs the headline nothing by construction and stands as ruled physics.*
 
 ### Measured score of exactly this algorithm (all 4,555 arrangements)
 

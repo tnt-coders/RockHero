@@ -59,7 +59,7 @@ phase it blocks cannot start without it.
 | **G41-TS** — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Nothing now — Phase 1's time-signature work may start on A |
 | **G43-METADATA** — 43-Q1..Q6. NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5, so only Q6 (an authored chart version field; recommended: none) still stands | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Nothing in the release unless Q6 is ruled B — the four-field subset adds no format field |
 | ~~**The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G**~~ — CLOSED 2026-09-28 with Phase 3: W9-F resolved, W9-G ruled, the anchor moved to a watch item; bundle items 1–3 carried, not blocking | `technique-review-walkthrough.md` W9, Phase 3 below | Nothing |
-| **G60-RULINGS** — 60-Q1..Q5, a law-by-law session. **RULED 2026-10-02** (Q1 signed conditional on re-measuring rules 12–13; Q3/Q5 deferred to a Phase 5 session). Still unruled from the items this plan carried into it: harmonic follow-up #4 and the span-end margin #59 | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 open; #4 and #59 ruled at Phase 3's session |
+| **G60-RULINGS** — 60-Q1..Q5, a law-by-law session. **RULED 2026-10-02** (Q1 signed, its re-measurement condition discharged 2026-10-03; Q3/Q5 deferred to a Phase 5 session). Still unruled from the items this plan carried into it: harmonic follow-up #4 and the span-end margin #59 | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 open; #4 and #59 ruled at Phase 3's session |
 | **G52-RANGE-EDIT** — all of 52-Q1..Q8, individually | `docs/plans/roadmap/52-range-edit-operations.md` Phase 0 | Phase 5 |
 
 Signing sessions are cheap and unblock the most; run them ahead of the phase that needs them rather
@@ -246,9 +246,9 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
 
 - ~~Run the G60 law-by-law ruling session.~~ DONE 2026-10-02 (plan 60 §9).
 - ~~Phase 0 — strict uniqueness for stored `fhps`.~~ DONE.
-- Phases 1–2 — the derived 13-rule tracker and stream, Phase 1 opening with the re-measurement of
-  rules 12 and 13 the sign is conditional on. Rule 12 (ruled 2026-09-18) is not satisfied by
-  today's generator.
+- Phases 1–2 — the derived 13-rule tracker and stream; rules 12 and 13 were re-measured
+  2026-10-03 (88.09% exact with rule 12), so Phase 1 has nothing in front of it. Rule 12 is not
+  satisfied by today's generator.
 - Phase 3 — the hand row's remainder: the derived events as its objects, the authored tell, rail
   selection, the marker-only `Alt+←/→` (the content-editing front gesture is struck; the END
   gesture is that phase's open question), "drop markers that state nothing".
