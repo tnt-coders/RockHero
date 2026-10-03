@@ -252,10 +252,12 @@ fold goes with them in Phase 2 (an inserted bare marker gets the derived floor f
 code deletion. The-project-lifecycle rules 5–9 (`docs/developer/the-project-lifecycle.md:293-334`)
 are rewritten to the three-sentence charter law of the design record.
 
-**Acceptance.** (a) Rules 12 and 13 re-measured in the Python harness BEFORE the law-by-law
-session, so Q1 signs a measured 13-rule algorithm (both populations are small; the expectation is
-no headline change). (b) The C++ port scored against the same dataset through a hidden-tag test
-(`[.local-fhp-dataset]`, path from an environment variable, exactly the census rig's pattern)
+**Acceptance.** (a) Rules 12 and 13 re-measured in the Python harness BEFORE the port is
+written — Q1 signed conditional on this (§9 item 1); both populations are small and the
+expectation is no headline change, but a headline drop reopens the item. (b) The C++ port scored
+against the same dataset through a hidden-tag test (`[.local-fhp-dataset]`, path from
+`ROCKHERO_FHP_DATASET_DIR`, the variable the Python harness already reads, exactly the census
+rig's pattern)
 reporting coverage and exact agreement — §9 item 3; without it nothing proves the port is the
 measured algorithm. (c) Forced-relink test run; the census re-run with the three drifted
 fret-hand-window rows and the pinned-window count re-pinned (expect the pinned count to collapse
