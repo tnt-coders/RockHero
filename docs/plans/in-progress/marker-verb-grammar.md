@@ -325,8 +325,8 @@ Building one means:
 2. In the UI, open exactly what the published verb names. The surface decides nothing, and holds no
    position, predicate or gate of its own. A kind with nothing to prompt for publishes no verb: it
    runs its target inside its one author action (`AuthorFretHandPositionAtCursor`, whose target is
-   file-local to its handlers), and the UI only forwards the press — the tempo anchor will inherit
-   this shape.
+   file-local to its handlers), and the UI only forwards the press. (The tempo anchor publishes a
+   verb after all: since 2026-10-02 its restate opens the BPM prompt, plan 41 decision 10.)
 3. Select through `selectMarker`, in the core, so the mouse and the keyboard's focus rows share
    one select that demotes the caret and re-syncs the rig. A kind with its own ruler or track row
    joins `MarkerRow` — BOTH switches over the enum, `markerStarts` and `markerSelectionAt` in

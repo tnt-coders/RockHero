@@ -1,377 +1,245 @@
 # Plan 41 — Tempo Map Authoring
 
-**Status:** Ready — Phases 1–5 are executable now; Phase 6 (time-signature editing) may start on
-provisional 41-Q1 = A (user, 2026-09-19; see Open questions), and G41-TS closes at its sighting.
-Date: 2026-07-06. Baseline: `refactor @ 3c7febe0`.
+**Status:** Revised 2026-10-02 against `master @ 9e44e977`, after a simplicity review
+(git history keeps the 2026-07-06 text). Phases 1–4 are
+ready to build in order; Phase 6 (time-signature editing) follows on provisional 41-Q1 = A
+(user, 2026-09-19), and G41-TS closes at its sighting. Phase 5 (onset snapping) and the tap-tempo
+readout are deferred out of the first releasable editor.
 
 ## Goal
 
-A charter starting from nothing but backing audio can author an accurate tempo map against the
-waveform: place and drag beat anchors, rough in tempo by tapping along to playback, snap anchors
-to detected audio onsets, and edit time signatures — all with full undo, live BPM feedback, and
+A charter starting from nothing but backing audio builds a beat grid that matches that audio,
+from the keyboard first and the mouse second, inside the marker grammar every other marker kind
+already follows: insert an anchor at a beat, type the tempo of the span it opens, nudge an anchor
+against a transient, delete one, and edit time signatures, all with one undo step per gesture and
 no change to the persisted song format. Today a usable tempo map exists only if the project came
-from a GP import; this plan removes that dependency and thereby unblocks the from-scratch
-charting promise of docs/plans/roadmap/40-chart-editing.md.
+from a GP import; this plan removes that dependency and unblocks the New chart entry point
+(`docs/plans/roadmap/40-chart-editing.md` Phase 11).
 
 ## Non-goals
 
 - No song.json or chart format changes. Anchors stay on-beat `"<measure>:<beat>"` tokens with
-  millisecond-grid seconds. Sub-beat anchors are explicitly out of scope; if a real song ever
-  needs one, that is a format change routed through
-  docs/plans/roadmap/10-format-versioning-and-chart-identity.md.
-- No create-project-from-raw-audio project flow. docs/plans/roadmap/40-chart-editing.md owns that flow;
-  `TempoMap::defaultMap` already provides the seed map this plan makes editable.
-- No grid declutter or display-density work (docs/plans/todo/tempo-grid-declutter-plan.md is a separate
-  deferred item; its disposition is owned by docs/plans/roadmap/00-roadmap.md).
-- No timeline-origin change; docs/plans/todo/timeline-origin-rethink.md stays deferred as recorded.
-- No real-time onset or pitch detection — that is docs/plans/roadmap/22-note-detection.md. Onset analysis
-  here is offline, editor-assist only, and never persisted.
-- No audio time-stretching: the tempo map warps the beat grid over fixed backing audio
-  (docs/plans/completed/tempo-map-implementation-plan.md, "Playback Interactions").
-- No metronome click-track playback for auditioning the map. It is a natural follow-up; propose
-  it separately rather than growing this plan.
+  millisecond-grid seconds. A span's BPM is derived, never stored. Sub-beat anchors are out of
+  scope; a real need routes through docs/plans/roadmap/10-format-versioning-and-chart-identity.md.
+- No create-project flow; plan 40 Phase 11 owns it. `TempoMap::defaultMap` is the seed map this
+  plan makes editable.
+- No grid declutter (docs/plans/todo/tempo-grid-declutter-plan.md), no timeline-origin change
+  (docs/plans/todo/timeline-origin-rethink.md), no audio time-stretching, no real-time detection
+  (plan 22), no metronome click (plan 59 owns the count-in; a click track is a separate proposal).
+- No grid lock. The 2026-07-09 toolbar lock guarded pointer authoring, which was retired
+  2026-09-11; every tempo edit is now an explicit keystroke or drag, paused-only, one undo step
+  (deleted by this revision, 2026-10-02).
 
 ## Constraints
 
-Applicable subset of the roadmap constraint block, restated:
-
-- (a) **Layering**: common never depends on editor or game code. Anything both products need is
-  extracted to rock-hero-common first, as its own phase with tests. Tracktion headers stay
-  isolated to rock-hero-common/audio implementation files.
+- (a) **Layering**: common never depends on editor or game code; shared rules go to
+  rock-hero-common first. Tracktion headers stay in rock-hero-common/audio implementation files.
 - (b) **Public-header minimalism**: headers stay in `src/` until a consumer outside the library
   exists (docs/design/architectural-principles.md, "Placement Procedure for New Files").
-- (f) **Undo**: RockHero-owned mementos/inverse edits through the editor-core undo history;
-  Tracktion is never the product undo stack.
-- (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
-  `.agents/README.md`), never raw cmake/ctest/ninja. Intermediate phases run only the checks
-  their changes determinately warrant; the final acceptance phase is the sanctioned bundle as
-  separate invocations.
+- (f) **Undo**: RockHero-owned; every marker edit commits through `commitMarkerModel`
+  (`rock-hero-editor/core/src/controller/marker_model_commit.h`).
+- (h) **Builds** go through `.agents/rockhero-build.ps1`; each phase runs only the checks its
+  changes warrant. clang-tidy runs only when the user asks.
 
-Plan-specific hard invariants (all already enforced by the reader and preserved by every phase):
+Hard invariants, enforced by the reader and preserved by every verb: tempo changes only at
+anchors and is constant inside a span; anchors are on-beat tokens with seconds on the 1 ms grid;
+the first anchor is `1:1`; the terminal anchor is on a downbeat past content; anchors strictly
+increase in position and seconds.
 
-- Tempo changes only at anchors; interpolation is metronome-linear inside each anchor span
-  (docs/design/architecture.md, "Song Data Model").
-- The warp-anchor storage model is deliberately kept — design within it, never around it.
-- Anchor positions are on-beat `measure:beat` tokens; anchor seconds sit on the three-decimal
-  millisecond grid; the first anchor is `1:1`; the terminal anchor is on a downbeat past content;
-  anchors strictly increase in both grid position and seconds.
+## Current state (verified 2026-10-02)
 
-## Current state inventory
+- **Model**: `rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map.h`
+  (`BeatAnchor`, `TimeSignatureChange`, `TempoMap`, `quarterNoteBpmAtSeconds`,
+  `TempoMap::defaultMap`).
+- **Validation**: `validateTempoMap` is package-private
+  (`rock-hero-common/core/src/package/rock_song_package_format.h:45`), called by read
+  (`rock_song_package_read.cpp:420`) and write (`rock_song_package_write.cpp:581`). The tone
+  track's rules are the precedent for sharing: `validateToneTrackRules` (`tone_track_rules.h`)
+  is public and the package translates its errors.
+- **Already live** (no work here): `TempoAnchorSelection`, `MarkerRow::Tempo`, chip select, the
+  `↑/↓` walk and `Tab` over the tempo row (`marker_row_handlers.cpp`), the letter
+  `g_tempo_key = 'b'` and the `Ctrl+Shift+B` jump (`editor_command_registry.cpp`). `Delete`,
+  `Enter` and `Alt+←/→` on a tempo chip are inert.
+- **Marker funnel**: `commitMarkerModel` (`marker_model_commit.h:64-91`) with the section
+  (`section_handlers.cpp`) and hand-marker (`fret_hand_handlers.cpp`) kinds as precedents; the
+  8-step new-kind checklist is `docs/plans/in-progress/marker-verb-grammar.md`, "What a NEW marker
+  kind must do".
+- **Engine caches derived from the map**: tone automation is stored musically in `song.json`
+  (`docs/plans/completed/tone-parameter-automation-plan.md`, settled 2026-07-07); the engine holds
+  a seconds-domain copy (`rebuildDerivedToneCurves`, `tone_automation_edits.cpp:66`) and a one-way
+  host-tempo mirror for plugins (`ISongAudio::mirrorTempoMap`). Both are refreshed only at rig
+  load (`project_handlers.cpp:586-597`). The funnel and `MarkerModelEdit::apply` refresh neither,
+  so **a tempo edit without Phase 2's resync would play automation at the old times and give
+  plugins the old tempo**. The 2026-07-06 claim "tempo-map edits require no engine change" was
+  made false by tone automation.
+- **Chip text**: `timeline_ruler.cpp:834-837` prints `quarterNoteBpmAtSeconds` to two decimals.
+- **Zoom** reaches the core through `onTimelineZoomChanged(pixels_per_second)`
+  (`editor_view.cpp:576`, `editor_controller.cpp:1574`).
+- **Undo runs**: the chart's `Alt`+arrow moves already coalesce a run of presses on one selection
+  into one entry, ended by any other commit point (`commitChartGestureStep`,
+  `chart_handlers.cpp:2992`); marker moves push one entry per press.
+- **Prompt**: the section rename uses `showThemedTextPrompt` (`editor_view.cpp:3618`).
 
-- Domain model: `rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map.h`
-  defines `TimeSignatureChange`, `BeatAnchor`, and `TempoMap` (warp-anchor grid, metronome-linear
-  interpolation documented in the class comment, derived signature-segment/anchor index tables,
-  `ForwardBeatTimeCursor` for monotonic scans, `quarterNoteBpmAtSeconds` for span tempo).
-  `TempoMap::defaultMap(TimeDuration)` (impl at
-  `rock-hero-common/core/src/timeline/tempo_map.cpp:177`) seeds a 4/4 120 BPM map covering an
-  audio duration. Exact rational positions use
-  `rock-hero-common/core/include/rock_hero/common/core/timeline/fraction.h`.
-- Persistence and validation: `rock-hero-common/core/src/package/rock_song_package_read.cpp`
-  reads `tempoMap.timeSignatures` (~line 318) and `tempoMap.anchors` (~line 376), requires the
-  `tempoMap` object (~line 435), and validates through `validateTempoMap` (~line 457), which is
-  declared in the **private** header
-  `rock-hero-common/core/src/package/rock_song_package_format.h:43`. Anchor tokens are rejected
-  unless on-beat; seconds must sit on the millisecond grid.
-- Producers: exactly two ways a tempo map comes into existence today. (1) GP import —
-  `rock-hero-editor/core/src/project/gp_chart_builder.cpp` builds anchors from score sync points,
-  snaps them to the millisecond grid (~lines 105–120), back-extrapolates a `1:1` lead-in anchor
-  when sync points start late (~lines 197+), and extends a terminal downbeat anchor past the
-  final bar. (2) `TempoMap::defaultMap`, currently used only by tests and the editor UI test
-  harness (`rock-hero-editor/ui/tests/include/rock_hero/editor/ui/testing/
-  editor_view_test_harness.h:351`). **No editor action edits the tempo map**: the
-  `EditorAction::Action` variant (`rock-hero-editor/core/src/controller/editor_action.h`, ~line
-  470) carries transport, grid-note-value, tone, and plugin actions only.
-- Display consumption: `rock-hero-editor/core/src/timeline/tempo_grid_geometry.cpp` (file-local
-  `MeasureGridWalker` at line 43; note-value-authoritative, measure-anchored scan) with public
-  header `rock-hero-editor/core/include/rock_hero/editor/core/timeline/tempo_grid_geometry.h`;
-  `rock-hero-editor/ui/src/timeline/timeline_ruler.h` paints the tempo band (one marking per
-  anchor span), signature band, measure numbers, and ticks; its `mouseDown` only seeks. Timeline
-  geometry (seconds-to-pixels) is pure editor-core math per docs/design/architecture.md,
-  "Editor UI".
-- Undo infrastructure: `rock-hero-editor/core/src/controller/editor_undo_history.h` (`IEdit`,
-  `EditorEditContext` carrying `common::core::Session&`, `EditorUndoHistory`); the pure
-  inverse-command edit pattern to mirror is
-  `rock-hero-editor/core/src/tone/tone_region_edits.h`; per-domain handler TU precedent is
-  `rock-hero-editor/core/src/tone/tone_handlers.cpp` and
-  `rock-hero-editor/core/src/project/project_handlers.cpp`.
-- Engine independence: `rg TempoMap rock-hero-common/audio` matches test files only. Playback
-  transport is absolute seconds
-  (`rock-hero-common/audio/include/rock_hero/common/audio/transport/i_transport.h:100`,
-  message-thread `position()` read). **Tempo-map edits require no engine change.**
-- Offline analysis precedent: `analyzeAudioForGainNormalization` in
-  `rock-hero-common/audio/include/rock_hero/common/audio/song/audio_normalization.h:83` decodes
-  package audio on demand behind the common/audio boundary. There is no onset detection anywhere
-  in the repo (`rg -i onset` hits docs and placeholder READMEs only) and no tap-tempo facility.
-  `rock-hero-editor/audio` is a placeholder library (`src/placeholder.cpp`).
-- Chart content addressed by the map: chart notes/shapes/fhps/sections and tone-track regions
-  store exact `measure:beat` (+ rational fraction) position tokens, never seconds (see
-  docs/plans/in-progress/note-format-and-tablature-plan.md for the active note-format work). Time
-  signature edits therefore have re-addressing implications — Phase 6.
-- Keybind handling is scattered (`rock-hero-editor/ui/src/main_window/editor_view.cpp:618` et
-  al.); docs/plans/roadmap/46-editor-keybinds.md centralizes it later.
+## Decisions
 
-Verified against code on 2026-07-06, refactor @ 3c7febe0.
+Earlier decisions that stand:
+
+1. The warp-anchor storage model is kept; design within it
+   (docs/plans/completed/tempo-map-implementation-plan.md; docs/design/architecture.md,
+   "Song Data Model").
+2. Tempo is constant inside each span (metronome-linear); BPM is quarter-note-referenced.
+3. Anchor seconds persist at millisecond precision.
+4. The grid is TRUTH (user, 2026-09-19): content holds its musical position and moves in time
+   when the map changes; nothing is re-addressed to keep a second.
+5. Undo is RockHero-owned; Tracktion is a playback backend and stays tempo-inert apart from the
+   one-way host mirror.
+6. Anchor moves are free-time: never grid-snapped, because the anchor defines the grid.
+
+Rulings of 2026-10-02 (user, after the simplicity review):
+
+7. **Two verbs, two causes.**
+   - **Time is the cause — `Alt+←/→` and the pointer drag MOVE the anchor.** Its seconds change,
+     every other anchor stays pinned, and the two adjacent spans' BPMs follow. This is the
+     audio-sync gesture.
+   - **Tempo is the cause — typing a BPM RIPPLES.** The span the anchor opens takes the typed
+     BPM; the anchor stays put; every later anchor, the terminal included, shifts by the same
+     whole-millisecond amount, so every later span keeps its BPM exactly. This is the
+     click-mapping gesture. It is the only typed-BPM behaviour and gets no second key.
+   - The other two outcomes are reachable with these: to keep later anchors where they are,
+     `Alt`+arrow the NEXT anchor (its span absorbs); to shift the whole map against the audio
+     keeping every tempo, `Alt`+arrow `1:1` and retype span 1's BPM. A "ripple only up to the next
+     synced anchor" rule was rejected: nothing in an anchor says whether it was synced, so it
+     would need a stored flag.
+8. **The nudge step is one on-screen pixel at the current zoom, at least 1 ms, with no modifier.**
+   Zoom is the precision control. `Ctrl` stays off placement verbs (retired 2026-08-23) and
+   `Ctrl+Alt+←/→` stays unbound on markers. A step onto or past a neighbour, or `1:1` below 0 s,
+   is REFUSED, never clamped — the marker law.
+9. **One held nudge is one undo entry, for every marker kind.** A run of `Alt+←/→` presses on one
+   selected marker coalesces into one entry, however fast or slow the presses, until any other
+   commit point (another edit, a selection change, a caret move) — the rule notes already use.
+   No timed settle window: a timer would split the slow, careful run.
+10. **`Ctrl+B` follows `Ctrl+M`.** On an empty beat it inserts an anchor, pinning the time the map
+    already gives that beat (time-neutral to 0.5 ms), selects it and opens no prompt. On a beat
+    where an anchor stands it selects that anchor and opens the BPM prompt, selected beforehand or
+    not. `Enter` and a double-click on a selected chip open the same prompt. The cursor is read at
+    the tick and floored to its beat. Inert while playing, with no song, and at or past the
+    terminal. No digit-to-prompt for now.
+11. **The chip prints what was typed.** It prints the shortest decimal (0–2 places) whose span
+    length lies within ±1 ms of the stored one, so typing 137 prints 137 and an insert leaves both
+    halves printing the parent's value.
+12. **The terminal grows, never shrinks.** A faster typed BPM can pull the terminal before the end
+    of the audio; the ripple then extends it to the first downbeat at or past the latest
+    arrangement's audio end, at the last span's tempo.
+13. **Mouse drag is the primary method for users** and is in scope (Phase 4), built after the
+    keyboard sighting. It uses the move transform and commits once on release.
+14. **Deferred**: the tap-tempo readout and onset snapping are out of the first releasable editor.
+
+## Open questions
+
+- **Q1 — Time-signature content policy.** PROVISIONALLY A (user, 2026-09-19): hold the global
+  beat, measures renumber. Phase 6 builds A; G41-TS closes at its sighting. (B: keep literal
+  tokens — destructive; C: forbid meter edits once content exists — hostile.)
+- **Q2 — Onset analysis source** (deferred Phase 5). A: a self-written spectral-flux kernel in
+  common/core (recommended); B: a third-party library; C: editor-local.
+- **Q3 — answered 2026-10-02.** Tap tempo, when built, is a measurement: a live BPM readout the
+  charter applies by typing. Tapping happens during playback, where marker edits are closed.
 
 ## Dependencies
 
-**What landing this unblocks:** `docs/plans/roadmap/40-chart-editing.md` **Phase 11 — the New chart
-entry point** is gated on this plan and nothing else. A chart cannot be built from nothing without an
-editable tempo map, so that phase waits here; when this lands, design Phase 11 with the user rather
-than shipping the minimal "empty chart" action it explicitly rejects.
-
-- **Gates** docs/plans/roadmap/40-chart-editing.md: its create-chart-from-raw-audio promise requires this
-  plan's Phases 1–4 (anchor authoring + tap tempo) at minimum; Phase 5 (onset snapping) strongly
-  recommended before serious from-scratch charting. Sequence 41 before the from-scratch phases
-  of 40.
-- docs/plans/roadmap/10-format-versioning-and-chart-identity.md: no format change is proposed here. The
-  tempo map is inside 10's identity-hash scope, so any tempo edit changes chart identity by
-  design — that is correct behavior, not a conflict. A future sub-beat-anchor need routes
-  through 10.
-- docs/plans/roadmap/12-playback-clock.md (soft): Phase 4 tap capture works against
-  `ITransport::position()` today; if 12's clock lands first, use it for lower-jitter tap
-  timestamps. Not blocking either direction.
-- docs/plans/roadmap/42-chart-validation.md: content-validity rules after time-signature edits
-  (out-of-range addresses, coverage gaps) belong to 42's reusable rule set; Phase 6 coordinates
-  with it rather than inventing a parallel validator.
-- docs/plans/roadmap/46-editor-keybinds.md: the tap key and anchor nudge keys register through the
-  centralized keybind system when it lands; until then they live in `EditorView::keyPressed`
-  like every other shortcut.
-- docs/plans/completed/tone-track-tempo-map-plan.md: that tone work is complete and touched the same
-  Session, action variant, and handler TUs. Its handler/UI work is committed, so the shared-file
-  hold on Phase 2 is lifted (reference only — completed work is never absorbed).
-
-## Decisions already made
-
-Restated inline with sources; a fresh session must not re-litigate these.
-
-1. **The tempo map is a warp-anchor grid and that storage model is kept.** Time signatures are
-   change points carried forward; anchors pin sparse on-beat positions to absolute seconds
-   (docs/plans/completed/tempo-map-implementation-plan.md, "Decisions" 1–3;
-   docs/plans/completed/tempo-map-storage-shape-discussion.md; docs/design/architecture.md,
-   "Song Data Model").
-2. **Tempo changes only at anchors; interpolation is metronome-linear.** The quarter-note rate is
-   constant inside each anchor span; meter changes between anchors re-slice beat durations
-   (docs/design/architecture.md, "Song Data Model"; `tempo_map.h` class comment).
-3. **Anchor seconds persist at millisecond precision**; writer emits exactly three decimals and
-   the reader rejects off-grid seconds (docs/plans/completed/tempo-map-implementation-plan.md,
-   "Decisions" 4; docs/design/architecture.md, "Song Data Model" — precision above the
-   onset/latency floor is intentionally avoided).
-4. **Structural invariants**: first anchor `1:1`; terminal anchor on a downbeat; strictly
-   increasing positions and seconds; positive numerators; power-of-two denominators
-   (docs/plans/completed/tempo-map-implementation-plan.md, "Validation"; enforced in
-   `rock_song_package_read.cpp`).
-5. **Grid alignment never stretches audio**; whole-track practice speed is a separate realtime
-   feature (docs/plans/completed/tempo-map-implementation-plan.md, "Playback Interactions").
-6. **Undo is RockHero-owned** (constraint (f)); the editor-core `IEdit` inverse-command /
-   full-state-memento pattern is the required mechanism (precedent:
-   `rock-hero-editor/core/src/tone/tone_region_edits.h`).
-7. **Grid generation is note-value-authoritative and measure-anchored** via the private
-   `MeasureGridWalker` (docs/plans/completed/timeline-ruler-review-fixes-plan.md, Phase 7); this plan
-   only feeds it new maps, never reworks it.
-8. **Timeline coordinate math is pure editor-core**, not Tracktion's tempo sequence
-   (docs/design/architecture.md, "Editor UI"); Tracktion stays a playback backend.
-9. **Pointer gestures follow the editor-wide interaction model** (settled 2026-07-09,
-   `docs/plans/in-progress/editing-interaction-model.md`): Alt+click inserts an anchor at a beat;
-   anchor drags are always free-time (never grid-snapped — dragging an anchor *is* the
-   audio-sync gesture); a toolbar grid lock, default locked, gates anchor insert/move/delete;
-   Esc cancels an in-flight drag; edits commit once per gesture.
-
-## Open questions for the user
-
-Mirror each into docs/plans/roadmap/00-roadmap.md "Decisions needed".
-
-- **User ruling 2026-09-19 — the grid is TRUTH.** When the tempo map is edited, content holds its
-  MUSICAL position and its time moves; nothing is ever re-addressed to keep a note at the second
-  it used to sound. For an anchor move this is what the stored `measure:beat` tokens already do.
-  For Q1 below the user rules **A — hold the global BEAT, measures renumber — PROVISIONALLY**: it
-  is to be built and then tried in the editor, and it is signed only once it feels right in use.
-  So Phase 6 may start on outcome A, and its sighting is where G41-TS actually closes.
-- **Q1 — Time-signature edit content policy (gates Phase 6).** Changing beats-per-measure
-  re-buckets global beats into measures, so every downstream `measure:beat` token (anchors, chart
-  notes, shapes, fhps, sections, tone regions) means something different afterward. Options:
-  - **A. Preserve global-beat positions (recommended).** Re-address every position token through
-    the old map's global-beat axis into the new bucketing. Content keeps its exact absolute time
-    against the audio (anchors keep their seconds and their global beats, so interpolation is
-    unchanged); measure numbers shift downstream. Deterministic, time-preserving, and testable as
-    a pure transform. The terminal anchor may need re-seating on the nearest following downbeat
-    (same trick the GP builder already uses).
-  - **B. Preserve literal `measure:beat` tokens.** Content silently moves in time, and beats past
-    the new numerator become invalid and need clamping. Destructive for populated charts; only
-    defensible on empty projects.
-  - **C. Forbid time-signature edits once downstream content exists.** Safe but hostile: charters
-    iterate meter while charting, and from-scratch projects would have to finalize meter first.
-  - Recommendation: **A**, implemented as a pure transform with property tests (see Phase 6).
-- **Q2 — Onset analysis source and placement.** Options:
-  - **A. Self-written spectral-flux kernel (recommended).** Pure math (windowed flux + adaptive
-    peak picking) in `rock-hero-common/core`, decode adapter in `rock-hero-common/audio`
-    following the `analyzeAudioForGainNormalization` precedent. No new dependency; the kernel is
-    reusable by docs/plans/roadmap/22-note-detection.md and docs/plans/roadmap/23-detection-verification-harness.md
-    for offline work, and 22's real-time detectors can later supersede it.
-  - **B. Third-party DSP dependency (e.g. aubio).** More mature pickers, but adds a Conan
-    dependency (availability unverified), a license to audit against AGPLv3, and an integration
-    surface for what is a snapping assist, not a scoring path.
-  - **C. Editor-local kernel in editor/core.** Smallest surface, but if 22/23 later want offline
-    onset extraction the code moves anyway, violating the extract-to-common-first discipline.
-  - Recommendation: **A**.
-- **Q3 — Tap-tempo application semantics.** Options:
-  - **A. Constant-BPM fit (recommended).** Taps define a quarter-note pulse; on apply, the fitted
-    BPM and first-tap downbeat produce/update anchors: on a still-default map this sets the `1:1`
-    anchor seconds plus a re-seated terminal anchor (global rough-in); on an authored map it
-    applies to the enclosing anchor span only. One undoable edit; least anchor clutter; refined
-    afterward by dragging and onset snapping.
-  - **B. Anchor-per-tap.** Every tap on a downbeat mints an anchor. Captures drift in one pass
-    but bakes message-thread key jitter into many anchors and floods the map.
-  - Recommendation: **A** now; add a per-measure downbeat capture mode later only if real
-    charting shows the need.
+- **Unblocks** plan 40 Phase 11 (New chart), which is gated on this plan's Phases 1–3.
+- Plan 10: no format change. A tempo edit changes chart identity by design.
+- Plan 42: content validity after a meter edit reports through 42's rule set (Phase 6).
+- Plan 59: the count-in reads the same `TempoMap`; no coupling.
 
 ## Phased implementation
 
-Common notes for all phases: every new file follows the placement procedure of
-docs/design/architectural-principles.md ("Placement Procedure for New Files"); comments/Doxygen
-follow docs/design/documentation-conventions.md; all commands run from the repo root. Each phase
-is a coherent commit (or small series) with imperative subjects.
+Every new file follows the placement procedure; comments follow
+docs/design/documentation-conventions.md. Each phase is a coherent commit (or small series), gets
+a simplicity review before its commit, and verifies with a build and the touched tests.
 
-### Phase 1 — Shared tempo-map rules and pure anchor edit transforms
+### Phase 1 — Rules and pure transforms
 
-- **Scope:**
-  - 1a (common/core): promote `validateTempoMap` from the private package header to a public
-    header `rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map_rules.h`
-    (new TU `src/timeline/tempo_map_rules.cpp`), returning a project-owned typed error instead of
-    the package-private error type where needed; the package reader delegates to it.
-    Behavior-preserving — the extraction exists so live editing and package reading share one
-    validator (constraint (a): extract to common first, as its own step with tests).
-  - 1b (editor/core, private): pure transforms in
-    `rock-hero-editor/core/src/timeline/tempo_map_edits.{h,cpp}`:
-    - `insertAnchor(map, measure, beat)` — pins the currently interpolated seconds at that beat,
-      rounded to the millisecond grid; typed failure on collision or off-map addresses. Inserting
-      an anchor is time-neutral by construction (no audible/visible shift until dragged).
-    - `moveAnchorSeconds(map, measure, beat, seconds)` — clamps into the exclusive
-      (previous, next) anchor window on the millisecond grid; first anchor clamps at >= 0.
-    - `deleteAnchor(map, measure, beat)` — refuses the first (`1:1`) and terminal anchors.
-    - `reseatTerminalAnchor(map, audio_duration)` — guarantees a terminal downbeat anchor past
-      both content and audio (mirrors `defaultMap`/GP-builder logic); used by tap apply and
-      Phase 6.
-    - `spanBpmPreview(map, measure, beat)` — quarter-BPM of the spans adjacent to an anchor, for
-      live drag readouts (wraps `quarterNoteBpmAtSeconds`).
-    All return `std::expected` with a typed error enum; every mutating transform revalidates via
-    `tempo_map_rules` before returning.
-- **Public-header impact:** +1 public common/core header (`timeline/tempo_map_rules.h`) — its
-  outside consumer is the editor. Editor transforms stay `src/`-private (constraint (b)).
-- **Testing:** new `rock-hero-common/core/tests/test_tempo_map_rules.cpp` (direct rule coverage:
-  every invariant violated once); new `rock-hero-editor/core/tests/test_tempo_map_edits.cpp`
-  (insert time-neutrality, clamp windows, millisecond grid, first/terminal protection, terminal
-  re-seat across meter changes, validity after every operation). Existing package read/write
-  tests must stay green untouched.
-- **Exit criteria:** package reader delegates to the public rules with zero behavior change; all
-  transform properties proven by tests.
-- **Verification** (three separate invocations; the third because new TUs and a new public
-  header are lint-relevant):
+- **1a (common/core).** Promote the tempo-map validation to
+  `include/rock_hero/common/core/timeline/tempo_map_rules.h` (`validateTempoMapRules`, a
+  project-owned error), with the package translating it exactly as the tone track does.
+  Behaviour-preserving. Add a span-indexed accessor on `TempoMap` (the quarter-note length of
+  span *i*), which also replaces the ruler's seconds → `upper_bound` → index round trip.
+- **1b (editor/core).** One header beside `timeline/tempo_grid_geometry.h` holding pure functions
+  over a `TempoMap`, each returning `std::expected` with a typed error and revalidating through
+  the rules:
+  - `insertAnchorAt(map, beat)` — pins the beat's current seconds on the ms grid; refuses an
+    occupied beat or one at or past the terminal.
+  - `moveAnchorTo(map, beat, seconds)` — refuses onto or past a neighbour and `1:1` below 0.
+  - `setSpanBpm(map, beat, bpm, audio_end)` — the ripple, with terminal growth (decision 12);
+    refuses a non-positive or non-finite BPM and a result the rules refuse.
+  - `deleteAnchor(map, beat)` — refuses `1:1` and the terminal; neighbours stay pinned, so it is
+    the exact inverse of an insert.
+  - `spanBpmText(map, span)` — decision 11; the chip and the prompt's prefill both read it.
+- **Tests.** `test_tempo_map_rules.cpp` (every invariant violated once; package tests stay green
+  untouched); `test_tempo_map_edits.cpp`: insert is time-neutral; a ripple leaves every later
+  span bit-identical and grows the terminal only when it must; typed N prints N; an insert's
+  halves print the parent's value; every refusal; every result passes the rules.
 
-  ```powershell
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets all
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets clang-tidy
-  ```
+### Phase 2 — Editor-core verbs
 
-### Phase 2 — Editor actions, handlers, and undo integration
+- **`TempoMapSnapshot`** through `commitMarkerModel`: capture / applyTo / normalize / validate
+  (`validateTempoMapRules`) / equality. No bespoke actions, no `tempo_handlers.cpp`, no
+  inverse-command edits (the 2026-07-06 Phase 2 is deleted).
+- **`syncTempoDerivedAudio()`** — the one authority for the engine's tempo-derived caches. It
+  keeps the map it last pushed; when the session's map differs it calls
+  `rebuildDerivedToneCurves` and `mirrorTempoMap`. Called from the funnel beside
+  `syncAudibleTone`, once when an undo or redo transition completes, and at rig load in place of
+  the two lines at `project_handlers.cpp:586-597`. Phase 6's meter edits inherit it.
+- **The verbs**, through the existing dispatches (checklist steps 1–8): a published `Ctrl+B`
+  chord target (nothing / restate-with-prompt / insert, the section's shape), a set-tempo arm in
+  `restateTarget()`, and tempo arms in `Delete` and `MoveSelection`. The move step reads the
+  reported zoom: `max(1 ms, round(1000 / pixels_per_second) ms)`, 1 ms before any zoom is
+  reported. A landed move ends with `followMovedMarker`, so the cursor rides the anchor.
+- **Run coalescing for every marker kind** (decision 9): generalize the chart's gesture
+  authority over the funnel, so a marker move continuing a run on the same selection widens the
+  top entry (`replaceUndoTop`) instead of pushing; any other commit point ends the run.
+- **Verify while building**: after a ripple or delete, the paused cursor's seconds and its musical
+  column can disagree. Under decision 4 the cursor keeps its musical place; read every
+  `ChartCursor::column` reader and re-seek if needed.
+- **Tests** (controller suites): each verb and refusal; `Ctrl+B` twice prompts; undo and redo
+  restore the map exactly AND re-derive the automation curves and host tempo (the
+  `ConfigurableSongAudio.last_mirrored_tempo_map` fixture); a held run is one entry for a
+  section, a hand marker and a tempo anchor; a run ends at a selection change.
 
-- **Scope:** wire anchor authoring through the editor-core MVC:
-  - Extend `EditorAction` (`rock-hero-editor/core/src/controller/editor_action.h`) with
-    `InsertTempoAnchor{measure,beat}`, `MoveTempoAnchor{measure,beat,seconds}`,
-    `DeleteTempoAnchor{measure,beat}`; availability rules in
-    `editor_action_availability.cpp` (project open, not mid-busy — mirror tone actions).
-    Anchors are addressed by their `measure:beat` position, never by raw index; handlers resolve
-    to an index at apply time and fail typed if missing.
-  - New per-domain handler TU `rock-hero-editor/core/src/timeline/tempo_handlers.cpp`
-    (precedent: `tone_handlers.cpp`), applying Phase 1 transforms to `Session` song state,
-    marking the project dirty, and refreshing timeline view state through the existing
-    `i_editor_view` listener flow. No engine calls — the engine does not consume the tempo map
-    (verified in the inventory).
-  - Inverse-command edits `rock-hero-editor/core/src/timeline/tempo_anchor_edits.{h,cpp}`
-    mirroring `tone_region_edits.h`: move stores before/after seconds; insert stores the minted
-    position; delete stores the full removed anchor (constraint (f)).
-  - Anchor-only edits never rewrite chart content: notes and regions keep their musical
-    addresses and shift in absolute time with the warp — that is the model working as designed.
-- **Public-header impact:** none intended; view-state additions (anchor list for the ruler) go in
-  existing public editor/core timeline view-state headers only if the UI cannot derive them from
-  the `TempoMap` it already receives via `setGrid` (prefer zero new surface).
-- **Testing:** editor-core controller tests alongside existing suites: action dispatch,
-  undo/redo round-trips restore the exact map (field equality via `TempoMap::operator==`), dirty
-  marking, availability, typed failures for stale addresses.
-- **Exit criteria:** anchors are insertable/movable/deletable headlessly with full undo fidelity.
-- **Verification:** build + touched tests + clang-tidy (new TUs), same three invocations as
-  Phase 1.
+### Phase 3 — Keyboard UI, then the sighting
 
-### Phase 3 — Anchor UI: place and drag against the waveform
+- Register the `Ctrl+B` author chord from `g_tempo_key` (`markerAuthorChord`).
+- The BPM prompt (`showThemedTextPrompt`), opened by the published verb from `Ctrl+B`, `Enter`
+  and a double-click; prefilled from `spanBpmText`.
+- Chip text from `spanBpmText`, deleting the ruler's private formatting.
+- Ruler right-click rows over the tempo row — "Add Tempo Anchor", "Set Tempo…", "Delete Tempo
+  Anchor" — disabled while playing, as the section menu's are.
+- Keymap, marker-grammar and developer-guide rows (below).
+- **Sighting**, in the running editor: from a default map, `Ctrl+B` at bar 1 and type 137; the
+  chip prints 137 and the grid follows the click. Insert a mid-song anchor and nudge it onto a
+  transient at a close zoom, then at a far zoom; undo the held nudge in one step. Type a BPM
+  mid-map and confirm later spans keep their tempo. Delete an anchor. Confirm tone automation
+  plays at its musical place after each edit and after undo.
 
-- **Scope:** interaction in the editor UI, all coordinate math through existing pure geometry:
-  - `rock-hero-editor/ui/src/timeline/timeline_ruler.{h,cpp}`: draw anchor handles in the tempo
-    band (the band already derives one marking per anchor span); hit-testing; horizontal drag
-    previews `MoveTempoAnchor` and commits **one** edit on mouse-up (no per-pixel undo spam);
-    Escape during drag abandons the preview. Gestures follow
-    `docs/plans/in-progress/editing-interaction-model.md`: Alt+click on a beat tick inserts an anchor
-    at that beat (ghost handle + `CopyingCursor` while Alt is held); anchor drags are **always
-    free-time** — no grid snap, the anchor defines the grid — rounded to the millisecond grid;
-    Delete/context menu removes the hovered anchor. While dragging, show the two adjacent span
-    BPMs from `spanBpmPreview`.
-  - **Insert gesture amended 2026-09-12, re-ruled 2026-09-14 (the marker grammar).** The anchor
-    chord is `Ctrl+B` at the cursor — the armed caret, else the paused cursor, floored to the beat
-    it is in — pinning the time the map currently assigns to that beat, so the insert changes
-    nothing audible. The chord reads the cursor and never the selection: an anchor standing on the
-    cursor's beat is RESTATED, and since an anchor carries no payload that restate only selects it
-    — which is what stops a duplicate insert on an occupied beat; otherwise one is INSERTED there.
-    Inert while the transport plays and with no song. The `Alt`+click-on-a-beat-tick proposal above
-    is **withdrawn**: click authoring was retired 2026-09-11. `Ctrl+Shift+B` is the anchor's select
-    chord (`keyboard-focus-rows.md` Phase 4a). The ms nudge stays on `Alt+←/→` and the grid lock
-    stays exactly as specified below.
-  - **Grid lock** (the interaction model's anchor interlock): a toolbar toggle, default
-    **locked**, that disables anchor insert, move, and delete — cursor feedback shows the lock
-    and menu items disable with the reason. Anchors are the one object class whose drags are
-    free-time by design, so Ctrl-friction cannot protect them; the lock is the deliberate
-    unlock-sync-relock gate. Lives in editor view state + the toolbar/transport strip; not
-    persisted per-project.
-  - `rock-hero-editor/ui/src/timeline/track_viewport.cpp` / `arrangement_view.cpp`: optional
-    vertical anchor guide lines over the waveform row so drags are judged against transients by
-    eye (the whole point of "against the waveform").
-  - Keyboard nudge (left/right = +/- 1 ms, with a coarse modifier) for the selected anchor, wired
-    through `EditorView::keyPressed` until docs/plans/roadmap/46-editor-keybinds.md centralizes it.
-- **Public-header impact:** none; all files are ui `src/` privates.
-- **Testing:** editor/ui tests through
-  `rock-hero-editor/ui/tests/include/rock_hero/editor/ui/testing/editor_view_test_harness.h`
-  (headless JUCE 8 rendering — use `SoftwareImageType` as existing pixel tests do): handle
-  hit-tests, drag produces exactly one undo entry, Escape abandons, insert lands on-beat,
-  guides align with ruler anchor x positions. Controller-level commit-on-release tests live in
-  editor-core.
-- **Exit criteria:** a GP-imported map can be visibly corrected by dragging anchors against the
-  waveform; undo/redo behaves as one step per gesture.
-- **Verification:** build + touched tests + clang-tidy.
+### Phase 4 — Pointer chip drag
 
-### Phase 4 — Tap-tempo capture
+The primary method for most users (decision 13). Dragging a tempo chip previews the move,
+commits ONE `moveAnchorTo` on release, and `Esc` cancels with no history. The same refusals hold;
+a refused drop snaps back. JUCE's drag threshold keeps a chip click a click. Settle by sighting
+whether the selected anchor's beat line over the waveform needs emphasis (the track already draws
+every beat line). Sighting: drag an anchor onto a transient at two zooms; undo is one step.
 
-- **Scope (assumes Q3 = A; re-scope the apply step if the user picks B):**
-  - Pure capture model `rock-hero-editor/core/src/timeline/tap_tempo.{h,cpp}`: consumes
-    monotonically increasing tap timestamps, maintains a windowed constant-BPM fit
-    (least-squares over tap index vs seconds), exposes BPM estimate + jitter, resets after a
-    configurable silence gap (default 2 s). Timestamps come from
-    `ITransport::position()` read on the message thread at key-event time — jitter of a few
-    milliseconds is acceptable because taps are a rough-in refined by Phases 3 and 5;
-    docs/plans/roadmap/12-playback-clock.md can later supply lower-jitter reads.
-  - Actions: `TapTempo` (accumulate during playback) and `ApplyTapTempo` (single undoable edit):
-    on a still-default map, set the `1:1` anchor to the first-tap downbeat and re-seat the
-    terminal anchor from the fitted BPM (`reseatTerminalAnchor`); on an authored map, refit only
-    the enclosing anchor span. Handlers live in `tempo_handlers.cpp`.
-  - UI: live BPM/jitter readout near the transport while capture is active; tap key via
-    `EditorView::keyPressed` until plan 46.
-- **Public-header impact:** none.
-- **Testing:** pure fit tests (synthetic tap trains with jitter and outliers → BPM within
-  tolerance; gap reset; short-train refusal), apply-transform tests (default-map rough-in
-  produces a valid two-anchor map covering the audio; span-scoped apply leaves other spans
-  bit-identical), undo round-trip.
-- **Exit criteria:** from a bare default map, playing the song and tapping yields a serviceable
-  starting map in one gesture.
-- **Verification:** build + touched tests + clang-tidy.
+### Deferred — tap-tempo readout (out of the first releasable editor)
 
-### Phase 5 — Offline onset analysis and snapping (assumes Q2 = A)
+A pure least-squares fit over tap times read from the transport during playback, reset after a
+2 s gap, shown as a live BPM readout; the charter pauses and types it (Q3). Needs a key that works
+while playing, chosen by the user when built. No edit verb of its own.
+
+### Phase 5 — Offline onset analysis and snapping (deferred; assumes Q2 = A)
+
+*Deferred 2026-10-02: out of the first releasable editor. Re-verify against the code before
+building; the snap applies to Phase 4's drag and Phase 2's nudge, not to tap-derived anchors.*
+
 
 - **Scope:**
   - Pure kernel in `rock-hero-common/core`
@@ -402,6 +270,13 @@ is a coherent commit (or small series) with imperative subjects.
 - **Verification:** build + touched tests + clang-tidy.
 
 ### Phase 6 — Time-signature editing (on provisional Q1 = A; phases below assume outcome A)
+
+*Re-verify before building (2026-10-02): the actions and memento below predate the marker funnel.
+The meter is a marker kind (`Ctrl+/`), so it goes through the 8-step checklist and
+`commitMarkerModel` with a snapshot spanning the map and every position-bearing slice;
+`syncTempoDerivedAudio` (Phase 2) already covers its engine refresh; and `reseatTerminalAnchor`
+below means re-seating the terminal on a downbeat, a pure function beside Phase 1's transforms.*
+
 
 May start on provisional 41-Q1 = A (user, 2026-09-19); G41-TS closes at this phase's sighting. If
 that sighting picks B or C instead, replace the transform step with the corresponding policy and
@@ -470,36 +345,22 @@ re-derive the tests; the UI step survives all outcomes.
   content shift and single-step undo.
 - **Verification:** build + touched tests + clang-tidy.
 
-## Final acceptance phase
+## Final acceptance
 
-Run from the repo root as separate invocations, in this order, after the last phase lands:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets all
-powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
-powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets clang-tidy
-pre-commit run --all-files
-```
-
-Manual acceptance script (local corpus, never CI): open a GP-imported package, drag one anchor
-against a clear transient, undo, redo; start from a default-map project, tap in the tempo, snap
-two anchors to onsets, add a 7/8 measure mid-song (post-Q1), save, reopen, confirm the reader
-accepts the package unchanged (`formatVersion` untouched at 1).
+After the last release phase (4), as separate invocations: a build, the touched tests, and
+`pre-commit run --all-files`; clang-tidy when the user asks. Manual script (local corpus, never
+CI): open a GP-imported package, nudge one anchor onto a transient, type a BPM on another, undo
+both and confirm tone automation returns to its timing; from a default-map project, `Ctrl+B` at
+`1:1`, type the click's BPM, drag one anchor; save, reopen, and confirm the reader accepts the
+package unchanged.
 
 ## Rollback/abort notes
 
-- Every phase is additive and format-neutral: no migration, no load-normalizer changes, no
-  package rewrites on open. Reverting any phase's commits fully removes it; saved packages
-  produced meanwhile remain valid version-1 packages readable by older builds.
-- Phase 1a is the only common/core surface change; if the shared-rules extraction fights the
-  package error model, fall back to a thin internal forwarding shim and keep the public header
-  minimal — do not fork validation logic in the editor.
-- Phase 3 drag risk is contained by design: previews live in view state only; the model mutates
-  once on mouse-up; Escape abandons with zero history impact.
-- Phase 5 output is derived, cached, and never persisted — the feature can be deleted outright
-  with no package or settings impact. If kernel quality disappoints on real material, ship
-  Phases 1–4 without snapping and revisit Q2 option B.
+- Every phase is format-neutral: no migration, no load normalizer, no package rewrite on open.
+  Reverting a phase's commits removes it; packages saved meanwhile stay valid.
+- Phase 1a is the only common/core surface change; if the shared rules fight the package error
+  model, keep a thin translating shim, never a forked validator.
+- Phase 4's drag previews in view state only and commits once; `Esc` leaves no history.
 - Phase 6 is the risky phase: a re-addressing bug corrupts charts silently. Land it only behind
-  the property-test suite above; the full-state memento makes user-level recovery a single
-  Ctrl+Z. If the time-preservation invariant cannot be made provably green, STOP and re-raise Q1
-  rather than shipping an approximate transform.
+  its property suite; if the time-preservation invariant cannot be made provably green, STOP and
+  re-raise Q1 rather than ship an approximate transform.

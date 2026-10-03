@@ -80,10 +80,9 @@ Build the path that creates an editable song without importing a Guitar Pro file
 - **Tempo map and time signatures** — plan 41 Phases 1–4 and Phase 6 (behind G41-TS). The `Ctrl+B`
   tempo-anchor and `Ctrl+/` meter chords follow the eight-step new-marker-kind checklist in
   `marker-verb-grammar.md`; the chip verbs (`Delete`, `Enter`, `Alt`+arrows) are inert until then.
-  Plan 41 Phase 5 (offline onset snapping) is a charting aid, not a supported fact: out of the bar
-  unless Phase 3's hand placement proves unusable without it.
-- **The anchor grid lock.** `editing-interaction-model.md` makes the toolbar grid-lock interlock a
-  ship-with-anchor-editing requirement; nothing implements it today. It lands with plan 41 Phase 3.
+  Plan 41 was revised 2026-10-02: typing a BPM ripples later anchors, `Alt`+arrows nudge by one
+  pixel of zoom, Phase 4 is the chip drag (the primary method for users), and the grid lock is
+  deleted. Phase 5 (offline onset snapping) and the tap-tempo readout are out of the bar.
 - **Song information, audio and art** — plan 43, or the subset the release needs: the fields
   required to save and reopen, song audio selection, album art. D1 decides how much of 43 is in.
 - **Tuning, capo and cent offsets** — plan 40 Phase 10 (task G7). String count is

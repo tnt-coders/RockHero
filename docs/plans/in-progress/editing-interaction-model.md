@@ -161,8 +161,8 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Arrow keys | Move the caret: Left/Right to the next stop on the row (the union stop set — the nearer of the adjacent grid line and the row's next authored object; off-grid notes/points are first-class stops). Up/Down across rows — strings, then the **tone-region row**, then the visible automation lanes, crossing the boundaries in both directions (2026-07-20 row axis). **Reach** jumps (2026-07-20): `Ctrl+Left/Right` by one measure; `PageUp/Dn` by section; `Home/End` to chart start/end (`Ctrl+Home/End` alias them); `Ctrl+Up/Down` jump to the adjacent **surface** (chart ↔ tone-region ↔ lanes). Selection re-derives from what sits under the caret | No |
 | Shift+arrows | Caret-anchored **time selection** (a grid-locked, full-height span — a mutually-exclusive kind, see *Two selection kinds*): `Shift+Left/Right` extends by the display grid, `Shift+Ctrl+Left/Right` by measure, `Shift+PageUp/Dn` by section stop (the chart bounds count as stops), `Shift+Home/End` to chart bounds. The anchor snaps to grid even from an off-grid caret. `Shift+Up/Down` is unbound. Making a time selection clears any object selection | No |
 | Digits on empty caret | Exact payload entry, per row kind: on a string row, author the note with the typed fret (multi-digit window widens the same entry) — and since 2026-09-23 on two planes: bare, a note here (inside a ring, the head that cuts it); with `Alt`, a point on the ring here; on an automation lane row, open the typed-value editor seeded with the digit and create-or-retype the point at the caret in the parameter's native units (the double-click editor, reached from the keyboard; 2026-07-18) | Yes |
-| Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points). At an armed *empty* lane slot, create first — the point lands on the curve, then the arrow's nudge applies — so "grab the curve here and pull" is one keystroke, mirroring digits-at-empty-caret as the typing gate (2026-07-18) | Yes |
-| Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one grid step (Ctrl composes the fine step) | Yes |
+| Alt+arrows | Move the selection by one placement-quantum step (the `Ctrl+Alt` fine step was retired 2026-08-23; a tempo anchor steps one pixel of zoom, plan 41); the vertical axis is the surface's own (string for notes, value for automation points). At an armed *empty* lane slot, create first — the point lands on the curve, then the arrow's nudge applies — so "grab the curve here and pull" is one keystroke, mirroring digits-at-empty-caret as the typing gate (2026-07-18) | Yes |
+| Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one placement-quantum step (the `Ctrl` fine step was retired 2026-08-23) | Yes |
 | Shift+Alt+Up/Down | Shift the selection's frets by one, shape-preserving — the Alt+Shift axis rule: horizontal = extent in time, vertical = fret, on arrows and wheel alike (2026-07-17) | Yes |
 
 A plain click **never mutates**. Every mutating gesture previews live (snap guide plus a
@@ -203,21 +203,21 @@ selection dispatch, and everything else bubbles them there.
 ## Anchors: free-time by nature
 
 A tempo anchor's *musical* position is a whole beat — the anchor defines the grid — so grid
-snapping is meaningless for its time coordinate:
+snapping is meaningless for its time coordinate. Re-ruled 2026-10-02 (plan 41, decisions 7–13):
 
-- **Insert** (Alt+click on the ruler's tempo band) chooses the anchor's musical beat, snapped to
-  the beat grid like any insert.
-- **Drag** moves the anchor's *audio time* and is **always free-time** — no Ctrl needed, no snap.
-  Dragging an anchor is inherently the audio-sync gesture: you are pinning a beat to where it
-  falls in the recording. (Even here, stored seconds keep the tempo map's millisecond grid.)
+- **Insert** is the marker chord `Ctrl+B` at the cursor, floored to its beat. It pins the time the
+  map already gives that beat, so it changes nothing audible.
+- **Move** (`Alt+←/→`, and the chip drag) changes the anchor's *audio time* and is **always
+  free-time**: the audio-sync gesture. One press is one on-screen pixel at the current zoom, at
+  least 1 ms, with no modifier — zoom is the precision control. The other anchors stay pinned and
+  the two adjacent spans' tempos follow. A step onto a neighbour is refused.
+- **Typing a BPM** (`Ctrl+B` on an existing anchor, `Enter`, double-click) sets the tempo of the
+  span the anchor opens and RIPPLES: every later anchor shifts by the same amount, so later spans
+  keep their tempo. The click-mapping gesture.
 
-Because Ctrl-friction cannot protect a gesture that is free-time by design, anchors get a
-dedicated interlock instead: a toolbar **grid lock**. While locked (the default), anchor insert,
-move, and delete are disabled — cursor feedback shows the lock, and menu items are disabled with
-the reason. Unlock deliberately, sync, relock. This is the model's single persistent toggle, and
-it is acceptable because it is a safety interlock on one object class, not an editing mode: it
-changes nothing about how any gesture behaves elsewhere. The lock ships together with anchor
-editing; nothing implements it today.
+The 2026-07-09 **grid lock** is deleted (2026-10-02). It guarded pointer authoring (Alt+click
+insert), which was retired 2026-09-11; every anchor edit is now an explicit keystroke or drag,
+paused-only and one undo step, and a default-locked toggle would block the from-scratch path.
 
 ## Cursor and feedback vocabulary
 
@@ -334,11 +334,11 @@ required.
 the document, and `Alt`+letter does what the platform expects, which is open a menu. `Ctrl`+letter
 inserts a marker of that kind at the cursor (the marker rule above, snapped to the kind's quantum);
 the same chord with a marker of that kind selected RESTATES it — the digit law's create-or-retype
-applied to markers, so `Ctrl+T` reopens the tone picker on a selected region and `Ctrl+M` renames a
-selected section. `Alt+←/→` moves a selected marker by its kind's step and `Delete` removes it. The
-six chords are `Ctrl+T` (tone change, live), `Ctrl+M` (section, live), `Ctrl+B` (tempo anchor) and
-`Ctrl+/` (meter), both reserved for the tempo-map plan, and `Ctrl+P` (fret-hand position) and
-`Ctrl+H` (span), both reserved behind the FHP gate.
+applied to markers (re-ruled 2026-09-14: the chord reads the CURSOR, never the selection — a
+marker standing at the cursor is restated, else one is inserted). `Alt+←/→` moves a selected
+marker by its kind's step and `Delete` removes it. The five chords are `Ctrl+T` (tone change),
+`Ctrl+M` (section), `Ctrl+B` (tempo anchor, plan 41), `Ctrl+/` (meter, plan 41 Phase 6) and
+`Ctrl+H` (the hand marker, one object since 2026-09-15).
 
 ## Zoom & grid
 
