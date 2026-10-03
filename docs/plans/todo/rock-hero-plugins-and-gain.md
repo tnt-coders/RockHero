@@ -37,22 +37,22 @@ home for more such plugins.
   presets come from `project-config` through `CMakePresets.json`.
 - **Hosting route: the processor is compiled into the app and hosted through Tracktion's
   `ExternalPlugin`, created by a RockHero `juce::AudioPluginFormat`**, because `ExternalPlugin` is
-  already the adapter — parameters become `AutomatableParameter`s keyed by the processor's own
-  ids (`tracktion_ExternalPlugin.cpp:798-804`), state goes through `getStateInformation`, the
-  editor through `createEditorIfNeeded` (`:2062`), and lanes, undo, capture, export, restore and
-  the window all handle it today — and an in-process format (JUCE's own
+  already the adapter — parameters become `AutomatableParameter`s keyed by the processor's own ids
+  (`tracktion_ExternalPlugin.cpp:798-804`), state goes through `getStateInformation`, the editor
+  through `createEditorIfNeeded` (`:2062`), and lanes, undo, capture, export, restore and the window
+  all handle it today — and an in-process format (JUCE's own
   `extras/AudioPluginHost/Source/Plugins/InternalPlugins.h:44` pattern; the format API is twelve
   trivial virtuals, `juce_audio_processors_headless/format/juce_AudioPluginFormat.h:56-174`;
   Tracktion creates through `PluginManager::createPluginInstance`,
-  `tracktion_PluginManager.cpp:37-41`, `tracktion_ExternalPlugin.cpp:1885`) needs no file, no scan, no packaging, and gives the game
-  the plugin by linking `common/audio`. Not a bundled `.vst3` loaded like a third-party plugin:
-  that needs the path-identity fix, startup registration, per-OS copy rules, the game shipping
-  bundles and duplicate handling; macOS cannot load it from the `.app` until signing exists; and
-  a missing bundle drops Gain from every tone. The plugin stays effectively standalone: the VST3
-  target builds the same source, and linking is only the embedding. The accepted yield: every
-  hosted plugin, Gain included, pays `ExternalPlugin::applyToBuffer`'s `processMutex` on the
-  audio thread (`tracktion_ExternalPlugin.cpp:1394-1399`, try-then-block), as every third-party
-  VST does today.
+  `tracktion_PluginManager.cpp:37-41`, `tracktion_ExternalPlugin.cpp:1885`) needs no file, no scan,
+  no packaging, and gives the game the plugin by linking `common/audio`. Not a bundled `.vst3`
+  loaded like a third-party plugin: that needs the path-identity fix, startup registration, per-OS
+  copy rules, the game shipping bundles and duplicate handling; macOS cannot load it from the `.app`
+  until signing exists; and a missing bundle drops Gain from every tone. The plugin stays
+  effectively standalone: the VST3 target builds the same source, and linking is only the embedding.
+  The accepted yield: every hosted plugin, Gain included, pays `ExternalPlugin::applyToBuffer`'s
+  `processMutex` on the audio thread (`tracktion_ExternalPlugin.cpp:1394-1399`, try-then-block), as
+  every third-party VST does today.
 - **The processor derives from `juce::AudioPluginInstance`** because the format must return one,
   and deriving directly beats JUCE's forwarding wrapper. `fillInPluginDescription`
   (`juce_AudioPluginInstance.h:70`) owns the in-process identity; the VST3's identity (codes,
@@ -68,8 +68,9 @@ home for more such plugins.
   paths, or every pathless plugin after the first would be hidden.
 - **The format claims only its own identifiers**: `fileMightContainThisPluginType` is true only
   for a table row. JUCE's `InternalPluginFormat` returns true for everything
-  (`InternalPlugins.h:56`), which would make the VST3 scan (`engine_plugin_host.cpp:150`) and `requiresAsyncInstantiation`
-  (`tracktion_ExternalPlugin.cpp:2147-2151`) consult it for every file.
+  (`InternalPlugins.h:56`), which would make the VST3 scan (`engine_plugin_host.cpp:150`) and
+  `requiresAsyncInstantiation` (`tracktion_ExternalPlugin.cpp:2147-2151`) consult it for every
+  file.
 - **The editor brackets every change with its own gesture**, because the library route,
   `juce::SliderParameterAttachment`, sends typed entry and double-click reset through
   `setValueAsPartOfGesture` with no gesture (`juce_ParameterAttachments.cpp:77-83`, `:189-193`),
@@ -156,8 +157,9 @@ game never link them directly.
    the `common::audio` link, the catalog constant and its path handling. Verify:
    `test_bundled_plugin_format.cpp` — the catalog lists "Gain" with format "RockHero" and no
    file, and a second pathless row would also list; `insertPluginCandidateToTrack` yields an
-   `ExternalPlugin` holding a `GainProcessor`; a chain at −6 dB round-trips through save/load, export/import and the undo memento with no path
-   in the identity; `hasKnownPluginForIdentity` accepts it on a fresh engine.
+   `ExternalPlugin` holding a `GainProcessor`; a chain at −6 dB round-trips through save/load,
+   export/import and the undo memento with no path in the identity;
+   `hasKnownPluginForIdentity` accepts it on a fresh engine.
 4. **Probe the hosted path once**: insert, drag, undo, redo; open the window from the tile; a lane
    on `gain` plays; the game loads a tone containing it. Verify by observation; the only known
    format-conditioned branch in `ExternalPlugin` is the AU/VST3 channel-config skip (`:562`).
