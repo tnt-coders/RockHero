@@ -28,6 +28,24 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the bundled-plugin plan (2026-10-02)
+
+- **Plugin identity is path-bound: a tone refuses a plugin the catalog knows at another path.**
+  `hasKnownPluginForIdentity` (`rock-hero-common/audio/src/engine/engine_plugin_host.cpp:473-503`)
+  tries the JUCE hint, the Tracktion hint, then `isDuplicateOf`, and all three carry the install
+  path: both hints hash `fileOrIdentifier` (`juce_PluginDescription.cpp:48-52`,
+  `tracktion_ExternalPlugin.cpp:14-18`) and `isDuplicateOf` ties it
+  (`juce_PluginDescription.cpp:38-46`). `ensureKnownPluginForIdentity` (`:506-540`) then scans the
+  ORIGINAL path, which does not exist on the other machine, and answers `PluginNotFound` — so a
+  `.tone` or `.rock` file carrying any third-party VST3 fails on a machine that installed the same
+  plugin elsewhere (the Linux and macOS layouts alone guarantee this). Tracktion's own restore would
+  have matched through `deprecatedUid` (`tracktion_ExternalPlugin.cpp:840-843`; the `uniqueId`
+  branch at `:835-838` still demands the path when one is stored). Fix: the gate matches
+  `identity.unique_id`, then `identity.deprecated_uid`, against `knownPluginList.getTypes()` BEFORE
+  any path-bearing key, in that one function; the path stays a hint for the rescan fallback. Test:
+  a known description whose `fileOrIdentifier` differs from the persisted one is found. Found by
+  `docs/plans/todo/bundled-gain-plugin.md` R6; not a prerequisite of that plan.
+
 ## Raised while adopting the silent audio device (2026-10-01)
 
 - **Input-calibration review: DONE 2026-10-01**; its findings, the prompt-to-calibrate design and

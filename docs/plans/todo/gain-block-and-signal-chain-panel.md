@@ -64,6 +64,13 @@ belongs to the slot's owner, never to a flag on the type:
 - *The UI.* The stage is the panel's Output fader and pan knob; a block is a tile and a small
   editor window.
 
+*Refined later on 2026-10-02 by `docs/plans/todo/bundled-gain-plugin.md`: the one type is an
+ADAPTER over a shared, JUCE-free `GainStage` core (ranges, dB law, pan law, ramp, parameter
+table), and a VST3 for other DAWs is a second adapter over the same core in a new
+`rock-hero-plugins/` product. Inside the app nothing above changes — both instances stay
+`ToneOutputPlugin`, and the app never hosts the VST3. That plan's Phase 1 re-bases the class on
+the core; it may land before or after the seams below.*
+
 Nothing shipped in `31cbed52` has to be undone: the derived id and the picker's "Output" submenu
 describe the stage's slot, not the type. The class and its `xmlTypeName` take the one gain type's
 name when the second instance arrives; the type string lives only in memory (the edit is created
