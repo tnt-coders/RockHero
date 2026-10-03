@@ -110,13 +110,40 @@ include path, so a stray `#include <rock_hero/common/...>` fails to compile and 
 to link. The rule is written in the plugin scope's `README.md` and the design documents (below)
 the way the other libraries' rules are written, and nothing more.
 
-What the folder DOES take from the tree, deliberately, because they are build settings and not
-dependencies: the `rock_hero::juce_*` wrappers (the one JUCE copy, with the module configuration
-every first-party target compiles against), `rock_hero::build_policy` on the hosted library (its
-own code is first-party and stays strict), and the clang-tidy regex at `CMakeLists.txt:32` gains
-`rock-hero-plugins` so our sources are linted while the JUCE sources a VST3 target compiles stay
-excluded by path (they live under `external/`). The VST3 target links the wrappers' non-strict
-set instead of `build_policy`, since JUCE's own module sources compile inside it.
+The scope is a first-party library in every respect but its dependency rule (user ruling,
+2026-10-02: "the same warning flags, lint rules, and possibly even presets"). In-tree it takes,
+through the mechanisms the tree already uses:
+
+- **Flags.** The hosted library links `rock_hero::build_policy`, the bundle every Rock Hero-owned
+  target links (`cmake/RockHeroBuildPolicy.cmake:66-70`: `warning_flags`, `config_flags`,
+  `lto_flags`, `warnings_as_errors`), so `/WX` and `-Werror` apply to our sources. The VST3
+  target is the one place JUCE's own module sources compile inside a first-party target, and the
+  tree's rule for that case is the wrappers' one (`RockHeroExternalModules.cmake:62-68`,
+  `RockHeroBuildPolicy.cmake:48-50`: never `build_policy` on a target that compiles third-party
+  sources): the target links `warning_flags`, `config_flags` and `lto_flags`, and
+  `warnings_as_errors` is applied to our sources alone through
+  `set_source_files_properties(${sources} PROPERTIES COMPILE_OPTIONS
+  "$<TARGET_PROPERTY:rock_hero_warnings_as_errors,INTERFACE_COMPILE_OPTIONS>")`. Verify that
+  genex under Ninja/MSVC first; if it misbehaves, the fallback is an OBJECT library of our
+  sources compiled with the VST3 target's definitions and `build_policy`.
+- **Lint.** The clang-tidy regex at `CMakeLists.txt:32` gains `rock-hero-plugins`, so the scope's
+  translation units are in the `clang-tidy` target; the JUCE sources a VST3 target compiles stay
+  out by path (`external/`). `.clang-tidy` applies by directory, so `readability-identifier-naming`
+  binds the scope: `rock_hero::plugins::gain` is `lower_case` namespaces (`.clang-tidy:15`,
+  `:245`), the include path `<rock_hero/plugins/gain/...>` mirrors it as every library's does,
+  and types, functions and members follow the same table as everywhere.
+- **Format and conventions.** `.clang-format` applies by directory; the pre-commit hooks
+  (`cmake-format`, `clang-format`, `verify-project-conventions`) have no path filters, so they
+  already cover the scope. The conventions script's root check enumerates a fixed product grid
+  and should be generalized to `rock-hero-*/*/{include,src}` so the library-root rule binds here
+  too.
+- **Presets.** `CMakePresets.json` includes the `project-config` submodule's presets; the scope
+  builds through them like everything else.
+
+Standalone or extracted (later, light): the folder would add the same `project-config` submodule
+for presets, Conan and lint, and a small `cmake/` of its own re-declaring the four flag targets
+over JUCE's `juce_recommended_*` flags, which is all `RockHeroBuildPolicy.cmake` does. No C++
+changes either way.
 
 **R6. Releases from this repo; the split trigger.** When the VST3 option is on in a release
 build, the bundle installs under a CPack `Plugins` component, archived separately from `Runtime`
