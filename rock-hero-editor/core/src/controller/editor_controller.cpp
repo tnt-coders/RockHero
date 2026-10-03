@@ -2613,7 +2613,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         if (const std::optional<common::core::GridPosition> start = selectionStart();
             start.has_value())
         {
-            state.selection_start_seconds = secondsAtGridPosition(state.tempo_map, *start);
+            state.selection_start_seconds = state.tempo_map.secondsAt(*start);
         }
     }
     state.transition_focus_count = m_transition_focus_count;
@@ -2702,7 +2702,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 {
                     state.tone_automation.lane_caret = ToneAutomationLaneCaretRef{
                         .lane_index = lane_index,
-                        .seconds = secondsAtGridPosition(state.tempo_map, caret->position),
+                        .seconds = state.tempo_map.secondsAt(caret->position),
                         .position = caret->position,
                     };
                     break;
@@ -2739,8 +2739,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 }
                 state.tone_automation.insert_ghost = ToneAutomationInsertGhostRef{
                     .lane_index = lane_index,
-                    .seconds = state.tempo_map.secondsAtNote(
-                        position.measure, position.beat, position.offset),
+                    .seconds = state.tempo_map.secondsAt(position),
                 };
                 break;
             }
@@ -2960,8 +2959,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     {
         const common::core::TempoMap& tempo_map = session().song().tempo_map;
         state.time_selection = common::core::TimeRange{
-            .start = common::core::TimePosition{secondsAtGridPosition(tempo_map, range->start())},
-            .end = common::core::TimePosition{secondsAtGridPosition(tempo_map, range->end())},
+            .start = common::core::TimePosition{tempo_map.secondsAt(range->start())},
+            .end = common::core::TimePosition{tempo_map.secondsAt(range->end())},
         };
     }
 

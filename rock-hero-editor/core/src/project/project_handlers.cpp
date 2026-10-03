@@ -1492,9 +1492,7 @@ void EditorController::Impl::restoreProjectMarker(const EditorProjectCaret& care
     const common::core::GridPosition position = common::core::snapGridPosition(
         tempo_map, caret.position, common::core::g_tick_quantum_note_value);
     m_transport.seek(
-        session().timeline().clamp(
-            common::core::TimePosition{tempo_map.secondsAtNote(
-                position.measure, position.beat, position.offset)}));
+        session().timeline().clamp(common::core::TimePosition{tempo_map.secondsAt(position)}));
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const bool string_exists =
         arrangement != nullptr && arrangement->chart.has_value() &&

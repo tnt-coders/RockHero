@@ -76,7 +76,7 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   existed (exact septuplet offsets, exact bend percentages) is refused with "chart document
   violates chart rules"; there is no migration, by the no-back-compat policy that holds until the
   first release ships.
-- `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
+- `TempoMap::beatPositionAt`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
   `snapGridPosition`, `adjacentGridPosition` — the exact `GridPosition` ↔ beat conversions, signed
   and inverse-exact, all crossing beat, measure, and meter boundaries without floating-point
   drift. The last two are the two questions asked of one note-value lattice (nearest line, and the
@@ -286,8 +286,10 @@ draws it, because other ink already prints every held stop.
 # The TempoMap
 
 `TempoMap` (`timeline/tempo_map.h`) is the **sole durable timing authority**. Its authored data
-is small: time-signature changes (per measure) and sparse *beat anchors* pinning specific beats
-to absolute seconds. Between anchors, time interpolates linearly in **quarter-note (metronome)
+is small: time-signature changes (per measure) and sparse *beat anchors* (`BeatAnchor`) pinning
+grid positions — on a beat or between beats, anywhere on the tick lattice — to whole
+milliseconds (`BeatAnchor::seconds()` is the one conversion back, `nearestAnchorMilliseconds`
+the one rounding). Between anchors, time interpolates linearly in **quarter-note (metronome)
 time** — a meter change between anchors re-slices beat durations rather than stretching them, so
 tempo changes only ever happen at anchors (the "metronome-linear" invariant).
 
@@ -356,10 +358,10 @@ musical DURATION keeps reading the grid VALUE, because that is the unit the user
 primitive in the same header — `adjacentTempoGridPosition(...)` (the next line from any position:
 common core's `adjacentGridPosition` under the editor's note-value validity policy, exact-rational,
 so a coarse step from an off-lattice start lands on the adjacent line, never overshoots, and a step
-back returns to the line it came from) — and `secondsAtGridPosition(...)` turns an exact position
-back into seconds for geometry. The ring a placement authors reaches the next line of the session's
-grid through the same primitive (`planInsertNote`), which is what keeps a note placed on a grid no
-tick divides — a septuplet's — ending on the tick lattice.
+back returns to the line it came from) — and common core's `TempoMap::secondsAt(...)` turns an
+exact position back into seconds for geometry. The ring a placement authors reaches the next line
+of the session's grid through the same primitive (`planInsertNote`), which is what keeps a note
+placed on a grid no tick divides — a septuplet's — ending on the tick lattice.
 
 The duration verb steps that same primitive, over the ring's END rather than a caret
 (`planAdjustSustain`, `chart_edits.h`): a step puts the end on the adjacent line of the quantum's

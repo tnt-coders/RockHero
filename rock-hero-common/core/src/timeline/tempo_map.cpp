@@ -4,7 +4,6 @@
 #include <cmath>
 #include <iterator>
 #include <limits>
-#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <utility>
 
 namespace rock_hero::common::core
@@ -30,6 +29,20 @@ constexpr int g_default_beats_per_measure = 4;
 
 } // namespace
 
+// The int64 maximum converts up to exactly 2^63, so every double strictly inside it rounds to a
+// whole number that fits; NaN fails the comparison, and so does infinity.
+bool isRepresentableAnchorTime(const double seconds) noexcept
+{
+    return std::abs(seconds * 1000.0) <
+           static_cast<double>(std::numeric_limits<std::int64_t>::max());
+}
+
+// Rounds once with halves away from zero, the one rounding every finer time takes into storage.
+std::int64_t nearestAnchorMilliseconds(const double seconds) noexcept
+{
+    return std::llround(seconds * 1000.0);
+}
+
 // Creates a minimal usable map for draft songs and tests that do not author tempo yet.
 TempoMap::TempoMap()
     : m_time_signatures{
@@ -41,14 +54,13 @@ TempoMap::TempoMap()
       }
     , m_anchors{
           BeatAnchor{
-              .measure = 1,
-              .beat = 1,
-              .seconds = 0.0,
+              .position = {.measure = 1, .beat = 1, .offset = {}},
+              .milliseconds = 0,
           },
           BeatAnchor{
-              .measure = 2,
-              .beat = 1,
-              .seconds = g_default_seconds_per_beat * g_default_beats_per_measure,
+              .position = {.measure = 2, .beat = 1, .offset = {}},
+              .milliseconds = nearestAnchorMilliseconds(
+                  g_default_seconds_per_beat * g_default_beats_per_measure),
           },
       }
 {
@@ -71,7 +83,6 @@ TempoMap::TempoMap(
 void TempoMap::buildDerivedIndices()
 {
     m_segments.clear();
-    m_anchor_beat_indices.clear();
     m_anchor_quarter_positions.clear();
 
     // The first signature governs from measure 1 regardless of its stored measure, so maps whose
@@ -115,17 +126,15 @@ void TempoMap::buildDerivedIndices()
             });
     }
 
-    m_anchor_beat_indices.reserve(m_anchors.size());
     m_anchor_quarter_positions.reserve(m_anchors.size());
     for (const BeatAnchor& anchor : m_anchors)
     {
-        m_anchor_beat_indices.push_back(globalBeatIndex(anchor.measure, anchor.beat));
         m_anchor_quarter_positions.push_back(
-            quarterPositionAtBeatPosition(static_cast<double>(m_anchor_beat_indices.back())));
+            quarterPositionAtBeatPosition(beatPositionAt(anchor.position)));
     }
 
     // Segment downbeat times resolve through anchor interpolation, so this fill must run after
-    // the anchor indices above exist.
+    // the anchor quarter positions above exist.
     for (SignatureSegment& segment : m_segments)
     {
         segment.start_seconds =
@@ -174,6 +183,13 @@ const TempoMap::SignatureSegment& TempoMap::segmentForQuarterPosition(
     return after == m_segments.begin() ? m_segments.front() : *std::prev(after);
 }
 
+// A grid position on the beat axis: its beat's index plus the sub-beat offset.
+double TempoMap::beatPositionAt(const GridPosition position) const noexcept
+{
+    return static_cast<double>(globalBeatIndex(position.measure, position.beat)) +
+           position.offset.toDouble();
+}
+
 // Converts a beat position to metronome time. A fractional position belongs to the beat it starts
 // in, so the containing segment comes from the floored index; multiplying by a power-of-two
 // quarters-per-beat scale keeps constant-denominator spans bit-identical to beat-axis math.
@@ -210,17 +226,21 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
     }
     const BeatAnchor& terminal = m_anchors.back();
     if (!std::isfinite(cover_until_seconds) || !std::isfinite(seconds_per_quarter) ||
-        seconds_per_quarter <= 0.0 || terminal.seconds >= cover_until_seconds)
+        seconds_per_quarter <= 0.0 || terminal.seconds() >= cover_until_seconds)
     {
         return terminal;
     }
 
     // Every candidate downbeat is timed from the last anchor before the terminal and rounded once,
     // never by stepping from a rounded time, so the error stays half a millisecond however far the
-    // terminal travels.
+    // terminal travels. The covered time is a threshold, never stored, so it is compared unrounded.
     const BeatAnchor& opener = m_anchors[m_anchors.size() - 2];
-    const auto seconds_at = [&opener, seconds_per_quarter](const double quarter_count) {
-        return nearestAnchorSeconds(opener.seconds + quarter_count * seconds_per_quarter);
+    const auto milliseconds_at = [&opener, seconds_per_quarter](const double quarter_count) {
+        return nearestAnchorMilliseconds(opener.seconds() + quarter_count * seconds_per_quarter);
+    };
+    const double cover_until_milliseconds = cover_until_seconds * 1000.0;
+    const auto covers = [&milliseconds_at, cover_until_milliseconds](const double quarter_count) {
+        return static_cast<double>(milliseconds_at(quarter_count)) >= cover_until_milliseconds;
     };
     const auto measure_quarters = [this](const int at_measure) {
         const TimeSignatureChange signature = timeSignatureAt(at_measure);
@@ -228,12 +248,12 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
                static_cast<double>(signature.denominator);
     };
 
-    int measure = terminal.measure;
+    int measure = terminal.position.measure;
     double quarters = spanQuarterLength(m_anchors.size() - 2);
 
     // Measure by measure through any meter change still ahead of the terminal...
     const int last_change = m_time_signatures.back().measure;
-    while (measure < last_change && seconds_at(quarters) < cover_until_seconds)
+    while (measure < last_change && !covers(quarters))
     {
         quarters += measure_quarters(measure);
         ++measure;
@@ -241,22 +261,20 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
 
     // ...past which every measure is the same length, so the count still missing is solved in one
     // step and settled against the rounding, however fast the tempo.
-    if (seconds_at(quarters) < cover_until_seconds)
+    if (!covers(quarters))
     {
         const double per_measure = measure_quarters(measure);
         const double missing =
-            (cover_until_seconds - opener.seconds) / seconds_per_quarter - quarters;
+            (cover_until_seconds - opener.seconds()) / seconds_per_quarter - quarters;
         const double most_steps = static_cast<double>(std::numeric_limits<int>::max() - measure);
         auto steps =
             static_cast<int>(std::clamp(std::ceil(missing / per_measure), 0.0, most_steps));
-        while (steps > 0 && seconds_at(quarters + static_cast<double>(steps - 1) * per_measure) >=
-                                cover_until_seconds)
+        while (steps > 0 && covers(quarters + static_cast<double>(steps - 1) * per_measure))
         {
             --steps;
         }
         while (steps < std::numeric_limits<int>::max() - measure &&
-               seconds_at(quarters + static_cast<double>(steps) * per_measure) <
-                   cover_until_seconds)
+               !covers(quarters + static_cast<double>(steps) * per_measure))
         {
             ++steps;
         }
@@ -264,7 +282,10 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
         quarters += static_cast<double>(steps) * per_measure;
     }
 
-    return BeatAnchor{.measure = measure, .beat = 1, .seconds = seconds_at(quarters)};
+    return BeatAnchor{
+        .position = {.measure = measure, .beat = 1, .offset = {}},
+        .milliseconds = milliseconds_at(quarters),
+    };
 }
 
 // Exposes time signatures as read-only package data.
@@ -336,30 +357,32 @@ double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
         return 0.0;
     }
 
-    if (m_anchors.size() == 1 || seconds <= m_anchors.front().seconds)
+    if (m_anchors.size() == 1 || seconds <= m_anchors.front().seconds())
     {
-        return static_cast<double>(m_anchor_beat_indices.front());
+        return beatPositionAt(m_anchors.front().position);
     }
 
-    if (seconds >= m_anchors.back().seconds)
+    if (seconds >= m_anchors.back().seconds())
     {
-        return static_cast<double>(m_anchor_beat_indices.back());
+        return beatPositionAt(m_anchors.back().position);
     }
 
     // The span starts at the last anchor at or before the position; the clamps above guarantee an
-    // interior position with a real span around it.
+    // interior position with a real span around it. The projection is the seconds accessor, so the
+    // query compares in its own unit and a time between two whole milliseconds finds its span.
     const auto after = std::ranges::upper_bound(m_anchors, seconds, {}, &BeatAnchor::seconds);
     const auto first_after = static_cast<std::size_t>(std::distance(m_anchors.begin(), after));
     const std::size_t span_start =
         std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
 
-    const double seconds_span = m_anchors[span_start + 1].seconds - m_anchors[span_start].seconds;
+    const double seconds_span =
+        m_anchors[span_start + 1].seconds() - m_anchors[span_start].seconds();
     if (seconds_span <= 0.0)
     {
-        return static_cast<double>(m_anchor_beat_indices[span_start]);
+        return beatPositionAt(m_anchors[span_start].position);
     }
 
-    const double fraction = (seconds - m_anchors[span_start].seconds) / seconds_span;
+    const double fraction = (seconds - m_anchors[span_start].seconds()) / seconds_span;
     const double quarter_position = m_anchor_quarter_positions[span_start] +
                                     fraction * (m_anchor_quarter_positions[span_start + 1] -
                                                 m_anchor_quarter_positions[span_start]);
@@ -378,12 +401,11 @@ double TempoMap::spanQuarterLength(std::size_t span) const noexcept
 }
 
 // Only anchors before the terminal open a span, so the terminal is left out of the search.
-std::optional<std::size_t> TempoMap::spanStartingAt(
-    const int measure, const int beat) const noexcept
+std::optional<std::size_t> TempoMap::spanStartingAt(const GridPosition position) const noexcept
 {
     for (std::size_t span = 0; span + 1 < m_anchors.size(); ++span)
     {
-        if (m_anchors[span].measure == measure && m_anchors[span].beat == beat)
+        if (m_anchors[span].position == position)
         {
             return span;
         }
@@ -443,23 +465,27 @@ std::pair<std::int64_t, Fraction> TempoMap::beatAtWholeNotePosition(
     };
 }
 
-// Resolves beat addresses through the same fractional interpolation used for note offsets.
+// Resolves a sub-beat offset as a fraction of the beat span containing the position.
+double TempoMap::secondsAt(const GridPosition position) const noexcept
+{
+    return secondsAtGlobalBeatPosition(beatPositionAt(position));
+}
+
 double TempoMap::secondsAtBeat(int measure, int beat) const noexcept
 {
-    return secondsAtGlobalBeatPosition(static_cast<double>(globalBeatIndex(measure, beat)));
+    return secondsAt(GridPosition{.measure = measure, .beat = beat, .offset = {}});
 }
 
-// Resolves chart-note offsets as a fraction of the beat span containing the note.
-double TempoMap::secondsAtNote(int measure, int beat, Fraction offset) const noexcept
-{
-    return secondsAtGlobalBeatPosition(
-        static_cast<double>(globalBeatIndex(measure, beat)) + offset.toDouble());
-}
-
-// Reports the last anchor's grid address so package validation can enforce the terminal boundary.
+// Reports the last anchor's grid address so package validation can enforce the terminal boundary;
+// the rules keep the terminal on a downbeat, so its beat index has no offset to drop.
 std::int64_t TempoMap::terminalGlobalBeatIndex() const noexcept
 {
-    return m_anchor_beat_indices.empty() ? 0 : m_anchor_beat_indices.back();
+    if (m_anchors.empty())
+    {
+        return 0;
+    }
+    const GridPosition& terminal = m_anchors.back().position;
+    return globalBeatIndex(terminal.measure, terminal.beat);
 }
 
 // Interpolates on the metronome axis inside the anchor span found by binary search over the
@@ -475,7 +501,7 @@ double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const 
 
     if (m_anchors.size() == 1 || global_beat_position <= 0.0)
     {
-        return m_anchors.front().seconds;
+        return m_anchors.front().seconds();
     }
 
     // First anchor at or after the position, clamped so a left neighbor always exists; positions
@@ -501,18 +527,18 @@ double TempoMap::secondsAtAnchorSpan(
     // clamp-outside-the-range contract, and beatPositionAtSeconds already clamps the inverse.
     if (quarter_position <= m_anchor_quarter_positions.front())
     {
-        return m_anchors.front().seconds;
+        return m_anchors.front().seconds();
     }
 
     if (right_index >= m_anchors.size())
     {
-        return m_anchors.back().seconds;
+        return m_anchors.back().seconds();
     }
 
     const double left_quarter = m_anchor_quarter_positions[right_index - 1];
     const double right_quarter = m_anchor_quarter_positions[right_index];
-    const double left_seconds = m_anchors[right_index - 1].seconds;
-    const double right_seconds = m_anchors[right_index].seconds;
+    const double left_seconds = m_anchors[right_index - 1].seconds();
+    const double right_seconds = m_anchors[right_index].seconds();
     if (right_quarter <= left_quarter)
     {
         // A non-increasing anchor pair from a malformed map cannot interpolate; snap to the later
@@ -543,7 +569,7 @@ double TempoMap::ForwardBeatTimeCursor::secondsAt(double global_beat_position) n
 
     if (tempo_map.m_anchors.size() == 1 || global_beat_position <= 0.0)
     {
-        return tempo_map.m_anchors.front().seconds;
+        return tempo_map.m_anchors.front().seconds();
     }
 
     // Advance to the last segment starting at or before the position's beat, matching
@@ -570,8 +596,8 @@ double TempoMap::ForwardBeatTimeCursor::secondsAt(double global_beat_position) n
     return tempo_map.secondsAtAnchorSpan(m_right_anchor, quarter_position);
 }
 
-// Compares vector-owned map data while BeatAnchor owns exact floating-point equality. The derived
-// index tables are a pure function of that data, so they intentionally stay out of the comparison.
+// Compares the authored vectors; anchors compare as plain values. The derived index tables are a
+// pure function of that data, so they intentionally stay out of the comparison.
 bool operator==(const TempoMap& lhs, const TempoMap& rhs)
 {
     return lhs.m_time_signatures == rhs.m_time_signatures && lhs.m_anchors == rhs.m_anchors;

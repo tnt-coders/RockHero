@@ -482,10 +482,4 @@ common::core::GridPosition adjacentTempoGridPosition(
         tempo_map, from, normalizedGridNoteValue(grid_note_value), later);
 }
 
-double secondsAtGridPosition(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
-{
-    return tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
-}
-
 } // namespace rock_hero::editor::core

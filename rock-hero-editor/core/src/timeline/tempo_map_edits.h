@@ -45,8 +45,8 @@ using TempoMapEditResult = std::expected<common::core::TempoMap, TempoMapEditErr
 /*!
 \brief Inserts an anchor at a beat, pinning the time the map already gives that beat.
 
-The anchor's seconds are the beat's current time rounded to the millisecond grid, so the insert
-moves nothing by more than half a millisecond.
+The anchor's time is the beat's current time rounded to a whole millisecond, so the insert moves
+nothing by more than half a millisecond.
 
 \param tempo_map Map to edit.
 \param measure One-based measure of the beat.
@@ -65,7 +65,7 @@ neighbour, or take the first anchor below zero, is refused rather than clamped.
 \param tempo_map Map to edit.
 \param measure One-based measure of the anchor.
 \param beat One-based beat of the anchor.
-\param seconds New time, rounded to the millisecond grid.
+\param seconds New time, rounded to a whole millisecond.
 \return The edited map, or the refusal.
 */
 [[nodiscard]] TempoMapEditResult moveTempoAnchor(
@@ -110,8 +110,8 @@ Zoom is the precision control, so a nudge is the smallest change the charter can
 less than one millisecond, the finest time an anchor can store.
 
 \param pixels_per_second Current timeline zoom; zero or less when the view has not reported one.
-\return Nudge size in seconds, on the millisecond grid.
+\return Nudge size in whole milliseconds, at least one.
 */
-[[nodiscard]] double tempoAnchorNudgeSeconds(double pixels_per_second) noexcept;
+[[nodiscard]] std::int64_t tempoAnchorNudgeMilliseconds(double pixels_per_second) noexcept;
 
 } // namespace rock_hero::editor::core

@@ -63,10 +63,8 @@ namespace
 // without a tail.
 [[nodiscard]] bool earnsTail(const ChartNote& note, const TempoMap& tempo_map)
 {
-    const double onset =
-        tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, note.position));
-    const double end = tempo_map.secondsAtGlobalBeatPosition(
-        globalBeatPosition(tempo_map, sustainEndPosition(tempo_map, note)));
+    const double onset = tempo_map.secondsAt(note.position);
+    const double end = tempo_map.secondsAt(sustainEndPosition(tempo_map, note));
     return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() || hasVibrato(note.vibrato) ||
            note.tremolo || end - onset > g_minimum_kept_sustain_seconds;
 }

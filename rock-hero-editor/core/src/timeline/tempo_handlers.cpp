@@ -38,13 +38,13 @@ namespace
     };
 }
 
-// The tempo text of the span the anchor standing exactly on a beat opens, as its chip prints it, or
-// nothing where no anchor opening a span stands there (the terminal opens none). The one lookup
-// the chord, Enter's verb and the typed tempo's undo label all print through.
+// The tempo text of the span the anchor standing exactly at a position opens, as its chip prints
+// it, or nothing where no anchor opening a span stands there (the terminal opens none). The one
+// lookup the chord, Enter's verb and the typed tempo's undo label all print through.
 [[nodiscard]] std::optional<std::string> spanBpmTextAt(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition& beat)
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
 {
-    const std::optional<std::size_t> span = tempo_map.spanStartingAt(beat.measure, beat.beat);
+    const std::optional<std::size_t> span = tempo_map.spanStartingAt(position);
     if (!span.has_value())
     {
         return std::nullopt;
@@ -236,12 +236,17 @@ void EditorController::Impl::moveSelectedTempoAnchor(
         return;
     }
     TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-    const double step = tempoAnchorNudgeSeconds(m_timeline_zoom_pixels_per_second);
-    const double seconds = before.tempo_map.anchors().at(*index).seconds +
-                           (direction == ChartStepDirection::Left ? -step : step);
+    const std::int64_t step = tempoAnchorNudgeMilliseconds(m_timeline_zoom_pixels_per_second);
+    const std::int64_t milliseconds = before.tempo_map.anchors().at(*index).milliseconds +
+                                      (direction == ChartStepDirection::Left ? -step : step);
 
+    // The move verb still speaks seconds; a whole millisecond converts exactly and rounds back to
+    // itself.
     TempoMapEditResult moved = moveTempoAnchor(
-        before.tempo_map, selection.position.measure, selection.position.beat, seconds);
+        before.tempo_map,
+        selection.position.measure,
+        selection.position.beat,
+        static_cast<double>(milliseconds) / 1000.0);
     if (!moved.has_value())
     {
         logMarkerRefusal(label, moved.error().message);

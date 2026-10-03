@@ -47,11 +47,7 @@ EditFocus TempoMapSnapshot::focusReplacing(const TempoMapSnapshot& replaced) con
     {
         focused = &anchors[anchors.size() - 2];
     }
-    const common::core::GridPosition start{
-        .measure = focused->measure,
-        .beat = focused->beat,
-        .offset = {},
-    };
+    const common::core::GridPosition start = focused->position;
     MarkerEditFocus marker{.marker = {}, .start = start};
     if (changed->present)
     {

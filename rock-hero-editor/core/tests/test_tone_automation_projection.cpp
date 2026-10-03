@@ -127,19 +127,6 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
 
 } // namespace
 
-TEST_CASE("secondsAtGridPosition converts exact fractions", "[core][tone-automation]")
-{
-    const common::core::TempoMap tempo_map =
-        common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
-    // Default map: 120 BPM 4/4, so measure 2 beat 1 + 1/2 beat = global beat 4.5 = 2.25 s.
-    CHECK(
-        secondsAtGridPosition(
-            tempo_map,
-            common::core::GridPosition{
-                .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}
-            }) == Catch::Approx(2.25));
-}
-
 TEST_CASE("A lane's curve begins at its derived anchor", "[core][tone-automation]")
 {
     const ToneAutomationCurveSample anchor{.seconds = 0.0, .norm_value = 0.2F};

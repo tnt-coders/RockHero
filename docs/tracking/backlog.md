@@ -30,12 +30,6 @@ the user picks which way the two surfaces reconcile.
 
 ## Found by the tempo-editing reviews (plan 41, 2026-10-02)
 
-- **Anchor seconds could be whole milliseconds** (offered to the user, unanswered when written).
-  `BeatAnchor::seconds` is a `double` that must sit on the 1 ms grid, so `nearestAnchorSeconds`
-  is called at seven sites, the rules carry an off-grid check with an epsilon, and a ripple's
-  "later spans unchanged" holds in whole milliseconds rather than bit for bit. Storing an integer
-  millisecond count and rounding once at the input boundaries would delete most of that; it
-  touches about 20 readers and 136 initializers in 22 files.
 - **`chartEditFocusOf` reads `ChartCursor::column` without its tolerance check**
   (`rock-hero-editor/core/src/chart/chart_handlers.cpp:~1064`). Every other reader trusts the column
   only when its seconds under the current map match the transport to 1 ms

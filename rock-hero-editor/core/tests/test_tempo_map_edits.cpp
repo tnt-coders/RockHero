@@ -2,13 +2,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <vector>
@@ -19,9 +18,9 @@ namespace rock_hero::editor::core
 namespace
 {
 
-using Catch::Matchers::WithinAbs;
+using rock_hero::common::core::testing::anchor;
 
-constexpr double g_seconds_tolerance = 1.0e-9;
+using Catch::Matchers::WithinAbs;
 
 // A 4/4 map at 120 BPM over eight seconds of audio: anchors at 1:1 (0 s) and 5:1 (8 s).
 [[nodiscard]] common::core::TempoMap defaultEightSeconds()
@@ -34,10 +33,7 @@ constexpr double g_seconds_tolerance = 1.0e-9;
 {
     return common::core::TempoMap{
         {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-        {common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0},
-         common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 4.0},
-         common::core::BeatAnchor{.measure = 5, .beat = 1, .seconds = 8.0}}
+        {anchor("1:1", 0), anchor("2:1", 2000), anchor("3:1", 4000), anchor("5:1", 8000)}
     };
 }
 
@@ -46,9 +42,13 @@ constexpr double g_seconds_tolerance = 1.0e-9;
     const common::core::TempoMap& tempo_map, std::size_t span)
 {
     const std::vector<common::core::BeatAnchor>& anchors = tempo_map.anchors();
-    return std::llround(
-        (anchors[span + 1].seconds - anchors[span].seconds) *
-        static_cast<double>(common::core::g_anchor_seconds_grid_units));
+    return anchors[span + 1].milliseconds - anchors[span].milliseconds;
+}
+
+// A whole beat as the grid position an anchor stands at.
+[[nodiscard]] common::core::GridPosition beatAt(int measure, int beat)
+{
+    return common::core::GridPosition{.measure = measure, .beat = beat, .offset = {}};
 }
 
 // The code an edit refused with; fails the test when the edit landed instead.
@@ -72,9 +72,8 @@ TEST_CASE("Inserting a tempo anchor moves no beat", "[editor][tempo-map]")
     }
 
     REQUIRE(edited->anchors().size() == 3);
-    CHECK(edited->anchors()[1].measure == 2);
-    CHECK(edited->anchors()[1].beat == 3);
-    CHECK_THAT(edited->anchors()[1].seconds, WithinAbs(3.0, g_seconds_tolerance));
+    CHECK(edited->anchors()[1].position == beatAt(2, 3));
+    CHECK(edited->anchors()[1].milliseconds == 3000);
     for (int measure = 1; measure <= 4; ++measure)
     {
         for (int beat = 1; beat <= 4; ++beat)
@@ -108,9 +107,9 @@ TEST_CASE("Moving a tempo anchor pins its neighbours", "[editor][tempo-map]")
     {
         return;
     }
-    CHECK_THAT(moved->anchors()[2].seconds, WithinAbs(4.123, g_seconds_tolerance));
-    CHECK_THAT(moved->anchors()[1].seconds, WithinAbs(2.0, g_seconds_tolerance));
-    CHECK_THAT(moved->anchors()[3].seconds, WithinAbs(8.0, g_seconds_tolerance));
+    CHECK(moved->anchors()[2].milliseconds == 4123);
+    CHECK(moved->anchors()[1].milliseconds == 2000);
+    CHECK(moved->anchors()[3].milliseconds == 8000);
 
     CHECK(refusalCode(moveTempoAnchor(source, 3, 1, 2.0)) == TempoMapEditErrorCode::BrokenRule);
     CHECK(refusalCode(moveTempoAnchor(source, 3, 1, 8.5)) == TempoMapEditErrorCode::BrokenRule);
@@ -123,6 +122,7 @@ TEST_CASE("Moving a tempo anchor pins its neighbours", "[editor][tempo-map]")
     CHECK(
         refusalCode(moveTempoAnchor(source, 3, 1, std::numeric_limits<double>::quiet_NaN())) ==
         TempoMapEditErrorCode::BrokenRule);
+    CHECK(refusalCode(moveTempoAnchor(source, 5, 1, 1.0e300)) == TempoMapEditErrorCode::BrokenRule);
 }
 
 // Verifies a typed tempo sets the span and shifts every later anchor by one amount, so every later
@@ -137,10 +137,10 @@ TEST_CASE("Typing a tempo ripples every later anchor", "[editor][tempo-map]")
         return;
     }
 
-    CHECK_THAT(rippled->anchors()[1].seconds, WithinAbs(2.0, g_seconds_tolerance));
-    CHECK_THAT(rippled->anchors()[2].seconds, WithinAbs(4.4, g_seconds_tolerance));
-    CHECK_THAT(rippled->anchors()[3].seconds, WithinAbs(8.4, g_seconds_tolerance));
-    CHECK(rippled->anchors()[3].measure == 5);
+    CHECK(rippled->anchors()[1].milliseconds == 2000);
+    CHECK(rippled->anchors()[2].milliseconds == 4400);
+    CHECK(rippled->anchors()[3].milliseconds == 8400);
+    CHECK(rippled->anchors()[3].position == beatAt(5, 1));
     CHECK(spanMilliseconds(*rippled, 0) == spanMilliseconds(source, 0));
     CHECK(spanMilliseconds(*rippled, 2) == spanMilliseconds(source, 2));
     CHECK(tempoSpanBpmText(*rippled, 1) == "100");
@@ -157,9 +157,8 @@ TEST_CASE("Typing a faster tempo grows the terminal to cover the audio", "[edito
         return;
     }
     REQUIRE(faster->anchors().size() == 2);
-    CHECK(faster->anchors()[1].measure == 9);
-    CHECK(faster->anchors()[1].beat == 1);
-    CHECK_THAT(faster->anchors()[1].seconds, WithinAbs(8.0, g_seconds_tolerance));
+    CHECK(faster->anchors()[1].position == beatAt(9, 1));
+    CHECK(faster->anchors()[1].milliseconds == 8000);
     CHECK(tempoSpanBpmText(*faster, 0) == "240");
 
     const TempoMapEditResult slower = setTempoSpanBpm(defaultEightSeconds(), 1, 1, 60.0, 8.0);
@@ -168,8 +167,8 @@ TEST_CASE("Typing a faster tempo grows the terminal to cover the audio", "[edito
     {
         return;
     }
-    CHECK(slower->anchors()[1].measure == 5);
-    CHECK_THAT(slower->anchors()[1].seconds, WithinAbs(16.0, g_seconds_tolerance));
+    CHECK(slower->anchors()[1].position == beatAt(5, 1));
+    CHECK(slower->anchors()[1].milliseconds == 16000);
 }
 
 // Verifies a typed tempo that grows the terminal over a long song still reads back as typed: the
@@ -186,7 +185,7 @@ TEST_CASE("A typed tempo reads back as typed after the terminal grows", "[editor
         {
             return;
         }
-        CHECK(rippled->anchors().back().seconds >= 300.0);
+        CHECK(rippled->anchors().back().seconds() >= 300.0);
         CHECK(tempoSpanBpmText(*rippled, 0) == std::format("{}", typed));
     }
 }
@@ -203,9 +202,9 @@ TEST_CASE("A ripple on an earlier span grows the terminal at the last tempo", "[
     }
     // Span 1 now lasts one second, pulling 3:1 to 3 s and the terminal to 7 s at 120 BPM; one more
     // measure at that tempo covers the eight seconds.
-    CHECK_THAT(rippled->anchors()[2].seconds, WithinAbs(3.0, g_seconds_tolerance));
-    CHECK(rippled->anchors().back().measure == 6);
-    CHECK_THAT(rippled->anchors().back().seconds, WithinAbs(9.0, g_seconds_tolerance));
+    CHECK(rippled->anchors()[2].milliseconds == 3000);
+    CHECK(rippled->anchors().back().position == beatAt(6, 1));
+    CHECK(rippled->anchors().back().milliseconds == 9000);
     CHECK(tempoSpanBpmText(*rippled, rippled->anchors().size() - 2) == "120");
 }
 
@@ -230,6 +229,10 @@ TEST_CASE("Typing a tempo refuses bad values and the terminal", "[editor][tempo-
     CHECK(
         refusalCode(setTempoSpanBpm(source, 2, 1, std::numeric_limits<double>::quiet_NaN(), 8.0)) ==
         TempoMapEditErrorCode::InvalidBpm);
+    // A tempo slow enough puts the span's end past any time an anchor can hold.
+    CHECK(
+        refusalCode(setTempoSpanBpm(source, 1, 1, 1.0e-300, 8.0)) ==
+        TempoMapEditErrorCode::BrokenRule);
     CHECK(
         refusalCode(setTempoSpanBpm(source, 5, 1, 120.0, 8.0)) ==
         TempoMapEditErrorCode::NoAnchorAtBeat);
@@ -264,10 +267,11 @@ TEST_CASE("Deleting a tempo anchor is the inverse of inserting one", "[editor][t
 // Verifies a nudge is one pixel of the zoom, never finer than a millisecond.
 TEST_CASE("A tempo anchor nudge is one pixel of zoom", "[editor][tempo-map]")
 {
-    CHECK_THAT(tempoAnchorNudgeSeconds(0.0), WithinAbs(0.001, g_seconds_tolerance));
-    CHECK_THAT(tempoAnchorNudgeSeconds(100.0), WithinAbs(0.01, g_seconds_tolerance));
-    CHECK_THAT(tempoAnchorNudgeSeconds(333.0), WithinAbs(0.003, g_seconds_tolerance));
-    CHECK_THAT(tempoAnchorNudgeSeconds(5000.0), WithinAbs(0.001, g_seconds_tolerance));
+    CHECK(tempoAnchorNudgeMilliseconds(0.0) == 1);
+    CHECK(tempoAnchorNudgeMilliseconds(100.0) == 10);
+    CHECK(tempoAnchorNudgeMilliseconds(333.0) == 3);
+    CHECK(tempoAnchorNudgeMilliseconds(5000.0) == 1);
+    CHECK(tempoAnchorNudgeMilliseconds(1.0e-300) == 1);
 }
 
 } // namespace rock_hero::editor::core

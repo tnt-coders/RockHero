@@ -27,7 +27,6 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <set>
 #include <string>
 #include <string_view>
@@ -140,15 +139,9 @@ constexpr int g_zip_compression_level = 9;
     return juce::JSON::toString(Json::makeString(text)).toStdString();
 }
 
-// Formats native timing values at the fixed package precision.
-[[nodiscard]] std::string formatTimingValue(double value)
-{
-    return std::format("{:.{}f}", value, g_anchor_seconds_decimals);
-}
-
-// Formats non-timing JSON numbers through the shared round-trip-exact form. Unlike the timing
-// values above, these carry no fixed package precision, so rounding them would only lose data the
-// reader cannot recover.
+// Formats non-anchor JSON numbers through the shared round-trip-exact form. Unlike an anchor's
+// whole milliseconds, these carry no fixed package precision, so rounding them would only lose data
+// the reader cannot recover.
 [[nodiscard]] std::string formatJsonDouble(double value)
 {
     return Json::numberText(value);
@@ -162,12 +155,14 @@ constexpr int g_zip_compression_level = 9;
            std::to_string(signature.denominator) + " }";
 }
 
-// Renders one beat anchor as a compact object line, addressing its beat with an on-beat position
-// token and pinning it to seconds at the fixed package precision.
+// Renders one beat anchor as a compact object line, addressing it with its grid token and pinning
+// it to seconds written with exactly three decimals: the stored unit is the whole millisecond, so
+// the decimals are its digits, never a rounding. The writer validates the map first, so the time is
+// non-negative and the split into seconds and milliseconds needs no sign handling.
 [[nodiscard]] std::string formatAnchorLine(const BeatAnchor& anchor)
 {
-    return R"({ "position": ")" + formatBeatPositionToken(anchor.measure, anchor.beat) +
-           R"(", "seconds": )" + formatTimingValue(anchor.seconds) + " }";
+    return R"({ "position": ")" + formatGridPositionToken(anchor.position) + R"(", "seconds": )" +
+           std::format("{}.{:03}", anchor.milliseconds / 1000, anchor.milliseconds % 1000) + " }";
 }
 
 // Renders one song-structure section marker as a compact object line.

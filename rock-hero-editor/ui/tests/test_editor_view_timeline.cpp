@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <optional>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
@@ -20,6 +22,8 @@ namespace rock_hero::editor::ui
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 // Records the ruler's chip intents so a click can be asserted without standing up the whole editor
 // view, which is what would otherwise have to answer this interface.
@@ -91,7 +95,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
 };
 
 // Builds a one-measure 4/4 map for viewport-grid rendering checks.
-[[nodiscard]] common::core::TempoMap makeOneMeasureTempoMap(double measure_seconds)
+[[nodiscard]] common::core::TempoMap makeOneMeasureTempoMap(std::int64_t measure_milliseconds)
 {
     return common::core::TempoMap{
         std::vector{
@@ -102,16 +106,8 @@ struct RecordingRulerListener final : TimelineRuler::Listener
             },
         },
         std::vector{
-            common::core::BeatAnchor{
-                .measure = 1,
-                .beat = 1,
-                .seconds = 0.0,
-            },
-            common::core::BeatAnchor{
-                .measure = 2,
-                .beat = 1,
-                .seconds = measure_seconds,
-            },
+            anchor("1:1", 0),
+            anchor("2:1", measure_milliseconds),
         },
     };
 }
@@ -197,7 +193,7 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
-    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
@@ -226,7 +222,7 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
-    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 8};
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 201, g_timeline_ruler_height);
@@ -256,7 +252,7 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
-    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
@@ -301,7 +297,7 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
-    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     constexpr common::core::GridPosition verse_position{.measure = 1, .beat = 2};
 
@@ -388,9 +384,8 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
     {
         anchors.push_back(
             common::core::BeatAnchor{
-                .measure = (index / 4) + 1,
-                .beat = (index % 4) + 1,
-                .seconds = static_cast<double>(index) * 0.1,
+                .position = {.measure = (index / 4) + 1, .beat = (index % 4) + 1, .offset = {}},
+                .milliseconds = std::int64_t{index} * 100,
             });
     }
     const common::core::TempoMap tempo_map{
@@ -447,8 +442,8 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 8.0},
+            anchor("1:1", 0),
+            anchor("3:1", 8000),
         },
     };
     TimelineRuler ruler;
@@ -496,8 +491,8 @@ TEST_CASE(
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 8.0},
+            anchor("1:1", 0),
+            anchor("3:1", 8000),
         },
     };
     TimelineRuler ruler;
@@ -545,9 +540,9 @@ TEST_CASE(
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 4.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 6.0},
+            anchor("1:1", 0),
+            anchor("2:1", 4000),
+            anchor("3:1", 6000),
         },
     };
     TimelineRuler ruler;
@@ -596,9 +591,9 @@ TEST_CASE(
             common::core::TimeSignatureChange{.measure = 2, .numerator = 3, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 4.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.0},
+            anchor("1:1", 0),
+            anchor("2:1", 4000),
+            anchor("3:1", 7000),
         },
     };
     TimelineRuler ruler;
@@ -644,7 +639,7 @@ TEST_CASE("EditorView transport readout tracks the transport position", "[ui][ed
     // One 4/4 measure over 4.0s is one beat per second, so 1.5s sits halfway through measure 1
     // beat 2.
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     transport.current_position = common::core::TimePosition{1.5};
     view.setState(state);
 
@@ -671,8 +666,8 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.3},
+            anchor("1:1", 0),
+            anchor("3:1", 7300),
         },
     };
     auto state = makeLoadedEditorState(7.3);
@@ -735,7 +730,7 @@ TEST_CASE("EditorView draws the first beat's head whole at leftmost scroll", "[u
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     state.tab = makeOriginNoteChart();
     view.setState(state);
 
@@ -908,7 +903,7 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     view.setState(state);
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
@@ -977,7 +972,7 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     view.setState(state);
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     thumbnail_factory.last_thumbnail->fill_color = juce::Colours::lightgreen;
@@ -1031,7 +1026,7 @@ TEST_CASE("EditorView quiets the tempo grid while snap is off", "[ui][editor-vie
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     view.setState(state);
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
@@ -1288,7 +1283,7 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     view.setState(state);
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
@@ -1329,7 +1324,7 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     view.setState(state);
 
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
@@ -1368,7 +1363,7 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     state.grid_note_value = common::core::Fraction{1, 8};
     view.setState(state);
 
@@ -1467,7 +1462,7 @@ TEST_CASE("EditorView right-click does not seek the timeline", "[ui][editor-view
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4000);
     view.setState(state);
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");

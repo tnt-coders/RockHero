@@ -2,9 +2,9 @@
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
-# Test-only fixtures for shared domain types. Every layer's suites build charts, so the fixture
-# data they all state (the standard tuning) lives here once and is opted into explicitly rather
-# than reached for by relative include path.
+# Test-only fixtures for shared domain types. Every layer's suites build charts and tempo maps, so
+# the fixture data they all state (the standard tuning, the common-time tempo map) lives here once
+# and is opted into explicitly rather than reached for by relative include path.
 add_library(rock_hero_common_core_testing INTERFACE)
 add_library(rock_hero::common::core_testing ALIAS rock_hero_common_core_testing)
 

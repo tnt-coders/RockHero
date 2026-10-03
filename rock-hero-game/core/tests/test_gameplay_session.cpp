@@ -1283,11 +1283,14 @@ TEST_CASE(
     CHECK(call.instance_id == "instance-1");
     CHECK(call.param_id == "gain");
     REQUIRE(call.points.size() == 2);
-    CHECK(call.points.front().seconds == Catch::Approx(tempo_map.secondsAtNote(1, 1, {})));
+    CHECK(call.points.front().seconds == Catch::Approx(tempo_map.secondsAtBeat(1, 1)));
     CHECK(std::is_eq(call.points.front().norm_value <=> 0.25F));
     CHECK(
         call.points.back().seconds ==
-        Catch::Approx(tempo_map.secondsAtNote(2, 3, common::core::Fraction{1, 2})));
+        Catch::Approx(tempo_map.secondsAt(
+            common::core::GridPosition{
+                .measure = 2, .beat = 3, .offset = common::core::Fraction{1, 2}
+            })));
     CHECK(std::is_eq(call.points.back().norm_value <=> 0.75F));
 }
 

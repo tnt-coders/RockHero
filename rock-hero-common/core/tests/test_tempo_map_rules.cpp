@@ -1,5 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstdint>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -12,18 +15,16 @@ namespace rock_hero::common::core
 namespace
 {
 
-// The 4/4 meter every case below starts from.
-[[nodiscard]] std::vector<TimeSignatureChange> commonTime()
-{
-    return {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}};
-}
+using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTime;
+using rock_hero::common::core::testing::commonTimeMap;
 
 // A start anchor and a terminal downbeat two 120 BPM measures later.
 [[nodiscard]] std::vector<BeatAnchor> twoMeasureAnchors()
 {
     return {
-        BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-        BeatAnchor{.measure = 3, .beat = 1, .seconds = 4.0},
+        anchor("1:1", 0),
+        anchor("3:1", 4000),
     };
 }
 
@@ -36,13 +37,32 @@ namespace
     return result.error().code;
 }
 
+// The refusal a common-time map over the given anchors must produce.
+[[nodiscard]] TempoMapErrorCode refusalOf(std::vector<BeatAnchor> anchors)
+{
+    return refusalOf(commonTime(), std::move(anchors));
+}
+
 } // namespace
 
 // Verifies the maps the editor and the reader produce in practice pass every rule.
 TEST_CASE("Tempo map rules accept well-formed maps", "[core][tempo-map]")
 {
     CHECK(validateTempoMapRules(TempoMap::defaultMap(TimeDuration{93.5})).has_value());
-    CHECK(validateTempoMapRules(TempoMap{commonTime(), twoMeasureAnchors()}).has_value());
+    CHECK(validateTempoMapRules(commonTimeMap(twoMeasureAnchors())).has_value());
+}
+
+// Verifies an anchor may stand between two beats, and two may share one beat, in position order.
+TEST_CASE("Tempo map rules accept sub-beat anchors", "[core][tempo-map]")
+{
+    CHECK(validateTempoMapRules(commonTimeMap({
+                                    anchor("1:1", 0),
+                                    anchor("1:3", 900),
+                                    anchor("1:3+1/2", 1000),
+                                    anchor("2:1+1/3", 2100),
+                                    anchor("3:1", 4000),
+                                }))
+              .has_value());
 }
 
 // Verifies each structural rule refuses its own violation with its own code.
@@ -61,62 +81,73 @@ TEST_CASE("Tempo map rules refuse each violation", "[core][tempo-map]")
         refusalOf(
             {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 512}},
             twoMeasureAnchors()) == TempoMapErrorCode::InvalidTimeSignature);
+    CHECK(refusalOf({anchor("1:1", 0)}) == TempoMapErrorCode::MissingAnchors);
+    CHECK(refusalOf({anchor("1:2", 0), anchor("3:1", 4000)}) == TempoMapErrorCode::FirstAnchorLate);
+    CHECK(refusalOf({anchor("1:1", 0), anchor("3:1", -1000)}) == TempoMapErrorCode::InvalidAnchor);
     CHECK(
-        refusalOf(commonTime(), {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0}}) ==
-        TempoMapErrorCode::MissingAnchors);
-    CHECK(
-        refusalOf(
-            commonTime(),
-            {BeatAnchor{.measure = 1, .beat = 2, .seconds = 0.0},
-             BeatAnchor{.measure = 3, .beat = 1, .seconds = 4.0}}) ==
-        TempoMapErrorCode::FirstAnchorLate);
-    CHECK(
-        refusalOf(
-            commonTime(),
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 3, .beat = 1, .seconds = -1.0}}) ==
-        TempoMapErrorCode::InvalidAnchor);
-    CHECK(
-        refusalOf(
-            commonTime(),
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 3, .beat = 1, .seconds = 4.0004}}) ==
-        TempoMapErrorCode::AnchorOffSecondsGrid);
-    CHECK(
-        refusalOf(
-            commonTime(),
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 1, .beat = 5, .seconds = 2.0},
-             BeatAnchor{.measure = 3, .beat = 1, .seconds = 4.0}}) ==
-        TempoMapErrorCode::AnchorBeatOutsideMeasure);
-    CHECK(
-        refusalOf(
-            commonTime(),
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 2, .beat = 1, .seconds = 3.0},
-             BeatAnchor{.measure = 3, .beat = 1, .seconds = 3.0}}) ==
+        refusalOf({anchor("1:1", 0), anchor("2:1", 3000), anchor("3:1", 3000)}) ==
         TempoMapErrorCode::UnorderedAnchors);
     CHECK(
-        refusalOf(
-            commonTime(),
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 2, .beat = 2, .seconds = 4.0}}) ==
+        refusalOf({anchor("1:1", 0), anchor("2:2", 4000)}) ==
         TempoMapErrorCode::TerminalOffDownbeat);
 }
 
-// Verifies rounding lands on the millisecond grid the rules accept, half a millisecond deciding.
-TEST_CASE("Anchor seconds round to the millisecond grid", "[core][tempo-map]")
+// Verifies the anchor rules hold for a position between two beats: the first anchor is exactly
+// 1:1, the terminal a downbeat with no offset, every anchor a valid grid position, and the order
+// the full position's.
+TEST_CASE("Tempo map rules refuse sub-beat anchor violations", "[core][tempo-map]")
 {
-    CHECK_THAT(nearestAnchorSeconds(1.2344), Catch::Matchers::WithinAbs(1.234, 1.0e-12));
-    CHECK_THAT(nearestAnchorSeconds(1.2346), Catch::Matchers::WithinAbs(1.235, 1.0e-12));
-    CHECK_THAT(nearestAnchorSeconds(0.0), Catch::Matchers::WithinAbs(0.0, 1.0e-12));
+    CHECK(
+        refusalOf({anchor("1:1+1/2", 0), anchor("3:1", 4000)}) ==
+        TempoMapErrorCode::FirstAnchorLate);
+    CHECK(
+        refusalOf({anchor("1:1", 0), anchor("2:1+1/2", 4000)}) ==
+        TempoMapErrorCode::TerminalOffDownbeat);
 
-    const TempoMap rounded{
-        commonTime(),
-        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 3, .beat = 1, .seconds = nearestAnchorSeconds(4.0004)}}
-    };
-    CHECK(validateTempoMapRules(rounded).has_value());
+    // A seventh of a beat is no whole number of ticks, so the position is off the lattice.
+    CHECK(
+        refusalOf({anchor("1:1", 0), anchor("1:2+1/7", 600), anchor("3:1", 4000)}) ==
+        TempoMapErrorCode::InvalidAnchor);
+    CHECK(
+        refusalOf({anchor("1:1", 0), anchor("1:5", 2000), anchor("3:1", 4000)}) ==
+        TempoMapErrorCode::InvalidAnchor);
+
+    // An offset of a whole beat names the next beat twice; no token can spell it, so the shape is
+    // stated by hand.
+    CHECK(
+        refusalOf({
+            anchor("1:1", 0),
+            BeatAnchor{
+                .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1}},
+                .milliseconds = 1000,
+            },
+            anchor("3:1", 4000),
+        }) == TempoMapErrorCode::InvalidAnchor);
+
+    CHECK(
+        refusalOf(
+            {anchor("1:1", 0), anchor("1:3", 900), anchor("1:2+1/2", 1000), anchor("3:1", 4000)}) ==
+        TempoMapErrorCode::UnorderedAnchors);
+    CHECK(
+        refusalOf(
+            {anchor("1:1", 0),
+             anchor("1:2+1/2", 1000),
+             anchor("1:3", 1000),
+             anchor("3:1", 4000)}) == TempoMapErrorCode::UnorderedAnchors);
+}
+
+// Verifies the one seconds-to-milliseconds rounding: nearest, with halves away from zero, and a
+// time just below zero landing on zero rather than a negative millisecond.
+TEST_CASE("Anchor times round to the nearest whole millisecond", "[core][tempo-map]")
+{
+    CHECK(nearestAnchorMilliseconds(1.2344) == std::int64_t{1234});
+    CHECK(nearestAnchorMilliseconds(1.2345) == std::int64_t{1235});
+    CHECK(nearestAnchorMilliseconds(1.2346) == std::int64_t{1235});
+    CHECK(nearestAnchorMilliseconds(0.0) == std::int64_t{0});
+    CHECK(nearestAnchorMilliseconds(-0.0004) == std::int64_t{0});
+    CHECK(validateTempoMapRules(
+              commonTimeMap({anchor("1:1", 0), anchor("3:1", nearestAnchorMilliseconds(4.0004))}))
+              .has_value());
 }
 
 } // namespace rock_hero::common::core

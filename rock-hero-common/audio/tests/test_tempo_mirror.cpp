@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 #include <vector>
@@ -16,6 +17,8 @@ namespace rock_hero::common::audio
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 // Owns the Tracktion objects needed to exercise the tempo mirror against a real edit headlessly.
 // RockHeroEngineBehavior matters here: it pins the edit's beat unit to quarter notes, which the
@@ -37,8 +40,8 @@ struct TempoMirrorHarness
     return core::TempoMap{
         {core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
         {
-            core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0},
+            anchor("1:1", 0),
+            anchor("2:1", 2000),
         },
     };
 }
@@ -53,9 +56,9 @@ struct TempoMirrorHarness
             core::TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8},
         },
         {
-            core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0},
-            core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 3.0},
+            anchor("1:1", 0),
+            anchor("2:1", 2000),
+            anchor("3:1", 3000),
         },
     };
 }
@@ -102,6 +105,33 @@ TEST_CASE("Tempo mirror writes one flat step per anchor span", "[audio][tempo-mi
         sequence.toTime(tracktion::BeatPosition::fromBeats(5.5)).inSeconds() == Catch::Approx(2.5));
 }
 
+TEST_CASE("Tempo mirror steps the tempo at a sub-beat anchor", "[audio][tempo-mirror]")
+{
+    const TempoMirrorHarness harness;
+    tracktion::TempoSequence& sequence = harness.edit->tempoSequence;
+
+    // Two and a half quarters in the first second, one and a half in the next: the step lands
+    // between beats 3 and 4, not on the beat the anchor's position floors to.
+    mirrorTempoMapIntoSequence(
+        sequence,
+        core::testing::commonTimeMap({
+            anchor("1:1", 0),
+            anchor("1:3+1/2", 1000),
+            anchor("2:1", 2000),
+        }));
+
+    REQUIRE(sequence.getNumTempos() == 2);
+    const tracktion::TempoSetting* const first = sequence.getTempo(0);
+    const tracktion::TempoSetting* const second = sequence.getTempo(1);
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    CHECK(first->getBpm() == Catch::Approx(150.0));
+    CHECK(second->getStartBeat().inBeats() == Catch::Approx(2.5));
+    CHECK(second->getBpm() == Catch::Approx(90.0));
+    CHECK(
+        sequence.toTime(tracktion::BeatPosition::fromBeats(2.5)).inSeconds() == Catch::Approx(1.0));
+}
+
 TEST_CASE("Tempo mirror preserves BPM beyond the official clamp", "[audio][tempo-mirror]")
 {
     const TempoMirrorHarness harness;
@@ -112,8 +142,8 @@ TEST_CASE("Tempo mirror preserves BPM beyond the official clamp", "[audio][tempo
     const core::TempoMap map{
         {core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
         {
-            core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 0.5},
+            anchor("1:1", 0),
+            anchor("2:1", 500),
         },
     };
     mirrorTempoMapIntoSequence(sequence, map);

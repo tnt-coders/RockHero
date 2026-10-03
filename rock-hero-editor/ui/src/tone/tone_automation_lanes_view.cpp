@@ -329,8 +329,8 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     // preview-less push (the common case, and the drag's own committing push) clears them.
     if (m_state.drag_preview.has_value())
     {
-        if (const std::optional<float> guide_x = xForSeconds(
-                core::secondsAtGridPosition(m_tempo_map, m_state.drag_preview->position));
+        if (const std::optional<float> guide_x =
+                xForSeconds(m_tempo_map.secondsAt(m_state.drag_preview->position));
             guide_x.has_value())
         {
             publishSnapGuide(TimelineSnapGuide{.x = *guide_x, .label = juce::String{}});
@@ -925,7 +925,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         if (active_preview != nullptr)
         {
             const DrawnPoint preview{
-                .seconds = core::secondsAtGridPosition(m_tempo_map, active_preview->position),
+                .seconds = m_tempo_map.secondsAt(active_preview->position),
                 .norm_value = active_preview->value,
                 .selected = false,
             };
@@ -1241,7 +1241,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
                         musicalPositionForX(static_cast<float>(event.getPosition().x));
                     position.has_value())
                 {
-                    const double seconds = core::secondsAtGridPosition(m_tempo_map, *position);
+                    const double seconds = m_tempo_map.secondsAt(*position);
                     readout = ValueReadout{
                         .anchor = event.getPosition(),
                         .text = readoutTextFor(*position, lane, curveValueAt(lane, seconds)),

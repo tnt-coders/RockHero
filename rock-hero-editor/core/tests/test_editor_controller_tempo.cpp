@@ -106,9 +106,10 @@ struct TempoEditor
     {
         for (const common::core::BeatAnchor& anchor : tempoMap().anchors())
         {
-            if (anchor.measure == measure && anchor.beat == beat)
+            if (anchor.position ==
+                common::core::GridPosition{.measure = measure, .beat = beat, .offset = {}})
             {
-                return anchor.seconds;
+                return anchor.seconds();
             }
         }
         return std::numeric_limits<double>::quiet_NaN();

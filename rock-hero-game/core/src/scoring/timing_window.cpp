@@ -30,8 +30,7 @@ HitWindow makeOnsetWindow(
     const common::core::TempoMap& tempo_map, common::core::GridPosition position,
     const ScoringRuleset& ruleset, double speed_factor) noexcept
 {
-    const double expected_seconds =
-        tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
+    const double expected_seconds = tempo_map.secondsAt(position);
     const double half_width_seconds =
         songSecondsFromRealMs(ruleset.onset_window_half_width_ms, speed_factor);
     return HitWindow{

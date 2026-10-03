@@ -2,7 +2,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
@@ -16,21 +18,23 @@ namespace rock_hero::editor::core
 namespace
 {
 
+using rock_hero::common::core::testing::anchor;
+
 // Builds a uniform 4/4 map spanning the given measures, with beats evenly spaced in time. Two
 // anchors pin the first and the terminal downbeat, so secondsAtBeat interpolates linearly between
-// them and a beat at global index k lands at k * (measure_seconds / 4) seconds.
-[[nodiscard]] common::core::TempoMap makeUniform44Map(int measures, double measure_seconds)
+// them and a beat at global index k lands at k * (measure_milliseconds / 4) milliseconds.
+[[nodiscard]] common::core::TempoMap makeUniform44Map(
+    int measures, std::int64_t measure_milliseconds)
 {
     return common::core::TempoMap{
         std::vector{
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            anchor("1:1", 0),
             common::core::BeatAnchor{
-                .measure = measures + 1,
-                .beat = 1,
-                .seconds = static_cast<double>(measures) * measure_seconds,
+                .position = {.measure = measures + 1, .beat = 1, .offset = {}},
+                .milliseconds = measures * measure_milliseconds,
             },
         },
     };
@@ -52,7 +56,7 @@ constexpr common::core::Fraction g_quarter_note_grid{1, 4};
 // Verifies a full-width span returns every beat once, with downbeats ranked as measures.
 TEST_CASE("Visible tempo grid returns all beats across the full width", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(
         map,
@@ -75,7 +79,7 @@ TEST_CASE("Visible tempo grid returns all beats across the full width", "[core][
 // Verifies only the lines inside the visible span are returned, leaving the rest culled.
 TEST_CASE("Visible tempo grid culls lines outside the span", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(
         map, g_quarter_note_grid, g_one_measure_window, g_one_measure_width, 150, 350);
@@ -90,7 +94,7 @@ TEST_CASE("Visible tempo grid culls lines outside the span", "[core][tempo-grid]
 // Verifies the span is half-open: a line exactly on the left edge is kept, the right edge excluded.
 TEST_CASE("Visible tempo grid treats the span as half-open", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(
         map, g_quarter_note_grid, g_one_measure_window, g_one_measure_width, 100, 300);
@@ -107,7 +111,7 @@ TEST_CASE("Visible tempo grid treats the span as half-open", "[core][tempo-grid]
 TEST_CASE("Visible tempo grid scans only the visible run of a long song", "[core][tempo-grid]")
 {
     // 100 measures at four seconds each: 400 beats, one per second, mapped one pixel per second.
-    const common::core::TempoMap map = makeUniform44Map(100, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(100, 4000);
     constexpr common::core::TimeRange window{
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{400.0},
@@ -132,7 +136,7 @@ TEST_CASE("Visible tempo grid merges beats sharing a column", "[core][tempo-grid
 {
     // 400 beats squeezed into a five-pixel width: every column collects many beats, including
     // downbeats, so each surviving line keeps the measure rank.
-    const common::core::TempoMap map = makeUniform44Map(100, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(100, 4000);
     constexpr common::core::TimeRange window{
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{400.0},
@@ -155,7 +159,7 @@ TEST_CASE("Visible tempo grid merges beats sharing a column", "[core][tempo-grid
 // Verifies degenerate inputs yield no lines rather than dividing by zero or scanning needlessly.
 TEST_CASE("Visible tempo grid rejects degenerate inputs", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     CHECK(visibleTempoGridLines(map, g_quarter_note_grid, g_one_measure_window, 0, 0, 10).empty());
     CHECK(visibleTempoGridLines(map, g_quarter_note_grid, g_one_measure_window, -5, 0, 10).empty());
@@ -181,7 +185,7 @@ TEST_CASE("Visible tempo grid rejects degenerate inputs", "[core][tempo-grid]")
 // the whole-beat lines.
 TEST_CASE("Visible tempo grid places half-beat subdivisions between beats", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(
         map,
@@ -209,7 +213,7 @@ TEST_CASE("Visible tempo grid places half-beat subdivisions between beats", "[co
 // clipped visible span, keeping the bounded scan for fractional grids.
 TEST_CASE("Visible tempo grid clips quarter-beat subdivisions to the span", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(
         map, common::core::Fraction{1, 16}, g_one_measure_window, g_one_measure_width, 140, 260);
@@ -228,7 +232,7 @@ TEST_CASE("Visible tempo grid clips quarter-beat subdivisions to the span", "[co
 // through the walker's integer offsets.
 TEST_CASE("Visible tempo grid supports third-of-a-beat spacing", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(
         map, common::core::Fraction{1, 12}, g_one_measure_window, g_one_measure_width, 0, 110);
@@ -247,7 +251,7 @@ TEST_CASE("Visible tempo grid merges collapsed subdivisions by rank", "[core][te
 {
     // A five-pixel width maps x to whole seconds, so each half-beat subdivision shares a column
     // with the beat or downbeat that follows it and must be promoted.
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
     constexpr int width = 5;
 
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(
@@ -267,7 +271,7 @@ TEST_CASE("Visible tempo grid merges collapsed subdivisions by rank", "[core][te
 // anchoring still restarts the walk on the next downbeat.
 TEST_CASE("Visible tempo grid supports steps larger than one beat", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     // A dotted quarter note is one and a half beats in 4/4, so a four-beat measure holds three
     // lines and the next downbeat restarts the grid instead of continuing at 4.5 beats.
@@ -297,7 +301,7 @@ TEST_CASE("Visible tempo grid supports steps larger than one beat", "[core][temp
 // Verifies a corrupt note value degrades to the default grid instead of blanking the timeline.
 TEST_CASE("Visible tempo grid falls back to the default for invalid values", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const std::vector<TempoGridLine> default_grid_lines = visibleTempoGridLines(
         map,
@@ -329,7 +333,7 @@ TEST_CASE("Visible tempo grid falls back to the default for invalid values", "[c
 // Verifies snap lookup picks the nearest beat time without scanning the whole range.
 TEST_CASE("Nearest tempo grid time picks the closest beat", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     CHECK(
         nearestTempoGridTime(map, g_quarter_note_grid, common::core::TimePosition{1.49}) ==
@@ -342,7 +346,7 @@ TEST_CASE("Nearest tempo grid time picks the closest beat", "[core][tempo-grid]"
 // Verifies targets exactly halfway between beats prefer the earlier line for stable snapping.
 TEST_CASE("Nearest tempo grid time resolves ties to the earlier beat", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     CHECK(
         nearestTempoGridTime(map, g_quarter_note_grid, common::core::TimePosition{1.5}) ==
@@ -352,7 +356,7 @@ TEST_CASE("Nearest tempo grid time resolves ties to the earlier beat", "[core][t
 // Verifies out-of-range targets snap to the first or terminal beat instead of extrapolating.
 TEST_CASE("Nearest tempo grid time clamps to the authored beat range", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     CHECK(
         nearestTempoGridTime(map, g_quarter_note_grid, common::core::TimePosition{-3.0}) ==
@@ -375,7 +379,7 @@ TEST_CASE("Nearest tempo grid time tolerates an anchorless map", "[core][tempo-g
 // Verifies snapping selects fractional grid lines and keeps the earlier-line tie rule.
 TEST_CASE("Nearest tempo grid time snaps to subdivisions", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
     constexpr common::core::Fraction eighth_note_grid{1, 8};
 
     CHECK(
@@ -392,7 +396,7 @@ TEST_CASE("Nearest tempo grid time snaps to subdivisions", "[core][tempo-grid]")
 // Verifies a corrupt note value snaps on the default grid, matching the rendering fallback.
 TEST_CASE("Nearest tempo grid time falls back to the default grid", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     CHECK(
         nearestTempoGridTime(map, common::core::Fraction{}, common::core::TimePosition{0.74}) ==
@@ -468,8 +472,8 @@ TEST_CASE("Visible tempo grid keeps note values constant across meters", "[core]
             common::core::TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.0},
+            anchor("1:1", 0),
+            anchor("3:1", 7000),
         },
     };
     constexpr common::core::TimeRange window{
@@ -517,8 +521,8 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
             common::core::TimeSignatureChange{.measure = 1, .numerator = 7, .denominator = 8},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.0},
+            anchor("1:1", 0),
+            anchor("3:1", 7000),
         },
     };
     constexpr common::core::TimeRange window{
@@ -549,7 +553,7 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
 // seconds, so a 1.4 s click is off the quarter grid and on the tick lattice.
 TEST_CASE("Timeline cursor placement snaps to the quantum it is given", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const auto grid_position = timelineCursorPlacementTime(
         map, g_quarter_note_grid, g_one_measure_window, g_one_measure_width, 140.0f);
@@ -579,7 +583,7 @@ TEST_CASE("Timeline cursor placement snaps to the quantum it is given", "[core][
 TEST_CASE(
     "Timeline cursor placement resolves halfway clicks to the earlier line", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const auto position = timelineCursorPlacementTime(
         map, g_quarter_note_grid, g_one_measure_window, g_one_measure_width, 150.0f);
@@ -593,7 +597,7 @@ TEST_CASE(
 // Verifies degenerate timeline geometry yields no placement instead of a fabricated position.
 TEST_CASE("Timeline cursor placement rejects invalid geometry", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(1, 4000);
 
     const auto position =
         timelineCursorPlacementTime(map, g_quarter_note_grid, g_one_measure_window, 0, 140.0f);
@@ -605,7 +609,7 @@ TEST_CASE("Timeline cursor placement rejects invalid geometry", "[core][tempo-gr
 // accepts, and the same tick common's lattice and the Guitar Pro import round that instant onto.
 TEST_CASE("Nearest tempo grid position rounds odd note values onto ticks", "[core][tempo-grid]")
 {
-    const common::core::TempoMap map = makeUniform44Map(2, 4.0);
+    const common::core::TempoMap map = makeUniform44Map(2, 4000);
     const common::core::Fraction thirteenth_note{1, 13};
 
     // In 4/4 a 1/13-note step is 4/13 of a beat, 295.38 ticks, so the second line of measure 1
@@ -642,8 +646,7 @@ TEST_CASE("Nearest tempo grid position rounds odd note values onto ticks", "[cor
             common::core::Fraction{line, 7});
         const common::core::GridPosition lattice_line =
             common::core::snapGridPosition(map, exact, septuplet_sixteenth);
-        const double line_seconds =
-            map.secondsAtGlobalBeatPosition(common::core::globalBeatPosition(map, lattice_line));
+        const double line_seconds = map.secondsAt(lattice_line);
         CHECK(
             nearestTempoGridPosition(
                 map, septuplet_sixteenth, common::core::TimePosition{line_seconds}) ==
@@ -677,9 +680,9 @@ TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo
             common::core::TimeSignatureChange{.measure = 3, .numerator = 7, .denominator = 8},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.0},
-            common::core::BeatAnchor{.measure = 5, .beat = 1, .seconds = 21.0},
+            anchor("1:1", 0),
+            anchor("3:1", 7000),
+            anchor("5:1", 21000),
         },
     };
     // A dotted-eighth grid: 3/16 of a whole note divides none of the three measures evenly, so
@@ -695,12 +698,12 @@ TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo
         const common::core::GridPosition line = walked.back();
         CAPTURE(line.measure, line.beat, line.offset.numerator, line.offset.denominator);
         // The stepper's line is a fixed point of the walker: a click exactly on it lands on it.
-        const double seconds = secondsAtGridPosition(map, line);
+        const double seconds = map.secondsAt(line);
         CHECK(nearestTempoGridPosition(map, grid, common::core::TimePosition{seconds}) == line);
 
         const common::core::GridPosition next = adjacentTempoGridPosition(map, grid, line, true);
         REQUIRE(line < next);
-        const double next_seconds = secondsAtGridPosition(map, next);
+        const double next_seconds = map.secondsAt(next);
         // A click just short of halfway to the next line snaps back to this one, and one just
         // past halfway snaps forward to the next: nothing of the walker's lies between them.
         const double midpoint = (seconds + next_seconds) / 2.0;

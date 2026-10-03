@@ -3,6 +3,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <string>
@@ -12,6 +13,8 @@ namespace rock_hero::editor::core
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 // Builds a 4/4 map at 120 BPM whose terminal downbeat sits at measure 3 beat 1 (4.0 seconds).
 [[nodiscard]] common::core::TempoMap makeTempoMap()
@@ -26,8 +29,8 @@ namespace
     return common::core::TempoMap{
         {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
         {
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 1.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 5.0},
+            anchor("1:1", 1000),
+            anchor("3:1", 5000),
         },
     };
 }

@@ -1,8 +1,9 @@
 #include "timeline/tempo_map_rules.h"
 
-#include <cmath>
-#include <cstdint>
 #include <expected>
+#include <optional>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <utility>
@@ -13,20 +14,6 @@ namespace rock_hero::common::core
 
 namespace
 {
-
-constexpr double g_timing_epsilon = 1.0e-9;
-
-[[nodiscard]] bool isValidTimingValue(double value) noexcept
-{
-    return std::isfinite(value) && value >= 0.0;
-}
-
-// Reports whether a seconds value is already on the millisecond grid.
-[[nodiscard]] bool isOnSecondsGrid(double value) noexcept
-{
-    return std::isfinite(value) &&
-           std::abs(value - nearestAnchorSeconds(value)) <= g_timing_epsilon;
-}
 
 // A meter's beat is a power-of-two note value, as notation writes meters, and one that is a whole
 // number of ticks: a 512th-note beat would leave every position in its measure, downbeats
@@ -43,12 +30,6 @@ constexpr double g_timing_epsilon = 1.0e-9;
 }
 
 } // namespace
-
-double nearestAnchorSeconds(double seconds) noexcept
-{
-    const auto units = static_cast<double>(g_anchor_seconds_grid_units);
-    return std::round(seconds * units) / units;
-}
 
 std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_map)
 {
@@ -87,49 +68,37 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
             TempoMapErrorCode::MissingAnchors, "anchors must contain start and terminal anchors");
     }
 
-    if (anchors.front().measure != 1 || anchors.front().beat != 1)
+    if (anchors.front().position != GridPosition{.measure = 1, .beat = 1, .offset = {}})
     {
         return refuse(TempoMapErrorCode::FirstAnchorLate, "anchors must start at measure 1 beat 1");
     }
 
-    std::int64_t previous_index = -1;
-    double previous_seconds = -1.0;
+    std::optional<BeatAnchor> previous;
     for (const BeatAnchor& anchor : anchors)
     {
-        if (anchor.measure <= 0 || anchor.beat <= 0 || !isValidTimingValue(anchor.seconds))
+        if (!isValidGridPosition(anchor.position, tempo_map) || anchor.milliseconds < 0)
         {
             return refuse(
                 TempoMapErrorCode::InvalidAnchor,
-                "anchors must use positive addresses and finite non-negative seconds");
+                "anchors must stand on a valid grid position (beat inside its measure, offset in "
+                "[0, 1) on the tick lattice) at a non-negative time");
         }
 
-        if (!isOnSecondsGrid(anchor.seconds))
-        {
-            return refuse(
-                TempoMapErrorCode::AnchorOffSecondsGrid,
-                "anchor seconds must use three-decimal storage precision");
-        }
-
-        if (anchor.beat > tempo_map.beatsPerMeasureAt(anchor.measure))
-        {
-            return refuse(
-                TempoMapErrorCode::AnchorBeatOutsideMeasure,
-                "anchor beat exceeds the active measure length");
-        }
-
-        const std::int64_t anchor_index = tempo_map.globalBeatIndex(anchor.measure, anchor.beat);
-        if (anchor_index <= previous_index || anchor.seconds <= previous_seconds)
+        // Grid positions order lexicographically, which is the timeline order once each position
+        // is valid, as the check above has just established.
+        if (previous.has_value() && (anchor.position <= previous->position ||
+                                     anchor.milliseconds <= previous->milliseconds))
         {
             return refuse(
                 TempoMapErrorCode::UnorderedAnchors,
-                "anchors must be strictly ordered by beat and seconds");
+                "anchors must be strictly ordered by position and time");
         }
 
-        previous_index = anchor_index;
-        previous_seconds = anchor.seconds;
+        previous = anchor;
     }
 
-    if (anchors.back().beat != 1)
+    const GridPosition& terminal = anchors.back().position;
+    if (terminal.beat != 1 || terminal.offset != Fraction{})
     {
         return refuse(
             TempoMapErrorCode::TerminalOffDownbeat, "the terminal anchor must be on a downbeat");

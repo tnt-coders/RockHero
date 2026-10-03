@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <optional>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
@@ -13,6 +14,8 @@ namespace rock_hero::editor::core
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 // The shared fixture's measure-3 note, the one most scenarios here move: string 1 at measure 3
 // beat 1 (x = 80 at the geometry's 20 px/s, y = 220), sounding fret 7. Nothing later sounds on that
@@ -243,8 +246,8 @@ TEST_CASE("A move gesture steps at each press's own meter", "[core][chart]")
             common::core::TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 21, .beat = 1, .seconds = 31.0},
+            anchor("1:1", 0),
+            anchor("21:1", 31000),
         },
     };
     // One note on the last beat of the 4/4 measure — 3.5s, x = 70 — so the very first press carries

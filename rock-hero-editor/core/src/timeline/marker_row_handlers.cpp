@@ -44,7 +44,7 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
                 session().song().tempo_map.anchors();
             for (std::size_t index = 0; index + 1 < anchors.size(); ++index)
             {
-                starts.push_back(common::core::anchorPosition(anchors[index]));
+                starts.push_back(anchors[index].position);
             }
             break;
         }
@@ -234,8 +234,7 @@ common::core::TimePosition EditorController::Impl::keyboardTimePosition() const
 {
     if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
     {
-        return common::core::TimePosition{secondsAtGridPosition(
-            session().song().tempo_map, caret->position)};
+        return common::core::TimePosition{session().song().tempo_map.secondsAt(caret->position)};
     }
     return m_transport.position();
 }

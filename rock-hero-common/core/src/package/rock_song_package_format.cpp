@@ -2,8 +2,6 @@
 
 #include <expected>
 #include <filesystem>
-#include <optional>
-#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
@@ -31,26 +29,6 @@ std::expected<void, SongPackageError> validateTempoMap(const TempoMap& tempo_map
     }
 
     return std::expected<void, SongPackageError>{};
-}
-
-// The whole-beat token is the shared grid grammar restricted to a zero offset, so it defers to that
-// grammar rather than re-deriving the colon split, the digit parse and the positivity rules. Only
-// the restriction is stated here.
-std::optional<BeatPositionToken> parseBeatPositionToken(const std::string& text)
-{
-    const std::optional<GridPosition> position = parseGridPositionToken(text);
-    if (!position.has_value() || position->offset.numerator != 0)
-    {
-        return std::nullopt;
-    }
-
-    return BeatPositionToken{.measure = position->measure, .beat = position->beat};
-}
-
-std::string formatBeatPositionToken(int measure, int beat)
-{
-    // A zero offset formats as the bare "<measure>:<beat>", so this is the shared formatter.
-    return formatGridPositionToken(GridPosition{.measure = measure, .beat = beat, .offset = {}});
 }
 
 // Translates shared tone-track domain rules into the package error surface.

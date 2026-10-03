@@ -19,7 +19,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
-#include <rock_hero/common/core/timeline/tempo_map_rules.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <utility>
@@ -231,24 +231,42 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
     return (60.0 / quarter_bpm) * (4.0 / static_cast<double>(denominator));
 }
 
-// Snaps anchor seconds onto the package format's millisecond grid. Guitar Pro's frame offsets
-// divided by 44100 almost never land on a whole millisecond, but the package stores anchor
-// seconds at three decimals, so an unrounded map imports fine yet cannot be saved. Rounding asks
-// the tempo-map rules' own grid, and any anchor that would collide with or regress past its
-// predecessor is nudged one millisecond later to keep the map strictly ordered.
-void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors)
+// A sync point placed on a beat at its unrounded audio time, before the map stores it.
+struct SyncAnchor
 {
-    double previous_seconds = -1.0;
-    for (common::core::BeatAnchor& anchor : anchors)
+    // One-based measure of the beat.
+    int measure{1};
+
+    // One-based beat within the measure.
+    int beat{1};
+
+    // Audio time of the beat, not yet rounded to a whole millisecond.
+    double seconds{0.0};
+};
+
+// Snaps anchor times to the whole milliseconds a tempo map stores. Guitar Pro's frame offsets
+// divided by 44100 almost never land on a whole millisecond, so each time is rounded once, and any
+// anchor that would collide with or regress past its predecessor is nudged one millisecond later
+// to keep the map strictly ordered.
+[[nodiscard]] std::vector<common::core::BeatAnchor> snapAnchorsToMilliseconds(
+    const std::vector<SyncAnchor>& anchors)
+{
+    std::vector<common::core::BeatAnchor> snapped;
+    snapped.reserve(anchors.size());
+    for (const SyncAnchor& anchor : anchors)
     {
-        double snapped = common::core::nearestAnchorSeconds(anchor.seconds);
-        if (snapped <= previous_seconds)
+        std::int64_t milliseconds = common::core::nearestAnchorMilliseconds(anchor.seconds);
+        if (!snapped.empty() && milliseconds <= snapped.back().milliseconds)
         {
-            snapped = previous_seconds + common::core::g_anchor_seconds_step;
+            milliseconds = snapped.back().milliseconds + 1;
         }
-        anchor.seconds = snapped;
-        previous_seconds = snapped;
+        snapped.push_back(
+            common::core::BeatAnchor{
+                .position = {.measure = anchor.measure, .beat = anchor.beat, .offset = {}},
+                .milliseconds = milliseconds,
+            });
     }
+    return snapped;
 }
 
 // Builds the warp-anchor tempo map from the score's sync points, extending a downbeat terminal
@@ -273,7 +291,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         }
     }
 
-    std::vector<common::core::BeatAnchor> anchors;
+    std::vector<SyncAnchor> anchors;
     double last_tempo = score.base_tempo_quarter_bpm;
     for (const GpSyncPoint& sync : score.sync_points)
     {
@@ -309,8 +327,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         {
             continue;
         }
-        anchors.push_back(
-            common::core::BeatAnchor{.measure = measure, .beat = beat, .seconds = sync.seconds});
+        anchors.push_back(SyncAnchor{.measure = measure, .beat = beat, .seconds = sync.seconds});
         if (sync.modified_tempo > 0.0)
         {
             last_tempo = sync.modified_tempo;
@@ -319,7 +336,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 
     if (anchors.empty())
     {
-        anchors.push_back(common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0});
+        anchors.push_back(SyncAnchor{.measure = 1, .beat = 1, .seconds = 0.0});
         notes.emplace_back("score has no audio sync points; timing uses the base tempo");
     }
 
@@ -329,7 +346,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         // the map never starts before the audio. Whole measures and the first anchor's partial
         // measure subtract separately because the anchor may sit on the terminal downbeat,
         // one past the last real measure.
-        const common::core::BeatAnchor& first = anchors.front();
+        const SyncAnchor& first = anchors.front();
         double seconds = first.seconds;
         const double first_tempo = score.sync_points.empty()
                                        ? score.base_tempo_quarter_bpm
@@ -351,8 +368,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
             seconds = 0.0;
             notes.emplace_back("score starts before the audio; the lead-in was clamped");
         }
-        anchors.insert(
-            anchors.begin(), common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = seconds});
+        anchors.insert(anchors.begin(), SyncAnchor{.measure = 1, .beat = 1, .seconds = seconds});
         if (anchors.size() > 1 && anchors[1].seconds <= anchors[0].seconds)
         {
             anchors.erase(anchors.begin() + 1);
@@ -361,7 +377,8 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 
     // Terminal anchor on the downbeat after the final bar, extrapolated at the last tempo. A
     // final sync point can land exactly there (a rollover from the last bar's end); it already
-    // pins the song's end to the audio, so no extrapolated anchor is added on top of it.
+    // pins the song's end to the audio, so no extrapolated anchor is added on top of it. A terminal
+    // closer to its predecessor than a millisecond is held a millisecond after it by the snap.
     const int total_measures = static_cast<int>(grid.beats_per_measure.size());
     const int last_sync_measure = anchors.back().measure;
     const int last_sync_beat = anchors.back().beat;
@@ -379,12 +396,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                 beats * secondsPerBeat(std::max(1.0, last_tempo), grid.denominator[measure_index]);
         }
         anchors.push_back(
-            common::core::BeatAnchor{
-                .measure = total_measures + 1,
-                .beat = 1,
-                .seconds = std::max(
-                    terminal_seconds, last_sync_seconds + common::core::g_anchor_seconds_step),
-            });
+            SyncAnchor{.measure = total_measures + 1, .beat = 1, .seconds = terminal_seconds});
     }
 
     // Warn when audio sync points leave most of the song to constant-tempo extrapolation: those
@@ -398,8 +410,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
             "; later timing is extrapolated at the last tempo and may drift from the recording");
     }
 
-    snapAnchorsToMillisecondGrid(anchors);
-    return common::core::TempoMap{std::move(signatures), std::move(anchors)};
+    return common::core::TempoMap{std::move(signatures), snapAnchorsToMilliseconds(anchors)};
 }
 
 // Converts a Guitar Pro percent (one decimal at most) into an exact rational of one.

@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
@@ -20,6 +21,8 @@ namespace rock_hero::common::core
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 // Sixteen seconds of default 4/4, which is what every case here needs from the map: a stable beat
 // axis and a minimum sustain distance of a tenth of a beat (50 ms at 120 BPM).
@@ -2068,8 +2071,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const TempoMap meter_change{
             {TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
              TimeSignatureChange{.measure = 2, .numerator = 4, .denominator = 4}},
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 5, .beat = 1, .seconds = 20.0}},
+            {anchor("1:1", 0), anchor("5:1", 20000)},
         };
         const std::vector<ChartNote> glide_into_chord = streamOf({
             travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{2}), {{Fraction{77, 40}, 8}}),
@@ -2116,10 +2118,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // answer; three would mean the read point had moved.
         const TempoMap into_a_fast_bar{
             {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 2, .beat = 1, .seconds = 4.0},
-             BeatAnchor{.measure = 3, .beat = 1, .seconds = 4.8},
-             BeatAnchor{.measure = 5, .beat = 1, .seconds = 6.4}},
+            {anchor("1:1", 0), anchor("2:1", 4000), anchor("3:1", 4800), anchor("5:1", 6400)},
         };
         const std::vector<ChartNote> glide_into_the_fast_bar = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{9, 2}), {{Fraction{4}, 8}}),

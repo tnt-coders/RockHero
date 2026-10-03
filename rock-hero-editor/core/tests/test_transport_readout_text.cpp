@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <vector>
@@ -9,6 +10,8 @@ namespace rock_hero::editor::core
 namespace
 {
 
+using rock_hero::common::core::testing::anchor;
+
 // One 4/4 measure over four seconds: one beat per second, so beat positions read directly off the
 // clock.
 [[nodiscard]] common::core::TempoMap makeOneMeasure44Map()
@@ -18,8 +21,8 @@ namespace
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 4.0},
+            anchor("1:1", 0),
+            anchor("2:1", 4000),
         },
     };
 }
@@ -72,8 +75,8 @@ TEST_CASE("Beat position text lands on measure starts", "[core][readout]")
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.3},
+            anchor("1:1", 0),
+            anchor("3:1", 7300),
         },
     };
 

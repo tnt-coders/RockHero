@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -21,6 +22,8 @@ namespace rock_hero::editor::core
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 using common::core::GridPosition;
 using common::core::SongSection;
@@ -47,9 +50,9 @@ constexpr const char* g_second_tone_ref = "tone-drive";
             common::core::TimeSignatureChange{.measure = 5, .numerator = 3, .denominator = 4},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 5, .beat = 1, .seconds = 8.0},
-            common::core::BeatAnchor{.measure = 21, .beat = 1, .seconds = 40.0},
+            anchor("1:1", 0),
+            anchor("5:1", 8000),
+            anchor("21:1", 40000),
         },
     };
 }

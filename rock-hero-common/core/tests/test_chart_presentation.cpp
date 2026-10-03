@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -19,6 +20,8 @@ namespace rock_hero::common::core
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 // A plain 4/4 map at 120 BPM with room for the handful of measures these fixtures use. The margin
 // is a DURATION (`g_minimum_sustain_distance_seconds`), so at this tempo it is a tenth of a beat;
@@ -43,8 +46,7 @@ namespace
     return TempoMap{
         {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
          TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8}},
-        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 8, .beat = 1, .seconds = 23.0}},
+        {anchor("1:1", 0), anchor("8:1", 23000)},
     };
 }
 
@@ -54,8 +56,8 @@ namespace
 {
     return TempoMap{
         {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 5, .beat = 1, .seconds = 16.0 * 60.0 / quarter_note_bpm}},
+        {anchor("1:1", 0),
+         anchor("5:1", nearestAnchorMilliseconds(16.0 * 60.0 / quarter_note_bpm))},
     };
 }
 
@@ -781,9 +783,7 @@ TEST_CASE("Rule 2 earns a tail only for a ring past the kept-sustain bound", "[c
         // short. The ring is read end to end, not at its onset's rate.
         const TempoMap map{
             {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 3, .beat = 1, .seconds = 3.2},
-             BeatAnchor{.measure = 5, .beat = 1, .seconds = 11.2}},
+            {anchor("1:1", 0), anchor("3:1", 3200), anchor("5:1", 11200)},
         };
         CHECK(loneTail(note(at(2, 4, Fraction{3, 4}), 1, Fraction{1, 2}), map) == Fraction{1, 2});
         // The same eighth wholly inside the fast span reads 200 ms and drops.
@@ -815,8 +815,7 @@ TEST_CASE("Rule 2 earns a tail only for a ring past the kept-sustain bound", "[c
         // so one beat earns its tail here where the same written eighth at 150 BPM in 4/4 drops.
         const TempoMap map{
             {TimeSignatureChange{.measure = 1, .numerator = 12, .denominator = 8}},
-            {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-             BeatAnchor{.measure = 5, .beat = 1, .seconds = 24.0}},
+            {anchor("1:1", 0), anchor("5:1", 24000)},
         };
         CHECK(loneTail(note(at(1, 1), 1, Fraction{1}), map) == Fraction{1});
     }

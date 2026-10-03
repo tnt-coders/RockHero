@@ -159,46 +159,19 @@ on that string.
     const TempoMap& tempo_map);
 
 /*!
-\brief Returns the beat an anchor pins as a grid position, the address its selection and its
-edits name it by.
-\param anchor Anchor to address.
-\return The anchor's measure and beat with no offset.
-*/
-[[nodiscard]] GridPosition anchorPosition(const BeatAnchor& anchor) noexcept;
-
-/*!
-\brief Converts a grid position onto the tempo map's fractional global-beat axis.
-
-The whole-beat index of the position's (measure, beat) plus its sub-beat offset. This is the one
-GridPosition-to-beat contract the 2D tab and 3D highway projections both resolve seconds through,
-so defining it once keeps their timing from silently diverging.
-
-\param tempo_map Tempo map supplying the global-beat index.
-\param position Grid position to convert.
-\return The position on the fractional global-beat axis.
-*/
-[[nodiscard]] inline double globalBeatPosition(
-    const TempoMap& tempo_map, const GridPosition& position)
-{
-    return static_cast<double>(tempo_map.globalBeatIndex(position.measure, position.beat)) +
-           position.offset.toDouble();
-}
-
-/*!
 \brief The grid position of the tempo map's terminal anchor: the chart's closing barline.
 
 Named once because every consumer of the chart's end needs the same answer — package read closing
 the last tone region, tone-track normalization materializing the whole-song region, tone-track
 validation bounding every region, and the editor's end-of-chart navigation and selection bounds.
-The offset is zero: the terminal anchor sits exactly on a beat.
+The tempo-map rules keep the terminal anchor on a downbeat with no offset.
 
 \param tempo_map Tempo map whose terminal anchor is being addressed.
-\return Grid position of the terminal anchor.
+\return Grid position of the terminal anchor, or the grid origin for a map with no anchors.
 */
 [[nodiscard]] inline GridPosition terminalGridPosition(const TempoMap& tempo_map)
 {
-    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-    return GridPosition{.measure = measure, .beat = beat, .offset = {}};
+    return tempo_map.anchors().empty() ? GridPosition{} : tempo_map.anchors().back().position;
 }
 
 /*!

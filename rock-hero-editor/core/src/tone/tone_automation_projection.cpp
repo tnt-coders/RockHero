@@ -20,7 +20,7 @@ float toneAutomationCurveValueAt(
     {
         authored.push_back(
             ToneAutomationCurveSample{
-                .seconds = secondsAtGridPosition(tempo_map, point.position),
+                .seconds = tempo_map.secondsAt(point.position),
                 .norm_value = point.norm_value,
             });
     }
@@ -30,7 +30,7 @@ float toneAutomationCurveValueAt(
             .norm_value = anchor_norm_value,
         },
         authored,
-        secondsAtGridPosition(tempo_map, position),
+        tempo_map.secondsAt(position),
         is_discrete);
 }
 
@@ -167,7 +167,7 @@ ToneAutomationViewState makeToneAutomationViewState(
                 lane.points.push_back(
                     ToneAutomationPointViewState{
                         .position = point.position,
-                        .seconds = secondsAtGridPosition(tempo_map, point.position),
+                        .seconds = tempo_map.secondsAt(point.position),
                         .norm_value = point.norm_value,
                     });
             }

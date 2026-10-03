@@ -15,7 +15,7 @@ namespace rock_hero::editor::core
 /*!
 \brief Formats the quarter-note tempo of one anchor span as the shortest honest decimal.
 
-Anchor seconds sit on a millisecond grid, so a stored span is uncertain by one millisecond and
+Anchor times are whole milliseconds, so a stored span is uncertain by one millisecond and
 every tempo whose span lies within that of the stored one describes the same map. The text is the
 shortest such value with at most two decimals: a typed 137 reads back as "137", and an insert into
 a span of a typed tempo leaves both halves reading it. A span whose stored length is already up to

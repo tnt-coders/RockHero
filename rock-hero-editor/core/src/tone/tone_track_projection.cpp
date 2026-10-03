@@ -25,12 +25,8 @@ common::core::TimeRange toneRegionSpanSeconds(
     const common::core::GridPosition start = tone_track.regions[index].start;
     const common::core::GridPosition end = toneRegionEnd(tone_track, index, tempo_map);
     return common::core::TimeRange{
-        .start =
-            common::core::TimePosition{
-                index == 0 ? 0.0 : tempo_map.secondsAtNote(start.measure, start.beat, start.offset)
-            },
-        .end =
-            common::core::TimePosition{tempo_map.secondsAtNote(end.measure, end.beat, end.offset)},
+        .start = common::core::TimePosition{index == 0 ? 0.0 : tempo_map.secondsAt(start)},
+        .end = common::core::TimePosition{tempo_map.secondsAt(end)},
     };
 }
 

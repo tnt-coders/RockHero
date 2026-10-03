@@ -15,8 +15,7 @@ std::vector<SongSectionViewState> makeSongSectionViews(
     {
         views.push_back(
             SongSectionViewState{
-                .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    common::core::globalBeatPosition(tempo_map, section.position)),
+                .seconds = tempo_map.secondsAt(section.position),
                 .position = section.position,
                 .name = section.name,
                 // Optional-to-value comparison rather than a guarded dereference: an empty

@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -40,17 +39,33 @@ struct TimeSignatureChange
         default;
 };
 
-/*! \brief Absolute timing pin for one addressed measure beat. */
+/*! \brief Pins one grid position to one instant of the session timeline. */
 struct BeatAnchor
 {
-    /*! \brief One-based measure addressed by this anchor. */
-    int measure{1};
+    /*! \brief Where on the grid: any tick-lattice position (`measure:beat[+n/d]`). */
+    GridPosition position{};
 
-    /*! \brief One-based beat within the anchor measure. */
-    int beat{1};
+    /*!
+    \brief When: whole milliseconds from the timeline origin.
 
-    /*! \brief Absolute second position of the addressed beat. */
-    double seconds{0.0};
+    The one absolute time a song's musical content stores; every finer value is rounded once at
+    its boundary by \ref nearestAnchorMilliseconds and never stored.
+    */
+    std::int64_t milliseconds{0};
+
+    /*!
+    \brief Returns the anchor's time as seconds, the unit every time query speaks.
+
+    The one milliseconds-to-seconds conversion.
+
+    \return The anchor's time in seconds.
+    */
+    [[nodiscard]] constexpr double seconds() const noexcept
+    {
+        // Division, not multiplication by a thousandth: correctly rounded, so it is bit-identical
+        // to the double the file's three-decimal literal parses to.
+        return static_cast<double>(milliseconds) / 1000.0;
+    }
 
     /*!
     \brief Compares two beat anchors by their stored fields.
@@ -58,18 +73,37 @@ struct BeatAnchor
     \param rhs Right-hand beat anchor.
     \return True when both anchors store equal values.
     */
-    friend constexpr bool operator==(const BeatAnchor& lhs, const BeatAnchor& rhs) noexcept
-    {
-        return lhs.measure == rhs.measure && lhs.beat == rhs.beat &&
-               std::is_eq(lhs.seconds <=> rhs.seconds);
-    }
+    friend constexpr bool operator==(const BeatAnchor& lhs, const BeatAnchor& rhs) noexcept =
+        default;
 };
+
+/*!
+\brief Reports whether a time has a whole millisecond an anchor can store.
+
+The guard every boundary taking an untrusted time asks before \ref nearestAnchorMilliseconds: the
+rounding of a time past the stored integer's range is not a number any platform agrees on.
+
+\param seconds Time in seconds.
+\return True when the time is finite and its nearest whole millisecond fits a 64-bit integer.
+*/
+[[nodiscard]] bool isRepresentableAnchorTime(double seconds) noexcept;
+
+/*!
+\brief Rounds a time to the nearest whole millisecond an anchor can store.
+
+The one seconds-to-milliseconds rounding, asked once at each boundary a finer time arrives through.
+Halves round away from zero.
+
+\param seconds Time in seconds; must satisfy \ref isRepresentableAnchorTime (finite and in range).
+\return The nearest whole millisecond.
+*/
+[[nodiscard]] std::int64_t nearestAnchorMilliseconds(double seconds) noexcept;
 
 /*!
 \brief Song-level warp-anchor beat grid.
 
 TempoMap stores the durable native chart timing model: time-signature changes define the musical
-grid, while anchors pin sparse measure beats to absolute seconds. All intermediate beat and note
+grid, while anchors pin sparse grid positions to absolute times. All intermediate beat and note
 positions resolve by linear interpolation between neighboring anchors in quarter-note (metronome)
 time: the metronome rate is constant inside each anchor span, so a meter-denominator change
 between anchors re-slices beat durations (an eighth-note beat runs twice as fast as a quarter-note
@@ -151,23 +185,22 @@ public:
     [[nodiscard]] double spanQuarterLength(std::size_t span) const noexcept;
 
     /*!
-    \brief Finds the span an anchor standing exactly at a beat opens.
+    \brief Finds the span an anchor standing exactly at a grid position opens.
 
     Span \c i starts at anchor \c i, so the answer is that anchor's index. The terminal anchor only
-    closes the last span, so a beat it holds opens none.
+    closes the last span, so a position it holds opens none.
 
-    \param measure One-based measure of the beat.
-    \param beat One-based beat within the measure.
-    \return Zero-based span index, or empty when no anchor opening a span stands at the beat.
+    \param position Grid position the anchor stands at.
+    \return Zero-based span index, or empty when no anchor opening a span stands at the position.
     */
-    [[nodiscard]] std::optional<std::size_t> spanStartingAt(int measure, int beat) const noexcept;
+    [[nodiscard]] std::optional<std::size_t> spanStartingAt(GridPosition position) const noexcept;
 
     /*!
     \brief Returns the terminal anchor grown to cover a time.
 
     The terminal moves to the first downbeat at or after its own measure whose time reaches
     \p cover_until_seconds, timed from the last anchor before it at \p seconds_per_quarter and
-    rounded to the millisecond grid once, so a long extension carries no accumulated rounding. A
+    rounded to a whole millisecond once, so a long extension carries no accumulated rounding. A
     terminal that already covers the time comes back unchanged: it never moves earlier.
 
     \param cover_until_seconds Time the map must reach, such as the end of the song's audio.
@@ -227,7 +260,27 @@ public:
         Fraction whole_note_position) const noexcept;
 
     /*!
-    \brief Resolves an addressed beat to absolute seconds.
+    \brief Converts a grid position to its fractional position on the global beat axis.
+
+    The whole-beat index of the position's measure and beat plus its sub-beat offset: the one
+    grid-position-to-beat path every consumer resolves through, the anchors' own interpolation
+    table included, so the 2D tab, the 3D highway, and every time query agree bit for bit.
+
+    \param position Grid position to convert.
+    \return Zero-based position on the global beat axis counted from measure 1 beat 1.
+    */
+    [[nodiscard]] double beatPositionAt(GridPosition position) const noexcept;
+
+    /*!
+    \brief Resolves a grid position to absolute seconds.
+    \param position Grid position to resolve; its offset is the exact fraction from its beat toward
+           the next beat.
+    \return Interpolated second position.
+    */
+    [[nodiscard]] double secondsAt(GridPosition position) const noexcept;
+
+    /*!
+    \brief Resolves a whole beat to absolute seconds; the whole-beat convenience of secondsAt.
     \param measure One-based measure to resolve.
     \param beat One-based beat within the measure.
     \return Interpolated second position.
@@ -235,18 +288,9 @@ public:
     [[nodiscard]] double secondsAtBeat(int measure, int beat) const noexcept;
 
     /*!
-    \brief Resolves a fractional note position to absolute seconds.
-    \param measure One-based measure to resolve.
-    \param beat One-based beat within the measure.
-    \param offset Exact fraction from this beat toward the next beat.
-    \return Interpolated second position.
-    */
-    [[nodiscard]] double secondsAtNote(int measure, int beat, Fraction offset) const noexcept;
-
-    /*!
     \brief Resolves a fractional global beat position to absolute seconds.
 
-    This is the shared interpolation query behind secondsAtBeat and secondsAtNote, exposed for hot
+    This is the shared interpolation query behind secondsAt and secondsAtBeat, exposed for hot
     paths such as the timeline grid scan that already address lines on the global beat axis and
     should not pay a measure/beat address round trip per line. Positions outside the authored
     anchor range clamp to the first or last anchor's time.
@@ -299,6 +343,10 @@ public:
 
     /*!
     \brief Returns the terminal anchor's global beat index.
+
+    Honest because the tempo-map rules hold the terminal on a downbeat with no offset, so its
+    position is a whole beat.
+
     \return Zero-based global beat index for the terminal anchor.
     */
     [[nodiscard]] std::int64_t terminalGlobalBeatIndex() const noexcept;
@@ -389,9 +437,6 @@ private:
 
     // Derived signature segments; never empty, rebuilt by buildDerivedIndices on construction.
     std::vector<SignatureSegment> m_segments;
-
-    // Global beat index of each anchor, parallel to m_anchors; non-decreasing for valid maps.
-    std::vector<std::int64_t> m_anchor_beat_indices;
 
     // Quarter-note position of each anchor, parallel to m_anchors; the interpolation axis, so
     // seconds stay linear in metronome time between anchors regardless of meter changes.

@@ -18,7 +18,7 @@ reads back as the same `double`, with a `.0` kept on an integral value so a fiel
 double never reads back as an integer. A fixed precision cannot be that authority — it rounds
 silently, so a document stops equalling itself across a save, and rounding *launders*: a value the
 rules refuse can round to one they accept, turning a validation error into corruption. The one
-deliberate exception is tempo-map timing, which keeps its fixed package precision
+deliberate exception is tempo-map timing, which is stored in whole milliseconds
 (`anchors[].seconds` below). The tone document is not hand-written at all — it is built as a
 `juce::var` and serialized through `juce::JSON::toString`, whose double path is JUCE's own
 shortest-round-trip form (and which writes a non-finite value as `null`).
@@ -77,13 +77,15 @@ alone. Structural damage becomes a warning and a partial description rather than
 | `timeSignatures[].measure` | int > 0 | req | 1-based effect measure; strictly increasing. |
 | `timeSignatures[].numerator` | int > 0 | req | Beats per measure. |
 | `timeSignatures[].denominator` | int | req | Beat unit — must be a power of two. |
-| `anchors[].position` | string | req | `"measure:beat"` on-beat token (no sub-beat). |
-| `anchors[].seconds` | number | req | Absolute seconds on a fixed 3-decimal grid: written at it, and *refused* off it rather than rounded. |
+| `anchors[].position` | string | req | Grid token `"measure:beat"` or `"measure:beat+n/d"` (`n/d` = the fraction of the beat toward the next, written in lowest terms), e.g. `"12:3+1/2"`. |
+| `anchors[].seconds` | number | req | Absolute seconds in whole milliseconds (`BeatAnchor::milliseconds`): written with exactly three decimals (`2` reads as 2000 ms and writes back `2.000`), and *refused*, not rounded, when it is not a whole number of milliseconds. |
 
-Anchor invariants: at least two anchors (start + terminal); the first must be `1:1` but its
-seconds **may be non-zero** (finite and non-negative is the whole floor); strictly increasing in
-both beats and seconds; a beat may not exceed its measure's length; the terminal anchor
-must land on a downbeat. `timeSignatures` must be non-empty and must start at measure 1.
+Anchor invariants (`validateTempoMapRules`): at least two anchors (start + terminal); the first
+must be exactly `1:1` but its seconds **may be non-zero** (finite and non-negative is the whole
+floor); every anchor stands on a valid tick-lattice grid position (`isValidGridPosition`: the beat
+inside its measure, the offset in [0, 1) on the tick lattice), so an anchor may sit between beats;
+strictly increasing in both position and time; the terminal anchor must land on a downbeat with
+no sub-beat offset. `timeSignatures` must be non-empty and must start at measure 1.
 
 ## sections[]
 

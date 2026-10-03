@@ -6948,9 +6948,8 @@ TEST_CASE("Guitar Pro import keeps negative frame padding as a signed offset", "
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// Guitar Pro sync frames divided by 44100 rarely land on a whole millisecond, but the package
-// format stores anchor seconds at three decimals, so an unrounded map imports yet cannot be saved.
-// Every anchor must be snapped onto the millisecond grid.
+// Guitar Pro sync frames divided by 44100 rarely land on a whole millisecond, the unit an anchor
+// stores, so the import rounds each sync time once to the nearest one.
 TEST_CASE("Guitar Pro import snaps tempo anchors to the millisecond grid", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
@@ -6969,15 +6968,7 @@ TEST_CASE("Guitar Pro import snaps tempo anchors to the millisecond grid", "[cor
     const auto song = importer.importSong(archive, workspace);
     REQUIRE(song.has_value());
 
-    const auto& anchors = song->tempo_map.anchors();
-    REQUIRE(anchors.size() >= 2);
-    for (const common::core::BeatAnchor& anchor : anchors)
-    {
-        const double milliseconds = anchor.seconds * 1000.0;
-        // Explicit cast: -Wimplicit-int-float-conversion flags the long long result widening
-        // back to double in the subtraction.
-        CHECK(std::abs(milliseconds - static_cast<double>(std::llround(milliseconds))) < 1.0e-6);
-    }
+    REQUIRE(song->tempo_map.anchors().size() >= 2);
     // The off-grid sync rounds to the nearest millisecond rather than staying at 2.00201814.
     CHECK(song->tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.002));
 

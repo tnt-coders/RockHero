@@ -1798,8 +1798,7 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     // arrival. The zone begins exactly where the gliding note's ink stops.
     const HighwayHandArrival& slide_out = state.fret_hand.track[1];
     REQUIRE(slide_out.unpitched_ramp);
-    const double crop_seconds = tempo_map.secondsAtGlobalBeatPosition(
-        globalBeatPosition(tempo_map, marginBefore(tempo_map, slide_out_arrival)));
+    const double crop_seconds = tempo_map.secondsAt(marginBefore(tempo_map, slide_out_arrival));
     CHECK(slide_out.settle_seconds == Catch::Approx(slide_out.seconds - crop_seconds));
     CHECK(slide_out.settle_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
     REQUIRE_FALSE(state.chart.notes.empty());
@@ -1951,8 +1950,7 @@ namespace
 // begins.
 [[nodiscard]] double marginStartSeconds(const TempoMap& tempo_map, const GridPosition position)
 {
-    return tempo_map.secondsAtGlobalBeatPosition(
-        globalBeatPosition(tempo_map, marginBefore(tempo_map, position)));
+    return tempo_map.secondsAt(marginBefore(tempo_map, position));
 }
 
 // THE SPAN NEVER OPENS A LIGHT: every lit stretch of the fretting hand starts at the onset of a

@@ -11,9 +11,9 @@ CaretTimeBounds caretTimeBounds(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
 {
     return CaretTimeBounds{
-        .seconds = secondsAtGridPosition(tempo_map, position),
-        .measure_start_seconds = tempo_map.secondsAtNote(position.measure, 1, {}),
-        .measure_end_seconds = tempo_map.secondsAtNote(position.measure + 1, 1, {}),
+        .seconds = tempo_map.secondsAt(position),
+        .measure_start_seconds = tempo_map.secondsAtBeat(position.measure, 1),
+        .measure_end_seconds = tempo_map.secondsAtBeat(position.measure + 1, 1),
     };
 }
 

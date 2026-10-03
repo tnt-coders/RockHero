@@ -28,6 +28,7 @@
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/tone/tone_schedule.h>
 #include <string>
 #include <string_view>
@@ -39,6 +40,8 @@ namespace rock_hero::common::audio
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 constexpr const char* g_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 constexpr const char* g_rejected_audio_type_name = "Rejected Audio";
@@ -1270,8 +1273,8 @@ TEST_CASE("Engine audio port mirrors tempo maps", "[audio][engine][integration]"
     const common::core::TempoMap tempo_map{
         {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
         {
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0},
+            anchor("1:1", 0),
+            anchor("2:1", 2000),
         },
     };
     audio.mirrorTempoMap(tempo_map);

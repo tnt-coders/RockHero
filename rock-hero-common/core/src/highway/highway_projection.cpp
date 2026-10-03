@@ -550,8 +550,7 @@ HighwayViewState makeHighwayViewState(
         std::string name = asciiUppered(section.name);
         state.sections.push_back(
             HighwaySectionViewState{
-                .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    globalBeatPosition(tempo_map, section.position)),
+                .seconds = tempo_map.secondsAt(section.position),
                 .name = std::move(name),
             });
     }
@@ -576,8 +575,7 @@ HighwayViewState makeHighwayViewState(
     {
         margin_rise_seconds.push_back(
             notes[index].start_seconds -
-            tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(
-                tempo_map, marginBefore(tempo_map, chart.notes[index].position))));
+            tempo_map.secondsAt(marginBefore(tempo_map, chart.notes[index].position)));
     }
     // Onset groups and their repeat classification, derived here once per chart revision. The
     // rules look backward through the whole note stream, so the renderer's visible window could

@@ -249,13 +249,4 @@ earlier collapses onto \p from; callers treat that as a refusal.
     const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
     const common::core::GridPosition& from, bool later);
 
-/*!
-\brief Converts an exact musical grid position to absolute song seconds.
-\param tempo_map Song tempo map defining the grid.
-\param position Musical position to convert.
-\return The position's absolute time in seconds.
-*/
-[[nodiscard]] double secondsAtGridPosition(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position);
-
 } // namespace rock_hero::editor::core

@@ -200,11 +200,6 @@ constexpr double g_tick_floor_tolerance_ticks = 1.0e-6;
 
 } // namespace
 
-GridPosition anchorPosition(const BeatAnchor& anchor) noexcept
-{
-    return GridPosition{.measure = anchor.measure, .beat = anchor.beat, .offset = {}};
-}
-
 // Splits the delta into whole beats (carried on the tempo map's global beat axis, which already
 // encodes every signature change) and a non-negative sub-beat remainder that becomes the offset.
 GridPosition advanceGridPosition(const TempoMap& tempo_map, GridPosition position, Fraction beats)
@@ -234,7 +229,7 @@ GridPosition advanceGridPosition(const TempoMap& tempo_map, GridPosition positio
 // postcondition every reader relies on: the result never stands later than the onset.
 GridPosition marginBefore(const TempoMap& tempo_map, const GridPosition onset)
 {
-    const double onset_beat_position = globalBeatPosition(tempo_map, onset);
+    const double onset_beat_position = tempo_map.beatPositionAt(onset);
     const double margin_beat_position = tempo_map.beatPositionAtSeconds(
         tempo_map.secondsAtGlobalBeatPosition(onset_beat_position) -
         g_minimum_sustain_distance_seconds);

@@ -107,7 +107,7 @@ struct SlideRamp
         }
         const bool slides_out = noteSlidesOut(connections, index);
 
-        const double onset_beat = globalBeatPosition(tempo_map, note.position);
+        const double onset_beat = tempo_map.beatPositionAt(note.position);
         double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
         int segment_start_fret = note.fret;
         for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
@@ -251,7 +251,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
-        const double start_beat = globalBeatPosition(tempo_map, shape.position);
+        const double start_beat = tempo_map.beatPositionAt(shape.position);
         // WHERE the span's one opening mark draws, TAKEN FROM THE WALK ([D2]; published as \ref
         // ChartShape::bracket_position). Every span an EVENT states carries its own FRONT; a
         // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
@@ -320,11 +320,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],
                 .strings = std::move(strings),
-                .bracket_seconds =
-                    bracket.has_value()
-                        ? std::optional<double>{tempo_map.secondsAtGlobalBeatPosition(
-                              globalBeatPosition(tempo_map, *bracket))}
-                        : std::nullopt,
+                .bracket_seconds = bracket.has_value()
+                                       ? std::optional<double>{tempo_map.secondsAt(*bracket)}
+                                       : std::nullopt,
             });
     }
 
@@ -337,7 +335,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
         const ChartNote& note = notes[note_index];
-        const double onset_beat = globalBeatPosition(tempo_map, note.position);
+        const double onset_beat = tempo_map.beatPositionAt(note.position);
         NoteViewState view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
         view.ring_end_seconds =
@@ -513,8 +511,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     for (std::size_t fhp_index = 0; fhp_index < chart.fret_hand_positions.size(); ++fhp_index)
     {
         const FretHandPosition& fhp = chart.fret_hand_positions[fhp_index];
-        const double arrival_seconds =
-            tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
+        const double arrival_seconds = tempo_map.secondsAt(fhp.position);
         double ramp_start_seconds = 0.0;
         bool unpitched_ramp = false;
         // The settle is the stretch of the glide past its rail's ink end: the rail is drawn to
@@ -530,8 +527,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         }
         else
         {
-            ramp_start_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                globalBeatPosition(tempo_map, marginBefore(tempo_map, fhp.position)));
+            ramp_start_seconds = tempo_map.secondsAt(marginBefore(tempo_map, fhp.position));
         }
         // A ramp never reaches back past the previous arrival: crowded transitions shorten
         // against it rather than overlapping it.

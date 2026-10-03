@@ -197,8 +197,7 @@ void ToneTrackView::paint(juce::Graphics& g)
             // cursor: the dragged region's edge follows the pointer, and its neighbor across the
             // shared boundary follows the same position.
             const auto seconds_at = [this](const common::core::GridPosition& grid) {
-                return common::core::TimePosition{m_tempo_map.secondsAtNote(
-                    grid.measure, grid.beat, grid.offset)};
+                return common::core::TimePosition{m_tempo_map.secondsAt(grid)};
             };
             if (m_drag->region_index == index)
             {
@@ -527,8 +526,7 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
         m_drag->preview_end = *snapped;
     }
 
-    const double guide_seconds =
-        m_tempo_map.secondsAtNote(snapped->measure, snapped->beat, snapped->offset);
+    const double guide_seconds = m_tempo_map.secondsAt(*snapped);
     const std::optional<float> guide_x = core::timelineXForPosition(
         common::core::TimePosition{guide_seconds},
         m_visible_timeline,
@@ -766,9 +764,7 @@ std::optional<float> ToneTrackView::gridAlignedX(common::core::TimePosition posi
 std::optional<float> ToneTrackView::xForGridPosition(
     const common::core::GridPosition& position) const
 {
-    return gridAlignedX(
-        common::core::TimePosition{m_tempo_map.secondsAtNote(
-            position.measure, position.beat, position.offset)});
+    return gridAlignedX(common::core::TimePosition{m_tempo_map.secondsAt(position)});
 }
 
 // Sets or clears the ghost boundary line, repainting only the narrow strips it moves between.

@@ -13,27 +13,6 @@
 namespace rock_hero::common::core
 {
 
-/*!
-\brief Fixed decimal precision of anchor seconds.
-
-Anchor seconds are the only absolute time a song stores, kept on a fixed three-decimal
-(millisecond) grid. This matches the Song Data Model note in docs/design/architecture.md.
-*/
-inline constexpr int g_anchor_seconds_decimals = 3;
-
-/*! \brief Steps per second of the anchor-seconds grid: 10 to the \ref g_anchor_seconds_decimals. */
-inline constexpr int g_anchor_seconds_grid_units = [] {
-    int units = 1;
-    for (int decimal = 0; decimal < g_anchor_seconds_decimals; ++decimal)
-    {
-        units *= 10;
-    }
-    return units;
-}();
-
-/*! \brief The smallest step an anchor's seconds can take: one grid unit (1 ms). */
-inline constexpr double g_anchor_seconds_step = 1.0 / g_anchor_seconds_grid_units;
-
 /*! \brief Stable failure reasons reported by tempo-map structural validation. */
 enum class TempoMapErrorCode : std::uint8_t
 {
@@ -55,19 +34,13 @@ enum class TempoMapErrorCode : std::uint8_t
     /*! \brief The first anchor is not at measure 1 beat 1. */
     FirstAnchorLate,
 
-    /*! \brief An anchor has a non-positive address or a negative or non-finite time. */
+    /*! \brief An anchor stands off a valid grid position or at a negative time. */
     InvalidAnchor,
 
-    /*! \brief An anchor's seconds are off the millisecond grid. */
-    AnchorOffSecondsGrid,
-
-    /*! \brief An anchor's beat exceeds the length of its measure. */
-    AnchorBeatOutsideMeasure,
-
-    /*! \brief Anchors are not strictly ascending in both beat and seconds. */
+    /*! \brief Anchors are not strictly ascending in both position and time. */
     UnorderedAnchors,
 
-    /*! \brief The terminal anchor is not on a downbeat. */
+    /*! \brief The terminal anchor is not on a downbeat with no sub-beat offset. */
     TerminalOffDownbeat,
 };
 
@@ -82,23 +55,13 @@ struct [[nodiscard]] TempoMapError
 };
 
 /*!
-\brief Rounds a time to the nearest millisecond-grid value an anchor can store.
-
-Halves round away from zero. A non-finite time stays non-finite, so the rules refuse it as an
-invalid anchor rather than a platform's integer conversion deciding what it becomes.
-
-\param seconds Time in seconds.
-\return The nearest value on the \ref g_anchor_seconds_decimals grid.
-*/
-[[nodiscard]] double nearestAnchorSeconds(double seconds) noexcept;
-
-/*!
 \brief Validates the structural tempo-map rules shared by editing and persistence.
 
 Checks the time signatures (at least one, the first at measure 1, strictly ordered, positive
 numerators, power-of-two denominators the tick lattice can hold) and the anchors (a start anchor at
-`1:1`, a terminal anchor on a downbeat, positive addresses inside their measures, finite
-non-negative seconds on the millisecond grid, strictly ascending in beat and seconds).
+`1:1`, a terminal anchor on a downbeat with no sub-beat offset, every anchor on a valid grid
+position (\ref isValidGridPosition) at a non-negative time, strictly ascending in position and
+time).
 
 \param tempo_map Tempo map to validate.
 \return Empty success, or the rule violation to report.

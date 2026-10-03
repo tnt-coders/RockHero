@@ -385,8 +385,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         }
         if (const RulerChip* const chip = chipAt(m_tempo_row.chips, g_tempo_row_y, point))
         {
-            m_listener->onTempoAnchorSelected(
-                common::core::anchorPosition(m_tempo_map.anchors()[chip->source_index]));
+            m_listener->onTempoAnchorSelected(m_tempo_map.anchors()[chip->source_index].position);
             return;
         }
         if (const RulerChip* const chip = chipAt(m_signature_row.chips, g_signature_row_y, point))
@@ -551,8 +550,7 @@ void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Poin
     const bool over_chip = chip != nullptr;
     if (over_chip)
     {
-        m_listener->onTempoAnchorSelected(
-            common::core::anchorPosition(m_tempo_map.anchors()[chip->source_index]));
+        m_listener->onTempoAnchorSelected(m_tempo_map.anchors()[chip->source_index].position);
     }
 
     juce::PopupMenu menu;
@@ -657,7 +655,7 @@ void TimelineRuler::refreshRulerGeometry()
         core::timelinePositionForX(static_cast<float>(m_view_x), m_timeline_range, m_content_width);
     const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
     const bool pinnable = view_left_time.has_value() && !anchors.empty() &&
-                          view_left_time->seconds >= anchors.front().seconds;
+                          view_left_time->seconds >= anchors.front().seconds();
     const std::optional<double> pinned_left_seconds =
         pinnable ? std::optional{view_left_time->seconds} : std::nullopt;
 
@@ -891,14 +889,14 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
     m_tempo_glyph_width = textWidth(noteGlyphFont(), quarterNoteGlyph()) + 1;
     m_tempo_row = placeChipRow(
         marking_count,
-        [&anchors](const std::size_t index) { return anchors[index].seconds; },
+        [&anchors](const std::size_t index) { return anchors[index].seconds(); },
         [this](const std::size_t index) {
             return "=" + juce::String{core::tempoSpanBpmText(m_tempo_map, index)};
         },
         m_tempo_glyph_width,
         pinned_left_seconds,
         first_index_where(marking_count, [this, &anchors](const std::size_t index) {
-            return m_selected_tempo_anchor == common::core::anchorPosition(anchors[index]);
+            return m_selected_tempo_anchor == anchors[index].position;
         }));
 
     const std::vector<common::core::TimeSignatureChange>& changes = m_tempo_map.timeSignatures();

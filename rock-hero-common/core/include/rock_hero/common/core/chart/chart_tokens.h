@@ -16,7 +16,7 @@ namespace rock_hero::common::core
 /*!
 \brief Parses a grid position token: `"<measure>:<beat>"` or `"<measure>:<beat>+<n>/<d>"`.
 
-The whole-beat form matches the tempo-map anchor grammar exactly; the fractional extension
+Every stored position and every tempo anchor is written in this grammar; the fractional form
 addresses exact sub-beat positions. Fractions must be proper (in (0, 1)) and reduced values are
 accepted in any equivalent spelling.
 

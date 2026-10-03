@@ -61,8 +61,12 @@ target_include_directories(rock_hero_common_audio_tests
 # Link the common audio module plus Catch2's generated main for headless and adapter tests.
 target_link_libraries(
     rock_hero_common_audio_tests
-    PRIVATE rock_hero::common::audio rock_hero::common::audio_testing rock_hero::build_policy
-            rock_hero::tracktion_engine rock_hero::common::audio_known_interfaces
+    PRIVATE rock_hero::common::audio
+            rock_hero::common::audio_testing
+            rock_hero::common::core_testing
+            rock_hero::build_policy
+            rock_hero::tracktion_engine
+            rock_hero::common::audio_known_interfaces
             Catch2::Catch2WithMain)
 
 # Point integration tests at the copied fixture instead of the source-tree file, and keep any

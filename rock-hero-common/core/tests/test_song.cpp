@@ -1,7 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <vector>
+
+using rock_hero::common::core::testing::anchor;
 
 namespace rock_hero::common::core
 {
@@ -96,8 +99,8 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
             TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
         },
         std::vector{
-            BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            BeatAnchor{.measure = 4, .beat = 1, .seconds = 5.5},
+            anchor("1:1", 0),
+            anchor("4:1", 5500),
         },
     };
     song.arrangements.push_back(

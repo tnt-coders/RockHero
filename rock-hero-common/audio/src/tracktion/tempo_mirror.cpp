@@ -1,7 +1,7 @@
 #include "tracktion/tempo_mirror.h"
 
-#include <algorithm>
 #include <cstddef>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -10,41 +10,19 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// Quarter notes per whole signature beat in a measure of the given denominator.
-[[nodiscard]] double quartersPerBeat(int denominator)
+// Quarter-note position of a grid position: the edit's beat unit is pinned to quarters, so every
+// address mirrors through the map's own whole-note axis, which a quarter is a quarter of.
+[[nodiscard]] double quarterPositionAt(
+    const core::TempoMap& tempo_map, const core::GridPosition& position)
 {
-    return denominator > 0 ? 4.0 / static_cast<double>(denominator) : 1.0;
+    return 4.0 * tempo_map.wholeNotePositionAt(position).toDouble();
 }
 
-// Cumulative quarter-note positions of measure starts, index 0 = measure 1. Rock Hero anchors and
-// signatures address signature beats; the edit's beat unit is pinned to quarters, so mirroring
-// converts every address through quarter-note positions.
-[[nodiscard]] std::vector<double> measureStartQuarters(
-    const core::TempoMap& tempo_map, int measure_count)
+// Quarter-note position of a measure's downbeat, where a time signature takes effect.
+[[nodiscard]] double downbeatQuarterPosition(const core::TempoMap& tempo_map, int measure)
 {
-    std::vector<double> starts;
-    starts.reserve(static_cast<std::size_t>(measure_count) + 1);
-    double quarters = 0.0;
-    for (int measure = 1; measure <= measure_count + 1; ++measure)
-    {
-        starts.push_back(quarters);
-        const core::TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
-        quarters +=
-            static_cast<double>(signature.numerator) * quartersPerBeat(signature.denominator);
-    }
-    return starts;
-}
-
-// Quarter-note position of a (measure, beat) grid address.
-[[nodiscard]] double quartersAtBeat(
-    const std::vector<double>& measure_starts, const core::TempoMap& tempo_map, int measure,
-    int beat)
-{
-    const auto measure_index = static_cast<std::size_t>(measure - 1);
-    const double start =
-        measure_index < measure_starts.size() ? measure_starts[measure_index] : 0.0;
-    const core::TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
-    return start + static_cast<double>(beat - 1) * quartersPerBeat(signature.denominator);
+    return quarterPositionAt(
+        tempo_map, core::GridPosition{.measure = measure, .beat = 1, .offset = {}});
 }
 
 } // namespace
@@ -57,13 +35,7 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
         return;
     }
 
-    // The table must cover every addressed measure: anchors plus signature changes, which may
-    // legally start past the final anchor.
     const std::vector<core::TimeSignatureChange>& signatures = tempo_map.timeSignatures();
-    const int last_addressed_measure =
-        std::max(anchors.back().measure, signatures.empty() ? 1 : signatures.back().measure);
-    const std::vector<double> measure_starts =
-        measureStartQuarters(tempo_map, last_addressed_measure);
 
     // One flat tempo step per anchor span: Rock Hero tempo is constant between anchors, and the
     // final span's tempo simply extends past the terminal anchor.
@@ -78,10 +50,9 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
     {
         const core::BeatAnchor& from = anchors[index];
         const core::BeatAnchor& to = anchors[index + 1];
-        const double from_quarters =
-            quartersAtBeat(measure_starts, tempo_map, from.measure, from.beat);
-        const double to_quarters = quartersAtBeat(measure_starts, tempo_map, to.measure, to.beat);
-        const double span_seconds = to.seconds - from.seconds;
+        const double from_quarters = quarterPositionAt(tempo_map, from.position);
+        const double to_quarters = quarterPositionAt(tempo_map, to.position);
+        const double span_seconds = to.seconds() - from.seconds();
         if (span_seconds <= 0.0 || to_quarters <= from_quarters)
         {
             continue;
@@ -129,7 +100,7 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
         if (tracktion::TimeSigSetting* const first_signature = sequence.getTimeSig(0))
         {
             first_signature->startBeatNumber = tracktion::BeatPosition::fromBeats(
-                quartersAtBeat(measure_starts, tempo_map, signatures.front().measure, 1));
+                downbeatQuarterPosition(tempo_map, signatures.front().measure));
             first_signature->numerator = signatures.front().numerator;
             first_signature->denominator = signatures.front().denominator;
         }
@@ -137,7 +108,7 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
         {
             const tracktion::TimeSigSetting::Ptr inserted = sequence.insertTimeSig(
                 tracktion::BeatPosition::fromBeats(
-                    quartersAtBeat(measure_starts, tempo_map, signatures[index].measure, 1)));
+                    downbeatQuarterPosition(tempo_map, signatures[index].measure)));
             if (inserted != nullptr)
             {
                 inserted->numerator = signatures[index].numerator;

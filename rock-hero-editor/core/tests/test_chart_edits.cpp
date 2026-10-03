@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
@@ -32,6 +33,8 @@ namespace rock_hero::editor::core
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
 
 // A 4/4 120 BPM default map: each measure is 2.0s, each beat 0.5s, matching the fixtures the
 // controller-level chart tests build. Long enough that the planners' terminal-anchor arithmetic
@@ -51,8 +54,8 @@ namespace
             common::core::TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 21, .beat = 1, .seconds = 31.0},
+            anchor("1:1", 0),
+            anchor("21:1", 31000),
         },
     };
 }
@@ -2113,8 +2116,8 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
             common::core::TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 12.0},
+            anchor("1:1", 0),
+            anchor("3:1", 12000),
         },
     };
     common::core::Chart chart;
@@ -2171,8 +2174,8 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
             common::core::TimeSignatureChange{.measure = 1, .numerator = 7, .denominator = 8},
         },
         std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 4, .beat = 1, .seconds = 21.0},
+            anchor("1:1", 0),
+            anchor("4:1", 21000),
         },
     };
     common::core::Chart chart;

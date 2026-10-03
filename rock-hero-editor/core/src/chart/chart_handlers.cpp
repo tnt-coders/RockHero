@@ -170,7 +170,7 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
         caret != nullptr && !caret->lane.has_value())
     {
         edit.caret = ChartCaretViewState{
-            .seconds = secondsAtGridPosition(session().song().tempo_map, caret->position),
+            .seconds = session().song().tempo_map.secondsAt(caret->position),
             .string = caret->string,
             .face = chartCaretFace(),
         };
@@ -442,8 +442,7 @@ void EditorController::Impl::moveCursorTo(const common::core::GridPosition posit
 {
     m_transport.seek(
         session().timeline().clamp(
-            common::core::TimePosition{secondsAtGridPosition(
-                session().song().tempo_map, position)}));
+            common::core::TimePosition{session().song().tempo_map.secondsAt(position)}));
     // Only the passive cursor remembers a column; while a caret is armed the caret's own position
     // IS the remembered one, and disarmChartMarker carries it across at the demotion. That is why a
     // dissolve seeks through here and demotes afterwards.
@@ -1523,8 +1522,8 @@ common::core::GridPosition EditorController::Impl::pausedCursorPosition(
         const std::optional<common::core::GridPosition>& column = passive->column;
         if (column.has_value() &&
             std::abs(
-                secondsAtGridPosition(session().song().tempo_map, *column) -
-                m_transport.position().seconds) <= g_cursor_column_tolerance_seconds)
+                session().song().tempo_map.secondsAt(*column) - m_transport.position().seconds) <=
+                g_cursor_column_tolerance_seconds)
         {
             return *column;
         }

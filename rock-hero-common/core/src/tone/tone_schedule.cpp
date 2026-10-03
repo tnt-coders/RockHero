@@ -26,10 +26,7 @@ std::vector<ToneSwitchRegion> makeToneSchedule(
         // The first region owns the lead-in: it extends back to the timeline origin because no
         // one-based grid position can address time before measure 1 (mirrors the editor's
         // display projection in tone_track_projection.cpp).
-        const double start_seconds =
-            index == 0 ? 0.0
-                       : tempo_map.secondsAtNote(
-                             region.start.measure, region.start.beat, region.start.offset);
+        const double start_seconds = index == 0 ? 0.0 : tempo_map.secondsAt(region.start);
 
         // A region ends where the next begins; the final span extends to the end of the loaded
         // content rather than to the tempo map's terminal, so the last tone plays out the audio.
@@ -37,8 +34,7 @@ std::vector<ToneSwitchRegion> makeToneSchedule(
         if (index + 1 < tone_track.regions.size())
         {
             const ToneRegion& next = tone_track.regions[index + 1];
-            end_seconds =
-                tempo_map.secondsAtNote(next.start.measure, next.start.beat, next.start.offset);
+            end_seconds = tempo_map.secondsAt(next.start);
         }
         else
         {

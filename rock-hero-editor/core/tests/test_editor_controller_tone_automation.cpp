@@ -1076,15 +1076,14 @@ TEST_CASE(
     CHECK(width_division_slot != placement_slot);
 
     // The published ghost lands on the placement slot, not the ÷width one: its seconds match the
-    // placement path's secondsAtNote exactly (2.5 s), never the ÷width slot's 2.0 s.
+    // placement path's TempoMap::secondsAt exactly (2.5 s), never the ÷width slot's 2.0 s.
     REQUIRE(editor.automation().insert_ghost.has_value());
     if (editor.automation().insert_ghost.has_value())
     {
         CHECK(editor.automation().insert_ghost->lane_index == 0);
         CHECK(
             editor.automation().insert_ghost->seconds ==
-            Catch::Approx(tempo_map.secondsAtNote(
-                placement_slot.measure, placement_slot.beat, placement_slot.offset)));
+            Catch::Approx(tempo_map.secondsAt(placement_slot)));
         CHECK(editor.automation().insert_ghost->seconds == Catch::Approx(2.5));
         CHECK(editor.automation().insert_ghost->seconds != Catch::Approx(2.0));
     }

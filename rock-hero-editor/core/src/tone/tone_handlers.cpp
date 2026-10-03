@@ -1376,8 +1376,8 @@ void EditorController::Impl::seekAndArmLaneCaret(
     // gating, clamping, marker demotion, and tone-follow every other seek gets (arming below
     // immediately supersedes the demotion while paused).
     runAction(
-        EditorAction::SeekTimeline{common::core::TimePosition{secondsAtGridPosition(
-            session().song().tempo_map, position)}});
+        EditorAction::SeekTimeline{common::core::TimePosition{session().song().tempo_map.secondsAt(
+            position)}});
     if (!m_transport.state().playing)
     {
         armLaneCaret(position, std::move(row));
@@ -1476,7 +1476,7 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
         for (std::size_t index = 0; index < points->size(); ++index)
         {
             const std::optional<float> point_x = laneXForSeconds(
-                secondsAtGridPosition(tempo_map, (*points)[index].position),
+                tempo_map.secondsAt((*points)[index].position),
                 event.geometry.visible_timeline,
                 event.geometry.content_width);
             if (!point_x.has_value())
@@ -1917,7 +1917,7 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
     // window edge — without this refusal it could plant a point the move verb would thereafter
     // refuse to touch (creatable but immovable).
     const common::core::TimeRange window = activeToneRegionWindow();
-    const double slot_seconds = secondsAtGridPosition(session().song().tempo_map, caret.position);
+    const double slot_seconds = session().song().tempo_map.secondsAt(caret.position);
     if (slot_seconds < window.start.seconds || slot_seconds >= window.end.seconds)
     {
         return std::nullopt;
@@ -2023,7 +2023,7 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
         // between the caret slot's neighboring points, like every point nudge.
         const bool later = direction == ChartStepDirection::Right;
         const common::core::GridPosition stepped = steppedNudgePosition(caret.position, later);
-        const double stepped_seconds = secondsAtGridPosition(session().song().tempo_map, stepped);
+        const double stepped_seconds = session().song().tempo_map.secondsAt(stepped);
         const bool direction_ok = later ? caret.position < stepped : stepped < caret.position;
         const auto next_neighbor =
             std::ranges::find_if(plan->points, [&](const common::core::ToneAutomationPoint& point) {
@@ -2197,7 +2197,7 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         return;
     }
     const common::core::TimeRange window = activeToneRegionWindow();
-    const double new_seconds = secondsAtGridPosition(session().song().tempo_map, new_position);
+    const double new_seconds = session().song().tempo_map.secondsAt(new_position);
     if (new_seconds < window.start.seconds || new_seconds >= window.end.seconds)
     {
         return;

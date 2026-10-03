@@ -7,7 +7,6 @@
 
 #include <expected>
 #include <filesystem>
-#include <optional>
 #include <rock_hero/common/core/package/song_package_error.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -35,35 +34,6 @@ inline constexpr std::string_view g_song_document_name{"song.json"};
 \return Empty success, or the format violation to report.
 */
 [[nodiscard]] std::expected<void, SongPackageError> validateTempoMap(const TempoMap& tempo_map);
-
-/*! \brief Parsed form of a `"<measure>:<beat>"` grid position token. */
-struct BeatPositionToken
-{
-    /*! \brief One-based measure on the song grid. */
-    int measure{1};
-
-    /*! \brief One-based beat within the measure. */
-    int beat{1};
-};
-
-/*!
-\brief Parses a `"<measure>:<beat>"` grid position token.
-
-The shared grid-position grammar restricted to whole beats, for tempo-map anchors, which pin beats
-rather than sub-beat positions: a `+` sub-beat suffix is rejected.
-
-\param text Token text from a song document.
-\return Parsed position, or empty when the token is malformed.
-*/
-[[nodiscard]] std::optional<BeatPositionToken> parseBeatPositionToken(const std::string& text);
-
-/*!
-\brief Formats a grid position as its `"<measure>:<beat>"` token.
-\param measure One-based measure on the song grid.
-\param beat One-based beat within the measure.
-\return Token text for a song document.
-*/
-[[nodiscard]] std::string formatBeatPositionToken(int measure, int beat);
 
 /*!
 \brief Validates the structural tone-track rules shared by package read and write.

@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -24,6 +25,9 @@ namespace rock_hero::common::core
 
 namespace
 {
+
+using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTimeMap;
 
 constexpr std::string_view g_lead_arrangement_id{"4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"};
 constexpr std::string_view g_tone_id{"9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d"};
@@ -846,21 +850,9 @@ TEST_CASE(
             },
         },
         std::vector{
-            BeatAnchor{
-                .measure = 1,
-                .beat = 1,
-                .seconds = 0.0,
-            },
-            BeatAnchor{
-                .measure = 3,
-                .beat = 1,
-                .seconds = 4.0,
-            },
-            BeatAnchor{
-                .measure = 13,
-                .beat = 1,
-                .seconds = 19.25,
-            },
+            anchor("1:1", 0),
+            anchor("3:1", 4000),
+            anchor("13:1", 19250),
         },
     };
 
@@ -1001,13 +993,21 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
         R"(
             "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "3:1", "seconds": 0.000 } ] },
 )",
-        // anchor seconds must already be on the persisted three-decimal grid.
+        // anchor seconds must be a whole number of milliseconds; the reader never rounds.
         R"(
             "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "3:1", "seconds": 4.0004 } ] },
 )",
-        // An anchor beat must fit inside its measure's active meter.
+        // An anchor must stand on a valid grid position: its beat inside its measure.
         R"(
             "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "1:5", "seconds": 2.000 } ] },
+)",
+        // The terminal anchor must be a downbeat with no sub-beat offset.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "2:1+1/2", "seconds": 4.000 } ] },
+)",
+        // anchor seconds must be finite: a literal past the double range parses as infinity.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "3:1", "seconds": 1e400 } ] },
 )",
     };
 
@@ -1023,6 +1023,93 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
         CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
         CHECK(read_song.error().message.find("tempoMap") != std::string::npos);
     }
+}
+
+// Verifies an anchor between two beats saves as its grid token with its whole milliseconds written
+// as three-decimal seconds, and loads back as the same anchor.
+TEST_CASE("Rock song package round-trips a sub-beat tempo anchor", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.tempo_map = commonTimeMap({
+        anchor("1:1", 0),
+        anchor("2:3+1/2", 3250),
+        anchor("3:1", 4000),
+    });
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const std::string song_document = readTextFile(package_directory / "song.json");
+    CHECK(
+        song_document.find(R"({ "position": "2:3+1/2", "seconds": 3.250 })") != std::string::npos);
+
+    const auto read_song = readSong(package_directory);
+    REQUIRE(read_song.has_value());
+    CHECK(read_song->tempo_map == song.tempo_map);
+}
+
+// Verifies an anchor time written as a JSON integer reads as whole milliseconds, and the
+// writer gives it back the three decimals every anchor time carries.
+TEST_CASE("Rock song package reads an integer anchor time", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writePackageDirectoryWithTempoMap(
+        package_directory,
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0 }, { "position": "2:1", "seconds": 2 } ] },
+)");
+
+    const auto read_song = readSong(package_directory);
+    REQUIRE(read_song.has_value());
+    CHECK(read_song->tempo_map.anchors().back() == anchor("2:1", 2000));
+
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
+    writeAudioFile(source_audio);
+    Song song = makeSong(source_audio);
+    song.tempo_map = read_song->tempo_map;
+    const std::filesystem::path rewritten_directory = temporary_directory.path() / "rewritten";
+    REQUIRE(writeRockSongPackageDirectory(rewritten_directory, song).has_value());
+    CHECK(
+        readTextFile(rewritten_directory / "song.json")
+            .find(R"({ "position": "2:1", "seconds": 2.000 })") != std::string::npos);
+}
+
+// Verifies the reader refuses an anchor time between two milliseconds instead of rounding it, and
+// a time past the double range (which parses as infinity) or past the stored integer's range
+// before asking for its millisecond, and says which.
+TEST_CASE(
+    "Rock song package refuses an anchor time no millisecond holds", "[core][rock-song-package]")
+{
+    const auto refusal_for = [](const std::string& seconds_text) {
+        const TemporaryRockSongPackageDirectory temporary_directory;
+        const std::filesystem::path package_directory = temporary_directory.path() / "package";
+        writePackageDirectoryWithTempoMap(
+            package_directory,
+            R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "3:1", "seconds": )" +
+                seconds_text + R"( } ] },
+)");
+        const auto read_song = readSong(package_directory);
+        REQUIRE_FALSE(read_song.has_value());
+        CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
+        return read_song.has_value() ? std::string{} : read_song.error().message;
+    };
+
+    CHECK(
+        refusal_for("4.0004").find(
+            "tempoMap.anchors seconds must be a whole number of milliseconds") !=
+        std::string::npos);
+    CHECK(
+        refusal_for("1e400").find("tempoMap.anchors seconds must be a finite number") !=
+        std::string::npos);
+    CHECK(
+        refusal_for("1e300").find("tempoMap.anchors: anchor time is out of range") !=
+        std::string::npos);
 }
 
 // Verifies authored tone regions persist as tone changes and load back with the same starts and

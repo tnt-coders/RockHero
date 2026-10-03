@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
@@ -15,6 +16,8 @@ namespace rock_hero::common::core
 namespace
 {
 
+using rock_hero::common::core::testing::anchor;
+
 // Measures 1-2 are 4/4 (quarter-note beats), measure 3 onward is 7/8 (eighth-note beats): the
 // signature change exercises both the beats-per-measure carry and the note-value-to-beats
 // conversion. Anchors only pin absolute time, which grid arithmetic never touches.
@@ -23,8 +26,7 @@ namespace
     return TempoMap{
         {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
          TimeSignatureChange{.measure = 3, .numerator = 7, .denominator = 8}},
-        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 6, .beat = 1, .seconds = 20.0}},
+        {anchor("1:1", 0), anchor("6:1", 20000)},
     };
 }
 
@@ -34,8 +36,8 @@ namespace
 {
     return TempoMap{
         {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 5, .beat = 1, .seconds = 16.0 * 60.0 / quarter_note_bpm}},
+        {anchor("1:1", 0),
+         anchor("5:1", nearestAnchorMilliseconds(16.0 * 60.0 / quarter_note_bpm))},
     };
 }
 
@@ -43,8 +45,7 @@ namespace
 [[nodiscard]] double secondsBetween(
     const TempoMap& tempo_map, const GridPosition& from, const GridPosition& to)
 {
-    return tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, to)) -
-           tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, from));
+    return tempo_map.secondsAt(to) - tempo_map.secondsAt(from);
 }
 
 } // namespace
@@ -83,10 +84,7 @@ TEST_CASE("The minimum sustain distance honours a tempo anchor inside it", "[cor
 {
     const TempoMap map{
         {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 1, .beat = 4, .seconds = 3.0},
-         BeatAnchor{.measure = 2, .beat = 1, .seconds = 3.025},
-         BeatAnchor{.measure = 5, .beat = 1, .seconds = 7.0}},
+        {anchor("1:1", 0), anchor("1:4", 3000), anchor("2:1", 3025), anchor("5:1", 7000)},
     };
     const GridPosition onset{.measure = 2, .beat = 1, .offset = {}};
 
@@ -229,15 +227,6 @@ TEST_CASE("Sustain endpoints resolve through the tempo map", "[core][chart]")
 
     note.sustain = Fraction{};
     CHECK(sustainEndPosition(map, note) == note.position);
-}
-
-// Verifies an anchor addresses its beat as a grid position with no offset.
-TEST_CASE("Tempo anchors address their beat as a grid position", "[core][chart]")
-{
-    const GridPosition position =
-        anchorPosition(BeatAnchor{.measure = 3, .beat = 2, .seconds = 4.5});
-
-    CHECK(position == GridPosition{.measure = 3, .beat = 2, .offset = {}});
 }
 
 // The 1/8 grid in 4/4 steps every half beat; positions snap to the nearest line and exact ties

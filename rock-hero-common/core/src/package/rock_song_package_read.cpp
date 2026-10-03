@@ -7,6 +7,7 @@
 #include <cassert>
 #include <charconv>
 #include <cmath>
+#include <compare>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -372,21 +373,46 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto position = parseBeatPositionToken(*position_text);
+        const auto position = parseGridPositionToken(*position_text);
         if (!position.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                R"(tempoMap.anchors position must be an on-beat token such as "188:1")",
+                R"(tempoMap.anchors position must be a grid token such as "188:1" or "188:3+1/2")",
             }};
         }
 
-        anchors.push_back(
-            BeatAnchor{
-                .measure = position->measure,
-                .beat = position->beat,
-                .seconds = *seconds,
-            });
+        if (!std::isfinite(*seconds))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors seconds must be a finite number",
+            }};
+        }
+        if (!isRepresentableAnchorTime(*seconds))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors: anchor time is out of range",
+            }};
+        }
+
+        // Refused rather than rounded: the stored unit is the whole millisecond, and the check is
+        // exact because the JSON number parse and the accessor's division are both correctly
+        // rounded, so a three-decimal literal reads back as the very double the accessor yields.
+        const BeatAnchor anchor{
+            .position = *position,
+            .milliseconds = nearestAnchorMilliseconds(*seconds),
+        };
+        if (std::is_neq(anchor.seconds() <=> *seconds))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors seconds must be a whole number of milliseconds",
+            }};
+        }
+
+        anchors.push_back(anchor);
     }
 
     return anchors;

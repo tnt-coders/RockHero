@@ -1,8 +1,8 @@
 #include "timeline/tempo_map_edits.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 
 namespace rock_hero::editor::core
@@ -11,20 +11,21 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// A 4/4 map whose one span runs `measures` measures at `quarter_bpm`, its end rounded onto the
-// millisecond grid exactly as a stored map holds it.
+using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTimeMap;
+
+// A 4/4 map whose one span runs `measures` measures at `quarter_bpm`, its end rounded to a whole
+// millisecond exactly as a stored map holds it.
 [[nodiscard]] common::core::TempoMap oneSpanAt(double quarter_bpm, int measures)
 {
-    return common::core::TempoMap{
-        {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-        {common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         common::core::BeatAnchor{
-             .measure = measures + 1,
-             .beat = 1,
-             .seconds = common::core::nearestAnchorSeconds(
-                 static_cast<double>(measures) * 4.0 * 60.0 / quarter_bpm),
-         }}
-    };
+    return commonTimeMap({
+        anchor("1:1", 0),
+        common::core::BeatAnchor{
+            .position = {.measure = measures + 1, .beat = 1, .offset = {}},
+            .milliseconds = common::core::nearestAnchorMilliseconds(
+                static_cast<double>(measures) * 4.0 * 60.0 / quarter_bpm),
+        },
+    });
 }
 
 } // namespace
@@ -58,8 +59,7 @@ TEST_CASE("An inserted anchor's half can print the parent's stored error", "[edi
 {
     const common::core::TempoMap parent{
         {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-        {common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         common::core::BeatAnchor{.measure = 5, .beat = 1, .seconds = 7.219}}
+        {anchor("1:1", 0), anchor("5:1", 7219)}
     };
     REQUIRE(tempoSpanBpmText(parent, 0) == "133");
 
