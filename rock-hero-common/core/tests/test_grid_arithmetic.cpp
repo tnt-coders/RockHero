@@ -230,6 +230,15 @@ TEST_CASE("Sustain endpoints resolve through the tempo map", "[core][chart]")
     CHECK(sustainEndPosition(map, note) == note.position);
 }
 
+// Verifies an anchor addresses its beat as a grid position with no offset.
+TEST_CASE("Tempo anchors address their beat as a grid position", "[core][chart]")
+{
+    const GridPosition position =
+        anchorPosition(BeatAnchor{.measure = 3, .beat = 2, .seconds = 4.5});
+
+    CHECK(position == GridPosition{.measure = 3, .beat = 2, .offset = {}});
+}
+
 // The 1/8 grid in 4/4 steps every half beat; positions snap to the nearest line and exact ties
 // resolve to the earlier line, matching the editor timeline's snap rule.
 TEST_CASE("Grid snapping picks the nearest note-value line", "[core][chart]")

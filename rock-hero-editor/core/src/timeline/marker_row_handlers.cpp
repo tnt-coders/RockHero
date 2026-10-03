@@ -6,6 +6,7 @@
 #include <iterator>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
@@ -42,12 +43,7 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
                 session().song().tempo_map.anchors();
             for (std::size_t index = 0; index + 1 < anchors.size(); ++index)
             {
-                starts.push_back(
-                    common::core::GridPosition{
-                        .measure = anchors[index].measure,
-                        .beat = anchors[index].beat,
-                        .offset = {},
-                    });
+                starts.push_back(common::core::anchorPosition(anchors[index]));
             }
             break;
         }

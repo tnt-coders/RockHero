@@ -199,6 +199,11 @@ constexpr double g_tick_floor_tolerance_ticks = 1.0e-6;
 
 } // namespace
 
+GridPosition anchorPosition(const BeatAnchor& anchor) noexcept
+{
+    return GridPosition{.measure = anchor.measure, .beat = anchor.beat, .offset = {}};
+}
+
 // Splits the delta into whole beats (carried on the tempo map's global beat axis, which already
 // encodes every signature change) and a non-negative sub-beat remainder that becomes the offset.
 GridPosition advanceGridPosition(const TempoMap& tempo_map, GridPosition position, Fraction beats)

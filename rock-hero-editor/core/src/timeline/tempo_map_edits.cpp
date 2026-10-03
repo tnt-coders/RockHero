@@ -23,7 +23,8 @@ namespace
     return std::unexpected{TempoMapEditError{.code = code, .message = std::move(message)}};
 }
 
-// Index of the anchor standing exactly at the beat, if any.
+// Index of the anchor standing exactly at the beat, if any — the terminal included, which the move
+// and delete verbs address (a span lookup is TempoMap::spanStartingAt).
 [[nodiscard]] std::optional<std::size_t> anchorIndexAt(
     const common::core::TempoMap& tempo_map, int measure, int beat)
 {
@@ -97,12 +98,12 @@ TempoMapEditResult setTempoSpanBpm(
         return refuse(TempoMapEditErrorCode::InvalidBpm, "a tempo must be a positive number");
     }
 
-    const std::optional<std::size_t> index = anchorIndexAt(tempo_map, measure, beat);
-    if (!index.has_value() || *index + 1 >= tempo_map.anchors().size())
+    const std::optional<std::size_t> found = tempo_map.spanStartingAt(measure, beat);
+    if (!found.has_value())
     {
         return refuse(TempoMapEditErrorCode::NoAnchorAtBeat, "no tempo span starts at that beat");
     }
-    const std::size_t span = *index;
+    const std::size_t span = *found;
 
     std::vector<common::core::BeatAnchor> anchors = tempo_map.anchors();
     const double span_end = common::core::nearestAnchorSeconds(

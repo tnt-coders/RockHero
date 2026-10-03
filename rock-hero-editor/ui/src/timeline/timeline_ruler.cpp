@@ -10,7 +10,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <utility>
 #include <vector>
@@ -155,6 +157,12 @@ private:
 [[nodiscard]] juce::String quarterNoteGlyph()
 {
     return juce::String::fromUTF8("\xE2\x99\xA9");
+}
+
+// Whether a point lies in a chip row's band, where its chips are drawn.
+[[nodiscard]] bool chipRowContains(const int row_y, const juce::Point<int> point) noexcept
+{
+    return point.y >= row_y && point.y < row_y + g_chip_height;
 }
 
 } // namespace
@@ -335,9 +343,9 @@ void TimelineRuler::setMarkerEditsEnabled(const bool marker_edits_enabled)
 // that a seek would otherwise trigger. While the marker plane is CLOSED there is no selection to
 // make, so a chip column behaves like every other ruler column and seeks — swallowing the press
 // would make the chips dead zones on a surface whose whole job is placing the cursor. A right-click
-// anywhere opens the section menu, since the ruler is the sections' only surface and carries no
-// competing menu. Each listener call returns at once: it republishes the rows the chip lives in, so
-// nothing may be read through it afterwards.
+// on the tempo row opens the tempo menu, and anywhere else the section menu, since the ruler is the
+// sections' only surface. Each listener call returns at once: it republishes the rows the chip
+// lives in, so nothing may be read through it afterwards.
 void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 {
     if (!m_project_loaded || m_content_width <= 0)
@@ -354,6 +362,11 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     // belongs to an actual right press on every platform.
     if (event.mods.isPopupMenu() && !event.mods.isLeftButtonDown())
     {
+        if (chipRowContains(g_tempo_row_y, point))
+        {
+            showTempoContextMenu(chipAt(m_tempo_row.chips, g_tempo_row_y, point), event.position);
+            return;
+        }
         showSectionContextMenu(section_chip, event.position);
         return;
     }
@@ -371,11 +384,8 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         }
         if (const RulerChip* const chip = chipAt(m_tempo_row.chips, g_tempo_row_y, point))
         {
-            const common::core::BeatAnchor& anchor = m_tempo_map.anchors()[chip->source_index];
             m_listener->onTempoAnchorSelected(
-                common::core::GridPosition{
-                    .measure = anchor.measure, .beat = anchor.beat, .offset = {}
-                });
+                common::core::anchorPosition(m_tempo_map.anchors()[chip->source_index]));
             return;
         }
         if (const RulerChip* const chip = chipAt(m_signature_row.chips, g_signature_row_y, point))
@@ -399,25 +409,22 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     }
 }
 
-// Opens the rename prompt for a double-clicked chip, the same shortcut the tone strip's regions
-// carry. The first click of the double already selected it, so the prompt names what is outlined.
-// Nothing opens while the marker plane is closed: a prompt is a stronger promise than the menu row
-// it mirrors, and that row is disabled there.
+// Opens the prompt for a double-clicked section or tempo chip — the selection's restate verb, the
+// same shortcut the tone strip's regions carry. The first click of the double already selected the
+// chip, so the core publishes the prompt for what is outlined (a section's rename, a tempo span's
+// tempo) and the ruler decides nothing about it. Nothing opens while the marker plane is closed: a
+// prompt is a stronger promise than the menu row it mirrors, and that row is disabled there.
 void TimelineRuler::mouseDoubleClick(const juce::MouseEvent& event)
 {
     if (!m_project_loaded || m_listener == nullptr || !m_marker_edits_enabled)
     {
         return;
     }
-    if (const RulerChip* const chip =
-            chipAt(m_section_row.chips, g_section_row_y, event.getPosition());
-        chip != nullptr)
+    const juce::Point<int> point = event.getPosition();
+    if (chipAt(m_section_row.chips, g_section_row_y, point) != nullptr ||
+        chipAt(m_tempo_row.chips, g_tempo_row_y, point) != nullptr)
     {
-        // Copied out first, for the reason showSectionContextMenu states: the intent republishes
-        // the section list and rebuilds the row this chip lives in.
-        const common::core::GridPosition position = m_section_source[chip->source_index].position;
-        const juce::String name = m_section_source[chip->source_index].name;
-        m_listener->onSongSectionRenamePromptRequested(position, name);
+        m_listener->onSelectionRestateRequested();
     }
 }
 
@@ -432,7 +439,7 @@ void TimelineRuler::setListener(Listener& listener)
 const TimelineRuler::RulerChip* TimelineRuler::chipAt(
     const std::vector<RulerChip>& chips, const int row_y, const juce::Point<int> point)
 {
-    if (point.y < row_y || point.y >= row_y + g_chip_height)
+    if (!chipRowContains(row_y, point))
     {
         return nullptr;
     }
@@ -446,11 +453,27 @@ const TimelineRuler::RulerChip* TimelineRuler::chipAt(
     return nullptr;
 }
 
+// The click's own grid position, read at the tick lattice so a click just short of a bar line or a
+// beat is never rounded into the next one; each kind's insert verb floors it to where that kind can
+// stand (a section to the measure the click is IN, a tempo anchor to its beat).
+std::optional<common::core::GridPosition> TimelineRuler::clickedGridPosition(
+    const juce::Point<float> click) const
+{
+    const std::optional<common::core::TimePosition> clicked = core::timelinePositionForX(
+        static_cast<float>(m_view_x) + click.x, m_timeline_range, m_content_width);
+    if (!clicked.has_value())
+    {
+        return std::nullopt;
+    }
+    return core::nearestTempoGridPosition(
+        m_tempo_map, common::core::g_tick_quantum_note_value, *clicked);
+}
+
 // Opens the ruler's section menu. The add verb is offered wherever the click resolves to a grid
 // position, because it is the one that needs discovering, and it inserts at the CLICK's measure:
 // a pointer menu inserts where you pointed, and the marker-rule form is the keyboard chord's. The
 // rest act on the chip the click landed on, which the menu selects first so the verbs and the
-// outline agree about their subject.
+// outline agree about their subject; Rename is the selection's restate verb, as a double-click is.
 void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<float> click)
 {
     if (m_listener == nullptr)
@@ -458,35 +481,22 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<fl
         return;
     }
 
-    // The click's grid position, through the same placement seam a left click seeks by.
-    const float timeline_x = static_cast<float>(m_view_x) + click.x;
-    const std::optional<common::core::TimePosition> clicked = core::timelineCursorPlacementTime(
-        m_tempo_map, m_placement_quantum, m_timeline_range, m_content_width, timeline_x);
-    std::optional<common::core::GridPosition> insert_position;
-    if (clicked.has_value())
-    {
-        insert_position =
-            core::nearestTempoGridPosition(m_tempo_map, m_placement_quantum, *clicked);
-    }
+    const std::optional<common::core::GridPosition> insert_position = clickedGridPosition(click);
 
-    // Copy the chip's section out BEFORE selecting it. The selection runs a full controller
-    // dispatch that republishes the section list, and setSectionLabels rebuilds the chip row the
-    // pointer points into — so reading through `chip` after this call is a use-after-free that
-    // usually looks like it works, because the rebuilt vector reuses the same buffer.
+    // Read the chip's section BEFORE selecting it. The selection runs a full controller dispatch
+    // that republishes the section list, and setSectionLabels rebuilds the chip row the pointer
+    // points into — so reading through `chip` after this call is a use-after-free that usually
+    // looks like it works, because the rebuilt vector reuses the same buffer.
     const bool over_chip = chip != nullptr;
-    common::core::GridPosition position{};
-    juce::String name;
     if (over_chip)
     {
-        position = m_section_source[chip->source_index].position;
-        name = m_section_source[chip->source_index].name;
-        m_listener->onSongSectionSelected(position);
+        m_listener->onSongSectionSelected(m_section_source[chip->source_index].position);
     }
 
     // Every row here is a marker verb — a section's rename included, unlike a tone DOCUMENT's — so
     // all five are disabled while the marker plane is closed rather than left to click and do
-    // nothing. The flag is the core's own availability answer as published; the ruler adds no
-    // second gate of its own.
+    // nothing, and enabled otherwise, the core refusing what it must. The flag is the core's own
+    // availability answer as published; the ruler adds no second gate of its own.
     juce::PopupMenu menu;
     if (insert_position.has_value())
     {
@@ -503,22 +513,71 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<fl
         // Force a cancel result if the ruler is deleted while the menu is open, so the callback
         // never reaches a dangling listener (JUCE reports result 0 for a deleted watch target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, position, owned_name = std::move(name), insert_position](int result) {
+        [this, insert_position](int result) {
             if (result == 1 && insert_position.has_value())
             {
                 m_listener->onSongSectionInsertPromptRequested(*insert_position);
             }
             else if (result == 2)
             {
-                m_listener->onSongSectionRenamePromptRequested(position, owned_name);
+                m_listener->onSelectionRestateRequested();
             }
             else if (result == 3 || result == 4)
             {
-                m_listener->onSongSectionMoveRequested(result == 4);
+                m_listener->onSelectionMoveRequested(result == 4);
             }
             else if (result == 5)
             {
-                m_listener->onSongSectionDeleteRequested();
+                m_listener->onSelectionDeleteRequested();
+            }
+        });
+}
+
+// Opens the tempo row's menu, the section menu's shape and policy: the insert at the clicked beat,
+// plus Set Tempo and Delete on the chip the click landed on, which the menu selects first. Set
+// Tempo is the selection's restate verb, Delete the Delete key's.
+void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Point<float> click)
+{
+    if (m_listener == nullptr)
+    {
+        return;
+    }
+
+    const std::optional<common::core::GridPosition> insert_position = clickedGridPosition(click);
+
+    // Selected only after everything is read off the row, for the reason showSectionContextMenu
+    // states: the selection republishes the chip row the pointer points into.
+    const bool over_chip = chip != nullptr;
+    if (over_chip)
+    {
+        m_listener->onTempoAnchorSelected(
+            common::core::anchorPosition(m_tempo_map.anchors()[chip->source_index]));
+    }
+
+    juce::PopupMenu menu;
+    if (insert_position.has_value())
+    {
+        menu.addItem(1, "Add Tempo Anchor", m_marker_edits_enabled, false);
+    }
+    if (over_chip)
+    {
+        menu.addItem(2, "Set Tempo...", m_marker_edits_enabled, false);
+        menu.addItem(3, "Delete Tempo Anchor", m_marker_edits_enabled, false);
+    }
+    menu.showMenuAsync(
+        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
+        [this, insert_position](int result) {
+            if (result == 1 && insert_position.has_value())
+            {
+                m_listener->onTempoAnchorInsertRequested(*insert_position);
+            }
+            else if (result == 2)
+            {
+                m_listener->onSelectionRestateRequested();
+            }
+            else if (result == 3)
+            {
+                m_listener->onSelectionDeleteRequested();
             }
         });
 }
@@ -794,7 +853,7 @@ TimelineRuler::ChipRow TimelineRuler::placeChipRow(
 }
 
 // Rebuilds the three chip rows from the section list and the tempo map. Tempo markings
-// ("♩=120.00") split into an enlarged quarter-note glyph and chip-size digits, drawn in their own
+// ("♩=137") split into an enlarged quarter-note glyph and chip-size digits, drawn in their own
 // fonts inside one chip because one text draw cannot mix fonts; only the glyph is enlarged, so
 // the equals sign rides with the digits. The caller owns the pin gate, keeping the chip rows and
 // the measure row pinning in lockstep.
@@ -824,25 +883,21 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
             return m_section_source[index].selected;
         }));
 
-    // The terminal anchor only ends the last span, so it gets no marking of its own.
+    // The terminal anchor only ends the last span, so it gets no marking of its own; marking i is
+    // span i, printed as the tempo prompt prefills it.
     const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
     const std::size_t marking_count = anchors.empty() ? 0 : anchors.size() - 1;
     m_tempo_glyph_width = textWidth(noteGlyphFont(), quarterNoteGlyph()) + 1;
     m_tempo_row = placeChipRow(
         marking_count,
         [&anchors](const std::size_t index) { return anchors[index].seconds; },
-        [this, &anchors](const std::size_t index) {
-            return "=" +
-                   juce::String{m_tempo_map.quarterNoteBpmAtSeconds(anchors[index].seconds), 2};
+        [this](const std::size_t index) {
+            return "=" + juce::String{core::tempoSpanBpmText(m_tempo_map, index)};
         },
         m_tempo_glyph_width,
         pinned_left_seconds,
         first_index_where(marking_count, [this, &anchors](const std::size_t index) {
-            return m_selected_tempo_anchor == common::core::GridPosition{
-                                                  .measure = anchors[index].measure,
-                                                  .beat = anchors[index].beat,
-                                                  .offset = {},
-                                              };
+            return m_selected_tempo_anchor == common::core::anchorPosition(anchors[index]);
         }));
 
     const std::vector<common::core::TimeSignatureChange>& changes = m_tempo_map.timeSignatures();

@@ -215,6 +215,14 @@ on that string.
     const TempoMap& tempo_map);
 
 /*!
+\brief Returns the beat an anchor pins as a grid position, the address its selection and its
+edits name it by.
+\param anchor Anchor to address.
+\return The anchor's measure and beat with no offset.
+*/
+[[nodiscard]] GridPosition anchorPosition(const BeatAnchor& anchor) noexcept;
+
+/*!
 \brief Converts a grid position onto the tempo map's fractional global-beat axis.
 
 The whole-beat index of the position's (measure, beat) plus its sub-beat offset. This is the one

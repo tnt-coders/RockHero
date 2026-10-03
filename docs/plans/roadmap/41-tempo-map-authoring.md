@@ -49,8 +49,8 @@ increase in position and seconds.
 ## Current state (verified 2026-10-02)
 
 - **Model**: `rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map.h`
-  (`BeatAnchor`, `TimeSignatureChange`, `TempoMap`, `quarterNoteBpmAtSeconds`,
-  `TempoMap::defaultMap`).
+  (`BeatAnchor`, `TimeSignatureChange`, `TempoMap`, `TempoMap::defaultMap`; Phase 1 added
+  `spanQuarterLength` and `terminalCovering`, Phase 3 deleted `quarterNoteBpmAtSeconds`).
 - **Validation**: `validateTempoMap` is package-private
   (`rock-hero-common/core/src/package/rock_song_package_format.h:45`), called by read
   (`rock_song_package_read.cpp:420`) and write (`rock_song_package_write.cpp:581`). The tone
@@ -72,7 +72,8 @@ increase in position and seconds.
   so **a tempo edit without Phase 2's resync would play automation at the old times and give
   plugins the old tempo**. The 2026-07-06 claim "tempo-map edits require no engine change" was
   made false by tone automation.
-- **Chip text**: `timeline_ruler.cpp:834-837` prints `quarterNoteBpmAtSeconds` to two decimals.
+- **Chip text**: `timeline_ruler.cpp:834-837` printed `quarterNoteBpmAtSeconds` to two decimals
+  (Phase 3 replaced it with `tempoSpanBpmText`).
 - **Zoom** reaches the core through `onTimelineZoomChanged(pixels_per_second)`
   (`editor_view.cpp:576`, `editor_controller.cpp:1574`).
 - **Undo runs**: the chart's `Alt`+arrow moves already coalesce a run of presses on one selection

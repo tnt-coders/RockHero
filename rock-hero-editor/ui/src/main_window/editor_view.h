@@ -486,20 +486,25 @@ private:
     void onTimeSignatureSelected(int measure) override;
 
     // TimelineRuler::Listener implementation.
-    void onSongSectionRenamePromptRequested(
-        common::core::GridPosition position, juce::String current_name) override;
-
-    // TimelineRuler::Listener implementation.
     void onSongSectionInsertPromptRequested(common::core::GridPosition position) override;
 
     // TimelineRuler::Listener implementation.
-    void onSongSectionDeleteRequested() override;
+    void onTempoAnchorInsertRequested(common::core::GridPosition position) override;
+
+    // TimelineRuler::Listener implementation; also Enter's perform.
+    void onSelectionRestateRequested() override;
 
     // TimelineRuler::Listener implementation.
-    void onSongSectionMoveRequested(bool later) override;
+    void onSelectionDeleteRequested() override;
+
+    // TimelineRuler::Listener implementation.
+    void onSelectionMoveRequested(bool later) override;
 
     // Opens the rename prompt the core's published rename verb names.
     void renameSection(const core::RenameSectionTarget& target);
+
+    // Opens the tempo prompt the core's published tempo verb names.
+    void setTempo(const core::SetTempoTarget& target);
 
     // ToneTrackView::Listener implementation.
     void onToneRegionSelected(std::string region_id) override;

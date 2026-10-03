@@ -87,9 +87,9 @@ public:
     /*!
     \brief Listener for the chip intents the ruler's grid header raises.
 
-    An interface rather than more callback members because the chips raise seven distinct intents,
-    two of which need a prompt the ruler must not own; the tone strip's listener has the same
-    shape for the same reason.
+    An interface rather than more callback members because the chips and the menus raise many
+    distinct intents, some of which need a prompt the ruler must not own; the tone strip's listener
+    has the same shape for the same reason.
     */
     class Listener
     {
@@ -116,14 +116,6 @@ public:
         virtual void onTimeSignatureSelected(int measure) = 0;
 
         /*!
-        \brief Called when a chip double-click or the menu's Rename asks for the rename prompt.
-        \param position Position of the section being renamed.
-        \param current_name Current section name, used to pre-fill the prompt.
-        */
-        virtual void onSongSectionRenamePromptRequested(
-            common::core::GridPosition position, juce::String current_name) = 0;
-
-        /*!
         \brief Called when the ruler menu asks to add a section at the clicked measure.
 
         The listener owns the prompt: a section needs a name, and the ruler must not raise one. A
@@ -134,14 +126,30 @@ public:
         */
         virtual void onSongSectionInsertPromptRequested(common::core::GridPosition position) = 0;
 
-        /*! \brief Called when the ruler menu asks to delete the selected section. */
-        virtual void onSongSectionDeleteRequested() = 0;
+        /*!
+        \brief Called when the tempo row's menu asks to add a tempo anchor at the clicked beat.
+        \param position Grid position the menu was opened over; the verb floors it to its beat.
+        */
+        virtual void onTempoAnchorInsertRequested(common::core::GridPosition position) = 0;
 
         /*!
-        \brief Called when the ruler menu asks to move the selected section one measure.
+        \brief Called when a chip double-click, the section menu's Rename or the tempo menu's Set
+        Tempo asks to restate the chip the ruler has just selected.
+
+        The listener opens whatever the core publishes as the selection's restate verb, so the
+        ruler decides nothing about what the prompt is.
+        */
+        virtual void onSelectionRestateRequested() = 0;
+
+        /*! \brief Called when a ruler menu asks to delete the marker it has just selected. */
+        virtual void onSelectionDeleteRequested() = 0;
+
+        /*!
+        \brief Called when the section menu asks to move the section it has just selected one
+        measure.
         \param later True to move a measure later, false to move a measure earlier.
         */
-        virtual void onSongSectionMoveRequested(bool later) = 0;
+        virtual void onSelectionMoveRequested(bool later) = 0;
 
     protected:
         /*! \brief Creates the listener interface. */
@@ -210,8 +218,8 @@ public:
 
     The core's availability answer as published in \ref core::EditorViewState::marker_edits_enabled;
     the ruler derives nothing of its own from it and never reads the transport to decide it. While
-    false a chip click falls through to cursor placement and seeks like any other ruler column, the
-    double-click rename does not open, and every section-menu row is disabled.
+    false a chip click falls through to cursor placement and seeks like any other ruler column, a
+    chip double-click opens no prompt, and every row of the section and tempo menus is disabled.
 
     \param marker_edits_enabled Published marker-plane availability.
     */
@@ -290,7 +298,7 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Opens the rename prompt for a double-clicked section chip.
+    \brief Asks for the selection's restate on a double-clicked section or tempo chip.
     \param event JUCE mouse event relative to this ruler.
     */
     void mouseDoubleClick(const juce::MouseEvent& event) override;
@@ -406,6 +414,15 @@ private:
     // would otherwise only be reachable by keyboard.
     void showSectionContextMenu(const RulerChip* chip, juce::Point<float> click);
 
+    // Opens the tempo row's menu: the insert at the clicked beat always, plus the chip's Set Tempo
+    // and Delete when the click landed on one.
+    void showTempoContextMenu(const RulerChip* chip, juce::Point<float> click);
+
+    // The click's grid position read at the tick lattice, which both menus' inserts floor to where
+    // their kind can stand; empty when the geometry cannot map the click.
+    [[nodiscard]] std::optional<common::core::GridPosition> clickedGridPosition(
+        juce::Point<float> click) const;
+
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
 
@@ -436,7 +453,7 @@ private:
     bool m_cursor_paused{false};
 
     // The core's published marker-plane availability: the one gate on the chip clicks, the
-    // double-click rename and the section menu's rows. Never derived here.
+    // chip double-click and the section and tempo menus' rows. Never derived here.
     bool m_marker_edits_enabled{false};
 
     // Callback invoked when the user clicks the ruler to place the transport cursor.

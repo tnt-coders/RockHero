@@ -1721,6 +1721,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // and the core self-gates its intents anyway.
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::InsertSongSection:
+        case EditorCommandId::InsertTempoAnchor:
         case EditorCommandId::InsertFretHandPosition:
         case EditorCommandId::RestateSelection:
         case EditorCommandId::RenameSelection:
@@ -2049,28 +2050,7 @@ bool EditorView::performCommand(const InvocationInfo& info)
         }
         case EditorCommandId::RestateSelection:
         {
-            if (const auto* const section =
-                    std::get_if<core::RenameSectionTarget>(&m_state.restate_target))
-            {
-                renameSection(*section);
-            }
-            else if (
-                const auto* const region =
-                    std::get_if<core::RetoneRegionTarget>(&m_state.restate_target)
-            )
-            {
-                restateToneRegion(*region);
-            }
-            else if (
-                std::holds_alternative<core::OpenAutomationPickerTarget>(m_state.restate_target)
-            )
-            {
-                m_tone_automation_lanes_view.openParameterPicker();
-            }
-            else if (std::holds_alternative<core::OpenBendPickerTarget>(m_state.restate_target))
-            {
-                m_controller.onChartBendRequested();
-            }
+            onSelectionRestateRequested();
             return true;
         }
         case EditorCommandId::RenameSelection:
@@ -2101,6 +2081,22 @@ bool EditorView::performCommand(const InvocationInfo& info)
             )
             {
                 onSongSectionInsertPromptRequested(insert->downbeat);
+            }
+            return true;
+        }
+        case EditorCommandId::InsertTempoAnchor:
+        {
+            if (const auto* const set_tempo =
+                    std::get_if<core::SetTempoTarget>(&m_state.tempo_chord_target))
+            {
+                setTempo(*set_tempo);
+            }
+            else if (
+                const auto* const insert =
+                    std::get_if<core::InsertTempoAnchorTarget>(&m_state.tempo_chord_target)
+            )
+            {
+                m_controller.onTempoAnchorInsertRequested(insert->position);
             }
             return true;
         }
@@ -3615,21 +3611,6 @@ void EditorView::onTimeSignatureSelected(const int measure)
     m_controller.onTimeSignatureSelected(measure);
 }
 
-// Prompts for a new name for the double-clicked (or menu-picked) section and forwards the rename.
-void EditorView::onSongSectionRenamePromptRequested(
-    common::core::GridPosition position, juce::String current_name)
-{
-    showThemedTextPrompt(
-        this,
-        "Rename Section",
-        "Enter a new name for this section:",
-        current_name,
-        "Rename",
-        [this, position](const juce::String& name) {
-            m_controller.onSongSectionRenameRequested(position, name.trim().toStdString());
-        });
-}
-
 // Prompts for a name and asks the controller to add a section at a position's measure downbeat —
 // the marker for the chord, the click for the ruler menu. The position is carried through the
 // prompt rather than re-read when it closes, as the tone insert carries its own. The prompt
@@ -3648,22 +3629,81 @@ void EditorView::onSongSectionInsertPromptRequested(common::core::GridPosition p
         });
 }
 
-// The one rename prompt behind the section chord's restate, Enter and Ctrl+R, opened on the name
-// the core published with the verb.
+// The one rename prompt behind the section chord's restate, Enter, Ctrl+R, a chip double-click and
+// the ruler menu's Rename, opened on the name the core published with the verb.
 void EditorView::renameSection(const core::RenameSectionTarget& target)
 {
-    onSongSectionRenamePromptRequested(target.position, juce::String{target.name});
+    showThemedTextPrompt(
+        this,
+        "Rename Section",
+        "Enter a new name for this section:",
+        juce::String{target.name},
+        "Rename",
+        [this, position = target.position](const juce::String& name) {
+            m_controller.onSongSectionRenameRequested(position, name.trim().toStdString());
+        });
 }
 
-// The section menu's Delete mirrors the Delete key: both act on the editor-wide selection, which
-// the menu has just set to the chip it was opened over.
-void EditorView::onSongSectionDeleteRequested()
+// The one tempo prompt behind the tempo chord's restate, Enter, a chip double-click and the ruler
+// menu's Set Tempo, opened on the span tempo the core published with the verb. The text goes back
+// raw: the core parses it.
+void EditorView::setTempo(const core::SetTempoTarget& target)
+{
+    showThemedTextPrompt(
+        this,
+        "Set Tempo",
+        "Quarter-note BPM",
+        juce::String{target.bpm_text},
+        "Set",
+        [this, position = target.position](const juce::String& text) {
+            m_controller.onTempoSpanBpmRequested(position, text.toStdString());
+        });
+}
+
+// Opens whatever the core's published restate verb names — Enter's verb, which the ruler also asks
+// for after selecting a chip — so the view dispatches on no marker kind of its own.
+void EditorView::onSelectionRestateRequested()
+{
+    if (const auto* const section = std::get_if<core::RenameSectionTarget>(&m_state.restate_target))
+    {
+        renameSection(*section);
+    }
+    else if (const auto* const tempo = std::get_if<core::SetTempoTarget>(&m_state.restate_target))
+    {
+        setTempo(*tempo);
+    }
+    else if (
+        const auto* const region = std::get_if<core::RetoneRegionTarget>(&m_state.restate_target)
+    )
+    {
+        restateToneRegion(*region);
+    }
+    else if (std::holds_alternative<core::OpenAutomationPickerTarget>(m_state.restate_target))
+    {
+        m_tone_automation_lanes_view.openParameterPicker();
+    }
+    else if (std::holds_alternative<core::OpenBendPickerTarget>(m_state.restate_target))
+    {
+        m_controller.onChartBendRequested();
+    }
+}
+
+// The ruler menu's tempo insert, at the beat the menu was opened over; the core floors it and
+// refuses an occupied beat.
+void EditorView::onTempoAnchorInsertRequested(const common::core::GridPosition position)
+{
+    m_controller.onTempoAnchorInsertRequested(position);
+}
+
+// The ruler menu's Delete mirrors the Delete key: both act on the editor-wide selection, which the
+// menu has just set to the chip it was opened over.
+void EditorView::onSelectionDeleteRequested()
 {
     m_controller.onSelectionDeleteRequested();
 }
 
 // The section menu's move mirrors Alt+left/right on the selection, for the same reason.
-void EditorView::onSongSectionMoveRequested(bool later)
+void EditorView::onSelectionMoveRequested(bool later)
 {
     m_controller.onSelectionMoveRequested(
         later ? core::ChartStepDirection::Right : core::ChartStepDirection::Left);

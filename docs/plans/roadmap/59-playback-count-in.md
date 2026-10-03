@@ -73,7 +73,9 @@ never *where*. The transport begins exactly where the cursor already was.
   somewhere else.
 - **`TempoMap`** (`rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map.h`)
   already answers every question the schedule asks: `timeSignatureAtSeconds` (:126),
-  `quarterNoteBpmAtSeconds` (:152), `beatPositionAtSeconds` (:138), `beatsPerMeasureAt` (:159),
+  `spanQuarterLength` with the span's two anchors (`quarterNoteBpmAtSeconds` was deleted
+  2026-10-02 for want of a caller; re-verify line numbers), `beatPositionAtSeconds` (:138),
+  `beatsPerMeasureAt` (:159),
   `secondsAtBeat` (:183), `globalBeatIndex` (:167), `beatAtGlobalIndex` (:174).
 - **There is no negative time to rewind into.** Every seek is clamped into loaded content
   (`TimeRange::clamp`,
@@ -140,9 +142,9 @@ never *where*. The transport begins exactly where the cursor already was.
 1. **The count-in is a property of starting playback, not a region of the song.** It occupies real
    time before the transport rolls and inserts nothing anywhere. This is exactly what lets it work
    at any cursor position, including the origin (§11 is the alternative that could not).
-2. **Cursor-frozen tempo and meter, real-downbeat phase.** The beat *period* comes from
-   `quarterNoteBpmAtSeconds` at the cursor; *beats per measure* from the signature at the cursor;
-   the *phase* from the cursor's own measure downbeat as the map reports it, stepped backwards in
+2. **Cursor-frozen tempo and meter, real-downbeat phase.** The beat *period* comes from the
+   tempo of the anchor span at the cursor (`spanQuarterLength` over its seconds); *beats per
+   measure* from the signature at the cursor; the *phase* from the cursor's own measure downbeat as the map reports it, stepped backwards in
    frozen beats. Two facts make this the only rule that works everywhere: at the song start there
    is no map before the origin to read at all, and inside a ritardando (or across a meter change
    just behind the cursor) the beats the player must hear are the ones they are about to play, not

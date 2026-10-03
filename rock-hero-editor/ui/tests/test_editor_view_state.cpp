@@ -19,6 +19,32 @@ using testing::getStopButton;
     return mappings->keyPressed(key, &view);
 }
 
+// The anchor the tempo prompt tests publish a SetTempoTarget for.
+constexpr common::core::GridPosition g_tempo_anchor{.measure = 3, .beat = 1};
+
+// Performs a command that should open the tempo prompt, checks the prompt shows the published
+// "137", types into it and accepts. The prompt's result arrives asynchronously, so one real
+// dispatch loop delivers it, stopped by a message posted after the result's: one call per test,
+// because JUCE's quit flag latches per MessageManager.
+void acceptTempoPrompt(EditorView& view, const EditorCommandId command, const juce::String& typed)
+{
+    const juce::ApplicationCommandTarget::InvocationInfo info{toJuceCommandId(command)};
+    CHECK(view.perform(info));
+    auto* const prompt = dynamic_cast<juce::AlertWindow*>(
+        juce::ModalComponentManager::getInstance()->getModalComponent(0));
+    REQUIRE(prompt != nullptr);
+    CHECK(prompt->getName() == "Set Tempo");
+    CHECK(prompt->getTextEditorContents("value") == "137");
+    juce::TextEditor* const field = prompt->getTextEditor("value");
+    REQUIRE(field != nullptr);
+    field->setText(typed);
+    prompt->exitModalState(1);
+    const bool stop_posted = juce::MessageManager::callAsync(
+        [] { juce::MessageManager::getInstance()->stopDispatchLoop(); });
+    REQUIRE(stop_posted);
+    juce::MessageManager::getInstance()->runDispatchLoop();
+}
+
 } // namespace
 
 // The marker verbs read the core's published VERB and nothing else — not the drawn selection, not
@@ -74,6 +100,7 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
         return view.perform(info);
     };
     CHECK(press(EditorCommandId::InsertSongSection));
+    CHECK(press(EditorCommandId::InsertTempoAnchor));
     CHECK(press(EditorCommandId::InsertToneChange));
     CHECK(press(EditorCommandId::RestateSelection));
     CHECK(press(EditorCommandId::RenameSelection));
@@ -84,7 +111,80 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
     CHECK(controller.last_created_tone_region_id.empty());
     CHECK(controller.last_renamed_song_section_name.empty());
     CHECK(controller.last_renamed_tone_document_ref.empty());
+    CHECK_FALSE(controller.last_inserted_tempo_anchor_position.has_value());
     CHECK(juce::TopLevelWindow::getNumTopLevelWindows() == windows_before);
+}
+
+// The tempo chord's insert has nothing to prompt for: with an insert published, Ctrl+B forwards the
+// published beat. Ctrl+Shift+B, the same letter's select half, still jumps to the tempo row.
+TEST_CASE("EditorView forwards the tempo chord's published insert", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    constexpr common::core::GridPosition beat{.measure = 2, .beat = 3};
+    core::EditorViewState state{};
+    state.project_loaded = true;
+    state.tempo_chord_target = core::InsertTempoAnchorTarget{.position = beat};
+    view.setState(state);
+
+    const juce::KeyPress ctrl_b{'b', juce::ModifierKeys{juce::ModifierKeys::commandModifier}, 0};
+    CHECK(pressCommandKey(view, ctrl_b));
+    CHECK(controller.last_inserted_tempo_anchor_position == std::optional{beat});
+
+    const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
+    REQUIRE(mappings != nullptr);
+    const juce::KeyPress ctrl_shift_b{
+        'b',
+        juce::ModifierKeys{juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier},
+        0
+    };
+    CHECK(
+        mappings->findCommandForKeyPress(ctrl_shift_b) ==
+        toJuceCommandId(EditorCommandId::CaretJumpTempoRow));
+}
+
+// The tempo chord over an anchor opens the tempo prompt, prefilled with the span tempo the core
+// published; accepting it hands the raw text back for the core to parse.
+TEST_CASE("EditorView opens the tempo prompt the tempo chord publishes", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    core::EditorViewState state{};
+    state.project_loaded = true;
+    state.tempo_chord_target = core::SetTempoTarget{.position = g_tempo_anchor, .bpm_text = "137"};
+    view.setState(state);
+
+    acceptTempoPrompt(view, EditorCommandId::InsertTempoAnchor, "140");
+    CHECK(controller.last_tempo_span_bpm_position == std::optional{g_tempo_anchor});
+    CHECK(controller.last_tempo_span_bpm_text == "140");
+    CHECK_FALSE(controller.last_inserted_tempo_anchor_position.has_value());
+}
+
+// Enter on a selected tempo chip opens the same prompt through the published restate verb.
+TEST_CASE("EditorView opens the tempo prompt Enter's restate publishes", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    core::EditorViewState state{};
+    state.project_loaded = true;
+    state.restate_target = core::SetTempoTarget{.position = g_tempo_anchor, .bpm_text = "137"};
+    view.setState(state);
+
+    acceptTempoPrompt(view, EditorCommandId::RestateSelection, "136.5");
+    CHECK(controller.last_tempo_span_bpm_position == std::optional{g_tempo_anchor});
+    CHECK(controller.last_tempo_span_bpm_text == "136.5");
 }
 
 // The hand chord has nothing to prompt for, so no verb is published for it: the view forwards the
@@ -392,6 +492,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertSongSection,
          .value = 0x1402,
          .chords = {chord('m', command)}},
+        {.id = EditorCommandId::InsertTempoAnchor,
+         .value = 0x1407,
+         .chords = {chord('b', command)}},
         {.id = EditorCommandId::InsertFretHandPosition,
          .value = 0x1406,
          .chords = {chord('h', command)}},
@@ -894,6 +997,7 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK_FALSE(acts(EditorCommandId::CaretStepLeft));
     CHECK_FALSE(acts(EditorCommandId::CaretJumpSectionRow));
     CHECK_FALSE(acts(EditorCommandId::InsertSongSection));
+    CHECK_FALSE(acts(EditorCommandId::InsertTempoAnchor));
     CHECK_FALSE(acts(EditorCommandId::InsertToneChange));
     CHECK_FALSE(acts(EditorCommandId::InsertFretHandPosition));
     CHECK_FALSE(acts(EditorCommandId::SaveProject));

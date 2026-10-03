@@ -368,34 +368,6 @@ double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
            (quarter_position - segment.startQuarterPosition()) / segment.quartersPerBeat();
 }
 
-// Derives the quarter-note tempo of the anchor span containing the position. Interpolation is
-// linear in metronome time, so a span's rate is simply its quarter span over its seconds span and
-// stays constant regardless of meter changes inside it.
-double TempoMap::quarterNoteBpmAtSeconds(double seconds) const noexcept
-{
-    if (m_anchors.size() < 2)
-    {
-        return 0.0;
-    }
-
-    // The span starts at the last anchor at or before the position, clamped so positions before
-    // the first anchor use the first span and positions at or past the terminal anchor use the
-    // span that ends there.
-    const auto after = std::ranges::upper_bound(m_anchors, seconds, {}, &BeatAnchor::seconds);
-    const auto first_after = static_cast<std::size_t>(std::distance(m_anchors.begin(), after));
-    const std::size_t span_start =
-        std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
-
-    const double quarter_span = spanQuarterLength(span_start);
-    const double seconds_span = m_anchors[span_start + 1].seconds - m_anchors[span_start].seconds;
-    if (quarter_span <= 0.0 || seconds_span <= 0.0)
-    {
-        return 0.0;
-    }
-
-    return quarter_span / seconds_span * 60.0;
-}
-
 double TempoMap::spanQuarterLength(std::size_t span) const noexcept
 {
     if (span + 1 >= m_anchor_quarter_positions.size())
@@ -403,6 +375,20 @@ double TempoMap::spanQuarterLength(std::size_t span) const noexcept
         return 0.0;
     }
     return m_anchor_quarter_positions[span + 1] - m_anchor_quarter_positions[span];
+}
+
+// Only anchors before the terminal open a span, so the terminal is left out of the search.
+std::optional<std::size_t> TempoMap::spanStartingAt(
+    const int measure, const int beat) const noexcept
+{
+    for (std::size_t span = 0; span + 1 < m_anchors.size(); ++span)
+    {
+        if (m_anchors[span].measure == measure && m_anchors[span].beat == beat)
+        {
+            return span;
+        }
+    }
+    return std::nullopt;
 }
 
 // Converts sparse measure/beat addresses into a continuous beat axis for interpolation.

@@ -41,25 +41,28 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         last_selected_signature_measure = measure;
     }
 
-    void onSongSectionRenamePromptRequested(
-        common::core::GridPosition position, juce::String current_name) override
-    {
-        last_rename_position = position;
-        last_rename_name = std::move(current_name);
-    }
-
     void onSongSectionInsertPromptRequested(common::core::GridPosition position) override
     {
         insert_count += 1;
         last_insert_position = position;
     }
 
-    void onSongSectionDeleteRequested() override
+    void onTempoAnchorInsertRequested(common::core::GridPosition position) override
+    {
+        last_tempo_insert_position = position;
+    }
+
+    void onSelectionRestateRequested() override
+    {
+        restate_count += 1;
+    }
+
+    void onSelectionDeleteRequested() override
     {
         delete_count += 1;
     }
 
-    void onSongSectionMoveRequested(bool later) override
+    void onSelectionMoveRequested(bool later) override
     {
         last_move_later = later;
     }
@@ -70,16 +73,16 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     // Number of onSongSectionSelected() calls, deselects included.
     int select_count{0};
 
-    // Position and current name last reported through onSongSectionRenamePromptRequested().
-    common::core::GridPosition last_rename_position{};
-    juce::String last_rename_name{};
-
     // Counts of the menu-only intents, and the position the insert was asked for.
     int insert_count{0};
     std::optional<common::core::GridPosition> last_insert_position{};
     int delete_count{0};
 
-    // Direction last reported through onSongSectionMoveRequested().
+    // Beat the tempo menu last asked an anchor for, and how often a restate was asked for.
+    std::optional<common::core::GridPosition> last_tempo_insert_position{};
+    int restate_count{0};
+
+    // Direction last reported through onSelectionMoveRequested().
     std::optional<bool> last_move_later{};
 
     // Anchor beat and measure last reported by a tempo or time-signature chip click.
@@ -336,10 +339,10 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     }
     CHECK(placement_count == 0);
 
-    // A double-click on the chip asks for the rename prompt, pre-filled with the current name.
+    // A double-click on the chip asks for the selection's restate, which the core publishes as the
+    // selected section's rename.
     ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 104.0f, 7.0f));
-    CHECK(listener.last_rename_position == verse_position);
-    CHECK(listener.last_rename_name == juce::String{"Verse"});
+    CHECK(listener.restate_count == 1);
 
     // A click in the ruler body misses every chip and seeks.
     ruler.mouseDown(makeMouseDownEvent(ruler, 200.0f, 55.0f));
@@ -356,6 +359,16 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     ruler.mouseDown(makeMouseDownEvent(ruler, 4.0f, 35.0f));
     CHECK(listener.last_selected_signature_measure == std::optional{1});
     CHECK(placement_count == 1);
+
+    // A double-click on the tempo chip asks for the selection's restate — the core's tempo prompt
+    // — rather than naming a prompt of its own.
+    ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 4.0f, 21.0f));
+    CHECK(listener.restate_count == 2);
+
+    // With the marker plane closed, the double-click opens nothing.
+    ruler.setMarkerEditsEnabled(false);
+    ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 4.0f, 21.0f));
+    CHECK(listener.restate_count == 2);
 }
 
 // A selected chip is placed before its neighbours, so on a dense map the neighbours give way

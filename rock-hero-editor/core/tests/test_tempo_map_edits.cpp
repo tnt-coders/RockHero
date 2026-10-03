@@ -143,7 +143,7 @@ TEST_CASE("Typing a tempo ripples every later anchor", "[editor][tempo-map]")
     CHECK(rippled->anchors()[3].measure == 5);
     CHECK(spanMilliseconds(*rippled, 0) == spanMilliseconds(source, 0));
     CHECK(spanMilliseconds(*rippled, 2) == spanMilliseconds(source, 2));
-    CHECK_THAT(rippled->quarterNoteBpmAtSeconds(3.0), WithinAbs(100.0, 1.0e-9));
+    CHECK(tempoSpanBpmText(*rippled, 1) == "100");
 }
 
 // Verifies a faster tempo that would end the map before the audio grows the terminal downbeat by
@@ -160,7 +160,7 @@ TEST_CASE("Typing a faster tempo grows the terminal to cover the audio", "[edito
     CHECK(faster->anchors()[1].measure == 9);
     CHECK(faster->anchors()[1].beat == 1);
     CHECK_THAT(faster->anchors()[1].seconds, WithinAbs(8.0, g_seconds_tolerance));
-    CHECK_THAT(faster->quarterNoteBpmAtSeconds(1.0), WithinAbs(240.0, 1.0e-9));
+    CHECK(tempoSpanBpmText(*faster, 0) == "240");
 
     const TempoMapEditResult slower = setTempoSpanBpm(defaultEightSeconds(), 1, 1, 60.0, 8.0);
     REQUIRE(slower.has_value());
@@ -206,7 +206,7 @@ TEST_CASE("A ripple on an earlier span grows the terminal at the last tempo", "[
     CHECK_THAT(rippled->anchors()[2].seconds, WithinAbs(3.0, g_seconds_tolerance));
     CHECK(rippled->anchors().back().measure == 6);
     CHECK_THAT(rippled->anchors().back().seconds, WithinAbs(9.0, g_seconds_tolerance));
-    CHECK_THAT(rippled->quarterNoteBpmAtSeconds(8.5), WithinAbs(120.0, 1.0e-9));
+    CHECK(tempoSpanBpmText(*rippled, rippled->anchors().size() - 2) == "120");
 }
 
 // Verifies a tempo too fast for the millisecond grid is refused rather than looping to cover the

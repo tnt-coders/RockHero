@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <compare>
+#include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -131,23 +133,21 @@ TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")
     CHECK(tempo_map.secondsAtGlobalBeatPosition(14.5) == Catch::Approx(7.25));
 }
 
-// Verifies quarter-note tempo is constant inside each anchor span, switches at anchors, and
-// clamps outside the authored range.
-TEST_CASE("TempoMap reports quarter-note tempo per anchor span", "[core][tempo-map]")
+// Verifies each sparse anchor span is measured in quarters between its own two anchors: the first
+// span holds 8 quarters over 4 seconds, the second 4 quarters over 1.5 seconds.
+TEST_CASE("TempoMap measures each sparse anchor span in quarters", "[core][tempo-map]")
 {
     const TempoMap tempo_map = makeSparseAnchor44Map();
 
-    // First span: 8 beats over 4 seconds; second span: 4 beats over 1.5 seconds.
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(11.0) == Catch::Approx(120.0));
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(14.0) == Catch::Approx(160.0));
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(14.75) == Catch::Approx(160.0));
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(9.0) == Catch::Approx(120.0));
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(99.0) == Catch::Approx(160.0));
+    CHECK(tempo_map.spanQuarterLength(0) == Catch::Approx(8.0));
+    CHECK(tempo_map.spanQuarterLength(1) == Catch::Approx(4.0));
+    CHECK(tempo_map.secondsAtBeat(3, 1) - tempo_map.secondsAtBeat(1, 1) == Catch::Approx(4.0));
+    CHECK(tempo_map.secondsAtBeat(4, 1) - tempo_map.secondsAtBeat(3, 1) == Catch::Approx(1.5));
 }
 
-// Verifies the quarter-note reference scales by the signature denominator, so an x/8 meter with
-// 120 eighth-note beats per minute reads as 60 quarter notes per minute.
-TEST_CASE("TempoMap quarter-note tempo uses the active denominator", "[core][tempo-map]")
+// Verifies the quarter-note reference scales by the signature denominator: a 6/8 measure holds
+// three quarter notes, so 120 eighth-note beats per minute are 60 quarter notes per minute.
+TEST_CASE("TempoMap counts an eighth-note meter in quarter notes", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
         std::vector{
@@ -159,7 +159,8 @@ TEST_CASE("TempoMap quarter-note tempo uses the active denominator", "[core][tem
         },
     };
 
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(1.0) == Catch::Approx(60.0));
+    CHECK(tempo_map.spanQuarterLength(0) == Catch::Approx(3.0));
+    CHECK(tempo_map.secondsAtBeat(2, 1) == Catch::Approx(3.0));
 }
 
 // Verifies the seconds-to-beat inverse mirrors the forward query, including clamping outside the
@@ -201,8 +202,7 @@ TEST_CASE("TempoMap holds quarter tempo across un-anchored meter changes", "[cor
         },
     };
 
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(1.0) == Catch::Approx(120.0));
-    CHECK(tempo_map.quarterNoteBpmAtSeconds(3.0) == Catch::Approx(120.0));
+    CHECK(tempo_map.spanQuarterLength(0) == Catch::Approx(7.5));
     CHECK(tempo_map.secondsAtBeat(1, 2) == Catch::Approx(0.5));
     CHECK(tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.0));
     CHECK(tempo_map.secondsAtBeat(2, 2) == Catch::Approx(2.25));
@@ -284,6 +284,18 @@ TEST_CASE("TempoMap reports each anchor span's quarter length", "[core][tempo-ma
     CHECK(map.spanQuarterLength(0) == Catch::Approx(4.0));
     CHECK(map.spanQuarterLength(1) == Catch::Approx(3.0));
     CHECK(map.spanQuarterLength(2) == Catch::Approx(0.0));
+}
+
+// Verifies a span lookup finds only an anchor that opens a span: the terminal opens none, and a
+// beat no anchor stands on answers nothing.
+TEST_CASE("TempoMap finds the span an anchor at a beat opens", "[core][tempo-map]")
+{
+    const TempoMap tempo_map = makeSparseAnchor44Map();
+
+    CHECK(tempo_map.spanStartingAt(1, 1) == std::optional<std::size_t>{0});
+    CHECK(tempo_map.spanStartingAt(3, 1) == std::optional<std::size_t>{1});
+    CHECK_FALSE(tempo_map.spanStartingAt(4, 1).has_value());
+    CHECK_FALSE(tempo_map.spanStartingAt(2, 1).has_value());
 }
 
 // Verifies the default map ends on the first downbeat at or past the audio, one measure at least.

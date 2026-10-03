@@ -22,8 +22,8 @@ namespace
 
 // Each marker kind's letter, declared once: `Ctrl`+letter AUTHORS that kind at the cursor and
 // `Ctrl+Shift`+letter SELECTS it (jumps focus onto its row), so the pair is composed from the one
-// letter below and cannot drift. The tempo (B) and time-signature (/) author chords are reserved
-// but not registered; only their jumps are.
+// letter below and cannot drift. The time-signature (/) author chord is reserved but not
+// registered; only its jump is.
 constexpr int g_section_key = 'm';
 constexpr int g_tempo_key = 'b';
 constexpr int g_time_signature_key = '/';
@@ -193,6 +193,16 @@ constexpr int g_add_lane_key = 'a';
             .name = "Insert or Rename Section at Cursor",
             .category = "Section",
             .default_keypresses = {markerAuthorChord(g_section_key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::InsertTempoAnchor,
+            // Ctrl+B, the tempo's letter on the marker plane: the anchor on the cursor's beat has
+            // its span's tempo set through the prompt, a free beat takes a new anchor pinning the
+            // time it already has.
+            .name = "Add or Set Tempo Anchor",
+            .category = "Tempo",
+            .default_keypresses = {markerAuthorChord(g_tempo_key)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -649,8 +659,8 @@ bool editorCommandActsOnSelection(const EditorCommandSpec& spec)
     }
     // Navigation is absent on purpose: the walk and the jumps SELECT, and selecting never moves
     // the view; the keys that move a position (steps, Tab) are followed through the moved position
-    // itself. The section, tone-change and hand author chords are absent too: they act at the
-    // cursor, which is in view already, and the first two complete in a prompt.
+    // itself. The section, tempo, tone-change and hand author chords are absent too: they act at
+    // the cursor, which is in view already, and the first three can complete in a prompt.
     static constexpr std::array<std::string_view, 4> g_selection_categories{
         "Selection",
         "Authoring",

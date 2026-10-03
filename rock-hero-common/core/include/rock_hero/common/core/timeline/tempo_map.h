@@ -8,6 +8,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <utility>
@@ -138,20 +139,6 @@ public:
     [[nodiscard]] double beatPositionAtSeconds(double seconds) const noexcept;
 
     /*!
-    \brief Finds the quarter-note tempo active at an absolute second position.
-
-    Seconds are linear in quarter-note position between anchors, so the metronome rate is constant
-    inside each anchor span and can change only at anchors; meter changes between anchors re-slice
-    beat durations without affecting it. Positions outside the authored anchor range report the
-    first or last span's tempo.
-
-    \param seconds Absolute second position to query.
-    \return Quarter notes per minute, or zero when the map has fewer than two anchors or the
-            governing span is degenerate.
-    */
-    [[nodiscard]] double quarterNoteBpmAtSeconds(double seconds) const noexcept;
-
-    /*!
     \brief Returns the quarter-note length of one anchor span.
 
     Span \p span runs from anchor \p span to the anchor after it, so its tempo is this length over
@@ -161,6 +148,18 @@ public:
     \return Quarter notes between the span's two anchors, or zero when the span does not exist.
     */
     [[nodiscard]] double spanQuarterLength(std::size_t span) const noexcept;
+
+    /*!
+    \brief Finds the span an anchor standing exactly at a beat opens.
+
+    Span \c i starts at anchor \c i, so the answer is that anchor's index. The terminal anchor only
+    closes the last span, so a beat it holds opens none.
+
+    \param measure One-based measure of the beat.
+    \param beat One-based beat within the measure.
+    \return Zero-based span index, or empty when no anchor opening a span stands at the beat.
+    */
+    [[nodiscard]] std::optional<std::size_t> spanStartingAt(int measure, int beat) const noexcept;
 
     /*!
     \brief Returns the terminal anchor grown to cover a time.

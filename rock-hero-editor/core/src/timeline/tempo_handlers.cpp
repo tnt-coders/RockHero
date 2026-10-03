@@ -43,15 +43,12 @@ namespace
 [[nodiscard]] std::optional<std::string> spanBpmTextAt(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& beat)
 {
-    const std::vector<common::core::BeatAnchor>& anchors = tempo_map.anchors();
-    for (std::size_t span = 0; span + 1 < anchors.size(); ++span)
+    const std::optional<std::size_t> span = tempo_map.spanStartingAt(beat.measure, beat.beat);
+    if (!span.has_value())
     {
-        if (anchors[span].measure == beat.measure && anchors[span].beat == beat.beat)
-        {
-            return tempoSpanBpmText(tempo_map, span);
-        }
+        return std::nullopt;
     }
-    return std::nullopt;
+    return tempoSpanBpmText(tempo_map, *span);
 }
 
 // The time a rippled map must still reach: the latest audio end over every arrangement, since the

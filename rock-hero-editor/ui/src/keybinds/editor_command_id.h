@@ -133,10 +133,11 @@ enum class EditorCommandId : std::uint16_t
     \brief Restate the selected marker (`Enter`).
 
     The marker plane's chords author at the cursor; this is the SELECTION's own verb: a section's
-    name through the rename prompt, a tone region's tone through the picker, the "+" row's
-    parameter picker. The core publishes the verb (`EditorViewState::restate_target`), so the view
-    dispatches on no kind of its own. A separate command rather than a second chord on either
-    marker chord, because Enter must never ADD a marker: with nothing selected this press is inert.
+    name through the rename prompt, a tempo anchor's span tempo through the tempo prompt, a tone
+    region's tone through the picker, the "+" row's parameter picker. The core publishes the verb
+    (`EditorViewState::restate_target`), so the view dispatches on no kind of its own. A separate
+    command rather than a second chord on any marker chord, because Enter must never ADD a marker:
+    with nothing selected this press is inert.
     */
     RestateSelection = 0x1404,
 
@@ -163,6 +164,19 @@ enum class EditorCommandId : std::uint16_t
     ways onto an existing placement; `Delete` and `Alt+Left/Right` are its verbs.
     */
     InsertFretHandPosition = 0x1406,
+
+    /*!
+    \brief Insert a tempo anchor at the cursor's beat, or set the tempo of the span the anchor
+    standing there opens (`Ctrl+B`).
+
+    Shares the section's marker grammar, read at the BEAT the cursor is in — the only place an
+    anchor can stand: a free beat takes a new anchor that pins the time the map already gives it,
+    selected and with no prompt; a beat an anchor holds opens the tempo prompt for its span, so a
+    second press after an insert sets the new anchor's tempo. The core publishes the verb
+    (`EditorViewState::tempo_chord_target`); the press is inert while the transport plays, with no
+    song, and at or past the terminal anchor, which opens no span.
+    */
+    InsertTempoAnchor = 0x1407,
 
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
