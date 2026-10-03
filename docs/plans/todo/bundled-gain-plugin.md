@@ -1,315 +1,352 @@
-# The Gain plugin: one rule, two adapters, shipped two ways
+# Our plugins: a JUCE-only plugin repo, hosted in-process by RockHero, shipped as VST3 later
 
-Status: planned 2026-10-02 against `5c0299a8`; nothing built. Facts re-verified that day against the
-code and the vendored JUCE 8 / Tracktion sources (paths below are under `external/tracktion_engine/`
-unless they start with a product folder). Re-verify before executing.
+Status: planned 2026-10-02 against `5c0299a8`; nothing built. Rewritten three times that day as the
+user's direction sharpened — this is the current ruling and supersedes every earlier shape (a
+Tracktion built-in with eight seams; a shared DSP core with two adapters). Facts are verified
+against the code and the vendored JUCE 8 / Tracktion sources (paths under
+`external/tracktion_engine/modules/` unless they start with a product folder). Re-verify before
+executing.
 
-The user's request: make the Gain block loadable in the chain now, have it ship with the app so
-every user can load it, and make it modular so people can use our plugins in their own DAWs.
-
-## First deliverable: the in-app Gain block, with nothing distributed
-
-Ruled 2026-10-02 after the user asked for the simplest path to "insert it like a normal VST in
-our signal chain" first. That path is Phase 1 of `gain-block-and-signal-chain-panel.md`, under
-its heading "The simplest path, ordered": one layer, no format change, two to three days, and no
-dependency on anything below. The shared `GainStage` core (Phase 1 here) is NOT a prerequisite —
-it deletes nothing on that path — and the catalog filter (R5) waits until a VST3 of ours exists.
-Everything below this line is LATER work, in the order given.
+The user's direction, in order: make the Gain block loadable in the chain now; gain only, one
+knob with a typed dB box; clean structure designed for use outside the app; its own repo that
+depends only on JUCE, with JUCE injectable so RockHero builds it from its one vendored copy;
+and — the decisive point — "parameters being automatable is a standard feature of VST3 plugins,
+why would we need Tracktion for that? It should drop in clean as just a VST plugin without any
+adapter logic."
 
 ## The answer in one paragraph
 
-Inside the app the Gain block is a Tracktion **built-in**: it appears in the plugin picker with no
-file on disk, no scan, and no way to be missing, which is a stronger form of "ships with the app"
-than any bundled binary. That is Phase 1 of `gain-block-and-signal-chain-panel.md`, unchanged. For
-other DAWs we build a **VST3** from the same DSP core in a new product, `rock-hero-plugins/`, and
-ship it first as a download beside the app on the release page, later as an installer option. The
-app never hosts its own VST3. The DSP rule lives once, in a JUCE-free core both adapters call.
-
-Simple parts: the core and the built-in (small), the VST3 target itself (medium, JUCE does the
-work). Not simple: signing and notarization, and installer placement into the system VST3 folder,
-which need purchases, secrets and changes in two tooling repositories the user owns.
+The user is right: Tracktion's `ExternalPlugin` is already the adapter. It turns a hosted
+`juce::AudioProcessor`'s parameters into `AutomatableParameter`s keyed by the processor's own
+parameter ids (`tracktion_ExternalPlugin.cpp:798-804`), persists its state through
+`getStateInformation`, opens its editor (`:2062`, `:2134`), and every RockHero path — lanes,
+undo trackers, capture, export, restore, the window — already handles it. So the Gain block is
+written ONCE as a plain JUCE processor in a JUCE-only plugin repo, and RockHero hosts it through
+`ExternalPlugin` with no Gain-specific code at all. The only question is where the hosted
+instance COMES FROM, and there JUCE offers a seam made for exactly this: a custom
+`juce::AudioPluginFormat` that creates instances in-process from compiled-in code — the pattern
+JUCE's own AudioPluginHost ships as `InternalPluginFormat`
+(`juce/extras/AudioPluginHost/Source/Plugins/InternalPlugins.h:44`). With that, no file is
+bundled, nothing is scanned, nothing can go missing, the game gets it by linking `common/audio`,
+and the identity is a fixed string, never a path. The same processor is wrapped as a VST3 by a
+`juce_add_plugin` target in the plugin repo for other DAWs, later.
 
 ## Rulings
 
-**R1. The in-app block stays a Tracktion built-in; the app does not host our VST3.** The ruling of
-2026-10-02 in the gain-block plan stands. Hosting our own VST3 as an `ExternalPlugin` would:
+**R1. In-app hosting: our processors are hosted in-process through Tracktion's `ExternalPlugin`,
+created by a RockHero `AudioPluginFormat`, never from a bundled file.** Three routes were weighed
+for the insertable Gain block:
 
-- pass audio through at unity, silently, whenever the bundle is missing or fails to load
-  (`modules/tracktion_engine/plugins/external/tracktion_ExternalPlugin.cpp:1375-1379`:
-  `applyToBuffer` returns before touching the buffer when no instance loaded), so an authored level
-  would vanish in editor and game alike with no error;
-- make the game depend on a file beside the executable and on plugin registration at startup;
-- store the explicit value in two places that must agree — the plugin's state chunk and
-  Tracktion's explicit-value save (`tracktion_AutomatableEditItem.cpp:305-343`);
-- bind the tone document to a plugin identity that is path-bound today (R6);
-- pay `ExternalPlugin`'s per-block hosting cost on every always-loaded branch for a two-multiply
-  stage.
+| | (A) Tracktion built-in, the eight seams | (B) bundled `.vst3` hosted like a third-party plugin | (C) compiled-in processor hosted through a RockHero `AudioPluginFormat` |
+|---|---|---|---|
+| Gain-specific code in RockHero | a Tracktion plugin type, an editor component, an identity authority, the generalisation of six refusals and four restores, catalog and insert branches (~10 files) | none | none |
+| Shared plumbing in RockHero | — | UID-matching identity fix (prerequisite: bundled paths differ per install), startup registration, duplicate handling against a system-wide copy | one format class (~120 lines, ten trivial overrides), its registration, one catalog constant |
+| Packaging | none | copy each `.vst3` beside the executable on three OSes (`.app/Contents/PlugIns` on macOS), installer rules, the game ships and registers the same bundle | none |
+| Can it go missing | no | yes — surfaced like any missing plugin (`PluginNotFound`, the load refuses with the missing list, `engine_live_rig.cpp:1363-1375`), but a Gain block then silently drops out of every tone that used it | no |
+| Explicit value stated twice (R1 of the earlier plan) | no | yes, as for every hosted plugin today | yes, as for every hosted plugin today — an existing property, not new |
+| Later | the VST3 is a second implementation | the VST3 is the same binary | the VST3 wraps the same processor class |
+| Size | ~3 days | ~4-6 days, mostly build and install on three OSes | ~2 days |
 
-**R2. "One type" re-ruled as one RULE, two ADAPTERS.** Within the app the earlier ruling is intact:
-the output stage and the chain Gain block are both `ToneOutputPlugin` instances. What changes is
-what that class is: an adapter over a shared core, `GainStage`, which owns everything that is a
-rule — the ranges, the dB law, the balanced pan law, the ramp, and the parameter table. The VST3's
-`juce::AudioProcessor` is the second adapter over the same core. Nothing is stated twice: not the
-pan law (restated today at `rock-hero-common/audio/src/tracktion/tone_output_plugin.cpp:103-115`
-because `juce::dsp::Panner` hides its gains), not the parameter ids, not the vendor name.
+(C) wins on every row but one it shares with (B), and that row is the condition of every plugin
+a tone already carries. (B)'s objections from the first version of this plan were general
+missing-plugin concerns, not Gain-specific, but (C) makes them moot rather than merely general.
+Verified for (C): `AudioPluginFormat` has ten pure virtuals and a `createPluginInstance` callback
+(`juce_audio_processors_headless/format/juce_AudioPluginFormat.h:56-162`);
+`AudioPluginFormatManager::addFormat` (`juce_AudioPluginFormatManager.h:83`); Tracktion's
+`PluginManager` exposes `pluginFormatManager` and a replaceable `createPluginInstance`
+(`tracktion_PluginManager.h:51`, `:107`), and `ExternalPlugin` creates through it
+(`tracktion_ExternalPlugin.cpp:1862`, `:1885`); its only format-conditioned branch skips the
+default channel configuration for AU/VST3 (`:562`), so a hosted internal effect gets the
+default stereo config, which is what Gain wants. The audio-path `processMutex.tryEnter`
+(`:1394-1420`) and the explicit-value rule are what every hosted plugin already lives with.
 
-**R3. The core is a JUCE-free sub-library INSIDE `common/audio`, not a new `common/dsp` library.**
-`rock-hero-common/audio/CMakeLists.txt` already builds `rock_hero::common::audio_calibration` from
-two of the audio library's own sources with no JUCE link, "so the user guide's generator links the
-one copy". The gain core follows that precedent exactly: `rock_hero::common::audio_gain_stage`,
-built from `shared/gain.h`, `shared/pan.h` + `src/shared/pan.cpp`, `shared/tone_output.h` and the
-new `gain_stage/` files, linking only `rock_hero::build_policy`. The audio library links it
-PUBLIC, so every existing consumer of `Gain`, `Pan` and `ToneOutput` keeps its namespace and
-include path. A `common/dsp` library would rename three value types across editor, game and tests
-for a navigation gain nobody asked for, and would need the conventions script, both architecture
-documents and `CLAUDE.md` to learn a fourth library kind.
+**R2. One implementation per plugin, zero adapters.** A plugin is one `juce::AudioProcessor`
+subclass plus its editor, in the plugin repo. RockHero adds no type, no helper, no core. The
+earlier "one rule, two adapters" and "two types sharing a core" are withdrawn; the shared "gain
+core" is deleted from the plan because the processor IS the one statement of the gain rule, and
+JUCE's `SmoothedValue` and `Decibels` are available to it (the repo depends on JUCE). The ±24 dB
+range appears in the processor and, separately, in the tone's output stage
+(`common/audio/shared/gain.h`); these are two rules that happen to agree — a generic gain
+plugin's range and how far a tone balance may go — and nothing must keep them equal by hand.
 
-**R4. A new product scope, `rock-hero-plugins/`, one folder per plugin.** Namespace
-`rock_hero::plugins::gain`, three levels deep as the two-axis rule requires (product `plugins`,
-library `gain`). It is a product because it ships to users on its own and must obey the product
-dependency rules: it may link `common` (the core sub-library only), never editor or game. The
-folder is `rock-hero-plugins/gain/`, not `rock-hero-gain/`, because the second plugin will want the
-same home and the same CMake and CI wiring.
+**R3. The processor derives from `juce::AudioPluginInstance`, not `AudioProcessor`.** The only
+difference is one override, `fillInPluginDescription`
+(`juce_AudioPluginInstance.h:70`), which is also where the plugin states its name, vendor and
+unique id ONCE; the RockHero format reads it, and the VST3 wrapper takes the same class through
+`createPluginFilter()` since an `AudioPluginInstance` is an `AudioProcessor`. The alternative —
+JUCE's precedent wraps an `AudioProcessor` in a forwarding `InternalPlugin` class
+(`InternalPlugins.cpp:88` onward, ~150 lines of pass-through) — is a second class with no hidden
+decision, so it is rejected.
 
-**R5. The app's catalog hides our own VST3s.** A user who installs the VST3 system-wide for their
-DAW must still see exactly one "Gain" in the picker, the built-in; otherwise a tone could carry the
-hosted copy with every defect in R1. `knownPluginCatalog`
-(`rock-hero-common/audio/src/engine/engine_plugin_host.cpp:344`) skips VST3 descriptions whose
-`manufacturerName` is `g_plugin_vendor_name`, the core's one vendor constant that the Tracktion
-adapter's `getVendor()` and the VST3's `JucePlugin_Manufacturer` both equal (checked by a
-`static_assert` in the processor TU, see Phase 2).
+**R4. The plugin repo is its own repository, created NOW, mounted as the submodule
+`external/rock-hero-plugins/`.** The user's direction, and it follows the two precedents already
+wired (`.gitmodules`: `external/tracktion_engine`, `project-config`; CI checks out recursively;
+the build helper initialises recursively). It depends only on JUCE; it never includes a
+`rock_hero::` header or links a `rock_hero::` library. Namespace `rock_hero_plugins::<plugin>`
+(its own root, deliberately outside the app's `rock_hero::<product>::<library>` grid, since it is
+not a product of this repo), include path `<rock_hero_plugins/<plugin>/...>`, CMake targets
+`rock_hero_plugins::<plugin>`. Costs accepted with the direction: every plugin change is a
+commit in the plugin repo by the USER (agents never commit outside RockHero; they leave the
+working tree ready) followed by a submodule bump here; version pinning is the gitlink.
 
-**R6. The path-bound plugin identity is a separate backlog fix, not a prerequisite.** Confirmed:
-`hasKnownPluginForIdentity` (`engine_plugin_host.cpp:473-503`) checks two hints and then
-`isDuplicateOf`, and all three carry the install path — both hints hash `fileOrIdentifier`
-(`juce_PluginDescription.cpp:48-52`, `tracktion_ExternalPlugin.cpp:14-18`) and `isDuplicateOf`
-ties it (`juce_PluginDescription.cpp:38-46`). A tone whose VST3 lives in a different folder on
-another machine is refused with `PluginNotFound` even when the catalog knows the plugin. Tracktion's
-own restore would have succeeded through `deprecatedUid`
-(`tracktion_ExternalPlugin.cpp:840-843`), so the fix is the gate alone: match `uniqueId`, then
-`deprecatedUid`, before any path-bearing key. Neither the built-in nor the VST3-for-other-DAWs
-needs it; it is recorded in `docs/tracking/backlog.md` (2026-10-02) because it hits every
-third-party plugin a `.tone` file carries between machines.
+**R5. JUCE is injected, never fetched, when RockHero builds it.** The seam is in the plugin repo's
+root `CMakeLists.txt` and is two variables, below. RockHero sets them before
+`add_subdirectory(external/rock-hero-plugins)`; standalone, the repo finds or adds its own JUCE
+and builds the VST3 targets. The plugin repo must NOT carry JUCE as a git submodule: RockHero's
+recursive init would fetch a second JUCE tree. Standalone JUCE comes from `find_package(JUCE)`
+or a `ROCK_HERO_PLUGINS_JUCE_DIR` the builder points at.
 
-**R7. Formats: VST3 now; AU after macOS signing exists; CLAP only with a dependency the user
-approves.** The VST3 SDK is vendored (3.8.0, MIT) and `juce_add_plugin` builds it. AU is
-macOS-only and worthless unsigned. CLAP is not in JUCE; it needs `clap-juce-extensions`, a new
-submodule or Conan package, which `CLAUDE.md` says to propose, not add.
+**R6. The tone's fixed output stage stays `ToneOutputPlugin`, a Tracktion built-in.** Making it a
+hosted processor would delete that class (~250 lines) but would route the authored tone level
+through the hosted explicit-value path, whose echo behaviour the juce-tracktion-expert flagged as
+needing a probe, and pay `ExternalPlugin`'s per-block cost on every always-loaded branch. Not a
+deletion without a correctness cost today. Candidate to revisit once the Gain block has shipped
+through (C) and the hosted path is proven, at which point `LiveRigGainPlugin` is the same
+question.
+
+**R7. The app's catalog shows our plugins through their own format name.** `knownPluginCatalog`
+(`engine_plugin_host.cpp:346`, `:370`) accepts "VST3" only; it accepts our format's name too.
+Scanning stays VST3-only (`vst3PluginFormat()`, `:219`). If a user also installs our VST3
+system-wide for a DAW, the catalog hides VST3 entries whose manufacturer is ours, so "Gain"
+appears once and always as the compiled-in instance (nothing a tone saves can then depend on a
+file).
+
+**R8. The path-bound identity defect stays a backlog item, not a prerequisite.** The hosted
+instance's `fileOrIdentifier` is the fixed string `"RockHero:gain"`, so every hash RockHero
+takes of it (`juce_PluginDescription.cpp:48-52`, `tracktion_ExternalPlugin.cpp:14-18`) is
+identical on every machine. The defect still bites third-party plugins and is recorded in
+`docs/tracking/backlog.md` (2026-10-02).
 
 ## User decisions (each with a recommendation)
 
-- **D1. The four-character codes, fixed forever.** JUCE requires a manufacturer code with at least
-  one upper-case letter and a plugin code with exactly one, first letter upper-case for GarageBand
-  (`modules/juce/docs/CMake API.md:517-525`). The VST3 class UID is derived from exactly these two
-  codes (`juce_VST3ModuleInfo.h:61`), so changing either orphans every DAW project that used the
-  plugin. Recommend manufacturer `Rkhr`, plugin `Gain`.
-- **D2. Names.** Product name "Rock Hero Gain", vendor "Rock Hero", bundle id
-  `com.rockhero.gain`. Whether "VST" may appear in any product name is a legal open item below;
-  the recommendation keeps it out of the name and uses it only descriptively ("a VST3 plugin").
-- **D3. Where pluginval runs in CI.** The build goes through `tnt-coders/ci-workflows`, which
-  offers no step injection (verified 2026-10-02 against its `cpp-cmake-conan-build.yml`).
-  Recommend adding an `install-pluginval` input there (the user owns that repository) and
-  registering the validation as a ctest in this tree (Phase 2); the alternative, a second workflow
-  in this repository that configures and builds just the plugin, doubles the Conan and JUCE cost
-  on three runners.
-- **D4. How the VST3 ships first.** Recommend a separate release archive per OS (Phase 3) before
-  any installer work; it is what most free plugins ship as, and it needs nothing outside this
-  repository. Installer placement (Phase 4) needs `cmake-package-builder` changes.
-- **D5. Signing purchases and when.** macOS distribution needs an Apple Developer ID ($99/yr) and
-  notarization; without it a downloaded `.vst3` is quarantined and most users will not get past
-  Gatekeeper. Windows DAWs load an unsigned `.vst3` without complaint (SmartScreen checks
-  installers, not DLLs a DAW opens), so Authenticode can wait for the installer phase. Recommend:
-  ship Windows and Linux unsigned in Phase 3, hold the macOS archive until Phase 5.
-- **D6. The VST3's editor.** Recommend JUCE's `GenericAudioProcessorEditor` first: two stock
-  sliders, zero drawing code, nothing restated. The app's fader-and-knob look can be shared later
-  (Phase 6) by compiling the same paint source into both products, never by linking the app's
-  `common/ui` into the plugin.
+- **D1. Repository name and licence.** Recommend `rock-hero-plugins` under the same GitHub
+  account. Its licence is a legal open item (below): RockHero is AGPLv3 and consumes it, so
+  anything AGPL-compatible works for RockHero; JUCE's licence applies to every plugin binary
+  regardless.
+- **D2. The permanent codes** (only the VST3 target reads them, but they also seed the hosted
+  unique id): manufacturer `Rkhr`, plugin `Gain`. JUCE's rules: manufacturer code with at least
+  one upper-case letter, plugin code with exactly one, first letter upper-case
+  (`juce/docs/CMake API.md:517-525`). Never change.
+- **D3. Names.** Processor name "Gain", vendor "Rock Hero", product name "Rock Hero Gain" for
+  the VST3, bundle id `com.rockhero.gain`. "VST" stays out of names pending the trademark item.
+- **D4. The knob's look.** Stock JUCE look-and-feel now (one `juce::Slider`); the app's knob
+  drawing lives in `editor/ui` (`signal_chain_view.cpp`) and cannot be reached from a JUCE-only
+  repo, so sharing it means lifting that drawing into the plugin repo's own look-and-feel later
+  and having the editor consume it — a direction, not a step now.
+- **D5. Where pluginval runs** (later, with the VST3): in the plugin repo's own CI, not RockHero's.
+- **D6. Shipping the VST3** (later): first as a release archive from the plugin repo's releases;
+  installer placement and signing after that, as the later phases say.
 
-## The tree
+## The trees
+
+**The plugin repo** (`rock-hero-plugins`, mounted at `external/rock-hero-plugins/`):
 
 ```text
-rock-hero-common/audio/
-  include/rock_hero/common/audio/
-    shared/gain.h, pan.h, tone_output.h      - unchanged: the value types and their ranges
-    gain_stage/gain_stage.h                  - NEW: GainStage, stereoGains, gainStageParameters,
-                                               g_plugin_vendor_name
-  src/
-    shared/pan.cpp                           - unchanged (formatPan / parsePan)
-    gain_stage/gain_stage.cpp                - NEW: the ramp and the apply loop
-    tracktion/gain_plugin.{h,cpp}            - the renamed ToneOutputPlugin, as an adapter
-  tests/test_gain_stage.cpp                  - NEW: laws, ramp, parameter table
-  CMakeLists.txt                             - adds rock_hero::common::audio_gain_stage (JUCE-free,
-                                               POSITION_INDEPENDENT_CODE ON); common::audio links
-                                               it PUBLIC
-
-rock-hero-plugins/                           - NEW product scope, namespace rock_hero::plugins
-  CMakeLists.txt                             - add_subdirectory per plugin
-  README.md                                  - what a plugin here may and may not link
-  gain/                                      - namespace rock_hero::plugins::gain
-    CMakeLists.txt                           - juce_add_plugin(rock_hero_plugins_gain FORMATS VST3)
-    src/plugin/gain_processor.{h,cpp}        - juce::AudioProcessor over GainStage
-    src/plugin/gain_editor.{h,cpp}           - Phase 6 only; Phase 2 uses the generic editor
-    tests/CMakeLists.txt                     - rock_hero_plugins_gain_tests + the pluginval ctest
-    tests/test_gain_processor.cpp
+rock-hero-plugins/
+  CMakeLists.txt                      - project(); the JUCE seam (R5); options;
+                                        add_subdirectory(gain)
+  cmake/RockHeroPluginsAddPlugin.cmake - ONE function: a source set, the hosted library, the VST3
+  LICENSE                             - D1 (legal open item)
+  README.md                           - what a plugin here may link (JUCE only), the two build modes
+  gain/
+    CMakeLists.txt                    - rock_hero_plugins_add_plugin(gain PLUGIN_CODE Gain ...)
+    include/rock_hero_plugins/gain/gain_processor.h   - juce::AudioPluginInstance: one
+                                                        AudioParameterFloat "gain", ±24 dB, 0 dB
+                                                        default, 5 ms SmoothedValue, XML state
+    src/gain_processor.cpp
+    src/gain_editor.{h,cpp}           - fixed-size editor: one rotary juce::Slider, TextBoxBelow,
+                                        editable, " dB" suffix, one decimal, double-click → 0 dB,
+                                        begin/endChangeGesture around drags and typed entry
+    tests/test_gain_processor.cpp     - Catch2: a block at −6 dB halves; state round-trip; the
+                                        parameter id is "gain"; the description's ids are fixed
 ```
 
-Files the new scope touches silently (no compile error when forgotten): the clang-tidy path regex
-at `CMakeLists.txt:32` (add `rock-hero-plugins`); `scripts/verify-project-conventions.py`
-(`PRODUCTS`/`LIBRARIES` enumerate a fixed grid — generalize the root check to every
-`rock-hero-*/*/{include,src}` the tree contains); `.clang-format`/`.clang-tidy` already apply by
-path; `CONTRIBUTING.md` and the two architecture documents' repository trees (design-doc changes
-are listed for the user at the end).
+**RockHero** (what changes here, all in `common/audio`):
 
-Why the plugin's own sources sit in `src/plugin/`: the plugin is one feature, and the library-root
-rule holds for every library, so its files take a folder named for the hub object they compose.
-
-## The core's interface
-
-```cpp
-namespace rock_hero::common::audio {
-
-constexpr std::string_view g_plugin_vendor_name{"Rock Hero"};
-
-struct GainStageParameter { std::string_view id, name, label; double minimum, maximum, initial; };
-// Append-only, forever: hosted parameter ids are indices in Tracktion
-// (tracktion_ExternalPlugin.cpp:798-804) and hashes of `id` in VST3.
-constexpr std::array<GainStageParameter, 2> gainStageParameters();   // {level, pan}
-
-struct StereoGains { float left, right; };
-constexpr StereoGains stereoGains(ToneOutput output) noexcept;      // dB law x balanced pan law
-
-class GainStage {
-public:
-    void prepare(double sample_rate, double ramp_seconds);           // message thread
-    void setTarget(ToneOutput output) noexcept;                      // block rate
-    void process(std::span<float* const> channels, int num_samples) noexcept; // audio thread
-};
-}
+```text
+.gitmodules, external/rock-hero-plugins/      - the submodule
+CMakeLists.txt                                - sets the two seam variables, then
+                                                add_subdirectory(external/rock-hero-plugins)
+rock-hero-common/audio/CMakeLists.txt         - common::audio links rock_hero_plugins::gain PRIVATE
+rock-hero-common/audio/src/tracktion/
+  rock_hero_plugin_format.{h,cpp}             - NEW: juce::AudioPluginFormat "RockHero": the
+                                                compiled-in table {identifier → factory}, one
+                                                row per plugin; createPluginInstance; the ten
+                                                trivial overrides (no scanning, no files)
+rock-hero-common/audio/src/engine/engine.cpp  - after the Tracktion engine is built (:93):
+                                                addFormat, then knownPluginList.addType for each
+                                                description the format lists
+rock-hero-common/audio/src/engine/engine_plugin_host.cpp:346,370 - the catalog accepts the
+                                                format's name; hides VST3 entries whose
+                                                manufacturer is ours (R7)
+rock-hero-common/audio/tests/test_rock_hero_plugin_format.cpp - NEW
 ```
 
-The dB law is `std::pow(10, db / 20)`; `juce::Decibels::decibelsToGain`'s -100 dB silence floor
-can never engage inside the `[-24, +24]` range, so the two agree exactly. The ramp is a per-channel
-linear ramp (current, target, step, samples remaining): `juce::SmoothedValue` cannot be used in a
-JUCE-free target, and the ramp is the trivial logic `CLAUDE.md` lets us hand-roll. The ramp LENGTH
-stays the adapter's decision — the app's is `g_tone_switch_ramp_seconds / 2` because the stage
-must settle inside the branch crossfade; the VST3's is its own constant with no such bound.
+Nothing under `rock-hero-common/audio/include/` changes: the format is a private adapter unit,
+exactly where `architectural-principles.md` "Framework-Adapter Units" puts a class that plugs
+into a JUCE extension point. Tracktion and JUCE stay inside `common/audio` implementation files.
+The dependency direction is `rock_hero_plugins::gain` ← `common/audio` ← editor, game: the
+plugin repo sits with the other externals, below `common`, and knows nothing above it.
+
+## The CMake seam
+
+In the plugin repo's root `CMakeLists.txt`:
+
+```cmake
+# Consumer-injected JUCE. RockHero sets both before add_subdirectory(); standalone leaves them
+# empty and the repo finds or adds its own JUCE and builds the VST3 bundles.
+set(ROCK_HERO_PLUGINS_JUCE_DIR "" CACHE PATH "A JUCE source tree to add_subdirectory()")
+set(ROCK_HERO_PLUGINS_HOST_JUCE_TARGETS "" CACHE STRING
+    "Already-built JUCE module targets to link the hosted libraries against (consumer-provided)")
+option(ROCK_HERO_PLUGINS_BUILD_VST3 "Build the VST3 bundles" ${PROJECT_IS_TOP_LEVEL})
+
+if(NOT ROCK_HERO_PLUGINS_HOST_JUCE_TARGETS AND NOT TARGET juce::juce_audio_processors)
+    if(ROCK_HERO_PLUGINS_JUCE_DIR)
+        add_subdirectory("${ROCK_HERO_PLUGINS_JUCE_DIR}" juce)
+    else()
+        find_package(JUCE CONFIG REQUIRED)
+    endif()
+endif()
+```
+
+`rock_hero_plugins_add_plugin(<name> ...)` builds each plugin from ONE source list in two target
+kinds, so no source is ever listed twice:
+
+- an INTERFACE source set (`target_sources(... INTERFACE ...)` plus include dirs), as JUCE's own
+  modules propagate their sources;
+- when `ROCK_HERO_PLUGINS_HOST_JUCE_TARGETS` is set: `add_library(rock_hero_plugins_<name>
+  STATIC)` linking the source set and those targets — in RockHero,
+  `rock_hero::juce_audio_processors` and `rock_hero::juce_gui_basics`, the already-compiled
+  wrappers (`cmake/RockHeroExternalModules.cmake`), so the processor compiles with exactly the
+  module configuration every first-party library uses (`JUCE_WEB_BROWSER=0`, `JUCE_USE_CURL=0`,
+  `JUCE_PLUGINHOST_VST3=1`, exported as INTERFACE definitions) and no JUCE source is compiled a
+  second time. No `JucePlugin_*` definition is involved: no header under
+  `juce_audio_processors*/processors/` references one (`rg` 2026-10-02), so a processor library
+  needs none and there is no ODR or config mismatch;
+- when `ROCK_HERO_PLUGINS_BUILD_VST3` is on: `juce_add_plugin(rock_hero_plugins_<name>_vst3
+  FORMATS VST3 ...)` linking the source set and the raw `juce::juce_*` modules. The processor
+  sources compile inside that target, where `JucePlugin_*` is defined
+  (`JUCEUtils.cmake:1586-1615`), which is the only arrangement JUCE supports — a static library
+  that links raw modules would compile the module sources into itself and clash with the plugin
+  target's own copy.
+
+In RockHero: `ROCK_HERO_PLUGINS_BUILD_VST3 OFF`, so no bundle is ever built or copied in the app's
+build; the hosted library is all the app consumes.
 
 ## Hard constraints
 
-1. **The codes never change** (D1): `PLUGIN_MANUFACTURER_CODE` and `PLUGIN_CODE` are the class UID.
-2. **The parameter list is append-only** and each entry's `id` string is permanent; a new
-   parameter goes at the end with the next `juce::ParameterID` version hint.
-3. **The plugin builds its own JUCE modules.** `juce_add_plugin` compiles the raw `juce::juce_*`
-   modules into its shared-code target with the `JucePlugin_*` definitions
-   (`JUCEUtils.cmake:1586-1615`), which the app's `rock_hero::juce_*` wrappers were built without
-   (`cmake/RockHeroExternalModules.cmake`). The plugin therefore links NO `rock_hero::juce_*`
-   wrapper and none of `rock_hero::common::core`, `::audio`, `::ui` — only
-   `rock_hero::common::audio_gain_stage` and the raw JUCE modules `juce_add_plugin` wires.
-4. **Strictness scoped to our sources.** JUCE's module sources are compiled inside the plugin
-   target, so `rock_hero::build_policy` (`/WX`, `-Werror`) cannot go on the target; it goes on our
-   files through `set_source_files_properties(... COMPILE_OPTIONS ...)`, and the target links the
-   wrappers' non-strict set (`rock_hero::warning_flags`, `config_flags`, `lto_flags`).
-5. **The VST3 state is the plugin's own**: two values written as XML through
-   `getStateInformation`, read back tolerantly, append-only. A `.tone` file never carries it; the
-   two adapters' persisted forms never need to agree.
-6. **No `COPY_PLUGIN_AFTER_BUILD`** on developer builds: the system folders need elevation on
-   Windows and would pollute every developer's DAW; `VST3_AUTO_MANIFEST` stays on so
-   `moduleinfo.json` is generated (`JUCEUtils.cmake:1829`, `:1275`).
+1. **Parameter ids are permanent strings and the list is append-only**: `ExternalPlugin` keys
+   lanes on `AudioProcessorParameterWithID::paramID` (`tracktion_ExternalPlugin.cpp:801-802`),
+   and VST3 hosts hash the same id. New parameters go at the end with the next
+   `juce::ParameterID` version hint.
+2. **The description's identifier and unique id never change**: `fileOrIdentifier`
+   `"RockHero:gain"` and the unique id are what every saved tone and project resolves
+   (`findMatchingPluginDescription`, `tracktion_ExternalPlugin.cpp:835-843`).
+3. **The codes never change** (D2) once a VST3 ships.
+4. **The plugin repo depends only on JUCE**; no `rock_hero::` include or link, enforced by its
+   standalone build.
+5. **State is the processor's own XML**, read tolerantly, append-only; it is what the tone
+   sidecar carries, through `ExternalPlugin` as for any plugin.
+6. **Smoothing lives in the processor** (5 ms `SmoothedValue`), so it is identical hosted and as
+   a VST3. The output stage's crossfade bound does not apply to a chain block.
+7. **Audio-thread rules** are `ExternalPlugin`'s: no allocation in `processBlock`; the
+   `SmoothedValue` and the parameter read are allocation-free.
 
-## Phases (all later than the first deliverable above)
+## First deliverable: the Gain block in the app
 
-Each phase ships on its own.
+Each step builds and its tests pass before the next. Steps 1-2 are in the plugin repo (agents
+prepare the working tree; the user commits and pushes); steps 3-6 are in RockHero.
 
-**Phase 1 — the core, and the built-in re-based on it.** Small: about a day. Add `gain_stage/`
-and the `audio_gain_stage` sub-library; `GainPlugin` (the renamed `ToneOutputPlugin`) deletes its
-two smoothers, its pan law and its dB conversion and keeps only parameter plumbing and
-`applyToBuffer` calling `GainStage::process`. Its tests keep passing; `test_gain_stage.cpp` pins
-the laws at the range ends, the ramp length in samples, and the table's ids and order. No CI
-change. The gain-block plan's deferred item 8, folding `LiveRigGainPlugin` in, becomes a third
-`GainStage` caller and deletes that class's own ramp.
+0. **The user creates the empty `rock-hero-plugins` repository** (D1) and the agent clones it
+   at `external/rock-hero-plugins` (the gitlink is added in step 3).
+1. **The plugin repo skeleton and `GainProcessor`**: root `CMakeLists.txt` with the seam, the one
+   `add_plugin` function, `gain/` with the processor (R3; `fillInPluginDescription` states name,
+   vendor, format name "RockHero", identifier `"RockHero:gain"`, unique id) and its Catch2 test.
+   Verified standalone with `ROCK_HERO_PLUGINS_BUILD_VST3 OFF` and a `find_package(JUCE)` or a
+   `ROCK_HERO_PLUGINS_JUCE_DIR` pointed at RockHero's vendored JUCE
+   (`external/tracktion_engine/modules/juce`).
+2. **The editor**: `gain_editor.{h,cpp}` as in the tree; the slider's `onDragStart`/`onDragEnd`
+   and text-entry commit call `beginChangeGesture`/`endChangeGesture` on the parameter so the
+   hosted gesture gate (`plugin_dirty_tracking.cpp`) produces one undo entry per drag or typed
+   value.
+3. **Mount and build in RockHero**: `.gitmodules`, the two seam variables and
+   `add_subdirectory` in the root `CMakeLists.txt`, `common::audio` links
+   `rock_hero_plugins::gain`. A configure is the determinate reason to pass `-Configure`.
+4. **The format**: `rock_hero_plugin_format.{h,cpp}`; registration in `engine.cpp` after `:93`;
+   the catalog constant and the vendor filter (R7). Tests: the catalog lists "Gain" with format
+   "RockHero" and no file; `insertPluginCandidateToTrack` creates an `ExternalPlugin` whose
+   instance is a `GainProcessor`; a chain holding it at −6 dB round-trips through save/load,
+   export/import and the undo memento with no path in the identity; `hasKnownPluginForIdentity`
+   accepts the saved identity on a fresh engine.
+5. **Probe the hosted path once**: insert, drag the knob, undo, redo; open the window from the
+   tile; a Volume-style lane on `gain` plays; the game loads a tone containing it. The one risk
+   of (C) is a Tracktion assumption about hosted instances that only a VST3 has met; this probe
+   is where it would show.
+6. **Sight** as the gain-block plan's sighting says.
 
-**Phase 2 — the VST3 product.** Medium: two to three days, most of it CI on three OSes. The
-`rock-hero-plugins/gain` target with `GenericAudioProcessorEditor`; `gain_processor.cpp` builds
-its `AudioParameterFloat`s from `gainStageParameters()` and carries
-`static_assert(std::string_view{JucePlugin_Manufacturer} == g_plugin_vendor_name)`. Its test
-target processes a block through the processor and checks state round-trip and the parameter ids.
-`find_program(pluginval)`: when found, `add_test` runs `pluginval --strictness-level 10
---validate <bundle>` and configure logs which case it took; CI gets the binary per D3. The
-catalog filter of R5 lands here. Release builds already build every target, so the bundle exists
-in `build/release/` on all three CI platforms from this phase on.
+**Size.** Plugin repo: five source files, two CMake files, a README, a test (~400 lines). RockHero:
+one new adapter unit, three edits, one test file. About two days plus the user's repository
+bootstrap. Nothing in `editor/`, `game/` or `common/core` changes.
 
-**Phase 3 — ship it as a download.** Small to medium: a day plus CI rounds. A `Plugins` CPack
-component with an `install(DIRECTORY <bundle>)` rule (a `MODULE` target's own install rule would
-flatten the bundle, dropping `Contents/<arch>/` and `moduleinfo.json`), listed through
-`PACKAGE_BUILDER_CPACK_COMPONENTS`, and a `CPACK_PROJECT_CONFIG_FILE` that gives the archive
-generator `CPACK_ARCHIVE_COMPONENT_INSTALL ON` so the plugin lands in its own zip while NSIS, DEB
-and DragNDrop keep `Runtime` only. The release job uploads whatever CPack produced, so the plugin
-zip appears beside the app on the release page with no workflow change. Per D5, the macOS zip is
-withheld (or published with a plain "unsigned" note) until Phase 5.
+## Later phases (the VST3 for other DAWs)
 
-**Phase 4 — installer placement.** Medium, and outside this repository: `cmake-package-builder`
-(the user's) must grow a non-one-click NSIS mode with a components page and a section that writes
-to `$COMMONFILES64\VST3`, which CPack's prefix-relative rules cannot express directly. Linux is
-simple: the DEB installs the bundle under `lib/vst3/`. macOS waits on Phase 5 (a `.pkg` with the
-plugin as an optional component, or a DMG with the `.vst3` beside the app).
+**Phase V1 — the VST3 target.** In the plugin repo: `ROCK_HERO_PLUGINS_BUILD_VST3 ON` standalone
+builds `Rock Hero Gain.vst3` through `juce_add_plugin` (bundle layout `JUCEUtils.cmake:1237-1281`,
+`moduleinfo.json` from `VST3_AUTO_MANIFEST`, no `COPY_PLUGIN_AFTER_BUILD`). The repo's own CI
+builds it on three OSes and runs pluginval (D5). Small to medium.
 
-**Phase 5 — signing and notarization.** Medium, mostly accounts and secrets, in `ci-workflows`:
-Apple Developer ID with `codesign --deep --options runtime` inside-out and `notarytool`; Windows
-Authenticode (or Azure Trusted Signing) for the installer and, once available, the `.vst3`. JUCE's
-build-time ad-hoc signature (`JUCEUtils.cmake:998-1016`) is not a substitute.
+**Phase V2 — release archives** from the plugin repo's releases, one zip per OS. Windows and
+Linux ship unsigned (DAWs load an unsigned `.vst3`); macOS waits for V4.
 
-**Phase 6 — optional follow-ons, each its own decision.** AU (after Phase 5); CLAP (needs a
-dependency, R7); the shared fader-and-knob look compiled into both products (D6); a second plugin,
-which by then costs one folder under `rock-hero-plugins/`.
+**Phase V3 — installer placement**: an optional "install for other DAWs" component in RockHero's
+installer needs `cmake-package-builder` (the user's) to grow a components page and a section
+writing to `$COMMONFILES64\VST3`; Linux DEB to `lib/vst3/`; macOS after V4. Medium, outside this
+repo.
+
+**Phase V4 — signing and notarization**: Apple Developer ID + notarytool, Windows Authenticode,
+secrets in the plugin repo's CI. Medium; purchases.
+
+**Phase V5 — optional**: AU after V4; CLAP only with `clap-juce-extensions` as a dependency the
+user approves; a second plugin (one folder in the plugin repo, one row in the format's table);
+the output stage and `LiveRigGainPlugin` as hosted processors if R6's probe clears them.
 
 ## Risks
 
-- **JUCE's splash screen.** Nothing in the tree sets `JUCE_DISPLAY_SPLASH_SCREEN` today; a plugin
-  editor under the AGPL grant may disable it, under the EULA tiers it may not. Settle with the
-  licence item below before Phase 2 ships an editor.
-- **Two plugins named "Gain" in another DAW's list** is impossible (the class UID differs), but
-  two of OURS with the same codes would be fatal; D1 is recorded here so no later plugin reuses
-  `Gain`.
-- **The MSVC `-Werror` scope** (constraint 4): a per-source `COMPILE_OPTIONS` genex is the
-  mechanism to verify first; if it misbehaves under the Ninja/MSVC path, the fallback is a static
-  library of our two sources compiled with the plugin's `JucePlugin_*` definitions, never the
-  app's wrappers.
-- **Linux `-fPIC`**: the core sub-library is static and a `MODULE` links it, so it needs
-  `POSITION_INDEPENDENT_CODE ON` or the Linux link fails.
-- **Catalog filter by vendor name** (R5) is a string match; a third party naming itself "Rock
-  Hero" would be hidden. Accepted: the alternative, matching derived UIDs, restates the codes.
+- **Tracktion hosting a non-VST3 instance**: only the channel-config branch
+  (`tracktion_ExternalPlugin.cpp:562`) is format-conditioned; step 5 probes the rest.
+- **The known-plugin list is persisted by Tracktion**: our types are re-added at every start and
+  `addType` replaces duplicates; a stale persisted row cannot resolve to a file because the
+  format reports `doesPluginStillExist` from its table.
+- **The JUCE splash screen** in the plugin's editor under JUCE's AGPL grant — settle with the
+  licence item before the VST3 ships.
+- **Two JUCE configurations**: the hosted library compiles against RockHero's wrapper
+  definitions; the VST3 against `juce_add_plugin`'s. They are different targets in different
+  builds and never link together, so no ODR issue; the processor code must not depend on a
+  module flag that differs between them (none does today).
 
 ## Open legal items (for the user, perhaps the ip-legal-expert; not decided here)
 
-1. **JUCE's licence for plugin binaries.** The repository is AGPLv3 (`LICENSE`) and JUCE is
-   AGPLv3-or-EULA (`modules/juce/LICENSE.md:6-8`); the plugin inherits AGPLv3. Confirm the plugin
-   binary may ship under AGPLv3 without a JUCE EULA tier, and what the splash-screen rule is for it.
-2. **AGPL plugins inside closed hosts.** Loading an AGPLv3 `.vst3` into a proprietary DAW: whether
-   the plugin and host form a combined work, and what the download page must say about source.
-3. **The "VST" mark.** The VST3 SDK is MIT (`LICENSE.txt` under
-   `modules/juce/modules/juce_audio_processors_headless/format_types/VST3_SDK/`), but the VST name
-   and logo remain Steinberg trademarks with their own rules (its `README.md:256-267`: optional,
-   and if used, only per Steinberg's guidelines, logos unaltered). Whether "VST3"
-   may appear in a product name, a file name beyond the mandated `.vst3` extension, or the download
-   page as a description is unverified.
-4. **The ASIO SDK** does not enter the plugin (it links no device code); confirm nothing in the
-   JUCE modules the plugin compiles pulls it in on Windows.
+1. **The plugin repo's licence** (D1) and JUCE's AGPLv3-or-EULA terms for plugin binaries
+   (`juce/LICENSE.md:6-8`), including the splash-screen rule.
+2. **AGPL plugins inside closed hosts**: whether a `.vst3` under an AGPL-family licence loaded in
+   a proprietary DAW forms a combined work, and what the download page must say.
+3. **The "VST" mark**: the SDK is MIT (`juce_audio_processors_headless/format_types/VST3_SDK/
+   LICENSE.txt`), the name and logo remain Steinberg trademarks with usage rules (its
+   `README.md:256-267`); whether "VST3" may appear in a product name or page is unverified.
 
 ## Design-document changes for the user to approve
 
 - `docs/design/architecture.md` "Repository Layout" and `CLAUDE.md` "Architecture": add
-  `rock-hero-plugins/` with its dependency rule (may link `common`'s JUCE-free sub-libraries only;
-  never the JUCE/Tracktion wrappers, never editor or game).
-- `docs/design/architectural-principles.md` "Product Scopes": a fourth scope, and the rule that a
-  plugin product builds its own JUCE modules.
+  `external/rock-hero-plugins/` (our JUCE-only plugin repo as a submodule) and the rule that
+  `common/audio` may link its hosted libraries while nothing in it may depend on RockHero.
+- `docs/design/architectural-principles.md` "Third-Party Module Linkage": record that the plugin
+  repo's hosted libraries are built against the `rock_hero::juce_*` wrappers through the injected
+  `ROCK_HERO_PLUGINS_HOST_JUCE_TARGETS`, so the one-copy rule holds across the submodule.
 
 ## Relation to other records
 
-- `docs/plans/todo/gain-block-and-signal-chain-panel.md` — Phase 1 there is the in-app Gain block
-  and is the first deliverable; everything in this plan comes after it and builds on the type it
-  renames and the identity authority it introduces.
-- `docs/tracking/backlog.md` (2026-10-02) — the identity defect of R6.
-- `docs/tracking/backlog.md` "standard tones built only from plugins we ship" — this plan is the
-  first plugin that could back such a tone, as a built-in, with no file dependency.
-- `docs/plans/roadmap/33-cross-platform-port.md` — Phase 5's signing work is the same work the
-  app's own macOS release will need; do it once.
+- `docs/plans/todo/gain-block-and-signal-chain-panel.md` — its Phase 1 is this first deliverable;
+  the eight seams there are the rejected route (A) and are kept only as the record of why.
+- `docs/tracking/backlog.md` (2026-10-02) — the path-bound identity defect (R8).
+- `docs/tracking/backlog.md` "standard tones built only from plugins we ship" — this is the first
+  plugin that could back such a tone, with no file dependency.

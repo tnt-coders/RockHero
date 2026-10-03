@@ -40,8 +40,11 @@ there is no per-tone input gain.
 
 ## Phase 1 — the Gain block
 
-One built-in plugin, insertable from the plugin picker. This is not a built-in plugin framework:
-exactly one type, and every seam it opens is opened for it alone until a second built-in exists.
+Phase 1 is now delivered as a hosted JUCE processor from our own plugin repo, ruled 2026-10-02 in
+`bundled-gain-plugin.md` (R1-R8): no built-in type and none of the seams below are built. From
+here to the Tests paragraph is the record of route (A), a Tracktion built-in, kept because the
+rulings about the SLOT (the stage's position, store, id and UI) still hold and because the
+comparison in that plan rests on these seams.
 
 **Ruled 2026-10-02: the tone's output stage and the Gain block are ONE plugin type.**
 `ToneOutputPlugin` (`rock-hero-common/audio/src/tracktion/tone_output_plugin.h`, built in
@@ -64,12 +67,9 @@ belongs to the slot's owner, never to a flag on the type:
 - *The UI.* The stage is the panel's Output fader and pan knob; a block is a tile and a small
   editor window.
 
-*Refined later on 2026-10-02 by `docs/plans/todo/bundled-gain-plugin.md`: the one type is an
-ADAPTER over a shared, JUCE-free `GainStage` core (ranges, dB law, pan law, ramp, parameter
-table), and a VST3 for other DAWs is a second adapter over the same core in a new
-`rock-hero-plugins/` product. Inside the app nothing above changes — both instances stay
-`ToneOutputPlugin`, and the app never hosts the VST3. That plan's Phase 1 re-bases the class on
-the core; it may land before or after the seams below.*
+*Narrowed the same day to gain only (one knob with a typed dB box; the stage keeps level and
+pan), then superseded by the hosted route in `bundled-gain-plugin.md`. The one-type ruling above
+is void; the slot bullets stand.*
 
 Nothing shipped in `31cbed52` has to be undone: the derived id and the picker's "Output" submenu
 describe the stage's slot, not the type. The class and its `xmlTypeName` take the one gain type's
@@ -130,110 +130,23 @@ building):
    track-level automatable stage would be the first outside that guarantee, so the fold states the
    policy with `setWritingAutomation(false)` at `createEdit`.
 
-### The simplest path, ordered (2026-10-02; this is the first deliverable)
+### What Phase 1 builds now (2026-10-02)
 
-Re-read against `5c0299a8` for the question "what is the least that makes Gain insertable like a
-normal plugin, with nothing distributed". Everything below stays in `common/audio`; the editor's
-picker, tile, window-open, undo and automation paths are already generic over candidates,
-chain entries and `tracktion::Plugin` (no editor production file changes; `rg` 2026-10-02:
-`editor/` reads only `format_name` from a candidate, never `file_path`). No tone-document or
-project format change: the identity object gains no key, and the two authored values ride in the
-sidecar's existing `<PLUGIN>` tree as properties. The `GainStage` core of
-`bundled-gain-plugin.md` is NOT a prerequisite — it deletes nothing on this path — and the catalog
-filter there (R5) waits until a VST3 of ours exists.
+The hosted route, steps 0-6 under "First deliverable" in `bundled-gain-plugin.md`: the plugin
+repo's `GainProcessor` and its knob editor, the `RockHero` `juce::AudioPluginFormat` in
+`common/audio/src/tracktion/`, its registration, and the catalog constant. Tracktion's
+`ExternalPlugin` is the adapter, already written: parameters, state, editor, lanes and undo all
+come for free. The identity authority, the generalised refusals and the built-in editor of route
+(A) are withdrawn with it. Size: about two days plus the repository bootstrap.
 
-**One discriminator replaces the six refusals.** Every `dynamic_cast<ExternalPlugin*>` in the
-tree is one of two kinds. The REFUSALS (`engine_live_rig.cpp:770`, `:1530`, `:1587`;
-`engine_plugin_host.cpp:1216`, `:1400`; `plugin_state_memento.cpp:46`) and the restores that treat
-a non-external result as failure (`engine_live_rig.cpp:1410`, `:1735`, `:1852`;
-`engine_plugin_host.cpp:1292`) all ask one question — is this a user chain plugin, and what is its
-identity? — so they collapse into ONE authority:
-
-```cpp
-// plugin_scan.h: the identity of a plugin the sidecar carries; nullopt = not a chain plugin.
-std::optional<PluginIdentity> pluginIdentityOf(const tracktion::Plugin& plugin);
-//   ExternalPlugin -> makePluginIdentity(desc);  ToneOutputPlugin -> builtInGainIdentity();
-```
-
-State capture is already generic: `flushPluginStateToValueTree()` is virtual on
-`tracktion::Plugin` (`tracktion_Plugin.h:133`), so `cleanPluginStateCopy` and `capturePluginState`
-take a `Plugin&` and the built-in's flush is a no-op because its state is always current. Restore
-is generic because `Plugin` is a `ValueTreeAllEventListener` (`tracktion_Plugin.h:113`, `:425`):
-`copyPluginStatePreservingInstanceId` overwrites the properties in place and the built-in reacts
-in `valueTreePropertyChanged`; `restorePluginStateFromValueTree` is `ExternalPlugin`-only
-(`tracktion_ExternalPlugin.h:52`) and stays behind a cast that no longer refuses. The EXTRAS stay
-as casts that fall through — `getLoadError()`, the no-instance warning, VST3 key routing
-(`plugin_window.cpp:410`), discrete steps (`tone_automation_curve.cpp:43`) — because they are
-facts only an external plugin has.
-
-The discriminator's persisted spelling is the identity's existing `format` key: the built-in
-writes `g_builtin_plugin_format_name` ("Built-in") where a scanned plugin writes "VST3", with
-`name` "Gain", `manufacturer` "Rock Hero", every path and hash key empty (already a legal value —
-hints are optional today). Nothing about it can depend on a file path. `hasKnownPluginForIdentity`
-answers true for that format before any path-bearing key; the candidate's `id` and the chain
-entry's `plugin_id` are the plugin's `xmlTypeName`, the one key `getOrCreatePluginFor` already
-dispatches on through `createCustomPlugin` (`engine_behaviors.cpp:111`). The picker's third column
-and the tile's format caption show "Built-in" for free (`plugin_browser_window.cpp:319`,
-`plugin_tile_view.cpp:187`).
-
-Steps, in order; each builds and its tests pass before the next:
-
-1. **Rename the type and lock it**: `ToneOutputPlugin` → `GainPlugin`, `xmlTypeName`
-   `"rockHeroGain"`, `getName()` "Gain". Free today because the string is never saved; the first
-   saved Gain block makes it a persisted format, so this lands first and never changes again.
-2. **State-backed values** (seam 1): `level` and `pan` become properties of the plugin's state
-   tree, written only by `setOutput` and seeded in the constructor; `valueTreePropertyChanged`
-   pushes a changed property to the parameter's explicit value, so an in-place restore and an
-   undo both apply. Test: create from a state carrying −6 dB, read −6 dB; overwrite the property,
-   hear the new gain.
-3. **The identity authority**: `pluginIdentityOf`, `builtInGainIdentity`, the format constant, and
-   the gate's one new first line. Tests: the gate accepts the built-in identity; a non-chain
-   plugin yields nullopt.
-4. **Generalise capture and restore through it** (seam 3): the six refusals and four restore
-   casts above; `plugin_state_memento.cpp:46` drops its `ExternalPlugin` type test (an unknown
-   type already fails in `getOrCreatePluginFor`); `PluginParameterDirtyTracker` and
-   `PluginDirtyStateTracker` take `tracktion::Plugin&` (they use nothing else of
-   `ExternalPlugin`; `plugin_dirty_tracking.cpp` verified 2026-10-02), and the observer loop at
-   `engine_plugin_host.cpp:721` stops skipping non-external chain plugins. Tests: save/load,
-   export/import and the memento round-trip a chain holding a Gain block at −6 dB.
-5. **Catalog and insert** (seam 2): `knownPluginCatalog` lists the built-in candidate first;
-   `insertPluginCandidateToTrack` branches once on the format to
-   `createNewPlugin(GainPlugin::createState())`. Tests: the catalog's first entry; insert at head
-   and tail; move; remove.
-6. **The window** (seam 4): `createEditor()` returns a `Plugin::EditorComponent` holding two plain
-   `juce::Slider`s — a linear level fader in dB and a rotary pan with the C/L35/R100 text through
-   `formatPan`/`parsePan` — bound to the two parameters with `parameterChangeGestureBegin/End`
-   around each drag so the existing gesture-only dirty tracker emits the undo entry. Tracktion
-   offers nothing generic here: `createEditor` defaults to nothing (`tracktion_Plugin.h:386`) and
-   the engine ships no parameter editor for internal plugins, so without this step "Open" is a
-   silent no-op (`plugin_window.cpp:37-41`). The themed fader-and-knob look (item 4's move of the
-   drawing to `common/ui`) is polish, later.
-7. **The stage's label** (seam 5): the type is "Gain"; the automation listing that already
-   appends the stage separately (`engine_tone_automation.cpp:74-84`) labels it "Output", the slot's
-   name. No per-instance name in state.
-8. **Sight**: the sighting below, plus undo of insert, move, remove and a value drag.
-
-Deferred from the eight seams: 6 (the value in the tile caption — the window shows it) and 8 (the
-`LiveRigGainPlugin` fold); both are polish with no bearing on insertability.
-
-**Size, honestly.** One layer (`common/audio`), about ten production files (`gain_plugin.{h,cpp}`
-renamed, a new `gain_plugin_editor.{h,cpp}`, `plugin_scan.{h,cpp}`, `engine_plugin_host.cpp`,
-`engine_live_rig.cpp`, `plugin_state_memento.cpp`, `plugin_dirty_tracking.{h,cpp}`,
-`engine_tone_automation.cpp`, `engine_behaviors.cpp`) and six test files; no format change; two
-to three days including tests and the sighting. Risk is low-to-medium and sits in one place: the
-dirty tracker's gesture gate has only ever observed an `ExternalPlugin`, so step 6 is probed
-against the undo stack before the window is called done.
-
-**Deletions in Phase 1.** The six `ExternalPlugin`-only refusals and their four restore twins
-become one authority; nothing else goes yet, since the block lands beside the panel's output stage
-so it can be sighted against it.
-
-**Tests.** Catalog lists the built-in; insert creates it in the audible branch at the chosen slot;
+**Tests.** Catalog lists Gain with format "RockHero" and no file; insert creates it in the audible
+branch at the chosen slot as an `ExternalPlugin` holding a `GainProcessor`;
 save/load round-trips a chain containing it with its dB; undo of a value edit restores through the
 memento path; the game loads a tone containing one; a tone file exports and imports it.
 
-**Sighting.** Insert Gain at the head of a chain and at the tail; set −6 dB on the tail block; the
-tile shows the value; the tone file round-trips it; the game plays the tone at that level.
+**Sighting.** Insert Gain at the head of a chain and at the tail; set −6 dB on the tail block by
+dragging the knob, then by typing; the window shows the value; the tone file round-trips it; the
+game plays the tone at that level.
 
 ## Phase 2 — the meter-only panel
 
