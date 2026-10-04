@@ -198,10 +198,12 @@ public:
     /*!
     \brief Returns the terminal anchor grown to cover a time.
 
-    The terminal moves to the first downbeat at or after its own measure whose time reaches
+    The terminal moves to the first downbeat at or after its own position whose time reaches
     \p cover_until_seconds, timed from the last anchor before it at \p seconds_per_quarter and
     rounded to a whole millisecond once, so a long extension carries no accumulated rounding. A
-    terminal that already covers the time comes back unchanged: it never moves earlier.
+    terminal on a downbeat that already covers the time comes back unchanged: it never moves
+    earlier. A terminal left mid-measure (a meter edit's re-addressed map) always moves, so a
+    zero time re-seats it on the next downbeat and nothing further.
 
     \param cover_until_seconds Time the map must reach, such as the end of the song's audio.
     \param seconds_per_quarter Tempo the last span keeps, as seconds per quarter note.

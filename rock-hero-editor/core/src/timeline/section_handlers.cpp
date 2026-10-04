@@ -48,7 +48,7 @@ SectionChordTarget EditorController::Impl::sectionChordTarget() const
     {
         return {};
     }
-    const common::core::GridPosition downbeat = common::core::songSectionDownbeat(*position);
+    const common::core::GridPosition downbeat = common::core::measureDownbeat(*position);
     const std::vector<common::core::SongSection>& sections = session().song().sections;
     if (const auto standing =
             std::ranges::find(sections, downbeat, &common::core::SongSection::position);
@@ -108,7 +108,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectSongSec
 // and an arrow re-arms the caret where it stood.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSection& action)
 {
-    const common::core::GridPosition downbeat = common::core::songSectionDownbeat(action.position);
+    const common::core::GridPosition downbeat = common::core::measureDownbeat(action.position);
     const std::string name = common::core::trimmedSongSectionName(action.name);
     SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
     SongSectionsSnapshot after = before;
@@ -166,7 +166,7 @@ void EditorController::Impl::moveSelectedSongSection(
 
     // Stepped by MEASURE, then put through the one downbeat snap: the step is the only part of the
     // target this verb decides, and where a section may sit is not its rule to restate.
-    const common::core::GridPosition target = common::core::songSectionDownbeat(
+    const common::core::GridPosition target = common::core::measureDownbeat(
         common::core::GridPosition{.measure = selection.position.measure + delta});
     SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
     SongSectionsSnapshot after = before;

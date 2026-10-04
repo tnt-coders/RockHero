@@ -1,0 +1,101 @@
+/*!
+\file meter_edits.h
+\brief The pure re-addressing transform behind every time-signature edit.
+*/
+
+#pragma once
+
+#include "timeline/song_timeline.h"
+
+#include <cstdint>
+#include <expected>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
+#include <string>
+#include <vector>
+
+namespace rock_hero::editor::core
+{
+
+/*!
+\brief A time signature placed by where it starts in musical time rather than by measure number.
+
+A meter edit keeps every meter's time (65-Q3), so an edit is stated on the whole-note axis, the one
+axis a meter change does not bend; the measure numbers are derived from these places
+(\ref readdressUnderMeters), never stated beside them.
+*/
+struct PlacedMeter
+{
+    /*! \brief Whole notes from the song's start to the meter's first downbeat. */
+    common::core::Fraction whole_note{};
+
+    /*! \brief Beats per measure. */
+    int numerator{4};
+
+    /*! \brief Note value that represents one beat. */
+    int denominator{4};
+
+    /*!
+    \brief Compares two placed meters by their stored fields.
+    \param lhs Left-hand meter.
+    \param rhs Right-hand meter.
+    \return True when both store equal values.
+    */
+    friend bool operator==(const PlacedMeter& lhs, const PlacedMeter& rhs) = default;
+};
+
+/*!
+\brief Reads a tempo map's time signatures at the places they start.
+\param tempo_map Map to read.
+\return One placed meter per time-signature change, in order.
+*/
+[[nodiscard]] std::vector<PlacedMeter> placedMetersOf(const common::core::TempoMap& tempo_map);
+
+/*! \brief Stable reasons a meter edit refuses. */
+enum class MeterEditErrorCode : std::uint8_t
+{
+    /*!
+    \brief A meter's place is not a downbeat under the meters before it: the reign before it is not
+    a whole number of measures (65-Q3).
+    */
+    MeterOffDownbeat,
+};
+
+/*! \brief Recoverable failure produced by a meter edit. */
+struct [[nodiscard]] MeterEditError
+{
+    /*! \brief Stable error code used by callers for branching. */
+    MeterEditErrorCode code{};
+
+    /*! \brief Human-readable diagnostic for the refusal log. */
+    std::string message;
+};
+
+/*!
+\brief Re-addresses the whole song timeline under a new meter list, every object keeping its time.
+
+The new list's measure numbers are derived by walking the places in order, the first standing at
+measure 1; a place that is not a downbeat under the meters before it refuses the edit. Then every
+slice keeps its whole-note position exactly:
+- tempo anchors (their milliseconds untouched), note onsets, fret-hand positions, tone region
+  starts and tone automation points are re-addressed: the same whole-note position, read as a token
+  under the new meters;
+- a note's ring and its keyframe offsets are BEAT counts, which a denominator change re-means, so
+  they are re-expressed: the new beat distance from the re-addressed onset to the re-addressed end;
+- a section left off a downbeat snaps back to its measure's downbeat, the one slice that moves in
+  time (a section is navigation and moves no sound); two snapping onto one downbeat are left for
+  the section rules to refuse, as they refuse any repeated position;
+- a terminal left off a downbeat re-seats on the first one after it (\ref reseatTerminalAnchor).
+
+Every arrangement is re-addressed, not only the loaded one. The result is not validated: the caller
+judges it against the rules as it would any edit.
+
+\param timeline Timeline to re-address; its tempo map holds the meters being replaced.
+\param meters The new meter list, in order, the first at whole note 0.
+\return The re-addressed timeline, or the refusal.
+*/
+[[nodiscard]] std::expected<SongTimeline, MeterEditError> readdressUnderMeters(
+    const SongTimeline& timeline, std::span<const PlacedMeter> meters);
+
+} // namespace rock_hero::editor::core

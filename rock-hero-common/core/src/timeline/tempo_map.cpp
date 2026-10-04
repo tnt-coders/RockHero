@@ -225,8 +225,9 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
         return m_anchors.empty() ? BeatAnchor{} : m_anchors.back();
     }
     const BeatAnchor& terminal = m_anchors.back();
+    const bool on_downbeat = measureDownbeat(terminal.position) == terminal.position;
     if (!std::isfinite(cover_until_seconds) || !std::isfinite(seconds_per_quarter) ||
-        seconds_per_quarter <= 0.0 || terminal.seconds() >= cover_until_seconds)
+        seconds_per_quarter <= 0.0 || (on_downbeat && terminal.seconds() >= cover_until_seconds))
     {
         return terminal;
     }
@@ -234,7 +235,8 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
     // Every candidate downbeat is timed from the last anchor before the terminal and rounded once,
     // never by stepping from a rounded time, so the error stays half a millisecond however far the
     // terminal travels. The covered time is a threshold, never stored, so it is compared unrounded.
-    const BeatAnchor& opener = m_anchors[m_anchors.size() - 2];
+    const std::size_t opener_index = m_anchors.size() - 2;
+    const BeatAnchor& opener = m_anchors[opener_index];
     const auto milliseconds_at = [&opener, seconds_per_quarter](const double quarter_count) {
         return nearestAnchorMilliseconds(opener.seconds() + quarter_count * seconds_per_quarter);
     };
@@ -248,8 +250,12 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
                static_cast<double>(signature.denominator);
     };
 
-    int measure = terminal.position.measure;
-    double quarters = spanQuarterLength(m_anchors.size() - 2);
+    // The walk starts at the first downbeat at or after the terminal: the terminal itself on a
+    // valid map, the next barline when a meter edit has left it mid-measure.
+    int measure = on_downbeat ? terminal.position.measure : terminal.position.measure + 1;
+    double quarters = quarterPositionAtBeatPosition(beatPositionAt(
+                          GridPosition{.measure = measure, .beat = 1, .offset = {}})) -
+                      m_anchor_quarter_positions[opener_index];
 
     // Measure by measure through any meter change still ahead of the terminal...
     const int last_change = m_time_signatures.back().measure;

@@ -2,7 +2,6 @@
 
 #include <expected>
 #include <optional>
-#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
@@ -98,7 +97,7 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
     }
 
     const GridPosition& terminal = anchors.back().position;
-    if (terminal.beat != 1 || terminal.offset != Fraction{})
+    if (measureDownbeat(terminal) != terminal)
     {
         return refuse(
             TempoMapErrorCode::TerminalOffDownbeat, "the terminal anchor must be on a downbeat");

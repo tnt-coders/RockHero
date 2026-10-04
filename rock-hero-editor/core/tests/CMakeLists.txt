@@ -75,6 +75,7 @@ add_executable(
     test_timeline_geometry.cpp
     test_transport_readout_text.cpp
     test_load_notice.cpp
+    test_meter_edits.cpp
     test_project.cpp
     test_editor_settings.cpp)
 

@@ -83,11 +83,15 @@ target_sources(
             src/tasks/juce_editor_task_runner.cpp
             src/tasks/juce_message_thread_scheduler.cpp
             src/timeline/marker_row_handlers.cpp
+            src/timeline/meter_edits.cpp
+            src/timeline/meter_edits.h
             src/timeline/section_handlers.cpp
             src/timeline/section_projection.cpp
             src/timeline/section_projection.h
             src/timeline/song_sections_snapshot.cpp
             src/timeline/song_sections_snapshot.h
+            src/timeline/song_timeline.cpp
+            src/timeline/song_timeline.h
             src/timeline/tempo_grid_geometry.cpp
             src/timeline/tempo_handlers.cpp
             src/timeline/tempo_map_edits.cpp

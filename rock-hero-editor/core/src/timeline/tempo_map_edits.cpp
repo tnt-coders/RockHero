@@ -50,6 +50,15 @@ namespace
     return edited;
 }
 
+// The tempo a span holds, as seconds per quarter note: its stored time over its quarter length.
+[[nodiscard]] double spanSecondsPerQuarter(
+    const common::core::TempoMap& tempo_map, const std::size_t span)
+{
+    const std::vector<common::core::BeatAnchor>& anchors = tempo_map.anchors();
+    return (anchors[span + 1].seconds() - anchors[span].seconds()) /
+           tempo_map.spanQuarterLength(span);
+}
+
 } // namespace
 
 TempoMapEditResult insertTempoAnchor(
@@ -129,9 +138,7 @@ TempoMapEditResult setTempoSpanBpm(
     const std::size_t last_span = anchors.size() - 2;
     const common::core::TempoMap rippled{tempo_map.timeSignatures(), anchors};
     const double seconds_per_quarter =
-        span == last_span ? 60.0 / quarter_bpm
-                          : (anchors.back().seconds() - anchors[last_span].seconds()) /
-                                rippled.spanQuarterLength(last_span);
+        span == last_span ? 60.0 / quarter_bpm : spanSecondsPerQuarter(rippled, last_span);
     anchors.back() = rippled.terminalCovering(cover_until_seconds, seconds_per_quarter);
     return validated(tempo_map, std::move(anchors));
 }
@@ -155,6 +162,23 @@ TempoMapEditResult deleteTempoAnchor(
     std::vector<common::core::BeatAnchor> anchors = tempo_map.anchors();
     anchors.erase(anchors.begin() + static_cast<std::ptrdiff_t>(*index));
     return validated(tempo_map, std::move(anchors));
+}
+
+common::core::TempoMap reseatTerminalAnchor(const common::core::TempoMap& tempo_map)
+{
+    const std::vector<common::core::BeatAnchor>& held = tempo_map.anchors();
+    if (held.size() < 2 ||
+        common::core::measureDownbeat(held.back().position) == held.back().position)
+    {
+        return tempo_map;
+    }
+    std::vector<common::core::BeatAnchor> anchors = held;
+
+    // Covering no time at all, the growth rule only seats the terminal on the first downbeat at or
+    // after it, timed at the tempo its span already holds.
+    anchors.back() =
+        tempo_map.terminalCovering(0.0, spanSecondsPerQuarter(tempo_map, anchors.size() - 2));
+    return common::core::TempoMap{tempo_map.timeSignatures(), std::move(anchors)};
 }
 
 std::int64_t tempoAnchorNudgeMilliseconds(double pixels_per_second) noexcept

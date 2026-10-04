@@ -57,25 +57,13 @@ so the stored name and the accepted name can never disagree.
 [[nodiscard]] std::string trimmedSongSectionName(std::string_view name);
 
 /*!
-\brief The measure downbeat a section covering a position starts on.
-
-The one snap behind the position rule, so the verbs that place a section and the validator that
-accepts one cannot disagree about where a section may start: a section names a passage that begins
-at a barline, so it starts on beat 1 of its measure with no sub-beat offset. The board promotes that
-downbeat's own bar rather than drawing a mark of its own, which an off-downbeat start would have
-nothing to promote.
-
-\param position Any grid position inside the measure.
-\return That measure's downbeat.
-*/
-[[nodiscard]] GridPosition songSectionDownbeat(const GridPosition& position) noexcept;
-
-/*!
 \brief Validates the structural song-section rules shared by editing and persistence.
 
 Checks non-empty names (after \ref trimmedSongSectionName), positions that are real measure
-downbeats (\ref songSectionDownbeat) on the tempo map's grid, every position lying strictly before
-the terminal anchor (a section starting on the closing barline would name a passage of no length),
+downbeats (\ref measureDownbeat — a section names a passage that begins at a barline, and the board
+promotes that downbeat's own bar rather than drawing a mark of its own) on the tempo map's grid,
+every position lying strictly before the terminal anchor (a section starting on the closing barline
+would name a passage of no length),
 and strictly ascending positions — strictly, because two sections at one position would make "which
 section governs this moment" answer arbitrarily.
 

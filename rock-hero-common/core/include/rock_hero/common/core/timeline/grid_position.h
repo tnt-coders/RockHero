@@ -62,4 +62,19 @@ struct GridPosition
         default;
 };
 
+/*!
+\brief The downbeat of the measure a position falls in.
+
+THE ONE downbeat rule: a position is a downbeat exactly when it equals its own measure's downbeat,
+so every rule that holds something to a barline (the terminal anchor, a section) and every verb
+that snaps to one asks this rather than restating beat-1-no-offset.
+
+\param position Any grid position inside the measure.
+\return That measure's beat 1, with no sub-beat offset.
+*/
+[[nodiscard]] constexpr GridPosition measureDownbeat(GridPosition position) noexcept
+{
+    return GridPosition{.measure = position.measure, .beat = 1, .offset = {}};
+}
+
 } // namespace rock_hero::common::core

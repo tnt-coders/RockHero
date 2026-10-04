@@ -25,6 +25,7 @@ namespace
 {
 
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::downbeat;
 
 using common::core::GridPosition;
 using common::core::SongSection;
@@ -33,11 +34,6 @@ constexpr const char* g_first_region_id = "10101010-1111-4111-8111-111111111111"
 constexpr const char* g_second_region_id = "20202020-2222-4222-8222-222222222222";
 constexpr const char* g_first_tone_ref = "tone-clean";
 constexpr const char* g_second_tone_ref = "tone-drive";
-
-[[nodiscard]] GridPosition downbeat(int measure)
-{
-    return GridPosition{.measure = measure, .beat = 1};
-}
 
 // Two tempo spans and two meters whose measures all last two seconds: 4/4 at 120 BPM through
 // measure 4, then 3/4 at 90 BPM from measure 5, so measure N's downbeat sits at (N - 1) * 2 seconds

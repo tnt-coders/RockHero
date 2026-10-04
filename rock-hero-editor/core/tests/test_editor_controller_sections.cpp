@@ -9,6 +9,7 @@
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
@@ -27,11 +28,7 @@ namespace
 
 using common::core::GridPosition;
 using common::core::SongSection;
-
-[[nodiscard]] GridPosition downbeat(int measure)
-{
-    return GridPosition{.measure = measure, .beat = 1};
-}
+using common::core::testing::downbeat;
 
 // A 4/4 map at 120 BPM whose terminal downbeat is measure 5 beat 1, so measures 1-4 can carry a
 // section and measure 5 is the closing barline every out-of-song refusal is measured against. The

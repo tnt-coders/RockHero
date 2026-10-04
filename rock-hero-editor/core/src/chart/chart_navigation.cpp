@@ -20,7 +20,7 @@ CaretTimeBounds caretTimeBounds(
 common::core::GridPosition measureJumpPosition(
     const common::core::GridPosition& from, const bool later) noexcept
 {
-    const bool at_measure_start = from.beat == 1 && from.offset.numerator == 0;
+    const bool at_measure_start = common::core::measureDownbeat(from) == from;
     const int target_measure = later              ? from.measure + 1
                                : at_measure_start ? std::max(1, from.measure - 1)
                                                   : from.measure;
