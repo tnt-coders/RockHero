@@ -41,8 +41,7 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    ChartViewState scene = makeChartViewState(arrangement, tempo_map);
    HighwayViewState makeHighwayViewState(ChartViewState scene,
                                          const TempoMap& tempo_map,
-                                         const std::vector<SongSection>& sections,
-                                         HighwayDisplayOptions options);
+                                         const std::vector<SongSection>& sections);
    ```
 
    The result is immutable and shared (`std::shared_ptr<const HighwayViewState>`); the camera
@@ -71,8 +70,13 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    static std::expected<HighwayRenderer, HighwayRendererError>
        create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures);
    void setViewState(common::core::HighwayViewState state);
+   void setDisplayOptions(common::core::HighwayDisplayOptions options);
    void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
    ```
+
+   The display options — the lefty mirror, the string-order invert, the displayed-lane minimum —
+   are the renderer's own setting rather than part of the view state: none of them changes the
+   projected chart, so changing one re-projects nothing.
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
    consumer decides where they load from. What each program and asset *is*, and the file name it
@@ -171,8 +175,9 @@ and `EditorView` pushes the resulting shared pointer into the preview window.
 
 What differs per consumer is exactly what should differ: the window (SDL top-level vs JUCE child
 HWND), the frame driver (main loop vs vblank ticks), device lifetime policy (process-long vs
-survives-hides), and display options (the editor forces `invert_string_order` and a minimum
-string count to match its 2D tab lane).
+survives-hides), and display options (each consumer calls `setDisplayOptions` itself: the game
+once at construction with the lefty flag, the editor preview with `invert_string_order` and its 2D
+tab lane's minimum string count).
 
 # The fretboard axis: one function, and a deliberate stop/node split
 
@@ -633,10 +638,10 @@ none: the one candidate, a per-note floor mark for the ring a short note really 
 as clutter rather than information (`docs/plans/in-progress/note-sustain-model.md`, stage D). Two
 constraints bind the shape if it is ever wanted. The overlay path cannot express one at all —
 `HighwayOverlayRect` is axis-aligned pixels, and a mark on a perspective floor is a trapezoid that
-moves every frame — so it has to draw in the ordinary drawer path. And its switch must NOT be a
-`HighwayDisplayOptions` field: those ride the memoized `HighwayViewState`, so a toggle pressed to
-look at the board would re-project the chart it is looking at. It belongs on a draw-time setter of
-the renderer's own, with the game kept out by composition (an editor-only caller) rather than by a
+moves every frame — so it has to draw in the ordinary drawer path. And its switch must NOT ride the
+memoized `HighwayViewState`, or a toggle pressed to look at the board would re-project the chart it
+is looking at. It belongs on a draw-time setter of the renderer's own, as `setDisplayOptions` is,
+with the game kept out by composition (an editor-only caller) rather than by a
 build define — diagnostics are never compiled out of shipped builds (plan 20 open question 5, answer
 A: release-build timing bugs have to stay observable).
 

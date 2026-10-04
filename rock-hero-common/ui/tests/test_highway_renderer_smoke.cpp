@@ -473,10 +473,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         const common::core::TempoMap tempo_map = makeSmokeTempoMap();
         const common::core::Arrangement families_arrangement = makeFamiliesArrangement();
         const common::core::HighwayViewState families = makeHighwayViewState(
-            makeChartViewState(families_arrangement, tempo_map),
-            tempo_map,
-            makeSmokeSections(),
-            {});
+            makeChartViewState(families_arrangement, tempo_map), tempo_map, makeSmokeSections());
 
         // Fixture guards, not renderer assertions: without them a projection change could empty
         // a draw family and leave the sweep below silently exercising a blank board while still
@@ -529,20 +526,21 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
 
         // A content swap mid-sweep, under the non-default display mapping.
         const common::core::Arrangement swap_arrangement = makeSwapArrangement();
-        renderer->setViewState(makeHighwayViewState(
-            makeChartViewState(swap_arrangement, tempo_map),
-            tempo_map,
-            makeSmokeSections(),
+        renderer->setDisplayOptions(
             common::core::HighwayDisplayOptions{
                 .mirrored = true, .invert_string_order = true, .minimum_string_count = 7
-            }));
+            });
+        renderer->setViewState(makeHighwayViewState(
+            makeChartViewState(swap_arrangement, tempo_map), tempo_map, makeSmokeSections()));
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 60);
 
         // An arrangement with no chart at all: empty scene, no beats, no camera zones — the
-        // state the editor preview holds when its song has no arrangement loaded.
+        // state the editor preview holds when its song has no arrangement loaded. Back under the
+        // default display mapping.
+        renderer->setDisplayOptions(common::core::HighwayDisplayOptions{});
         const common::core::Arrangement empty_arrangement{};
-        const common::core::HighwayViewState empty = makeHighwayViewState(
-            makeChartViewState(empty_arrangement, tempo_map), tempo_map, {}, {});
+        const common::core::HighwayViewState empty =
+            makeHighwayViewState(makeChartViewState(empty_arrangement, tempo_map), tempo_map, {});
         CHECK(empty.chart.notes.empty());
         CHECK(empty.beats.empty());
         renderer->setViewState(empty);
@@ -551,8 +549,8 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // Capacity probe: the largest batches the encoder builds, swept across the four dense
         // measures so the drawn window is saturated with accented tremolo tails throughout.
         const common::core::Arrangement dense_arrangement = makeDenseAccentArrangement();
-        const common::core::HighwayViewState dense = makeHighwayViewState(
-            makeChartViewState(dense_arrangement, tempo_map), tempo_map, {}, {});
+        const common::core::HighwayViewState dense =
+            makeHighwayViewState(makeChartViewState(dense_arrangement, tempo_map), tempo_map, {});
         CHECK(dense.chart.notes.size() > std::size_t{100});
         // It is also the no-placements frame: with no track the fretting hand's light stands at
         // the reference nut window, lit by the open strings' evidence.

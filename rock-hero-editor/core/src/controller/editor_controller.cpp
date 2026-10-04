@@ -1970,29 +1970,17 @@ void EditorController::Impl::refreshChartProjections() const
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const bool arrangement_changed = m_tab_arrangement_id != arrangement->id ||
                                      m_tab_chart_revision != session().chartRevision();
+    // The highway state composes the scene built here rather than building its own, so both
+    // surfaces publish one build. Its display options are the preview renderer's own setting
+    // (the displayed-string minimum rides the view state's tab_minimum_displayed_strings), so a
+    // display change never republishes either projection.
     if (arrangement_changed)
     {
         m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
             common::core::makeChartViewState(*arrangement, tempo_map));
-    }
-    // The highway state carries the display options the renderer applies per frame (the
-    // displayed-string minimum among them — the scene itself is never padded), so it is
-    // republished on an arrangement change OR a minimum change. It composes the scene built above
-    // rather than building its own, so both surfaces publish one build. Lowest-pitched string on
-    // top is the 3D default.
-    if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
-    {
         m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
             common::core::makeHighwayViewState(
-                *m_tab_view_state,
-                tempo_map,
-                session().song().sections,
-                common::core::HighwayDisplayOptions{
-                    .mirrored = false,
-                    .invert_string_order = true,
-                    .minimum_string_count = m_tab_minimum_displayed_strings,
-                }));
-        m_highway_min_strings = m_tab_minimum_displayed_strings;
+                *m_tab_view_state, tempo_map, session().song().sections));
     }
     m_tab_arrangement_id = arrangement->id;
     m_tab_chart_revision = session().chartRevision();

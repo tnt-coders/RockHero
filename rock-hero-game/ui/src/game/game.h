@@ -176,7 +176,6 @@ private:
     // Injected collaborator (non-owning) and the run options the content needs after construction.
     core::GameplaySession* m_session{nullptr};
     bool m_dev_mode{false};
-    bool m_lefty{false};
     std::filesystem::path m_session_workspace_directory;
 
     // Per-frame content state produced by update() and consumed by render().

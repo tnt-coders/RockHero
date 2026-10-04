@@ -665,6 +665,11 @@ void EditorView::setState(const core::EditorViewState& state)
     {
         m_preview_window->setHighwayState(m_state.highway);
     }
+    // The 3D board pads its lanes to the tab's minimum; restating an unchanged value costs nothing.
+    if (m_preview_window != nullptr)
+    {
+        m_preview_window->setMinimumStringCount(m_state.tab_minimum_displayed_strings);
+    }
 
     // The paused preview shows the marker-rule time (the armed caret is THE paused position),
     // so caret moves must land in the 3D view immediately.
@@ -1194,6 +1199,7 @@ void EditorView::togglePreviewWindow()
     else
     {
         m_preview_window->setHighwayState(m_state.highway);
+        m_preview_window->setMinimumStringCount(m_state.tab_minimum_displayed_strings);
         m_preview_window->setCaretSeconds(
             m_state.chart_edit.caret.has_value()
                 ? std::optional<double>{m_state.chart_edit.caret->seconds}

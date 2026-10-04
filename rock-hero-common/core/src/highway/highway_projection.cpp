@@ -525,11 +525,9 @@ std::vector<HighwayLitStretch> makeFretHandLight(const ChartViewState& scene)
 }
 
 HighwayViewState makeHighwayViewState(
-    ChartViewState scene, const TempoMap& tempo_map, const std::vector<SongSection>& sections,
-    HighwayDisplayOptions options)
+    ChartViewState scene, const TempoMap& tempo_map, const std::vector<SongSection>& sections)
 {
     HighwayViewState state;
-    state.options = options;
 
     // Sections are song-level structure, so they resolve even when the arrangement has no chart.
     state.sections.reserve(sections.size());

@@ -17,12 +17,10 @@ namespace
 // Builds a state with only the fretting hand's track, the sole input the camera focus consumes.
 // Each arrival's lines are its placement's settled window: frets [fret, fret + width - 1] sit on
 // lines fret - 1 through fret + width - 1.
-[[nodiscard]] HighwayViewState makeStateWithArrivals(
-    std::vector<HighwayHandArrival> arrivals, bool mirrored = false)
+[[nodiscard]] HighwayViewState makeStateWithArrivals(std::vector<HighwayHandArrival> arrivals)
 {
     HighwayViewState state;
     state.chart.open_strings = testing::standardTuning();
-    state.options.mirrored = mirrored;
     state.fret_hand.track = std::move(arrivals);
     return state;
 }
@@ -48,7 +46,7 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     });
     state.camera_zone_starts = {0.0, 4.0, 8.0};
 
-    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.0, metrics);
+    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.0, metrics, false);
 
     // Lines 4..12 at the shipped 1.1 fret width: world middle 8.8, pulled 10 percent toward the
     // neck reference (24 * 1.1 * 0.4 = 10.56), then shifted one fret width (1.1) toward the body.
@@ -57,7 +55,7 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
 
     // With no hand positions the fallback frames the reference window at the nut.
     const HighwayCameraTarget fallback =
-        makeHighwayCameraTarget(makeStateWithArrivals({}), 0.0, metrics);
+        makeHighwayCameraTarget(makeStateWithArrivals({}), 0.0, metrics, false);
     CHECK(fallback.span == Catch::Approx(metrics.camera_reference_span));
 
     // Before the first arrival the first placement's window already holds (the opening scroll
@@ -66,7 +64,7 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
         HighwayHandArrival{.seconds = 60.0, .low_line = 8.0, .high_line = 12.0},
     });
     opening_state.camera_zone_starts = {0.0, 4.0, 8.0};
-    const HighwayCameraTarget opening = makeHighwayCameraTarget(opening_state, 0.0, metrics);
+    const HighwayCameraTarget opening = makeHighwayCameraTarget(opening_state, 0.0, metrics, false);
     // Lines 8..12: world middle 11.0, same blend and body shift.
     CHECK(opening.focus_x == Catch::Approx((0.9 * 11.0) + (0.1 * 10.56) + 1.1));
     CHECK(opening.span == Catch::Approx(4.0));
@@ -87,7 +85,7 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
     });
     state.camera_zone_starts = {0.0, 8.0, 16.0, 24.0};
     const auto target_at = [&](const double now) {
-        return makeHighwayCameraTarget(state, now, metrics);
+        return makeHighwayCameraTarget(state, now, metrics, false);
     };
 
     // Inside zone 0 the frame covers zones 0 and 1 (lines 4..12); zone 2's positions do not
@@ -171,7 +169,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
 
     // At now = 1.5 the scan covers zones 1 and 2 (the window [1.0, 3.0)), so the fret-20 note
     // back in zone 0 is behind window_start and no longer widens the frame.
-    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.5, metrics);
+    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.5, metrics, false);
     // The range widens from the hand window (lines 4..8) up to the tap's fret line 15: span 11.
     CHECK(target.span == Catch::Approx(11.0));
 
@@ -180,7 +178,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
         HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0},
     });
     windowed_state.camera_zone_starts = state.camera_zone_starts;
-    CHECK(makeHighwayCameraTarget(windowed_state, 1.5, metrics).span == Catch::Approx(4.0));
+    CHECK(makeHighwayCameraTarget(windowed_state, 1.5, metrics, false).span == Catch::Approx(4.0));
 }
 
 // An OPEN-STRING tap harmonic has no stop, but its node is the note's only position — the light
@@ -211,7 +209,7 @@ TEST_CASE(
 
     // The frame reaches the node: lines 4..8 widen to 12 (span 8), where a plain open string
     // would leave the window's own span 4.
-    CHECK(makeHighwayCameraTarget(state, 1.0, metrics).span == Catch::Approx(8.0));
+    CHECK(makeHighwayCameraTarget(state, 1.0, metrics, false).span == Catch::Approx(8.0));
 }
 
 // An empty zone list is one unbounded zone, not a special case: the camera has a single scan
@@ -226,7 +224,7 @@ TEST_CASE("Highway camera treats missing framing zones as one open zone", "[core
 
     // The production shape: no zones, and nothing to frame.
     const HighwayCameraTarget empty =
-        makeHighwayCameraTarget(makeStateWithArrivals({}), 0.0, metrics);
+        makeHighwayCameraTarget(makeStateWithArrivals({}), 0.0, metrics, false);
     CHECK(empty.span == Catch::Approx(metrics.camera_reference_span));
 
     // A hand-built state with content but no zones frames all of it at once, past and future.
@@ -234,7 +232,7 @@ TEST_CASE("Highway camera treats missing framing zones as one open zone", "[core
         HighwayHandArrival{.seconds = -30.0, .low_line = 1.0, .high_line = 5.0},
         HighwayHandArrival{.seconds = 900.0, .low_line = 8.0, .high_line = 12.0},
     });
-    CHECK(makeHighwayCameraTarget(unzoned, 0.0, metrics).span == Catch::Approx(11.0));
+    CHECK(makeHighwayCameraTarget(unzoned, 0.0, metrics, false).span == Catch::Approx(11.0));
 }
 
 // The smoother is frame-rate independent (two half steps equal one full step; it is the exact
@@ -446,13 +444,11 @@ TEST_CASE("Highway camera mirror reflects the projected picture", "[core][highwa
 {
     const HighwayMetrics metrics{};
 
-    const HighwayViewState plain = makeStateWithArrivals(
-        {HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}}, false);
-    const HighwayViewState mirrored = makeStateWithArrivals(
-        {HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}}, true);
+    const HighwayViewState state = makeStateWithArrivals(
+        {HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}});
 
-    const HighwayCameraTarget plain_target = makeHighwayCameraTarget(plain, 0.0, metrics);
-    const HighwayCameraTarget mirrored_target = makeHighwayCameraTarget(mirrored, 0.0, metrics);
+    const HighwayCameraTarget plain_target = makeHighwayCameraTarget(state, 0.0, metrics, false);
+    const HighwayCameraTarget mirrored_target = makeHighwayCameraTarget(state, 0.0, metrics, true);
     CHECK(mirrored_target.focus_x == Catch::Approx(-plain_target.focus_x));
     CHECK(mirrored_target.span == Catch::Approx(plain_target.span));
 

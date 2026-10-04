@@ -36,12 +36,11 @@ public:
     \param package_path .rock package file or unpacked package directory.
     \param arrangement_id The picked arrangement, or empty for the first charted arrangement
            (preferring a guitar part).
-    \param lefty True to mirror the highway for left-handed display.
     \param now Monotonic timestamp anchoring the stand-in clock.
     \return The session, or empty when the arrangement it would show is missing or uncharted.
     */
     [[nodiscard]] static std::optional<DevSession> create(
-        std::filesystem::path package_path, std::string arrangement_id, bool lefty,
+        std::filesystem::path package_path, std::string arrangement_id,
         std::chrono::nanoseconds now);
 
     /*!
@@ -123,7 +122,7 @@ public:
     [[nodiscard]] const std::string& chosenArrangementId() const noexcept;
 
 private:
-    DevSession(std::filesystem::path package_path, std::string arrangement_id, bool lefty);
+    DevSession(std::filesystem::path package_path, std::string arrangement_id);
 
     // Reads the package and projects the requested arrangement, or the default choice; records
     // the chosen arrangement id (non-const for exactly that reason).
@@ -138,7 +137,6 @@ private:
     std::filesystem::path m_package_path;
     // The picked arrangement, or empty for the dev default; every reload honors it.
     std::string m_requested_arrangement_id;
-    bool m_lefty{false};
 
     // Arrangement id the display projection chose; the session loads the same arrangement.
     std::string m_chosen_arrangement_id;

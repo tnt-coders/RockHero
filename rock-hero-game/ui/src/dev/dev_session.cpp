@@ -64,10 +64,10 @@ readPackage(const std::filesystem::path& package_path)
 } // namespace
 
 std::optional<DevSession> DevSession::create(
-    std::filesystem::path package_path, std::string arrangement_id, const bool lefty,
+    std::filesystem::path package_path, std::string arrangement_id,
     const std::chrono::nanoseconds now)
 {
-    DevSession session{std::move(package_path), std::move(arrangement_id), lefty};
+    DevSession session{std::move(package_path), std::move(arrangement_id)};
     std::optional<common::core::HighwayViewState> state = session.loadViewState();
     if (!state.has_value())
     {
@@ -83,11 +83,9 @@ std::optional<DevSession> DevSession::create(
     return session;
 }
 
-DevSession::DevSession(
-    std::filesystem::path package_path, std::string arrangement_id, const bool lefty)
+DevSession::DevSession(std::filesystem::path package_path, std::string arrangement_id)
     : m_package_path{std::move(package_path)}
     , m_requested_arrangement_id{std::move(arrangement_id)}
-    , m_lefty{lefty}
 {}
 
 std::optional<common::core::HighwayViewState> DevSession::takeLoadedViewState()
@@ -244,20 +242,16 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         // Recorded so the gameplay session loads the same arrangement the display shows.
         m_chosen_arrangement_id = chosen->id;
 
-        // Lowest-pitched string on top is the 3D notation's default; the shared projection's
-        // invert flag realizes it until a per-player setting exists.
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
             common::core::makeChartViewState(*chosen, song.tempo_map),
             song.tempo_map,
-            song.sections,
-            common::core::HighwayDisplayOptions{.mirrored = m_lefty, .invert_string_order = true});
+            song.sections);
         RH_LOG_INFO(
             "game.highway",
-            "dev package loaded notes={} beats={} sections={} lefty={}",
+            "dev package loaded notes={} beats={} sections={}",
             state.chart.notes.size(),
             state.beats.size(),
-            state.sections.size(),
-            m_lefty);
+            state.sections.size());
         return state;
     }
 

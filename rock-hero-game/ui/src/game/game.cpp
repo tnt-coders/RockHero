@@ -11,6 +11,7 @@
 #include <optional>
 #include <print>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
+#include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
@@ -185,9 +186,17 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
     , m_diagnostics(config.dev_mode)
     , m_session(config.gameplay_session)
     , m_dev_mode(config.dev_mode)
-    , m_lefty(config.lefty)
     , m_session_workspace_directory(std::move(config.session_workspace_directory))
 {
+    // Lowest-pitched string on top is the 3D notation's default, set once here until a per-player
+    // setting exists; the lefty mirror is the launch flag's.
+    m_renderer.setDisplayOptions(
+        common::core::HighwayDisplayOptions{
+            .mirrored = config.lefty,
+            .invert_string_order = true,
+            .minimum_string_count = 0,
+        });
+
     // Dev fixture path: load the requested package's first charted arrangement for the highway
     // display, sections, and hot-reload. With a gameplay session injected, the fixture's
     // stand-in clock goes unused — the engine's real playback clock drives song time instead.
@@ -196,7 +205,6 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
         m_dev_session = DevSession::create(
             *config.dev_package,
             std::string{},
-            m_lefty,
             std::chrono::steady_clock::now().time_since_epoch());
         if (m_dev_session.has_value())
         {
@@ -271,7 +279,6 @@ void Game::launchSong(const core::SongSelectLaunch& launch)
     std::optional<DevSession> dev_session = DevSession::create(
         launch.package_path,
         launch.arrangement_id,
-        m_lefty,
         std::chrono::steady_clock::now().time_since_epoch());
     if (!dev_session.has_value())
     {

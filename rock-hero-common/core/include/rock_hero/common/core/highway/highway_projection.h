@@ -98,13 +98,9 @@ plus per-frame time.
 \param tempo_map Tempo map resolving musical positions to seconds.
 \param sections Song-structure section markers, resolved into the state's section list even when
        the arrangement has no chart.
-\param options Display mapping carried to the renderer: the lefty mirror, the string-order invert,
-       and the minimum string count. None of them changes the projected scene — padding and
-       reflection are resolved per frame.
 \return Seconds-resolved highway content for rendering.
 */
 [[nodiscard]] HighwayViewState makeHighwayViewState(
-    ChartViewState scene, const TempoMap& tempo_map, const std::vector<SongSection>& sections,
-    HighwayDisplayOptions options);
+    ChartViewState scene, const TempoMap& tempo_map, const std::vector<SongSection>& sections);
 
 } // namespace rock_hero::common::core

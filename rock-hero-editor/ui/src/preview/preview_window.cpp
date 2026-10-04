@@ -91,6 +91,12 @@ void PreviewWindow::setHighwayState(std::shared_ptr<const common::core::HighwayV
     m_surface->setHighwayState(std::move(state));
 }
 
+// Forwards the tab's displayed-string minimum to the surface's board.
+void PreviewWindow::setMinimumStringCount(const int count)
+{
+    m_surface->setMinimumStringCount(count);
+}
+
 // Forwards the armed caret's position to the surface's paused-time marker rule.
 void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
 {

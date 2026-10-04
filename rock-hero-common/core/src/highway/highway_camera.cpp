@@ -162,10 +162,9 @@ std::array<double, 3> HighwayMat4::projectPoint(double x, double y, double z) co
 }
 
 HighwayCameraTarget makeHighwayCameraTarget(
-    const HighwayViewState& state, double now_seconds, const HighwayMetrics& metrics)
+    const HighwayViewState& state, double now_seconds, const HighwayMetrics& metrics,
+    const bool mirrored)
 {
-    const bool mirrored = state.options.mirrored;
-
     // The hand window active at now plus every window arriving inside the scan horizon define
     // the fret-line range the camera frames. The active placement is the last at or before now
     // or — before the first arrival — the first placement itself, whose window already holds

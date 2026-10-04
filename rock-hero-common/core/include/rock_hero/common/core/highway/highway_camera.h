@@ -112,15 +112,18 @@ simply one unbounded zone, which is well defined because it can only occur with 
 spans a state that has no hand positions and no notes to frame.
 
 A chart with no hand positions falls back to the reference four-fret window at the nut. The
-state's mirror flag reflects the focus (and the derived whole-neck blend point) as pure math.
+mirror flag reflects the focus (and the derived whole-neck blend point) as pure math.
 
-\param state Seconds-resolved highway content (its display options supply the mirror flag).
+\param state Seconds-resolved highway content.
 \param now_seconds Current playback time.
 \param metrics World-space constants.
+\param mirrored True when the board is drawn mirrored for left-handed display
+       (\ref HighwayDisplayOptions::mirrored).
 \return Instantaneous focus and span targets.
 */
 [[nodiscard]] HighwayCameraTarget makeHighwayCameraTarget(
-    const HighwayViewState& state, double now_seconds, const HighwayMetrics& metrics);
+    const HighwayViewState& state, double now_seconds, const HighwayMetrics& metrics,
+    bool mirrored);
 
 /*!
 \brief Third-order critically damped smoother following the stepped framing targets.

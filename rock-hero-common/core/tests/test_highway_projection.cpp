@@ -40,10 +40,9 @@ namespace
 // the board composed over it.
 [[nodiscard]] HighwayViewState boardOf(
     const Arrangement& arrangement, const TempoMap& tempo_map,
-    const std::vector<SongSection>& sections = {}, const HighwayDisplayOptions options = {})
+    const std::vector<SongSection>& sections = {})
 {
-    return makeHighwayViewState(
-        makeChartViewState(arrangement, tempo_map), tempo_map, sections, options);
+    return makeHighwayViewState(makeChartViewState(arrangement, tempo_map), tempo_map, sections);
 }
 
 // Nullable-pointer view of the arrangement's optional chart, mirroring the editor harness's
@@ -491,13 +490,11 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = chart;
     const ChartViewState scene = makeChartViewState(arrangement, tempo_map);
-    // A display minimum wider than the chart, to prove the scene is never padded in the projection:
-    // the renderer maps chart strings onto displayed lanes per frame.
-    const HighwayViewState board = makeHighwayViewState(
-        scene, tempo_map, {}, HighwayDisplayOptions{.minimum_string_count = 8});
+    // The scene is never padded in the projection: the renderer maps chart strings onto displayed
+    // lanes under display options the projection never sees.
+    const HighwayViewState board = makeHighwayViewState(scene, tempo_map, {});
 
     CHECK(board.chart == scene);
-    CHECK(board.options.minimum_string_count == 8);
 
     // Non-vacuity: the equality above would pass just as happily over an empty scene, so every
     // technique the fixture carries has to be present in what was projected.
@@ -603,8 +600,7 @@ TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][cha
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
     const ChartViewState scene = makeChartViewState(arrangement, tempo_map);
-    const HighwayViewState board =
-        makeHighwayViewState(scene, tempo_map, makeHighwaySections(), {});
+    const HighwayViewState board = makeHighwayViewState(scene, tempo_map, makeHighwaySections());
 
     // Non-vacuity: a scene of every note, its spans and its placements, so the equality below
     // compares the whole picture rather than two empty ones.

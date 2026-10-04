@@ -2068,9 +2068,13 @@ struct HighwayRenderer::Impl
     std::uint32_t face_index_count{0};
 
     common::core::HighwayViewState state;
-    // The displayed lane count and the padding below the chart's strings, resolved once per state
-    // from the chart's own count and the display minimum (displayedStringCount / displayedLane):
-    // the scene keeps chart strings, and every lane the board draws goes through laneOf.
+    // How the board maps the state onto the screen: the renderer's own setting, never part of the
+    // projected state, so changing it re-derives nothing the projection built.
+    common::core::HighwayDisplayOptions options{};
+    // The displayed lane count and the padding below the chart's strings, resolved from the
+    // chart's own count and the display minimum (displayedStringCount / displayedLane) whenever
+    // either changes: the scene keeps chart strings, and every lane the board draws goes through
+    // laneOf.
     int displayed_count{0};
     int extra_lanes{0};
     std::vector<double> sustain_prefix_max;
@@ -2168,7 +2172,7 @@ struct HighwayRenderer::Impl
         }
         const common::core::HighwayHandArrival& from = *leg->from;
         const common::core::HighwayHandArrival& to = *leg->to;
-        const bool mirrored = state.options.mirrored;
+        const bool mirrored = options.mirrored;
         const auto travel_x = [&](const double from_line, const double to_line) {
             return std::abs(
                 common::core::highwayFretLineX(to_line, metrics, mirrored) -
@@ -2375,6 +2379,9 @@ struct HighwayRenderer::Impl
         return common::core::highwayStringGridTopY(displayed_count, metrics);
     }
 
+    // Re-seats the board after either setter's change: snaps the camera, resolves the displayed
+    // lanes from the state and the options, and rebuilds the board face they lay out.
+    void reseatBoard();
     void rebuildBoardFace();
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
 
@@ -2612,9 +2619,6 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     // reading past a vector inside the frame loop.
     assert(m_impl->state.chart.display_hold_ends.size() == m_impl->state.chart.notes.size());
     assert(m_impl->state.note_group.size() == m_impl->state.chart.notes.size());
-    m_impl->displayed_count = common::core::displayedStringCount(
-        m_impl->state.chart.stringCount(), m_impl->state.options.minimum_string_count);
-    m_impl->extra_lanes = m_impl->displayed_count - m_impl->state.chart.stringCount();
     m_impl->sustain_prefix_max =
         common::core::makeSustainPrefixMax(m_impl->state.chart.display_hold_ends);
     // The DRAWN extents, named rather than taken off the spans: the board draws no reveal, so the
@@ -2626,8 +2630,28 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     m_impl->tap_release_prefix_max = common::core::makeSustainPrefixMax(
         m_impl->state.tap_onsets |
         std::views::transform(&common::core::HighwayTapOnsetViewState::release_seconds));
-    m_impl->camera.reset();
-    m_impl->rebuildBoardFace();
+    m_impl->reseatBoard();
+}
+
+// An unchanged set does nothing; a change re-seats the board exactly as a new state does — the
+// camera included, since the mirror moves what it frames.
+void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOptions options)
+{
+    if (options == m_impl->options)
+    {
+        return;
+    }
+    m_impl->options = options;
+    m_impl->reseatBoard();
+}
+
+void HighwayRenderer::Impl::reseatBoard()
+{
+    camera.reset();
+    displayed_count =
+        common::core::displayedStringCount(state.chart.stringCount(), options.minimum_string_count);
+    extra_lanes = displayed_count - state.chart.stringCount();
+    rebuildBoardFace();
 }
 
 void HighwayRenderer::draw(
@@ -2657,8 +2681,8 @@ void HighwayRenderer::Impl::rebuildBoardFace()
         return;
     }
 
-    const bool mirrored = state.options.mirrored;
-    const bool invert = state.options.invert_string_order;
+    const bool mirrored = options.mirrored;
+    const bool invert = options.invert_string_order;
     const StringColorPalette& palette = charterClassicPalette();
 
     std::vector<PosColorVertex> vertices;
@@ -2698,12 +2722,12 @@ void HighwayRenderer::Impl::draw(
 
     // Camera: stepped targets from the upcoming chart, turned into motion by the spring.
     const common::core::HighwayCameraTarget target =
-        common::core::makeHighwayCameraTarget(state, now_seconds, metrics);
+        common::core::makeHighwayCameraTarget(state, now_seconds, metrics, options.mirrored);
     camera.advance(target, dt_seconds, metrics);
     const common::core::HighwayCameraPose pose = camera.pose(metrics);
     const double aspect = static_cast<double>(width) / static_cast<double>(height);
     const common::core::HighwayMat4 world_to_clip =
-        common::core::makeHighwayWorldToClip(pose, aspect, state.options.mirrored, metrics);
+        common::core::makeHighwayWorldToClip(pose, aspect, options.mirrored, metrics);
     const std::array<float, 16> board_matrix = toBgfxMatrix(world_to_clip);
 
     // Per-frame view setup, re-asserted from the current backbuffer size every frame.
@@ -2724,8 +2748,8 @@ void HighwayRenderer::Impl::draw(
     bgfx::touch(g_board_view);
 
     scratch.clearForFrame();
-    const bool mirrored = state.options.mirrored;
-    const bool invert = state.options.invert_string_order;
+    const bool mirrored = options.mirrored;
+    const bool invert = options.invert_string_order;
     const double span_end_seconds = now_seconds + lookaheadSeconds();
     const double span_start_seconds = now_seconds - g_passed_fade_seconds;
     const StringColorPalette& palette = charterClassicPalette();
@@ -5552,7 +5576,7 @@ void HighwayRenderer::Impl::draw(
 // stay straight and fixed; only alpha animates. ---
 void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 {
-    const bool mirrored = state.options.mirrored;
+    const bool mirrored = options.mirrored;
     // The mid tier's samples: the drawn span's two ends plus every visible light's own instants,
     // which are all the breakpoints of the rule along z.
     std::vector<double>& times = scratch.window_times;
@@ -5667,7 +5691,7 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 // Two lights at one place composite in submission order, so they cannot sum toward white. ---
 void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
 {
-    const bool mirrored = state.options.mirrored;
+    const bool mirrored = options.mirrored;
     const std::array<float, 4> light_params{
         static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
     };
@@ -5774,7 +5798,7 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
 // where the light beside it is already fading out. ---
 void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 {
-    const bool mirrored = state.options.mirrored;
+    const bool mirrored = options.mirrored;
 
     auto [vertices, indices] = scratch.colorBatch();
     // Beats ascend, so the two skip tests are the two ends of a binary-searched range — the
@@ -5839,7 +5863,7 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 // so the picking hand needs no spans. ---
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
 {
-    const bool mirrored = state.options.mirrored;
+    const bool mirrored = options.mirrored;
     std::vector<PosColorGlowVertex>& vertices = scratch.rail_glow_vertices;
     std::vector<std::uint16_t>& indices = scratch.rail_glow_indices;
     // Every rail is the same emitter shape: a line of the emitter's half-width, unbounded along
@@ -5967,7 +5991,7 @@ void HighwayRenderer::Impl::drawStringLines()
 // belongs to the chord boxes' bottom bars). ---
 void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
 {
-    const bool mirrored = state.options.mirrored;
+    const bool mirrored = options.mirrored;
     const double face_bottom_y = faceBottomY();
     const double face_top_y = faceTopY();
     LineLight active{};
@@ -6011,7 +6035,7 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
 {
     if (inlay_texture.isValid())
     {
-        const bool mirrored = state.options.mirrored;
+        const bool mirrored = options.mirrored;
         const double face_bottom_y = faceBottomY();
         const double face_top_y = faceTopY();
         auto [vertices, indices] = scratch.texturedBatch();
@@ -6078,7 +6102,7 @@ void HighwayRenderer::Impl::drawCapo()
 {
     if (state.chart.capo > 0 && state.chart.capo <= g_face_fret_count)
     {
-        const bool mirrored = state.options.mirrored;
+        const bool mirrored = options.mirrored;
         const double face_bottom_y = faceBottomY();
         const double face_top_y = faceTopY();
         auto [vertices, indices] = scratch.colorBatch();
@@ -6138,7 +6162,7 @@ void HighwayRenderer::Impl::drawCapo()
 // --- Section labels through the glyph atlas. ---
 void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
 {
-    const bool mirrored = state.options.mirrored;
+    const bool mirrored = options.mirrored;
     auto [glyph_vertices, glyph_indices] = scratch.texturedBatch();
 
     const auto push_text = [&](const std::string_view text,
@@ -6223,7 +6247,7 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
 // for the picking hand. ---
 void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
 {
-    const bool mirrored = state.options.mirrored;
+    const bool mirrored = options.mirrored;
     const double face_bottom_y = faceBottomY();
     const double face_top_y = faceTopY();
     auto [vertices, indices] = scratch.texturedBatch();

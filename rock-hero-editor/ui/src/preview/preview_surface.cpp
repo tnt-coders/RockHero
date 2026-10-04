@@ -195,6 +195,7 @@ bool PreviewSurface::bringUpRenderer()
         return false;
     }
     m_renderer.emplace(std::move(*renderer));
+    m_renderer->setDisplayOptions(m_display_options);
     m_state_dirty = m_state != nullptr;
     return true;
 #else
@@ -232,6 +233,15 @@ void PreviewSurface::setHighwayState(std::shared_ptr<const common::core::Highway
 {
     m_state = std::move(state);
     m_state_dirty = true;
+}
+
+void PreviewSurface::setMinimumStringCount(const int count)
+{
+    m_display_options.minimum_string_count = count;
+    if (m_renderer.has_value())
+    {
+        m_renderer->setDisplayOptions(m_display_options);
+    }
 }
 
 void PreviewSurface::setCaretSeconds(const std::optional<double> seconds)

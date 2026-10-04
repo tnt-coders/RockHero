@@ -1259,8 +1259,9 @@ struct EditorViewState
 
     The shared scene model the 3D preview window renders — the same projection the game highway
     consumes, so what the charter previews is what the player gets. Rebuilt under the same rule as
-    \ref tab, and also when the displayed-string minimum changes, and shared immutably across state
-    copies. Null when the arrangement has no chart.
+    \ref tab and shared immutably across state copies; the preview pads its lanes to
+    \ref tab_minimum_displayed_strings itself, so that setting never rebuilds it. Null when the
+    arrangement has no chart.
     */
     std::shared_ptr<const common::core::HighwayViewState> highway{};
 
@@ -1271,7 +1272,8 @@ struct EditorViewState
     \brief App-wide minimum number of tablature string lanes to display.
 
     Zero means match the chart's string count. The rendered lane count is the larger of this and
-    the chart's own count, so raising it only ever adds empty lanes and never hides notes.
+    the chart's own count, so raising it only ever adds empty lanes and never hides notes. The 3D
+    preview reads it too, padding its board's lanes the same way.
     */
     int tab_minimum_displayed_strings{0};
 

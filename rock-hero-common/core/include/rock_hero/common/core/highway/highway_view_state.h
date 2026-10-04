@@ -26,13 +26,14 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Display-mapping flags the renderer applies while drawing, carried with the projected scene.
+\brief Display-mapping flags the renderer applies while drawing: the renderer's own setting.
 
-Every field here is read per frame in `highway_renderer.cpp` — the fret axis reflects, the lanes
-stack, the padding resolves — so the chart scene underneath stays one chart fact and no consumer
-projects a second, per-display copy of it. The cost of riding the memoized view state is that
-changing one of these re-projects the chart, so a switch a viewer flips while WATCHING the board —
-a diagnostic, a sighting rig — belongs on the renderer's own draw-time surface instead, never here.
+The mirror and the invert are read per frame in `highway_renderer.cpp` — the fret axis reflects,
+the lanes stack — and the lane minimum is resolved whenever the options or the state change; none
+of them changes the projected scene, so they are handed to
+the renderer directly (`HighwayRenderer::setDisplayOptions`) rather than riding the memoized
+\ref HighwayViewState: changing one never re-projects the chart, and the chart scene underneath
+stays one chart fact that no consumer projects a second, per-display copy of.
 */
 struct HighwayDisplayOptions
 {
@@ -46,9 +47,10 @@ struct HighwayDisplayOptions
     \brief Minimum number of string lanes to display, padding the chart's own string count.
 
     The editor mirrors the 2D tab's "show at least N strings" setting so the 3D preview shows the
-    same lanes. Resolved by the renderer per frame through \ref displayedStringCount and
-    \ref displayedLane — the same two functions the tab lane's geometry resolves it through — so
-    the chart scene underneath stays one chart fact. Zero (the game default) adds no lanes.
+    same lanes. Resolved by the renderer when the options or the state change, through
+    \ref displayedStringCount and \ref displayedLane — the same two functions the tab lane's
+    geometry resolves it through — so the chart scene underneath stays one chart fact. Zero (the
+    game default) adds no lanes.
     */
     int minimum_string_count{0};
 
@@ -583,16 +585,13 @@ per-frame time.
 */
 struct HighwayViewState
 {
-    /*! \brief Display-mapping flags the renderer applies; the projection never reads them. */
-    HighwayDisplayOptions options{};
-
     /*!
     \brief The chart scene both surfaces share (\ref makeChartViewState).
 
     Composed rather than restated so the two surfaces cannot drift on a shared chart fact. Its
     strings are CHART strings and its string count the tuning's: the displayed-lane padding
-    \ref HighwayDisplayOptions::minimum_string_count asks for is resolved by the renderer per
-    frame (\ref displayedLane), exactly as the tab lane resolves it in its geometry, which is what
+    \ref HighwayDisplayOptions::minimum_string_count asks for is resolved by the renderer
+    (\ref displayedLane), exactly as the tab lane resolves it in its geometry, which is what
     keeps the shared string-color palette anchored the same way on both surfaces.
     */
     ChartViewState chart;

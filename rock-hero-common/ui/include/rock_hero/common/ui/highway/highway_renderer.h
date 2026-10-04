@@ -148,6 +148,19 @@ public:
     void setViewState(common::core::HighwayViewState state);
 
     /*!
+    \brief Sets how the board maps onto the screen: the lefty mirror, the string-order invert and
+    the displayed-lane minimum.
+
+    The renderer's own setting rather than part of the view state, because none of it changes the
+    projected chart. An unchanged set does nothing; a changed one re-resolves the lanes, rebuilds
+    the board face and re-seats the camera, as a new state does. Defaults to the value-initialized
+    options until first called.
+
+    \param options Display mapping to apply from the next frame.
+    */
+    void setDisplayOptions(common::core::HighwayDisplayOptions options);
+
+    /*!
     \brief Encodes one frame of the highway into the render views.
 
     \param now_seconds Playback song time for this frame (from the consumer's clock port).

@@ -140,7 +140,7 @@ TEST_CASE("The scene carries each head's margin start for the board", "[core][ch
             WithinULP(tempo_map.secondsAt(marginBefore(tempo_map, notes[index].position)), 0));
     }
 
-    const HighwayViewState board = makeHighwayViewState(scene, tempo_map, {}, {});
+    const HighwayViewState board = makeHighwayViewState(scene, tempo_map, {});
     CHECK(board.chart == scene);
 }
 

@@ -84,6 +84,12 @@ public:
     void setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state);
 
     /*!
+    \brief Pads the board to at least this many string lanes, as the 2D tab pads its own.
+    \param count The tab's "show at least N strings" setting.
+    */
+    void setMinimumStringCount(int count);
+
+    /*!
     \brief Publishes the armed caret's timeline position for the paused-time marker rule.
     \param seconds Armed caret seconds, or nullopt while the marker is passive.
     */
@@ -134,6 +140,15 @@ private:
     std::optional<common::ui::HighwayRenderer> m_renderer;
 
     std::shared_ptr<const common::core::HighwayViewState> m_state;
+
+    // How the preview maps the board: lowest-pitched string on top is the 3D default, never
+    // mirrored, padded to the tab's displayed-string minimum. Handed to the renderer when it comes
+    // up and whenever the minimum is restated; the renderer ignores an unchanged set.
+    common::core::HighwayDisplayOptions m_display_options{
+        .mirrored = false,
+        .invert_string_order = true,
+        .minimum_string_count = 0,
+    };
 
     // The armed caret's timeline seconds while the marker is armed; the paused frame shows it
     // (the marker rule) and falls back to the transport position while passive.
