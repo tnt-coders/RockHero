@@ -292,18 +292,18 @@ TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
     CHECK_FALSE(parseGridPositionToken("1:1+0/2").has_value());
 }
 
-// Verifies beat fraction tokens parse whole and fractional spellings, refuse malformed ones, and
+// Verifies fraction tokens parse whole and fractional spellings, refuse malformed ones, and
 // reformat canonically.
-TEST_CASE("Chart beat fraction tokens round-trip", "[core][chart]")
+TEST_CASE("Chart fraction tokens round-trip", "[core][chart]")
 {
-    CHECK(parseBeatFractionToken("2") == Fraction{2});
-    CHECK(parseBeatFractionToken("11/8") == Fraction{11, 8});
-    CHECK(formatBeatFractionToken(Fraction{2}) == "2");
-    CHECK(formatBeatFractionToken(Fraction{11, 8}) == "11/8");
-    CHECK_FALSE(parseBeatFractionToken("").has_value());
-    CHECK_FALSE(parseBeatFractionToken("1/").has_value());
-    CHECK_FALSE(parseBeatFractionToken("/2").has_value());
-    CHECK_FALSE(parseBeatFractionToken("-1/2").has_value());
+    CHECK(parseFractionToken("2") == Fraction{2});
+    CHECK(parseFractionToken("11/8") == Fraction{11, 8});
+    CHECK(formatFractionToken(Fraction{2}) == "2");
+    CHECK(formatFractionToken(Fraction{11, 8}) == "11/8");
+    CHECK_FALSE(parseFractionToken("").has_value());
+    CHECK_FALSE(parseFractionToken("1/").has_value());
+    CHECK_FALSE(parseFractionToken("/2").has_value());
+    CHECK_FALSE(parseFractionToken("-1/2").has_value());
 }
 
 // Verifies the fixture holding every construct the format defines survives a write and read

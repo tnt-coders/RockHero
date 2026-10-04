@@ -83,7 +83,7 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
 {
     return std::format(
         "keyframe +{} of {}",
-        common::core::formatBeatFractionToken(key.offset),
+        common::core::formatFractionToken(key.offset),
         chartSlotText(key.note));
 }
 

@@ -19,6 +19,9 @@ namespace rock_hero::common::core
 namespace
 {
 
+// The chart document's one format version, read by both the reader's gate and the writer.
+constexpr int g_chart_format_version{1};
+
 [[nodiscard]] ChartError malformed(const std::string& detail)
 {
     return ChartError{.code = ChartErrorCode::MalformedDocument, .message = detail};
@@ -39,7 +42,7 @@ namespace
     const juce::var& object, const char* key)
 {
     const std::string text = Json::readOptionalString(object, key, "");
-    const auto value = parseBeatFractionToken(text);
+    const auto value = parseFractionToken(text);
     if (!value.has_value())
     {
         return std::unexpected{malformed(
@@ -463,7 +466,7 @@ void appendJsonString(std::string& out, const std::string& text)
     line += ", \"fret\": " + std::to_string(note.fret);
     // Always emitted: the ring is the note's own fact, and the reader refuses a document that omits
     // it, so there is no shorter form to elide into.
-    line += R"(, "sustain": ")" + formatBeatFractionToken(note.sustain) + '"';
+    line += R"(, "sustain": ")" + formatFractionToken(note.sustain) + '"';
     switch (note.attack)
     {
         case NoteAttack::Pick:
@@ -564,7 +567,7 @@ void appendJsonString(std::string& out, const std::string& text)
             {
                 line += ", ";
             }
-            line += R"({ "offset": ")" + formatBeatFractionToken(keyframe.offset) + '"';
+            line += R"({ "offset": ")" + formatFractionToken(keyframe.offset) + '"';
             // Every STATED channel is written, values that look like defaults included: a bend of
             // zero is a release back to rest, so eliding it would delete the statement rather than
             // shorten it. Absence is what says nothing was stated — for the vibrato, `None`.
@@ -607,13 +610,14 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     Chart chart;
     const juce::var& root = *document;
 
-    // The single chart-document version gate, mirroring the other formats: formatVersion 1 is the
-    // only supported revision, and no other call site may test the chart version. The format
-    // itself changes in place under this number — every project is fresh, nothing legacy is
+    // The single chart-document version gate, mirroring the other formats: g_chart_format_version
+    // is the only supported revision, and no other call site may test the chart version. The
+    // format itself changes in place under this number — every project is fresh, nothing legacy is
     // preserved, and stale documents are simply re-imported.
-    if (Json::readOptionalInt(root, "formatVersion", 0) != 1)
+    if (Json::readOptionalInt(root, "formatVersion", 0) != g_chart_format_version)
     {
-        return std::unexpected{malformed("chart document formatVersion must be 1")};
+        return std::unexpected{malformed(
+            "chart document formatVersion must be " + std::to_string(g_chart_format_version))};
     }
 
     const juce::var& tuning_json = Json::value(root, "tuning");
@@ -746,7 +750,7 @@ namespace
 // claim settled. Nothing here converts, so the text is exactly the chart it is handed.
 [[nodiscard]] std::string renderChartDocument(const Chart& chart)
 {
-    std::string text = "{\n  \"formatVersion\": 1,\n";
+    std::string text = "{\n  \"formatVersion\": " + std::to_string(g_chart_format_version) + ",\n";
 
     text += R"(  "tuning": { "strings": [)";
     for (std::size_t index = 0; index < chart.tuning.strings.size(); ++index)

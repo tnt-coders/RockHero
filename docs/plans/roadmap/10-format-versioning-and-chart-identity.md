@@ -113,7 +113,7 @@ Verified with `rg`/reads against the tree; all paths repo-relative.
 - `Fraction` is always reduced to lowest terms with positive denominator, so equal rationals share
   one representation (`rock-hero-common/core/include/rock_hero/common/core/timeline/fraction.h:19-60`).
 - Token formatters emit one canonical spelling: `formatGridPositionToken` omits the fraction for
-  whole beats, `formatBeatFractionToken` omits the denominator for wholes
+  whole beats, `formatFractionToken` omits the denominator for wholes
   (`rock-hero-common/core/include/rock_hero/common/core/chart/chart_tokens.h:29-47`).
 - Chart model: `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` — tuning
   (strings/capo/centOffset), chord templates, notes (position, string, fret, sustain, attack,
@@ -350,7 +350,7 @@ No later phase starts before this gate closes. No code changes in this phase.
   - Excluded: song metadata, audio assets and normalization, tones/tone track, arrangement ids
     and parts, package paths. (Q5-A scope.)
   - Positions and fractions via the existing canonical token formatters
-    (`formatGridPositionToken`, `formatBeatFractionToken`) — unique because `Fraction` is reduced.
+    (`formatGridPositionToken`, `formatFractionToken`) — unique because `Fraction` is reduced.
   - Integers via `std::to_string`. Anchor times as their stored whole milliseconds, written with
     three decimals exactly as the file writes them, because that *is* the exact stored value. All
     other doubles (centOffset, bend semitones, touch) via `std::format("{}", v)` shortest round-trip

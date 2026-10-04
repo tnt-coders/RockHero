@@ -4517,8 +4517,7 @@ TEST_CASE("Guitar Pro import writes a tie's vibrato stop into the document", "[c
     // The stop is written as its offset alone: no channel is stated, and the leg it begins is
     // unvibrated, which the document spells by omitting the width.
     CHECK(
-        text.find(
-            R"({ "offset": ")" + common::core::formatBeatFractionToken(Fraction{1}) + R"(" })") !=
+        text.find(R"({ "offset": ")" + common::core::formatFractionToken(Fraction{1}) + R"(" })") !=
         std::string::npos);
     const auto reparsed = common::core::parseChartDocument(text);
     REQUIRE(reparsed.has_value());

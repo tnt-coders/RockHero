@@ -47,7 +47,7 @@ std::optional<GridPosition> parseGridPositionToken(const std::string& text)
     Fraction offset{};
     if (plus != std::string::npos)
     {
-        const auto fraction = parseBeatFractionToken(text.substr(plus + 1));
+        const auto fraction = parseFractionToken(text.substr(plus + 1));
         // The fractional extension must address a point strictly inside the beat; a whole-beat
         // remainder belongs in the beat number itself.
         if (!fraction.has_value() || fraction->numerator <= 0 || *fraction >= Fraction{1})
@@ -65,7 +65,7 @@ std::string formatGridPositionToken(const GridPosition& position)
     std::string text = std::to_string(position.measure) + ":" + std::to_string(position.beat);
     if (position.offset.numerator != 0)
     {
-        text += "+" + formatBeatFractionToken(position.offset);
+        text += "+" + formatFractionToken(position.offset);
     }
     return text;
 }
@@ -80,7 +80,7 @@ std::string formatHandPositionToken(const GridPosition& position)
     return "hand position " + formatGridPositionToken(position);
 }
 
-std::optional<Fraction> parseBeatFractionToken(const std::string& text)
+std::optional<Fraction> parseFractionToken(const std::string& text)
 {
     const std::size_t slash = text.find('/');
     if (slash == std::string::npos)
@@ -102,7 +102,7 @@ std::optional<Fraction> parseBeatFractionToken(const std::string& text)
     return Fraction{*numerator, *denominator};
 }
 
-std::string formatBeatFractionToken(Fraction value)
+std::string formatFractionToken(Fraction value)
 {
     if (value.denominator == 1)
     {

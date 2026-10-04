@@ -1,6 +1,6 @@
 /*!
 \file chart_tokens.h
-\brief Token grammar for chart grid positions and beat-fraction durations.
+\brief Token grammar for chart grid positions and fraction-valued durations.
 */
 
 #pragma once
@@ -50,17 +50,26 @@ accepted in any equivalent spelling.
 [[nodiscard]] std::string formatHandPositionToken(const GridPosition& position);
 
 /*!
-\brief Parses a beat-fraction token: `"<n>"` for whole beats or `"<n>/<d>"` for fractions.
+\brief Parses a fraction token: `"<n>"` for a whole value or `"<n>/<d>"` for a fraction.
+
+One grammar serves two quantities: the `+<n>/<d>` beat fraction inside a grid position token, and
+a duration (a note's `sustain` or a keyframe's `offset`). The token names no unit; the field it
+fills does.
+
 \param text Token text.
 \return Parsed non-negative fraction, or nullopt when the token is malformed.
 */
-[[nodiscard]] std::optional<Fraction> parseBeatFractionToken(const std::string& text);
+[[nodiscard]] std::optional<Fraction> parseFractionToken(const std::string& text);
 
 /*!
-\brief Formats a beat-fraction token, omitting the denominator for whole values.
+\brief Formats a fraction token, omitting the denominator for whole values.
+
+The one spelling of both a grid position token's beat fraction and a duration; see
+parseFractionToken().
+
 \param value Fraction to format.
 \return Token text in the canonical spelling.
 */
-[[nodiscard]] std::string formatBeatFractionToken(Fraction value);
+[[nodiscard]] std::string formatFractionToken(Fraction value);
 
 } // namespace rock_hero::common::core
