@@ -1,5 +1,7 @@
 #include "timeline_ruler.h"
 
+#include "keybinds/editor_command_id.h"
+#include "keybinds/editor_command_registry.h"
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
 #include "timeline/sticky_label.h"
@@ -630,10 +632,12 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, const juce::Po
     showMarkerMenu(std::move(rows), select_chip);
 }
 
-// Opens the tempo row's menu, the section menu's shape and policy: the insert at the clicked slot,
-// plus Set Tempo and Delete on the chip the click landed on, which the menu selects. Set Tempo is
-// the selection's restate verb, Delete the Delete key's.
-void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Point<float> click)
+// The tempo row's rows, the section menu's shape and policy: the insert at the clicked slot, plus
+// Set Tempo and Delete on the chip the click landed on. Set Tempo is the selection's restate verb,
+// Delete the Delete key's. Scale Tempo acts on the whole song, so it is offered wherever the row is
+// clicked; the row runs the ScaleTempo command, so its text is that command's registered name.
+std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::tempoRows(
+    const juce::Point<float> click, const bool over_chip) const
 {
     std::vector<MarkerMenuRow> rows;
     if (const std::optional<common::core::GridPosition> insert_position =
@@ -644,8 +648,7 @@ void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Poin
                             m_listener->onTempoAnchorInsertRequested(inserted);
                         }});
     }
-    std::function<void()> select_chip;
-    if (chip != nullptr)
+    if (over_chip)
     {
         rows.push_back({.text = "Set Tempo...", .action = [this] {
                             m_listener->onSelectionRestateRequested();
@@ -653,11 +656,34 @@ void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Poin
         rows.push_back({.text = "Delete Tempo Anchor", .action = [this] {
                             m_listener->onSelectionDeleteRequested();
                         }});
+    }
+    if (const EditorCommandSpec* const scale =
+            findEditorCommandSpec(toJuceCommandId(EditorCommandId::ScaleTempo));
+        scale != nullptr)
+    {
+        rows.push_back(
+            {.text = scale->name, .action = [this] { m_listener->onScaleTempoPromptRequested(); }});
+    }
+    return rows;
+}
+
+juce::PopupMenu TimelineRuler::tempoMenuAt(const juce::Point<float> click) const
+{
+    return markerMenu(
+        tempoRows(click, chipAt(m_tempo_row.chips, g_tempo_row_y, click.roundToInt()) != nullptr));
+}
+
+// The tempo row's menu, selecting the chip the click landed on.
+void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Point<float> click)
+{
+    std::function<void()> select_chip;
+    if (chip != nullptr)
+    {
         select_chip = [this, selected = m_tempo_map.anchors()[chip->source_index].position] {
             m_listener->onTempoAnchorSelected(selected);
         };
     }
-    showMarkerMenu(std::move(rows), select_chip);
+    showMarkerMenu(tempoRows(click, chip != nullptr), select_chip);
 }
 
 // A time signature only ever starts on a downbeat, so the click is read at the tick, never rounded

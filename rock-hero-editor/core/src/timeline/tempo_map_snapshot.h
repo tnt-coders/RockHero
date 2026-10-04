@@ -64,18 +64,6 @@ struct TempoMapSnapshot
     [[nodiscard]] EditFocus focusReplacing(const TempoMapSnapshot& replaced) const;
 
     /*!
-    \brief Carries the cursor's place across a tempo commit: unchanged, because the grid is truth
-    here, so the cursor keeps its musical place and moves in time with the map.
-    \param from Map before the commit; unused.
-    \param to Map after the commit; unused.
-    \param place The cursor's place under \p from.
-    \return \p place itself.
-    */
-    [[nodiscard]] static common::core::GridPosition carryCursor(
-        const common::core::TempoMap& from, const common::core::TempoMap& to,
-        common::core::GridPosition place) noexcept;
-
-    /*!
     \brief Compares two snapshots by their stored values.
     \param lhs Left-hand snapshot.
     \param rhs Right-hand snapshot.

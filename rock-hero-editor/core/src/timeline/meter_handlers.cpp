@@ -1,10 +1,10 @@
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_model_commit.h"
+#include "shared/ratio_text.h"
 #include "timeline/meter_edits.h"
 #include "timeline/song_timeline_snapshot.h"
 
 #include <algorithm>
-#include <charconv>
 #include <cstddef>
 #include <expected>
 #include <iterator>
@@ -21,7 +21,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -39,50 +38,20 @@ constexpr std::string_view g_set_time_signature_label{"Set Time Signature"};
 constexpr std::string_view g_delete_time_signature_label{"Delete Time Signature"};
 constexpr std::string_view g_move_time_signature_label{"Move Time Signature"};
 
-// Spaces and tabs only: the prompt is one line of text.
-[[nodiscard]] std::string_view trimmed(std::string_view text)
-{
-    const std::size_t first = text.find_first_not_of(" \t");
-    if (first == std::string_view::npos)
-    {
-        return {};
-    }
-    return text.substr(first, text.find_last_not_of(" \t") - first + 1);
-}
-
-// The whole text as one positive whole number, or nothing: from_chars reads no sign, no space and
-// no decimal point, and the end check refuses anything left over.
-[[nodiscard]] std::optional<int> positiveWhole(std::string_view text)
-{
-    const std::string_view digits = trimmed(text);
-    int value = 0;
-    const auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), value);
-    if (digits.empty() || error != std::errc{} || end != digits.data() + digits.size() ||
-        value <= 0)
-    {
-        return std::nullopt;
-    }
-    return value;
-}
-
-// The prompt's text read back as a meter: two positive whole numbers around one slash, spaces
-// around either allowed. Whether the meter is one a song may hold (a power-of-two denominator the
-// tick lattice carries) is the tempo-map rules' question, asked when the edit commits.
+// The prompt's text read back as a meter: two positive whole numbers around one slash, kept as
+// typed. Whether the meter is one a song may hold (a power-of-two denominator the tick lattice
+// carries) is the tempo-map rules' question, asked when the edit commits.
 [[nodiscard]] std::optional<common::core::TimeSignature> parseTimeSignatureText(
     const std::string_view text)
 {
-    const std::size_t slash = text.find('/');
-    if (slash == std::string_view::npos)
+    const std::optional<TypedRatio> ratio = parseTypedRatio(text);
+    if (!ratio.has_value())
     {
         return std::nullopt;
     }
-    const std::optional<int> numerator = positiveWhole(text.substr(0, slash));
-    const std::optional<int> denominator = positiveWhole(text.substr(slash + 1));
-    if (!numerator.has_value() || !denominator.has_value())
-    {
-        return std::nullopt;
-    }
-    return common::core::TimeSignature{.numerator = *numerator, .denominator = *denominator};
+    return common::core::TimeSignature{
+        .numerator = ratio->numerator, .denominator = ratio->denominator
+    };
 }
 
 // The timeline re-addressed under a new meter list, as the snapshot a verb commits, or nothing
@@ -91,7 +60,7 @@ constexpr std::string_view g_move_time_signature_label{"Move Time Signature"};
     const common::core::SongTimeline& timeline, const std::span<const PlacedMeter> meters,
     const std::string_view label)
 {
-    std::expected<common::core::SongTimeline, MeterEditError> readdressed =
+    std::expected<common::core::SongTimeline, ReaddressError> readdressed =
         readdressUnderMeters(timeline, meters);
     if (!readdressed.has_value())
     {
@@ -212,7 +181,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
         std::move(*after),
         std::string{label},
         MarkerRow::TimeSignature,
-        downbeat);
+        downbeat,
+        keptPlace);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
@@ -249,7 +219,8 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
         std::move(*after),
         std::string{g_delete_time_signature_label},
         MarkerRow::TimeSignature,
-        std::nullopt);
+        std::nullopt,
+        keptPlace);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 

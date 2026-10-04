@@ -535,6 +535,9 @@ public:
     /*! \copydoc IEditorController::onTimeSignatureSetRequested */
     void onTimeSignatureSetRequested(int measure, std::string text) override;
 
+    /*! \copydoc IEditorController::onScaleTempoRequested */
+    void onScaleTempoRequested(std::string text) override;
+
     /*! \copydoc IEditorController::onTempoAnchorMoveRequested */
     void onTempoAnchorMoveRequested(
         common::core::GridPosition position, std::int64_t milliseconds) override;

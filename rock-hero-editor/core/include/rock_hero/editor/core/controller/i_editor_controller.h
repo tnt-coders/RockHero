@@ -709,6 +709,19 @@ public:
     virtual void onTimeSignatureSetRequested(int measure, std::string text) = 0;
 
     /*!
+    \brief Handles a typed Scale Tempo factor: scale every grid address in the song by it, every
+    time held.
+
+    The answer to the Scale Tempo prompt, from the Edit menu or the tempo row's menu. The text is
+    parsed here, in the core: a positive whole number or ratio ("2", "1/2", "3/2"); anything else
+    is refused and logged, changing nothing. The whole song lands as one undo entry, "Scale Tempo".
+    The Tempo Lock does not block it.
+
+    \param text Factor as typed.
+    */
+    virtual void onScaleTempoRequested(std::string text) = 0;
+
+    /*!
     \brief Handles one event of a tempo-chip drag: move the anchor at a grid position to a time.
 
     The pointer form of `Alt+←/→`, in free time, ending in the same move tail: every event of one

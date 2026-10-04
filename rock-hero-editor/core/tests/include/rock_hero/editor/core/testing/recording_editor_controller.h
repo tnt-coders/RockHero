@@ -456,6 +456,12 @@ public:
         last_time_signature_set_text = std::move(text);
     }
 
+    /*! \copydoc IEditorController::onScaleTempoRequested */
+    void onScaleTempoRequested(std::string text) override
+    {
+        last_scale_tempo_text = std::move(text);
+    }
+
     /*! \copydoc IEditorController::onTempoAnchorMoveRequested */
     void onTempoAnchorMoveRequested(
         common::core::GridPosition position, std::int64_t milliseconds) override
@@ -1000,6 +1006,9 @@ public:
 
     /*! \brief Last meter text reported through onTimeSignatureSetRequested(). */
     std::string last_time_signature_set_text{};
+
+    /*! \brief Last factor text reported through onScaleTempoRequested(), or empty before one. */
+    std::optional<std::string> last_scale_tempo_text{};
 
     /*! \brief Last anchor position reported through onTempoAnchorMoveRequested(). */
     std::optional<common::core::GridPosition> last_moved_tempo_anchor_position{};

@@ -57,6 +57,7 @@ add_executable(
     test_editor_controller_restore.cpp
     test_editor_controller_state.cpp
     test_editor_controller_tempo.cpp
+    test_editor_controller_scale_tempo.cpp
     test_editor_controller_transport.cpp
     test_editor_undo_history.cpp
     test_gp_song_importer.cpp
@@ -77,6 +78,8 @@ add_executable(
     test_transport_readout_text.cpp
     test_load_notice.cpp
     test_meter_edits.cpp
+    test_ratio_text.cpp
+    test_tempo_scale.cpp
     test_project.cpp
     test_editor_settings.cpp)
 

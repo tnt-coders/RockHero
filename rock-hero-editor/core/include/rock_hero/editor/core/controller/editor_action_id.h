@@ -223,6 +223,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Move the selected tempo anchor to a time: one event of a tempo-chip drag. */
     MoveTempoAnchor,
 
+    /*! \brief Scale every grid address in the song by a typed factor, every time held. */
+    ScaleTempo,
+
     /*! \brief Select a time-signature chip on the ruler (the change it marks). */
     SelectTimeSignature,
 

@@ -40,6 +40,7 @@
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -2334,6 +2335,13 @@ struct SongEditorHarness
     [[nodiscard]] const common::core::TempoMap& tempoMap() const
     {
         return controller.session().song().tempo_map;
+    }
+
+    // The song's whole timeline as it now stands: what a whole-song verb commits and its undo
+    // restores.
+    [[nodiscard]] common::core::SongTimeline timeline() const
+    {
+        return common::core::makeSongTimeline(controller.session().song());
     }
 
     [[nodiscard]] const std::vector<common::core::SongSection>& sections() const

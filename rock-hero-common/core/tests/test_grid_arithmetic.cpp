@@ -414,6 +414,20 @@ TEST_CASE("The tick rounding rule is the same for a tick count read as a double"
     }
 }
 
+// The lattice rule lives on the whole-note axis: a place is on it when it is a whole number of
+// 1/3840 whole notes, and the nearest lattice place keeps one already there and rounds any other by
+// the tick rule, a tie going to the earlier tick.
+TEST_CASE("A whole-note place rounds onto the tick lattice only when off it", "[core][chart]")
+{
+    CHECK(isOnTickLattice(Fraction{3, 8}));
+    CHECK(isOnTickLattice(Fraction{1, 3840}));
+    CHECK_FALSE(isOnTickLattice(Fraction{1, 7680}));
+    CHECK(nearestTickPlace(Fraction{3, 8}) == Fraction{3, 8});
+    CHECK(nearestTickPlace(Fraction{1, 7680}) == Fraction{});
+    CHECK(nearestTickPlace(Fraction{3, 7680}) == Fraction{1, 3840});
+    CHECK(nearestTickPlace(Fraction{5, 7}) == Fraction{2743, 3840}); // 2742.857 ticks
+}
+
 // A position is on the lattice when its offset is a whole number of ticks at its own meter: a
 // quarter-note beat holds 960 ticks and an eighth-note beat 480.
 TEST_CASE("A position lies on the tick lattice when its offset is whole ticks", "[core][chart]")

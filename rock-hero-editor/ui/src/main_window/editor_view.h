@@ -507,6 +507,9 @@ private:
     void onTimeSignatureInsertPromptRequested(
         const core::InsertTimeSignatureTarget& target) override;
 
+    // TimelineRuler::Listener implementation; runs the ScaleTempo command.
+    void onScaleTempoPromptRequested() override;
+
     // TimelineRuler::Listener implementation; also Enter's perform.
     void onSelectionRestateRequested() override;
 
@@ -531,6 +534,10 @@ private:
     // The one meter prompt behind both: a title, then the meter typed for a measure's downbeat,
     // handed back raw for the core to parse.
     void promptTimeSignature(const juce::String& title, int measure, const std::string& meter_text);
+
+    // The Scale Tempo prompt: one factor typed for the whole song, handed back raw for the core to
+    // parse. The ScaleTempo command opens it.
+    void promptScaleTempo();
 
     // ToneTrackView::Listener implementation.
     void onToneRegionSelected(std::string region_id) override;

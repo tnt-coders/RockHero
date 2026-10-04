@@ -10,6 +10,7 @@ member template needs its body where every marker handler translation unit can s
 
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_model_edit.h"
+#include "timeline/timeline_readdress.h"
 
 #include <expected>
 #include <memory>
@@ -169,14 +170,17 @@ bool EditorController::Impl::commitMarkerMove(
 // list): the cursor's place is read at the tick BEFORE the commit; the landed marker is selected
 // next, because selecting dissolves an armed caret by seeking to its OLD token, which under the new
 // grid is other music; and the cursor moves to its place carried onto the new grid last, so that
-// move is the last word. What survives the commit is the snapshot kind's own law (carryCursor): the
-// musical place where the grid is truth, the time where time is. The landed marker is selected only
-// where it still stands, since normalization may have dropped it, and the publish follows the
+// move is the last word. The cursor is carried as one more slice, down the path the content took
+// (readdressedPosition with the verb's content map), so it lands on what it stood on: a kept place
+// where the grid is truth or a meter edit holds time, a scaled one under Scale Tempo. The landed
+// marker is selected only where it still stands, since normalization may have dropped it, and a
+// landed commit leaves its marker selected or nothing, the caret dissolving as a select dissolves
+// it: where every address moved, the old selection would name other music. The publish follows the
 // funnel's publish rule: only when the model landed or a marker was selected.
 template <typename Snapshot>
 void EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
-    const std::optional<common::core::GridPosition> landed)
+    const std::optional<common::core::GridPosition> landed, const ContentMap& content)
 {
     const std::optional<common::core::GridPosition> place =
         cursorPosition(common::core::g_tick_quantum_note_value);
@@ -188,9 +192,14 @@ void EditorController::Impl::commitGridModel(
         return;
     }
     const bool selected = landed.has_value() && selectMarkerStartingAt(landed_row, *landed);
+    if (committed == MarkerCommit::Landed && !selected)
+    {
+        dissolveChartCaretInPlace();
+        clearSelection();
+    }
     if (committed == MarkerCommit::Landed && place.has_value())
     {
-        moveCursorTo(Snapshot::carryCursor(old_map, session().song().tempo_map, *place));
+        moveCursorTo(readdressedPosition(old_map, session().song().tempo_map, content, *place));
     }
     if (selected || committed == MarkerCommit::Landed)
     {

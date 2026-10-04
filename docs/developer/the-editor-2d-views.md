@@ -97,7 +97,10 @@ the cursor is in is renamed, otherwise one is inserted there (2026-09-14; `F2` i
 2026-09-12). The tempo chip carries the tempo verbs (plan 41): `Enter` and a double-click open
 the BPM prompt through the core's published restate verb, `Alt+←/→` and a drag move its time
 freely (a drag is one held run, one undo entry), and a right-click on the tempo row opens Add
-Tempo Anchor, Set Tempo... and Delete Tempo Anchor. The two moves — and only they — answer to the
+Tempo Anchor, Set Tempo... and Delete Tempo Anchor, plus Scale Tempo... wherever the row is clicked
+(`TimelineRuler::tempoMenuAt`), which runs the same `ScaleTempo` command as the Edit menu's item
+(plan 66: every address in the song scaled by a typed factor, every time held, one entry; see
+\ref guide_musical_time). The two moves — and only they — answer to the
 **Tempo Lock**, a session switch that is on at every song open and never saved: while it is on,
 `refuseLockedTempoAnchorMove` (`tempo_handlers.cpp`) refuses each nudge and every drag event with
 the refusal flash on the chip and a log line, and inserting, deleting and typing a tempo stay

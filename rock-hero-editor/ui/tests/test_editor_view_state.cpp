@@ -278,6 +278,38 @@ TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][e
     CHECK(controller.last_time_signature_set_text == " 7 / 8 ");
 }
 
+// Scale Tempo is an Edit-menu verb, greyed while the marker plane is closed (no song, or the
+// transport playing), when performing it opens nothing. Open, it raises the factor prompt, empty so
+// an accidental Enter scales nothing, and hands the typed text back raw for the core to parse. The
+// tempo row's "Scale Tempo..." row runs this same command (the ruler suite pins the row).
+TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    const int scale_command = toJuceCommandId(EditorCommandId::ScaleTempo);
+
+    view.setState(core::EditorViewState{});
+    const juce::PopupMenu::Item closed_item =
+        requiredMenuItem(view.getMenuForIndex(1, "Edit"), scale_command);
+    CHECK(closed_item.text == "Scale Tempo...");
+    CHECK_FALSE(closed_item.isEnabled);
+    const juce::ApplicationCommandTarget::InvocationInfo info{scale_command};
+    CHECK(view.perform(info));
+    CHECK(juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0);
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    state.marker_edits_enabled = true;
+    view.setState(state);
+    CHECK(requiredMenuItem(view.getMenuForIndex(1, "Edit"), scale_command).isEnabled);
+
+    acceptPrompt(
+        view, EditorCommandId::ScaleTempo, ShownPrompt{.title = "Scale Tempo", .text = ""}, "3/2");
+    CHECK(controller.last_scale_tempo_text == std::optional<std::string>{"3/2"});
+}
+
 // The hand chord has nothing to prompt for, so no verb is published for it: the view forwards the
 // press as it stands and the core decides what it does.
 TEST_CASE("EditorView forwards the hand chord to the core", "[ui][editor-view]")
@@ -589,6 +621,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertTimeSignature,
          .value = 0x1408,
          .chords = {chord('/', command)}},
+        {.id = EditorCommandId::ScaleTempo, .value = 0x1409, .chords = {}},
         {.id = EditorCommandId::InsertFretHandPosition,
          .value = 0x1406,
          .chords = {chord('h', command)}},
@@ -1094,6 +1127,7 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK_FALSE(acts(EditorCommandId::InsertSongSection));
     CHECK_FALSE(acts(EditorCommandId::InsertTempoAnchor));
     CHECK_FALSE(acts(EditorCommandId::InsertTimeSignature));
+    CHECK_FALSE(acts(EditorCommandId::ScaleTempo));
     CHECK_FALSE(acts(EditorCommandId::InsertToneChange));
     CHECK_FALSE(acts(EditorCommandId::InsertFretHandPosition));
     CHECK_FALSE(acts(EditorCommandId::SaveProject));

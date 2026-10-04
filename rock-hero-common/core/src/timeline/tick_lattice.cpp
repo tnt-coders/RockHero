@@ -18,9 +18,26 @@ std::int64_t nearestTick(const double exact_ticks) noexcept
 
 // A reduced fraction of a whole note is a whole number of ticks exactly when its denominator
 // divides the tick's.
+bool isOnTickLattice(const Fraction whole_note) noexcept
+{
+    return g_tick_quantum_denominator % whole_note.denominator == 0;
+}
+
 bool isOnTickLattice(const TempoMap& tempo_map, const GridPosition& position)
 {
-    return g_tick_quantum_denominator % tempo_map.wholeNotePositionAt(position).denominator == 0;
+    return isOnTickLattice(tempo_map.wholeNotePositionAt(position));
+}
+
+Fraction nearestTickPlace(const Fraction whole_note) noexcept
+{
+    if (isOnTickLattice(whole_note))
+    {
+        return whole_note;
+    }
+    const std::int64_t tick = nearestTick(
+        static_cast<std::int64_t>(whole_note.numerator) * g_tick_quantum_denominator,
+        whole_note.denominator);
+    return Fraction{static_cast<int>(tick), g_tick_quantum_denominator};
 }
 
 bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map)

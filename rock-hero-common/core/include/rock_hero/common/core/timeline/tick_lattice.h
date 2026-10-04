@@ -68,17 +68,35 @@ a tie going to the earlier tick, exactly as \ref nearestTick(std::int64_t, std::
 [[nodiscard]] std::int64_t nearestTick(double exact_ticks) noexcept;
 
 /*!
-\brief Reports whether a position lies on the timeline's tick lattice.
+\brief Reports whether a place on the whole-note axis lies on the timeline's tick lattice.
 
-The lattice is every multiple of \ref g_tick_quantum_note_value on the whole-note axis
-(\ref TempoMap::wholeNotePositionAt), which every downbeat of a meter the package format admits
-lies on.
+THE lattice rule: the lattice is every multiple of \ref g_tick_quantum_note_value on the
+whole-note axis (\ref TempoMap::wholeNotePositionAt), which every downbeat of a meter the package
+format admits lies on.
 
+\param whole_note Whole notes from the grid origin.
+\return True when the place is a whole number of ticks from the grid origin.
+*/
+[[nodiscard]] bool isOnTickLattice(Fraction whole_note) noexcept;
+
+/*!
+\brief Reports whether a position lies on the timeline's tick lattice: its whole-note place does.
 \param tempo_map Tempo map supplying the meter of every measure up to the position.
 \param position Position to test.
 \return True when the position is a whole number of ticks from the grid origin.
 */
 [[nodiscard]] bool isOnTickLattice(const TempoMap& tempo_map, const GridPosition& position);
+
+/*!
+\brief Returns the lattice place nearest a place on the whole-note axis.
+
+A place on the lattice comes back unchanged, so an exact producer never rounds; any other rounds
+through \ref nearestTick(std::int64_t, std::int64_t), a tie going to the earlier tick.
+
+\param whole_note Whole notes from the grid origin.
+\return The nearest whole number of ticks, as whole notes.
+*/
+[[nodiscard]] Fraction nearestTickPlace(Fraction whole_note) noexcept;
 
 /*!
 \brief Reports whether a grid position names a real place on the tempo map's grid.

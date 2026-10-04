@@ -72,6 +72,11 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         last_signature_insert = target;
     }
 
+    void onScaleTempoPromptRequested() override
+    {
+        scale_tempo_count += 1;
+    }
+
     void onSelectionRestateRequested() override
     {
         restate_count += 1;
@@ -104,6 +109,9 @@ struct RecordingRulerListener final : TimelineRuler::Listener
 
     // Insert the signature menu last asked a time signature for.
     std::optional<core::InsertTimeSignatureTarget> last_signature_insert{};
+
+    // How often the tempo menu asked for the Scale Tempo prompt.
+    int scale_tempo_count{0};
 
     // Direction last reported through onSelectionMoveRequested().
     std::optional<bool> last_move_later{};
@@ -609,6 +617,39 @@ TEST_CASE("TimelineRuler signature menu offers the rows that apply", "[ui][timel
         menuRows(ruler.signatureMenuAt({164.0f, 35.0f})) ==
         Rows{{"Set Time Signature...", false}, {"Delete Time Signature", false}});
     CHECK(menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature", false}});
+}
+
+// The tempo menu offers the rows that apply where it opens: Add at the clicked slot, Set and Delete
+// over a chip, and Scale Tempo everywhere, since it acts on the whole song. Every row is disabled
+// while the marker plane is closed, and building the menu selects nothing.
+TEST_CASE("TimelineRuler tempo menu offers the rows that apply", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TimelineRuler ruler;
+    RecordingRulerListener listener;
+    showMeterChangeMap(ruler);
+    ruler.setListener(listener);
+    ruler.setMarkerEditsEnabled(true);
+
+    using Rows = std::vector<std::pair<std::string, bool>>;
+    // The 1:1 chip spans the tempo row (y 16 to 27) from x = 0.
+    CHECK(
+        menuRows(ruler.tempoMenuAt({4.0f, 21.0f})) == Rows{
+                                                          {"Add Tempo Anchor", true},
+                                                          {"Set Tempo...", true},
+                                                          {"Delete Tempo Anchor", true},
+                                                          {"Scale Tempo...", true},
+                                                      });
+    CHECK(
+        menuRows(ruler.tempoMenuAt({300.0f, 21.0f})) ==
+        Rows{{"Add Tempo Anchor", true}, {"Scale Tempo...", true}});
+    CHECK_FALSE(listener.last_selected_tempo_anchor.has_value());
+    CHECK(listener.scale_tempo_count == 0);
+
+    ruler.setMarkerEditsEnabled(false);
+    CHECK(
+        menuRows(ruler.tempoMenuAt({300.0f, 21.0f})) ==
+        Rows{{"Add Tempo Anchor", false}, {"Scale Tempo...", false}});
 }
 
 // A double-click on a signature chip asks for the selection's restate, the core's meter prompt, as

@@ -319,6 +319,17 @@ own. Like snap it flips a session fact the core owns and nothing persists; unlik
 nothing before turning off. While it is on, the core refuses the tempo-anchor moves themselves —
 see the tempo verbs in \ref guide_2d_views.
 
+`ScaleTempo` (`0x1409`, "Scale Tempo...", category Tempo) has no default chord either: a whole-song
+grid repair is rare and deliberate, so its surfaces are the Edit menu item and the tempo row's
+right-click row, and the row runs the same command (`invokeDirectly`) and prints the command's
+registered name (`findEditorCommandSpec`), so the two cannot drift. Unlike the chorded marker
+verbs it greys rather than staying active, since no chord can sound the system alert: its
+`getCommandInfo` and `perform` both read `marker_edits_enabled`, so it is off with no song and
+while the transport plays. It opens one prompt ("Scale Tempo", one field "Scale factor (e.g. 2,
+1/2, 3/2)", a "Scale" button), empty so a stray Enter scales nothing, whose raw text goes back
+through `onScaleTempoRequested` for the core to parse (`parseScaleFactor`, which refuses a term
+over 16 once reduced). The Tempo Lock does not block it: it moves no anchor in time.
+
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,

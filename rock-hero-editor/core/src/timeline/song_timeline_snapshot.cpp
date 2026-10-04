@@ -1,7 +1,5 @@
 #include "timeline/song_timeline_snapshot.h"
 
-#include "timeline/meter_edits.h"
-
 #include <algorithm>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -68,13 +66,6 @@ EditFocus SongTimelineSnapshot::focusReplacing(const SongTimelineSnapshot& repla
         marker.marker = TimeSignatureSelection{.measure = measure};
     }
     return marker;
-}
-
-common::core::GridPosition SongTimelineSnapshot::carryCursor(
-    const common::core::TempoMap& from, const common::core::TempoMap& to,
-    const common::core::GridPosition place)
-{
-    return readdressedPosition(from, to, place);
 }
 
 } // namespace rock_hero::editor::core

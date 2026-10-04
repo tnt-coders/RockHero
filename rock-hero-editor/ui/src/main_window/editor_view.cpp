@@ -287,6 +287,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetTempoSpanBpm:
             case core::EditorActionId::SetTimeSignature:
             case core::EditorActionId::MoveTempoAnchor:
+            case core::EditorActionId::ScaleTempo:
             case core::EditorActionId::SelectTempoAnchor:
             case core::EditorActionId::SelectTimeSignature:
             case core::EditorActionId::SelectFretHandPosition:
@@ -384,6 +385,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SetTempoSpanBpm:
         case core::EditorActionId::SetTimeSignature:
         case core::EditorActionId::MoveTempoAnchor:
+        case core::EditorActionId::ScaleTempo:
         case core::EditorActionId::SelectTempoAnchor:
         case core::EditorActionId::SelectTimeSignature:
         case core::EditorActionId::SelectFretHandPosition:
@@ -1597,6 +1599,8 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::Undo);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::Redo);
         menu.addSeparator();
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ScaleTempo);
+        menu.addSeparator();
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ShowActions);
         return menu;
     }
@@ -1882,6 +1886,13 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         {
             // Grid snap's shape: always active, ticked by the published lock.
             info.setTicked(m_state.tempo_lock);
+            break;
+        }
+        case EditorCommandId::ScaleTempo:
+        {
+            // A menu verb with no default chord, so it can grey: the tempo row's menu greys its
+            // rows on the same published answer.
+            info.setActive(m_state.marker_edits_enabled);
             break;
         }
     }
@@ -2708,6 +2719,14 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::ToggleTempoLock:
         {
             m_controller.onTempoLockToggleRequested();
+            return true;
+        }
+        case EditorCommandId::ScaleTempo:
+        {
+            if (m_state.marker_edits_enabled)
+            {
+                promptScaleTempo();
+            }
             return true;
         }
     }
@@ -3782,6 +3801,22 @@ void EditorView::promptTimeSignature(
         });
 }
 
+// The Scale Tempo prompt behind the Edit menu's item and the tempo row's menu row, titled as its
+// undo entry is. It opens empty, so an accidental Enter scales nothing; the text goes back raw for
+// the core to parse and refuse.
+void EditorView::promptScaleTempo()
+{
+    showThemedTextPrompt(
+        this,
+        "Scale Tempo",
+        "Scale factor (e.g. 2, 1/2, 3/2)",
+        juce::String{},
+        "Scale",
+        [this](const juce::String& text) {
+            m_controller.onScaleTempoRequested(text.toStdString());
+        });
+}
+
 // Opens whatever the core's published restate verb names — Enter's verb, which the ruler also asks
 // for after selecting a chip — so the view dispatches on no marker kind of its own.
 void EditorView::onSelectionRestateRequested()
@@ -3828,6 +3863,13 @@ void EditorView::onTempoAnchorInsertRequested(const common::core::GridPosition p
 void EditorView::onTimeSignatureInsertPromptRequested(const core::InsertTimeSignatureTarget& target)
 {
     addTimeSignature(target);
+}
+
+// The tempo row's Scale Tempo row runs the command itself, so the ruler and the Edit menu share
+// one enablement and one prompt.
+void EditorView::onScaleTempoPromptRequested()
+{
+    m_command_manager.invokeDirectly(toJuceCommandId(EditorCommandId::ScaleTempo), false);
 }
 
 // The ruler menu's Delete mirrors the Delete key: both act on the editor-wide selection, which the

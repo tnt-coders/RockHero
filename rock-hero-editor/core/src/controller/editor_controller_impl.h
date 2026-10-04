@@ -29,6 +29,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "timeline/song_sections_snapshot.h"
 #include "timeline/song_timeline_snapshot.h"
 #include "timeline/tempo_map_snapshot.h"
+#include "timeline/timeline_readdress.h"
 #include "tone/tone_automation_projection.h"
 #include "tone/tone_model_snapshot.h"
 #include "tone_designer/tone_designer_edits.h"
@@ -591,6 +592,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTempoAnchorInsertRequested(common::core::GridPosition position);
     void onTempoSpanBpmRequested(common::core::GridPosition position, const std::string& text);
     void onTempoAnchorMoveRequested(common::core::GridPosition position, std::int64_t milliseconds);
+    // Scale Tempo, the whole-song tempo verb: it re-addresses every arrangement, so it commits the
+    // whole song timeline as the time-signature verbs do.
+    void onScaleTempoRequested(const std::string& text);
     // What the tempo chord would do at the cursor right now (the published verb; see the
     // definition for the rule it derives).
     [[nodiscard]] TempoChordTarget tempoChordTarget() const;
@@ -746,6 +750,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetTempoSpanBpm& action);
     void performActionImpl(const EditorAction::SetTimeSignature& action);
     void performActionImpl(const EditorAction::MoveTempoAnchor& action);
+    void performActionImpl(const EditorAction::ScaleTempo& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
     void performActionImpl(const EditorAction::SetToneAutomationPoints& action);
@@ -1559,14 +1564,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool commitMarkerMove(
         Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed);
 
-    // The commit every whole-grid verb ends in (a tempo map, a meter list): commitMarkerModel,
-    // then the marker on `landed_row` starting at `landed` selected where it still stands, and the
-    // cursor carried onto the new grid by the snapshot's own carryCursor. Defined beside the
-    // funnel in marker_model_commit.h, where its order rule is written down.
+    // The commit every whole-grid verb ends in (a tempo map, a meter list, Scale Tempo):
+    // commitMarkerModel, then the marker on `landed_row` starting at `landed` selected where it
+    // still stands (else nothing), and the cursor carried as one more slice through the verb's
+    // `content` map (readdressedPosition). Defined beside the funnel in marker_model_commit.h,
+    // where its order rule is written down.
     template <typename Snapshot>
     void commitGridModel(
         Snapshot before, Snapshot after, std::string label, MarkerRow landed_row,
-        std::optional<common::core::GridPosition> landed);
+        std::optional<common::core::GridPosition> landed, const ContentMap& content);
 
     // The model a held run of marker moves started from, while the next move press would continue
     // that run (commitMarkerMove's own test); nothing when it would start one. A move that is not

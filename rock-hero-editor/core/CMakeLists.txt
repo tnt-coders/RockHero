@@ -71,6 +71,8 @@ target_sources(
             src/settings/editor_settings.cpp
             src/settings/editor_settings_error.cpp
             src/shared/editor_controller_logging.h
+            src/shared/ratio_text.cpp
+            src/shared/ratio_text.h
             src/signal_chain/plugin_catalog_workflow.cpp
             src/signal_chain/plugin_catalog_workflow.h
             src/signal_chain/plugin_display_type.cpp
@@ -99,10 +101,14 @@ target_sources(
             src/timeline/tempo_map_edits.h
             src/timeline/tempo_map_snapshot.cpp
             src/timeline/tempo_map_snapshot.h
+            src/timeline/tempo_scale.cpp
+            src/timeline/tempo_scale.h
             src/timeline/tempo_span_text.cpp
             src/timeline/time_signature_target.cpp
             src/timeline/time_signature_text.cpp
             src/timeline/timeline_geometry.cpp
+            src/timeline/timeline_readdress.cpp
+            src/timeline/timeline_readdress.h
             src/timeline/transport_readout_text.cpp
             src/tone/tone_automation_curve.cpp
             src/tone/tone_automation_edits.cpp

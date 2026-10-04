@@ -1,12 +1,16 @@
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_model_commit.h"
+#include "timeline/song_timeline_snapshot.h"
 #include "timeline/tempo_map_edits.h"
 #include "timeline/tempo_map_snapshot.h"
+#include "timeline/tempo_scale.h"
+#include "timeline/timeline_readdress.h"
 #include "tone/tone_automation_edits.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
@@ -14,6 +18,8 @@
 #include <rock_hero/common/core/shared/decimal_text.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/song/song_timeline.h>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <string>
@@ -31,6 +37,9 @@ namespace
 // The label a tempo-anchor move records its undo entry under and logs its refusals under,
 // whichever gesture drives it.
 constexpr std::string_view g_move_tempo_anchor_label{"Move Tempo Anchor"};
+
+// The label Scale Tempo records its undo entry under and logs its refusals under.
+constexpr std::string_view g_scale_tempo_label{"Scale Tempo"};
 
 // The tempo text of the span the anchor standing exactly at a position opens, as its chip prints
 // it, or nothing where no anchor opening a span stands there (the terminal opens none). The one
@@ -147,7 +156,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAn
         TempoMapSnapshot{.tempo_map = std::move(*inserted)},
         std::string{label},
         MarkerRow::Tempo,
-        action.position);
+        action.position,
+        keptPlace);
 }
 
 // Types the tempo of the span an anchor opens: the anchor stays put and every later anchor ripples
@@ -177,7 +187,43 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
         TempoMapSnapshot{.tempo_map = std::move(*rippled)},
         std::move(label),
         MarkerRow::Tempo,
-        action.position);
+        action.position,
+        keptPlace);
+}
+
+// The prompt hands back raw text, so the parse is the core's: text that is not a factor, or one
+// past the bound, changes nothing and records nothing, exactly as a refused commit does.
+void EditorController::Impl::onScaleTempoRequested(const std::string& text)
+{
+    const std::expected<common::core::Fraction, std::string> factor = parseScaleFactor(text);
+    if (!factor.has_value())
+    {
+        logMarkerRefusal(g_scale_tempo_label, factor.error());
+        return;
+    }
+    runAction(EditorAction::ScaleTempo{.factor = *factor});
+}
+
+// Scales every grid address in the song while every time holds: one whole-song re-address, one
+// commit, one entry. It moves no anchor in time, so the Tempo Lock does not apply. Nothing is
+// selected after it, because every address the old selection held now names other music.
+void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& action)
+{
+    SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
+    std::expected<common::core::SongTimeline, ReaddressError> scaled =
+        scaledTimeline(before.timeline, action.factor);
+    if (!scaled.has_value())
+    {
+        logMarkerRefusal(g_scale_tempo_label, scaled.error().message);
+        return;
+    }
+    commitGridModel(
+        std::move(before),
+        SongTimelineSnapshot{.timeline = std::move(*scaled)},
+        std::string{g_scale_tempo_label},
+        MarkerRow::Tempo,
+        std::nullopt,
+        scaledPlaces(action.factor));
 }
 
 // Moves the selected anchor one on-screen pixel at the reported zoom (at least a millisecond), in
@@ -310,7 +356,8 @@ void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelectio
         TempoMapSnapshot{.tempo_map = std::move(*merged)},
         std::string{label},
         MarkerRow::Tempo,
-        std::nullopt);
+        std::nullopt,
+        keptPlace);
 }
 
 // THE one authority for keeping the engine's tempo-derived caches current: the seconds-domain tone

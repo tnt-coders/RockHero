@@ -1,8 +1,9 @@
 #include "settings/editor_settings.h"
 
+#include "shared/ratio_text.h"
+
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -13,7 +14,6 @@
 #include <rock_hero/common/core/shared/settings_file_options.h>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -78,39 +78,12 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
 // non-positive terms so a corrupt entry reads as absent.
 [[nodiscard]] std::optional<common::core::Fraction> parseGridNoteValue(const juce::String& text)
 {
-    const std::string token = text.toStdString();
-    const std::size_t slash = token.find('/');
-    if (slash == std::string::npos)
+    const std::optional<TypedRatio> ratio = parseTypedRatio(text.toStdString());
+    if (!ratio.has_value())
     {
         return std::nullopt;
     }
-
-    const auto parse_positive_int = [](std::string_view part) -> std::optional<int> {
-        if (part.empty())
-        {
-            return std::nullopt;
-        }
-        int value{};
-        const char* const begin = part.data();
-        const char* const end = begin + part.size();
-        const auto [parsed_to, error] = std::from_chars(begin, end, value);
-        if (error != std::errc{} || parsed_to != end || value < 1)
-        {
-            return std::nullopt;
-        }
-        return value;
-    };
-
-    const std::optional<int> numerator =
-        parse_positive_int(std::string_view{token}.substr(0, slash));
-    const std::optional<int> denominator =
-        parse_positive_int(std::string_view{token}.substr(slash + 1));
-    if (!numerator.has_value() || !denominator.has_value())
-    {
-        return std::nullopt;
-    }
-
-    return common::core::Fraction{*numerator, *denominator};
+    return common::core::Fraction{ratio->numerator, ratio->denominator};
 }
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.

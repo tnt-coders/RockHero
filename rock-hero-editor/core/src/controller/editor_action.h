@@ -1017,6 +1017,18 @@ struct EditorAction
         std::int64_t milliseconds{};
     };
 
+    /*!
+    \brief Scale every grid address in the song by a factor, every time held (Scale Tempo).
+
+    The whole song is re-addressed once and lands as one entry. The Tempo Lock does not block it:
+    it moves no anchor in time (plan 66).
+    */
+    struct ScaleTempo
+    {
+        /*! \brief Positive factor; x2 doubles every span's tempo and the measure count. */
+        common::core::Fraction factor{1};
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, ExportSong>;
 
@@ -1046,9 +1058,9 @@ struct EditorAction
         TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain, ToggleChartTechnique,
         ChooseChartHarmonic, SetChartHarmonicNode, ChooseChartBend, SetChartBend,
         ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
-        SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor, SelectTimeSignature,
-        SetTimeSignature, SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd,
-        StepToRowObject, JumpToFocusRow>;
+        SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor, ScaleTempo,
+        SelectTimeSignature, SetTimeSignature, SelectFretHandPosition,
+        AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

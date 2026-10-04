@@ -215,6 +215,15 @@ constexpr int g_add_lane_key = 'a';
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::ScaleTempo,
+            // No default chord: Scale Tempo repairs a whole song's grid, rarely and deliberately,
+            // so its surfaces are the Edit menu and the tempo row's menu.
+            .name = "Scale Tempo...",
+            .category = "Tempo",
+            .default_keypresses = {},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::InsertFretHandPosition,
             // Ctrl+H, the hand's letter on the marker plane: the placement arriving at the cursor
             // is restated (selected, until its fret can be re-entered), a free slot takes a new one

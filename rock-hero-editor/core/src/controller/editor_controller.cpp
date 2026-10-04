@@ -374,6 +374,10 @@ namespace
         {
             return "MoveTempoAnchor";
         }
+        case EditorAction::Id::ScaleTempo:
+        {
+            return "ScaleTempo";
+        }
     }
 
     return "Unknown";
@@ -1026,6 +1030,11 @@ void EditorController::onTempoSpanBpmRequested(
 void EditorController::onTimeSignatureSetRequested(const int measure, std::string text)
 {
     m_impl->onTimeSignatureSetRequested(measure, text);
+}
+
+void EditorController::onScaleTempoRequested(std::string text)
+{
+    m_impl->onScaleTempoRequested(text);
 }
 
 void EditorController::onTempoAnchorMoveRequested(

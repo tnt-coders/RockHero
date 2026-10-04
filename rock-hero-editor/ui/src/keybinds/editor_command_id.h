@@ -191,6 +191,16 @@ enum class EditorCommandId : std::uint16_t
     */
     InsertTimeSignature = 0x1408,
 
+    /*!
+    \brief Scale every grid address in the song by a typed factor, every time held (Scale Tempo).
+
+    Opens the Scale Tempo prompt ("2", "1/2", "3/2"), whose raw text the core parses. The Edit
+    menu's "Scale Tempo..." and the tempo row's right-click row both run this command. No default
+    chord: a whole-song repair is rare and deliberate. Disabled while the marker plane is closed —
+    while the transport plays, or with no song.
+    */
+    ScaleTempo = 0x1409,
+
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
 

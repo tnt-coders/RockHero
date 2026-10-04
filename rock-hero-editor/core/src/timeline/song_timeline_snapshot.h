@@ -18,13 +18,14 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief The song's whole timeline: the snapshot every time-signature verb commits.
+\brief The song's whole timeline: the snapshot every whole-song verb commits, the time-signature
+verbs and Scale Tempo.
 
-A meter edit keeps every object's time and re-addresses it, in every arrangement, so its one undo
+Such an edit keeps every object's time and re-addresses it, in every arrangement, so its one undo
 entry has to restore all of it field-equal: the map, the sections and every arrangement's chart,
 tone track and automation (\ref common::core::SongTimeline, the one definition of that set). Whole
 rather than a diff, as every marker snapshot is, because the re-address is not invertible where a
-section snapped or the terminal re-seated, so no replay could restore those.
+section snapped, the terminal re-seated or a scale rounded, so no replay could restore those.
 */
 struct SongTimelineSnapshot
 {
@@ -66,18 +67,6 @@ struct SongTimelineSnapshot
     \return The changed time signature, or nothing when both hold the same meters.
     */
     [[nodiscard]] EditFocus focusReplacing(const SongTimelineSnapshot& replaced) const;
-
-    /*!
-    \brief Carries the cursor's place across a meter commit: time is truth here, so the cursor
-    keeps its time and takes the address that time has under the new meters.
-    \param from Map before the commit.
-    \param to Map after the commit.
-    \param place The cursor's place under \p from.
-    \return The same whole-note place, addressed under \p to.
-    */
-    [[nodiscard]] static common::core::GridPosition carryCursor(
-        const common::core::TempoMap& from, const common::core::TempoMap& to,
-        common::core::GridPosition place);
 
     /*!
     \brief Compares two snapshots by their stored values.

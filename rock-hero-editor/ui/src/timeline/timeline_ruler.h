@@ -165,6 +165,13 @@ public:
             const core::InsertTimeSignatureTarget& target) = 0;
 
         /*!
+        \brief Called when the tempo row's menu asks to scale the whole song's tempo.
+
+        The listener owns the prompt: the factor is typed, and the ruler must not raise one.
+        */
+        virtual void onScaleTempoPromptRequested() = 0;
+
+        /*!
         \brief Called when a chip double-click, the section menu's Rename, the tempo menu's Set
         Tempo or the signature menu's Set Time Signature asks to restate the chip the ruler has
         just selected.
@@ -414,6 +421,19 @@ public:
     */
     [[nodiscard]] juce::PopupMenu signatureMenuAt(juce::Point<float> click) const;
 
+    /*!
+    \brief The tempo row's menu for a right-click at a point, with the rows that apply there.
+
+    "Add Tempo Anchor" where the click maps to a slot; "Set Tempo..." and "Delete Tempo Anchor"
+    over a chip; "Scale Tempo..." everywhere, since it acts on the whole song. Every row is disabled
+    while the marker plane is closed (\ref setMarkerEditsEnabled). Building the menu selects
+    nothing; the right-click selects the chip before it shows the menu.
+
+    \param click Point in this ruler's coordinates.
+    \return The menu, as the right-click there would show it.
+    */
+    [[nodiscard]] juce::PopupMenu tempoMenuAt(juce::Point<float> click) const;
+
 private:
     // A ruler text label already resolved to a non-overlapping draw position.
     struct RulerLabel
@@ -553,9 +573,13 @@ private:
     // would otherwise only be reachable by keyboard.
     void showSectionContextMenu(const RulerChip* chip, juce::Point<float> click);
 
-    // Opens the tempo row's menu: the insert at the clicked slot always, plus the chip's Set Tempo
-    // and Delete when the click landed on one.
+    // Opens the tempo row's menu (tempoMenuAt), selecting the chip the click landed on.
     void showTempoContextMenu(const RulerChip* chip, juce::Point<float> click);
+
+    // The tempo menu's rows for a click: Add where the click maps to a slot, Set and Delete over a
+    // chip, and Scale Tempo always.
+    [[nodiscard]] std::vector<MarkerMenuRow> tempoRows(
+        juce::Point<float> click, bool over_chip) const;
 
     // Opens the signature row's menu (signatureMenuAt), selecting the chip the click landed on.
     void showSignatureContextMenu(const RulerChip* chip, juce::Point<float> click);

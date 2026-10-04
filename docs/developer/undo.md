@@ -67,10 +67,13 @@ is the chart gate's own `validateFretHandPositions`, and its apply writes throug
 `Session::writeChart()` so the chart revision the projections are keyed on advances), and
 `SongTimelineSnapshot` (`timeline/song_timeline_snapshot.h` — the song's WHOLE timeline, the
 common-core `SongTimeline`: the map, the sections and every arrangement's chart, tone track and
-automation, behind the time-signature verbs, since a meter edit re-addresses all of it in every
-arrangement; its `normalize` drops a meter restating the one before it, its `validate` runs the
-tempo-map, section and chart rules, and its apply is `Session::setSongTimeline()`, the one
-session write that reaches a non-current arrangement).
+automation, behind the time-signature verbs and Scale Tempo, since each re-addresses all of it in
+every arrangement and lands as ONE entry per command; its `normalize` drops a meter restating the
+one before it, its `validate` runs the tempo-map, section and chart rules, and its apply is
+`Session::setSongTimeline()`, the one session write that reaches a non-current arrangement). Every
+grid commit (`commitGridModel`) carries the cursor as one more slice through the verb's content
+map, and leaves the landed marker selected or nothing, because where every address moved the old
+selection would name other music.
 Whole-model in every case because a tone delete or retone can MERGE regions and a section or
 placement move re-sorts the list, so an inverse command would have to know every record the edit
 took; a handful of small structs costs nothing to copy, and the round trip is exact by assignment.
