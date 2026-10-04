@@ -17,6 +17,7 @@
 #include <format>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <numbers>
 #include <optional>
 #include <ranges>
@@ -2067,7 +2068,12 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::IndexBufferHandle> face_indices;
     std::uint32_t face_index_count{0};
 
-    common::core::HighwayViewState state;
+    // The published state, shared with its producer rather than copied: immutable once published,
+    // so holding it costs nothing, and replaced, never mutated. Never null — an empty state until
+    // the first publish, which draws the bare board.
+    std::shared_ptr<const common::core::HighwayViewState> state{
+        std::make_shared<const common::core::HighwayViewState>()
+    };
     // How the board maps the state onto the screen: the renderer's own setting, never part of the
     // projected state, so changing it re-derives nothing the projection built.
     common::core::HighwayDisplayOptions options{};
@@ -2110,8 +2116,8 @@ struct HighwayRenderer::Impl
     // named, so every layer draws both through one path.
     template <typename Visit> void forEachHand(const Visit& visit) const
     {
-        visit(state.fret_hand, g_fretting_hand_light);
-        visit(state.pick_hand, g_picking_hand_light);
+        visit(state->fret_hand, g_fretting_hand_light);
+        visit(state->pick_hand, g_picking_hand_light);
     }
 
     // One hand's lights whose lit interval on a layer fading over `decay_seconds` reaches
@@ -2610,25 +2616,27 @@ HighwayRenderer::~HighwayRenderer() = default;
 HighwayRenderer::HighwayRenderer(HighwayRenderer&& other) noexcept = default;
 HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = default;
 
-void HighwayRenderer::setViewState(common::core::HighwayViewState state)
+void HighwayRenderer::setViewState(std::shared_ptr<const common::core::HighwayViewState> state)
 {
+    assert(state != nullptr);
     m_impl->state = std::move(state);
+    const common::core::HighwayViewState& published = *m_impl->state;
     // The draw path indexes display_hold_ends and note_group by note index with no per-frame
     // check, so the one-per-note contracts (highway_view_state.h) are asserted here, at the only
     // place a state enters — a hand-built state that breaks them should fail loudly instead of
     // reading past a vector inside the frame loop.
-    assert(m_impl->state.chart.display_hold_ends.size() == m_impl->state.chart.notes.size());
-    assert(m_impl->state.note_group.size() == m_impl->state.chart.notes.size());
+    assert(published.chart.display_hold_ends.size() == published.chart.notes.size());
+    assert(published.note_group.size() == published.chart.notes.size());
     m_impl->sustain_prefix_max =
-        common::core::makeSustainPrefixMax(m_impl->state.chart.display_hold_ends);
+        common::core::makeSustainPrefixMax(published.chart.display_hold_ends);
     // The DRAWN extents, named rather than taken off the spans: the board draws no reveal, so the
     // trimmed end is the furthest any rail or bracket of its reaches.
     m_impl->shape_prefix_max = common::core::makeSustainPrefixMax(
-        m_impl->state.chart.shapes |
+        published.chart.shapes |
         std::views::transform(&common::core::ShapeViewState::drawn_end_seconds));
-    m_impl->node_series = common::core::makeHighwayNodeSeries(m_impl->state.chart.notes);
+    m_impl->node_series = common::core::makeHighwayNodeSeries(published.chart.notes);
     m_impl->tap_release_prefix_max = common::core::makeSustainPrefixMax(
-        m_impl->state.tap_onsets |
+        published.tap_onsets |
         std::views::transform(&common::core::HighwayTapOnsetViewState::release_seconds));
     m_impl->reseatBoard();
 }
@@ -2648,9 +2656,9 @@ void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOption
 void HighwayRenderer::Impl::reseatBoard()
 {
     camera.reset();
-    displayed_count =
-        common::core::displayedStringCount(state.chart.stringCount(), options.minimum_string_count);
-    extra_lanes = displayed_count - state.chart.stringCount();
+    displayed_count = common::core::displayedStringCount(
+        state->chart.stringCount(), options.minimum_string_count);
+    extra_lanes = displayed_count - state->chart.stringCount();
     rebuildBoardFace();
 }
 
@@ -2722,7 +2730,7 @@ void HighwayRenderer::Impl::draw(
 
     // Camera: stepped targets from the upcoming chart, turned into motion by the spring.
     const common::core::HighwayCameraTarget target =
-        common::core::makeHighwayCameraTarget(state, now_seconds, metrics, options.mirrored);
+        common::core::makeHighwayCameraTarget(*state, now_seconds, metrics, options.mirrored);
     camera.advance(target, dt_seconds, metrics);
     const common::core::HighwayCameraPose pose = camera.pose(metrics);
     const double aspect = static_cast<double>(width) / static_cast<double>(height);
@@ -2778,7 +2786,7 @@ void HighwayRenderer::Impl::draw(
     // The window at the current instant, fractional mid-transition: the shared coverage signal
     // for the hit-line presentation's pinned numbers.
     const common::core::HighwayHandWindow current_window =
-        common::core::highwayHandWindowAt(state.fret_hand.track, now_seconds);
+        common::core::highwayHandWindowAt(state->fret_hand.track, now_seconds);
 
     // Hand-posture spans reaching the board this frame. Spans ascend by start but overlap
     // freely, so the range is visibleEventRange over the prefix maximum of their ends — the note
@@ -2786,8 +2794,8 @@ void HighwayRenderer::Impl::draw(
     // the arpeggio boxes below) clamp to the same [now, span end] and each still tests its own
     // shapes, so the search is made once for both.
     const auto [first_shape, last_shape] = common::core::visibleEventRange(
-        state.chart.shapes, shape_prefix_max, now_seconds, span_end_seconds);
-    const auto visible_shapes = std::span<const common::core::ShapeViewState>(state.chart.shapes)
+        state->chart.shapes, shape_prefix_max, now_seconds, span_end_seconds);
+    const auto visible_shapes = std::span<const common::core::ShapeViewState>(state->chart.shapes)
                                     .subspan(first_shape, last_shape - first_shape);
 
     // Every frame-scope fact the passes below read, gathered once. The fields take the locals
@@ -2813,7 +2821,7 @@ void HighwayRenderer::Impl::draw(
     // --- Notes: per-note geometry batched per onset group and flushed far-to-near (see
     // flush_note_batches below). ---
     const auto [first_note, last_note] = common::core::visibleEventRange(
-        state.chart.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
+        state->chart.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
 
     // The group's depth prepass (see g_depth_prime_state): the opaque subjects' silhouettes,
     // submitted first in flush_note_batches so the group's own color passes LEQUAL against them
@@ -2840,14 +2848,14 @@ void HighwayRenderer::Impl::draw(
     visible.reserve(last_note - first_note);
     for (std::size_t index = first_note; index < last_note; ++index)
     {
-        const common::core::NoteViewState& note = state.chart.notes[index];
+        const common::core::NoteViewState& note = state->chart.notes[index];
         // The board's one visibility test, stated HERE and once, because every note batch below
         // iterates this single index list — shadows, rails, opens and heads alike.
         //
         // The hold end, not the sustain end: a span-held strum stays drawable while its head
         // pins at the hit line long after its sustainless onset has passed.
         if (note.start_seconds <= span_end_seconds &&
-            state.chart.display_hold_ends[index] >= span_start_seconds)
+            state->chart.display_hold_ends[index] >= span_start_seconds)
         {
             visible.push_back(index);
         }
@@ -2865,15 +2873,15 @@ void HighwayRenderer::Impl::draw(
     lane_key.assign(last_note - first_note, 0.0);
     for (const std::size_t index : visible)
     {
-        const common::core::NoteViewState& note = state.chart.notes[index];
+        const common::core::NoteViewState& note = state->chart.notes[index];
         lane_key[index - first_note] =
             common::core::highwayStringLaneY(laneOf(note.string), displayed_count, metrics, invert);
     }
     // Compared with < / > only (no float equality) so the strict-weak-ordering stays clean
     // under -Wfloat-equal; ties on both real keys fall through to the unique index.
     std::ranges::sort(visible, [&](const std::size_t lhs, const std::size_t rhs) {
-        const double lhs_onset = state.chart.notes[lhs].start_seconds;
-        const double rhs_onset = state.chart.notes[rhs].start_seconds;
+        const double lhs_onset = state->chart.notes[lhs].start_seconds;
+        const double rhs_onset = state->chart.notes[rhs].start_seconds;
         if (lhs_onset > rhs_onset)
         {
             return true;
@@ -3072,12 +3080,12 @@ void HighwayRenderer::Impl::draw(
             // strict test as the authority inside it.
             const auto group_candidates = std::ranges::subrange(
                 std::ranges::lower_bound(
-                    state.chord_groups,
+                    state->chord_groups,
                     bracket_seconds - g_onset_match_epsilon,
                     std::ranges::less{},
                     &common::core::HighwayChordGroupViewState::start_seconds),
                 std::ranges::upper_bound(
-                    state.chord_groups,
+                    state->chord_groups,
                     bracket_seconds + g_onset_match_epsilon,
                     std::ranges::less{},
                     &common::core::HighwayChordGroupViewState::start_seconds));
@@ -3099,7 +3107,7 @@ void HighwayRenderer::Impl::draw(
                     .palm_mute = false,
                     .dead = false,
                     .arpeggio_shape = &shape,
-                    .track = std::cref(state.fret_hand.track),
+                    .track = std::cref(state->fret_hand.track),
                     .style = std::cref(g_fretting_hand_light),
                     .build_index = boxes.size(),
                 });
@@ -3111,12 +3119,12 @@ void HighwayRenderer::Impl::draw(
         // whole-song list rather than a per-group test.
         const auto boxed_groups = std::ranges::subrange(
             std::ranges::lower_bound(
-                state.chord_groups,
+                state->chord_groups,
                 now_seconds,
                 std::ranges::less{},
                 &common::core::HighwayChordGroupViewState::start_seconds),
             std::ranges::upper_bound(
-                state.chord_groups,
+                state->chord_groups,
                 span_end_seconds,
                 std::ranges::less{},
                 &common::core::HighwayChordGroupViewState::start_seconds));
@@ -3163,7 +3171,7 @@ void HighwayRenderer::Impl::draw(
                     .palm_mute = group.all_palm_muted,
                     .dead = group.all_dead,
                     .arpeggio_shape = nullptr,
-                    .track = std::cref(state.fret_hand.track),
+                    .track = std::cref(state->fret_hand.track),
                     .style = std::cref(g_fretting_hand_light),
                     .build_index = boxes.size(),
                 });
@@ -3175,12 +3183,12 @@ void HighwayRenderer::Impl::draw(
         // ends of a binary-searched range, exactly like the strummed groups' clamp above.
         for (const common::core::HighwayTapOnsetViewState& tap : std::ranges::subrange(
                  std::ranges::lower_bound(
-                     state.tap_onsets,
+                     state->tap_onsets,
                      now_seconds,
                      std::ranges::less{},
                      &common::core::HighwayTapOnsetViewState::start_seconds),
                  std::ranges::upper_bound(
-                     state.tap_onsets,
+                     state->tap_onsets,
                      span_end_seconds,
                      std::ranges::less{},
                      &common::core::HighwayTapOnsetViewState::start_seconds)))
@@ -3200,7 +3208,7 @@ void HighwayRenderer::Impl::draw(
                     .palm_mute = false,
                     .dead = false,
                     .arpeggio_shape = nullptr,
-                    .track = std::cref(state.pick_hand.track),
+                    .track = std::cref(state->pick_hand.track),
                     .style = std::cref(g_picking_hand_light),
                     .build_index = boxes.size(),
                 });
@@ -3577,7 +3585,7 @@ void HighwayRenderer::Impl::draw(
         head_vertices.clear();
         head_indices.clear();
     };
-    std::size_t batched_group = state.chord_groups.size();
+    std::size_t batched_group = state->chord_groups.size();
     // The bend lift's sign for the batched group: one vote per onset group, taken at its boundary.
     double group_bend_direction = 1.0;
 
@@ -3733,12 +3741,12 @@ void HighwayRenderer::Impl::draw(
         // inside a harmonic series' span yields its number on the node's own fret.
         for (const common::core::HighwayBeatViewState& beat : std::ranges::subrange(
                  std::ranges::lower_bound(
-                     state.beats,
+                     state->beats,
                      now_seconds - 0.2,
                      std::ranges::less{},
                      &common::core::HighwayBeatViewState::seconds),
                  std::ranges::upper_bound(
-                     state.beats,
+                     state->beats,
                      span_end_seconds,
                      std::ranges::less{},
                      &common::core::HighwayBeatViewState::seconds)))
@@ -3748,7 +3756,7 @@ void HighwayRenderer::Impl::draw(
                 continue;
             }
             const common::core::HighwayHandWindow beat_window =
-                common::core::highwayHandWindowAt(state.fret_hand.track, beat.seconds);
+                common::core::highwayHandWindowAt(state->fret_hand.track, beat.seconds);
             const double z = time_to_z(beat.seconds);
             for (int fret = 1; fret <= g_face_fret_count; ++fret)
             {
@@ -3795,12 +3803,12 @@ void HighwayRenderer::Impl::draw(
         // node, so the decimal label already states everything the integer would, and more.
         for (const common::core::FhpViewState& fhp : std::ranges::subrange(
                  std::ranges::upper_bound(
-                     state.chart.fret_hand_positions,
+                     state->chart.fret_hand_positions,
                      now_seconds,
                      std::ranges::less{},
                      &common::core::FhpViewState::seconds),
                  std::ranges::upper_bound(
-                     state.chart.fret_hand_positions,
+                     state->chart.fret_hand_positions,
                      span_end_seconds,
                      std::ranges::less{},
                      &common::core::FhpViewState::seconds)))
@@ -3828,9 +3836,9 @@ void HighwayRenderer::Impl::draw(
         // it, so the walk carries no state of its own; a cursor into the tap onsets, both
         // ascending, tells a strike's arrival (at its onset, the same instant exactly) from a
         // station between strikes.
-        const std::vector<common::core::HighwayHandArrival>& pick_track = state.pick_hand.track;
+        const std::vector<common::core::HighwayHandArrival>& pick_track = state->pick_hand.track;
         auto onset = std::ranges::upper_bound(
-            state.tap_onsets,
+            state->tap_onsets,
             now_seconds,
             std::ranges::less{},
             &common::core::HighwayTapOnsetViewState::start_seconds);
@@ -3842,18 +3850,18 @@ void HighwayRenderer::Impl::draw(
              arrival != pick_track.end() && arrival->seconds <= span_end_seconds;
              ++arrival)
         {
-            while (onset != state.tap_onsets.end() && onset->start_seconds < arrival->seconds)
+            while (onset != state->tap_onsets.end() && onset->start_seconds < arrival->seconds)
             {
                 ++onset;
             }
-            if (onset != state.tap_onsets.end() &&
+            if (onset != state->tap_onsets.end() &&
                 std::is_eq(onset->start_seconds <=> arrival->seconds))
             {
                 const common::core::HighwayTapOnsetViewState& tap = *onset;
                 // Measured from the previous strike's hold end, its notes' true ring: a position
                 // stays established while its notes ring, however short their drawn tails.
                 const bool repeat_established =
-                    onset != state.tap_onsets.begin() &&
+                    onset != state->tap_onsets.begin() &&
                     std::prev(onset)->fret_low == tap.fret_low &&
                     std::prev(onset)->fret_high == tap.fret_high &&
                     tap.start_seconds - std::prev(onset)->release_seconds <
@@ -3975,9 +3983,9 @@ void HighwayRenderer::Impl::draw(
 
     for (const std::size_t index : visible)
     {
-        const common::core::NoteViewState& note = state.chart.notes[index];
-        const std::size_t group_index = state.note_group[index];
-        const common::core::HighwayChordGroupViewState& group = state.chord_groups[group_index];
+        const common::core::NoteViewState& note = state->chart.notes[index];
+        const std::size_t group_index = state->note_group[index];
+        const common::core::HighwayChordGroupViewState& group = state->chord_groups[group_index];
         if (group.box_treatment == common::core::HighwayChordBoxTreatment::Repeat)
         {
             // A repeat box stands in for its whole strum: no heads, shadows, tails, or
@@ -3994,7 +4002,7 @@ void HighwayRenderer::Impl::draw(
             batched_group = group_index;
             group_bend_direction =
                 common::core::highwayBendInverted(
-                    state.chart.notes, group, extra_lanes, displayed_count, invert)
+                    state->chart.notes, group, extra_lanes, displayed_count, invert)
                     ? -1.0
                     : 1.0;
             // Floor numbers beyond this group's onset take their painter slot here, under
@@ -4020,7 +4028,7 @@ void HighwayRenderer::Impl::draw(
         // display. For a note that draws no tail it is the onset.
         const double hold_end_seconds = std::max(
             note.ink_end_seconds,
-            std::min(state.chart.display_hold_ends[index], group.hold_cap_seconds));
+            std::min(state->chart.display_hold_ends[index], group.hold_cap_seconds));
         const double head_seconds = std::clamp(now_seconds, note.start_seconds, hold_end_seconds);
         // The gesture is drawn only as far as the ink end, so a head pinned past it holds the
         // state the tail stops at: a keyframe, bend point or vibrato region in the ring's ending
@@ -4223,7 +4231,7 @@ void HighwayRenderer::Impl::draw(
             // stations collapse with it onto the window's centre rather than inverting the ribbon.
             const auto band_stations_at = [&](const double seconds) {
                 return band_stations(floorFootprintAt(
-                    state,
+                    *state,
                     note,
                     common::core::highwayTailHalfWidth(metrics),
                     seconds,
@@ -4237,7 +4245,7 @@ void HighwayRenderer::Impl::draw(
             // instant the ramp leaves the visible span. With no ramp inside [tail_from, tail_to]
             // the window is constant across the whole visible tail, so tail_from is exact.
             const HighwayFloorFootprint tail_footprint = floorFootprintAt(
-                state,
+                *state,
                 note,
                 common::core::highwayTailHalfWidth(metrics),
                 tail_from,
@@ -4265,7 +4273,7 @@ void HighwayRenderer::Impl::draw(
             bool open_band_moves = false;
             if (common::core::openString(note))
             {
-                const std::vector<common::core::HighwayHandArrival>& track = state.fret_hand.track;
+                const std::vector<common::core::HighwayHandArrival>& track = state->fret_hand.track;
                 common::core::highwayTrackSampleTimes(track, tail_from, tail_to, window_times);
                 // The end comparison catches a tail shorter than one slice inside a ramp, which
                 // has no interior sample while the window still moves between its ends.
@@ -4889,7 +4897,7 @@ void HighwayRenderer::Impl::draw(
             // landing mid-transition takes the eased window at its own anchor instant, so a
             // pinned sounding bar follows the sliding window like its ringing tail does.
             const auto [x0, x1] =
-                handWindowXAt(state.fret_hand.track, head_seconds, metrics, mirrored);
+                handWindowXAt(state->fret_hand.track, head_seconds, metrics, mirrored);
             // L posts pointing inward from the bar ends (the chord box's bottom corner holders,
             // freestanding): one continuous two-leg ribbon per corner, its cross-section
             // turning 45 degrees at the corner station so the bands wrap the L outline unbroken
@@ -5505,7 +5513,7 @@ void HighwayRenderer::Impl::draw(
         const auto stacked_below = [&](const common::core::SlideStopViewState& keyframe) {
             for (std::size_t member = group.first; member < group.first + group.count; ++member)
             {
-                const common::core::NoteViewState& other = state.chart.notes[member];
+                const common::core::NoteViewState& other = state->chart.notes[member];
                 if (member == index ||
                     common::core::highwayStringLaneY(
                         laneOf(other.string), displayed_count, metrics, invert) >= lane_y)
@@ -5805,17 +5813,18 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
     // same clamp the floor numbers' downbeat pass makes over the same list.
     for (const common::core::HighwayBeatViewState& beat : std::ranges::subrange(
              std::ranges::lower_bound(
-                 state.beats,
+                 state->beats,
                  frame.now_seconds - 0.2,
                  std::ranges::less{},
                  &common::core::HighwayBeatViewState::seconds),
              std::ranges::upper_bound(
-                 state.beats,
+                 state->beats,
                  frame.span_end_seconds,
                  std::ranges::less{},
                  &common::core::HighwayBeatViewState::seconds)))
     {
-        const auto [x0, x1] = handWindowXAt(state.fret_hand.track, beat.seconds, metrics, mirrored);
+        const auto [x0, x1] =
+            handWindowXAt(state->fret_hand.track, beat.seconds, metrics, mirrored);
         const double z = timeToZ(frame, beat.seconds);
         if (beat.measure_downbeat)
         {
@@ -5925,7 +5934,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
     for (const common::core::ShapeViewState& shape : frame.visible_shapes)
     {
         push_rail(
-            state.fret_hand.track,
+            state->fret_hand.track,
             shape.start_seconds,
             shape.drawn_end_seconds,
             shape.arpeggio ? g_arpeggio_color : g_fretting_hand_light.rail_color);
@@ -5934,14 +5943,14 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
     // overlap freely, so the range is visibleEventRange over the prefix maximum of the holds — the
     // posture spans' own search; push_rail's clip still tests each hold.
     const auto [tap_first, tap_last] = common::core::visibleEventRange(
-        state.tap_onsets, tap_release_prefix_max, frame.now_seconds, frame.span_end_seconds);
+        state->tap_onsets, tap_release_prefix_max, frame.now_seconds, frame.span_end_seconds);
     for (std::size_t index = tap_first; index < tap_last; ++index)
     {
-        const common::core::HighwayTapOnsetViewState& tap = state.tap_onsets[index];
+        const common::core::HighwayTapOnsetViewState& tap = state->tap_onsets[index];
         if (common::core::tappedChord(tap))
         {
             push_rail(
-                state.pick_hand.track,
+                state->pick_hand.track,
                 tap.start_seconds,
                 tap.release_seconds,
                 g_picking_hand_light.rail_color);
@@ -6100,13 +6109,13 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
 // flat quads, no art. ---
 void HighwayRenderer::Impl::drawCapo()
 {
-    if (state.chart.capo > 0 && state.chart.capo <= g_face_fret_count)
+    if (state->chart.capo > 0 && state->chart.capo <= g_face_fret_count)
     {
         const bool mirrored = options.mirrored;
         const double face_bottom_y = faceBottomY();
         const double face_top_y = faceTopY();
         auto [vertices, indices] = scratch.colorBatch();
-        const auto capo_line = static_cast<double>(state.chart.capo);
+        const auto capo_line = static_cast<double>(state->chart.capo);
 
         const double nut_x = common::core::highwayFretLineX(0, metrics, mirrored);
         const double capo_x = common::core::highwayFretLineX(capo_line, metrics, mirrored);
@@ -6197,12 +6206,12 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
     // two ends of a binary-searched range.
     for (const common::core::HighwaySectionViewState& section : std::ranges::subrange(
              std::ranges::lower_bound(
-                 state.sections,
+                 state->sections,
                  frame.now_seconds - 0.5,
                  std::ranges::less{},
                  &common::core::HighwaySectionViewState::seconds),
              std::ranges::upper_bound(
-                 state.sections,
+                 state->sections,
                  frame.span_end_seconds,
                  std::ranges::less{},
                  &common::core::HighwaySectionViewState::seconds)))
@@ -6214,7 +6223,7 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
             std::clamp((label_z - label_z_faded) / (label_z_close - label_z_faded), 0.0, 1.0);
         (void)push_text(
             section.name,
-            handWindowXAt(state.fret_hand.track, section.seconds, metrics, mirrored).first,
+            handWindowXAt(state->fret_hand.track, section.seconds, metrics, mirrored).first,
             section_y,
             label_z,
             0.5,

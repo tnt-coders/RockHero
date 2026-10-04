@@ -1970,17 +1970,20 @@ void EditorController::Impl::refreshChartProjections() const
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const bool arrangement_changed = m_tab_arrangement_id != arrangement->id ||
                                      m_tab_chart_revision != session().chartRevision();
-    // The highway state composes the scene built here rather than building its own, so both
-    // surfaces publish one build. Its display options are the preview renderer's own setting
-    // (the displayed-string minimum rides the view state's tab_minimum_displayed_strings), so a
-    // display change never republishes either projection.
+    // ONE publication: the highway state composes the scene, and the tab's pointer aliases that
+    // very member, sharing the board's ownership, so both surfaces read one build with no copy
+    // and neither can outlive the other's scene. Its display options are the preview renderer's
+    // own setting (the displayed-string minimum rides the view state's
+    // tab_minimum_displayed_strings), so a display change never republishes it.
     if (arrangement_changed)
     {
-        m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
-            common::core::makeChartViewState(*arrangement, tempo_map));
         m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
             common::core::makeHighwayViewState(
-                *m_tab_view_state, tempo_map, session().song().sections));
+                common::core::makeChartViewState(*arrangement, tempo_map),
+                tempo_map,
+                session().song().sections));
+        m_tab_view_state = std::shared_ptr<const common::core::ChartViewState>(
+            m_highway_view_state, &m_highway_view_state->chart);
     }
     m_tab_arrangement_id = arrangement->id;
     m_tab_chart_revision = session().chartRevision();

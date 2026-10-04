@@ -106,6 +106,13 @@ Track A tiled 1× / 3× / 10× / 16× = 3,172 / 9,516 / 31,720 / 50,752 notes (a
 | per-frame board queries (camera, hand window, visible range), µs | 0.36 | 0.55 | 0.80 | 0.85 | 1,000 | log n, fine |
 | View push, no revision | 0.008 | 0.010 | 0.015 | 0.017 | 8 | fine |
 
+Phase 1 so far, at 50k (track A, same machine; event figures drift ≈ 11 % between runs, so each
+is the same run's before/after): fixes 1 and 6c took the caret step from 168 to 0.52 ms. 6a/6b's
+one publication took the tempo-chip drag event from 137.7 to 136.4 ms and the settle-typed-digit
+event from 177.8 to 175.5 ms, both inside run drift; its real saving is on the other clock — the
+preview's per-revision board copy, 5.37 ms on the frame that receives it, is gone. The two are
+never summed. What remains in every event is the ≈ 130 ms whole scene rebuild, F2.
+
 Track B (2,164 → 25,968 notes, 147 → 1,753 anchors, 48 → 576 keyframed notes) agrees and shows
 the caret step's second variable: 2.4 → 21 → 144 → **328 ms**. Anchors moved nothing measurable
 (every tempo lookup is a binary search). GP import census: 25.3 µs/note end to end over 113
@@ -155,19 +162,24 @@ lazy-by-value fallback the user signs).
 
 ## 8. Decisions
 
-1. **The unit of derivation becomes the revision's dirty range, not the song.** `Session` carries a
-   `DirtyRange` beside the revision counter; the controller re-derives the window; a revision
-   without a range (or one the controller cannot reach back to) rebuilds whole. Whole is always
-   correct, so the incremental path can only be faster, never different (Phase 2's property test
-   is the proof).
+1. **The unit of derivation becomes the revision's dirty range, not the song — and the range is
+   derived, never authored.** The projection cache keeps the notes, tempo map and sections its
+   scene was built from and diffs them against the session's current ones (`diffNotes`' walk, the
+   anchor diff); no writer states a range, so none can state a wrong one, and writes between two
+   refreshes union for free. `Session` carries one revision counter per write kind (chart, tempo,
+   sections) so a refresh skips the inputs that did not change — a tempo drag diffs only anchors;
+   the single `chartRevision()` is deleted or derived from the three, never a fourth datum. Whole
+   is just the covering range and is always correct, so the incremental path can only be faster,
+   never different (Phase 2's property test is the proof). Reached in agreement between the
+   simplicity and performance reviews (2026-10-04), replacing a range log on `Session`.
 2. **Proportional, never coalesced.** No pointer event is dropped, delayed or merged; each is
    committed and derived in full. Where a verb is O(song) by its nature (Scale Tempo, Keep Notes
    in Time, meter edits) it is a command, committed once per command or on release, and the plan
    says so where the user can see it (Phase 7).
 3. **One scene, one publication.** The controller publishes one `HighwayViewState`, and the tab
-   scene is an aliasing `shared_ptr` into its `chart`, so the 4.2 ms copy at 50k goes without
-   making the scene nullable; the preview's renderer holds the published pointer. Both surfaces
-   read one build (Phase 1, in progress).
+   scene is an aliasing `shared_ptr` into its `chart`, so the scene copy goes without making the
+   scene nullable; the preview's renderer holds the published pointer. Both surfaces read one
+   build (Phase 1).
 4. **Libraries before hand-rolled parsers.** The streaming reader uses a Conan library the user
    picks (64-Q1); `juce::JSON` stays for the small `song.json`.
 5. **The benchmark is part of the product's verification.** An env-gated, hidden-tag Catch2 test
@@ -232,8 +244,8 @@ lazy-by-value fallback the user signs).
 - **Plan 40** (chart editing) owns the undo history whose cap Phase 7 re-units.
 - **Plan 10** (format versioning): Phase 3 changes no byte of the format.
 - **Plan 25 / 44** (highway, preview): Phase 1 moves the display options out of
-  `HighwayViewState` into the renderer, which holds the published state by pointer; the game
-  wraps its board in `make_shared`.
+  `HighwayViewState` into the renderer, which holds the published state by pointer; the game's
+  dev session hands its board out as that pointer.
 
 ## 11. Phased implementation
 
@@ -281,6 +293,11 @@ scratchpad and, as figures, into this file's §6.
   run's output after the cut. Report: charts where every cut is bit-identical; the first
   differing cut and the state field that differed; the distribution of segment lengths (median,
   p95, max, in notes) per chart. **Gates:** 64-Q2 — segments vs checkpoints vs restructure.
+- **0-g The derived range's price.** At 3k / 10k / 30k / 50k, time `diffNotes` over the retained
+  and current note streams after a one-note edit, the retained copy itself, and the anchor diff of
+  two maps. Predicted 1–2 ms walk + 1.5 ms copy at 50k, µs for the anchors. **Gates:** decision 1;
+  the range yields to an authored one only if this breaks a §5 budget. The retained copy
+  (≈ 6 MB per 50k-note arrangement) joins Phase 7's byte budget.
 
 **Exit:** every probe reported with preset, sizes, medians and spread; §6 and §7 updated; 64-Q2
 answered; 64-Q3 asked only if 0-b fired. No production file changed; `git status` clean.
@@ -297,7 +314,17 @@ evaluation reshaped all three:
   once per settle in place of the per-slot predicate. Deletes the K from-the-head scans.
 - **F3** `finalizePlan` stays the one gate and runs its same per-note and pair authorities over
   the affected set in stream order (identical first refusal). Plans emitting deltas that compose
-  is the deeper shape: it would also delete `base` and the settle fold's copy-and-diff.
+  is the deeper shape: it would also delete `base` and the settle fold's copy-and-diff. Agreed in
+  the second review round (2026-10-04): the candidate's sort is deleted — planners insert through
+  one `insertAtSlot` (at `lower_bound`, never refusing an occupied slot, so a duplicate lands
+  beside its twin for the pair check's message), `planMoveSelection` sorts only its keyed notes
+  and `inplace_merge`s, and `finalizePlan` asserts sortedness; the touched set is
+  `diffNotes(chart.notes, candidate).inserted`, the existing walk, not a second one. The two
+  writers that bypass the gate keep the live chart a fixpoint by lemma, each pinned by a test:
+  the settle's Legato→Pick retype (no rule names `Legato`; validation verdicts are equal under
+  the flip) and `dissolveSilentKeyframes` (the strip removes only what the path already states;
+  every fixture note stripped still validates and normalizes to itself). Plan 65's meter edit is
+  the one future writer that must re-establish the fixpoint.
 - **F6** One published board with the tab scene an aliasing pointer into it; the renderer owns
   the display options and holds the published state. The legato sweep copies only after it finds
   work and walks per-string predecessors instead of building full connections; no dirty set.
@@ -322,15 +349,14 @@ hash, benchmark.
 Sub-phases land in order, each shippable and pinned: a pass that is not yet windowed is derived
 whole, which is always correct.
 
-- **2a The dirty range and the revision log.** `Session` gains `DirtyRange` (a closed beat
-  interval in `GridPosition`, or "whole") recorded per revision in a small bounded log:
-  `writeChart` takes the plan's range (removed and inserted onsets extended by their rings);
-  `setTempoMap` derives it from the old and new maps (the changed anchors' previous to next
-  anchor; a changed anchor count or terminal is "whole"); a sections replacement is "board only"
-  (zones derive from sections, the scene does not). `Session::dirtySince(revision)` returns the
-  union of the ranges after `revision`, or "whole" when the log no longer reaches back — pure,
-  stateless toward its consumers, correct for any number of them. The controller still rebuilds
-  whole in 2a; this sub-phase only carries the datum. **Deliverable before any code:** the state
+- **2a The derived dirty range and per-kind revisions** (decision 1). `Session` replaces
+  `chartRevision()` with chart, tempo and sections revisions, each bumped by its mutating method.
+  The projection cache retains the inputs of its last build and derives the range: a chart
+  revision walks `diffNotes` over retained vs current notes (removed and inserted onsets extended
+  by their rings); a tempo revision diffs the anchors (a changed anchor's previous to next anchor;
+  a changed anchor count or terminal is the covering range); a sections revision is "board only"
+  (zones derive from sections, the scene does not). The controller still rebuilds whole in 2a;
+  this sub-phase only derives the datum. **Deliverable before any code:** the state
   inventory of the shapes walk — every field `deriveChartShapes` carries across onset slots
   (`hand[6]`, `open`, `covered`, posture table, pending spans), each classified local (dies with
   its ring) or carried (survives silence). 64-Q2's answer and this inventory fix 2b's mechanism.
@@ -353,10 +379,10 @@ whole, which is always correct.
 - **2d The board, windowed.** `makeHighwayViewState`: chord groups compare only with the previous
   group, lights are a merge sweep, beats and zones are per measure — re-derived over the same
   window with the same remap; zones alone on a sections-only revision.
-- **2e The controller and the fallback.** `refreshChartProjections` asks `dirtySince(last
-  revision)`; a range → `updateChartViewState(previous, arrangement, tempo_map, range)` (new,
-  beside `makeChartViewState` in common/core, the editor its consumer); "whole" → today's
-  rebuild. The two paths are the two sides of the property test.
+- **2e The controller and the fallback.** `refreshChartProjections` derives the range from its
+  retained inputs; a range → `updateChartViewState(previous, arrangement, tempo_map, range)` (new,
+  beside `makeChartViewState` in common/core, the editor its consumer); the covering range →
+  today's rebuild. The two paths are the two sides of the property test.
 
 **Testing:** every existing scene and board suite unedited. New: a property test (CI-safe, on
 synthetic charts with chords, legato chains, keyframes, a 7/8 bar, sub-beat anchors) and its
@@ -415,7 +441,7 @@ the rewritten curve equals a full rewrite point for point. **Exit:** resync ≤ 
   report their size. Phase 0-d's figure is handed to plan 65 before its snapshot phase ships
   (65 asks for exactly that).
 - The whole-song verbs — plan 66's Scale Tempo and Keep-Notes-in-Time commits, plan 65's meter
-  edit — carry a "whole" `DirtyRange`, rebuild whole (≤ 250 ms at 50k after Phases 2 and 4), and
+  edit — derive the covering range, rebuild whole (≤ 250 ms at 50k after Phases 2 and 4), and
   are committed **once per command or on release** (66 decision 2): `Alt+←/→` with Keep Notes in
   Time ON commits per press (an explicit command each); the chip drag with it ON re-addresses on
   release, one undo entry, computed from the drag's starting map so the tick rounding happens once

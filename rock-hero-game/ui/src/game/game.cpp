@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <memory>
 #include <optional>
 #include <print>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
@@ -48,10 +49,10 @@ struct DiagnosticsIntentExecutor
     {
         if (dev_session.has_value())
         {
-            std::optional<common::core::HighwayViewState> state = dev_session->reload(now);
-            if (state.has_value())
+            std::shared_ptr<const common::core::HighwayViewState> state = dev_session->reload(now);
+            if (state != nullptr)
             {
-                renderer.setViewState(std::move(*state));
+                renderer.setViewState(std::move(state));
             }
         }
     }
@@ -208,11 +209,11 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
             std::chrono::steady_clock::now().time_since_epoch());
         if (m_dev_session.has_value())
         {
-            std::optional<common::core::HighwayViewState> dev_state =
+            std::shared_ptr<const common::core::HighwayViewState> dev_state =
                 m_dev_session->takeLoadedViewState();
-            if (dev_state.has_value())
+            if (dev_state != nullptr)
             {
-                m_renderer.setViewState(std::move(*dev_state));
+                m_renderer.setViewState(std::move(dev_state));
             }
         }
 
@@ -312,10 +313,11 @@ void Game::launchSong(const core::SongSelectLaunch& launch)
     }
 
     // Both steps succeeded: adopt the loaded chart and leave the menu for the gameplay surface.
-    std::optional<common::core::HighwayViewState> state = dev_session->takeLoadedViewState();
-    if (state.has_value())
+    std::shared_ptr<const common::core::HighwayViewState> state =
+        dev_session->takeLoadedViewState();
+    if (state != nullptr)
     {
-        m_renderer.setViewState(std::move(*state));
+        m_renderer.setViewState(std::move(state));
     }
     m_dev_session = std::move(dev_session);
     m_in_menu = false;
@@ -454,11 +456,11 @@ core::FrameClockSample Game::update(const std::chrono::nanoseconds monotonic_now
     // player's run never probes the filesystem for edits.
     if (m_dev_mode && m_dev_session.has_value())
     {
-        std::optional<common::core::HighwayViewState> reloaded =
+        std::shared_ptr<const common::core::HighwayViewState> reloaded =
             m_dev_session->pollForReload(monotonic_now);
-        if (reloaded.has_value())
+        if (reloaded != nullptr)
         {
-            m_renderer.setViewState(std::move(*reloaded));
+            m_renderer.setViewState(std::move(reloaded));
         }
     }
 

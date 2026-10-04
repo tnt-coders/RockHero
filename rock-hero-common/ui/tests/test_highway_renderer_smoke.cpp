@@ -49,6 +49,7 @@
 #include <cstring>
 #include <expected>
 #include <juce_core/juce_core.h>
+#include <memory>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
@@ -511,7 +512,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // window from the horizon to the strike line and out of the passed-fade behind it.
         const double last_beat_seconds = families.beats.back().seconds;
         const double sweep_step_seconds = (last_beat_seconds + 4.0) / 300.0;
-        renderer->setViewState(families);
+        renderer->setViewState(std::make_shared<const common::core::HighwayViewState>(families));
         drawFrames(*renderer, *device, -2.0, sweep_step_seconds, 150);
 
         // The resize lands between the halves, with content on the board: the view rects and the
@@ -530,8 +531,9 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
             common::core::HighwayDisplayOptions{
                 .mirrored = true, .invert_string_order = true, .minimum_string_count = 7
             });
-        renderer->setViewState(makeHighwayViewState(
-            makeChartViewState(swap_arrangement, tempo_map), tempo_map, makeSmokeSections()));
+        renderer->setViewState(
+            std::make_shared<const common::core::HighwayViewState>(makeHighwayViewState(
+                makeChartViewState(swap_arrangement, tempo_map), tempo_map, makeSmokeSections())));
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 60);
 
         // An arrangement with no chart at all: empty scene, no beats, no camera zones — the
@@ -543,7 +545,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
             makeHighwayViewState(makeChartViewState(empty_arrangement, tempo_map), tempo_map, {});
         CHECK(empty.chart.notes.empty());
         CHECK(empty.beats.empty());
-        renderer->setViewState(empty);
+        renderer->setViewState(std::make_shared<const common::core::HighwayViewState>(empty));
         drawFrames(*renderer, *device, 0.0, 1.0 / 60.0, 20);
 
         // Capacity probe: the largest batches the encoder builds, swept across the four dense
@@ -556,7 +558,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // the reference nut window, lit by the open strings' evidence.
         CHECK(dense.fret_hand.track.empty());
         CHECK_FALSE(dense.fret_hand.lit.empty());
-        renderer->setViewState(dense);
+        renderer->setViewState(std::make_shared<const common::core::HighwayViewState>(dense));
         drawFrames(*renderer, *device, 0.0, 4.0 / 40.0, 40);
     }
 

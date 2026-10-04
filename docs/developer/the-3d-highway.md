@@ -69,7 +69,7 @@ Each layer has one job, and the boundaries are the reason the sharing works:
 
    static std::expected<HighwayRenderer, HighwayRendererError>
        create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures);
-   void setViewState(common::core::HighwayViewState state);
+   void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
    void setDisplayOptions(common::core::HighwayDisplayOptions options);
    void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
    ```
@@ -158,7 +158,9 @@ edit preview timing there, not in `renderFrame`.
 
 State reaches the preview the same way the game gets it: editor core runs the *same*
 `makeHighwayViewState` projection (memoized per displayed arrangement in `editor_controller.cpp`)
-and `EditorView` pushes the resulting shared pointer into the preview window.
+and `EditorView` pushes the resulting shared pointer into the preview window, which hands that very
+pointer to the renderer — the board is never copied on its way to the GPU. The 2D tab lane's scene
+pointer aliases the same state's `chart` member, so the two surfaces read one build.
 
 # The sharing mechanics, precisely
 

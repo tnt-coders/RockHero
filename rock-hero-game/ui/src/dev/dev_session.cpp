@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <expected>
+#include <memory>
 #include <print>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
@@ -68,8 +69,8 @@ std::optional<DevSession> DevSession::create(
     const std::chrono::nanoseconds now)
 {
     DevSession session{std::move(package_path), std::move(arrangement_id)};
-    std::optional<common::core::HighwayViewState> state = session.loadViewState();
-    if (!state.has_value())
+    std::shared_ptr<const common::core::HighwayViewState> state = session.loadViewState();
+    if (state == nullptr)
     {
         // Startup diagnostics stay on stderr, where a dev launching from a terminal sees them.
         std::println(stderr, "rock-hero: dev package produced no loadable charted arrangement");
@@ -88,35 +89,36 @@ DevSession::DevSession(std::filesystem::path package_path, std::string arrangeme
     , m_requested_arrangement_id{std::move(arrangement_id)}
 {}
 
-std::optional<common::core::HighwayViewState> DevSession::takeLoadedViewState()
+std::shared_ptr<const common::core::HighwayViewState> DevSession::takeLoadedViewState()
 {
-    return std::exchange(m_loaded_state, std::nullopt);
+    return std::exchange(m_loaded_state, nullptr);
 }
 
-std::optional<common::core::HighwayViewState> DevSession::pollForReload(
+std::shared_ptr<const common::core::HighwayViewState> DevSession::pollForReload(
     const std::chrono::nanoseconds now)
 {
     if (now - m_last_probe_time < g_probe_interval)
     {
-        return std::nullopt;
+        return nullptr;
     }
     m_last_probe_time = now;
 
     if (!m_watcher.update(probeSourceStamp(), now))
     {
-        return std::nullopt;
+        return nullptr;
     }
     return reload(now);
 }
 
-std::optional<common::core::HighwayViewState> DevSession::reload(const std::chrono::nanoseconds now)
+std::shared_ptr<const common::core::HighwayViewState> DevSession::reload(
+    const std::chrono::nanoseconds now)
 {
-    std::optional<common::core::HighwayViewState> state = loadViewState();
-    if (!state.has_value())
+    std::shared_ptr<const common::core::HighwayViewState> state = loadViewState();
+    if (state == nullptr)
     {
         // The previous content stays on screen; the next settled edit gets another chance.
         RH_LOG_WARNING("game.dev", "chart hot-reload failed; keeping the previous content");
-        return std::nullopt;
+        return nullptr;
     }
 
     m_sections = state->sections;
@@ -201,14 +203,14 @@ const std::string& DevSession::chosenArrangementId() const noexcept
     return m_chosen_arrangement_id;
 }
 
-std::optional<common::core::HighwayViewState> DevSession::loadViewState()
+std::shared_ptr<const common::core::HighwayViewState> DevSession::loadViewState()
 {
     const std::expected<common::core::SongPackageRead, common::core::SongPackageError> read =
         readPackage(m_package_path);
     if (!read.has_value())
     {
         RH_LOG_WARNING("game.dev", "dev package load failed: {}", read.error().message);
-        return std::nullopt;
+        return nullptr;
     }
     const common::core::Song& song = read->song;
 
@@ -242,21 +244,23 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         // Recorded so the gameplay session loads the same arrangement the display shows.
         m_chosen_arrangement_id = chosen->id;
 
-        common::core::HighwayViewState state = common::core::makeHighwayViewState(
-            common::core::makeChartViewState(*chosen, song.tempo_map),
-            song.tempo_map,
-            song.sections);
+        // Built straight into the shared snapshot the renderer holds, so it is never copied.
+        auto state = std::make_shared<const common::core::HighwayViewState>(
+            common::core::makeHighwayViewState(
+                common::core::makeChartViewState(*chosen, song.tempo_map),
+                song.tempo_map,
+                song.sections));
         RH_LOG_INFO(
             "game.highway",
             "dev package loaded notes={} beats={} sections={}",
-            state.chart.notes.size(),
-            state.beats.size(),
-            state.sections.size());
+            state->chart.notes.size(),
+            state->beats.size(),
+            state->sections.size());
         return state;
     }
 
     RH_LOG_WARNING("game.dev", "dev package has no charted arrangement");
-    return std::nullopt;
+    return nullptr;
 }
 
 // Directory packages watch the song document plus every chart sidecar, because those are the

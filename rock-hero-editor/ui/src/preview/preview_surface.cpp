@@ -3,6 +3,7 @@
 #include "preview/preview_resources.h"
 
 #include <expected>
+#include <memory>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -341,7 +342,10 @@ void PreviewSurface::renderFrame()
     if (m_state_dirty)
     {
         m_state_dirty = false;
-        m_renderer->setViewState(m_state != nullptr ? *m_state : common::core::HighwayViewState{});
+        // A null snapshot clears the board: the renderer shares one empty state rather than
+        // allocating a fresh one per clear.
+        static const auto empty = std::make_shared<const common::core::HighwayViewState>();
+        m_renderer->setViewState(m_state != nullptr ? m_state : empty);
     }
 
     const std::chrono::nanoseconds now = std::chrono::steady_clock::now().time_since_epoch();

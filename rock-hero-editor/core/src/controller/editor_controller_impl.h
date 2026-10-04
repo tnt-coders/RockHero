@@ -1935,7 +1935,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Memoized tab and 3D-highway projections for the displayed arrangement; see
     // refreshChartProjections for the cache rule (keyed by arrangement id plus the session's chart
-    // revision, so chart edits rebuild both projections). Mutable because the caches refresh
+    // revision, so chart edits rebuild both projections). The tab pointer aliases the highway
+    // state's own scene member, so the two are one build. Mutable because the caches refresh
     // lazily inside the const view-state derivation.
     mutable std::shared_ptr<const common::core::ChartViewState> m_tab_view_state{};
     mutable std::shared_ptr<const common::core::HighwayViewState> m_highway_view_state{};

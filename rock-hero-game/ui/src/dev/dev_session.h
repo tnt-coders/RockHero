@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -45,26 +46,26 @@ public:
 
     /*!
     \brief Hands the initially loaded view state to the renderer exactly once.
-    \return The loaded state on the first call; empty afterwards.
+    \return The loaded state on the first call; null afterwards.
     */
-    [[nodiscard]] std::optional<common::core::HighwayViewState> takeLoadedViewState();
+    [[nodiscard]] std::shared_ptr<const common::core::HighwayViewState> takeLoadedViewState();
 
     /*!
     \brief Polls the package source for settled edits (throttled internally).
 
     \param now Monotonic timestamp of this frame.
-    \return A freshly reprojected view state when a settled change reloaded cleanly.
+    \return A freshly reprojected view state when a settled change reloaded cleanly, else null.
     */
-    [[nodiscard]] std::optional<common::core::HighwayViewState> pollForReload(
+    [[nodiscard]] std::shared_ptr<const common::core::HighwayViewState> pollForReload(
         std::chrono::nanoseconds now);
 
     /*!
     \brief Reloads the package immediately (the explicit reload intent).
 
     \param now Monotonic timestamp of this frame.
-    \return The reprojected view state, or empty when the reload failed (previous content stands).
+    \return The reprojected view state, or null when the reload failed (previous content stands).
     */
-    [[nodiscard]] std::optional<common::core::HighwayViewState> reload(
+    [[nodiscard]] std::shared_ptr<const common::core::HighwayViewState> reload(
         std::chrono::nanoseconds now);
 
     /*!
@@ -126,7 +127,7 @@ private:
 
     // Reads the package and projects the requested arrangement, or the default choice; records
     // the chosen arrangement id (non-const for exactly that reason).
-    [[nodiscard]] std::optional<common::core::HighwayViewState> loadViewState();
+    [[nodiscard]] std::shared_ptr<const common::core::HighwayViewState> loadViewState();
 
     // Rebuilds the watched-source list (directory packages watch song.json plus every chart).
     void refreshWatchedFiles();
@@ -143,7 +144,7 @@ private:
 
     std::vector<std::filesystem::path> m_watched_files;
     std::vector<common::core::HighwaySectionViewState> m_sections;
-    std::optional<common::core::HighwayViewState> m_loaded_state;
+    std::shared_ptr<const common::core::HighwayViewState> m_loaded_state;
 
     core::ChartSourceWatcher m_watcher;
     std::chrono::nanoseconds m_last_probe_time{0};

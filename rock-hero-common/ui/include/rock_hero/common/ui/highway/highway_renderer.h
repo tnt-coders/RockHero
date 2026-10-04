@@ -143,9 +143,12 @@ public:
     /*!
     \brief Replaces the chart content and rebuilds the retained board geometry.
 
-    \param state Seconds-resolved highway content from the shared projection.
+    The renderer shares the published state rather than copying it: a state is immutable once
+    published, so the producer's snapshot and the renderer's are one object.
+
+    \param state Seconds-resolved highway content from the shared projection; never null.
     */
-    void setViewState(common::core::HighwayViewState state);
+    void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
 
     /*!
     \brief Sets how the board maps onto the screen: the lefty mirror, the string-order invert and
