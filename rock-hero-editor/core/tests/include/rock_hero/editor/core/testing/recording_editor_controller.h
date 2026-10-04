@@ -235,6 +235,12 @@ public:
         grid_snap_toggle_count += 1;
     }
 
+    /*! \copydoc IEditorController::onTempoLockToggleRequested */
+    void onTempoLockToggleRequested() override
+    {
+        tempo_lock_toggle_count += 1;
+    }
+
     /*!
     \brief Records decisions emitted by the grid-snap warning dialog.
     \param decision User-selected warning decision.
@@ -1257,6 +1263,9 @@ public:
 
     /*! \brief Number of grid-snap toggle intents received. */
     int grid_snap_toggle_count{0};
+
+    /*! \brief Number of tempo-lock toggle intents received. */
+    int tempo_lock_toggle_count{0};
 
     /*! \brief Last decision received from the grid-snap warning dialog. */
     std::optional<GridSnapWarningDecision> last_grid_snap_warning_decision{};

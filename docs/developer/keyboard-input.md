@@ -307,6 +307,13 @@ window either way. Nothing suppresses the warning and nothing records it — see
 press is exactly the case where the user does not know what they pressed), reading it live from
 the mapping set through `commandChordText`, so a rebind moves the dialog's text with the menus'.
 
+`ToggleTempoLock` sits beside it in Grid & Zoom with no default chord: the Tempo Lock is ON at
+every song open and left deliberately, so its surfaces are the toolbar button and the ticked menu
+row, and the button's click runs the same command (`invokeDirectly`) rather than an intent of its
+own. Like snap it flips a session fact the core owns and nothing persists; unlike snap it asks
+nothing before turning off. While it is on, the core refuses the tempo-anchor moves themselves —
+see the tempo verbs in \ref guide_2d_views.
+
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,

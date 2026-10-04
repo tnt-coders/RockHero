@@ -240,6 +240,15 @@ struct EditorAction
     {
     };
 
+    /*!
+    \brief Flip the session's tempo lock.
+
+    Payload-free for grid snap's reason: a session fact with two states and one verb.
+    */
+    struct ToggleTempoLock
+    {
+    };
+
     /*! \brief Switch the editor to another arrangement of the loaded song. */
     struct SelectArrangement
     {
@@ -1010,18 +1019,19 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, ExportSong,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        ToggleGridSnap, SelectArrangement, SelectToneRegion, CreateToneRegion, DeleteToneRegion,
-        RenameTone, SetToneRegionTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser,
-        BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin,
-        SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints,
-        NewToneDocument, OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
-        ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
-        DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
-        AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
-        ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
-        RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
-        SelectTimeSignature, SelectFretHandPosition, AuthorFretHandPositionAtCursor,
-        ClearFretHandEnd, StepToRowObject, JumpToFocusRow>;
+        ToggleGridSnap, ToggleTempoLock, SelectArrangement, SelectToneRegion, CreateToneRegion,
+        DeleteToneRegion, RenameTone, SetToneRegionTone, MoveToneBoundary, CreateNewTone,
+        ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin,
+        MovePlugin, SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin,
+        SetToneAutomationPoints, NewToneDocument, OpenToneFile, SaveToneFile, SaveToneFileAs,
+        ImportToneFile, ExportToneFile, ResolveToneImportPrompt, StepChartCaret, JumpChartCaret,
+        ExtendTimeSelection, MoveSelection, DeleteSelection, InsertAtCaret, InsertRingPoint,
+        TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain, ToggleChartTechnique,
+        ChooseChartHarmonic, SetChartHarmonicNode, ChooseChartBend, SetChartBend,
+        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
+        SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor, SelectTimeSignature,
+        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject,
+        JumpToFocusRow>;
 };
 
 /*!

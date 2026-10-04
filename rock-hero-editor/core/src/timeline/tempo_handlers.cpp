@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/decimal_text.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -27,6 +28,10 @@ namespace rock_hero::editor::core
 
 namespace
 {
+
+// The label a tempo-anchor move records its undo entry under and logs its refusals under,
+// whichever gesture drives it.
+constexpr std::string_view g_move_tempo_anchor_label{"Move Tempo Anchor"};
 
 // The tempo text of the span the anchor standing exactly at a position opens, as its chip prints
 // it, or nothing where no anchor opening a span stands there (the terminal opens none). The one
@@ -220,6 +225,10 @@ void EditorController::Impl::moveSelectedTempoAnchor(
         // The selection went stale; moving nothing is the answer.
         return;
     }
+    if (refuseLockedTempoAnchorMove(selection, "nudging"))
+    {
+        return;
+    }
     const std::int64_t step = tempoAnchorNudgeMilliseconds(m_timeline_zoom_pixels_per_second);
     moveSelectedTempoAnchorTo(
         selection,
@@ -246,7 +255,47 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
     {
         return;
     }
+    // Refused at every event, so nothing lands and no entry opens however far the pointer goes; the
+    // flash joins its running pulse train rather than restarting per event.
+    if (refuseLockedTempoAnchorMove(dragged, "dragging"))
+    {
+        return;
+    }
     moveSelectedTempoAnchorTo(dragged, action.milliseconds);
+}
+
+// Flips the tempo lock and republishes, so the toolbar button and the menu tick move together off
+// the one fact. Nothing is written anywhere: like grid snap, the lock is session-only, and
+// resetGridSession puts it back on at every project boundary.
+void EditorController::Impl::onTempoLockToggleRequested()
+{
+    runAction(EditorAction::ToggleTempoLock{});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ToggleTempoLock /*action*/)
+{
+    m_grid_session.tempo_lock = !m_grid_session.tempo_lock;
+    updateView();
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h. The lock guards anchor TIMES
+// only, which is why the insert, delete and typed-tempo verbs never ask here.
+bool EditorController::Impl::refuseLockedTempoAnchorMove(
+    const TempoAnchorSelection& selection, const std::string_view gesture)
+{
+    if (!m_grid_session.tempo_lock)
+    {
+        return false;
+    }
+    logMarkerRefusal(
+        g_move_tempo_anchor_label,
+        "Tempo Lock is on: " + std::string{gesture} + " the tempo anchor at " +
+            common::core::formatGridPositionToken(selection.position) + " is blocked");
+    if (m_view != nullptr)
+    {
+        m_view->flashTempoAnchorRefusal(selection.position);
+    }
+    return true;
 }
 
 // The one tail every tempo-anchor move ends in, whatever drives it. A move never changes the
@@ -255,19 +304,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
 void EditorController::Impl::moveSelectedTempoAnchorTo(
     const TempoAnchorSelection& selection, const std::int64_t milliseconds)
 {
-    constexpr std::string_view label{"Move Tempo Anchor"};
     TempoMapSnapshot before = TempoMapSnapshot::capture(session());
     TempoMapEditResult moved = moveTempoAnchor(before.tempo_map, selection.position, milliseconds);
     if (!moved.has_value())
     {
-        logMarkerRefusal(label, moved.error().message);
+        logMarkerRefusal(g_move_tempo_anchor_label, moved.error().message);
         return;
     }
 
     if (commitMarkerMove(
             std::move(before),
             TempoMapSnapshot{.tempo_map = std::move(*moved)},
-            std::string{label},
+            std::string{g_move_tempo_anchor_label},
             selection))
     {
         followMovedMarker(selection.position);

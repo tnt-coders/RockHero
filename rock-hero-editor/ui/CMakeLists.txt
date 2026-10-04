@@ -1,6 +1,13 @@
 # Package the static SVG editor UI icons into a JUCE binary-data target.
-rock_hero_juce_add_binary_data(rock_hero_editor_ui_resources SOURCES resources/play.svg
-                               resources/pause.svg resources/stop.svg resources/help.svg)
+rock_hero_juce_add_binary_data(
+    rock_hero_editor_ui_resources
+    SOURCES
+    resources/play.svg
+    resources/pause.svg
+    resources/stop.svg
+    resources/help.svg
+    resources/lock_clock.svg
+    resources/lock_clock_open.svg)
 
 add_library(rock_hero_editor_ui STATIC)
 add_library(rock_hero::editor::ui ALIAS rock_hero_editor_ui)
@@ -56,8 +63,12 @@ target_sources(
             src/shared/audio_level_meter.h
             src/shared/editor_theme.cpp
             src/shared/editor_theme.h
+            src/shared/mode_toggle_button.cpp
+            src/shared/mode_toggle_button.h
             src/shared/notice_plate.cpp
             src/shared/notice_plate.h
+            src/shared/refusal_flash.cpp
+            src/shared/refusal_flash.h
             src/shared/themed_message_box.cpp
             src/shared/themed_message_box.h
             src/shared/text_metrics.cpp

@@ -1,9 +1,14 @@
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -702,6 +707,66 @@ TEST_CASE(
     controller.onImportRequested(std::filesystem::path{"song.rock"});
     CHECK(state->project_loaded);
     CHECK(state->grid_snap);
+}
+
+namespace
+{
+
+// A file's whole text, or empty where it does not exist.
+[[nodiscard]] std::string fileText(const std::filesystem::path& path)
+{
+    std::ifstream stream{path};
+    return std::string{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+}
+
+} // namespace
+
+// The tempo lock is session state like snap: a save with the lock off writes the same song, and
+// leaves the same settings file, as a save with it on.
+TEST_CASE(
+    "EditorController keeps the tempo lock out of the package and the settings file",
+    "[core][editor-controller]")
+{
+    const ScopedSettingsFile settings_file{"tempo_lock_unpersisted.settings"};
+    EditorSettings settings{settings_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tempo_lock);
+
+    controller.onSaveRequested();
+    REQUIRE(project_services.save_call_count == 1);
+    const std::optional<common::core::Song> locked = project_services.last_saved_song;
+    const std::string locked_settings = fileText(settings_file.path());
+
+    controller.onTempoLockToggleRequested();
+    REQUIRE_FALSE(state->tempo_lock);
+    controller.onSaveRequested();
+    REQUIRE(project_services.save_call_count == 2);
+    const std::optional<common::core::Song>& unlocked = project_services.last_saved_song;
+    REQUIRE(locked.has_value());
+    REQUIRE(unlocked.has_value());
+    if (locked.has_value() && unlocked.has_value())
+    {
+        CHECK(unlocked->tempo_map == locked->tempo_map);
+        CHECK(unlocked->sections == locked->sections);
+        CHECK(unlocked->arrangements == locked->arrangements);
+    }
+    CHECK(fileText(settings_file.path()) == locked_settings);
 }
 
 // Reopening a project restores its stored grid note value from app-local settings. The stored

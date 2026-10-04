@@ -150,6 +150,10 @@ namespace
         {
             return "ToggleGridSnap";
         }
+        case EditorAction::Id::ToggleTempoLock:
+        {
+            return "ToggleTempoLock";
+        }
         case EditorAction::Id::ShowPluginBrowser:
         {
             return "ShowPluginBrowser";
@@ -822,6 +826,11 @@ void EditorController::onGridSnapToggleRequested()
 void EditorController::onGridSnapWarningDecision(GridSnapWarningDecision decision)
 {
     m_impl->onGridSnapWarningDecision(decision);
+}
+
+void EditorController::onTempoLockToggleRequested()
+{
+    m_impl->onTempoLockToggleRequested();
 }
 
 void EditorController::onTimelineZoomChanged(double pixels_per_second)
@@ -2313,16 +2322,16 @@ void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue ac
     // The SELECTABLE gate, not the lattice one: the grid box is free text, and this is the only
     // thing standing between a typed 1/3840 and a drawn grid the line walk cannot afford.
     if (!isSelectableTempoGridNoteValue(action.note_value) ||
-        action.note_value == m_grid_note_value)
+        action.note_value == m_grid_session.note_value)
     {
         return;
     }
 
-    m_grid_note_value = action.note_value;
+    m_grid_session.note_value = action.note_value;
     if (!m_project_file.empty())
     {
         recordSettingsResultBestEffort(
-            m_settings.saveProjectGridNoteValue(m_project_file, m_grid_note_value),
+            m_settings.saveProjectGridNoteValue(m_project_file, m_grid_session.note_value),
             "save project grid note value");
     }
     updateView();
@@ -2339,14 +2348,14 @@ void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue ac
 // unconditional and unsuppressable, which is why this handler needs no stored flag to consult.
 void EditorController::Impl::performActionImpl(EditorAction::ToggleGridSnap /*action*/)
 {
-    if (m_grid_snap)
+    if (m_grid_session.snap)
     {
-        m_grid_snap_warning_prompt = true;
+        m_grid_session.snap_warning_prompt = true;
         updateView();
         return;
     }
 
-    m_grid_snap = true;
+    m_grid_session.snap = true;
     updateView();
 }
 
@@ -2355,10 +2364,10 @@ void EditorController::Impl::performActionImpl(EditorAction::ToggleGridSnap /*ac
 // prompt and moves the switch when — and only when — the user chose the off path.
 void EditorController::Impl::onGridSnapWarningDecision(GridSnapWarningDecision decision)
 {
-    m_grid_snap_warning_prompt = false;
+    m_grid_session.snap_warning_prompt = false;
     if (decision == GridSnapWarningDecision::TurnSnappingOff)
     {
-        m_grid_snap = false;
+        m_grid_session.snap = false;
     }
     updateView();
 }
@@ -2368,7 +2377,7 @@ void EditorController::Impl::onGridSnapWarningDecision(GridSnapWarningDecision d
 // opt-outs" structural rather than a convention each handler has to remember.
 common::core::Fraction EditorController::Impl::placementQuantum() const noexcept
 {
-    return placementQuantumNoteValue(m_grid_note_value, m_grid_snap);
+    return placementQuantumNoteValue(m_grid_session.note_value, m_grid_session.snap);
 }
 
 // Collects availability inputs using fresh controller snapshots for immediate action gates.
@@ -2627,9 +2636,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.tone_chord_target = toneChordTarget();
     state.restate_target = restateTarget();
     state.rename_target = renameTarget();
-    state.grid_note_value = m_grid_note_value;
-    state.grid_snap = m_grid_snap;
-    state.grid_snap_warning_prompt = m_grid_snap_warning_prompt;
+    state.grid_note_value = m_grid_session.note_value;
+    state.grid_snap = m_grid_session.snap;
+    state.grid_snap_warning_prompt = m_grid_session.snap_warning_prompt;
+    state.tempo_lock = m_grid_session.tempo_lock;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
     state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;

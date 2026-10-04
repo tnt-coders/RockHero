@@ -1340,7 +1340,7 @@ void EditorController::Impl::applyProjectWriteSuccess(
     // a new one), so the active grid note value is persisted here or a selection made before the
     // first save is lost on reopen.
     recordSettingsResultBestEffort(
-        m_settings.saveProjectGridNoteValue(m_project_file, m_grid_note_value),
+        m_settings.saveProjectGridNoteValue(m_project_file, m_grid_session.note_value),
         "store project grid note value after save-as");
     if (m_timeline_zoom_pixels_per_second > 0.0)
     {
@@ -1523,17 +1523,11 @@ common::core::Fraction EditorController::Impl::gridNoteValueForOpenedProject(
     return g_default_tempo_grid_note_value;
 }
 
-// The one place a project boundary establishes the grid session, so the value and the snap switch
-// can never be set apart. Snap always comes back ON: it is session-only by design (nothing stores
-// it, and no project carries it), and a mode meant to be entered deliberately must not be
-// inherited by the next project — or by the same project reopened tomorrow.
+// Every other fact takes GridSession's default: a pending snap warning belongs to the session that
+// raised it, and the switches come back ON.
 void EditorController::Impl::resetGridSession(const common::core::Fraction note_value)
 {
-    m_grid_note_value = note_value;
-    m_grid_snap = true;
-    // A question about the old session's switch must not be answerable into the new one, so the
-    // pending warning resets with the fact it asks about.
-    m_grid_snap_warning_prompt = false;
+    m_grid_session = GridSession{.note_value = note_value};
 }
 
 // Chooses the timeline zoom restored for a project open from app-local editor settings, falling

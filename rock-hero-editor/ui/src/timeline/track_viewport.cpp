@@ -441,6 +441,12 @@ void TrackViewport::setSelectedTempoMapChips(
     m_timeline_ruler.setSelectedTempoMapChips(tempo_anchor, signature_measure);
 }
 
+// Forwards a refused tempo-anchor move to the ruler, which draws the chip that flashes.
+void TrackViewport::flashTempoAnchorRefusal(const common::core::GridPosition position)
+{
+    m_timeline_ruler.flashTempoAnchorRefusal(position);
+}
+
 // Forwards the core's published marker-plane availability to the pinned ruler.
 void TrackViewport::setMarkerEditsEnabled(const bool marker_edits_enabled)
 {

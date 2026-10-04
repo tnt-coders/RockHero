@@ -2457,7 +2457,7 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
                 note.string = insert.slot.string;
                 note.fret = entry.value;
                 return selecting(
-                    planInsertNote(chart, tempo_map, std::move(note), m_grid_note_value),
+                    planInsertNote(chart, tempo_map, std::move(note), m_grid_session.note_value),
                     {ChartNoteKey{.slot = insert.slot}});
             },
             [&](const ChartFretEntry::Cut& cut) -> Planned {

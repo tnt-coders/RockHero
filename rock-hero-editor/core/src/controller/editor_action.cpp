@@ -87,6 +87,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ToggleGridSnap;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::ToggleTempoLock>)
+    {
+        return EditorAction::Id::ToggleTempoLock;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::SelectArrangement>)
     {
         return EditorAction::Id::SelectArrangement;

@@ -15,6 +15,7 @@
 #include "timeline/timeline_cursor.h"
 #include "timeline/track_viewport.h"
 
+#include <BinaryData.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -66,6 +67,8 @@ constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
 constexpr int g_grid_spacing_selector_width{132};
+// A latched-mode toggle is a square the size of a transport button.
+constexpr int g_mode_toggle_size{g_transport_height};
 constexpr int g_master_meter_width{384};
 constexpr int g_master_meter_min_width{196};
 // Floor wide enough to fit the closed-device sentinel without truncation; ceiling chosen so the
@@ -235,6 +238,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SeekTimeline:
             case core::EditorActionId::SetGridNoteValue:
             case core::EditorActionId::ToggleGridSnap:
+            case core::EditorActionId::ToggleTempoLock:
             case core::EditorActionId::SelectArrangement:
             case core::EditorActionId::SelectToneRegion:
             case core::EditorActionId::CreateToneRegion:
@@ -328,6 +332,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SeekTimeline:
         case core::EditorActionId::SetGridNoteValue:
         case core::EditorActionId::ToggleGridSnap:
+        case core::EditorActionId::ToggleTempoLock:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::BeginPluginInsert:
         case core::EditorActionId::ScanPluginCatalog:
@@ -405,6 +410,12 @@ EditorView::EditorView(
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_grid_spacing_selector(*this)
+    , m_tempo_lock_button(
+          "tempo_lock",
+          juce::Drawable::createFromImageData(
+              BinaryData::lock_clock_svg, BinaryData::lock_clock_svgSize),
+          juce::Drawable::createFromImageData(
+              BinaryData::lock_clock_open_svg, BinaryData::lock_clock_open_svgSize))
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
@@ -546,6 +557,15 @@ EditorView::EditorView(
     addAndMakeVisible(m_position_display);
     addChildComponent(m_selection_count_display);
     addAndMakeVisible(m_grid_spacing_selector);
+    m_tempo_lock_button.setComponentID("tempo_lock_button");
+    m_tempo_lock_button.setTooltip(
+        "Tempo Lock: while on, tempo anchors can't be dragged or nudged. Adding, deleting and "
+        "typing tempos still work.");
+    // The button is one more trigger of the menu row's command, so both run one path.
+    m_tempo_lock_button.onClick = [this] {
+        m_command_manager.invokeDirectly(toJuceCommandId(EditorCommandId::ToggleTempoLock), false);
+    };
+    addAndMakeVisible(m_tempo_lock_button);
     m_arrangement_caption.setComponentID("arrangement_caption");
     m_arrangement_caption.setText("Arrangement", juce::dontSendNotification);
     m_arrangement_caption.setJustificationType(juce::Justification::centredRight);
@@ -714,6 +734,8 @@ void EditorView::setState(const core::EditorViewState& state)
     m_grid_spacing_selector.setNoteValue(m_state.grid_note_value);
     m_grid_spacing_selector.setSnapEnabled(m_state.grid_snap);
     m_grid_spacing_selector.setEnabled(m_state.project_loaded);
+    m_tempo_lock_button.setToggleState(m_state.tempo_lock, juce::dontSendNotification);
+    m_tempo_lock_button.setEnabled(m_state.project_loaded);
     if (previous_state.arrangement.choices != m_state.arrangement.choices)
     {
         m_arrangement_selector.clear(juce::dontSendNotification);
@@ -957,9 +979,11 @@ void EditorView::resized()
     control_row = control_row.withSizeKeepingCentre(
         control_row.getWidth(), std::min(g_transport_height, control_row.getHeight()));
 
-    // The grid selector pins to the strip's left edge. The playback block — transport buttons
-    // plus the position readout — centers as a whole on the WINDOW's center line. The block only
-    // slides off center when the grid selector would overlap it, and the master meter takes
+    // The left cluster pins to the strip's left edge: the arrangement caption and dropdown, the
+    // grid selector, then the tempo lock — a grid/tempo editing mode, so it sits beside the grid
+    // control it shapes rather than with playback. The playback block — transport buttons plus
+    // the position readout — centers as a whole on the WINDOW's center line. The block only
+    // slides off center when the left cluster would overlap it, and the master meter takes
     // whatever right-edge width the block leaves free (hiding below its minimum), so the
     // centered block wins over the meter's preferred width. The readout slot width already
     // includes the g_content_inset its bounds trim off, so the block width is a plain sum.
@@ -973,6 +997,12 @@ void EditorView::resized()
     control_row.removeFromLeft(g_control_gap);
     m_grid_spacing_selector.setBounds(control_row.removeFromLeft(
         std::min(g_grid_spacing_selector_width, control_row.getWidth())));
+    control_row.removeFromLeft(g_control_gap);
+    const juce::Rectangle<int> tempo_lock_slot =
+        control_row.removeFromLeft(std::min(g_mode_toggle_size, control_row.getWidth()));
+    const int tempo_lock_side = std::min(tempo_lock_slot.getWidth(), tempo_lock_slot.getHeight());
+    m_tempo_lock_button.setBounds(
+        tempo_lock_slot.withSizeKeepingCentre(tempo_lock_side, tempo_lock_side));
 
     constexpr int playback_group_width = g_transport_controls_width + g_position_display_width;
     const int ideal_group_x = getLocalBounds().getCentreX() - playback_group_width / 2;
@@ -1324,6 +1354,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(grid_menu, EditorCommandId::GridFiner);
     add(grid_menu, EditorCommandId::GridCoarser);
     add(grid_menu, EditorCommandId::ToggleGridSnap);
+    add(grid_menu, EditorCommandId::ToggleTempoLock);
     grid_menu.addSeparator();
     add(grid_menu, EditorCommandId::ZoomIn);
     add(grid_menu, EditorCommandId::ZoomOut);
@@ -1430,6 +1461,12 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
 void EditorView::flashChartRefusal(core::ChartRefusalFlash flash)
 {
     m_tab_view.flashRefusal(std::move(flash));
+}
+
+// A refused tempo-anchor move flashes on the ruler, the surface that draws tempo chips.
+void EditorView::flashTempoAnchorRefusal(const common::core::GridPosition position)
+{
+    m_track_viewport->flashTempoAnchorRefusal(position);
 }
 
 // Stop's return to the start brings the start into sight on the timeline that scrolls.
@@ -1830,6 +1867,12 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             // Always active like its Grid & Zoom neighbors, but ticked: the menu is the one place
             // the mode's state reads as words rather than as quieted grid ink.
             info.setTicked(m_state.grid_snap);
+            break;
+        }
+        case EditorCommandId::ToggleTempoLock:
+        {
+            // Grid snap's shape: always active, ticked by the published lock.
+            info.setTicked(m_state.tempo_lock);
             break;
         }
     }
@@ -2635,6 +2678,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::ToggleGridSnap:
         {
             m_controller.onGridSnapToggleRequested();
+            return true;
+        }
+        case EditorCommandId::ToggleTempoLock:
+        {
+            m_controller.onTempoLockToggleRequested();
             return true;
         }
     }

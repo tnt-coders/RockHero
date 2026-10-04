@@ -72,6 +72,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Flip the session's grid-snap switch, which decides the placement quantum. */
     ToggleGridSnap,
 
+    /*! \brief Flip the session's tempo lock, which refuses every tempo-anchor move while on. */
+    ToggleTempoLock,
+
     /*! \brief Switch the editor to another arrangement of the loaded song. */
     SelectArrangement,
 

@@ -166,6 +166,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onGridNoteValueChangeRequested(common::core::Fraction note_value);
     void onGridSnapToggleRequested();
     void onGridSnapWarningDecision(GridSnapWarningDecision decision);
+    void onTempoLockToggleRequested();
     void onTimelineZoomChanged(double pixels_per_second);
     void onWaveformVisibleChangeRequested(bool visible);
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
@@ -503,7 +504,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearCursorCoupledSelection();
     // The note value every position-quantizing verb on every surface snaps onto, from the two
     // session facts through the one authority (placementQuantumNoteValue). A verb wanting a
-    // musical DURATION reads m_grid_note_value instead — see the quantum's own documentation.
+    // musical DURATION reads m_grid_session.note_value instead — see the quantum's own
+    // documentation.
     [[nodiscard]] common::core::Fraction placementQuantum() const noexcept;
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
@@ -602,6 +604,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const TempoAnchorSelection& selection, std::int64_t milliseconds);
     // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative).
     void deleteSelectedTempoAnchor(const TempoAnchorSelection& selection);
+    // THE TEMPO LOCK's one refusal, asked by each move driver before it moves: while the lock is
+    // on it logs the move refused, naming the driving `gesture` ("dragging", "nudging"), flashes
+    // the anchor's chip and returns true; with the lock off it returns false and does nothing.
+    [[nodiscard]] bool refuseLockedTempoAnchorMove(
+        const TempoAnchorSelection& selection, std::string_view gesture);
     // The one commit of a whole tempo map (insert, typed tempo, delete): selects `landed` when
     // given and keeps the cursor on its musical place under the new map (see the definition).
     void commitTempoMap(
@@ -710,6 +717,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::SeekTimeline action);
     void performActionImpl(EditorAction::SetGridNoteValue action);
     void performActionImpl(EditorAction::ToggleGridSnap action);
+    void performActionImpl(EditorAction::ToggleTempoLock action);
     void performActionImpl(const EditorAction::SelectArrangement& action);
     void performActionImpl(EditorAction::SelectToneRegion action);
     void performActionImpl(const EditorAction::CreateToneRegion& action);
@@ -894,9 +902,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void restoreProjectMarker(const EditorProjectCaret& caret);
     [[nodiscard]] common::core::Fraction gridNoteValueForOpenedProject(
         const std::filesystem::path& project_file) const;
-    // Establishes both grid session facts at a project boundary. The pair moves together — the
-    // grid value the boundary supplies, and snap back on — so no teardown can set one and forget
-    // the other.
+    // Establishes a fresh grid session at a project boundary, on the note value it supplies.
     void resetGridSession(common::core::Fraction note_value);
     [[nodiscard]] double timelineZoomForOpenedProject(
         const std::filesystem::path& project_file) const;
@@ -1059,20 +1065,28 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     common::audio::ToneOutput m_tone_output{};
 
-    // Timeline grid step as a note value (fraction of a whole note), initialized to the editor
-    // default because the Fraction default of 0/1 is a degenerate step. Restored per project
-    // from app-local settings on open and reset to the default on close.
-    common::core::Fraction m_grid_note_value{g_default_tempo_grid_note_value};
+    // THE GRID SESSION: every fact a project boundary establishes for the grid, with its defaults
+    // stated once, here. App launch is this struct's default, and resetGridSession replaces it
+    // whole, so no teardown can reset one fact and forget another. Only the note value is ever
+    // restored (per project, from app-local settings); the switches are session-only, never
+    // persisted, and a mode meant to be entered deliberately is never inherited.
+    struct GridSession
+    {
+        // Timeline grid step as a fraction of a whole note; the Fraction default of 0/1 would be
+        // a degenerate step.
+        common::core::Fraction note_value{g_default_tempo_grid_note_value};
 
-    // Whether grid snap is on: the one fact behind the placement quantum. Session-only and
-    // deliberately unpersisted — resetGridSession puts it back on at every project boundary, and
-    // this initializer is that same rule at app launch.
-    bool m_grid_snap{true};
+        // Whether grid snap is on: the one fact behind the placement quantum.
+        bool snap{true};
 
-    // True while a toggle that would turn snapping off is waiting on the user's answer to the
-    // warning. Session state like the switch itself, and just as unpersisted: the warning is
-    // unconditional, so nothing about grid snap — the switch or the asking — is stored anywhere.
-    bool m_grid_snap_warning_prompt{false};
+        // True while a toggle that would turn snapping off waits on the user's answer to the
+        // warning; the warning is unconditional, so nothing about the asking is stored either.
+        bool snap_warning_prompt{false};
+
+        // Whether the tempo lock is on, refusing every tempo-anchor move.
+        bool tempo_lock{true};
+    };
+    GridSession m_grid_session{};
 
     // Horizontal timeline scale last reported by the view, persisted per project as app-local
     // resume state. Zero means no zoom has been reported or restored (view default applies).

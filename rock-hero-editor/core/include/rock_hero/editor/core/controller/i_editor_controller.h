@@ -179,6 +179,16 @@ public:
     virtual void onGridSnapWarningDecision(GridSnapWarningDecision decision) = 0;
 
     /*!
+    \brief Handles a request to flip the tempo lock, the session switch that guards anchor times.
+
+    While the lock is on, every tempo-anchor MOVE — the chip drag and `Alt+←/→` — is refused with
+    the refusal flash and a log line; inserting, deleting and typing a tempo stay available. The
+    switch is session-only like grid snap: nothing persists it, and every project boundary resets
+    it on.
+    */
+    virtual void onTempoLockToggleRequested() = 0;
+
+    /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.
 
     Zoom is app-local resume state like the cursor position: it never dirties project content and

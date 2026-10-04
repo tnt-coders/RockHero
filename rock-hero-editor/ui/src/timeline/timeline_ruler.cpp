@@ -15,6 +15,7 @@
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -42,6 +43,8 @@ constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
 // Chip height shared by every ruler chip row so they read as one family.
 constexpr int g_chip_height{11};
+// Corner radius of every chip's rounded fill, and of the outlines that trace it.
+constexpr float g_chip_corner_radius{2.0f};
 // The play-from-here flag: a filled triangle at the ruler body's top pointing down the cursor
 // line, sized to read at a glance — the 1px alignment line alone is too easy to miss.
 constexpr float g_cursor_flag_half_width{5.0f};
@@ -668,6 +671,23 @@ void TimelineRuler::setSelectedTempoMapChips(
     repaint();
 }
 
+// Rationale lives on the declaration in timeline_ruler.h.
+void TimelineRuler::flashTempoAnchorRefusal(const common::core::GridPosition position)
+{
+    flashOrJoinRefusal(
+        m_tempo_refusal, std::vector{position}, joinRefused<common::core::GridPosition>);
+    repaint();
+}
+
+// Rationale lives on the declaration in timeline_ruler.h.
+void TimelineRuler::stepRefusalFlash()
+{
+    if (retireFinishedRefusal(m_tempo_refusal))
+    {
+        repaint();
+    }
+}
+
 // The ruler is pinned over scrolling content, so its local x reaches the content through the
 // scroll offset.
 std::optional<common::core::TimePosition> TimelineRuler::timeAtLocalX(
@@ -1042,11 +1062,11 @@ juce::Rectangle<float> TimelineRuler::drawChipFrame(
         static_cast<float>(g_chip_height)
     };
     g.setColour(fill);
-    g.fillRoundedRectangle(bounds, 2.0f);
+    g.fillRoundedRectangle(bounds, g_chip_corner_radius);
     if (chip.selected)
     {
         g.setColour(editorTheme().accent);
-        g.drawRoundedRectangle(bounds, 2.0f, 1.0f);
+        g.drawRoundedRectangle(bounds, g_chip_corner_radius, 1.0f);
     }
     g.setColour(juce::Colours::white);
     return bounds;
@@ -1074,10 +1094,28 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
     const juce::Font glyph_font = noteGlyphFont();
     const juce::String glyph = quarterNoteGlyph();
     const auto glyph_width = static_cast<float>(m_tempo_glyph_width);
+    // Read once ahead of the loop, so the loop never reaches into the optional flash.
+    std::span<const common::core::GridPosition> refused_anchors;
+    float refusal_level{0.0f};
+    if (m_tempo_refusal.has_value())
+    {
+        refused_anchors = m_tempo_refusal->refused;
+        refusal_level = m_tempo_refusal->pulse.level();
+    }
     for (const RulerChip& chip : m_tempo_row.chips)
     {
         const juce::Rectangle<float> bounds =
             drawChipFrame(g, chip, g_tempo_row_y, editorTheme().tempo_chip);
+        if (const common::core::GridPosition& anchor =
+                m_tempo_map.anchors()[chip.source_index].position;
+            std::ranges::any_of(
+                refused_anchors,
+                [&anchor](const common::core::GridPosition& refused) { return refused == anchor; }))
+        {
+            juce::Path outline;
+            outline.addRoundedRectangle(bounds, g_chip_corner_radius);
+            paintRefusalGlow(g, outline, bounds.getHeight(), refusal_level);
+        }
         g.setFont(glyph_font);
         g.drawText(
             glyph,

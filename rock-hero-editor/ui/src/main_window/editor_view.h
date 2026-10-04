@@ -10,6 +10,7 @@
 #include "main_window/menu_look_and_feel.h"
 #include "main_window/undo_history_overlay.h"
 #include "shared/audio_level_meter.h"
+#include "shared/mode_toggle_button.h"
 #include "signal_chain/plugin_browser_window.h"
 #include "signal_chain/signal_chain_panel.h"
 #include "tab/tab_view.h"
@@ -162,6 +163,9 @@ public:
 
     /*! \copydoc core::IEditorView::flashChartRefusal */
     void flashChartRefusal(core::ChartRefusalFlash flash) override;
+
+    /*! \copydoc core::IEditorView::flashTempoAnchorRefusal */
+    void flashTempoAnchorRefusal(common::core::GridPosition position) override;
 
     /*! \copydoc core::IEditorView::revealTimelineStart */
     void revealTimelineStart() override;
@@ -701,6 +705,9 @@ private:
 
     // Timeline grid-size selector shown beside the transport controls.
     GridSpacingSelector m_grid_spacing_selector;
+
+    // Toolbar toggle for the tempo lock, right of the grid selector.
+    ModeToggleButton m_tempo_lock_button;
 
     // Transport-bar meter for the final mix output.
     AudioLevelMeter m_master_output_meter;

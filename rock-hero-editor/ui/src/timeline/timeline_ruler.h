@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "shared/refusal_flash.h"
+
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -302,6 +304,18 @@ public:
         std::optional<int> signature_measure);
 
     /*!
+    \brief Flashes the tempo chip whose anchor move was refused: it glows red a couple of times,
+    then the row stands as it was.
+
+    A flash arriving while one runs joins it on the running pulse, so a drag or a held key reads as
+    one pulse train. The chip is found by its anchor at paint time, so a chip out of view draws no
+    glow.
+
+    \param position Grid position of the refused anchor.
+    */
+    void flashTempoAnchorRefusal(common::core::GridPosition position);
+
+    /*!
     \brief Paints the measure-number row and the grid header's ticks and chip rows.
     \param g Graphics context used for drawing.
     */
@@ -460,8 +474,12 @@ private:
     static void drawChipRow(
         juce::Graphics& g, const std::vector<RulerChip>& chips, juce::Colour fill, int row_y);
 
-    // Draws the tempo chip row: each chip's glyph and digits in their own fonts.
+    // Draws the tempo chip row: each chip's glyph and digits in their own fonts, and the refusal
+    // glow around the refused anchor's chip while its flash runs.
     void drawTempoChips(juce::Graphics& g);
+
+    // Retires the tempo refusal flash once its pulses have run, and repaints while it runs.
+    void stepRefusalFlash();
 
     // Resolves a point to the chip under it in one row, or null when the point misses them all.
     [[nodiscard]] static const RulerChip* chipAt(
@@ -559,6 +577,14 @@ private:
     // Width the quarter-note glyph takes ahead of every tempo chip's digits, measured with the
     // tempo rows so paint() never measures it.
     int m_tempo_glyph_width{0};
+
+    // The tempo refusal flash while it runs: every refused anchor it has joined, named by position
+    // because a chip row rebuild reassigns chips, and its pulse.
+    std::optional<RefusalFlash<std::vector<common::core::GridPosition>>> m_tempo_refusal{};
+
+    // Steps the refusal flash each display frame. Last, so every member the step reads is
+    // constructed before the attachment can fire and destroyed after it.
+    juce::VBlankAttachment m_frame_vblank{this, [this] { stepRefusalFlash(); }};
 };
 
 } // namespace rock_hero::editor::ui

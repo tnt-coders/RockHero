@@ -1204,6 +1204,14 @@ struct EditorViewState
     bool grid_snap_warning_prompt{false};
 
     /*!
+    \brief Whether the tempo lock is on, refusing every tempo-anchor move.
+
+    A session fact like grid_snap: never persisted, and reset to true at every project boundary.
+    The toolbar button and the menu tick render it; the controller alone refuses the moves.
+    */
+    bool tempo_lock{true};
+
+    /*!
     \brief Horizontal timeline scale to restore on a fresh project load.
 
     Zero means no per-project zoom is stored and the view keeps its default. The view applies

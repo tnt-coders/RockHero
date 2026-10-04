@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "shared/refusal_flash.h"
+
 #include <cstddef>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -417,9 +419,6 @@ private:
     // Retires the refusal flash once its pulses have run, and repaints while it runs.
     void stepRefusalFlash();
 
-    // The refusal flash's glow now, in [0, 1]: lit at once, pulsing, dark at its end.
-    [[nodiscard]] double refusalFlashLevel() const;
-
     // The chart projection, shared with the controller; null without a chart. It is the whole of
     // the pointer path too: the controller hit-tests, selects and inserts against the projection
     // it published.
@@ -468,15 +467,9 @@ private:
     // When the ease last stepped, in milliseconds on JUCE's high-resolution counter.
     double m_presence_stepped_at_ms{0.0};
 
-    // The refusal flash while it runs: what glows — the union of every report it has joined, in
-    // arrival order — and when it began on the same counter. Its indices address m_tab, so a new
-    // projection drops it.
-    struct RefusalFlash
-    {
-        core::ChartRefusalFlash flash;
-        double started_ms{0.0};
-    };
-    std::optional<RefusalFlash> m_refusal{};
+    // The refusal flash while it runs: every refused element it has joined, and its pulse. Its
+    // indices address m_tab, so a new projection drops it.
+    std::optional<RefusalFlash<core::ChartRefusalFlash>> m_refusal{};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

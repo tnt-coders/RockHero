@@ -714,6 +714,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
          .value = 0x1904,
          .chords = {chord('-', command), chord('-', command | shift)}},
         {.id = EditorCommandId::ToggleGridSnap, .value = 0x1905, .chords = {chord('g', command)}},
+        {.id = EditorCommandId::ToggleTempoLock, .value = 0x1906, .chords = {}},
         {.id = EditorCommandId::OpenFileMenu, .value = 0x1B01, .chords = {chord('f', alt)}},
         {.id = EditorCommandId::OpenEditMenu, .value = 0x1B02, .chords = {chord('e', alt)}},
         {.id = EditorCommandId::OpenViewMenu, .value = 0x1B03, .chords = {chord('v', alt)}},
@@ -1009,6 +1010,48 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK_FALSE(acts(EditorCommandId::OpenFileMenu));
     CHECK_FALSE(acts(EditorCommandId::CancelDismiss));
     CHECK_FALSE(acts(EditorCommandId::SelectionDelete));
+}
+
+// The tempo lock button renders the published lock — ringed while on, dimmed with no song — and
+// a click runs the Tempo Lock command, the same one the menu row ticks.
+TEST_CASE(
+    "EditorView tempo lock button reflects the lock and toggles through its command",
+    "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    view.setBounds(0, 0, 1280, 800);
+
+    auto& button = findRequiredDescendant<ModeToggleButton>(view, "tempo_lock_button");
+    const auto command_ticked = [&view] {
+        const juce::CommandID id = toJuceCommandId(EditorCommandId::ToggleTempoLock);
+        juce::ApplicationCommandInfo info{id};
+        view.getCommandInfo(id, info);
+        return (info.flags & juce::ApplicationCommandInfo::isTicked) != 0;
+    };
+
+    view.setState(core::EditorViewState{});
+    CHECK_FALSE(button.isEnabled());
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    REQUIRE(state.tempo_lock);
+    view.setState(state);
+    CHECK(button.isEnabled());
+    CHECK(button.getToggleState());
+    CHECK(command_ticked());
+
+    state.tempo_lock = false;
+    view.setState(state);
+    CHECK_FALSE(button.getToggleState());
+    CHECK_FALSE(command_ticked());
+
+    // The click asks; it never flips the button itself, which waits for the published state.
+    testing::clickButton(button);
+    CHECK(controller.tempo_lock_toggle_count == 1);
+    CHECK_FALSE(button.getToggleState());
 }
 
 } // namespace rock_hero::editor::ui

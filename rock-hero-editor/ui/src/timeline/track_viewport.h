@@ -357,6 +357,12 @@ public:
         std::optional<int> signature_measure);
 
     /*!
+    \brief Forwards a refused tempo-anchor move to the pinned ruler, which flashes its chip.
+    \param position Grid position of the refused anchor.
+    */
+    void flashTempoAnchorRefusal(common::core::GridPosition position);
+
+    /*!
     \brief Forwards the core's published marker-plane availability to the pinned ruler.
     \param marker_edits_enabled Published \ref core::EditorViewState::marker_edits_enabled.
     */

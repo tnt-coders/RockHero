@@ -4,11 +4,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -16,6 +19,7 @@
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -174,6 +178,13 @@ struct TempoEditor
         const RestateTarget restate = state().restate_target;
         const auto* const target = std::get_if<SetTempoTarget>(&restate);
         return target != nullptr ? std::optional{target->position} : std::nullopt;
+    }
+
+    // Turns the tempo lock off, as a test that moves anchors must: every open turns it on.
+    void unlockTempo()
+    {
+        controller.onTempoLockToggleRequested();
+        REQUIRE_FALSE(state().tempo_lock);
     }
 
     // Turns snapping off, which only the warning's own answer can do.
@@ -413,6 +424,7 @@ TEST_CASE("A selected tempo chip publishes a selection the Delete key reaches", 
 TEST_CASE("A tempo anchor moves one pixel at the reported zoom", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     editor.controller.onTimelineZoomChanged(100.0);
 
@@ -437,6 +449,7 @@ TEST_CASE("A tempo anchor moves one pixel at the reported zoom", "[core][tempo]"
 TEST_CASE("A sub-beat tempo anchor is edited as itself, never its beat-mate", "[core][tempo]")
 {
     TempoEditor editor{makeSubBeatTempoSong()};
+    editor.unlockTempo();
     const GridPosition on_beat = beatAt(2, 1);
     const GridPosition sub_beat = subBeatPosition();
 
@@ -465,6 +478,7 @@ TEST_CASE("A sub-beat tempo anchor is edited as itself, never its beat-mate", "[
 TEST_CASE("Undo and redo re-select an edited sub-beat anchor", "[core][tempo]")
 {
     TempoEditor editor{makeSubBeatTempoSong()};
+    editor.unlockTempo();
     const GridPosition sub_beat = subBeatPosition();
     editor.controller.onTempoAnchorSelected(sub_beat);
     editor.controller.onTimelineZoomChanged(100.0);
@@ -570,6 +584,7 @@ TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][
     }
     SECTION("a tempo anchor")
     {
+        editor.unlockTempo();
         editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
         const common::core::TempoMap inserted = editor.tempoMap();
         editor.controller.onTimelineZoomChanged(100.0);
@@ -639,6 +654,7 @@ TEST_CASE("A marker move run ends when the selection leaves and returns", "[core
 TEST_CASE("A typed tempo between two anchor moves ends the run", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     editor.controller.onTimelineZoomChanged(100.0);
     const std::size_t entries = editor.undoEntryCount();
@@ -674,6 +690,7 @@ TEST_CASE("A press after an undo mid-run records a new entry", "[core][tempo]")
 TEST_CASE("A walked-back anchor run re-mirrors the starting map", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
     editor.controller.onTimelineZoomChanged(100.0);
@@ -694,6 +711,7 @@ TEST_CASE("A walked-back anchor run re-mirrors the starting map", "[core][tempo]
 TEST_CASE("A tempo-chip drag is one undo entry", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
@@ -717,6 +735,7 @@ TEST_CASE("A tempo-chip drag is one undo entry", "[core][tempo]")
 TEST_CASE("A refused tempo-chip drag event holds the last legal time", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(5, 1));
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
@@ -745,6 +764,7 @@ TEST_CASE("A refused tempo-chip drag event holds the last legal time", "[core][t
 TEST_CASE("A tempo-chip drag back to its origin leaves no entry", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
@@ -761,6 +781,7 @@ TEST_CASE("A tempo-chip drag back to its origin leaves no entry", "[core][tempo]
 TEST_CASE("A sub-beat tempo anchor drags as itself", "[core][tempo]")
 {
     TempoEditor editor{makeSubBeatTempoSong()};
+    editor.unlockTempo();
     const GridPosition sub_beat = subBeatPosition();
     editor.controller.onTempoAnchorSelected(sub_beat);
 
@@ -777,6 +798,7 @@ TEST_CASE("A sub-beat tempo anchor drags as itself", "[core][tempo]")
 TEST_CASE("A tempo-chip drag moves only the selected anchor while paused", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
@@ -821,6 +843,122 @@ TEST_CASE("A typed tempo keeps the cursor on its musical place", "[core][tempo]"
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "60");
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(10.5, 1e-9));
     CHECK(editor.chord() == before);
+}
+
+// The tempo lock is session state: on at every open, whatever the session before it left, and
+// flipping it records nothing to undo.
+TEST_CASE("The tempo lock is on at every open", "[core][tempo][tempo-lock]")
+{
+    TempoEditor editor;
+    CHECK(editor.state().tempo_lock);
+
+    editor.controller.onTempoLockToggleRequested();
+    CHECK_FALSE(editor.state().tempo_lock);
+    CHECK(editor.undoEntryCount() == 0);
+
+    editor.audio.next_prepared_audio_duration = common::core::TimeDuration{20.0};
+    editor.audio.next_set_active_arrangement_result = true;
+    editor.project_services.next_song = makeTempoSong();
+    editor.controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    REQUIRE(editor.project_services.open_call_count == 2);
+    CHECK(editor.state().tempo_lock);
+}
+
+// While the lock is on, Alt+arrow on a selected anchor moves nothing and opens no entry; the chip
+// flashes instead.
+TEST_CASE("The tempo lock refuses an anchor nudge", "[core][tempo][tempo-lock]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    editor.controller.onTimelineZoomChanged(100.0);
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+
+    editor.pressAltRight();
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.undoEntryCount() == entries);
+    CHECK(editor.view.tempo_anchor_refusal_flashes == std::vector{beatAt(3, 1)});
+}
+
+// A drag is refused from its first event: nothing lands, no entry opens, and the chip the press
+// selected — not the one selected before it — is the one that flashes.
+TEST_CASE("The tempo lock refuses a tempo-chip drag", "[core][tempo][tempo-lock]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(5, 1));
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+
+    // The press on 5:1's chip selects it, as the ruler's press does, before any drag event.
+    editor.controller.onTempoAnchorSelected(beatAt(5, 1));
+    editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8100);
+    editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8300);
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.undoEntryCount() == entries);
+    CHECK(editor.view.tempo_anchor_refusal_flashes == std::vector{beatAt(5, 1), beatAt(5, 1)});
+}
+
+// The lock guards anchor TIMES only: inserting, typing a tempo and deleting all work while it is
+// on, and none of them flashes.
+TEST_CASE(
+    "The tempo lock leaves insert, typed tempo and delete available", "[core][tempo][tempo-lock]")
+{
+    TempoEditor editor;
+    REQUIRE(editor.state().tempo_lock);
+
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4000});
+
+    editor.controller.onTempoSpanBpmRequested(beatAt(3, 1), "60");
+    CHECK(editor.undoTopLabel() == "Set Tempo to 60");
+
+    editor.controller.onSelectionDeleteRequested();
+    CHECK_FALSE(editor.anchorMilliseconds(beatAt(3, 1)).has_value());
+    CHECK(editor.undoTopLabel() == "Delete Tempo Anchor");
+    CHECK(editor.view.tempo_anchor_refusal_flashes.empty());
+}
+
+// Each refused gesture leaves the marker refusal record under the move's own label, naming the
+// gesture and the anchor. The logging backend starts once per process, so both gestures share
+// this one case.
+TEST_CASE("The tempo lock logs each refused gesture", "[core][tempo][tempo-lock]")
+{
+    const std::filesystem::path log_directory =
+        std::filesystem::temp_directory_path() / "rock-hero-tempo-lock-log-test";
+    std::error_code error;
+    std::filesystem::remove_all(log_directory, error);
+    const std::filesystem::path log_file = log_directory / "editor.log";
+    common::core::Logger::Config config;
+    config.log_file = log_file;
+    REQUIRE(common::core::Logger::init(config).has_value());
+
+    {
+        TempoEditor editor;
+        editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+        editor.pressAltRight();
+        editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    }
+    common::core::Logger::shutdown();
+
+    std::ifstream stream{log_file};
+    REQUIRE(stream.is_open());
+    const std::string contents{
+        std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}
+    };
+    stream.close();
+    CHECK(
+        contents.find(
+            R"(Rejected marker edit label="Move Tempo Anchor" )"
+            R"(detail="Tempo Lock is on: nudging the tempo anchor at 3:1 is blocked")") !=
+        std::string::npos);
+    CHECK(
+        contents.find(
+            R"(Rejected marker edit label="Move Tempo Anchor" )"
+            R"(detail="Tempo Lock is on: dragging the tempo anchor at 3:1 is blocked")") !=
+        std::string::npos);
+
+    std::filesystem::remove_all(log_directory, error);
 }
 
 } // namespace rock_hero::editor::core

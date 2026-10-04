@@ -6,6 +6,7 @@
 #pragma once
 
 #include <functional>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <string>
 
@@ -102,6 +103,18 @@ public:
     \param flash The refused elements, in the current tab projection's indices.
     */
     virtual void flashChartRefusal(ChartRefusalFlash flash) = 0;
+
+    /*!
+    \brief Asks the view to flash a tempo chip whose anchor move was refused: the chip glows red a
+    couple of times and stays as it was.
+
+    The same one-shot refusal flash as \ref flashChartRefusal, on the ruler surface that draws
+    tempo anchors. Why the move was refused goes to the log, never to the view. With no view
+    attached the flash is dropped.
+
+    \param position Grid position of the refused anchor, as the tempo map stores it.
+    */
+    virtual void flashTempoAnchorRefusal(common::core::GridPosition position) = 0;
 
     /*!
     \brief Asks the view to scroll the timeline start into view, after Stop returned there.

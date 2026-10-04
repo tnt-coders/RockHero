@@ -97,7 +97,13 @@ the cursor is in is renamed, otherwise one is inserted there (2026-09-14; `F2` i
 2026-09-12). The tempo chip carries the tempo verbs (plan 41): `Enter` and a double-click open
 the BPM prompt through the core's published restate verb, `Alt+←/→` and a drag move its time
 freely (a drag is one held run, one undo entry), and a right-click on the tempo row opens Add
-Tempo Anchor, Set Tempo... and Delete Tempo Anchor. The time-signature chip carries no verbs yet:
+Tempo Anchor, Set Tempo... and Delete Tempo Anchor. The two moves — and only they — answer to the
+**Tempo Lock**, a session switch that is on at every song open and never saved: while it is on,
+`refuseLockedTempoAnchorMove` (`tempo_handlers.cpp`) refuses each nudge and every drag event with
+the refusal flash on the chip and a log line, and inserting, deleting and typing a tempo stay
+available. Its toggle is the toolbar button right of the grid selector (`ModeToggleButton`,
+`ui/src/shared/mode_toggle_button.h`) and the ticked "Tempo Lock" row under "Grid & Zoom" in the
+chart menu, one command (`ToggleTempoLock`) behind both. The time-signature chip carries no verbs yet:
 it is selectable so the keyboard's vertical walk can stand on it. The walk is not the only
 keyboard route onto a chip row: each kind's
 `Ctrl+Shift`+letter jump (`Ctrl+Shift+M`, `Ctrl+Shift+B`, `Ctrl+Shift+/`, built 2026-09-15) lands
@@ -232,7 +238,10 @@ why, the elements it turned down glow in the theme's red, pulsing twice, and
 the reason goes to the log: the whole selection for a refused plan, and only the named notes for a
 per-note verb that applied to the rest (`reportChartPlanRefusal` / `reportChartRefusedNotes` in
 `chart_handlers.cpp`, drawn by `TabView::flashRefusal`). A visible bound, such as a move stopping at
-the next head, is not a refusal and flashes nothing. The design record is
+the next head, is not a refusal and flashes nothing. The ruler flashes too: a tempo-anchor move the
+Tempo Lock refuses glows the anchor's chip (`IEditorView::flashTempoAnchorRefusal`, drawn by
+`TimelineRuler::flashTempoAnchorRefusal`). Both surfaces run one pulse and one glow
+(`RefusalPulse` and `paintRefusalGlow` in `ui/src/shared/refusal_flash.h`). The design record is
 `docs/plans/in-progress/refusal-flash.md`.
 
 **The SPLIT (`Shift+L`) and the CUT (a bare digit or `Insert` inside a ring) divide a ring by ONE

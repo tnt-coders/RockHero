@@ -1,17 +1,16 @@
 #include "tab/tab_view.h"
 
 #include "shared/editor_theme.h"
+#include "shared/refusal_flash.h"
 #include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <compare>
 #include <cstddef>
 #include <iterator>
 #include <memory>
-#include <numbers>
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -44,46 +43,10 @@ struct MarkOutline
     float extent{0.0f};
 };
 
-// How far the refusal glow reaches past a mark's outline, as a fraction of the mark's size: the
-// accent halo's own reach; a wider glow reads worse.
-constexpr float g_refusal_glow_reach{0.2f};
-
-// The glow's layers: nested strokes of the outline, each wider and each faint, which pile up to
-// nearly the full colour at the outline and thin to one faint layer at the reach.
-constexpr int g_refusal_glow_layers{4};
-constexpr float g_refusal_glow_layer_alpha{0.4f};
-
-// Paints a soft glow spreading outward from a mark's outline, clipped to the OUTSIDE of the mark
-// so the glow never tints the mark it surrounds — the look of the accent's halo, which stands
-// behind its head, from chrome drawn over the lane.
-void glowAround(juce::Graphics& g, const MarkOutline& mark, const juce::Colour colour)
-{
-    const float reach = mark.extent * g_refusal_glow_reach;
-    const juce::Graphics::ScopedSaveState saved{g};
-    // Even-odd over the outline and a box past the reach: the region outside the mark.
-    juce::Path outside = mark.path;
-    outside.addRectangle(mark.path.getBounds().expanded(reach * 2.0f));
-    outside.setUsingNonZeroWinding(false);
-    g.reduceClipRegion(outside);
-    g.setColour(colour.withMultipliedAlpha(g_refusal_glow_layer_alpha));
-    for (int layer = 1; layer <= g_refusal_glow_layers; ++layer)
-    {
-        // A stroke centered on the outline reaches half its width outside it.
-        const float width =
-            2.0f * reach * static_cast<float>(layer) / static_cast<float>(g_refusal_glow_layers);
-        g.strokePath(mark.path, juce::PathStrokeType{width});
-    }
-}
-
 // How long a reveal takes to run from the crop to the ring's end, or back: long enough that a chip
 // riding the tail's end reads as travelling from where it was clicked, short enough not to hold up
 // a keyboard walk. A head stepping back fades over the same run, so it clears as the ring arrives.
 constexpr double g_presence_ease_seconds{0.12};
-
-// THE REFUSAL FLASH's pulse train: how many times the refused elements glow and how long the whole
-// flash runs: two pulses, over a little more than half a second.
-constexpr double g_refusal_flash_pulses{2.0};
-constexpr double g_refusal_flash_seconds{0.6};
 
 // The eased curve of a presence's progress: slow off the start, slow into the end, either way.
 [[nodiscard]] float easedPresence(const float progress) noexcept
@@ -165,69 +128,23 @@ void TabView::setEditState(core::ChartEditViewState edit)
 // Rationale lives on the declaration in tab_view.h.
 void TabView::flashRefusal(core::ChartRefusalFlash flash)
 {
-    // A flash whose pulses have run is retired first, even where no frame has stepped it (a lane
-    // off screen), so a new refusal starts its own clock instead of joining a finished one.
-    stepRefusalFlash();
-    if (m_refusal.has_value())
-    {
-        // A union, never an append: an element reported twice — by one press's two reports, or a
-        // held key's repeats — would be stroked twice, and stacked strokes lose the pulse.
-        const auto join = [](auto& into, const auto& from) {
-            for (const auto& element : from)
-            {
-                // A predicate, not a value find: under clang, the MSVC STL sends a value find over
-                // a trivially comparable 16-byte element down a vectorized path that has no
-                // 16-byte case, which fails to compile.
-                if (std::ranges::none_of(
-                        into, [&element](const auto& held) { return held == element; }))
-                {
-                    into.push_back(element);
-                }
-            }
-        };
-        join(m_refusal->flash.notes, flash.notes);
-        join(m_refusal->flash.keyframes, flash.keyframes);
-    }
-    else
-    {
-        m_refusal = RefusalFlash{
-            .flash = std::move(flash),
-            .started_ms = juce::Time::getMillisecondCounterHiRes(),
-        };
-    }
+    flashOrJoinRefusal(
+        m_refusal,
+        std::move(flash),
+        [](core::ChartRefusalFlash& into, const core::ChartRefusalFlash& from) {
+            joinRefused(into.notes, from.notes);
+            joinRefused(into.keyframes, from.keyframes);
+        });
     repaint();
 }
 
 // Rationale lives on the declaration in tab_view.h.
 void TabView::stepRefusalFlash()
 {
-    if (!m_refusal.has_value())
+    if (retireFinishedRefusal(m_refusal))
     {
-        return;
+        repaint();
     }
-    if (juce::Time::getMillisecondCounterHiRes() - m_refusal->started_ms >=
-        g_refusal_flash_seconds * 1000.0)
-    {
-        m_refusal.reset();
-    }
-    repaint();
-}
-
-// Rationale lives on the declaration in tab_view.h. cos² over (pulses - 1/2) periods: lit at the
-// keystroke, dark between pulses, and dark again exactly as the flash retires.
-double TabView::refusalFlashLevel() const
-{
-    if (!m_refusal.has_value())
-    {
-        return 0.0;
-    }
-    const double progress = std::clamp(
-        (juce::Time::getMillisecondCounterHiRes() - m_refusal->started_ms) /
-            (g_refusal_flash_seconds * 1000.0),
-        0.0,
-        1.0);
-    const double wave = std::cos(std::numbers::pi * (g_refusal_flash_pulses - 0.5) * progress);
-    return wave * wave;
 }
 
 // Holds or releases the ring reveal. A repaint only on a genuine change, because the
@@ -783,7 +700,7 @@ void TabView::paint(juce::Graphics& g)
     // The elements a refused edit turned down, glowed below once the caret is drawn.
     if (m_refusal.has_value())
     {
-        for (const std::size_t index : m_refusal->flash.notes)
+        for (const std::size_t index : m_refusal->refused.notes)
         {
             if (std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
             {
@@ -791,7 +708,7 @@ void TabView::paint(juce::Graphics& g)
             }
         }
         for_each_drawn_keyframe(
-            m_refusal->flash.keyframes,
+            m_refusal->refused.keyframes,
             [&](const common::core::NoteViewState& note,
                 const common::core::KeyframeViewState& keyframe,
                 const common::ui::TabKeyframeLayout& layout) {
@@ -882,13 +799,12 @@ void TabView::paint(juce::Graphics& g)
     // THE REFUSAL FLASH: the elements a refused edit turned down glow in the theme's red, pulsing
     // with the flash's level (refusal-flash.md) — over the caret and the selection's chips, so a
     // refusal is never hidden, and under the pending entry's box, whose value must stay readable.
-    if (!refusal_glows.empty())
+    if (m_refusal.has_value())
     {
-        const juce::Colour red =
-            editorTheme().invalid.withAlpha(static_cast<float>(refusalFlashLevel()));
+        const float level = m_refusal->pulse.level();
         for (const MarkOutline& mark : refusal_glows)
         {
-            glowAround(g, mark, red);
+            paintRefusalGlow(g, mark.path, mark.extent, level);
         }
     }
 

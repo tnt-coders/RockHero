@@ -109,8 +109,8 @@ legato press that CLEARED, whose notes' refusals to set were never asked for.
 
 | # | Question | Recommendation |
 |---|---|---|
-| F1 | Pulse count and timing | BUILT at two pulses over 0.6 s (`g_refusal_flash_pulses`, `g_refusal_flash_seconds` in `tab_view.cpp`); sight and tune |
-| F2 | Drawn geometry: the selection ring turning red, or a glow around it | BUILT as the ring turning red, then made a GLOW (user, 2026-09-30: wider, closer to the accent's halo): reach 0.2 of the mark's size, the accent halo's, after 0.45 sighted too wide; four layers (`g_refusal_glow_*`, `tab_view.cpp`), drawn over the caret square (user, 2026-09-30) |
+| F1 | Pulse count and timing | BUILT at two pulses over 0.6 s (`g_refusal_flash_pulses`, `g_refusal_flash_seconds` in `shared/refusal_flash.cpp`); sight and tune |
+| F2 | Drawn geometry: the selection ring turning red, or a glow around it | BUILT as the ring turning red, then made a GLOW (user, 2026-09-30: wider, closer to the accent's halo): reach 0.2 of the mark's size, the accent halo's, after 0.45 sighted too wide; four layers (`g_refusal_glow_*`, `shared/refusal_flash.cpp`), drawn over the caret square (user, 2026-09-30) |
 | ~~F3~~ | ~~Key repeat~~ | BUILT as recommended: a refusal arriving mid-flash joins the running one on its clock, so a held key reads as one pulse train |
 | F8 | The fret shift at the neck's edge (`ShiftChartFrets` below fret 0 or past the last) flashes the selection, while a move stopping at the edge is silent | Sight it: the fret on screen already says why, so under the bound ruling it may belong with the silent bounds |
 | F9 | The move gesture's `Invalid` carries both visible bounds (neck edge, occupied slot) and a real refusal (a landing that would strand a point), so the gesture stays silent for both | If a real move refusal needs its flash, a bound should plan `NoChange` as the sustain clamp does, leaving `Invalid` for refusals only |
@@ -118,7 +118,7 @@ legato press that CLEARED, whose notes' refusals to set were never asked for.
 | F11 | A legato press that CLEARS flashes nothing, even where some selected notes could not have been claimed | Built silent: the press cleared, which never asked those notes to be set; the ruling's "applies to seven, flashes the three" reads either way for a clear |
 | ~~F4~~ | ~~2D only?~~ | RULED 2026-09-21: yes, 2D only |
 | ~~F5~~ | ~~Reason to the log ONLY~~ | RULED 2026-09-21: yes, "for now" — the log line is the thing to surface if charters cannot find the why |
-| ~~F6~~ | ~~Scope of "every selection"~~ | RULED 2026-09-21: notes and keyframes with #278; a marker verb gains it when it first has a refusal to report |
+| ~~F6~~ | ~~Scope of "every selection"~~ | RULED 2026-09-21: notes and keyframes with #278; a marker verb gains it when it first has a refusal to report. The first is the Tempo Lock's refused anchor move (plan 66 Phase 1, 2026-10-04): the tempo chip glows on the ruler through `IEditorView::flashTempoAnchorRefusal`, on the same pulse and glow, which moved to `ui/src/shared/refusal_flash.h` so both surfaces share them |
 | ~~F7~~ | ~~40-Q5~~ | RULED 2026-09-21: a silent floor, no flash — see "A visible bound is not a refusal" above. The lock itself was ruled 2026-08-09 |
 
 **A second consumer, RULED 2026-09-21 (user), STRUCK 2026-09-30 (user).** An `Alt` digit or

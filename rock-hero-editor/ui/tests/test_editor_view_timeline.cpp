@@ -468,6 +468,42 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
     CHECK(listener.last_selected_tempo_anchor == std::optional{fourth_beat});
 }
 
+// A refused anchor move glows red just outside its chip — the refusal flash, on the ruler — and a
+// flash naming an anchor that draws no chip glows nothing.
+TEST_CASE("TimelineRuler glows a refused tempo chip", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    // The 1:1 chip spans the tempo row (y 16 to 27) from x = 0; the probe is the pixel row just
+    // below its bottom edge, where the glow is strongest and no leader runs.
+    const auto probe = [&ruler] {
+        return ruler.createComponentSnapshot(ruler.getLocalBounds()).getPixelAt(10, 27);
+    };
+    const juce::Colour plain = probe();
+    REQUIRE(
+        ruler.createComponentSnapshot(ruler.getLocalBounds()).getPixelAt(1, 21) ==
+        editorTheme().tempo_chip);
+
+    ruler.flashTempoAnchorRefusal(common::core::GridPosition{.measure = 3, .beat = 1});
+    CHECK(probe() == plain);
+
+    ruler.flashTempoAnchorRefusal(common::core::GridPosition{.measure = 1, .beat = 1});
+    CHECK(probe().getRed() > plain.getRed());
+}
+
 // A press on a tempo chip selects it, as a click does, and arms its drag: each event past JUCE's
 // drag threshold asks for the anchor's press time plus the pointer's travel, grab-point relative,
 // so the chip never jumps to the pointer. Inside the threshold the press stays a click, and the

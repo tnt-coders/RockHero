@@ -129,6 +129,12 @@ public:
         refusal_flashes.push_back(std::move(flash));
     }
 
+    // Records each tempo-chip refusal flash, in request order.
+    void flashTempoAnchorRefusal(common::core::GridPosition position) override
+    {
+        tempo_anchor_refusal_flashes.push_back(position);
+    }
+
     // Counts each request to scroll the timeline start into view.
     void revealTimelineStart() override
     {
@@ -207,6 +213,7 @@ public:
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
     std::vector<ChartBendPicker> shown_bend_pickers{};
     std::vector<ChartRefusalFlash> refusal_flashes{};
+    std::vector<common::core::GridPosition> tempo_anchor_refusal_flashes{};
     int timeline_start_reveal_count{0};
 
     // Durable state that was current when each one-shot error was shown.
@@ -1694,6 +1701,7 @@ public:
     {
         last_save_audio_path = firstAudioPath(song);
         last_save_tone_document_ref = firstToneDocumentRef(song);
+        last_saved_song = song;
         ++save_call_count;
         if (next_save_error.has_value())
         {
@@ -1832,6 +1840,9 @@ public:
 
     // First arrangement tone document reference seen by save().
     std::optional<std::string> last_save_tone_document_ref{};
+
+    // The whole song seen by the last save(), for tests that compare what two saves wrote.
+    std::optional<common::core::Song> last_saved_song{};
 
     // First arrangement tone document reference seen by saveAs().
     std::optional<std::string> last_save_as_tone_document_ref{};

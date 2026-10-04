@@ -528,6 +528,9 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Flip grid snap, which decides the placement quantum (`Ctrl+G`). */
     ToggleGridSnap = 0x1905,
 
+    /*! \brief Flip the tempo lock, which refuses every tempo-anchor move (no default chord). */
+    ToggleTempoLock = 0x1906,
+
     // 0x1A01 is a spent id; never reuse it.
 
     /*! \brief Open the File menu (`Alt+F`), the platform's own menu-access convention. */
