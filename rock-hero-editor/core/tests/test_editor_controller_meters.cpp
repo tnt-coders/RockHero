@@ -1,7 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
-#include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -11,7 +10,6 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <variant>
@@ -28,13 +26,7 @@ using common::core::GridPosition;
 using common::core::SongSection;
 using common::core::TimeSignature;
 using common::core::TimeSignatureChange;
-using common::core::testing::anchor;
-using common::core::testing::commonTimeMap;
-
-[[nodiscard]] GridPosition beatAt(int measure, int beat)
-{
-    return GridPosition{.measure = measure, .beat = beat, .offset = {}};
-}
+using common::core::testing::beatAt;
 
 [[nodiscard]] TimeSignatureChange meterAt(int measure, int numerator, int denominator)
 {
@@ -44,28 +36,11 @@ using common::core::testing::commonTimeMap;
     };
 }
 
-// A 4/4 map at 120 BPM whose terminal is 9:1 at 16 s, so measure N's downbeat sits at (N - 1) * 2
-// seconds; the audio runs to 20 s. Two arrangements, so a meter edit has a non-current one to
-// re-address too: the lead holds the shared test chart and two hand placements, the bass a note
-// whose ring crosses measure 3 and one off the beat. Two sections give the ruler content to keep.
+// The eight-measure song with a second arrangement, so a meter edit has a non-current one to
+// re-address too: the bass holds a note whose ring crosses measure 3 and one off the beat.
 [[nodiscard]] common::core::Song makeMeterSong()
 {
-    common::core::Song song = makeSong(
-        std::filesystem::path{"song.wav"},
-        loadedTimelineRange(20.0),
-        std::string{g_tone_document_ref});
-    song.tempo_map = commonTimeMap({anchor("1:1", 0), anchor("9:1", 16000)});
-    song.sections = {
-        SongSection{.position = beatAt(2, 1), .name = "Verse"},
-        SongSection{.position = beatAt(6, 1), .name = "Chorus"},
-    };
-    common::core::Chart lead = makeTestChart();
-    lead.fret_hand_positions = {
-        common::core::FretHandPosition{.position = beatAt(1, 1), .fret = 5, .end_fret = {}},
-        common::core::FretHandPosition{.position = beatAt(3, 1), .fret = 7, .end_fret = {}},
-    };
-    song.arrangements.front().chart = std::move(lead);
-
+    common::core::Song song = makeEightMeasureSong();
     common::core::Arrangement bass = song.arrangements.front();
     bass.id = "bass";
     common::core::Chart bass_chart = makeTestChart();
@@ -79,53 +54,13 @@ using common::core::testing::commonTimeMap;
     return song;
 }
 
-// Owns the fakes and a controller with the meter song loaded and its rig ready.
-struct MeterEditor
+// A controller with the meter song loaded and its rig ready.
+struct MeterEditor : SongEditorHarness
 {
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    FakeProjectServices project_services;
-    EditorController controller;
-    FakeEditorView view;
-
     MeterEditor()
-        : MeterEditor{makeMeterSong()}
-    {}
-
-    explicit MeterEditor(common::core::Song song)
-        : controller{
-              audioPorts(transport, audio, plugin_host, live_rig),
-              defaultControllerServices(),
-              noopExitFunction(),
-              EditorController::ProjectOperations{
-                  .open_function = project_services.openFunction(),
-                  .save_function = project_services.saveFunction(),
-              },
-          }
     {
-        audio.next_prepared_audio_duration = common::core::TimeDuration{20.0};
-        audio.next_set_active_arrangement_result = true;
-        project_services.next_song = std::move(song);
-        controller.attachView(view);
-        controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+        open(makeMeterSong());
         REQUIRE(controller.session().arrangements().size() == 2);
-    }
-
-    [[nodiscard]] const EditorViewState& state() const
-    {
-        REQUIRE(view.last_state.has_value());
-        if (!view.last_state.has_value())
-        {
-            throw std::logic_error("editor pushed no view state");
-        }
-        return *view.last_state;
-    }
-
-    [[nodiscard]] const common::core::TempoMap& tempoMap() const
-    {
-        return controller.session().song().tempo_map;
     }
 
     [[nodiscard]] std::vector<TimeSignatureChange> meters() const
@@ -138,11 +73,6 @@ struct MeterEditor
         return common::core::makeSongTimeline(controller.session().song());
     }
 
-    void seek(double seconds)
-    {
-        controller.onTimelineSeekRequested(common::core::TimePosition{seconds});
-    }
-
     [[nodiscard]] TimeSignatureChordTarget chord() const
     {
         return state().time_signature_chord_target;
@@ -151,26 +81,6 @@ struct MeterEditor
     void set(int measure, const std::string& text)
     {
         controller.onTimeSignatureSetRequested(measure, text);
-    }
-
-    void press(ChartStepDirection direction, int presses = 1)
-    {
-        for (int pressed = 0; pressed < presses; ++pressed)
-        {
-            controller.onSelectionMoveRequested(direction);
-        }
-    }
-
-    [[nodiscard]] std::size_t undoEntryCount() const
-    {
-        return state().undo_history.labels.size();
-    }
-
-    // The label Ctrl+Z would undo next, or empty when nothing is undoable.
-    [[nodiscard]] std::string undoTopLabel() const
-    {
-        const UndoHistoryState& history = state().undo_history;
-        return history.position == 0 ? std::string{} : history.labels.at(history.position - 1);
     }
 };
 
@@ -289,7 +199,7 @@ TEST_CASE("Delete removes a meter and refuses the first", "[core][meters]")
     MeterEditor editor;
     editor.controller.onTimeSignatureSelected(1);
     editor.controller.onSelectionDeleteRequested();
-    editor.press(ChartStepDirection::Right);
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.meters() == std::vector{meterAt(1, 4, 4)});
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
     CHECK(editor.undoEntryCount() == 0);
@@ -315,7 +225,7 @@ TEST_CASE("A meter moves a measure per press and a held run is one entry", "[cor
     editor.set(3, "2/4");
     const common::core::SongTimeline inserted = editor.timeline();
 
-    editor.press(ChartStepDirection::Right, 2);
+    editor.pressAlt(ChartStepDirection::Right, 2);
     CHECK(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(5, 2, 4)});
     CHECK(editor.state().selected_time_signature_measure == std::optional{5});
     CHECK(editor.undoEntryCount() == 2);
@@ -337,9 +247,9 @@ TEST_CASE("A meter run walked back restores the song exactly", "[core][meters]")
     const common::core::SongTimeline inserted = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
 
-    editor.press(ChartStepDirection::Left);
+    editor.pressAlt(ChartStepDirection::Left);
     REQUIRE(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(6, 3, 4)});
-    editor.press(ChartStepDirection::Right);
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == inserted);
     CHECK(editor.undoEntryCount() == entries);
 }
@@ -355,9 +265,9 @@ TEST_CASE("A meter move refuses neighbours and the song's end", "[core][meters]"
     const std::size_t entries = editor.undoEntryCount();
 
     editor.controller.onTimeSignatureSelected(4);
-    editor.press(ChartStepDirection::Left);
+    editor.pressAlt(ChartStepDirection::Left);
     editor.controller.onTimeSignatureSelected(3);
-    editor.press(ChartStepDirection::Right);
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == two);
     CHECK(editor.undoEntryCount() == entries);
 
@@ -365,10 +275,10 @@ TEST_CASE("A meter move refuses neighbours and the song's end", "[core][meters]"
     // land on the terminal's whole note 8.
     MeterEditor ending;
     ending.set(7, "2/4");
-    ending.press(ChartStepDirection::Right);
+    ending.pressAlt(ChartStepDirection::Right);
     REQUIRE(ending.meters() == std::vector{meterAt(1, 4, 4), meterAt(8, 2, 4)});
     const common::core::SongTimeline stepped = ending.timeline();
-    ending.press(ChartStepDirection::Right);
+    ending.pressAlt(ChartStepDirection::Right);
     CHECK(ending.timeline() == stepped);
     CHECK(ending.undoEntryCount() == 2);
 }
@@ -416,7 +326,7 @@ TEST_CASE("A landed meter verb flashes the renumbered measures", "[core][meters]
     editor.set(5, "2/4");
     CHECK(editor.view.renumber_flashes == std::vector{6});
 
-    editor.press(ChartStepDirection::Left, 2);
+    editor.pressAlt(ChartStepDirection::Left, 2);
     CHECK(editor.view.renumber_flashes == std::vector{6, 5, 4});
 
     editor.controller.onSelectionDeleteRequested();

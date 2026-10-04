@@ -15,9 +15,7 @@
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
-#include <stdexcept>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -34,36 +32,8 @@ using Catch::Matchers::WithinAbs;
 using common::core::GridPosition;
 using common::core::SongSection;
 using common::core::testing::anchor;
+using common::core::testing::beatAt;
 using common::core::testing::commonTimeMap;
-
-[[nodiscard]] GridPosition beatAt(int measure, int beat)
-{
-    return GridPosition{.measure = measure, .beat = beat, .offset = {}};
-}
-
-// A 4/4 map at 120 BPM whose terminal is 9:1 at 16 s, so measure N's downbeat sits at (N - 1) * 2
-// seconds. The audio runs to 20 s, past the terminal, so the transport can rest ON the terminal
-// beat without a seek clamping short of it. Two sections and two hand placements give every marker
-// kind something to move, and the shared chart puts a note at 2:1 for the projection to place.
-[[nodiscard]] common::core::Song makeTempoSong()
-{
-    common::core::Song song = makeSong(
-        std::filesystem::path{"song.wav"},
-        loadedTimelineRange(20.0),
-        std::string{g_tone_document_ref});
-    song.tempo_map = common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
-    song.sections = {
-        SongSection{.position = beatAt(2, 1), .name = "Verse"},
-        SongSection{.position = beatAt(6, 1), .name = "Chorus"},
-    };
-    common::core::Chart chart = makeTestChart();
-    chart.fret_hand_positions = {
-        common::core::FretHandPosition{.position = beatAt(1, 1), .fret = 5, .end_fret = {}},
-        common::core::FretHandPosition{.position = beatAt(3, 1), .fret = 7, .end_fret = {}},
-    };
-    song.arrangements.front().chart = std::move(chart);
-    return song;
-}
 
 // The half beat after 2:1, where the sub-beat song's extra anchor stands.
 [[nodiscard]] GridPosition subBeatPosition()
@@ -71,11 +41,11 @@ using common::core::testing::commonTimeMap;
     return GridPosition{.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}};
 }
 
-// The tempo song with a sub-beat anchor at 2:1+1/2 beside the on-beat one at 2:1, both at the 120
-// BPM the map already has: the pair an address floored to its beat cannot tell apart.
+// The eight-measure song with a sub-beat anchor at 2:1+1/2 beside the on-beat one at 2:1, both at
+// the 120 BPM the map already has: the pair an address floored to its beat cannot tell apart.
 [[nodiscard]] common::core::Song makeSubBeatTempoSong()
 {
-    common::core::Song song = makeTempoSong();
+    common::core::Song song = makeEightMeasureSong();
     song.tempo_map = commonTimeMap({
         anchor("1:1", 0),
         anchor("2:1", 2000),
@@ -85,52 +55,12 @@ using common::core::testing::commonTimeMap;
     return song;
 }
 
-// Owns the fakes and a controller with the tempo song loaded and its rig ready.
-struct TempoEditor
+// A controller with a song loaded, the eight-measure song unless a test supplies its own.
+struct TempoEditor : SongEditorHarness
 {
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    FakeProjectServices project_services;
-    EditorController controller;
-    FakeEditorView view;
-
-    TempoEditor()
-        : TempoEditor{makeTempoSong()}
-    {}
-
-    explicit TempoEditor(common::core::Song song)
-        : controller{
-              audioPorts(transport, audio, plugin_host, live_rig),
-              defaultControllerServices(),
-              noopExitFunction(),
-              EditorController::ProjectOperations{
-                  .open_function = project_services.openFunction(),
-                  .save_function = project_services.saveFunction(),
-              },
-          }
+    explicit TempoEditor(common::core::Song song = makeEightMeasureSong())
     {
-        audio.next_prepared_audio_duration = common::core::TimeDuration{20.0};
-        audio.next_set_active_arrangement_result = true;
-        project_services.next_song = std::move(song);
-        controller.attachView(view);
-        controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-    }
-
-    [[nodiscard]] const EditorViewState& state() const
-    {
-        REQUIRE(view.last_state.has_value());
-        if (!view.last_state.has_value())
-        {
-            throw std::logic_error("editor pushed no view state");
-        }
-        return *view.last_state;
-    }
-
-    [[nodiscard]] const common::core::TempoMap& tempoMap() const
-    {
-        return controller.session().song().tempo_map;
+        open(std::move(song));
     }
 
     // The seconds of the anchor standing exactly on a beat, or NaN (which no matcher accepts) when
@@ -139,8 +69,7 @@ struct TempoEditor
     {
         for (const common::core::BeatAnchor& anchor : tempoMap().anchors())
         {
-            if (anchor.position ==
-                common::core::GridPosition{.measure = measure, .beat = beat, .offset = {}})
+            if (anchor.position == beatAt(measure, beat))
             {
                 return anchor.seconds();
             }
@@ -159,11 +88,6 @@ struct TempoEditor
             return std::nullopt;
         }
         return found->milliseconds;
-    }
-
-    void seek(double seconds)
-    {
-        controller.onTimelineSeekRequested(common::core::TimePosition{seconds});
     }
 
     [[nodiscard]] TempoChordTarget chord() const
@@ -187,49 +111,11 @@ struct TempoEditor
         REQUIRE_FALSE(state().tempo_lock);
     }
 
-    // Turns snapping off, which only the warning's own answer can do.
-    void turnSnapOff()
-    {
-        controller.onGridSnapToggleRequested();
-        controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
-    }
-
-    [[nodiscard]] std::size_t undoEntryCount() const
-    {
-        return state().undo_history.labels.size();
-    }
-
-    // The label Ctrl+Z would undo next, or empty when nothing is undoable.
-    [[nodiscard]] std::string undoTopLabel() const
-    {
-        const UndoHistoryState& history = state().undo_history;
-        return history.position == 0 ? std::string{} : history.labels.at(history.position - 1);
-    }
-
-    [[nodiscard]] const std::vector<SongSection>& sections() const
-    {
-        return controller.session().song().sections;
-    }
-
     [[nodiscard]] std::vector<common::core::FretHandPosition> placements() const
     {
         const common::core::Chart* const chart = chartOrNull(controller);
         return chart != nullptr ? chart->fret_hand_positions
                                 : std::vector<common::core::FretHandPosition>{};
-    }
-
-    void pressAltRight(int presses = 1)
-    {
-        for (int press = 0; press < presses; ++press)
-        {
-            controller.onSelectionMoveRequested(ChartStepDirection::Right);
-        }
-    }
-
-    // Arms the caret at the parked cursor: the first arrow press on a passive marker arms in place.
-    void armCaretAtCursor()
-    {
-        controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     }
 };
 
@@ -281,7 +167,7 @@ TEST_CASE("The tempo chord reads the cursor at the placement quantum", "[core][t
     CHECK(on_grid->position == subBeatPosition());
 
     // With snap off the slot is the tick: 0.6 of a beat is 576 of its 960 ticks.
-    editor.turnSnapOff();
+    turnGridSnapOff(editor.controller);
     editor.seek(2.3);
     const GridPosition tick{.measure = 2, .beat = 1, .offset = common::core::Fraction{3, 5}};
     const TempoChordTarget unsnapped = editor.chord();
@@ -428,7 +314,7 @@ TEST_CASE("A tempo anchor moves one pixel at the reported zoom", "[core][tempo]"
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     editor.controller.onTimelineZoomChanged(100.0);
 
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK_THAT(editor.anchorSeconds(3, 1), WithinAbs(4.010, 1e-9));
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(4.010, 1e-9));
     CHECK(editor.undoTopLabel() == "Move Tempo Anchor");
@@ -439,7 +325,7 @@ TEST_CASE("A tempo anchor moves one pixel at the reported zoom", "[core][tempo]"
     editor.controller.onTimelineZoomChanged(1.0);
     const common::core::TempoMap before = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.tempoMap() == before);
     CHECK(editor.undoEntryCount() == entries);
 }
@@ -455,7 +341,7 @@ TEST_CASE("A sub-beat tempo anchor is edited as itself, never its beat-mate", "[
 
     editor.controller.onTempoAnchorSelected(sub_beat);
     editor.controller.onTimelineZoomChanged(100.0);
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2260});
     CHECK(editor.anchorMilliseconds(on_beat) == std::optional<std::int64_t>{2000});
     CHECK(editor.undoTopLabel() == "Move Tempo Anchor");
@@ -482,7 +368,7 @@ TEST_CASE("Undo and redo re-select an edited sub-beat anchor", "[core][tempo]")
     const GridPosition sub_beat = subBeatPosition();
     editor.controller.onTempoAnchorSelected(sub_beat);
     editor.controller.onTimelineZoomChanged(100.0);
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     REQUIRE(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2260});
 
     editor.controller.onTempoAnchorSelected(beatAt(1, 1));
@@ -564,7 +450,7 @@ TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][
     {
         const std::vector<SongSection> original = editor.sections();
         editor.controller.onSongSectionSelected(beatAt(2, 1));
-        editor.pressAltRight(3);
+        editor.pressAlt(ChartStepDirection::Right, 3);
         REQUIRE(editor.sections().size() == 2);
         CHECK(editor.sections().front().position == beatAt(5, 1));
         CHECK(editor.undoEntryCount() == 1);
@@ -576,7 +462,7 @@ TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][
     {
         const std::vector<common::core::FretHandPosition> original = editor.placements();
         editor.controller.onFretHandPositionSelected(1);
-        editor.pressAltRight(3);
+        editor.pressAlt(ChartStepDirection::Right, 3);
         CHECK_FALSE(editor.placements() == original);
         CHECK(editor.undoEntryCount() == 1);
         editor.controller.onUndoRequested();
@@ -588,7 +474,7 @@ TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][
         editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
         const common::core::TempoMap inserted = editor.tempoMap();
         editor.controller.onTimelineZoomChanged(100.0);
-        editor.pressAltRight(3);
+        editor.pressAlt(ChartStepDirection::Right, 3);
         CHECK_THAT(editor.anchorSeconds(3, 1), WithinAbs(4.030, 1e-9));
         CHECK(editor.undoEntryCount() == 2);
         editor.controller.onUndoRequested();
@@ -606,15 +492,15 @@ TEST_CASE("A marker move run ends at every other commit point", "[core][tempo]")
     SECTION("a selection change")
     {
         editor.controller.onSongSectionSelected(beatAt(2, 1));
-        editor.pressAltRight();
+        editor.pressAlt(ChartStepDirection::Right);
         editor.controller.onSongSectionSelected(beatAt(6, 1));
-        editor.pressAltRight();
+        editor.pressAlt(ChartStepDirection::Right);
         CHECK(editor.undoEntryCount() == 2);
     }
     SECTION("a walk back to the start")
     {
         editor.controller.onSongSectionSelected(beatAt(2, 1));
-        editor.pressAltRight();
+        editor.pressAlt(ChartStepDirection::Right);
         REQUIRE(editor.undoEntryCount() == 1);
         editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
         CHECK(editor.sections() == original);
@@ -623,10 +509,10 @@ TEST_CASE("A marker move run ends at every other commit point", "[core][tempo]")
     SECTION("a save")
     {
         editor.controller.onSongSectionSelected(beatAt(2, 1));
-        editor.pressAltRight();
+        editor.pressAlt(ChartStepDirection::Right);
         editor.controller.onSaveRequested();
         REQUIRE(editor.project_services.save_call_count == 1);
-        editor.pressAltRight();
+        editor.pressAlt(ChartStepDirection::Right);
         CHECK(editor.undoEntryCount() == 2);
         CHECK(editor.sections().front().position == beatAt(4, 1));
     }
@@ -639,12 +525,12 @@ TEST_CASE("A marker move run ends when the selection leaves and returns", "[core
 {
     TempoEditor editor;
     editor.controller.onSongSectionSelected(beatAt(2, 1));
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     REQUIRE(editor.sections().front().position == beatAt(3, 1));
 
     editor.controller.onRowObjectStepRequested(true, false);
     editor.controller.onRowObjectStepRequested(false, false);
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.sections().front().position == beatAt(4, 1));
     CHECK(editor.undoEntryCount() == 2);
 }
@@ -659,9 +545,9 @@ TEST_CASE("A typed tempo between two anchor moves ends the run", "[core][tempo]"
     editor.controller.onTimelineZoomChanged(100.0);
     const std::size_t entries = editor.undoEntryCount();
 
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     editor.controller.onTempoSpanBpmRequested(beatAt(3, 1), "137");
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.undoEntryCount() == entries + 3);
     CHECK(editor.undoTopLabel() == "Move Tempo Anchor");
 }
@@ -672,12 +558,12 @@ TEST_CASE("A press after an undo mid-run records a new entry", "[core][tempo]")
 {
     TempoEditor editor;
     editor.controller.onSongSectionSelected(beatAt(2, 1));
-    editor.pressAltRight(2);
+    editor.pressAlt(ChartStepDirection::Right, 2);
     REQUIRE(editor.sections().front().position == beatAt(4, 1));
 
     editor.controller.onUndoRequested();
     REQUIRE(editor.sections().front().position == beatAt(2, 1));
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.sections().front().position == beatAt(3, 1));
     CHECK(editor.undoEntryCount() == 1);
     CHECK(editor.undoTopLabel() == "Move Section");
@@ -695,7 +581,7 @@ TEST_CASE("A walked-back anchor run re-mirrors the starting map", "[core][tempo]
     const common::core::TempoMap inserted = editor.tempoMap();
     editor.controller.onTimelineZoomChanged(100.0);
 
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     REQUIRE_FALSE(editor.tempoMap() == inserted);
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(editor.tempoMap() == inserted);
@@ -856,10 +742,7 @@ TEST_CASE("The tempo lock is on at every open", "[core][tempo][tempo-lock]")
     CHECK_FALSE(editor.state().tempo_lock);
     CHECK(editor.undoEntryCount() == 0);
 
-    editor.audio.next_prepared_audio_duration = common::core::TimeDuration{20.0};
-    editor.audio.next_set_active_arrangement_result = true;
-    editor.project_services.next_song = makeTempoSong();
-    editor.controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    editor.open(makeEightMeasureSong());
     REQUIRE(editor.project_services.open_call_count == 2);
     CHECK(editor.state().tempo_lock);
 }
@@ -874,7 +757,7 @@ TEST_CASE("The tempo lock refuses an anchor nudge", "[core][tempo][tempo-lock]")
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
 
-    editor.pressAltRight();
+    editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
     CHECK(editor.view.tempo_anchor_refusal_flashes == std::vector{beatAt(3, 1)});
@@ -936,7 +819,7 @@ TEST_CASE("The tempo lock logs each refused gesture", "[core][tempo][tempo-lock]
     {
         TempoEditor editor;
         editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
-        editor.pressAltRight();
+        editor.pressAlt(ChartStepDirection::Right);
         editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
     }
     common::core::Logger::shutdown();

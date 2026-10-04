@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <compare>
+#include <cstddef>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
@@ -35,8 +36,12 @@
 #include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
+#include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -44,12 +49,14 @@
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
+#include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -2142,6 +2149,39 @@ mints one.
 }
 
 /*!
+\brief Builds an eight-measure song with two sections, two hand placements, and the test chart.
+
+The map is 4/4 at 120 BPM with its terminal at 9:1 and 16 s, so measure N's downbeat sits at
+(N - 1) * 2 seconds. The audio runs to 20 s, past the terminal, so the transport can rest ON the
+terminal beat without a seek clamping short of it. The sections and placements give every ruler
+marker kind something to move, and the shared test chart puts a note at 2:1 to place.
+
+\return Song fixture with one charted Lead arrangement.
+*/
+[[nodiscard]] inline common::core::Song makeEightMeasureSong()
+{
+    using common::core::testing::anchor;
+    using common::core::testing::beatAt;
+
+    common::core::Song song = makeSong(
+        std::filesystem::path{"song.wav"},
+        loadedTimelineRange(20.0),
+        std::string{g_tone_document_ref});
+    song.tempo_map = common::core::testing::commonTimeMap({anchor("1:1", 0), anchor("9:1", 16000)});
+    song.sections = {
+        common::core::SongSection{.position = beatAt(2, 1), .name = "Verse"},
+        common::core::SongSection{.position = beatAt(6, 1), .name = "Chorus"},
+    };
+    common::core::Chart chart = makeTestChart();
+    chart.fret_hand_positions = {
+        common::core::FretHandPosition{.position = beatAt(1, 1), .fret = 5, .end_fret = {}},
+        common::core::FretHandPosition{.position = beatAt(3, 1), .fret = 7, .end_fret = {}},
+    };
+    song.arrangements.front().chart = std::move(chart);
+    return song;
+}
+
+/*!
 \brief Loads arrangement audio through the controller so tests keep backend/session coupling.
 \param controller Controller under test.
 \param project_services Project services fake used by the controller.
@@ -2231,6 +2271,109 @@ inline void addKnownPlugin(
     controller.onPluginBrowserRequested();
     controller.onSelectedPluginInsertRequested(std::move(plugin_id));
 }
+
+// Owns a controller whose every song-facing port is its own recording fake, with the view attached.
+// Construction opens nothing, so a suite fixture built on it configures the fakes its scenarios
+// read at load (a rig load result, automatable parameters) first and then calls open(). The
+// audio-device port stays the shared default: no suite built on this harness routes an input.
+struct SongEditorHarness
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeToneTimeline tone_timeline;
+    FakeToneAutomation tone_automation;
+    FakeProjectServices project_services;
+    EditorController controller{
+        EditorController::AudioPorts{
+            .transport = transport,
+            .song_audio = audio,
+            .audio_devices = defaultAudioDevices(),
+            .plugin_host = plugin_host,
+            .live_rig = live_rig,
+            .tone_timeline = tone_timeline,
+            .tone_automation = tone_automation,
+        },
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+        },
+    };
+    FakeEditorView view;
+
+    SongEditorHarness()
+    {
+        controller.attachView(view);
+    }
+
+    // Opens a project holding the song. The fake audio probes the backing file as exactly as long
+    // as the song says it is, so the loaded timeline, which a seek clamps to, ends where it does.
+    void open(common::core::Song song)
+    {
+        audio.next_prepared_audio_duration = song.arrangements.front().audio_duration;
+        project_services.next_song = std::move(song);
+        controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    }
+
+    // The latest published view state, failing the test when the editor has pushed none.
+    [[nodiscard]] const EditorViewState& state() const
+    {
+        REQUIRE(view.last_state.has_value());
+        // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
+        // explicitly before dereferencing.
+        if (!view.last_state.has_value())
+        {
+            throw std::logic_error("editor pushed no view state");
+        }
+        return *view.last_state;
+    }
+
+    [[nodiscard]] const common::core::TempoMap& tempoMap() const
+    {
+        return controller.session().song().tempo_map;
+    }
+
+    [[nodiscard]] const std::vector<common::core::SongSection>& sections() const
+    {
+        return controller.session().song().sections;
+    }
+
+    void seek(double seconds)
+    {
+        controller.onTimelineSeekRequested(common::core::TimePosition{seconds});
+    }
+
+    // Presses Alt+arrow, the selection move, the given number of times.
+    void pressAlt(ChartStepDirection direction, int presses = 1)
+    {
+        for (int press = 0; press < presses; ++press)
+        {
+            controller.onSelectionMoveRequested(direction);
+        }
+    }
+
+    // Arms the caret at the parked cursor: the first arrow press on a passive marker arms in place
+    // without stepping, which is the keyboard's own way of placing a marker verb's position.
+    void armCaretAtCursor()
+    {
+        controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    }
+
+    [[nodiscard]] std::size_t undoEntryCount() const
+    {
+        return state().undo_history.labels.size();
+    }
+
+    // The label Ctrl+Z would undo next, or empty when nothing is undoable.
+    [[nodiscard]] std::string undoTopLabel() const
+    {
+        const UndoHistoryState& history = state().undo_history;
+        return history.position == 0 ? std::string{} : history.labels.at(history.position - 1);
+    }
+};
 
 // Task runner fake that lets tests defer completions to simulate async behavior. submit() runs
 // work synchronously (no real worker thread) and stores completion for later. Tests fire stored

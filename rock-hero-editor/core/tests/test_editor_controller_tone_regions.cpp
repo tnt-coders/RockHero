@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_track.h>
@@ -19,6 +20,8 @@ namespace rock_hero::editor::core
 namespace
 {
 
+using common::core::testing::beatAt;
+
 // A second canonical tone the create/delete tests reuse, distinct from the harness default tone.
 constexpr const char* g_second_tone_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d/tone.json";
 // A third canonical tone the retone tests repoint onto, distinct from both region tones.
@@ -28,11 +31,6 @@ constexpr const char* g_region_a = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e";
 constexpr const char* g_region_b = "6b2e1d4f-8a3c-4b1d-9e2f-3a4b5c6d7e8f";
 constexpr const char* g_region_new = "7c3f2e5a-9b4d-4c2e-af3a-4b5c6d7e8f90";
 constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d/tone.json";
-
-[[nodiscard]] common::core::GridPosition gridAt(int measure, int beat)
-{
-    return common::core::GridPosition{.measure = measure, .beat = beat};
-}
 
 // Pins a 4/4 map at 120 BPM whose terminal downbeat is measure 3 beat 1, so authored regions across
 // measures 1-3 satisfy the same structural rules persistence enforces.
@@ -58,7 +56,7 @@ constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d
     song.arrangements.front().tone_track.regions = {
         common::core::ToneRegion{
             .id = g_region_a,
-            .start = gridAt(1, 1),
+            .start = beatAt(1, 1),
             .tone_document_ref = g_tone_document_ref,
         },
     };
@@ -72,12 +70,12 @@ constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d
     song.arrangements.front().tone_track.regions = {
         common::core::ToneRegion{
             .id = g_region_a,
-            .start = gridAt(1, 1),
+            .start = beatAt(1, 1),
             .tone_document_ref = g_tone_document_ref,
         },
         common::core::ToneRegion{
             .id = g_region_b,
-            .start = gridAt(2, 1),
+            .start = beatAt(2, 1),
             .tone_document_ref = g_second_tone_ref,
         },
     };
@@ -95,31 +93,12 @@ constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d
     return song;
 }
 
-// Owns the fakes and a controller with the supplied song loaded, ready to drive tone edits.
-struct LoadedToneEditor
+// A controller with the supplied song loaded, ready to drive tone edits.
+struct LoadedToneEditor : SongEditorHarness
 {
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    FakeToneTimeline tone_timeline;
-    FakeProjectServices project_services;
-    EditorController controller;
-    FakeEditorView view;
-
     explicit LoadedToneEditor(common::core::Song song)
-        : controller{
-              audioPorts(transport, audio, plugin_host, live_rig, tone_timeline),
-              defaultControllerServices(),
-              noopExitFunction(),
-              EditorController::ProjectOperations{
-                  .open_function = project_services.openFunction(),
-              },
-          }
     {
-        project_services.next_song = std::move(song);
-        controller.attachView(view);
-        controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+        open(std::move(song));
     }
 
     [[nodiscard]] const common::core::Arrangement& arrangement() const
@@ -153,13 +132,6 @@ struct LoadedToneEditor
         const auto selected = std::ranges::find_if(
             published, [](const ToneRegionViewState& region) { return region.selected; });
         return selected != published.end() ? selected->id : std::string{};
-    }
-
-    // Turns snapping off, which only the warning's own answer can do.
-    void turnSnapOff()
-    {
-        controller.onGridSnapToggleRequested();
-        controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
     }
 
     // The engine's own end-of-playback report, which FakeTransport leaves to the test: every stop
@@ -202,7 +174,7 @@ TEST_CASE(
     song.arrangements.front().tone_track.regions = {
         common::core::ToneRegion{
             .id = g_region_a,
-            .start = gridAt(1, 1),
+            .start = beatAt(1, 1),
             .tone_document_ref = g_tone_document_ref,
         },
         common::core::ToneRegion{
@@ -561,7 +533,7 @@ TEST_CASE(
 
     REQUIRE(editor.regions().size() == 1);
     CHECK(editor.regions().front().id == g_region_a);
-    CHECK(editor.regions().front().start == gridAt(1, 1));
+    CHECK(editor.regions().front().start == beatAt(1, 1));
     CHECK(editor.regions().front().tone_document_ref == g_tone_document_ref);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref).empty());
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
@@ -573,7 +545,7 @@ TEST_CASE(
     editor.controller.onUndoRequested();
     REQUIRE(editor.regions().size() == 2);
     CHECK(editor.regions()[1].id == g_region_b);
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref) == "Dirty");
 
@@ -592,13 +564,13 @@ TEST_CASE(
     common::core::Song song = makeToneSongBase();
     song.arrangements.front().tone_track.regions = {
         common::core::ToneRegion{
-            .id = g_region_a, .start = gridAt(1, 1), .tone_document_ref = g_tone_document_ref
+            .id = g_region_a, .start = beatAt(1, 1), .tone_document_ref = g_tone_document_ref
         },
         common::core::ToneRegion{
-            .id = g_region_b, .start = gridAt(2, 1), .tone_document_ref = g_second_tone_ref
+            .id = g_region_b, .start = beatAt(2, 1), .tone_document_ref = g_second_tone_ref
         },
         common::core::ToneRegion{
-            .id = g_region_new, .start = gridAt(2, 3), .tone_document_ref = g_tone_document_ref
+            .id = g_region_new, .start = beatAt(2, 3), .tone_document_ref = g_tone_document_ref
         },
     };
     LoadedToneEditor editor{std::move(song)};
@@ -613,7 +585,7 @@ TEST_CASE(
     REQUIRE(editor.regions().size() == 3);
     CHECK(editor.regions()[1].id == g_region_b);
     CHECK(editor.regions()[2].id == g_region_new);
-    CHECK(editor.regions()[2].start == gridAt(2, 3));
+    CHECK(editor.regions()[2].start == beatAt(2, 3));
 }
 
 // A retone onto the region's current tone records nothing, and a retone onto a ref outside the
@@ -655,7 +627,7 @@ TEST_CASE(
     REQUIRE(editor.regions().size() == 2);
     CHECK(editor.regions()[0].id == g_region_a);
     CHECK(editor.regions()[1].id == g_region_b);
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
 
     editor.controller.onRedoRequested();
@@ -715,14 +687,14 @@ TEST_CASE(
     editor.controller.onToneRegionDeleteRequested(g_region_a);
     REQUIRE(editor.regions().size() == 1);
     CHECK(editor.regions().front().id == g_region_b);
-    CHECK(editor.regions().front().start == gridAt(1, 1));
+    CHECK(editor.regions().front().start == beatAt(1, 1));
 
     editor.controller.onUndoRequested();
     REQUIRE(editor.regions().size() == 2);
     CHECK(editor.regions()[0].id == g_region_a);
-    CHECK(editor.regions()[0].start == gridAt(1, 1));
+    CHECK(editor.regions()[0].start == beatAt(1, 1));
     CHECK(editor.regions()[1].id == g_region_b);
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
 }
 
 // Creating a region inside another splits it at the requested position; undo and redo round-trip
@@ -732,11 +704,11 @@ TEST_CASE("EditorController creates a tone-change region by splitting", "[core][
     LoadedToneEditor editor{makeSingleRegionSong()};
     REQUIRE(editor.regions().size() == 1);
 
-    editor.controller.onToneRegionCreateRequested(gridAt(2, 1), g_region_new, g_second_tone_ref);
+    editor.controller.onToneRegionCreateRequested(beatAt(2, 1), g_region_new, g_second_tone_ref);
     REQUIRE(editor.regions().size() == 2);
     CHECK(editor.regions()[0].id == g_region_a);
     CHECK(editor.regions()[1].id == g_region_new);
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_second_tone_ref);
 
     editor.controller.onUndoRequested();
@@ -756,16 +728,16 @@ TEST_CASE(
     LoadedToneEditor editor{makeTwoRegionSong()};
     REQUIRE(editor.regions().size() == 2);
 
-    editor.controller.onToneBoundaryMoveRequested(g_region_b, gridAt(2, 3));
+    editor.controller.onToneBoundaryMoveRequested(g_region_b, beatAt(2, 3));
     REQUIRE(editor.regions().size() == 2);
-    CHECK(editor.regions()[0].start == gridAt(1, 1)); // the earlier region still opens the song
-    CHECK(editor.regions()[1].start == gridAt(2, 3)); // and now runs on to the moved boundary
+    CHECK(editor.regions()[0].start == beatAt(1, 1)); // the earlier region still opens the song
+    CHECK(editor.regions()[1].start == beatAt(2, 3)); // and now runs on to the moved boundary
 
     editor.controller.onUndoRequested();
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
 
     editor.controller.onRedoRequested();
-    CHECK(editor.regions()[1].start == gridAt(2, 3));
+    CHECK(editor.regions()[1].start == beatAt(2, 3));
 }
 
 // A boundary move keeps a sub-beat target exactly.
@@ -786,7 +758,7 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == sub_beat);
 
     editor.controller.onUndoRequested();
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
 }
 
 // A boundary move on the first region is ignored, since its start is the song's own.
@@ -796,10 +768,10 @@ TEST_CASE(
     LoadedToneEditor editor{makeTwoRegionSong()};
 
     // The first region has no earlier neighbor; its start is the pinned song boundary.
-    editor.controller.onToneBoundaryMoveRequested(g_region_a, gridAt(1, 3));
+    editor.controller.onToneBoundaryMoveRequested(g_region_a, beatAt(1, 3));
 
-    CHECK(editor.regions()[0].start == gridAt(1, 1));
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[0].start == beatAt(1, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
 }
 
 // A boundary move that would leave a region with no length is rejected.
@@ -810,10 +782,10 @@ TEST_CASE(
 
     // Measure 3 beat 1 is the terminal anchor: opening the later region there would leave it with
     // no length at all, so the rules reject the move and both starts stand.
-    editor.controller.onToneBoundaryMoveRequested(g_region_b, gridAt(3, 1));
+    editor.controller.onToneBoundaryMoveRequested(g_region_b, beatAt(3, 1));
 
-    CHECK(editor.regions()[0].start == gridAt(1, 1));
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[0].start == beatAt(1, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
 }
 
 // Alt+arrows on a selected tone region move the tone change it opens — its START — one grid line,
@@ -830,7 +802,7 @@ TEST_CASE(
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     REQUIRE(editor.regions().size() == 2);
-    CHECK(editor.regions()[1].start == gridAt(2, 2));
+    CHECK(editor.regions()[1].start == beatAt(2, 2));
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.5, 1e-9));
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
     REQUIRE(state != nullptr);
@@ -838,7 +810,7 @@ TEST_CASE(
     CHECK(state->tone_track.regions[1].selected);
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
 
     // The two presses are one held run on one selected region, and it walked back to where it
@@ -860,8 +832,8 @@ TEST_CASE(
     editor.controller.onToneRegionSelected(g_region_a);
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(editor.regions()[0].start == gridAt(1, 1));
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[0].start == beatAt(1, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(1.25, 1e-9));
 
     // Measure 3 beat 1 closes the song, so the later region's start stops one line short of it.
@@ -870,16 +842,16 @@ TEST_CASE(
     {
         editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     }
-    CHECK(editor.regions()[1].start == gridAt(2, 4));
+    CHECK(editor.regions()[1].start == beatAt(2, 4));
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(3.5, 1e-9));
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(editor.regions()[1].start == gridAt(2, 4));
+    CHECK(editor.regions()[1].start == beatAt(2, 4));
 
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.75});
     editor.controller.onToneRegionSelected(g_region_b);
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Up);
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Down);
-    CHECK(editor.regions()[1].start == gridAt(2, 4));
+    CHECK(editor.regions()[1].start == beatAt(2, 4));
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(3.75, 1e-9));
 }
 
@@ -899,7 +871,7 @@ TEST_CASE(
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
 
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
     CHECK(editor.transport.seek_call_count == seeks_before);
     const EditorViewState* const after = stateOrNull(editor.view.last_state);
     REQUIRE(after != nullptr);
@@ -916,11 +888,11 @@ TEST_CASE(
     editor.live_rig.next_mint_ref = g_minted_ref;
     const int loads_before = editor.live_rig.load_call_count;
 
-    editor.controller.onToneCreateNewRequested(gridAt(2, 1), "Solo");
+    editor.controller.onToneCreateNewRequested(beatAt(2, 1), "Solo");
 
     // The region is split and the later half references the freshly minted tone.
     REQUIRE(editor.regions().size() == 2);
-    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
     // The catalog gained the new tone. The empty tone takes the incremental fast path: one
     // branch add on the live rig, no full reload, and no capture (nothing on disk is replaced).
@@ -951,7 +923,7 @@ TEST_CASE(
 {
     LoadedToneEditor editor{makeSingleRegionSong()};
     editor.live_rig.next_mint_ref = g_minted_ref;
-    editor.controller.onToneCreateNewRequested(gridAt(2, 1), "Solo");
+    editor.controller.onToneCreateNewRequested(beatAt(2, 1), "Solo");
     REQUIRE(editor.regions().size() == 2);
     const std::string solo_region_id = editor.regions()[1].id;
 
@@ -969,7 +941,7 @@ TEST_CASE(
 
     // The freed name is reusable: creating another "Solo" succeeds instead of reporting a
     // duplicate.
-    editor.controller.onToneCreateNewRequested(gridAt(2, 1), "Solo");
+    editor.controller.onToneCreateNewRequested(beatAt(2, 1), "Solo");
     REQUIRE(editor.regions().size() == 2);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
     CHECK(editor.view.shown_errors.empty());
@@ -1138,11 +1110,11 @@ TEST_CASE(
     const ToneChordTarget snapped = editor.publishedToneChordTarget();
     const auto* const snapped_split = std::get_if<SplitToneRegionTarget>(&snapped);
     REQUIRE(snapped_split != nullptr);
-    CHECK(snapped_split->position == gridAt(2, 2));
+    CHECK(snapped_split->position == beatAt(2, 2));
     CHECK(snapped_split->containing_tone_document_ref == g_second_tone_ref);
 
     // With snap off the placement quantum IS the tick, so the change lands on the exact sub-beat.
-    editor.turnSnapOff();
+    turnGridSnapOff(editor.controller);
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.25});
     const ToneChordTarget unsnapped = editor.publishedToneChordTarget();
     const auto* const unsnapped_split = std::get_if<SplitToneRegionTarget>(&unsnapped);

@@ -65,17 +65,9 @@ using common::core::testing::downbeat;
     };
 }
 
-// Owns the fakes and a controller with the supplied song loaded, ready to drive section verbs.
-struct LoadedSectionEditor
+// A controller with the supplied song loaded, ready to drive section verbs.
+struct LoadedSectionEditor : SongEditorHarness
 {
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    FakeProjectServices project_services;
-    EditorController controller;
-    FakeEditorView view;
-
     // The plain case: a song and an empty audible chain, which is what every section verb needs.
     explicit LoadedSectionEditor(common::core::Song song)
         : LoadedSectionEditor{std::move(song), {}}
@@ -85,37 +77,16 @@ struct LoadedSectionEditor
     // test can watch what a re-published snapshot would do to the panel.
     LoadedSectionEditor(
         common::core::Song song, std::vector<common::audio::PluginChainEntry> audible_chain)
-        : controller{
-              audioPorts(transport, audio, plugin_host, live_rig),
-              defaultControllerServices(),
-              noopExitFunction(),
-              EditorController::ProjectOperations{
-                  .open_function = project_services.openFunction(),
-              },
-          }
     {
-        // The prepared duration is what the loaded arrangement's timeline ends up being, and the
-        // timeline is what a seek clamps to; without it the fake's 4 s default would stop the
-        // transport two measures short of the terminal downbeat these tests aim at.
-        audio.next_prepared_audio_duration = common::core::TimeDuration{16.0};
-        audio.next_set_active_arrangement_result = true;
         live_rig.next_load_result.plugins = std::move(audible_chain);
-        project_services.next_song = std::move(song);
-        controller.attachView(view);
-        controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-    }
-
-    [[nodiscard]] const std::vector<SongSection>& sections() const
-    {
-        return controller.session().song().sections;
+        open(std::move(song));
     }
 
     // Seeks the transport into a measure so the marker rule resolves there. 120 BPM 4/4 puts
     // measure N's downbeat at (N - 1) * 2 seconds.
     void seekToMeasure(int measure)
     {
-        controller.onTimelineSeekRequested(
-            common::core::TimePosition{static_cast<double>(measure - 1) * 2.0});
+        seek(static_cast<double>(measure - 1) * 2.0);
     }
 
     // What the section chord would do right now, as the surface reads it: the verb the core
@@ -124,20 +95,6 @@ struct LoadedSectionEditor
     {
         const EditorViewState* const state = stateOrNull(view.last_state);
         return state != nullptr ? state->section_chord_target : SectionChordTarget{};
-    }
-
-    // Arms the caret at the parked cursor: the first arrow press on a passive marker arms without
-    // stepping, so this is the keyboard's own way of placing a marker verb's position.
-    void armCaretAtCursor()
-    {
-        controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    }
-
-    // Turns snapping off, which only the warning's own answer can do.
-    void turnSnapOff()
-    {
-        controller.onGridSnapToggleRequested();
-        controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
     }
 
     // The published section views, which is where the selection outline is read from.
@@ -275,7 +232,7 @@ TEST_CASE("The section chord names the measure the cursor is in", "[core][sectio
     REQUIRE(snapped_insert != nullptr);
     CHECK(snapped_insert->downbeat == downbeat(2));
 
-    editor.turnSnapOff();
+    turnGridSnapOff(editor.controller);
     const SectionChordTarget unsnapped = editor.publishedSectionChordTarget();
     const auto* const unsnapped_insert = std::get_if<InsertSectionTarget>(&unsnapped);
     REQUIRE(unsnapped_insert != nullptr);

@@ -52,6 +52,17 @@ hides inside a helper and a time between two milliseconds cannot be written. A t
 }
 
 /*!
+\brief A whole beat of a measure, with no sub-beat offset.
+\param measure One-based measure.
+\param beat One-based beat within the measure.
+\return The beat's grid position.
+*/
+[[nodiscard]] constexpr GridPosition beatAt(int measure, int beat) noexcept
+{
+    return GridPosition{.measure = measure, .beat = beat, .offset = {}};
+}
+
+/*!
 \brief The 4/4 meter from measure 1 that nearly every suite's tempo map starts from.
 \return A single common-time signature at measure 1.
 */

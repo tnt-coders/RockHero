@@ -9,6 +9,7 @@
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -31,6 +32,8 @@ namespace rock_hero::editor::core
 namespace
 {
 
+using common::core::testing::beatAt;
+
 constexpr const char* g_region = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e";
 // A second region and tone, so a test can close the first region's window early: a region ends
 // where the next begins, and adjacent regions must name different tones.
@@ -39,11 +42,6 @@ constexpr const char* g_later_tone_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b
 constexpr const char* g_instance = "plugin-instance-1";
 constexpr const char* g_plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b";
 constexpr const char* g_param = "gain";
-
-[[nodiscard]] common::core::GridPosition gridAt(int measure, int beat)
-{
-    return common::core::GridPosition{.measure = measure, .beat = beat};
-}
 
 [[nodiscard]] common::core::GridPosition pointAt(int measure, int beat, int numerator = 0)
 {
@@ -69,7 +67,7 @@ constexpr const char* g_param = "gain";
     arrangement.tone_track.regions = {
         common::core::ToneRegion{
             .id = g_region,
-            .start = gridAt(1, 1),
+            .start = beatAt(1, 1),
             .tone_document_ref = g_tone_document_ref,
         },
     };
@@ -94,31 +92,14 @@ constexpr const char* g_param = "gain";
 // Loads the automation song with the region selected and a live-rig fake whose load result reports
 // the tone chain identity, so the controller's plugin association is populated the way a real load
 // populates it.
-struct AutomationEditor
+struct AutomationEditor : SongEditorHarness
 {
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    FakeToneAutomation tone_automation;
-    FakeProjectServices project_services;
-    EditorController controller;
-    FakeEditorView view;
-
     // chain_tone_ref is the tone the load reports the plugin chain under. Tests pass an empty ref
     // to reproduce a plugin whose runtime association has no tone yet (inserted before a region was
     // selected), so the lane-add path must recover the association from the selection.
     explicit AutomationEditor(
         common::core::Song song = makeAutomationSong(),
         std::string chain_tone_ref = std::string{g_tone_document_ref})
-        : controller{
-              audioPorts(transport, audio, plugin_host, live_rig, tone_automation),
-              defaultControllerServices(),
-              noopExitFunction(),
-              EditorController::ProjectOperations{
-                  .open_function = project_services.openFunction(),
-              },
-          }
     {
         tone_automation.parameters.push_back(makeParam());
         live_rig.next_load_result.tone_chains = {
@@ -132,9 +113,7 @@ struct AutomationEditor
                 .summed_reported_latency_seconds = 0.0,
             },
         };
-        project_services.next_song = std::move(song);
-        controller.attachView(view);
-        controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+        open(std::move(song));
         // Every scenario in this file states its placements in quarter-note grid slots, so pin
         // that grid explicitly instead of riding the editor default.
         controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
@@ -143,14 +122,7 @@ struct AutomationEditor
 
     [[nodiscard]] const ToneAutomationViewState& automation() const
     {
-        REQUIRE(view.last_state.has_value());
-        // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
-        // explicitly before dereferencing.
-        if (!view.last_state.has_value())
-        {
-            throw std::logic_error("editor pushed no view state");
-        }
-        return view.last_state->tone_automation;
+        return state().tone_automation;
     }
 
     [[nodiscard]] const std::vector<common::core::ToneParameterAutomation>& model() const
@@ -660,7 +632,7 @@ TEST_CASE(
     CHECK(curve_seconds() == Catch::Approx(2.25));
 
     // Half the tempo over the whole song puts the same beat at 4.5 s.
-    editor.controller.onTempoSpanBpmRequested(gridAt(1, 1), "60");
+    editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "60");
     CHECK(curve_seconds() == Catch::Approx(4.5));
 
     editor.controller.onUndoRequested();
@@ -1112,7 +1084,7 @@ TEST_CASE(
     }
     const common::core::GridPosition placement_slot =
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
-    CHECK(placement_slot == gridAt(2, 2));
+    CHECK(placement_slot == beatAt(2, 2));
 
     // The ÷width mapping snaps this same pixel to the EARLIER slot (2.0 s, measure 2 beat 1): the
     // two paths genuinely disagree here.
@@ -1124,7 +1096,7 @@ TEST_CASE(
         tempo_map,
         common::core::Fraction{1, 4},
         common::core::TimePosition{width_division_seconds});
-    CHECK(width_division_slot == gridAt(2, 1));
+    CHECK(width_division_slot == beatAt(2, 1));
     CHECK(width_division_slot != placement_slot);
 
     // The published ghost lands on the placement slot, not the ÷width one: its seconds match the
@@ -1191,7 +1163,7 @@ TEST_CASE(
     }
     const common::core::GridPosition placement_slot =
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
-    CHECK(placement_slot == gridAt(2, 2));
+    CHECK(placement_slot == beatAt(2, 2));
 
     // The ÷width mapping arms the caret one slot EARLIER (2.0 s, measure 2 beat 1): the two paths
     // genuinely disagree at this pixel.
@@ -1203,7 +1175,7 @@ TEST_CASE(
         tempo_map,
         common::core::Fraction{1, 4},
         common::core::TimePosition{width_division_seconds});
-    CHECK(width_division_slot == gridAt(2, 1));
+    CHECK(width_division_slot == beatAt(2, 1));
     CHECK(width_division_slot != placement_slot);
 
     // The armed caret lands on the placement slot, not the ÷width slot: the caret sits exactly
@@ -1255,7 +1227,7 @@ TEST_CASE(
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
     const common::core::GridPosition tick_slot = nearestTempoGridPosition(
         tempo_map, common::core::g_tick_quantum_note_value, *placement_time);
-    CHECK(coarse_slot == gridAt(2, 1));
+    CHECK(coarse_slot == beatAt(2, 1));
     CHECK(tick_slot != coarse_slot);
 
     const auto down = [&] {
@@ -1364,14 +1336,14 @@ TEST_CASE(
     if (editor.automation().drag_preview.has_value())
     {
         CHECK(editor.automation().drag_preview->is_new_point);
-        CHECK(editor.automation().drag_preview->position == gridAt(1, 3));
+        CHECK(editor.automation().drag_preview->position == beatAt(1, 3));
         CHECK_THAT(editor.automation().drag_preview->value, Catch::Matchers::WithinULP(0.5F, 0));
     }
     editor.controller.onToneAutomationPointerUp(
         pointerEvent(100.0F, pointerYForValue(0.125F), alt));
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.model().front().points.size() == 3);
-    CHECK(editor.model().front().points[1].position == gridAt(1, 3));
+    CHECK(editor.model().front().points[1].position == beatAt(1, 3));
     CHECK_THAT(editor.model().front().points[1].norm_value, Catch::Matchers::WithinULP(0.5F, 0));
     // The committed preview is gone and the landed point is the selection.
     CHECK_FALSE(editor.automation().drag_preview.has_value());
@@ -1387,7 +1359,7 @@ TEST_CASE(
     pulled.controller.onToneAutomationPointerDrag(dragEvent(100.0F, 30.0F, alt));
     pulled.controller.onToneAutomationPointerUp(pointerEvent(100.0F, 30.0F, alt));
     REQUIRE(pulled.model().front().points.size() == 3);
-    CHECK(pulled.model().front().points[1].position == gridAt(1, 3));
+    CHECK(pulled.model().front().points[1].position == beatAt(1, 3));
     CHECK_THAT(pulled.model().front().points[1].norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 }
 
@@ -1417,7 +1389,7 @@ TEST_CASE(
     if (editor.automation().drag_preview.has_value())
     {
         CHECK(editor.automation().drag_preview->is_new_point);
-        CHECK(editor.automation().drag_preview->position == gridAt(1, 1));
+        CHECK(editor.automation().drag_preview->position == beatAt(1, 1));
         CHECK_THAT(editor.automation().drag_preview->value, Catch::Matchers::WithinULP(0.65F, 1));
     }
 
@@ -1426,7 +1398,7 @@ TEST_CASE(
     editor.controller.onToneAutomationPointerUp(pointerEvent(0.0F, pointerYForValue(0.4F) - 10.0F));
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.model().front().points.size() == 1);
-    CHECK(editor.model().front().points.front().position == gridAt(1, 1));
+    CHECK(editor.model().front().points.front().position == beatAt(1, 1));
     CHECK_THAT(
         editor.model().front().points.front().norm_value, Catch::Matchers::WithinULP(0.65F, 1));
 }
@@ -1453,7 +1425,7 @@ TEST_CASE(
     if (editor.automation().lane_caret.has_value())
     {
         CHECK(editor.automation().lane_caret->lane_index == 0);
-        CHECK(editor.automation().lane_caret->position == gridAt(1, 1));
+        CHECK(editor.automation().lane_caret->position == beatAt(1, 1));
     }
 }
 
@@ -1494,7 +1466,7 @@ TEST_CASE(
     editor.controller.onToneAutomationPointerUp(pointerEvent(260.0F, 40.0F, shift));
 
     REQUIRE(editor.model().front().points.size() == 2);
-    CHECK(editor.model().front().points.back().position == gridAt(2, 2));
+    CHECK(editor.model().front().points.back().position == beatAt(2, 2));
     CHECK_THAT(
         editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 
@@ -1511,7 +1483,7 @@ TEST_CASE(
     vertical.controller.onToneAutomationPointerUp(
         pointerEvent(205.0F, pointerYForValue(0.5F), shift));
     REQUIRE(vertical.model().front().points.size() == 2);
-    CHECK(vertical.model().front().points.back().position == gridAt(2, 1));
+    CHECK(vertical.model().front().points.back().position == beatAt(2, 1));
     CHECK_THAT(
         vertical.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
 }
@@ -1536,19 +1508,19 @@ TEST_CASE(
     REQUIRE(editor.automation().drag_preview.has_value());
     if (editor.automation().drag_preview.has_value())
     {
-        CHECK(editor.automation().drag_preview->position == gridAt(1, 2));
+        CHECK(editor.automation().drag_preview->position == beatAt(1, 2));
     }
     editor.controller.onToneAutomationPointerDrag(dragEvent(5.0F, pointerYForValue(0.75F)));
     // Still measure 1 beat 2 — the drag could not cross onto the neighbor at measure 1 beat 1.
     REQUIRE(editor.automation().drag_preview.has_value());
     if (editor.automation().drag_preview.has_value())
     {
-        CHECK(editor.automation().drag_preview->position == gridAt(1, 2));
+        CHECK(editor.automation().drag_preview->position == beatAt(1, 2));
     }
     editor.controller.onToneAutomationPointerUp(pointerEvent(5.0F, pointerYForValue(0.75F)));
     REQUIRE(editor.model().front().points.size() == 2);
-    CHECK(editor.model().front().points.front().position == gridAt(1, 1));
-    CHECK(editor.model().front().points.back().position == gridAt(1, 2));
+    CHECK(editor.model().front().points.front().position == beatAt(1, 1));
+    CHECK(editor.model().front().points.back().position == beatAt(1, 2));
 }
 
 // A point drag cannot leave the active region's window.
@@ -1565,7 +1537,7 @@ TEST_CASE(
     song.arrangements.front().tone_track.regions.push_back(
         common::core::ToneRegion{
             .id = g_later_region,
-            .start = gridAt(2, 1),
+            .start = beatAt(2, 1),
             .tone_document_ref = g_later_tone_ref,
         });
     AutomationEditor editor{std::move(song)};
@@ -1579,7 +1551,7 @@ TEST_CASE(
     editor.controller.onToneAutomationPointerDrag(dragEvent(390.0F, pointerYForValue(0.5F)));
     editor.controller.onToneAutomationPointerUp(pointerEvent(390.0F, pointerYForValue(0.5F)));
     REQUIRE(editor.model().front().points.size() == 1);
-    CHECK(editor.model().front().points.front().position == gridAt(2, 1));
+    CHECK(editor.model().front().points.front().position == beatAt(2, 1));
 }
 
 // A drag on a discrete parameter's lane snaps the value to the nearest state.
@@ -1641,7 +1613,7 @@ TEST_CASE(
     REQUIRE(editor.automation().lane_caret.has_value());
     if (editor.automation().lane_caret.has_value())
     {
-        CHECK(editor.automation().lane_caret->position == gridAt(2, 1));
+        CHECK(editor.automation().lane_caret->position == beatAt(2, 1));
     }
     REQUIRE(editor.automation().selected_point.has_value());
     if (editor.automation().selected_point.has_value())
@@ -1794,7 +1766,7 @@ TEST_CASE(
     if (editor.automation().lane_caret.has_value())
     {
         CHECK(editor.automation().lane_caret->lane_index == 0);
-        CHECK(editor.automation().lane_caret->position == gridAt(2, 1));
+        CHECK(editor.automation().lane_caret->position == beatAt(2, 1));
     }
 }
 
@@ -1933,7 +1905,7 @@ TEST_CASE(
     editor.controller.onChartCaretJumpRequested(ChartCaretJump::ChartStart);
     const ToneAutomationLaneCaretRef* const jumped = laneCaretOrNull(editor.automation());
     REQUIRE(jumped != nullptr);
-    CHECK(jumped->position == gridAt(1, 1));
+    CHECK(jumped->position == beatAt(1, 1));
 
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     REQUIRE(editor.automation().add_lane_row_selected);
@@ -1955,7 +1927,7 @@ TEST_CASE(
     "EditorController returns an arrow past a pointer-selected region to the cursor's rows",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
@@ -1988,12 +1960,12 @@ TEST_CASE(
     "EditorController hands the rig back to the cursor's tone on a marker selection",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     REQUIRE(editor.transport.position().seconds < 2.0);
     editor.controller.onToneRegionSelected(g_later_region);
     REQUIRE(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
 
-    editor.controller.onSongSectionSelected(gridAt(1, 1));
+    editor.controller.onSongSectionSelected(beatAt(1, 1));
     CHECK(
         editor.live_rig.last_audible_tone_ref ==
         std::optional<std::string>{std::string{g_tone_document_ref}});
@@ -2017,15 +1989,15 @@ TEST_CASE("EditorController steps a lane caret to the adjacent point", "[core][t
         const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(editor.automation());
         return caret != nullptr ? std::optional{caret->position} : std::nullopt;
     };
-    CHECK(lane_position() == std::optional{gridAt(1, 1)});
+    CHECK(lane_position() == std::optional{beatAt(1, 1)});
     editor.controller.onRowObjectStepRequested(true, false);
-    CHECK(lane_position() == std::optional{gridAt(1, 3)});
+    CHECK(lane_position() == std::optional{beatAt(1, 3)});
     editor.controller.onRowObjectStepRequested(true, true);
-    CHECK(lane_position() == std::optional{gridAt(2, 1)});
+    CHECK(lane_position() == std::optional{beatAt(2, 1)});
     editor.controller.onRowObjectStepRequested(true, false);
-    CHECK(lane_position() == std::optional{gridAt(2, 1)});
+    CHECK(lane_position() == std::optional{beatAt(2, 1)});
     editor.controller.onRowObjectStepRequested(false, false);
-    CHECK(lane_position() == std::optional{gridAt(1, 3)});
+    CHECK(lane_position() == std::optional{beatAt(1, 3)});
 }
 
 // With several lanes, reach lands on the NEAREST row of the group it enters: Ctrl+Down from the
@@ -2191,7 +2163,7 @@ TEST_CASE(
     "EditorController jumps to the plus row of a pointer-selected region",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     REQUIRE(editor.automation().lanes.size() == 1);
     REQUIRE(editor.transport.position().seconds < 2.0);
@@ -2239,7 +2211,7 @@ TEST_CASE(
     "EditorController steps off a pointer-selected region from inside it",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     REQUIRE(editor.automation().lanes.size() == 1);
     REQUIRE(editor.transport.position().seconds < 2.0);
@@ -2276,7 +2248,7 @@ TEST_CASE(
 TEST_CASE(
     "EditorController points the rig at the tone a caret walks into", "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
 
     // Arm at the cursor in the first region, then jump a measure into the later one: the caret
     // moves, the transport does not, and the rig follows the caret.
@@ -2303,7 +2275,7 @@ TEST_CASE(
     "EditorController follows the caret across a tone boundary with the arrows",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     const double parked_seconds = editor.transport.position().seconds;
     REQUIRE(parked_seconds < 2.0);
 
@@ -2340,7 +2312,7 @@ TEST_CASE(
     "EditorController follows the caret across a tone boundary on a chart-end jump",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     const double parked_seconds = editor.transport.position().seconds;
     REQUIRE(parked_seconds < 2.0);
 
@@ -2360,7 +2332,7 @@ TEST_CASE(
     "EditorController leaves the audible tone alone stepping within a region",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     REQUIRE(
         editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_tone_document_ref});
 
@@ -2385,7 +2357,7 @@ TEST_CASE(
     "EditorController follows a pointer-armed caret into another tone's region",
     "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     const double parked_seconds = editor.transport.position().seconds;
     REQUIRE(parked_seconds < 2.0);
 
@@ -2408,14 +2380,14 @@ TEST_CASE(
     "EditorController follows a caret riding a nudged note into another tone's region",
     "[core][tone-automation]")
 {
-    common::core::Song song = makeTwoToneChartedSong(gridAt(2, 1));
+    common::core::Song song = makeTwoToneChartedSong(beatAt(2, 1));
     std::optional<common::core::Chart>& charted = song.arrangements.front().chart;
     REQUIRE(charted.has_value());
     if (charted.has_value())
     {
         // One quarter note short of the boundary, so a single Alt+Right step lands the note on the
         // later region's first beat.
-        charted->notes.push_back(makeTestNote(gridAt(1, 4), 1, 5));
+        charted->notes.push_back(makeTestNote(beatAt(1, 4), 1, 5));
     }
     AutomationEditor editor{std::move(song)};
     const double parked_seconds = editor.transport.position().seconds;
@@ -2439,7 +2411,7 @@ TEST_CASE(
     if (arrangement->chart.has_value())
     {
         REQUIRE(arrangement->chart->notes.size() == 1);
-        CHECK(arrangement->chart->notes.front().position == gridAt(2, 1));
+        CHECK(arrangement->chart->notes.front().position == beatAt(2, 1));
     }
     CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
     CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
@@ -2476,7 +2448,7 @@ TEST_CASE(
 // opening region is selected, so the first arrow press is what arms the caret.
 TEST_CASE("EditorController selects the region a tone insert made", "[core][tone-automation]")
 {
-    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    AutomationEditor editor{makeTwoToneChartedSong(beatAt(2, 1))};
     editor.live_rig.next_mint_ref = "tones/3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f/tone.json";
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
@@ -2485,7 +2457,7 @@ TEST_CASE("EditorController selects the region a tone insert made", "[core][tone
 
     // A split of the later region onto the opening region's tone.
     editor.controller.onToneRegionCreateRequested(
-        gridAt(2, 3), "7c8d9e0f-1a2b-4c3d-9e4f-5a6b7c8d9e0f", std::string{g_tone_document_ref});
+        beatAt(2, 3), "7c8d9e0f-1a2b-4c3d-9e4f-5a6b7c8d9e0f", std::string{g_tone_document_ref});
     REQUIRE(state->tone_track.regions.size() == 3);
     CHECK(caretOrNull(state->chart_edit) == nullptr);
     CHECK(state->tone_track.regions[2].selected);
@@ -2495,7 +2467,7 @@ TEST_CASE("EditorController selects the region a tone insert made", "[core][tone
     const ChartCaretViewState* const rearmed = caretOrNull(state->chart_edit);
     REQUIRE(rearmed != nullptr);
     CHECK(rearmed->seconds == Catch::Approx(0.0));
-    editor.controller.onToneCreateNewRequested(gridAt(1, 3), "Crunch");
+    editor.controller.onToneCreateNewRequested(beatAt(1, 3), "Crunch");
     REQUIRE(state->tone_track.regions.size() == 4);
     CHECK(caretOrNull(state->chart_edit) == nullptr);
     CHECK(state->tone_track.regions[1].selected);
