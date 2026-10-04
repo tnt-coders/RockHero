@@ -297,10 +297,13 @@ TEST_CASE("Session writeChart advances the chart revision once the write ends", 
     CHECK_FALSE(session.writeChart([](Chart&) {}));
     CHECK(session.chartRevision() == 0);
 
+    // Each check is relative to the revision a load left, so the case pins writeChart's own
+    // advance, not how many loads preceded it.
     REQUIRE(session.loadSong(
         makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0}), 0));
+    const std::uint64_t loaded_without_chart = session.chartRevision();
     CHECK_FALSE(session.writeChart([](Chart&) {}));
-    CHECK(session.chartRevision() == 0);
+    CHECK(session.chartRevision() == loaded_without_chart);
 
     Song song_with_chart = makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0});
     song_with_chart.arrangements.front().chart = Chart{};
@@ -308,6 +311,7 @@ TEST_CASE("Session writeChart advances the chart revision once the write ends", 
     // bugprone-use-after-move reads as a use of the moved-from song.
     const bool loaded = session.loadSong(std::move(song_with_chart), 0);
     REQUIRE(loaded);
+    const std::uint64_t loaded_with_chart = session.chartRevision();
 
     std::uint64_t during = 0;
     const std::optional<std::size_t> written =
@@ -320,10 +324,31 @@ TEST_CASE("Session writeChart advances the chart revision once the write ends", 
     {
         CHECK(*written == 0);
     }
-    CHECK(during == 0);
-    CHECK(session.chartRevision() == 1);
+    CHECK(during == loaded_with_chart);
+    CHECK(session.chartRevision() == loaded_with_chart + 1);
     CHECK(session.writeChart([](Chart&) {}));
-    CHECK(session.chartRevision() == 2);
+    CHECK(session.chartRevision() == loaded_with_chart + 2);
+}
+
+// A loaded song replaces the chart wholesale, so an accepted load advances the revision too: a
+// re-opened project whose persisted arrangement ids match must not reuse the projection the edited
+// chart left in a cache keyed on (id, revision). A rejected load leaves the chart, and so the
+// revision, alone.
+TEST_CASE("Session loadSong advances the chart revision", "[core][session]")
+{
+    Session session;
+    REQUIRE(session.loadSong(
+        makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0}), 0));
+    const std::uint64_t first_load = session.chartRevision();
+
+    REQUIRE(session.loadSong(
+        makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0}), 0));
+    const std::uint64_t second_load = session.chartRevision();
+    CHECK(second_load > first_load);
+
+    CHECK_FALSE(session.loadSong(
+        makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0}), 1));
+    CHECK(session.chartRevision() == second_load);
 }
 
 // The fifth narrow mutation surface: sections feed the highway projection's labels and camera

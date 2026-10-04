@@ -159,12 +159,14 @@ public:
     /*!
     \brief Returns the chart revision counter that keys chart-projection caches.
 
-    Advances every time a writeChart() write ends, every time the tempo map is replaced, and every
-    time the song sections are replaced. View-state caches pair it with the arrangement id so
-    chart, tempo and section edits invalidate memoized projections without any explicit
-    notification path that could be forgotten.
+    Advances every time a writeChart() write ends, every time the tempo map is replaced, every
+    time the song sections are replaced, and every accepted loadSong(). View-state caches pair it
+    with the arrangement id so chart, tempo and section edits invalidate memoized projections
+    without any explicit notification path that could be forgotten; the load advance keeps a
+    re-opened project whose persisted arrangement ids match from reusing the edited projection.
 
-    \return Monotonic count of chart writes, tempo-map replacements and section replacements.
+    \return Monotonic count of chart writes, tempo-map replacements, section replacements and
+            accepted song loads.
     */
     [[nodiscard]] std::uint64_t chartRevision() const noexcept;
 
@@ -194,7 +196,7 @@ private:
     // Canonical timeline range for the current arrangement content.
     TimeRange m_timeline{};
 
-    // Monotonic count of chart writes; deliberately survives loadSong/reset so it
+    // Monotonic count of chart writes and song loads; deliberately survives loadSong/reset so it
     // can never repeat a value a cache might still hold. Projection caches pair it with the
     // arrangement id.
     std::uint64_t m_chart_revision{0};

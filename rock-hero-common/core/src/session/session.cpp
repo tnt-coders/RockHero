@@ -97,6 +97,7 @@ bool Session::loadSong(Song song, std::size_t selected_arrangement)
     const Arrangement& arrangement = song.arrangements[selected_arrangement];
     const TimeRange timeline = calculateTimeline(arrangement);
     m_song = std::move(song);
+    ++m_chart_revision;
     m_current_arrangement_index = selected_arrangement;
     m_timeline = timeline;
     return true;
