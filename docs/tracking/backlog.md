@@ -28,6 +28,23 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Raised while wording the Tempo Lock refusal (2026-10-04)
+
+- **A chart refusal's log line names its subject once, in the shared log helper.** Marker and
+  section rule refusals already name the item (`song_section_rules.cpp:59-79` print the position);
+  most `ChartPlanInvalid` reasons do not (`chart_edits.cpp`: "the move would leave the neck or the
+  grid", "a scrape has no junction to split"). The flash marks the refused item on screen, but the
+  log is what a bug report carries. Add the subject — the selection or slot the verb acted on —
+  where the chart refusal is logged, once, so every reason keeps saying WHY and the line always
+  says WHAT; never by rewriting each reason string. User, 2026-10-04: do it right after tonight's
+  tempo and meter work if that finishes without needing them.
+- **A refused drag logs one identical line per pointer event.** The Tempo Lock refusal, the
+  out-of-range tempo drag refusal (`tempo_handlers.cpp:~311`) and held-key refusals all log per
+  event, which is correct: the core sees no gesture boundary and the answer can change mid-drag (a
+  bound key can unlock). The flood belongs to the one logger: `logMarkerRefusal`
+  (`marker_model_commit.h:29`) merges identical consecutive records (one line plus a repeat
+  count), rather than any caller tracking gestures. Raised by the Tempo Lock simplicity review.
+
 ## Found by the tempo-editing reviews (plan 41, 2026-10-02)
 
 - **`chartEditFocusOf` reads `ChartCursor::column` without its tolerance check**
