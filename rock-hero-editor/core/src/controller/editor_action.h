@@ -1013,9 +1013,9 @@ struct EditorAction
     /*!
     \brief Move the tempo anchor at a grid position to a time: one event of a tempo-chip drag.
 
-    The pointer form of `Alt+←/→`, ending in the same move tail, so a whole drag is one held run
-    and one undo entry. It moves the anchor only while it is the selection, which the press on its
-    chip made it: a drag whose anchor stopped being selected moves nothing.
+    It writes nothing: it holds the move for ReleaseTempoAnchorDrag to commit once, so the whole
+    drag is one gesture and one undo entry. It holds a move only while the anchor is the selection,
+    which the press on its chip made it: a drag whose anchor stopped being selected holds nothing.
     */
     struct MoveTempoAnchor
     {
@@ -1029,9 +1029,8 @@ struct EditorAction
     /*!
     \brief End a tempo-chip drag (the pointer's release).
 
-    Payload-free: what it commits is the move the drag's last legal event held back, and only a
-    Note Lock drag holds one. A drag with the toggle off has already landed every event,
-    so its release does nothing.
+    Payload-free: what it commits is the move the drag's last legal event held back, as the one
+    commit an `Alt+←/→` press makes. The release of a drag that held nothing does nothing.
     */
     struct ReleaseTempoAnchorDrag
     {

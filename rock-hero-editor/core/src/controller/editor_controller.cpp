@@ -2624,7 +2624,15 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
-    state.tempo_drag_preview = tempoDragPreview();
+    const std::optional<common::core::TempoMap> drag_preview = tempoDragPreview();
+    state.grid_map = drag_preview.value_or(state.tempo_map);
+    state.content_map = m_grid_session.note_lock ? state.tempo_map : state.grid_map;
+    // The cursor rides the dragged chip, drawn where the release's followMovedMarker seeks it.
+    if (const auto* const dragged = std::get_if<TempoAnchorSelection>(&m_selection);
+        drag_preview.has_value() && dragged != nullptr)
+    {
+        state.drag_cursor_seconds = cursorTimeAt(*drag_preview, dragged->position).seconds;
+    }
     // Song-level, so they resolve here rather than in the per-arrangement tab projection; the
     // list is small enough that per-push resolution needs no memoization.
     std::optional<common::core::GridPosition> selected_section_position;

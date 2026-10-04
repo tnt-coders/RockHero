@@ -450,6 +450,28 @@ void TabView::setVisibleContentLeft(int content_left_x)
     repaint(pinnedChromeBounds());
 }
 
+// A new pair moves every mark, and the pinned placement is the one fact here that depends on where
+// the marks stand, so it is re-derived with them. Equal maps re-time nothing, so the lane holds no
+// retime then and the steady state pays no per-mark span search.
+void TabView::setTempoMaps(
+    const common::core::TempoMap& published_map, const common::core::TempoMap& content_map)
+{
+    if (m_published_map == published_map && m_content_map == content_map)
+    {
+        return;
+    }
+
+    m_published_map = published_map;
+    m_content_map = content_map;
+    m_retime = m_published_map == m_content_map ? std::nullopt
+                                                : std::optional{common::ui::TempoRetime{
+                                                      .from = &m_published_map,
+                                                      .to = &m_content_map,
+                                                  }};
+    refreshPinnedFhp(laneMetrics());
+    repaint();
+}
+
 // Applies the current tab projection and lane-count preference; the projection pointer only
 // changes when the displayed arrangement or the chart revision does, so pointer identity is the
 // change test.
@@ -1008,6 +1030,7 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
         m_visible_timeline,
         common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
         tab->stringCount());
+    metrics.retime = m_retime;
     return DrawableLane{.metrics = std::move(metrics), .tab = *tab};
 }
 

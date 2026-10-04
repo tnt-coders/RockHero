@@ -191,7 +191,9 @@ lazy-by-value fallback the user signs).
 2. **Proportional, never coalesced.** No pointer event is dropped, delayed or merged; each is
    committed and derived in full. Where a verb is O(song) by its nature (Scale Tempo, the Note
    Lock, meter edits) it is a command, committed once per command or on release, and the plan
-   says so where the user can see it (Phase 7).
+   says so where the user can see it (Phase 7). A tempo-chip drag is one such gesture in both
+   lock states (66 decision 7, 2026-10-04): every event is published and drawn as a re-timed
+   preview, and the write lands once, on release.
 3. **One scene, one publication.** The controller publishes one `HighwayViewState`, and the tab
    scene is an aliasing `shared_ptr` into its `chart`, so the scene copy goes without making the
    scene nullable; the preview's renderer holds the published pointer. Both surfaces read one
@@ -461,7 +463,8 @@ the rewritten curve equals a full rewrite point for point. **Exit:** resync ≤ 
   are committed **once per command or on release** (66 decision 2): `Alt+←/→` with the Note Lock
   ON commits per press (an explicit command each); the chip drag with it ON re-addresses on
   release, one undo entry, computed from the drag's starting map so the tick rounding happens once
-  (64-Q5). With the toggle OFF a drag is Phase 2's windowed path. This phase contributes the
+  (64-Q5). With the toggle OFF the drag also lands once on release (66 decision 7), so its settle
+  is Phase 2's windowed path run once per gesture. This phase contributes the
   budget, the benchmark rows and the snapshot sizing; the verbs themselves are built in 65 and 66.
 - **Testing:** `test_editor_undo_history` for the byte budget; the benchmark's whole-song rows.
   **Exit:** 100 entries at 4 × 50k stay under the budget; every whole-song verb ≤ 250 ms at 50k;

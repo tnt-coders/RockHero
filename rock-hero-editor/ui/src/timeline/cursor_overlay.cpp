@@ -121,6 +121,11 @@ void CursorOverlay::setPausedCursorHidden(bool hidden) noexcept
     m_paused_cursor_hidden = hidden;
 }
 
+void CursorOverlay::setDragCursor(const std::optional<double> seconds) noexcept
+{
+    m_drag_cursor_seconds = seconds;
+}
+
 void CursorOverlay::setSeekBandHeight(int height) noexcept
 {
     m_seek_band_height = height;
@@ -163,10 +168,12 @@ void CursorOverlay::mouseDown(const juce::MouseEvent& event)
 void CursorOverlay::advanceCursor()
 {
     const bool cursor_visible = m_transport.state().playing || !m_paused_cursor_hidden;
+    const common::core::TimePosition position =
+        m_drag_cursor_seconds.has_value() ? common::core::TimePosition{*m_drag_cursor_seconds}
+                                          : m_transport.position();
     const std::optional<float> next_cursor_x =
-        cursor_visible
-            ? cursorXForTimelinePosition(m_transport.position(), m_visible_timeline, getWidth())
-            : std::nullopt;
+        cursor_visible ? cursorXForTimelinePosition(position, m_visible_timeline, getWidth())
+                       : std::nullopt;
 
     if (next_cursor_x == m_cursor_x)
     {

@@ -634,8 +634,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // re-address is logged under `verb`. Defined in tempo_handlers.cpp, its only user.
     template <typename Edit>
     void commitTempoEdit(std::string_view verb, const Edit& edit, const TempoCommit& landing);
-    // The map a held Note Lock drag would commit (EditorViewState::tempo_drag_preview),
-    // derived from the session's map on every publish so it can never outlive the map it moves.
+    // The map a held tempo-chip drag would commit (EditorViewState::grid_map), derived from the
+    // session's map on every publish so it can never outlive the map it moves.
     [[nodiscard]] std::optional<common::core::TempoMap> tempoDragPreview() const;
     // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative).
     void deleteSelectedTempoAnchor(const TempoAnchorSelection& selection);
@@ -1644,11 +1644,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // select by holding the run aside. A widened entry therefore always reads origin → now.
     std::optional<MarkerModelSnapshot> m_marker_move_origin{};
 
-    // The time a Note Lock tempo-chip drag holds back for the selected anchor (plan 66
-    // decision 7): its last legal event, which the release commits as one whole-song re-address.
-    // Nothing is written while it is held; the grid alone previews it (tempoDragPreview). It names
-    // no anchor of its own, so every selection change drops it, as it ends a held run: otherwise a
-    // Tab onto another chip mid-drag would hand that anchor the dragged one's time.
+    // The time a tempo-chip drag holds back for the selected anchor (plan 66 decision 7): its last
+    // legal event, which the release commits as one move. Nothing is written while it is held; the
+    // view previews it (tempoDragPreview). It names no anchor of its own, so every selection change
+    // drops it, as it ends a held run: otherwise a Tab onto another chip mid-drag would hand that
+    // anchor the dragged one's time.
     std::optional<std::int64_t> m_held_tempo_anchor_milliseconds{};
 
     // The funnel's front half, asked by the commit and by anything that must know in advance what
@@ -1777,6 +1777,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // so the audible tone never lags the lanes and panel that follow the cursor. The selection is
     // kept — contrast activateToneAtCursor(), the transport-driven move, which drops it.
     void moveCursorTo(common::core::GridPosition position);
+
+    // The time a cursor move onto a musical position under a map lands at: the one statement
+    // moveCursorTo seeks to and a held tempo-chip drag draws the cursor at, so the preview shows
+    // the cursor exactly where the release puts it.
+    [[nodiscard]] common::core::TimePosition cursorTimeAt(
+        const common::core::TempoMap& tempo_map, common::core::GridPosition position) const;
 
     // The visible automation lane rows in display order — the lower half of the caret's row
     // axis. Derived from the same projection the lanes view renders, so traversal and display

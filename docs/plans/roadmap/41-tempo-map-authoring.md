@@ -258,17 +258,17 @@ a simplicity review before its commit, and verifies with a build and the touched
 
 ### Phase 4 — Pointer chip drag
 
-The primary method for most users (decision 13). A drag IS a held run (decision 9): each pointer
-event past JUCE's drag threshold moves the anchor through the same move tail as `Alt+←/→`
-(`moveSelectedTempoAnchorTo` → `commitMarkerMove`), so the whole drag is one undo entry and every
-surface follows live because the model itself moves. A refused event leaves the anchor at its last
-legal time. There is no drag cancel (user, 2026-10-03): `Esc` keeps its one meaning, release the
+The primary method for most users (decision 13). Built as a held run (decision 9), each pointer
+event committing through the `Alt+←/→` move tail; **superseded 2026-10-04 by plan 66 decision
+7**, after the per-event commit measured as the cause of the drag's lag: a drag is now one
+gesture whose events hold the move and publish a preview the surfaces re-time to, and the release
+lands the one commit `moveSelectedTempoAnchorTo` makes, one undo entry. A refused event leaves the
+last legal time held. There is no drag cancel (user, 2026-10-03): `Esc` keeps its one meaning, release the
 selection, and `Ctrl+Z` undoes the drag. Measure the per-event commit at pointer rate on
 relwithdebinfo before shipping. Settle by sighting whether the selected anchor's line over the
 waveform needs emphasis (the track draws every beat line, but a sub-beat anchor stands on none).
 Sighting: drag an anchor onto a transient at two zooms; undo is one step; on the largest local
-import the chip tracks the pointer. A `Ctrl+Z` with the button still held undoes the run, and the
-next pointer event starts a new one, exactly as `Alt+→`, `Ctrl+Z`, `Alt+→` does on the keyboard.
+import the chip tracks the pointer.
 
 ### Deferred — tap-tempo readout (out of the first releasable editor)
 

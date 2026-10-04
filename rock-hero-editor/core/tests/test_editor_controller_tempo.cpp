@@ -1,5 +1,6 @@
 #include "log_capture.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
@@ -9,9 +10,12 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
 #include <utility>
@@ -71,6 +75,19 @@ struct TempoEditor : SongEditorHarness
             }
         }
         return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    // The stored time of the anchor at a position in the map the grid draws: the one a held
+    // tempo-chip drag previews, and the session's own map otherwise.
+    [[nodiscard]] std::optional<std::int64_t> gridAnchorMilliseconds(
+        const GridPosition& position) const
+    {
+        const std::vector<common::core::BeatAnchor>& anchors = state().grid_map.anchors();
+        const auto found =
+            std::ranges::find_if(anchors, [&position](const common::core::BeatAnchor& held) {
+                return held.position == position;
+            });
+        return found != anchors.end() ? std::optional{found->milliseconds} : std::nullopt;
     }
 
     [[nodiscard]] TempoChordTarget chord() const
@@ -575,32 +592,127 @@ TEST_CASE("A walked-back anchor run re-mirrors the starting map", "[core][tempo]
     }
 }
 
-// A tempo-chip drag is a held run: every event moves the model live, the whole drag is ONE entry
-// however far it wanders, and one Ctrl+Z puts the anchor back where the press found it.
-TEST_CASE("A tempo-chip drag is one undo entry", "[core][tempo]")
+// A tempo-chip drag is one gesture: its events write nothing — the song, the history, the engine
+// and the transport stay as the press found them while the grid previews the held time and the
+// cursor rides the chip — and the release lands the whole drag as ONE entry, seeking the cursor
+// onto the anchor where it was drawn, that one Ctrl+Z takes back.
+TEST_CASE("A tempo-chip drag writes nothing until its release lands one entry", "[core][tempo]")
 {
     TempoEditor editor;
     editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
+    const int mirrors = editor.audio.mirror_tempo_map_call_count;
+    const int seeks = editor.transport.seek_call_count;
+    const std::optional<KeyboardPositionViewState> keyboard = editor.state().keyboard_position;
 
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
-    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4100});
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4300);
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4200);
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.undoEntryCount() == entries);
+    CHECK(editor.audio.mirror_tempo_map_call_count == mirrors);
+    CHECK(editor.transport.seek_call_count == seeks);
+    // The cursor stays put, so the view's keep-the-measure-in-view scroll has nothing to follow.
+    CHECK(editor.state().keyboard_position == keyboard);
+    CHECK(editor.state().tempo_map == inserted);
+    CHECK(editor.gridAnchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4200});
+    // With the Note Lock off, content moves with the beat: it draws under the preview too.
+    CHECK(editor.state().content_map == editor.state().grid_map);
+    const std::optional<double> drag_cursor = editor.state().drag_cursor_seconds;
+    REQUIRE(drag_cursor.has_value());
+    if (drag_cursor.has_value())
+    {
+        CHECK_THAT(*drag_cursor, WithinAbs(4.2, 1e-9));
+    }
+
+    editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4200});
+    CHECK(editor.audio.mirror_tempo_map_call_count == mirrors + 1);
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(4.2, 1e-9));
+    CHECK_FALSE(editor.state().drag_cursor_seconds.has_value());
     CHECK(editor.undoEntryCount() == entries + 1);
     CHECK(editor.undoTopLabel() == "Move Tempo Anchor");
     CHECK(editor.selectedAnchorPosition() == std::optional{beatAt(3, 1)});
+    CHECK(editor.state().grid_map == editor.tempoMap());
+    CHECK(editor.state().content_map == editor.tempoMap());
 
     editor.controller.onUndoRequested();
     CHECK(editor.tempoMap() == inserted);
 }
 
-// A refused event changes nothing — the anchor stays at its last legal time — and the drag goes on:
-// a later legal event still lands in the same entry.
+// The release lands exactly what one Alt+arrow press to the same time lands, with the Note Lock off
+// and on: the same song, the same history, and the same projections on both surfaces. The press
+// steps one pixel, which at 5 px/s is the drag's 200 ms. Both open one song, so both carry its ids.
+TEST_CASE("A tempo-chip drag lands what one anchor nudge lands", "[core][tempo]")
+{
+    const common::core::Song song = makeEightMeasureSong();
+    TempoEditor dragged{song};
+    TempoEditor nudged{song};
+    bool note_lock = false;
+    SECTION("the Note Lock off")
+    {
+        note_lock = false;
+    }
+    SECTION("the Note Lock on")
+    {
+        note_lock = true;
+    }
+    for (TempoEditor* const editor : {&dragged, &nudged})
+    {
+        editor->unlockTempo();
+        if (note_lock)
+        {
+            editor->controller.onNoteLockToggleRequested();
+        }
+        editor->controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+        REQUIRE(editor->state().note_lock == note_lock);
+    }
+
+    dragged.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    dragged.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4300);
+    dragged.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4200);
+    dragged.controller.onTempoAnchorDragReleased();
+    nudged.controller.onTimelineZoomChanged(5.0);
+    nudged.pressAlt(ChartStepDirection::Right);
+
+    REQUIRE(nudged.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4200});
+    // Each open mints its tone regions fresh ids, so the timelines compare with the ids aligned.
+    const common::core::SongTimeline dragged_timeline = dragged.timeline();
+    common::core::SongTimeline nudged_timeline = nudged.timeline();
+    REQUIRE(nudged_timeline.arrangements.size() == dragged_timeline.arrangements.size());
+    for (std::size_t arrangement = 0; arrangement < nudged_timeline.arrangements.size();
+         ++arrangement)
+    {
+        const std::vector<common::core::ToneRegion>& dragged_regions =
+            dragged_timeline.arrangements[arrangement].tone_track.regions;
+        std::vector<common::core::ToneRegion>& nudged_regions =
+            nudged_timeline.arrangements[arrangement].tone_track.regions;
+        REQUIRE(nudged_regions.size() == dragged_regions.size());
+        for (std::size_t region = 0; region < nudged_regions.size(); ++region)
+        {
+            nudged_regions[region].id = dragged_regions[region].id;
+        }
+    }
+    CHECK(dragged_timeline == nudged_timeline);
+    CHECK(dragged.state().undo_history.labels == nudged.state().undo_history.labels);
+    const std::shared_ptr<const common::core::ChartViewState> dragged_tab = dragged.state().tab;
+    const std::shared_ptr<const common::core::ChartViewState> nudged_tab = nudged.state().tab;
+    REQUIRE(dragged_tab != nullptr);
+    REQUIRE(nudged_tab != nullptr);
+    CHECK(*dragged_tab == *nudged_tab);
+    const std::shared_ptr<const common::core::HighwayViewState> dragged_highway =
+        dragged.state().highway;
+    const std::shared_ptr<const common::core::HighwayViewState> nudged_highway =
+        nudged.state().highway;
+    REQUIRE(dragged_highway != nullptr);
+    REQUIRE(nudged_highway != nullptr);
+    CHECK(*dragged_highway == *nudged_highway);
+}
+
+// A refused event changes nothing it held — the preview stays at the last legal time — and the
+// drag goes on: a later legal event is the one the release lands.
 TEST_CASE("A refused tempo-chip drag event holds the last legal time", "[core][tempo]")
 {
     TempoEditor editor;
@@ -612,10 +724,12 @@ TEST_CASE("A refused tempo-chip drag event holds the last legal time", "[core][t
 
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 5000);
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 8000);
-    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{5000});
+    CHECK(editor.gridAnchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{5000});
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 9000);
-    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{5000});
+    CHECK(editor.gridAnchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{5000});
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 6000);
+    CHECK(editor.gridAnchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{6000});
+    editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{6000});
     CHECK(editor.anchorMilliseconds(beatAt(5, 1)) == std::optional<std::int64_t>{8000});
     CHECK(editor.undoEntryCount() == entries + 1);
@@ -626,24 +740,29 @@ TEST_CASE("A refused tempo-chip drag event holds the last legal time", "[core][t
     // The first anchor may not go below zero.
     editor.controller.onTempoAnchorSelected(beatAt(1, 1));
     editor.controller.onTempoAnchorMoveRequested(beatAt(1, 1), -1);
+    editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.anchorMilliseconds(beatAt(1, 1)) == std::optional<std::int64_t>{0});
 }
 
-// A drag that ends where it began leaves no Ctrl+Z that changes nothing.
-TEST_CASE("A tempo-chip drag back to its origin leaves no entry", "[core][tempo]")
+// A drag released where it began leaves no Ctrl+Z that changes nothing, and resyncs nothing.
+TEST_CASE("A tempo-chip drag released at its origin commits nothing", "[core][tempo]")
 {
     TempoEditor editor;
     editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
+    const int mirrors = editor.audio.mirror_tempo_map_call_count;
 
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 3900);
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4000);
+    editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
     CHECK(editor.undoTopLabel() == "Add Tempo Anchor");
+    CHECK(editor.audio.mirror_tempo_map_call_count == mirrors);
+    CHECK(editor.state().grid_map == inserted);
 }
 
 // A sub-beat anchor drags as itself, never as the on-beat anchor of its beat, which bounds it.
@@ -655,8 +774,10 @@ TEST_CASE("A sub-beat tempo anchor drags as itself", "[core][tempo]")
     editor.controller.onTempoAnchorSelected(sub_beat);
 
     editor.controller.onTempoAnchorMoveRequested(sub_beat, 2300);
-    CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2300});
+    CHECK(editor.gridAnchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2300});
     editor.controller.onTempoAnchorMoveRequested(sub_beat, 2000);
+    CHECK(editor.gridAnchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2300});
+    editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2300});
     CHECK(editor.anchorMilliseconds(beatAt(2, 1)) == std::optional<std::int64_t>{2000});
 }
@@ -688,6 +809,7 @@ TEST_CASE("A tempo-chip drag moves only the selected anchor while paused", "[cor
         editor.transport.current_state.playing = true;
         editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
     }
+    editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
 }

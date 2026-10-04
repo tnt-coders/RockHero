@@ -108,6 +108,13 @@ public:
     void setPausedCursorHidden(bool hidden) noexcept;
 
     /*!
+    \brief Stores where the cursor draws while a tempo-chip drag holds a move, or absence to draw
+    it at the transport's position.
+    \param seconds The held anchor's time, or empty while no drag holds one.
+    */
+    void setDragCursor(std::optional<double> seconds) noexcept;
+
+    /*!
     \brief Restricts seek clicks to the highway band (the waveform/tab rows).
 
     Clicks below the band — the tone strip and automation lanes — are not seeks (the marker
@@ -187,6 +194,9 @@ private:
     // True while a chart is displayed, hiding the paused line (the caret or the ruler mark is
     // the paused position display then).
     bool m_paused_cursor_hidden{false};
+
+    // Where the cursor draws while a tempo-chip drag holds a move, absent otherwise.
+    std::optional<double> m_drag_cursor_seconds{};
 
     // Highway band height gating seek clicks; zero or less accepts clicks anywhere.
     int m_seek_band_height{0};

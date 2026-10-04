@@ -437,6 +437,10 @@ template <class ComponentType>
             },
         .tempo_map =
             common::core::TempoMap::defaultMap(common::core::TimeDuration{duration_seconds}),
+        .grid_map =
+            common::core::TempoMap::defaultMap(common::core::TimeDuration{duration_seconds}),
+        .content_map =
+            common::core::TempoMap::defaultMap(common::core::TimeDuration{duration_seconds}),
         .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
         .signal_chain =
             core::SignalChainViewState{
@@ -451,6 +455,20 @@ template <class ComponentType>
         .input_calibration_prompt = std::nullopt,
         .busy = std::nullopt,
     };
+}
+
+/*!
+\brief Publishes a session map with no tempo-chip drag in flight, as the core does: the grid and
+content draw under the session's map itself.
+\param state Editor view state to update.
+\param tempo_map The session's map.
+*/
+inline void setSessionTempoMap(
+    core::EditorViewState& state, const common::core::TempoMap& tempo_map)
+{
+    state.tempo_map = tempo_map;
+    state.grid_map = tempo_map;
+    state.content_map = tempo_map;
 }
 
 /*!

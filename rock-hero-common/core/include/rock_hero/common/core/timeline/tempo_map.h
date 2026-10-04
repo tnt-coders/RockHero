@@ -206,6 +206,21 @@ public:
     [[nodiscard]] double beatPositionAtSeconds(double seconds) const noexcept;
 
     /*!
+    \brief Re-times an instant resolved under another map to where this map puts the same music.
+
+    The time a tempo edit gives an instant it does not re-address: the music at \p seconds under
+    \p origin keeps its place, and this map answers its new time. A span whose two anchors this map
+    shares with \p origin re-times nothing, so the answer is exactly \p seconds there — and
+    everywhere when the maps are equal. A time outside \p origin's anchors stands before or after
+    the music, so it keeps its time too.
+
+    \param origin Map \p seconds was resolved under; it must state the same meters as this map.
+    \param seconds Absolute second position under \p origin.
+    \return The same music's second position under this map.
+    */
+    [[nodiscard]] double secondsRetimedFrom(const TempoMap& origin, double seconds) const noexcept;
+
+    /*!
     \brief Returns the quarter-note length of one anchor span.
 
     Span \p span runs from anchor \p span to the anchor after it, so its tempo is this length over
@@ -468,6 +483,10 @@ private:
     // Inverse-interpolates the anchor span containing a time onto the metronome axis, clamping
     // outside the authored anchors: the step every seconds-to-place query shares.
     [[nodiscard]] double quarterPositionAtSeconds(double seconds) const noexcept;
+
+    // The anchor span holding a time: the last anchor at or before it, held below the terminal so
+    // a span always follows. Requires at least two anchors.
+    [[nodiscard]] std::size_t spanAtSeconds(double seconds) const noexcept;
 
     // Interpolates a quarter-note position to seconds through a binary search of the anchors.
     [[nodiscard]] double secondsAtQuarterPosition(double quarter_position) const noexcept;

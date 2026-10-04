@@ -260,6 +260,16 @@ public:
     void setArmedChartCaret(std::optional<double> seconds);
 
     /*!
+    \brief Stores where the cursor draws while a tempo-chip drag holds a move
+    (core::EditorViewState::drag_cursor_seconds), or absence to draw it at the transport.
+
+    The ruler's mark, the paused column and the overlay's line all ride it, without a seek.
+
+    \param seconds The held anchor's time, or empty while no drag holds one.
+    */
+    void setDragCursor(std::optional<double> seconds);
+
+    /*!
     \brief Stores the tablature caret's paused-column cut-out span, pushed by the tab lane.
 
     The behind-content paused play-from-here column hides its span behind the armed caret square so
@@ -637,6 +647,10 @@ private:
     // ruler's aligned mark (the caret is the position display) and re-centers wheel zoom on
     // the caret.
     std::optional<double> m_armed_caret_seconds{};
+
+    // Where the cursor draws while a tempo-chip drag holds a move, absent otherwise
+    // (setDragCursor).
+    std::optional<double> m_drag_cursor_seconds{};
 
     // Caret paused-column cut-out spans (content coordinates) pushed by the caret-bearing views,
     // so the paused column's gap is never derived by polling sibling geometry. At most one is set

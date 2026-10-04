@@ -2136,16 +2136,16 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     // Clip columns relative to the lane's left edge, which is where x() measures time from.
     const int clip_from = clip.getX() - metrics.bounds.getX();
     const int clip_to = clip.getRight() - metrics.bounds.getX();
+    // The span is asked of content's own times, so the drawn window is re-timed back to the map
+    // they were resolved under; a note re-timed into the clip from outside it is found the same
+    // way.
     return common::core::TimeRange{
-        .start =
-            common::core::TimePosition{
-                metrics.visible_timeline.start.seconds +
-                static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds
-            },
-        .end = common::core::TimePosition{
+        .start = common::core::TimePosition{metrics.publishedSeconds(
             metrics.visible_timeline.start.seconds +
-            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds
-        },
+            static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds)},
+        .end = common::core::TimePosition{metrics.publishedSeconds(
+            metrics.visible_timeline.start.seconds +
+            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds)},
     };
 }
 

@@ -50,6 +50,10 @@ decides it — the run ends at any other commit point: another edit, a selection
 redo, a save. It makes the landing selection itself, since a selection change ends the run and
 only the funnel may survive its own. A move that is not invertible step by step builds each press
 from the run's origin (`markerMoveRunOrigin`), so a run walked back lands that origin exactly.
+The tempo chip's pointer drag is NOT a run: it is one gesture whose events write nothing (they
+hold the move and publish a preview map, plan 66 decision 7), and its release makes the one
+commit a single `Alt+←/→` press would, so the drag is one entry, one engine resync and one
+re-projection, and a drag released where it began records nothing.
 Five snapshots plug in today: `TempoMapSnapshot`
 (`timeline/tempo_map_snapshot.h` — the song's whole tempo map behind anchor insert, typed tempo,
 move and delete; its `validate` is the shared `validateTempoMapRules`, and its apply goes through

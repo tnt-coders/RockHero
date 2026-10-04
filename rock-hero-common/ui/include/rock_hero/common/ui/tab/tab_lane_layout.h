@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <vector>
 
@@ -136,6 +137,32 @@ struct TabSatelliteSlot
 };
 
 /*!
+\brief Two maps a lane's times move between: the one they were resolved under and the one its
+content draws under (common::core::TempoMap::secondsRetimedFrom).
+
+Pointers, not copies: a geometry lives for one paint, and the host's maps outlive it. Both are
+always set; a lane with nothing to re-time holds no retime at all.
+*/
+struct TempoRetime
+{
+    /*! \brief The map the lane's times were resolved under. */
+    const common::core::TempoMap* from;
+
+    /*! \brief The map the lane's content draws under. */
+    const common::core::TempoMap* to;
+
+    /*!
+    \brief Re-times a time from \ref from to \ref to.
+    \param seconds Time under \ref from.
+    \return The same music's time under \ref to.
+    */
+    [[nodiscard]] double operator()(double seconds) const noexcept
+    {
+        return to->secondsRetimedFrom(*from, seconds);
+    }
+};
+
+/*!
 \brief Layout facts shared by every glyph of one rendered tablature lane.
 
 Sizes follow Charter's DrawerUtils: the lane height fixes the note height (laneHeight = 1.5 x
@@ -147,6 +174,15 @@ struct TabLaneGeometry
 {
     /*! \brief Timeline range represented by the lane width. */
     common::core::TimeRange visible_timeline{};
+
+    /*!
+    \brief The re-time content draws through, or nothing to draw each time as it is.
+
+    Set by a host whose content draws under another map than the one its times were resolved
+    under (the editor lane while a tempo-chip drag previews): \ref x re-times every time through
+    it.
+    */
+    std::optional<TempoRetime> retime{};
 
     /*! \brief Left edge of the lane bounds; \ref x measures horizontal positions from it. */
     float bounds_x{};
@@ -301,11 +337,20 @@ struct TabLaneGeometry
     bool draw_text{};
 
     /*!
-    \brief Maps a timeline time onto the lane's horizontal axis.
-    \param seconds Timeline time to map.
+    \brief Maps a timeline time onto the lane's horizontal axis, through \ref retime when the
+    host set one.
+    \param seconds Timeline time to map, as the lane was handed it.
     \return Horizontal pixel position in the bounds' coordinate space.
     */
     [[nodiscard]] float x(double seconds) const noexcept;
+
+    /*!
+    \brief Re-times a time the lane draws at back to the time its content was handed: the inverse
+    of \ref x's re-time, for a host that bounds its content by the drawn window.
+    \param drawn_seconds Timeline time as the lane draws it.
+    \return The same music's time as the lane was handed it.
+    */
+    [[nodiscard]] double publishedSeconds(double drawn_seconds) const noexcept;
 
     /*!
     \brief Returns the timeline seconds one horizontal pixel spans: the inverse of \ref x's scale.

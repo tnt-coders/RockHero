@@ -6,6 +6,7 @@
 #include "timeline/track_viewport.h"
 
 #include <algorithm>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -150,17 +151,18 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     };
 }
 
-// A chart carrying one bare note head at the very first beat: the figure the leftmost scroll
-// position has to draw whole.
-[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeOriginNoteChart()
+// A chart carrying one bare note head on the lowest string at a time: at the very first beat, the
+// figure the leftmost scroll position has to draw whole.
+[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeSingleNoteChart(
+    const double start_seconds)
 {
     common::core::ChartViewState chart;
     chart.open_strings = common::core::testing::standardTuning();
     chart.notes = {
         common::core::NoteViewState{
-            .start_seconds = 0.0,
-            .ring_end_seconds = 0.5,
-            .ink_end_seconds = 0.0,
+            .start_seconds = start_seconds,
+            .ring_end_seconds = start_seconds + 0.5,
+            .ink_end_seconds = start_seconds,
             .string = 1,
             .fret = 3,
             .bend = {},
@@ -1017,7 +1019,7 @@ TEST_CASE("EditorView transport readout tracks the transport position", "[ui][ed
     // One 4/4 measure over 4.0s is one beat per second, so 1.5s sits halfway through measure 1
     // beat 2.
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     transport.current_position = common::core::TimePosition{1.5};
     view.setState(state);
 
@@ -1051,7 +1053,7 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
         },
     };
     auto state = makeLoadedEditorState(7.3);
-    state.tempo_map = two_measure_map;
+    setSessionTempoMap(state, two_measure_map);
     transport.current_position = common::core::TimePosition{two_measure_map.secondsAtBeat(2, 1)};
     view.setState(state);
 
@@ -1110,8 +1112,8 @@ TEST_CASE("EditorView draws the first beat's head whole at leftmost scroll", "[u
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
-    state.tab = makeOriginNoteChart();
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
+    state.tab = makeSingleNoteChart(0.0);
     view.setState(state);
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
@@ -1283,7 +1285,7 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     view.setState(state);
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
@@ -1352,7 +1354,7 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     view.setState(state);
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     thumbnail_factory.last_thumbnail->fill_color = juce::Colours::lightgreen;
@@ -1406,7 +1408,7 @@ TEST_CASE("EditorView quiets the tempo grid while snap is off", "[ui][editor-vie
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     view.setState(state);
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
@@ -1712,7 +1714,7 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     view.setState(state);
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
@@ -1753,7 +1755,7 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     view.setState(state);
 
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
@@ -1793,14 +1795,16 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+    setSessionTempoMap(
+        state,
+        common::core::TempoMap{
+            std::vector{
+                common::core::TimeSignatureChange{
+                    .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+                },
             },
-        },
-        std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
-    };
+            std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
+        });
     state.marker_edits_enabled = true;
     view.setState(state);
 
@@ -1828,11 +1832,15 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
     CHECK(controller.timeline_seek_count == 0);
 }
 
-// A Note Lock drag publishes the map it would commit beside the session's: the grid and
-// the dragged chip draw from it, so they follow the pointer while content, which reaches the view
-// already placed in time, holds still. The session's beats fall every second; the preview pulls
-// 1:3 from 2 s to 2.5 s, so its first span's beats fall every 1.25 s.
-TEST_CASE("EditorView draws the grid and the dragged chip from a drag preview", "[ui][editor-view]")
+// A tempo-chip drag publishes the map its release would land as the grid map, and the core's
+// answer for content as the content map: the grid and the dragged chip follow the grid map in both
+// lock states, while content is re-timed to the content map, which is the preview with the Note
+// Lock off and the session's map with it on. The session's beats fall every second; the preview
+// pulls 1:3 from 2 s to 2.5 s, so its first span's beats fall every 1.25 s and the note on beat 2
+// draws at 1.25 s when content follows the beat.
+TEST_CASE(
+    "EditorView draws the grid from the grid map and content from the content map",
+    "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1852,16 +1860,29 @@ TEST_CASE("EditorView draws the grid and the dragged chip from a drag preview", 
         };
     };
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = map_with_third_beat_at(2000);
-    state.tempo_drag_preview = map_with_third_beat_at(2500);
+    setSessionTempoMap(state, map_with_third_beat_at(2000));
+    state.grid_map = map_with_third_beat_at(2500);
+    state.tab = makeSingleNoteChart(1.0);
     state.selected_tempo_anchor = common::core::GridPosition{.measure = 1, .beat = 3};
     state.marker_edits_enabled = true;
+
+    double content_seconds = 0.0;
+    SECTION("the Note Lock off: content moves with the beat")
+    {
+        state.content_map = state.grid_map;
+        content_seconds = 1.25;
+    }
+    SECTION("the Note Lock on: content holds its time")
+    {
+        content_seconds = 1.0;
+    }
     view.setState(state);
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    auto& tab_view = findRequiredDescendant<TabView>(view, "tab_view");
     REQUIRE(
         findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll").getViewPositionX() ==
         0);
@@ -1887,6 +1908,17 @@ TEST_CASE("EditorView draws the grid and the dragged chip from a drag preview", 
         const auto chip_x = static_cast<float>(chip->getX());
         CHECK(std::abs(chip_x - preview_x) < std::abs(chip_x - session_x));
     }
+
+    const std::optional<juce::Rectangle<float>> head = tab_view.noteHeadBounds(0);
+    REQUIRE(head.has_value());
+    if (head.has_value())
+    {
+        const float head_x = static_cast<float>(tab_view.getX()) + head->getCentreX();
+        CHECK_THAT(
+            head_x,
+            Catch::Matchers::WithinAbs(
+                canvasXForTime(track_viewport, track_content, content_seconds), 0.5));
+    }
 }
 
 // Verifies the track grid, overlay snapping, and ruler snapping all use the state note value.
@@ -1900,7 +1932,7 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     state.grid_note_value = common::core::Fraction{1, 8};
     view.setState(state);
 
@@ -1999,7 +2031,7 @@ TEST_CASE("EditorView right-click does not seek the timeline", "[ui][editor-view
 
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
-    state.tempo_map = makeOneMeasureTempoMap(4000);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
     view.setState(state);
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");

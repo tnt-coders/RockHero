@@ -216,7 +216,7 @@ struct LanesHarness
         common::core::TempoMap::defaultMap(common::core::TimeDuration{8.0});
     RecordingLanesListener listener;
     StubToneAutomation tone_automation;
-    ToneAutomationLanesView view{listener, tempo_map, tone_automation};
+    ToneAutomationLanesView view{listener, tempo_map, tempo_map, tone_automation};
 
     LanesHarness()
     {
@@ -250,7 +250,7 @@ TEST_CASE("Lanes view has zero height with no selected tone", "[ui][tone-automat
 {
     LanesHarness harness;
     const ToneAutomationLanesView empty{
-        harness.listener, harness.tempo_map, harness.tone_automation
+        harness.listener, harness.tempo_map, harness.tempo_map, harness.tone_automation
     };
     CHECK(empty.totalHeight() == 0);
     CHECK_FALSE(empty.wantsPointerAt({10, 10}));
@@ -260,7 +260,9 @@ TEST_CASE(
     "Lanes view keeps the plus chip hittable with nothing to offer", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
+    ToneAutomationLanesView view{
+        harness.listener, harness.tempo_map, harness.tempo_map, harness.tone_automation
+    };
     view.setSize(800, 200);
 
     // A selected tone with no lanes and no listable parameters (empty tone, or listing failure)
@@ -279,7 +281,9 @@ TEST_CASE(
     "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
+    ToneAutomationLanesView view{
+        harness.listener, harness.tempo_map, harness.tempo_map, harness.tone_automation
+    };
     int heights_changed_count = 0;
     view.setHeightsChangedCallback([&heights_changed_count] { heights_changed_count += 1; });
 

@@ -363,14 +363,20 @@ Every tempo verb that changes a time (typed tempo, anchor delete, anchor move) e
 and it commits either that map alone (`TempoMapSnapshot`, `keptPlace`) or, with the toggle on, the
 whole song re-addressed under it (`SongTimelineSnapshot`, `timeKeptPlaces`), as one entry either
 way. A held `Alt+←/→` run re-addresses from the run's origin, as the meter move does, so it rounds
-once. A chip drag with the toggle on writes nothing per pointer event: the core holds the move and
-publishes the map it would make as `EditorViewState::tempo_drag_preview`, which the grid lines and
-the ruler draw from while every content position keeps the session's map, and the release
-(`IEditorController::onTempoAnchorDragReleased`) commits it as one re-address.
+once. A chip drag, with the toggle on or off, writes nothing per pointer event: the core holds the
+move and publishes the map it would make as `EditorViewState::grid_map`, which the grid lines and
+the ruler draw from (the cursor rides the chip, `drag_cursor_seconds`), and as
+`EditorViewState::content_map` when the toggle is off, so
+content re-times with the beat (with it on, content keeps the session's map and its time). The
+release (`IEditorController::onTempoAnchorDragReleased`) commits it once, as one move or one
+re-address.
 
 The flow every feature follows: charts author `GridPosition` → a projection resolves seconds
 through the `TempoMap` once (`chart_projection.cpp` and `highway_projection.cpp` both walk a
 `ForwardBeatTimeCursor`) → renderers consume seconds only and never do musical math per frame.
+The one time query a 2D surface asks per mark is `TempoMap::secondsRetimedFrom` at its
+seconds-to-pixel seam, a span lookup that is the identity unless a tempo-chip drag previews, so a
+drag re-times what is drawn instead of re-projecting the song per pointer event.
 
 # Who owns tempo truth (and the one-way mirror)
 

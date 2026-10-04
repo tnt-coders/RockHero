@@ -46,10 +46,20 @@ float tabLaneCenterY(
 // positions in that component's own space.
 float TabLaneGeometry::x(double seconds) const noexcept
 {
+    const double drawn_seconds = retime.has_value() ? (*retime)(seconds) : seconds;
     const double duration = visible_timeline.duration().seconds;
     return bounds_x + static_cast<float>(
-                          (seconds - visible_timeline.start.seconds) / duration *
+                          (drawn_seconds - visible_timeline.start.seconds) / duration *
                           static_cast<double>(bounds_width));
+}
+
+double TabLaneGeometry::publishedSeconds(double drawn_seconds) const noexcept
+{
+    if (!retime.has_value())
+    {
+        return drawn_seconds;
+    }
+    return TempoRetime{.from = retime->to, .to = retime->from}(drawn_seconds);
 }
 
 double TabLaneGeometry::secondsPerPixel() const noexcept

@@ -1,10 +1,13 @@
 #include "timeline/tempo_map.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <iterator>
 #include <limits>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -364,14 +367,8 @@ double TempoMap::quarterPositionAtSeconds(double seconds) const noexcept
         return m_anchor_quarter_positions.back();
     }
 
-    // The span starts at the last anchor at or before the position; the clamps above guarantee an
-    // interior position with a real span around it. The projection is the seconds accessor, so the
-    // query compares in its own unit and a time between two whole milliseconds finds its span.
-    const auto after = std::ranges::upper_bound(m_anchors, seconds, {}, &BeatAnchor::seconds);
-    const auto first_after = static_cast<std::size_t>(std::distance(m_anchors.begin(), after));
-    const std::size_t span_start =
-        std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
-
+    // The clamps above guarantee an interior position with a real span around it.
+    const std::size_t span_start = spanAtSeconds(seconds);
     const double seconds_span =
         m_anchors[span_start + 1].seconds() - m_anchors[span_start].seconds();
     if (seconds_span <= 0.0)
@@ -385,6 +382,15 @@ double TempoMap::quarterPositionAtSeconds(double seconds) const noexcept
                        m_anchor_quarter_positions[span_start]);
 }
 
+// The projection is the seconds accessor, so the query compares in its own unit and a time between
+// two whole milliseconds finds its span.
+std::size_t TempoMap::spanAtSeconds(double seconds) const noexcept
+{
+    const auto after = std::ranges::upper_bound(m_anchors, seconds, {}, &BeatAnchor::seconds);
+    const auto first_after = static_cast<std::size_t>(std::distance(m_anchors.begin(), after));
+    return std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
+}
+
 // The quarter position converted back to beats through the containing segment's scale.
 double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
 {
@@ -392,6 +398,26 @@ double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
     const SignatureSegment& segment = segmentForQuarterPosition(quarter_position);
     return static_cast<double>(segment.start_beat_index) +
            (quarter_position - segment.startQuarterPosition()) / segment.quartersPerBeat();
+}
+
+// Equal meters make the two maps' metronome axes one axis, so the music at a time is its quarter
+// position under the origin. The shared-span answer is the exact one, not a shortcut: the
+// interpolation there and back would return the time only to within rounding.
+double TempoMap::secondsRetimedFrom(const TempoMap& origin, const double seconds) const noexcept
+{
+    assert(m_time_signatures == origin.m_time_signatures);
+    const std::vector<BeatAnchor>& from = origin.m_anchors;
+    if (from.size() < 2 || seconds < from.front().seconds() || seconds > from.back().seconds())
+    {
+        return seconds;
+    }
+    const std::size_t span = origin.spanAtSeconds(seconds);
+    if (span + 1 < m_anchors.size() && m_anchors[span] == from[span] &&
+        m_anchors[span + 1] == from[span + 1])
+    {
+        return seconds;
+    }
+    return secondsAtQuarterPosition(origin.quarterPositionAtSeconds(seconds));
 }
 
 double TempoMap::wholeNotePositionAtSeconds(double seconds) const noexcept

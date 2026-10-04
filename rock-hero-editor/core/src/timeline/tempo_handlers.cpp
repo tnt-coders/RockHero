@@ -331,16 +331,12 @@ void EditorController::Impl::onTempoAnchorMoveRequested(
     runAction(EditorAction::MoveTempoAnchor{.position = position, .milliseconds = milliseconds});
 }
 
-// One event of a tempo-chip drag, the pointer form of Alt+arrows: the press selected the anchor, so
-// each event is one more press of a held run on it and the whole drag is one undo entry. The move
-// is asked only of the SELECTED anchor, which is what proves the run is this drag's: selecting here
-// instead would let an event after Esc released the anchor quietly grab it again and open a second
-// entry.
-//
-// With the Note Lock on, an event writes nothing (plan 66 decision 7): re-addressing the whole
-// song costs too much per pointer event, so the event's move is HELD for the release to commit and
-// the grid alone previews it. It is judged now, so a refused event keeps the last legal time held,
-// exactly as a live drag keeps the anchor there.
+// One event of a tempo-chip drag. An event writes nothing (plan 66 decision 7): the drag is one
+// gesture, so its move is HELD for the release to commit once, and the event only publishes the
+// map the release would land for the grid and content to draw (tempoDragPreview). It is judged
+// now, so a refused event keeps the last legal time held. The move is asked only of the SELECTED
+// anchor, the one the press selected: selecting here instead would let an event after Esc
+// released the anchor quietly grab it again.
 void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnchor& action)
 {
     const TempoAnchorSelection dragged{.position = action.position};
@@ -353,11 +349,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
     // flash joins its running pulse train rather than restarting per event.
     if (refuseLockedTempoAnchorMove(dragged, "dragging"))
     {
-        return;
-    }
-    if (!m_grid_session.note_lock)
-    {
-        moveSelectedTempoAnchorTo(dragged, action.milliseconds);
         return;
     }
     if (const TempoMapEditResult moved =
@@ -382,11 +373,13 @@ void EditorController::Impl::onTempoAnchorDragReleased()
     }
 }
 
-// Commits the time a Note Lock drag held: one whole-song re-address from the map the drag
-// started on, which it never wrote, so the drag is one entry. The preview ends with the drag
-// whatever the commit does, so the release publishes that first; the projections are keyed on the
-// chart revision, which only a landed commit moves, so that publish re-projects nothing. The lock
-// is asked again because the release IS the move, and a bound key can lock mid-drag.
+// Commits the time a drag held, as one move from the map the drag started on, which it never wrote:
+// the very commit one Alt+arrow press makes, so the drag is one entry, one engine resync and one
+// re-projection, and with the Note Lock on its one whole-song re-address. The preview ends with
+// the drag whatever the commit does, so the release publishes that first; the projections are
+// keyed on the chart revision, which only a landed commit moves, so that publish re-projects
+// nothing. The lock is asked again because the release IS the move, and a bound key can lock
+// mid-drag.
 void EditorController::Impl::performActionImpl(EditorAction::ReleaseTempoAnchorDrag /*action*/)
 {
     const std::optional<std::int64_t> held =

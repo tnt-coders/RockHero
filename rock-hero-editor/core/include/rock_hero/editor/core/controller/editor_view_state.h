@@ -1075,19 +1075,44 @@ struct EditorViewState
     */
     common::core::TimeRange visible_timeline{};
 
-    /*! \brief Song-level tempo map used to render the editor beat grid. */
+    /*!
+    \brief The session's song-level tempo map: the map every published time in this state was
+    resolved under, and the one clicks snap through.
+    */
     common::core::TempoMap tempo_map{};
 
     /*!
-    \brief The map a Note Lock tempo-chip drag would commit, while one is in flight, for
-    the beat grid's drawing only; nothing otherwise.
+    \brief The map the beat grid and the ruler (its labels and its tempo and time-signature chips)
+    draw from: \ref tempo_map, or while a tempo-chip drag is in flight, the map its release would
+    land.
 
-    Such a drag writes nothing until its release re-addresses the song once, so \ref tempo_map
-    stays the session's map and everything placed in time keeps its place. The grid lines, the
-    ruler's measure and beat labels, and its tempo and time-signature chips draw from this map
-    instead, so the grid and the dragged chip follow the pointer while the notes hold still.
+    A drag writes nothing until its release commits it once, so \ref tempo_map stays the session's
+    map throughout; this map is how the grid and the dragged chip follow the pointer meanwhile.
     */
-    std::optional<common::core::TempoMap> tempo_drag_preview{};
+    common::core::TempoMap grid_map{};
+
+    /*!
+    \brief The map content draws under: \ref grid_map with the Note Lock off, so content moves
+    with the beat, and \ref tempo_map with it on, so content holds its time — what the release
+    lands either way.
+
+    Every published time is re-timed from \ref tempo_map to this map at each content surface's
+    seconds-to-pixel seam (common::core::TempoMap::secondsRetimedFrom), which is the identity
+    whenever the two are equal. The re-time is exact for every onset and end, so notes, rings,
+    keyframes, hand markers, sections, tone regions and automation stand where the release puts
+    them. Only notation a law states in seconds — a tail's crop, the kept-sustain floor, a head's
+    margin — was decided under \ref tempo_map and is off by the drag's tempo ratio until the
+    release re-derives it. The waveform never re-times: audio keeps its time.
+    */
+    common::core::TempoMap content_map{};
+
+    /*!
+    \brief Where the cursor draws while a tempo-chip drag holds a move: the held anchor's time,
+    which is where the release seeks it; nothing otherwise, when it draws at the transport.
+
+    The cursor rides the chip without a seek, so no event moves the transport or scrolls the view.
+    */
+    std::optional<double> drag_cursor_seconds{};
 
     /*!
     \brief Song-structure sections resolved to seconds for the ruler's section chip row; empty

@@ -43,9 +43,10 @@ const juce::Colour g_tone_region_label{juce::Colours::white.withAlpha(0.92f)};
 
 ToneTrackView::ToneTrackView(
     Listener& listener, const common::core::TempoMap& tempo_map,
-    const common::audio::ITransport& transport)
+    const common::core::TempoMap& content_map, const common::audio::ITransport& transport)
     : m_listener(listener)
     , m_tempo_map(tempo_map)
+    , m_content_map(content_map)
     , m_transport(transport)
     , m_vblank_attachment(this, [this] { reportPlaybackFrame(); })
 {}
@@ -526,12 +527,8 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
         m_drag->preview_end = *snapped;
     }
 
-    const double guide_seconds = m_tempo_map.secondsAt(*snapped);
-    const std::optional<float> guide_x = core::timelineXForPosition(
-        common::core::TimePosition{guide_seconds},
-        m_visible_timeline,
-        getWidth(),
-        core::TimelinePositionClamping::ClampToVisibleRange);
+    const std::optional<float> guide_x =
+        xForTime(common::core::TimePosition{m_tempo_map.secondsAt(*snapped)});
     if (guide_x.has_value())
     {
         emitSnapGuide(
@@ -660,20 +657,21 @@ void ToneTrackView::mouseDoubleClick(const juce::MouseEvent& event)
     m_listener.onToneRenamePromptRequested(region.tone_document_ref, region.name);
 }
 
+std::optional<float> ToneTrackView::xForTime(common::core::TimePosition position) const
+{
+    return core::timelineXForPosition(
+        common::core::TimePosition{m_content_map.secondsRetimedFrom(m_tempo_map, position.seconds)},
+        m_visible_timeline,
+        getWidth(),
+        core::TimelinePositionClamping::ClampToVisibleRange);
+}
+
 // Maps one region's span to component x coordinates, or empty when unmappable.
 std::optional<std::pair<float, float>> ToneTrackView::regionXSpan(
     const core::ToneRegionViewState& region) const
 {
-    const std::optional<float> start_x = core::timelineXForPosition(
-        region.time_range.start,
-        m_visible_timeline,
-        getWidth(),
-        core::TimelinePositionClamping::ClampToVisibleRange);
-    const std::optional<float> end_x = core::timelineXForPosition(
-        region.time_range.end,
-        m_visible_timeline,
-        getWidth(),
-        core::TimelinePositionClamping::ClampToVisibleRange);
+    const std::optional<float> start_x = xForTime(region.time_range.start);
+    const std::optional<float> end_x = xForTime(region.time_range.end);
     if (!start_x.has_value() || !end_x.has_value() || *end_x <= *start_x)
     {
         return std::nullopt;
@@ -748,11 +746,7 @@ std::optional<common::core::GridPosition> ToneTrackView::insertPositionForX(
 // on the grid's pixel instead of the fraction beside it that the raw float mapping produces.
 std::optional<float> ToneTrackView::gridAlignedX(common::core::TimePosition position) const
 {
-    const std::optional<float> x = core::timelineXForPosition(
-        position,
-        m_visible_timeline,
-        getWidth(),
-        core::TimelinePositionClamping::ClampToVisibleRange);
+    const std::optional<float> x = xForTime(position);
     if (!x.has_value())
     {
         return std::nullopt;

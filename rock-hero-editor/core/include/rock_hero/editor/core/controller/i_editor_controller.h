@@ -735,14 +735,13 @@ public:
     /*!
     \brief Handles one event of a tempo-chip drag: move the anchor at a grid position to a time.
 
-    The pointer form of `Alt+←/→`, in free time, ending in the same move tail: every event of one
-    drag continues one held run, so the whole drag is ONE undo entry, and a drag that ends where it
-    began leaves none. The model itself moves, so every surface follows live. The anchor moves only
-    while it is the selection, which the press on its chip made it; a time onto or past a
-    neighbour, or below zero for the first anchor, is refused and the anchor stays at its last
-    legal time. Inert while playing, like every marker edit. With the Note Lock on, an event
-    writes nothing: it holds the move for \ref onTempoAnchorDragReleased to commit and publishes
-    the map it would make as EditorViewState::tempo_drag_preview.
+    The pointer form of `Alt+←/→`, in free time. An event writes nothing: it holds the move for
+    \ref onTempoAnchorDragReleased to commit once, and publishes the map that release would land as
+    EditorViewState::grid_map (and as EditorViewState::content_map with the Note Lock off), so the
+    grid, the chip and content follow the pointer while the song, the history and the engine stay
+    as the press found them. The anchor moves only while it is the selection, which the press on its
+    chip made it; a time onto or past a neighbour, or below zero for the first anchor, is refused
+    and the last legal time stays held. Inert while playing, like every marker edit.
 
     \param position Grid position of the dragged anchor.
     \param milliseconds Time asked for, in whole milliseconds.
@@ -753,12 +752,11 @@ public:
     /*!
     \brief Handles the pointer's release after a press on a tempo chip, whether it dragged or not.
 
-    The one gesture boundary the drag reports, and only the Note Lock needs it: with the
-    toggle on, the drag's events write nothing and only preview the grid, because re-addressing
-    the whole song costs too much per pointer event, so the release is where the song is
-    re-addressed once, as one undo entry. The core alone knows whether a drag held anything: a
-    plain click, a drag with the toggle off (every event already landed) and a drag whose anchor
-    stopped being the selection commit nothing.
+    The drag's one gesture boundary: its events write nothing, so the release is where the held
+    move lands, once, as the commit one `Alt+←/→` press makes: one undo entry, one engine resync,
+    and with the Note Lock on one whole-song re-address. The core alone knows whether a drag held
+    anything: a plain click, a drag released where it began and a drag whose anchor stopped being
+    the selection commit nothing.
     */
     virtual void onTempoAnchorDragReleased() = 0;
 

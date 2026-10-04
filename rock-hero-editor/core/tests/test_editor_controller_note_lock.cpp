@@ -23,7 +23,6 @@ namespace
 
 using Catch::Matchers::WithinAbs;
 using common::core::SongTimeline;
-using common::core::TempoMap;
 using common::core::testing::anchor;
 using common::core::testing::beatAt;
 using testing::checkTimesHeld;
@@ -170,15 +169,15 @@ TEST_CASE("The tempo lock refuses moves under the Note Lock", "[core][tempo][not
 
     editor.pressAlt(ChartStepDirection::Right);
     editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4200);
-    CHECK_FALSE(editor.state().tempo_drag_preview.has_value());
+    CHECK(editor.state().grid_map == before.tempo_map);
     editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == entries);
     CHECK(editor.view.tempo_anchor_refusal_flashes.size() == 2);
 }
 
-// During a drag the song is not written: the session keeps its map, which is what content keeps
-// drawing from, and the grid's preview map is published beside it. The release lands the whole
+// During a drag the song is not written: the grid's preview map is published beside the session's,
+// and content keeps drawing under the session's map, holding its time. The release lands the whole
 // drag as one entry from the map the drag started on, every time held, and the preview ends.
 TEST_CASE("A Note Lock drag previews the grid and commits on release", "[core][tempo][note-lock]")
 {
@@ -194,18 +193,18 @@ TEST_CASE("A Note Lock drag previews the grid and commits on release", "[core][t
     CHECK(editor.timeline() == before);
     CHECK(editor.state().tempo_map == before.tempo_map);
     CHECK(editor.undoEntryCount() == entries);
-    const std::optional<TempoMap>& preview = editor.state().tempo_drag_preview;
-    REQUIRE(preview.has_value());
-    if (preview.has_value())
+    CHECK(editor.state().content_map == before.tempo_map);
+    const TempoMapEditResult expected = moveTempoAnchor(before.tempo_map, beatAt(3, 1), 4200);
+    REQUIRE(expected.has_value());
+    if (expected.has_value())
     {
-        const TempoMapEditResult expected = moveTempoAnchor(before.tempo_map, beatAt(3, 1), 4200);
-        REQUIRE(expected.has_value());
-        CHECK(*preview == *expected);
+        CHECK(editor.state().grid_map == *expected);
     }
 
     editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4200});
-    CHECK_FALSE(editor.state().tempo_drag_preview.has_value());
+    CHECK(editor.state().grid_map == editor.tempoMap());
+    CHECK(editor.state().content_map == editor.tempoMap());
     const SongTimeline after = editor.timeline();
     checkTimesHeld(before, after, 0.0);
     CHECK(editor.undoEntryCount() == entries + 1);
@@ -236,15 +235,15 @@ TEST_CASE("A Note Lock drag that goes nowhere commits nothing", "[core][tempo][n
     SECTION("released after Esc")
     {
         editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
-        REQUIRE(editor.state().tempo_drag_preview.has_value());
+        REQUIRE_FALSE(editor.state().grid_map == before.tempo_map);
         editor.controller.onChartEscapePressed();
-        CHECK_FALSE(editor.state().tempo_drag_preview.has_value());
+        CHECK(editor.state().grid_map == before.tempo_map);
     }
 
     editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK_FALSE(editor.state().tempo_drag_preview.has_value());
+    CHECK(editor.state().grid_map == before.tempo_map);
 }
 
 } // namespace rock_hero::editor::core

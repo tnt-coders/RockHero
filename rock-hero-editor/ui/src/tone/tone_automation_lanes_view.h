@@ -183,12 +183,15 @@ public:
     \brief Creates the automation lanes row.
     \param listener Listener that receives automation intents.
     \param tempo_map Tempo map used for musical snapping; referenced, not copied, so the owner must
-    keep it alive for this view's lifetime.
+    keep it alive for this view's lifetime. Every published time was resolved under it.
+    \param content_map Map the lanes draw under (core::EditorViewState::content_map); referenced,
+    not copied, on the same terms.
     \param tone_automation Automation port polled read-only at render cadence so each lane's
     anchor follows the parameter's tone-state value; referenced for this view's lifetime.
     */
     ToneAutomationLanesView(
         Listener& listener, const common::core::TempoMap& tempo_map,
+        const common::core::TempoMap& content_map,
         const common::audio::IToneAutomation& tone_automation);
 
     /*!
@@ -566,7 +569,8 @@ private:
     [[nodiscard]] std::optional<common::core::GridPosition> musicalPositionForX(
         float content_x) const;
 
-    // Converts a musical position to a content x for drawing, when the geometry is valid.
+    // THE lanes' one time-to-x seam: a published time re-timed to the content map (identity unless
+    // a tempo-chip drag previews), then mapped across the width, when the geometry is valid.
     [[nodiscard]] std::optional<float> xForSeconds(double seconds) const;
 
     // The curve's value at a time, matching exactly what paint draws: the lane's anchor followed
@@ -708,6 +712,9 @@ private:
 
     // Tempo map used for musical snapping and readouts; owned by the editor session.
     const common::core::TempoMap& m_tempo_map;
+
+    // The map the lanes draw under, owned by the editor view state (xForSeconds).
+    const common::core::TempoMap& m_content_map;
 
     // Timeline range represented by the full content width.
     common::core::TimeRange m_visible_timeline{};

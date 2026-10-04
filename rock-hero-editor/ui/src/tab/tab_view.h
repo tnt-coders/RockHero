@@ -249,6 +249,19 @@ public:
     void setVisibleContentLeft(int content_left_x);
 
     /*!
+    \brief Stores the map the projection's times were resolved under and the map its content
+    draws under (core::EditorViewState::content_map).
+
+    Equal maps draw every time as published; while a tempo-chip drag previews, every mark is
+    re-timed at the lane's one seconds-to-pixel seam (common::ui::TabLaneGeometry::x).
+
+    \param published_map The session's map, which the projection's times were resolved under.
+    \param content_map The map content draws under.
+    */
+    void setTempoMaps(
+        const common::core::TempoMap& published_map, const common::core::TempoMap& content_map);
+
+    /*!
     \brief Applies the current tab projection and lane-count preference.
 
     The projection is compared by pointer identity: the controller rebuilds it only when the
@@ -501,6 +514,14 @@ private:
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
+
+    // The maps setTempoMaps stores: the one the projection was resolved under and the one content
+    // draws under, which m_retime points at.
+    common::core::TempoMap m_published_map{};
+    common::core::TempoMap m_content_map{};
+
+    // The re-time between the two, or nothing while they are equal.
+    std::optional<common::ui::TempoRetime> m_retime{};
 
     // Steps the presence ease and the refusal flash each display frame while they have work. Last,
     // so every member the steps read is constructed before the attachment can fire and destroyed

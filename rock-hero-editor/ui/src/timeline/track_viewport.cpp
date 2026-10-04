@@ -402,6 +402,19 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
     updateRulerCursor();
 }
 
+// Forwarded to the overlay, whose line rides it too; the mark re-derives now, as the caret's does.
+void TrackViewport::setDragCursor(const std::optional<double> seconds)
+{
+    if (m_drag_cursor_seconds == seconds)
+    {
+        return;
+    }
+
+    m_drag_cursor_seconds = seconds;
+    m_cursor_overlay.setDragCursor(seconds);
+    updateRulerCursor();
+}
+
 // The caret-bearing views push their paused-column cut-out spans here whenever they change, so the
 // paused cursor's gap is kept in step with the drawn caret square without the viewport ever polling
 // sibling geometry. The push carries the fresh mask in the same synchronous pass as the square, so
@@ -1157,7 +1170,8 @@ void TrackViewport::updateRulerCursor()
     const bool playing = m_transport.state().playing;
     const double mark_seconds =
         playing ? m_transport.position().seconds
-                : m_armed_caret_seconds.value_or(m_transport.position().seconds);
+                : m_armed_caret_seconds.value_or(
+                      m_drag_cursor_seconds.value_or(m_transport.position().seconds));
     // The caret masks arrive pushed from the caret-bearing views (already in content coordinates),
     // so this never polls their geometry — the gap can never be derived from a caret a view has
     // not adopted yet. At most one is set at a time (one marker editor-wide); the tab lane wins if

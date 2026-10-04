@@ -449,4 +449,39 @@ TEST_CASE("TempoMap forward cursor matches the query around a sub-beat anchor", 
     }
 }
 
+// Verifies a re-time from the map itself returns every time exactly, inside the anchors and on
+// either side of them.
+TEST_CASE("TempoMap re-times a time from itself to the same time", "[core][tempo-map]")
+{
+    const TempoMap tempo_map = makeSparseAnchor44Map();
+
+    for (const double seconds : {0.0, 10.0, 12.3456789, 14.0, 15.1, 15.5, 99.0})
+    {
+        CHECK_THAT(
+            tempo_map.secondsRetimedFrom(tempo_map, seconds), WithinULP(seconds, std::uint64_t{0}));
+    }
+}
+
+// Verifies a moved first anchor re-times an instant inside the span it changed by the tempo ratio:
+// 1:1 from 0 s to 1 s over the same 32 quarters takes the span from 120 to 128 BPM, so 8 s, 16
+// quarters in, lands 16 quarters at 128 BPM after 1 s. The span it does not touch keeps its times.
+TEST_CASE("TempoMap re-times a moved first anchor's span by its tempo ratio", "[core][tempo-map]")
+{
+    const TempoMap origin = commonTimeMap({
+        anchor("1:1", 0),
+        anchor("9:1", 16000),
+        anchor("10:1", 18000),
+    });
+    const TempoMap moved = commonTimeMap({
+        anchor("1:1", 1000),
+        anchor("9:1", 16000),
+        anchor("10:1", 18000),
+    });
+
+    CHECK_THAT(
+        moved.secondsRetimedFrom(origin, 8.0),
+        WithinULP(1.0 + (8.0 * 120.0 / 128.0), std::uint64_t{4}));
+    CHECK_THAT(moved.secondsRetimedFrom(origin, 17.25), WithinULP(17.25, std::uint64_t{0}));
+}
+
 } // namespace rock_hero::common::core

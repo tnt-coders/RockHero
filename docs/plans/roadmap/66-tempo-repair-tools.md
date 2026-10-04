@@ -4,8 +4,8 @@
 Lock), Phase 2 (`799d2a12`, Scale Tempo, on the generalized `readdressTimeline`), and Phase 3 (the
 Note Lock, the commit after `4f1cb4c9`; renamed from "Keep Notes in Time" on 2026-10-04). Open
 for the user:
-- the sighting of all three tools, including the Note Lock drag's grid-only preview
-  (decision 7, resolved overnight on the recommendation);
+- the sighting of all three tools, including the chip drag's preview-then-land gesture in both
+  lock states (decision 7, resolved overnight on the recommendation and widened the same day);
 - the strings: "Scale Tempo...", "Scale factor (e.g. 2, 1/2, 3/2)", "Scale", the factor bound
   of 16;
 - the whole-song verbs' cost at 50k notes (the Note Lock ≈ 300 ms against plan 64's
@@ -63,11 +63,11 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    whole-note re-addressing transform — Scale Tempo with a factor, the Note Lock with the old
    and new maps — over the same slice list, and both commit through plan 65's whole-song snapshot,
    one undo entry per command. Neither restates the slice list.
-2. **A Note Lock drag commits on release.** With the toggle off, plan 41's chip drag
-   stays as built (the anchor moves live, one entry). With it on, the chip and grid follow the
-   pointer and the song is re-addressed ONCE at release, from the drag's starting map, as one
-   entry — which also rounds every position to the tick lattice once instead of compounding the
-   rounding per event (plan 64's 64-Q5, recommendation B).
+2. **A Note Lock drag commits on release.** The chip and grid follow the pointer and the
+   song is re-addressed ONCE at release, from the drag's starting map, as one entry — which also
+   rounds every position to the tick lattice once instead of compounding the rounding per event
+   (plan 64's 64-Q5, recommendation B). Decision 7 (2026-10-04) made the toggle-off drag the same
+   gesture: it too commits once, on release, where plan 41 committed it per event.
 3. **The lock blocks only moves** — the chip drag and `Alt+←/→` — and is ON by default at every
    song open, every session, never saved. A refused move gets the refusal flash (red glow on the
    refused selection plus the log line, `docs/plans/in-progress/refusal-flash.md`), never a status
@@ -125,16 +125,30 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    single-meter song is never refused; its end re-seats. The terminal re-seats through plan 65's
    `reseatTerminalAnchor`.
 
-7. **Q1 resolved (2026-10-04, overnight, on the recommendation):** a Note Lock drag
-   previews by the grid alone.
-   - **During the drag:** the session is not written. The chip and the beat grid follow the
-     pointer through a preview map that the view state publishes for the grid's drawing only.
-     Content keeps drawing from the session's unchanged map, so it holds its time, which is
-     exactly what release will produce. No whole-song work runs per pointer event (plan 64
-     decision 2), and nothing on screen shows content moving that release will not move.
-   - **At release:** one re-address from the drag's starting map, through decision 5's
-     transform, commits ONE undo entry.
-   - **With the toggle off:** plan 41's live drag stays as built.
+7. **Q1 resolved (2026-10-04, overnight, on the recommendation), then widened the same day to
+   every chip drag:** a chip drag is ONE gesture — hold, preview, land once — with the Note Lock
+   on or off. The widening followed the measured drag lag on a 766-note song: a commit per pointer
+   event (about 5–6 ms) kept the message queue fed, so the vblank paint never ran until the
+   pointer paused.
+   - **During the drag:** the session, the history and the engine are not written; the core
+     holds the last legal time. The view state publishes two maps beside the session's: the
+     **grid map** (the map the release would land), which the grid, the ruler and its chips draw
+     from, and the **content map** — the grid map with the toggle off, so content
+     moves with the beat, and the session's map with it on, so content holds its time. Every
+     content surface re-times its published seconds to the content map at its own
+     seconds-to-pixel seam (`TempoMap::secondsRetimedFrom`); the view has no lock branch and the
+     waveform never re-times. Onsets and ends are exact per event; notation a law states in
+     seconds (a tail's crop, the kept-sustain floor, a head margin) is off by the drag's tempo
+     ratio until the release. The cursor rides the chip (user, 2026-10-04): it is drawn on the
+     held anchor's time, where the release seeks it, with no seek or scroll per event. No
+     whole-song work runs per pointer event (plan 64 decision 2), and nothing on screen shows
+     anything moving that release will not move.
+   - **At release:** the one commit an `Alt+←/→` press makes, from the drag's starting map: the
+     map alone with the toggle off, one re-address through decision 5's transform with it on.
+     ONE undo entry, one engine resync, one re-projection; a drag released where it began
+     records nothing.
+   - **Key runs are unchanged:** `Alt+←/→` lands per press (a key run has no release), so its
+     run coalescing stays.
    - **Rejected:** re-addressing per event from the drag's origin. It is correct, but it is
      whole-song work per pointer event (about 100 ms at 50k notes).
 

@@ -200,7 +200,7 @@ struct ToneTrackHarness
         common::core::TempoMap::defaultMap(common::core::TimeDuration{8.0});
     RecordingToneTrackListener listener;
     StubTransport transport;
-    ToneTrackView view{listener, tempo_map, transport};
+    ToneTrackView view{listener, tempo_map, tempo_map, transport};
 
     ToneTrackHarness()
     {

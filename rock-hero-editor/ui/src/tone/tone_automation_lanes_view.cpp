@@ -210,9 +210,11 @@ private:
 
 ToneAutomationLanesView::ToneAutomationLanesView(
     Listener& listener, const common::core::TempoMap& tempo_map,
+    const common::core::TempoMap& content_map,
     const common::audio::IToneAutomation& tone_automation)
     : m_listener(listener)
     , m_tempo_map(tempo_map)
+    , m_content_map(content_map)
     , m_tone_automation(tone_automation)
     , m_vblank_attachment(this, [this] {
         repaintMovedAnchorLanes();
@@ -572,8 +574,10 @@ std::optional<float> ToneAutomationLanesView::xForSeconds(double seconds) const
     {
         return std::nullopt;
     }
+    const double drawn_seconds = m_content_map.secondsRetimedFrom(m_tempo_map, seconds);
     return static_cast<float>(
-        (seconds - m_visible_timeline.start.seconds) / duration * static_cast<double>(getWidth()));
+        (drawn_seconds - m_visible_timeline.start.seconds) / duration *
+        static_cast<double>(getWidth()));
 }
 
 float ToneAutomationLanesView::snappedValueForLane(

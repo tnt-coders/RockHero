@@ -130,14 +130,17 @@ public:
     /*!
     \brief Creates the tone track row.
     \param listener Listener that receives tone-region intents.
-    \param tempo_map Tempo map used to snap edge drags; referenced, not copied, so the owner must
-    keep it alive for this view's lifetime.
+    \param tempo_map Tempo map used to snap edge drags, and the map every published time was
+    resolved under; referenced, not copied, so the owner must keep it alive for this view's
+    lifetime.
+    \param content_map Map the regions draw under (core::EditorViewState::content_map); referenced,
+    not copied, on the same terms.
     \param transport Read-only transport whose playing flag gates the per-frame report, so the
     controller is told about elapsed frames only while playback can move the playhead.
     */
     ToneTrackView(
         Listener& listener, const common::core::TempoMap& tempo_map,
-        const common::audio::ITransport& transport);
+        const common::core::TempoMap& content_map, const common::audio::ITransport& transport);
 
     /*!
     \brief Stores the visible timeline range used to map region spans to pixels.
@@ -310,6 +313,10 @@ private:
     // exit routes through the single deferred-state adoption point.
     void finishGesture(const juce::MouseEvent& event);
 
+    // THE row's one time-to-x seam, clamped to the visible range: a published time re-timed to the
+    // content map (identity unless a tempo-chip drag previews), then mapped across the width.
+    [[nodiscard]] std::optional<float> xForTime(common::core::TimePosition position) const;
+
     // Maps one region's span to component x coordinates, or empty when unmappable.
     [[nodiscard]] std::optional<std::pair<float, float>> regionXSpan(
         const core::ToneRegionViewState& region) const;
@@ -354,6 +361,9 @@ private:
 
     // Tempo map owned by the editor view state, referenced to snap edge drags to beats.
     const common::core::TempoMap& m_tempo_map;
+
+    // The map regions draw under, owned by the editor view state (xForTime).
+    const common::core::TempoMap& m_content_map;
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};

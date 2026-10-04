@@ -229,7 +229,7 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Move the selected tempo anchor to a time: one event of a tempo-chip drag. */
     MoveTempoAnchor,
 
-    /*! \brief End a tempo-chip drag: commit the move a Note Lock drag held back. */
+    /*! \brief End a tempo-chip drag: commit the move the drag held back. */
     ReleaseTempoAnchorDrag,
 
     /*! \brief Scale every grid address in the song by a typed factor, every time held. */

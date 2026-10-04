@@ -96,7 +96,7 @@ which reads the CURSOR and never the selection: a section standing on the downbe
 the cursor is in is renamed, otherwise one is inserted there (2026-09-14; `F2` is gone as of
 2026-09-12). The tempo chip carries the tempo verbs (plan 41): `Enter` and a double-click open
 the BPM prompt through the core's published restate verb, `Alt+←/→` and a drag move its time
-freely (a drag is one held run, one undo entry), and a right-click on the tempo row opens Add
+freely (a drag is one gesture and one undo entry, below), and a right-click on the tempo row opens Add
 Tempo Anchor, Set Tempo... and Delete Tempo Anchor, plus Scale Tempo... wherever the row is clicked
 (`TimelineRuler::tempoMenuAt`), which runs the same `ScaleTempo` command as the Edit menu's item
 (plan 66: every address in the song scaled by a typed factor, every time held, one entry; see
@@ -109,14 +109,28 @@ available. Its toggle is the toolbar button right of the grid selector (`ModeTog
 chart menu, one command (`ToggleTempoLock`) behind both. Its pair, 4 px to its right, is the **Note
 Lock** (`ToggleNoteLock`), off at every song open and never saved: while it is on,
 a typed tempo, a delete and a move keep every object's time and re-address it instead of moving it
-with the beat (\ref guide_musical_time). A chip drag then writes nothing until the release: the
-core publishes the map the drag would make as `tempo_drag_preview`, and `EditorView::setState`
-hands it to `TrackViewport::setGrid`, so the canvas grid lines and the whole ruler (tick marks,
-measure and beat labels, the tempo and time-signature chips) follow the pointer, while everything
-placed in time — notes, hand markers, sections, tone regions and automation, the cursor overlay
-and the transport readout — keeps the session's `tempo_map` and holds still. The ruler reports
-every release of a chip press (`TimelineRuler::Listener::onTempoAnchorDragReleased`), and the
-core, which alone knows whether the drag held a time, commits there. The time-signature chip
+with the beat (\ref guide_musical_time). A chip drag, with the Note Lock on or off, writes
+nothing until the release (plan 66 decision 7): each pointer event holds the move, and the core
+publishes two maps beside the session's `tempo_map`. The **grid map** is the map the release would
+land; `EditorView::setState` hands it to `TrackViewport::setGrid`, so the canvas grid lines and
+the whole ruler (tick marks, measure and beat labels, the tempo and time-signature chips) follow
+the pointer. The cursor rides the chip: the core publishes the held anchor's time as
+`drag_cursor_seconds`, the time the release seeks it to (`cursorTimeAt`, the one statement
+`moveCursorTo` seeks through), and `TrackViewport::setDragCursor` draws the ruler's mark, the
+paused column and `CursorOverlay`'s line there without a seek. The **content
+map** is the grid map with the Note Lock off and `tempo_map` with it on — the core's answer, so no
+view branches on the lock. Every published time stays as the session resolved it, and each
+content surface re-times it from `tempo_map` to the content map at its one seconds-to-pixel seam
+(`TempoMap::secondsRetimedFrom`, the identity whenever the maps are equal): the tab lane's
+`TabLaneGeometry::x` (its culling span maps back through `publishedSeconds`), the tone row's
+`ToneTrackView::xForTime`, the lanes' `ToneAutomationLanesView::xForSeconds`, and the ruler's
+section chips where `EditorView::setState` builds them. The waveform never re-times. Onsets and
+ends land exactly where the release puts them; notation a law states in seconds (a tail's crop,
+the kept-sustain floor, a head margin) is off by the drag's tempo ratio until the release
+re-derives it. Nothing is committed, resynced or re-projected per event, and the transport does
+not move, so the keep-the-measure-in-view scroll stays put. The ruler reports every release of a chip
+press (`TimelineRuler::Listener::onTempoAnchorDragReleased`), and the core, which alone knows
+whether the drag held a time, commits there once: the commit one `Alt+←/→` press makes. The time-signature chip
 carries the meter
 verbs (plan 65): `Enter` and a double-click open the meter prompt ("Set Time Signature", one field
 typed as "7/8") through the core's published restate verb, `Delete` removes the change, `Alt+←/→`

@@ -434,8 +434,9 @@ EditorView::EditorView(
               BinaryData::lock_note_open_svg, BinaryData::lock_note_open_svgSize))
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
-    , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
-    , m_tone_automation_lanes_view(*this, m_state.tempo_map, audio_ports.tone_automation)
+    , m_tone_track_view(*this, m_state.tempo_map, m_state.content_map, audio_ports.transport)
+    , m_tone_automation_lanes_view(
+          *this, m_state.tempo_map, m_state.content_map, audio_ports.tone_automation)
     , m_cursor_overlay(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
@@ -742,14 +743,11 @@ void EditorView::setState(const core::EditorViewState& state)
     // keeps the view from ever snapping by a different rule than the controller did.
     const common::core::Fraction placement_quantum =
         core::placementQuantumNoteValue(m_state.grid_note_value, m_state.grid_snap);
-    // The grid draws from a Note Lock drag's preview map while one is in flight; content
-    // reaches the view already placed in time, so it holds still under the moving grid.
-    const std::optional<common::core::TempoMap>& drag_preview = m_state.tempo_drag_preview;
+    // The grid draws from the grid map, content from the content map, and the cursor rides the
+    // dragged chip: the session's map and the transport unless a tempo-chip drag previews, and
+    // which map content follows is the core's answer, so no surface here asks which lock is on.
     m_track_viewport->setGrid(
-        drag_preview.has_value() ? *drag_preview : m_state.tempo_map,
-        m_state.grid_note_value,
-        placement_quantum,
-        m_state.grid_snap);
+        m_state.grid_map, m_state.grid_note_value, placement_quantum, m_state.grid_snap);
     if (shouldFocusCursorAfterStateChange(previous_state, m_state))
     {
         // Restored zoom applies before the recenter so centering math uses the restored scale.
@@ -760,6 +758,7 @@ void EditorView::setState(const core::EditorViewState& state)
         }
         m_track_viewport->requestCursorFocus();
     }
+    m_track_viewport->setDragCursor(m_state.drag_cursor_seconds);
     m_transport_controls.setState(m_state.transport);
     m_grid_spacing_selector.setNoteValue(m_state.grid_note_value);
     m_grid_spacing_selector.setSnapEnabled(m_state.grid_snap);
@@ -802,6 +801,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_arrangement_view.setWaveformVisible(m_state.waveform_visible);
 
     m_tab_view.setState(m_state.tab, m_state.tab_minimum_displayed_strings);
+    m_tab_view.setTempoMaps(m_state.tempo_map, m_state.content_map);
     m_tab_view.setEditState(m_state.chart_edit);
     // The viewport needs the displayed lane count because counts past the six-string reference
     // density grow the waveform row instead of compressing the tablature lanes.
@@ -847,14 +847,17 @@ void EditorView::setState(const core::EditorViewState& state)
             juce::String{static_cast<int>(selected_count)} + " notes", juce::dontSendNotification);
     }
 
-    // The ruler's section chip row shows the song's section markers as a pinned marker lane.
+    // The ruler's section chip row shows the song's section markers as a pinned marker lane. A
+    // section is content, so its time is re-timed to the content map here, its one seconds
+    // hand-off.
     std::vector<RulerSectionLabel> section_labels;
     section_labels.reserve(m_state.sections.size());
     for (const core::SongSectionViewState& section : m_state.sections)
     {
         section_labels.push_back(
             RulerSectionLabel{
-                .seconds = section.seconds,
+                .seconds =
+                    m_state.content_map.secondsRetimedFrom(m_state.tempo_map, section.seconds),
                 .position = section.position,
                 .name = juce::String{section.name},
                 .selected = section.selected,

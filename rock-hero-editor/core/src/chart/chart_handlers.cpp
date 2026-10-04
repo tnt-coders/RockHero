@@ -372,7 +372,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     disarmChartVerbWindow();
     // A selection change is a commit point for a held marker move too, even back onto the same
     // marker: commitMarkerMove survives only its own landing select, by holding the run aside.
-    // It ends a Note Lock chip drag the same way, dropping the time the drag held.
+    // It ends a tempo-chip drag the same way, dropping the time the drag held.
     m_marker_move_origin.reset();
     m_held_tempo_anchor_milliseconds.reset();
     static_cast<void>(settleChart());
@@ -480,11 +480,15 @@ void EditorController::Impl::dissolveChartCaretInPlace()
 // Contrast activateToneAtCursor(), which the TRANSPORT moved under and which drops the
 // cursor-coupled selection. Either way the rig follows: the cursor is one of the three inputs the
 // audible tone is derived from (syncAudibleTone).
+common::core::TimePosition EditorController::Impl::cursorTimeAt(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition position) const
+{
+    return session().timeline().clamp(common::core::TimePosition{tempo_map.secondsAt(position)});
+}
+
 void EditorController::Impl::moveCursorTo(const common::core::GridPosition position)
 {
-    m_transport.seek(
-        session().timeline().clamp(
-            common::core::TimePosition{session().song().tempo_map.secondsAt(position)}));
+    m_transport.seek(cursorTimeAt(session().song().tempo_map, position));
     // Only the passive cursor remembers a column; while a caret is armed the caret's own position
     // IS the remembered one, and disarmChartMarker carries it across at the demotion. That is why a
     // dissolve seeks through here and demotes afterwards.

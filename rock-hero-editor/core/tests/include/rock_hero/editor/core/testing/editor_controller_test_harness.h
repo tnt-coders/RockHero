@@ -2344,7 +2344,9 @@ struct SongEditorHarness
     {
         const std::vector<common::core::BeatAnchor>& anchors = tempoMap().anchors();
         const auto found =
-            std::ranges::find(anchors, position, &common::core::BeatAnchor::position);
+            std::ranges::find_if(anchors, [&position](const common::core::BeatAnchor& held) {
+                return held.position == position;
+            });
         return found != anchors.end() ? std::optional{found->milliseconds} : std::nullopt;
     }
 
