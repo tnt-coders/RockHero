@@ -45,6 +45,7 @@
 #include <algorithm>
 #include <array>
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
 #include <cstddef>
 #include <cstring>
 #include <expected>
@@ -52,6 +53,7 @@
 #include <memory>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
+#include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -524,6 +526,29 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // The paused redraw: song time frozen, frame delta zero, the camera smoother asked to
         // integrate nothing.
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, 0.0, 30);
+
+        // The camera is the host's: a re-published state (an edit of the chart on screen) keeps it
+        // gliding from where it is, and only resetCamera (a load) snaps it to its target. Framed
+        // at rest on the first zone, then one frame of glide toward the last zone's target, which
+        // the hand's wide jump puts elsewhere.
+        const std::vector<double>& zone_starts = families.camera_zone_starts;
+        REQUIRE(zone_starts.size() >= 2);
+        const auto same_pose = [](const common::core::HighwayCameraPose& lhs,
+                                  const common::core::HighwayCameraPose& rhs) {
+            return std::is_eq(lhs.x <=> rhs.x) && std::is_eq(lhs.z <=> rhs.z);
+        };
+        renderer->resetCamera();
+        drawFrames(*renderer, *device, zone_starts.front(), 0.0, 1);
+        const common::core::HighwayCameraPose framed = renderer->cameraPose();
+        drawFrames(*renderer, *device, zone_starts.back(), 1.0 / 60.0, 1);
+        const common::core::HighwayCameraPose gliding = renderer->cameraPose();
+        CHECK_FALSE(same_pose(gliding, framed));
+        renderer->setViewState(std::make_shared<const common::core::HighwayViewState>(families));
+        drawFrames(*renderer, *device, zone_starts.back(), 0.0, 1);
+        CHECK(same_pose(renderer->cameraPose(), gliding));
+        renderer->resetCamera();
+        drawFrames(*renderer, *device, zone_starts.back(), 0.0, 1);
+        CHECK_FALSE(same_pose(renderer->cameraPose(), gliding));
 
         // A content swap mid-sweep, under the non-default display mapping.
         const common::core::Arrangement swap_arrangement = makeSwapArrangement();

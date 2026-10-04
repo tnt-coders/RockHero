@@ -105,6 +105,7 @@ void PreviewSurface::attach()
         updateChildBounds();
         m_time_model.resetForSnap();
         m_previous_tick = std::chrono::nanoseconds{0};
+        m_camera_reset_pending = true;
         // Retry a renderer that failed to come up on an earlier open (a stale or partial shader
         // deploy since repaired). This never re-initializes bgfx — the device stays alive across
         // the failure precisely so init happens exactly once per process — so it is always safe.
@@ -236,6 +237,11 @@ void PreviewSurface::setHighwayState(std::shared_ptr<const common::core::Highway
     m_state_dirty = true;
 }
 
+void PreviewSurface::resetCamera()
+{
+    m_camera_reset_pending = true;
+}
+
 void PreviewSurface::setMinimumStringCount(const int count)
 {
     m_display_options.minimum_string_count = count;
@@ -346,6 +352,11 @@ void PreviewSurface::renderFrame()
         // allocating a fresh one per clear.
         static const auto empty = std::make_shared<const common::core::HighwayViewState>();
         m_renderer->setViewState(m_state != nullptr ? m_state : empty);
+    }
+    // After the state, so a re-frame asked with a new chart frames that chart.
+    if (std::exchange(m_camera_reset_pending, false))
+    {
+        m_renderer->resetCamera();
     }
 
     const std::chrono::nanoseconds now = std::chrono::steady_clock::now().time_since_epoch();

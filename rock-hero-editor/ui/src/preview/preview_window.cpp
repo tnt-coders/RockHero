@@ -91,6 +91,12 @@ void PreviewWindow::setHighwayState(std::shared_ptr<const common::core::HighwayV
     m_surface->setHighwayState(std::move(state));
 }
 
+// Forwards the re-frame to the surface, which applies it after any pending state swap.
+void PreviewWindow::resetCamera()
+{
+    m_surface->resetCamera();
+}
+
 // Forwards the tab's displayed-string minimum to the surface's board.
 void PreviewWindow::setMinimumStringCount(const int count)
 {

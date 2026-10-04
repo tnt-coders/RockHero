@@ -2385,9 +2385,9 @@ struct HighwayRenderer::Impl
         return common::core::highwayStringGridTopY(displayed_count, metrics);
     }
 
-    // Re-seats the board after either setter's change: snaps the camera, resolves the displayed
-    // lanes from the state and the options, and rebuilds the board face they lay out.
-    void reseatBoard();
+    // Resolves the displayed lanes from the state and the options, and reports whether their
+    // count moved: the one fact of a state the board face is laid out from.
+    [[nodiscard]] bool seatLanes();
     void rebuildBoardFace();
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
 
@@ -2638,11 +2638,24 @@ void HighwayRenderer::setViewState(std::shared_ptr<const common::core::HighwayVi
     m_impl->tap_release_prefix_max = common::core::makeSustainPrefixMax(
         published.tap_onsets |
         std::views::transform(&common::core::HighwayTapOnsetViewState::release_seconds));
-    m_impl->reseatBoard();
+    if (m_impl->seatLanes())
+    {
+        m_impl->rebuildBoardFace();
+    }
 }
 
-// An unchanged set does nothing; a change re-seats the board exactly as a new state does — the
-// camera included, since the mirror moves what it frames.
+void HighwayRenderer::resetCamera() noexcept
+{
+    m_impl->camera.reset();
+}
+
+common::core::HighwayCameraPose HighwayRenderer::cameraPose() const noexcept
+{
+    return m_impl->camera.pose(m_impl->metrics);
+}
+
+// An unchanged set does nothing; a change rebuilds the board face and re-frames the camera, since
+// the mirror moves what it frames.
 void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOptions options)
 {
     if (options == m_impl->options)
@@ -2650,16 +2663,17 @@ void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOption
         return;
     }
     m_impl->options = options;
-    m_impl->reseatBoard();
+    m_impl->camera.reset();
+    static_cast<void>(m_impl->seatLanes());
+    m_impl->rebuildBoardFace();
 }
 
-void HighwayRenderer::Impl::reseatBoard()
+bool HighwayRenderer::Impl::seatLanes()
 {
-    camera.reset();
-    displayed_count = common::core::displayedStringCount(
+    const int count = common::core::displayedStringCount(
         state->chart.stringCount(), options.minimum_string_count);
-    extra_lanes = displayed_count - state->chart.stringCount();
-    rebuildBoardFace();
+    extra_lanes = count - state->chart.stringCount();
+    return std::exchange(displayed_count, count) != count;
 }
 
 void HighwayRenderer::draw(

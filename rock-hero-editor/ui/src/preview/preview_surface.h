@@ -84,6 +84,14 @@ public:
     void setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state);
 
     /*!
+    \brief Re-frames the board from rest on the next frame, after any pending state swap.
+
+    For a different project or arrangement; an edit of the one on screen only replaces the state,
+    so the camera keeps gliding. A reopen re-frames on its own.
+    */
+    void resetCamera();
+
+    /*!
     \brief Pads the board to at least this many string lanes, as the 2D tab pads its own.
     \param count The tab's "show at least N strings" setting.
     */
@@ -156,6 +164,9 @@ private:
 
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};
+
+    // Applied to the renderer on the next frame, after the state swap (resetCamera, a reopen).
+    bool m_camera_reset_pending{false};
 
     // One warning per attach when the embedded child window unexpectedly disappears.
     // maybe_unused for the same non-Windows reason as m_child_window.

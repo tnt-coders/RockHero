@@ -83,6 +83,9 @@ public:
     */
     void setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state);
 
+    /*! \brief Re-frames the board from rest, for a different project or arrangement. */
+    void resetCamera();
+
     /*!
     \brief Pads the board to at least this many string lanes, as the 2D tab pads its own.
     \param count The tab's "show at least N strings" setting.

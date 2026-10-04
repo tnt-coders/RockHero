@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <span>
@@ -141,14 +142,33 @@ public:
     HighwayRenderer& operator=(const HighwayRenderer&) = delete;
 
     /*!
-    \brief Replaces the chart content and rebuilds the retained board geometry.
+    \brief Replaces the chart content, rebuilding the retained board face only when the
+    displayed lane count changes.
 
     The renderer shares the published state rather than copying it: a state is immutable once
-    published, so the producer's snapshot and the renderer's are one object.
+    published, so the producer's snapshot and the renderer's are one object. The camera keeps
+    gliding from where it is, so an edit of the chart on screen never snaps the view; a host
+    showing a different chart asks for that with \ref resetCamera.
 
     \param state Seconds-resolved highway content from the shared projection; never null.
     */
     void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
+
+    /*!
+    \brief Re-frames the board from rest: the next frame's camera snaps to its target instead of
+    gliding there.
+
+    The host's call, because only the host knows when the board shows other content rather than an
+    edit of the same: the game on each chart load, the editor preview on a project or arrangement
+    change and on reopening.
+    */
+    void resetCamera() noexcept;
+
+    /*!
+    \brief Returns the smoothed camera pose the last frame drew from.
+    \return Camera pose; before any frame, the smoother's starting pose.
+    */
+    [[nodiscard]] common::core::HighwayCameraPose cameraPose() const noexcept;
 
     /*!
     \brief Sets how the board maps onto the screen: the lefty mirror, the string-order invert and
@@ -156,8 +176,8 @@ public:
 
     The renderer's own setting rather than part of the view state, because none of it changes the
     projected chart. An unchanged set does nothing; a changed one re-resolves the lanes, rebuilds
-    the board face and re-seats the camera, as a new state does. Defaults to the value-initialized
-    options until first called.
+    the board face and re-frames the camera, since the mirror moves what it frames. Defaults to the
+    value-initialized options until first called.
 
     \param options Display mapping to apply from the next frame.
     */

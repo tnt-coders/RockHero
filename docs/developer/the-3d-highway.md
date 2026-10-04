@@ -70,9 +70,18 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    static std::expected<HighwayRenderer, HighwayRendererError>
        create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures);
    void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
+   void resetCamera() noexcept;
    void setDisplayOptions(common::core::HighwayDisplayOptions options);
    void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
    ```
+
+   The camera is the host's to re-frame. `setViewState` swaps the content and rebuilds the
+   retained board face only when the displayed lane count moves; the camera keeps gliding, so an
+   edit of the chart on screen (every live publish of the editor preview) never snaps the view.
+   A host that shows *other* content calls `resetCamera`, and the next frame snaps to its target
+   at rest: the game after each chart load and hot reload, the editor preview on a project load,
+   an arrangement switch (both judged in `EditorView::setState`) and a reopen. A display-option
+   change re-frames on its own, since the mirror moves what the camera frames.
 
    The display options — the lefty mirror, the string-order invert, the displayed-lane minimum —
    are the renderer's own setting rather than part of the view state: none of them changes the

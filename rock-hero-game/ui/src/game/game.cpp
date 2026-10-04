@@ -53,6 +53,7 @@ struct DiagnosticsIntentExecutor
             if (state != nullptr)
             {
                 renderer.setViewState(std::move(state));
+                renderer.resetCamera();
             }
         }
     }
@@ -214,6 +215,7 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
             if (dev_state != nullptr)
             {
                 m_renderer.setViewState(std::move(dev_state));
+                m_renderer.resetCamera();
             }
         }
 
@@ -318,6 +320,7 @@ void Game::launchSong(const core::SongSelectLaunch& launch)
     if (state != nullptr)
     {
         m_renderer.setViewState(std::move(state));
+        m_renderer.resetCamera();
     }
     m_dev_session = std::move(dev_session);
     m_in_menu = false;
@@ -461,6 +464,7 @@ core::FrameClockSample Game::update(const std::chrono::nanoseconds monotonic_now
         if (reloaded != nullptr)
         {
             m_renderer.setViewState(std::move(reloaded));
+            m_renderer.resetCamera();
         }
     }
 

@@ -36,6 +36,7 @@
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -189,6 +190,15 @@ constexpr int g_track_viewport_min_height{80};
 
     return !previous_state.project_loaded ||
            next_state.project_load_id != previous_state.project_load_id;
+}
+
+// The id of the arrangement the editor displays: the selected choice's, empty when none is.
+[[nodiscard]] std::string_view displayedArrangementId(const core::ArrangementViewState& arrangement)
+{
+    const auto selected =
+        std::ranges::find_if(arrangement.choices, &core::ArrangementChoiceViewState::selected);
+    return selected != arrangement.choices.end() ? std::string_view{selected->id}
+                                                 : std::string_view{};
 }
 
 // Gives the unsaved-changes prompt enough context for the action that triggered it. Only the
@@ -705,10 +715,17 @@ void EditorView::setState(const core::EditorViewState& state)
     m_undo_history_overlay.setHistory(m_state.undo_history);
 
     // Live-edit updates for the 3D preview: pointer identity stands in for content equality on
-    // the shared snapshot, so ordinary pushes never rebuild the retained board geometry.
+    // the shared snapshot, so ordinary pushes never rebuild the retained board geometry. An edit
+    // keeps the camera gliding; only a different project or arrangement re-frames it.
     if (m_preview_window != nullptr && previous_state.highway != m_state.highway)
     {
         m_preview_window->setHighwayState(m_state.highway);
+    }
+    if (m_preview_window != nullptr && (previous_state.project_load_id != m_state.project_load_id ||
+                                        displayedArrangementId(previous_state.arrangement) !=
+                                            displayedArrangementId(m_state.arrangement)))
+    {
+        m_preview_window->resetCamera();
     }
     // The 3D board pads its lanes to the tab's minimum; restating an unchanged value costs nothing.
     if (m_preview_window != nullptr)
