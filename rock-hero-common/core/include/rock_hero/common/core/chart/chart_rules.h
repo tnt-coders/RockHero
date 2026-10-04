@@ -378,6 +378,12 @@ holding — which is exactly what a repeat-box chain is made of.
 `note` need not be a member of `notes` — only its position and string are read, so a candidate
 placement asks the same question.
 
+THE LOCALITY RULE, stated here once because it is a property of this bound: an onset inserted on a
+string can shorten the bound of exactly one other note, its same-string predecessor
+(\ref lastNoteOnStringBefore); removing an onset only widens a bound; a note changed in place keeps
+its onset, so it moves no bound but its own ring's. Whatever reads a stream already within its
+bounds — the editor's plan gate re-judging only what an edit touched — needs no wider look.
+
 \param notes Note stream sorted by (position, string).
 \param note Note whose ring is bounded.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
@@ -386,6 +392,23 @@ placement asks the same question.
 */
 [[nodiscard]] std::optional<Fraction> sustainBoundOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
+
+/*!
+\brief The string's last note strictly before `position`: the one note whose ring an onset there
+bounds, and the only one whose ring can reach that instant.
+
+The mirror of \ref sustainBoundOf, which looks forward from a note to the onset bounding it; this
+looks back from an onset to the note it bounds (the locality rule there). Notes standing AT
+`position` are on other strings, a duplicate slot aside, so they are passed over.
+
+\param notes Note stream sorted by (position, string).
+\param position Instant to look back from.
+\param string One-based string.
+
+\return The note, or `notes.end()` when nothing earlier sounds on that string.
+*/
+[[nodiscard]] std::vector<ChartNote>::const_iterator lastNoteOnStringBefore(
+    const std::vector<ChartNote>& notes, GridPosition position, int string);
 
 /*!
 \brief The end a ring may reach: `target`, held at the note's own \ref sustainBoundOf.
@@ -435,6 +458,23 @@ struct TailTruncation
     friend constexpr bool operator==(
         const TailTruncation& lhs, const TailTruncation& rhs) noexcept = default;
 };
+
+/*!
+\brief Truncates one note's tail where it rings past its \ref sustainBoundOf; reports whether.
+
+The body \ref normalizeSustainOverlaps runs for every note, split out so a caller that knows which
+bounds an edit can have moved (the locality rule at \ref sustainBoundOf) normalizes only those. A
+bound reads positions alone and the truncation changes none, so the notes are independent: any
+subset, in any order, leaves each note exactly as the whole-stream pass would.
+
+\param notes Note stream holding the note, sorted by (position, string).
+\param index Index of the note in `notes`.
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+
+\return The truncation, or nullopt when the ring was already within its bound.
+*/
+std::optional<TailTruncation> normalizeSustainOverlapAt(
+    std::vector<ChartNote>& notes, std::size_t index, const TempoMap& tempo_map);
 
 /*!
 \brief Truncates every tail ringing past its \ref sustainBoundOf; reports which.
@@ -587,6 +627,21 @@ rule such a copy did not name would silently kill the edit for the whole selecti
 */
 [[nodiscard]] std::expected<void, ChartError> validateChartNoteAlone(
     const ChartNote& note, const ChartTuning& tuning, const TempoMap& tempo_map);
+
+/*!
+\brief Validates the one rule between two stream-adjacent notes: strictly ascending slot order,
+which is also what holds no slot twice.
+
+The neighbour half of \ref validateChartNotes, split out so a gate re-judging only the notes an edit
+touched asks each pair they stand in exactly what the whole-stream walk asks. Reads the two slots
+and nothing else.
+
+\param previous The note before `note` in the stream.
+\param note The note after it.
+\return Empty success, or the ordering violation, placed at `note`.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateChartNotePair(
+    const ChartNote& previous, const ChartNote& note);
 
 /*!
 \brief Validates the note stream — every intra-note rule, plus the ordering and payload rules.

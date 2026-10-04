@@ -4,6 +4,7 @@
 #include <cmath>
 #include <compare>
 #include <cstddef>
+#include <iterator>
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_legato.h>
@@ -380,6 +381,18 @@ std::optional<Fraction> sustainBoundOf(
     return beatDistance(tempo_map, note.position, next->position);
 }
 
+// The walk back from an instant to the string's last earlier onset; lower_bound rather than
+// upper_bound, because a note standing AT the instant is not before it.
+std::vector<ChartNote>::const_iterator lastNoteOnStringBefore(
+    const std::vector<ChartNote>& notes, const GridPosition position, const int string)
+{
+    const auto at =
+        std::ranges::lower_bound(notes, position, std::ranges::less{}, &ChartNote::position);
+    const auto before = std::ranges::subrange(notes.begin(), at) | std::views::reverse;
+    const auto found = std::ranges::find(before, string, &ChartNote::string);
+    return found == before.end() ? notes.end() : std::prev(found.base());
+}
+
 Fraction ringEndWithinBound(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map,
     const Fraction target)
@@ -393,23 +406,33 @@ Fraction ringEndWithinBound(
 }
 
 // A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.
+std::optional<TailTruncation> normalizeSustainOverlapAt(
+    std::vector<ChartNote>& notes, const std::size_t index, const TempoMap& tempo_map)
+{
+    ChartNote& note = notes[index];
+    const Fraction end = ringEndWithinBound(notes, note, tempo_map, note.sustain);
+    if (!(end < note.sustain))
+    {
+        return std::nullopt;
+    }
+    return TailTruncation{
+        .index = index,
+        .statement_lost = clipPayloadsToSustain(note, end),
+    };
+}
+
 std::vector<TailTruncation> normalizeSustainOverlaps(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
     std::vector<TailTruncation> truncated;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        ChartNote& note = notes[index];
-        const Fraction end = ringEndWithinBound(notes, note, tempo_map, note.sustain);
-        if (!(end < note.sustain))
+        if (const std::optional<TailTruncation> truncation =
+                normalizeSustainOverlapAt(notes, index, tempo_map);
+            truncation.has_value())
         {
-            continue;
+            truncated.push_back(*truncation);
         }
-        truncated.push_back(
-            TailTruncation{
-                .index = index,
-                .statement_lost = clipPayloadsToSustain(note, end),
-            });
     }
     return truncated;
 }
@@ -894,6 +917,20 @@ std::expected<void, ChartError> validateChartNoteAlone(
     return std::expected<void, ChartError>{};
 }
 
+std::expected<void, ChartError> validateChartNotePair(
+    const ChartNote& previous, const ChartNote& note)
+{
+    if (!chartNoteOrderLess(previous, note))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::UnsortedOrDuplicateNotes,
+            .message = "notes must be sorted by position and string with unique onsets at " +
+                       positionText(note.position),
+        }};
+    }
+    return std::expected<void, ChartError>{};
+}
+
 std::expected<void, ChartError> validateChartNotes(
     const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map)
 {
@@ -908,14 +945,9 @@ std::expected<void, ChartError> validateChartNotes(
         }
         if (previous_note != nullptr)
         {
-            if (!chartNoteOrderLess(*previous_note, note))
+            if (auto pair = validateChartNotePair(*previous_note, note); !pair.has_value())
             {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::UnsortedOrDuplicateNotes,
-                    .message = "notes must be sorted by position and string with unique onsets"
-                               " at " +
-                               positionText(note.position),
-                }};
+                return pair;
             }
         }
 

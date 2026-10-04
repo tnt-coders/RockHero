@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <compare>
 #include <cstddef>
@@ -98,6 +99,17 @@ namespace
         ++after_index;
     }
     return plan;
+}
+
+// THE way a note enters a slot-ordered stream: at its slot's `lower_bound`, so the stream stays in
+// order without a re-sort. Never refused — a note on a slot already held lands beside its twin,
+// where the order rule between the two is the gate's refusal (or the replay's own check, which the
+// returned position lets it ask).
+std::vector<common::core::ChartNote>::iterator insertAtSlot(
+    std::vector<common::core::ChartNote>& notes, common::core::ChartNote note)
+{
+    const auto at = std::ranges::lower_bound(notes, note, common::core::chartNoteOrderLess);
+    return notes.insert(at, std::move(note));
 }
 
 // The note stream cut in two by a key set: the notes the keys name, and everything else. Both
@@ -219,65 +231,122 @@ enum class StrandedStrikeRepair : std::uint8_t
     Skip
 };
 
-// Finalizes a candidate chart: restores each authored array's slot order, applies the same-string
-// overlap normalization — refusing where it lost an authored statement — and the one in-plan
-// repair, gates the result through the whole technique matrix, and diffs against `base`. The gate
-// is what makes authoring an invalid chart impossible by construction — a plan whose candidate the
-// document reader would reject refuses here, for every present and future verb, with no per-verb
-// guard to forget. It validates the SAVED form, because a scrape's latent overrides are legal in
-// memory and stripped by the writer.
-//
-// The two emptinesses are distinct on purpose: the gate's refusal is Invalid, an empty diff is
-// NoChange — conflating them would make every refusal in the editor silent.
-//
-// `base` is the stream the plan is expressed against, which is `chart.notes` for every verb that
-// edits from what it finds. The duration gesture is the reason the base is a parameter rather than
-// read off `chart`: its plan must describe the whole gesture, so it is diffed against the stream
-// the gesture started from while the ring RULES still judge the live chart. The move gesture,
-// equally a gesture, needs no such split — every bound it reads is a fact about the PRE-GESTURE
-// chart that its own steps cannot change, so its caller simply hands it that chart and `base` is
-// that chart's own notes. Slide-out-ness stays such a fact only because the verb refuses a step
-// that would carry a point onto the ring's end (planMoveSelection): that point would become the
-// slide-out mid-run, leaving the replay reading a kind the chart no longer has.
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
+// The candidate indices the gate must judge (finalizePlan): every note the candidate touched — a
+// value the live chart does not hold, which is exactly what the diff inserts — and, for a touched
+// onset on a slot the live chart leaves empty, the one ring it can shorten (the locality rule at
+// sustainBoundOf). Every note on a touched slot counts, not just the first: a duplicate lands
+// beside its twin (insertAtSlot), and the order rule between the two is its refusal. Ascending and
+// unique, the order the stream validator asks in.
+[[nodiscard]] std::vector<std::size_t> affectedIndices(
+    const std::vector<common::core::ChartNote>& live,
+    const std::vector<common::core::ChartNote>& candidate)
+{
+    std::vector<std::size_t> affected;
+    for (const common::core::ChartNote& note : diffNotes(live, candidate, {}).inserted)
+    {
+        const auto slot =
+            std::ranges::equal_range(candidate, note, common::core::chartNoteOrderLess);
+        for (auto held = slot.begin(); held != slot.end(); ++held)
+        {
+            affected.push_back(static_cast<std::size_t>(held - candidate.begin()));
+        }
+        if (std::ranges::binary_search(live, note, common::core::chartNoteOrderLess))
+        {
+            continue;
+        }
+        if (const auto bounded =
+                common::core::lastNoteOnStringBefore(candidate, note.position, note.string);
+            bounded != candidate.end())
+        {
+            affected.push_back(static_cast<std::size_t>(bounded - candidate.begin()));
+        }
+    }
+    std::ranges::sort(affected);
+    const auto repeated = std::ranges::unique(affected);
+    affected.erase(repeated.begin(), repeated.end());
+    return affected;
+}
+
+// The stream validator's walk (validateChartNotes) over the affected notes only: each alone in its
+// SAVED form, then the order rule with each stream neighbour, alone before pair and in stream
+// order exactly as the whole walk asks. Every check skipped is one the live chart already passed
+// with the same inputs, so the first refusal — and its message — is the whole walk's. The order
+// rule reads slots alone, which saving never changes, so it reads the candidate as it stands.
+[[nodiscard]] std::expected<void, common::core::ChartError> validateAffected(
+    const std::vector<common::core::ChartNote>& candidate, const std::vector<std::size_t>& affected,
+    const common::core::ChartTuning& tuning, const common::core::TempoMap& tempo_map)
+{
+    for (std::size_t at = 0; at < affected.size(); ++at)
+    {
+        const std::size_t index = affected[at];
+        if (auto alone = common::core::validateChartNoteAlone(
+                common::core::savedChartNote(candidate[index]), tuning, tempo_map);
+            !alone.has_value())
+        {
+            return alone;
+        }
+        if (index > 0)
+        {
+            if (auto pair =
+                    common::core::validateChartNotePair(candidate[index - 1], candidate[index]);
+                !pair.has_value())
+            {
+                return pair;
+            }
+        }
+        // The pair after it, unless the next note is affected and asks that pair itself.
+        const std::size_t next = index + 1;
+        const bool next_asks = at + 1 < affected.size() && affected[at + 1] == next;
+        if (next < candidate.size() && !next_asks)
+        {
+            if (auto pair = common::core::validateChartNotePair(candidate[index], candidate[next]);
+                !pair.has_value())
+            {
+                return pair;
+            }
+        }
+    }
+    return {};
+}
+
+} // namespace
+
+std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
-    std::vector<common::core::ChartNote> candidate, std::string_view label)
+    std::vector<common::core::ChartNote> candidate, const std::string_view label)
 {
-    std::ranges::sort(candidate, common::core::chartNoteOrderLess);
+    // The gate reads slot order rather than restoring it: every planner keeps it while it builds.
+    assert(
+        std::ranges::is_sorted(candidate, common::core::chartNoteOrderLess) &&
+        "a planner handed the gate a candidate out of slot order");
+    const std::vector<std::size_t> affected = affectedIndices(chart.notes, candidate);
     // The one rule a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
     // stops the ring, so a note landing inside a ring truncates it and the statement at that
     // ring's end rides back with the end — onto the new head itself, which is where the store says
     // the hands left it; the spacing the mark needs to be seen is presentation's. A truncation may
     // SHORTEN a ring; it may not DELETE a statement the charter authored on a note the edit may
     // never have touched, so a plan whose truncation reports a loss is refused whole.
-    const std::vector<common::core::TailTruncation> truncated =
-        common::core::normalizeSustainOverlaps(candidate, tempo_map);
-    if (std::ranges::any_of(truncated, &common::core::TailTruncation::statement_lost))
+    for (const std::size_t index : affected)
     {
-        return std::unexpected{
-            ChartPlanInvalid{"the edit would cut an authored statement off a ring it shortens"}
-        };
+        if (const std::optional<common::core::TailTruncation> truncation =
+                common::core::normalizeSustainOverlapAt(candidate, index, tempo_map);
+            truncation.has_value() && truncation->statement_lost)
+        {
+            return std::unexpected{
+                ChartPlanInvalid{"the edit would cut an authored statement off a ring it shortens"}
+            };
+        }
     }
     // The in-plan repair (a strike with nowhere to land). Relational truths deliberately do not
     // repair here (see planSettleChart): mid-burst a claim the chart cannot justify simply plays as
-    // the pick it sounds like, and the burst stays one undo step. Sweeping the whole candidate
-    // needs no record of which notes the plan touched, because a note the plan left alone already
-    // passed this gate.
-    for (common::core::ChartNote& note : candidate)
+    // the pick it sounds like, and the burst stays one undo step.
+    for (const std::size_t index : affected)
     {
-        static_cast<void>(common::core::flattenStrandedStrike(note));
-    }
-    // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
-    // by the writer, so validating the in-memory values would refuse charts the document accepts.
-    std::vector<common::core::ChartNote> saved_form;
-    saved_form.reserve(candidate.size());
-    for (const common::core::ChartNote& note : candidate)
-    {
-        saved_form.push_back(common::core::savedChartNote(note));
+        static_cast<void>(common::core::flattenStrandedStrike(candidate[index]));
     }
     if (std::expected<void, common::core::ChartError> valid =
-            common::core::validateChartNotes(saved_form, chart.tuning, tempo_map);
+            validateAffected(candidate, affected, chart.tuning, tempo_map);
         !valid.has_value())
     {
         return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
@@ -289,6 +358,9 @@ enum class StrandedStrikeRepair : std::uint8_t
     }
     return plan;
 }
+
+namespace
+{
 
 // The one per-note write plan every property verb runs — flags, emphasis, and attack — so the law
 // is written once: each selected note is built as the verb would WRITE it (`write` fills `written`
@@ -618,7 +690,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     // An occupied slot is the gate's refusal (two notes on one slot), never a replace: the entry
     // keys address a head that stands where they land, so a placement never meets one.
     std::vector<common::core::ChartNote> candidate = chart.notes;
-    candidate.push_back(std::move(note));
+    insertAtSlot(candidate, std::move(note));
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
 }
 
@@ -626,14 +698,9 @@ std::optional<ChartPathTail> chartPathTailAt(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     const common::core::GridPosition position, const int string)
 {
-    // Only the string's last onset strictly before the slot can cover it (see the header), so the
-    // search starts at the slot and walks back to that one note.
-    const auto first_at_or_after = std::ranges::lower_bound(
-        notes, position, std::ranges::less{}, &common::core::ChartNote::position);
-    const auto earlier =
-        std::ranges::subrange(notes.begin(), first_at_or_after) | std::views::reverse;
-    const auto covering = std::ranges::find(earlier, string, &common::core::ChartNote::string);
-    if (covering == earlier.end())
+    // Only the string's last onset strictly before the slot can cover it (see the header).
+    const auto covering = common::core::lastNoteOnStringBefore(notes, position, string);
+    if (covering == notes.end())
     {
         return std::nullopt;
     }
@@ -716,7 +783,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planCutRing(
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
     candidate[static_cast<std::size_t>(origin - chart.notes.begin())] = products[0];
-    candidate.push_back(std::move(head));
+    insertAtSlot(candidate, std::move(head));
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Cut Ring");
 }
 
@@ -1057,14 +1124,15 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     }
 
     // Converging moves that stack two notes on one slot are refused, as is landing on a slot an
-    // unmoved note occupies.
+    // unmoved note occupies. The moved notes are sorted once, here: the keys inherit the order, and
+    // the merge below needs it.
+    std::ranges::sort(notes.keyed, common::core::chartNoteOrderLess);
     std::vector<ChartSlotKey> target_keys;
     target_keys.reserve(notes.keyed.size());
     for (const common::core::ChartNote& note : notes.keyed)
     {
         target_keys.push_back(chartSlotKeyOf(note));
     }
-    std::ranges::sort(target_keys);
     if (std::ranges::adjacent_find(target_keys) != target_keys.end())
     {
         return std::unexpected{ChartPlanInvalid{"two moved notes would land on one slot"}};
@@ -1077,7 +1145,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     {
         return std::unexpected{ChartPlanInvalid{"a moved note would land on a note that stays"}};
     }
+    // Both halves are in slot order and hold no slot in common, so one merge restores the stream.
+    const auto moved_from = static_cast<std::ptrdiff_t>(notes.rest.size());
     notes.rest.insert(notes.rest.end(), notes.keyed.begin(), notes.keyed.end());
+    std::ranges::inplace_merge(
+        notes.rest, notes.rest.begin() + moved_from, common::core::chartNoteOrderLess);
     return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
 }
 
@@ -2440,15 +2512,12 @@ withPlanApplied(const std::vector<common::core::ChartNote>& current, const Chart
     }
     for (const common::core::ChartNote& note : plan.inserted)
     {
-        const auto insert_at = std::ranges::lower_bound(
-            notes, chartSlotKeyOf(note), {}, [](const common::core::ChartNote& held) {
-                return chartSlotKeyOf(held);
-            });
-        if (insert_at != notes.end() && chartSlotKeyOf(*insert_at) == chartSlotKeyOf(note))
+        // The note lands ahead of any twin on its slot, so the twin is the next record.
+        const auto twin = std::next(insertAtSlot(notes, note));
+        if (twin != notes.end() && chartSlotKeyOf(*twin) == chartSlotKeyOf(note))
         {
             return std::unexpected{EditorUndoFailureCode::PreflightRejected};
         }
-        notes.insert(insert_at, note);
     }
     return notes;
 }

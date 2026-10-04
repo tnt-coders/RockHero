@@ -1090,7 +1090,7 @@ named for the thing they name rather than for the record that happens to occupy 
 \brief The chart's note order: ascending onset, then ascending string.
 
 Every note stream is kept in this order — the validator refuses one that is not, the editor's
-planners restore it before gating a candidate, and every cursor walk over a stream assumes it —
+planners keep it while they build a candidate, and every cursor walk over a stream assumes it —
 so it is stated once. Two notes equal under it are the same slot, which no chart may hold twice.
 
 \param lhs Left-hand note.

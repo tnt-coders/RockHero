@@ -111,7 +111,11 @@ is the same run's before/after): fixes 1 and 6c took the caret step from 168 to 
 one publication took the tempo-chip drag event from 137.7 to 136.4 ms and the settle-typed-digit
 event from 177.8 to 175.5 ms, both inside run drift; its real saving is on the other clock — the
 preview's per-revision board copy, 5.37 ms on the frame that receives it, is gone. The two are
-never summed. What remains in every event is the ≈ 130 ms whole scene rebuild, F2.
+never summed. Fix 3 (the gate judges only the touched notes) took "type digit, plan only" from
+39.4 to 2.62 ms (15×, now O(n) at ≈ 52 ns/note), missing Phase 1's ≤ 2 ms exit by 0.6 ms; the
+remainder is the planner's whole-stream copy (1.24 ms) plus two diff walks (≈ 0.5 ms each), which
+only delta composition removes, so it is assigned to Phase 2 — 2.6 % of the 100 ms budget per
+keystroke. What remains in every event is the ≈ 130 ms whole scene rebuild, F2.
 
 Track B (2,164 → 25,968 notes, 147 → 1,753 anchors, 48 → 576 keyframed notes) agrees and shows
 the caret step's second variable: 2.4 → 21 → 144 → **328 ms**. Anchors moved nothing measurable

@@ -121,7 +121,52 @@ flag" is not spellable.
 using ChartFretWrite = std::variant<ChartFretSet, ChartFretShift>;
 
 /*!
-\brief Plans placing one note, replacing any note already on its (position, string) slot.
+\brief THE plan gate every note-stream planner ends at: normalizes a candidate stream, refuses it
+where the document reader would, and diffs it against `base`.
+
+It applies the same-string overlap normalization — refusing where a truncation lost an authored
+statement — and the one in-plan repair (\ref common::core::flattenStrandedStrike), then judges the
+result through the whole technique matrix in its SAVED form, since a scrape's latent overrides are
+legal in memory and stripped by the writer. That is what makes authoring an invalid chart impossible
+by construction: a plan the reader would reject refuses here, for every present and future verb,
+with no per-verb guard to forget. The two emptinesses stay distinct: a refusal is Invalid, an empty
+diff is NoChange.
+
+THE LIVE CHART IS A FIXPOINT OF THIS GATE: every write to it passed here, or keeps the fixpoint by
+lemma — the settle's Legato→Pick retype (no rule tells the two attacks apart) and the commit law's
+strip of a silent keyframe (it removes only what the path already states), each pinned by a test;
+undo replays the inverse of a plan that passed. So the gate judges only the notes the candidate
+TOUCHED, which the diff against `chart.notes` finds, and the same-string predecessors whose rings a
+touched onset on a new slot may shorten (the locality rule at \ref common::core::sustainBoundOf).
+It asks them the stream validator's own questions in stream order, so its first refusal is the
+whole stream's. A verb that re-addresses or re-meters the chart must leave it a fixpoint too.
+
+`base` is the stream the plan is expressed against, which is `chart.notes` for every verb that edits
+from what it finds. The duration gesture is why it is a parameter: its plan describes the whole
+gesture, so it diffs against the stream the gesture started from while the ring rules still judge
+the live chart. The move gesture needs no such split — every bound it reads is a fact about the
+PRE-GESTURE chart its own steps cannot change, so its caller hands it that chart, and `base` is
+that chart's own notes. Slide-out-ness stays such a fact only because the verb refuses a step that
+would carry a point onto the ring's end (\ref planMoveSelection).
+
+\param chart The chart the candidate edits, a fixpoint of this gate.
+\param tempo_map Tempo map supplying the beat axis for the ring bounds and the lattice rules.
+\param base Stream the plan is diffed against.
+\param candidate The planned stream, in slot order: a planner adds a note through its slot
+       (at `lower_bound`, beside any note already there, so a duplicate meets the order rule's
+       refusal) and never re-sorts the whole stream.
+\param label User-visible undo label.
+\return The plan; NoChange when the normalized candidate equals `base`, Invalid with the rule's own
+        message when the gate refuses it.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<common::core::ChartNote>& base,
+    std::vector<common::core::ChartNote> candidate, std::string_view label);
+
+/*!
+\brief Plans placing one note on its (position, string) slot; a slot a note already holds is the
+gate's refusal, never a replace.
 
 Every note rings, so a placement authors a duration: the placed ring reaches the next line of the
 session's grid, clamped against the next onset on its own string, and any earlier same-string ring

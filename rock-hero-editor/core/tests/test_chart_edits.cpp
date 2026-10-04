@@ -4338,7 +4338,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    SECTION("a strike already stranded in the stream is repaired by the plan that reaches it")
+    SECTION("a strike a multi-note edit strands is repaired inside that edit's plan")
     {
         for (const common::core::NoteAttack attack :
              {common::core::NoteAttack::Tap, common::core::NoteAttack::LeftTap})
@@ -4347,18 +4347,21 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
             chart.notes = {
                 makeTestNote({.measure = 1, .beat = 1}, 1, 9),
-                makeTestNote({.measure = 1, .beat = 2}, 1, 0),
+                makeTestNote({.measure = 1, .beat = 2}, 1, 5),
             };
             chart.notes[0].sustain = common::core::Fraction{3, 4};
             chart.notes[1].attack = attack;
             CAPTURE(static_cast<int>(attack));
 
-            // Through a real edit: retyping the predecessor leaves the strikeless strike in the
-            // stream, and the gate would refuse the whole plan if the flatten had not converted it
-            // first. Both attacks land on a plain pick — the claim stores no direction, so there is
-            // nothing for either of them to be rescued into.
+            // The EDIT must do the stranding: the live chart is always a fixpoint of the plan gate
+            // (every load flattens a strikeless strike), so a stream that already holds one is a
+            // state no session reaches, and the gate judges only what the plan touched. Shifting
+            // the run down five frets lands the tap on the open string while its neighbour keeps a
+            // stop, and the gate would refuse the whole plan if the flatten had not converted the
+            // tap first. Both attacks land on a plain pick — the claim stores no direction, so
+            // there is nothing for either of them to be rescued into.
             const auto retyped =
-                retypeNotes(chart, tempo_map, {chart.notes[0]}, ChartFretSet{.fret = 7});
+                retypeNotes(chart, tempo_map, chart.notes, ChartFretShift{.delta = -5});
             REQUIRE(retyped.has_value());
             if (retyped.has_value())
             {
