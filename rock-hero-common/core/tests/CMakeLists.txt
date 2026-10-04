@@ -18,6 +18,7 @@ add_executable(
     rock_hero_common_core_tests
     test_chart.cpp
     test_chart_fret_hand.cpp
+    test_fret_hand_score.cpp
     test_chart_presentation.cpp
     test_chart_projection.cpp
     test_chart_shapes.cpp

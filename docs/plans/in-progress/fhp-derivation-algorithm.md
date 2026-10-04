@@ -2,7 +2,9 @@
 
 **Status: SIGNED 2026-10-02 (plan 60 gate G60-RULINGS, item 1); the sign's condition — rules 12
 and 13 re-measured with the headline holding — was discharged 2026-10-03 (88.09% exact with
-rule 12; rule 13 has no corpus population). Not yet implemented — plan 60 Phase 1.**
+rule 12; rule 13 has no corpus population). Implemented 2026-10-04 as `deriveFretHandEvents`
+(`chart_fret_hand.h`, plan 60 Phase 1); not yet scored against the dataset (Phase 1 acceptance
+(b)).**
 
 This is the outcome of the FHP accuracy push: a ground-truth dataset of 4,555 professionally
 reviewed arrangements (442,323 authored hand-position anchors; the dataset lives in local

@@ -582,6 +582,11 @@ sighted data must supply); never patch single cases into the law one at a time.
 
 ### Three fret-hand-window census rows drifted below their pins — trigger: a hand window sights odd, or the census is next re-signed
 
+**MOOT 2026-10-04:** plan 60 Phase 1 replaced the walk these rows measured with the 13-rule
+derivation, and the census was re-signed against it (unfretted arrivals 2224, pinned windows 64,
+pinned rings 98; the walk measured 287, 88 and 107 that day). The bisect below would explain a
+generator that no longer exists.
+
 Found 2026-09-24 while baselining the texture retirement: the local corpus census
 (`test_corpus_census.cpp`, `[.local-corpus]`) already failed at the commit BEFORE that change on
 three fret-hand-window rows, with identical values before and after it, so today's span work is

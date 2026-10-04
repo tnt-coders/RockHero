@@ -647,16 +647,10 @@ std::vector<ChartRepair> normalizeFretHandPosition(
     // capo leaves that room above it; the floor still wins on a capo out of range, which the
     // validator refuses after this runs.
     static_assert(g_max_fret - g_max_capo >= g_min_fret_hand_width);
-    const int floor = firstPlayableFret(tuning.capo);
-    const int overshoot =
-        FretWindow{.fret = position.fret, .width = g_min_fret_hand_width}.top() - g_max_fret;
-    bool past_board = overshoot > 0;
-    if (past_board)
-    {
-        position.fret -= overshoot;
-    }
-    const bool below_capo = position.fret < floor;
-    position.fret = std::max(position.fret, floor);
+    const int fitted = fittedWindowFret(position.fret, g_min_fret_hand_width, tuning.capo);
+    bool past_board = fitted < position.fret;
+    const bool below_capo = position.fret < fitted;
+    position.fret = fitted;
     // An authored end past the last fret comes down onto it, the same fit the finger takes.
     if (position.end_fret.has_value() && *position.end_fret > g_max_fret)
     {

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -111,6 +112,27 @@ of leaving one still flooring at zero.
 [[nodiscard]] constexpr int firstPlayableFret(const int capo) noexcept
 {
     return capo + 1;
+}
+
+/*!
+\brief The index-finger fret a window \p width frets wide takes on the playable board: \p fret,
+dropped until the window ends on the last fret, then lifted above the capo — the floor winning.
+
+THE window clamp, stated once. The fret-hand derivation fits every run's window with that run's
+width (\ref deriveFretHandEvents); \ref normalizeFretHandPosition and the importer's ridden windows
+fit a stored placement with the narrowest window's, \ref g_min_fret_hand_width, because a stored
+placement states only its index finger and the reach past it is derived.
+
+\param fret The index finger's fret before fitting.
+\param width Frets the window spans, counting the index finger's.
+\param capo The tuning's capo fret; 0 for none.
+
+\return The fitted index-finger fret.
+*/
+[[nodiscard]] constexpr int fittedWindowFret(
+    const int fret, const int width, const int capo) noexcept
+{
+    return std::max(firstPlayableFret(capo), std::min(fret, g_max_fret - width + 1));
 }
 
 /*!
@@ -556,8 +578,8 @@ so applying this twice changes nothing the second time.
 \brief Fits a fret-hand window onto the playable board, in place.
 
 The index finger lifts above the capo and drops until the narrowest window
-(\ref g_min_fret_hand_width) fits under the last fret, and an authored end fret past the last fret
-comes down onto it. The window's reach past that is derived from the notes
+(\ref g_min_fret_hand_width) fits under the last fret (\ref fittedWindowFret), and an authored end
+fret past the last fret comes down onto it. The window's reach past that is derived from the notes
 (\ref deriveFretHandWidths), which never state a fret off the board.
 
 \param position Hand position to normalize.

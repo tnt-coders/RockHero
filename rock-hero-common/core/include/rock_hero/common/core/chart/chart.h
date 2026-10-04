@@ -2152,9 +2152,9 @@ is why the connection resolver disqualifies a scrape before ever asking this.
 /*!
 \brief The fewest frets a fret-hand window spans: one finger per fret from the index up.
 
-The floor of every derived window width (\ref deriveFretHandWidths), and so also how HIGH a
-placement's index finger may sit: the narrowest window must still end on the board
-(\ref normalizeFretHandPosition).
+The floor of every derived window width (\ref deriveFretHandEvents, \ref deriveFretHandWidths), and
+so also how HIGH a placement's index finger may sit: the narrowest window must still end on the
+board (\ref fittedWindowFret).
 */
 inline constexpr int g_min_fret_hand_width{4};
 
@@ -2201,6 +2201,15 @@ struct FretWindow
     {
         return stop >= fret && stop <= top();
     }
+
+    /*!
+    \brief Compares two windows by their stored fields.
+    \param lhs Left-hand window.
+    \param rhs Right-hand window.
+    \return True when both windows store equal values.
+    */
+    friend constexpr bool operator==(const FretWindow& lhs, const FretWindow& rhs) noexcept =
+        default;
 };
 
 /*!

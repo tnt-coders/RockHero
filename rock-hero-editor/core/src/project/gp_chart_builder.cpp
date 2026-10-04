@@ -2096,396 +2096,33 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     return ends;
 }
 
-// A silence long enough to read as a phrase break: the hand re-anchors across it. 0.8s is the
-// corpus sweet spot (4100-arrangement source-corpus study) — it holds the authored move rate
-// (~13.2 anchors per 100 notes) while lifting exact anchor-fret agreement from 59% to 72%.
-constexpr double g_fhp_phrase_rest_seconds = 0.8;
-
-// Whether a note holds the fretting hand to its window: a stop the fretting hand presses. A
-// right-hand onset floats above the window, and an open string asks nothing of the hand.
-[[nodiscard]] bool anchorsFretHand(const ChartNote& note)
-{
-    return !common::core::rightHandOnset(note.attack) && common::core::fretFor(note) > 0;
-}
-
-// The fret span of notes still ringing at a slide keyframe that are NOT themselves gliding there
-// — each is a planted finger the hand must keep covering. Returns false when no such note exists,
-// so the slide is a genuine whole-hand travel (rule 9 drag) rather than one finger moving under a
-// planted hand. Taps float above the hand and open strings never anchor it, so both are
-// excluded. A note that itself slid earlier is held at the fret it has reached; a note with a
-// keyframe at this exact instant is a co-slider (its own event carries it, and a whole chord
-// gliding in lockstep must translate, not be fit in place), so it is excluded too.
-[[nodiscard]] bool heldHullAtSlideKeyframe(
-    const std::vector<BuiltNote>& built, std::size_t moving_index, const Fraction& instant,
-    int& held_min, int& held_max)
-{
-    bool any = false;
-    for (std::size_t index = 0; index < built.size(); ++index)
-    {
-        if (index == moving_index)
-        {
-            continue;
-        }
-        const BuiltNote& other = built[index];
-        if (!(other.place <= instant && instant < ringEndOf(other)))
-        {
-            continue; // not sounding at this instant
-        }
-        // A natural harmonic has no stop of its own, so its `fret` is 0 and its fretting hand is
-        // at the NODE instead — reading `fret` here would drop a 12th-fret harmonic passage out
-        // of hand derivation and leave the window at the nut.
-        if (!anchorsFretHand(other.note))
-        {
-            continue;
-        }
-        int fret = common::core::fretFor(other.note);
-        bool co_sliding = false;
-        const Keyframe* const other_end = common::core::endFretStatement(other.note);
-        for (const Keyframe& keyframe : other.note.keyframes)
-        {
-            // Only a stated fret moves the hand; a keyframe carrying a bend or a vibrato change
-            // says nothing about where this finger is and neither reaches nor co-slides. Nor does
-            // the statement AT the ring's END, and NOTE-LOCALLY so, whichever gesture it proves: a
-            // SLIDE-OUT takes pressure off, and an ARRIVAL stands on the next head's own instant,
-            // where that head's onset event already states the hand's demand.
-            const std::optional<int>& stated_fret = keyframe.fret;
-            if (!stated_fret.has_value() || &keyframe == other_end)
-            {
-                continue;
-            }
-            const Fraction keyframe_place = other.place + keyframe.offset;
-            if (keyframe_place < instant)
-            {
-                fret = *stated_fret; // already reached this keyframe
-                continue;
-            }
-            // Keyframes are ascending, so nothing past here can precede the instant. A keyframe
-            // landing exactly on it means the note is gliding in lockstep — treat it as moving.
-            co_sliding = keyframe_place == instant;
-            break;
-        }
-        if (co_sliding || fret <= 0)
-        {
-            continue;
-        }
-        held_min = any ? std::min(held_min, fret) : fret;
-        held_max = any ? std::max(held_max, fret) : fret;
-        any = true;
-    }
-    return any;
-}
-
-// Generates the fret-hand position track, corpus-derived from the source-corpus study
-// (docs/plans/todo/fhp-corpus-derived-generation.md, 4100 authored arrangements). The walk models
-// the hand as a [fret, fret+width-1] window whose width is four unless an event spans wider — the
-// hand's CAPACITY, which decides when an event escapes the window and where the next one sits. It
-// emits only where the index finger moves: what a placement reaches is derived from the notes
-// (deriveFretHandWidths), never stored. Open strings never constrain the window, and it tracks the
-// LEFT hand. Three rules a greedy per-onset walk cannot capture:
-//   1. A TAPPED note is not a coverage event. Two-hand taps sit a median seven frets above the
-//      fretting hand, so the anchor stays on the fretted / left-hand notes and any held chord
-//      shape while the tap floats above the window; the highway camera frames the tap separately.
-//   2. The hand RE-ANCHORS at musical boundaries — section starts (phrase_boundary_places) and
-//      rests >= g_fhp_phrase_rest_seconds — biased to the phrase's floor fret, not only when a
-//      note leaves the window (only ~35% of authored moves are forced). Within a segment it moves
-//      minimally when forced and drags with pitched slides.
-//   3. A slide taken while another finger stays PLANTED does not drag the hand: the keyframe is an
-//      ordinary coverage event over the sounding hull (the held frets plus the slide's
-//      destination), fit like a struck onset. Only a slide with nothing else held moves the whole
-//      hand (rule 9 drag). This reads the built notes' sounding spans — see
-//      heldHullAtSlideKeyframe — so the generator is sustain-aware for held detection.
-// Scored against the corpus this reaches 72.5% exact anchor-fret agreement at the authored move
-// rate. The maintained plain-English spec is "GP chart normalization policy" in
-// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
-[[nodiscard]] std::vector<common::core::FretHandPosition> generateFretHandPositions(
-    const std::vector<BuiltNote>& built, const common::core::ChartConnections& connections,
-    const common::core::TempoMap& tempo_map, const std::vector<Fraction>& phrase_boundary_places,
-    const int capo)
-{
-    // One instant the fret hand must cover: the fretted extent of an onset group, or a pitched
-    // slide keyframe mid-sustain. A nonzero shift marks a slide keyframe carrying its fret delta
-    // from the glide's source, which drags the anchor by that delta (rule 9) instead of being
-    // fit like a struck onset.
-    struct CoverageEvent
-    {
-        Fraction place{};
-        GridPosition position;
-        int min_fret{0};
-        int max_fret{0};
-        int shift{0};
-    };
-    std::vector<CoverageEvent> events;
-    std::size_t index = 0;
-    while (index < built.size())
-    {
-        CoverageEvent onset{
-            .place = built[index].place,
-            .position = built[index].note.position,
-        };
-        std::size_t onset_end = index;
-        while (onset_end < built.size() && built[onset_end].place == built[index].place)
-        {
-            const ChartNote& note = built[onset_end].note;
-            // Right-hand onsets float above the window and never anchor the hand.
-            if (!common::core::rightHandOnset(note.attack))
-            {
-                const int hand_fret = common::core::fretFor(note);
-                if (hand_fret > 0)
-                {
-                    onset.min_fret =
-                        onset.min_fret == 0 ? hand_fret : std::min(onset.min_fret, hand_fret);
-                    onset.max_fret = std::max(onset.max_fret, hand_fret);
-                }
-                // RULE 9 AT AN ARRIVAL. A glide that slid INTO this head is what brought the hand
-                // here, so the head inherits the GLIDE's own fret delta instead of being fit like a
-                // struck onset — the same drag rule, stated at the instant the arrival now stands
-                // on rather than at a synthesized one a margin early
-                // (\ref common::core::arrivesIntoNextHead). The delta is measured from where that
-                // travel DEPARTED, the last stop stated inside the predecessor's own ring.
-                const std::size_t slid_from = connections.predecessors[onset_end];
-                if (hand_fret > 0 && slid_from != common::core::g_no_chart_predecessor &&
-                    connections.arrives_into[slid_from])
-                {
-                    const int departure =
-                        common::core::fretBeforeEnd(connections.saved_notes[slid_from]);
-                    const int delta = departure > 0 ? hand_fret - departure : 0;
-                    // Simultaneous arrivals drag as one hand only while their deltas agree — a
-                    // whole chord gliding by the same amount — exactly as the same-instant merge
-                    // below folds two events. Disagreeing deltas are a convergence, and the hand
-                    // is fit in place.
-                    onset.shift = (onset.shift == 0 || onset.shift == delta) ? delta : 0;
-                }
-                int slide_source = note.fret;
-                const Keyframe* const end = common::core::endFretStatement(note);
-                for (const Keyframe& keyframe : note.keyframes)
-                {
-                    // Only the POSITION channel announces a hand position: a bend or a vibrato
-                    // change states nothing about where the hand sits, so it places no window.
-                    // The statement AT the ring's END announces none either, and NOTE-LOCALLY so:
-                    // a SLIDE-OUT is the hand leaving, and where it rides is the exit placement
-                    // resolveSlideOutExits decides; an ARRIVAL stands on the LANDING's own onset,
-                    // where that head's onset event already states the demand — and stating it
-                    // twice would make the window the sliding finger's alone, since at that instant
-                    // the fingers that pinned the hull have just stopped ringing.
-                    //
-                    // Bound to a local so the optional check and the access are provably the same
-                    // object.
-                    const std::optional<int>& stated_fret = keyframe.fret;
-                    if (!stated_fret.has_value() || *stated_fret <= 0 || &keyframe == end)
-                    {
-                        continue;
-                    }
-                    const int keyframe_fret = *stated_fret;
-                    // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so
-                    // it announces no new hand position and must not place one. Letting it place
-                    // one moves the window mid-note for no reason — a tie chain that holds a fret
-                    // and then trails off would shift the hand at the hold, beats into the held
-                    // note, instead of leaving it put until the slide itself moves it. The
-                    // projection's ramp derivation draws the same distinction for the same reason
-                    // (see slide_ramp_starts in highway_projection.cpp).
-                    if (keyframe_fret == slide_source)
-                    {
-                        continue;
-                    }
-                    const Fraction keyframe_place = built[onset_end].place + keyframe.offset;
-                    const GridPosition keyframe_position =
-                        tempo_map.gridPositionAtWholeNote(keyframe_place);
-                    int held_min = 0;
-                    int held_max = 0;
-                    if (heldHullAtSlideKeyframe(
-                            built, onset_end, keyframe_place, held_min, held_max))
-                    {
-                        // A finger stays planted: the hand must still cover it, so the event is
-                        // the sounding hull, fit like a struck onset — no drag.
-                        events.push_back(
-                            CoverageEvent{
-                                .place = keyframe_place,
-                                .position = keyframe_position,
-                                .min_fret = std::min(keyframe_fret, held_min),
-                                .max_fret = std::max(keyframe_fret, held_max),
-                                .shift = 0,
-                            });
-                    }
-                    else
-                    {
-                        // Nothing else is held: the whole hand travels with the slide (rule 9).
-                        events.push_back(
-                            CoverageEvent{
-                                .place = keyframe_place,
-                                .position = keyframe_position,
-                                .min_fret = keyframe_fret,
-                                .max_fret = keyframe_fret,
-                                .shift = slide_source > 0 ? keyframe_fret - slide_source : 0,
-                            });
-                    }
-                    slide_source = keyframe_fret;
-                }
-            }
-            ++onset_end;
-        }
-        if (onset.min_fret > 0)
-        {
-            // THE PINNED-FINGER UNION: a fretted note still SOUNDING at this onset pins its finger
-            // — lifting it would end the ring — so the hand's coverage here includes it exactly as
-            // if it were struck here. Without this the window abandons held material and describes
-            // a hand that cannot exist (the census's pinned-finger rows are the measure of how
-            // often). Right-hand onsets float above the window (rule 1), and a slid finger pins at
-            // the fret it has REACHED, read from the ring's own channel. Whether the union widens
-            // the window follows the existing width policy unchanged — held-plus-struck is the same
-            // demand a wide struck chord already makes.
-            for (std::size_t held = 0; held < index; ++held)
-            {
-                const BuiltNote& prior = built[held];
-                if (common::core::rightHandOnset(prior.note.attack))
-                {
-                    continue;
-                }
-                if (!(prior.place < onset.place) ||
-                    !(onset.place < prior.place + prior.note.sustain))
-                {
-                    continue;
-                }
-                const std::optional<int> pinned =
-                    common::core::ringStateAt(prior.note, onset.place - prior.place).fret;
-                if (pinned.has_value() && *pinned > 0)
-                {
-                    onset.min_fret = std::min(onset.min_fret, *pinned);
-                    onset.max_fret = std::max(onset.max_fret, *pinned);
-                }
-            }
-            events.push_back(onset);
-        }
-        index = onset_end;
-    }
-
-    // Keyframe events land mid-sustain, out of onset order, so the stream re-sorts before
-    // same-instant events merge into one coverage demand (a keyframe coinciding with an onset
-    // is one instant the hand covers once).
-    std::ranges::stable_sort(events, [](const CoverageEvent& lhs, const CoverageEvent& rhs) {
-        return lhs.place < rhs.place;
-    });
-    std::vector<CoverageEvent> merged;
-    for (const CoverageEvent& event : events)
-    {
-        if (!merged.empty() && merged.back().place == event.place)
-        {
-            merged.back().min_fret = std::min(merged.back().min_fret, event.min_fret);
-            merged.back().max_fret = std::max(merged.back().max_fret, event.max_fret);
-            // Simultaneous slides drag as one hand only while their deltas agree (a whole chord
-            // gliding by the same amount). Disagreeing deltas are a convergence or divergence —
-            // the hand is fit in place, so the drag is cancelled to 0 rather than adopting one
-            // arbitrary delta.
-            if (event.shift != 0)
-            {
-                merged.back().shift =
-                    (merged.back().shift == 0 || merged.back().shift == event.shift) ? event.shift
-                                                                                     : 0;
-            }
-        }
-        else
-        {
-            merged.push_back(event);
-        }
-    }
-
-    std::vector<common::core::FretHandPosition> positions;
-    int anchor = 0;
-    int capacity = common::core::g_min_fret_hand_width;
-    bool have_anchor = false;
-    double previous_seconds = 0.0;
-    Fraction previous_place{};
-    std::size_t phrase_index = 0;
-    for (const CoverageEvent& event : merged)
-    {
-        const double seconds = tempo_map.secondsAtWholeNote(event.place);
-        // A new segment begins at the first event, across a long rest, or at a section start that
-        // falls strictly after the previous event.
-        bool boundary = !have_anchor || seconds - previous_seconds >= g_fhp_phrase_rest_seconds;
-        while (phrase_index < phrase_boundary_places.size() &&
-               phrase_boundary_places[phrase_index] <= previous_place)
-        {
-            ++phrase_index;
-        }
-        if (have_anchor && phrase_index < phrase_boundary_places.size() &&
-            phrase_boundary_places[phrase_index] <= event.place)
-        {
-            boundary = true;
-        }
-        previous_seconds = seconds;
-        previous_place = event.place;
-
-        // A boundary holds before the first anchor too, so a window standing to cover the event
-        // always exists where one is asked about.
-        const common::core::FretWindow standing{.fret = anchor, .width = capacity};
-        const bool covered =
-            !boundary && standing.covers(event.min_fret) && standing.covers(event.max_fret);
-        if (event.shift == 0 && covered)
-        {
-            continue;
-        }
-        const int next_capacity =
-            std::max(common::core::g_min_fret_hand_width, event.max_fret - event.min_fret + 1);
-        // The window can never sit below the capo: its lowest legal anchor is the first
-        // fret above it.
-        const int lowest_anchor =
-            std::max(common::core::firstPlayableFret(capo), event.max_fret - next_capacity + 1);
-        // The floor wins if it ever crosses the covered extent. std::clamp is UB when its
-        // low bound exceeds its high one, and the capo term makes that reachable in
-        // principle: every guarantee that a covered fret sits above the capo (validation
-        // refusing sub-capo notes, the import shift, the rule putting a node past the stop, the
-        // skips for open strings and scrape travel) is external to this walk, and this walk
-        // runs on untrusted files BEFORE validation.
-        // The window must also FIT on the neck: a hand anchored high enough that its span runs
-        // past the last fret describes frets that do not exist, and the 3D board would light
-        // them. Where that would happen the hand sits LOWER instead, which is what a player
-        // reaching the top of the neck actually does — the note stays inside the window either
-        // way, at its top rather than its bottom. The outer max keeps the capo floor winning,
-        // since std::clamp is UB when its low bound exceeds its high one.
-        const int highest_anchor = std::max(
-            lowest_anchor, std::min(event.min_fret, common::core::g_max_fret - next_capacity + 1));
-        // At a boundary the hand re-places biased to the phrase's floor (the lowest fretted
-        // note); otherwise it drags from the current anchor by the slide delta and clamps.
-        const int next_anchor =
-            boundary ? std::clamp(event.min_fret, lowest_anchor, highest_anchor)
-                     : std::clamp(anchor + event.shift, lowest_anchor, highest_anchor);
-        // The capacity follows the event even where the finger stays: a placement states only the
-        // finger, so a window that merely widens or narrows in place emits nothing, and what it
-        // reaches is derived from the notes it covers.
-        capacity = next_capacity;
-        if (have_anchor && next_anchor == anchor)
-        {
-            continue;
-        }
-        positions.push_back(
-            common::core::FretHandPosition{
-                .position = event.position,
-                .fret = next_anchor,
-            });
-        anchor = next_anchor;
-        have_anchor = true;
-    }
-
-    // An opening run of notes that anchor nothing (open strings, taps) must not pin the hand at
-    // the nut-reference window: the song's starting position is wherever the first anchoring note
-    // puts the hand, so the first placement retimes back to the chart's first note and the window
-    // is already settled there when the song begins.
-    if (!positions.empty() && !built.empty() &&
-        built.front().note.position < positions.front().position)
-    {
-        positions.front().position = built.front().note.position;
-    }
-    return positions;
-}
-
 // The fret-hand placement window active at a position: the iterator PAST the last placement at
 // or before it. Callers read `after - 1` as the active window and handle begin() ("no window
 // yet") themselves — the two slide resolvers deliberately differ there (a scoop still applies
 // with its default start; a slide-out gesture is skipped entirely).
-[[nodiscard]] std::vector<common::core::FretHandPosition>::iterator firstPlacementAfter(
-    std::vector<common::core::FretHandPosition>& placements, const GridPosition& position)
+[[nodiscard]] std::vector<common::core::FretHandPosition>::const_iterator firstPlacementAfter(
+    const std::vector<common::core::FretHandPosition>& placements, const GridPosition& position)
 {
     return std::ranges::upper_bound(
         placements, position, std::ranges::less{}, &common::core::FretHandPosition::position);
+}
+
+// The derived hand stream as the placements the import stores: each event's front on the grid,
+// stating its index finger. Its width is not stored; the projection derives the reach.
+[[nodiscard]] std::vector<common::core::FretHandPosition> placementsOf(
+    const std::vector<common::core::FretHandEvent>& events, const common::core::TempoMap& tempo_map)
+{
+    std::vector<common::core::FretHandPosition> placements;
+    placements.reserve(events.size());
+    for (const common::core::FretHandEvent& event : events)
+    {
+        placements.push_back(
+            common::core::FretHandPosition{
+                .position = tempo_map.gridPositionAtWholeNote(event.front),
+                .fret = event.window.fret,
+            });
+    }
+    return placements;
 }
 
 // Merges a fabricated placement into the sorted track, keeping positions unique and ascending;
@@ -2525,6 +2162,56 @@ void upsertPlacement(
     }
 }
 
+// The windows the importer fabricates around slide gestures, which none of the derivation's 13
+// rules produces, so they are kept apart from the derived stream and laid over it
+// (withFabricatedPlacements). PENDING plan 60 Phase 2, which rules their home — dropped, or moved
+// into the projection's FhpViewState ramps — and removes them from the importer either way.
+struct FabricatedPlacements
+{
+    // A scoop's dip: the window its approach drags, owning the scoop's own onset.
+    std::vector<common::core::FretHandPosition> dips;
+
+    // An unpitched slide-out's ride: the window at the gesture's end, yielding to a placement
+    // already there.
+    std::vector<common::core::FretHandPosition> exits;
+
+    // Where the window the stream underneath states resumes after a dip or a ride, yielding to a
+    // placement already there.
+    std::vector<GridPosition> restores;
+};
+
+// Lays the fabricated windows over a placement stream: every dip, then every exit, then every
+// restore, so a dip wins its instant from an exit and both win theirs from a restore. A restore
+// reads the stream underneath, never another fabrication, so it always hands the hand back to the
+// window that stream states there.
+[[nodiscard]] std::vector<common::core::FretHandPosition> withFabricatedPlacements(
+    const std::vector<common::core::FretHandPosition>& underneath,
+    const FabricatedPlacements& fabricated)
+{
+    std::vector<common::core::FretHandPosition> placements = underneath;
+    for (const common::core::FretHandPosition& dip : fabricated.dips)
+    {
+        upsertPlacement(placements, dip);
+    }
+    for (const common::core::FretHandPosition& exit : fabricated.exits)
+    {
+        insertPlacementIfAbsent(placements, exit);
+    }
+    for (const GridPosition& restore : fabricated.restores)
+    {
+        const auto after = firstPlacementAfter(underneath, restore);
+        if (after != underneath.begin())
+        {
+            insertPlacementIfAbsent(
+                placements,
+                common::core::FretHandPosition{
+                    .position = restore, .fret = std::prev(after)->fret
+                });
+        }
+    }
+    return placements;
+}
+
 // Every placement's window, index-parallel to `placements`: its fret and the width the chart
 // derives for it over the stream as it stands (deriveFretHandWidths). No held stop is supplied: the
 // stream is still being built and nothing has resolved it, so a tap's held stop — a pull-off's
@@ -2548,19 +2235,18 @@ void upsertPlacement(
 }
 
 // The active window ridden by a gesture's fret travel, clamped so the ridden window still covers
-// covered_fret on the neck; floor_fret is the lowest legal anchor (fret 1, or the first fret above
-// the capo).
+// covered_fret on the neck and never sits below the capo.
 [[nodiscard]] int windowAnchorCovering(
-    const common::core::FretWindow active, const int travel, const int covered_fret,
-    const int floor_fret)
+    const common::core::FretWindow active, const int travel, const int covered_fret, const int capo)
 {
-    const int lowest = std::max(floor_fret, covered_fret - active.width + 1);
-    // The window has to cover the fret AND fit on the neck: an anchor whose span runs past the last
-    // fret names frets that do not exist, which near the top of the neck simply means the hand sits
-    // lower and covers the fret at its top instead. The low bound wins if the two ever cross — the
-    // capo floor is not negotiable, and std::clamp is UB with a low bound above its high one.
-    const int highest =
-        std::max(lowest, std::min(covered_fret, common::core::g_max_fret - active.width + 1));
+    const int lowest =
+        std::max(common::core::firstPlayableFret(capo), covered_fret - active.width + 1);
+    // The ridden placement is stored, so it fits as every stored placement does: the narrowest
+    // window must end on the board (\ref common::core::fittedWindowFret). The low bound wins if
+    // the two ever cross, since std::clamp is UB with a low bound above its high one.
+    const int highest = std::max(
+        lowest,
+        common::core::fittedWindowFret(covered_fret, common::core::g_min_fret_hand_width, capo));
     return std::clamp(active.fret + travel, lowest, highest);
 }
 
@@ -2576,28 +2262,28 @@ void upsertPlacement(
 // grace-with-slide notation, which resolves through the ordinary chain; a bare slide-in must not
 // fabricate it.
 //
-// Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the window
-// walk's delta arriving at the note, widened to a two-fret minimum, the flag's direction winning
+// Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the natural
+// stream's delta arriving at the note, widened to a two-fret minimum, the flag's direction winning
 // over a still hand or a contradicting delta. The hand stays planted while the approach fret sits
 // inside the active window — a two-fret scoop is usually a finger gesture, not a hand move (the
 // unpitched-slide precedent). An approach OUTSIDE the window drags the window with it for exactly
 // the scoop's duration (a window anchored on the notated fret left the approach uncovered): the
-// onset's window derives backward from the active one so the head keeps its slot, and the natural
-// window returns at the scoop's end. An open string cannot be slid into, and a start clamped onto
-// the notated fret has no travel; both count as unplaceable and stay plain. The transform runs
-// before anything reads the stream, so the transformed note is already a slide when the tail rules
-// judge it: a slide-in into a held landing keeps its hold like any notated slide.
+// onset's window derives backward from the active one so the head keeps its slot, and the stored
+// stream's own window returns at the scoop's end. The dip and its restore are handed back as
+// fabricated placements, PENDING plan 60 Phase 2 (FabricatedPlacements). An open string cannot
+// be slid into, and a start clamped onto the notated fret has no travel; both count as unplaceable
+// and stay plain. The transform runs before anything reads the stream, so the transformed note is
+// already a slide when the tail rules judge it: a slide-in into a held landing keeps its hold like
+// any notated slide.
 void resolveSlideIns(
-    std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
-    const common::core::TempoMap& tempo_map, std::vector<std::string>& notes, const int capo)
+    std::vector<BuiltNote>& built, const std::vector<common::core::FretHandPosition>& placements,
+    FabricatedPlacements& fabricated, const common::core::TempoMap& tempo_map,
+    std::vector<std::string>& notes, const int capo)
 {
     int unplaceable = 0;
-    // Applied after the loop so every start fret derives from the pristine natural track — a
-    // fabricated dip must never feed a later slide-in's slot math. Dips replace whatever sits
-    // at their instant (the scoop owns its onset); restores yield to any real placement
-    // already at the scoop's end.
-    std::vector<common::core::FretHandPosition> dip_placements;
-    std::vector<common::core::FretHandPosition> restore_placements;
+    // Dips and restores are handed back, never laid over the natural stream here, so every start
+    // fret derives from that stream alone — a fabricated dip must never feed a later slide-in's
+    // slot math.
     // What each natural window reaches, derived from the pristine stream for the same reason: a
     // scoop's own approach must not widen the window it is tested against.
     const std::vector<common::core::FretWindow> windows =
@@ -2673,12 +2359,10 @@ void resolveSlideIns(
                 windows[static_cast<std::size_t>(std::distance(placements.begin(), active))];
             if (!active_window.covers(start))
             {
-                const int dip_anchor = windowAnchorCovering(
-                    active_window, start - note.fret, start, common::core::firstPlayableFret(capo));
-                dip_placements.push_back(
+                fabricated.dips.push_back(
                     common::core::FretHandPosition{
                         .position = note.position,
-                        .fret = dip_anchor,
+                        .fret = windowAnchorCovering(active_window, start - note.fret, start, capo),
                     });
                 // The restore rides the scoop's end, which can run off the end of the score; a
                 // placement outside the grid would fail validation for the whole song, and the
@@ -2686,11 +2370,7 @@ void resolveSlideIns(
                 if (const Fraction restore_place = entry.place + window;
                     withinScore(tempo_map, restore_place))
                 {
-                    restore_placements.push_back(
-                        common::core::FretHandPosition{
-                            .position = tempo_map.gridPositionAtWholeNote(restore_place),
-                            .fret = active->fret,
-                        });
+                    fabricated.restores.push_back(tempo_map.gridPositionAtWholeNote(restore_place));
                 }
             }
         }
@@ -2700,15 +2380,6 @@ void resolveSlideIns(
         // same moment, not a competing one.
         keyframeAt(note, window).fret = note.fret;
         note.fret = start;
-    }
-    // Merge the fabricated windows: dips own their instant, restores yield to real placements.
-    for (const common::core::FretHandPosition& dip : dip_placements)
-    {
-        upsertPlacement(placements, dip);
-    }
-    for (const common::core::FretHandPosition& restore : restore_placements)
-    {
-        insertPlacementIfAbsent(placements, restore);
     }
     if (unplaceable > 0)
     {
@@ -2728,18 +2399,17 @@ void resolveSlideIns(
 // with it, and a restore placement at the next onset brings the window back for the note that
 // follows (so notes after the gesture are never stranded in the dipped window). Fabricated exits
 // yield to real placements at their instant, restores yield to anything already there, and a
-// slide-out ending past the next onset stays planted (no room to ride).
+// slide-out ending past the next onset stays planted (no room to ride). The exits and restores are
+// handed back for the end of the import to lay over the derived stream (FabricatedPlacements).
 //
 // Every question here — where the slide-out ends, which fret it leaves from, whether it still
 // clears the next onset — is asked of the STORED note, whose ring is the truth the placements are
 // written against; spacing before the next head is display's alone.
 void resolveSlideOutExits(
     std::vector<BuiltNote>& built, const std::vector<bool>& arrives_into,
-    std::vector<common::core::FretHandPosition>& placements,
+    const std::vector<common::core::FretHandPosition>& placements, FabricatedPlacements& fabricated,
     const common::core::TempoMap& tempo_map, const int capo)
 {
-    std::vector<common::core::FretHandPosition> exit_placements;
-    std::vector<common::core::FretHandPosition> restore_placements;
     // What each window reaches before any exit rides it. The one note this pass rewrites is the
     // slide-out's end statement, which states no reach, so the table stays true across the loop.
     const std::vector<common::core::FretWindow> windows =
@@ -2801,10 +2471,11 @@ void resolveSlideOutExits(
         // presses a stop — where Guitar Pro's rings end — has no instant of its own to put a window
         // at: that strike's window takes it, and a departing hand already rides the slide-out's
         // leg toward it through the ramp the slide-out keyframe files at that onset. So exact
-        // adjacency there resolves the exit fret below and fabricates nothing. A strike of open
-        // strings or taps alone places no window, so nothing else would take the instant and the
-        // hand would sit out the whole glide; there the exit rides the gesture to it, and the
-        // restore waits for the onset after.
+        // adjacency there resolves the exit fret below and fabricates nothing. A strike that
+        // demands nothing of the fretting hand (open strings, taps) starts no figure, so a window
+        // stands at its instant only where a later figure's front happens to reach back onto it
+        // (rule 10) — nothing the gesture can count on; there the exit rides the gesture to it,
+        // and the restore waits for the onset after.
         const bool meets_next = has_next && end_position == built[next_note].note.position;
         // The strike the gesture meets, as the run of its notes; empty where it meets none.
         const auto next_strike = built.begin() + static_cast<std::ptrdiff_t>(next_note);
@@ -2818,7 +2489,7 @@ void resolveSlideOutExits(
                                            : next_strike;
         const bool next_strike_takes_instant =
             meets_next && std::any_of(next_strike, after_next_strike, [](const BuiltNote& other) {
-                return anchorsFretHand(other.note);
+                return common::core::fretHandDemandAt(other.note, Fraction{}).has_value();
             });
         const std::size_t restore_note =
             meets_next ? static_cast<std::size_t>(std::distance(built.begin(), after_next_strike))
@@ -2850,36 +2521,22 @@ void resolveSlideOutExits(
         }
         if (!departs && restore_note < built.size())
         {
-            restore_placements.push_back(
-                common::core::FretHandPosition{
-                    .position = built[restore_note].note.position,
-                    .fret = active->fret,
-                });
+            fabricated.restores.push_back(built[restore_note].note.position);
         }
         // No note follows and the gesture is not a departure: the window may rest where the
         // gesture ends — an exit with no restore.
 
         // The riding window derives from the active one by the gesture's travel, clamped to
         // keep the exit fret covered on the neck — never below the capo, where no hand can sit.
-        const int anchor = windowAnchorCovering(
-            windows[static_cast<std::size_t>(std::distance(placements.begin(), active))],
-            exit_fret - departing,
-            exit_fret,
-            common::core::firstPlayableFret(capo));
-        exit_placements.push_back(
+        fabricated.exits.push_back(
             common::core::FretHandPosition{
                 .position = end_position,
-                .fret = anchor,
+                .fret = windowAnchorCovering(
+                    windows[static_cast<std::size_t>(std::distance(placements.begin(), active))],
+                    exit_fret - departing,
+                    exit_fret,
+                    capo),
             });
-    }
-    // Merge the fabricated windows: exits and restores both yield to real placements.
-    for (const common::core::FretHandPosition& exit : exit_placements)
-    {
-        insertPlacementIfAbsent(placements, exit);
-    }
-    for (const common::core::FretHandPosition& restore : restore_placements)
-    {
-        insertPlacementIfAbsent(placements, restore);
     }
 }
 
@@ -2894,14 +2551,15 @@ void resolveSlideOutExits(
 // Two keyframes of one ring that round onto one tick stay apart, the later taking the next tick,
 // so a hold followed by a release keeps its hold; only where no tick is left inside the ring does
 // the later fold into the earlier, its stated channels winning. A ring keeps at least one tick.
-// Hand placements that round together keep the first, as the exit pass's first-inserted rule does.
+// The hand placements are rounded the same way once the stored stream exists, at the end of the
+// import (roundPlacementsOntoTickLattice).
 //
 // Every instant is rounded as a PLACE on the whole-note axis, where the lattice lies, and a
 // duration is then the difference of two rounded places — a whole number of ticks by construction.
-void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
+void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::TempoMap& tempo_map)
 {
     const Fraction tick = common::core::g_tick_quantum_note_value;
-    for (ChartNote& note : chart.notes)
+    for (ChartNote& note : notes)
     {
         const Fraction place = tempo_map.wholeNotePositionAt(note.position);
         const Fraction onset = common::core::nearestTickPlace(place);
@@ -2942,27 +2600,39 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
         note.sustain = end - onset;
         note.keyframes = std::move(keyframes);
     }
+}
 
-    std::vector<common::core::FretHandPosition> placements;
-    placements.reserve(chart.fret_hand_positions.size());
-    for (common::core::FretHandPosition placement : chart.fret_hand_positions)
+// The lattice rounding's placement half (roundOntoTickLattice): every placement lands on the tick
+// nearest its place, and placements that round together keep the first. The derived fronts are note
+// and keyframe places of the rounded notes, already on the lattice, so what this moves is the
+// fabricated windows alone.
+void roundPlacementsOntoTickLattice(
+    std::vector<common::core::FretHandPosition>& placements,
+    const common::core::TempoMap& tempo_map)
+{
+    std::vector<common::core::FretHandPosition> rounded;
+    rounded.reserve(placements.size());
+    for (common::core::FretHandPosition placement : placements)
     {
         placement.position = tempo_map.gridPositionAtWholeNote(
             common::core::nearestTickPlace(tempo_map.wholeNotePositionAt(placement.position)));
-        if (placements.empty() || placements.back().position < placement.position)
+        if (rounded.empty() || rounded.back().position < placement.position)
         {
-            placements.push_back(placement);
+            rounded.push_back(placement);
         }
     }
-    chart.fret_hand_positions = std::move(placements);
+    placements = std::move(rounded);
 }
 
 // The importer states a placement only where the index finger MOVES. A placement stores nothing
 // but its fret, and its reach is derived over its stretch (deriveFretHandWidths), so one that
 // restates the fret before it says nothing except to split that stretch — narrowing the window
-// where no authored intent asked it to. The walk emits none itself; the dips, restores and exits
-// fabricated around it, and placements the lattice rounding pulls together, can leave them. The
-// earliest of a run is kept, because the hand is already there. The chart rules deliberately
+// where no authored intent asked it to. The derivation leaves such pairs too: it emits wherever
+// the WINDOW changes, so a figure keeping the floor and changing only its width becomes a
+// placement restating the fret, and its width is lost here — the acknowledged yield of storing
+// frets only until plan 60 Phase 2 (§9 Q10). The dips, restores and exits fabricated around it,
+// and placements the lattice rounding pulls together, leave more.
+// The earliest of a run is kept, because the hand is already there. The chart rules deliberately
 // allow such a neighbour: a charter may insert one on purpose to narrow the window after a wide
 // passage, which is an authored choice the importer never makes.
 void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placements)
@@ -2978,16 +2648,16 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
 }
 
 // Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
-// normalization, and fret-hand position generation. The tempo map places mid-sustain
-// slide-keyframe positions on the musical grid.
+// normalization, and the fret-hand positions derived from the finished notes. The tempo map
+// places mid-sustain slide-keyframe positions on the musical grid.
 //
 // The conversion notes and the let-ring report are both SONG-level accumulators the track
 // adds to, for the one reason: a reader asks what the whole import did, and a per-track answer
 // would have to be summed by every caller.
 [[nodiscard]] Chart buildChart(
     const GpTrack& track, const std::vector<GpMasterBar>& master_bars,
-    const common::core::TempoMap& tempo_map, const std::vector<Fraction>& phrase_boundary_places,
-    std::vector<std::string>& notes, GpLetRingReport& let_ring)
+    const common::core::TempoMap& tempo_map, std::vector<std::string>& notes,
+    GpLetRingReport& let_ring)
 {
     Chart chart;
     // Every value below arrives unvalidated from the score file, and each one the chart rules
@@ -3656,31 +3326,25 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             " tapped open strings had nothing to strike and read as plain picks");
     }
 
-    // The generator reads onsets, keyframe positions, and — for held-note detection at slide
-    // keyframes — the sounding spans, which the stored rings now simply are. It runs on the
-    // natural stream, slide-ins still plain notes at their notated positions, and the resolver
-    // then touches the placements only when a scoop's approach leaves the active window: the
-    // window dips with the scoop for exactly its duration and the natural window returns at the
-    // scoop's end; an approach the window already covers stays a planted finger gesture, like an
-    // unpitched slide.
+    // A bare slide-in's approach fret is chosen from where the hand arrives at the note, so it is
+    // asked of a derivation over the NATURAL stream — slide-ins still plain notes at their notated
+    // positions — and before the rings are final, which is why it cannot wait for the stored
+    // stream the end of the import derives (plan 60 §9 Q11). The resolver then fabricates a window
+    // only where a scoop's approach leaves the active one: the window dips with the scoop for
+    // exactly its duration and the stored stream's own window returns at the scoop's end; an
+    // approach the window already covers stays a planted finger gesture, like an unpitched slide.
     //
-    // The relation the hand generator needs at a LANDING: a head some glide arrived into inherits
-    // that glide's drag (rule 9). Resolved on the stream the slide passes have left, which is the
-    // stream the generator reads — the shift branch grew each origin's ring to exactly the gap, so
-    // the adjacency the relation tests already holds before the same-string clamp runs. THE FIRST
-    // OF THREE WALKS, each after a pass that MOVED a ring: none can be shared, and every one says
-    // below it what changed since the last.
+    // Resolved on the stream the slide passes have left — the shift branch grew each origin's ring
+    // to exactly the gap, so the arrivals the derivation merges at their landings already hold
+    // before the same-string clamp runs. THE FIRST OF FOUR WALKS, each after a pass that MOVED a
+    // ring: none can be shared, and every one says below it what changed since the last.
     const common::core::ChartConnections slide_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
-    chart.fret_hand_positions = generateFretHandPositions(
-        built, slide_connections, tempo_map, phrase_boundary_places, chart.tuning.capo);
-    resolveSlideIns(built, chart.fret_hand_positions, tempo_map, notes, chart.tuning.capo);
-    if (!chart.fret_hand_positions.empty())
-    {
-        notes.push_back(
-            "generated " + std::to_string(chart.fret_hand_positions.size()) +
-            " fret-hand positions (phrase-aware; verify)");
-    }
+    const std::vector<common::core::FretHandPosition> natural_placements = placementsOf(
+        common::core::deriveFretHandEvents(slide_connections, tempo_map, chart.tuning.capo),
+        tempo_map);
+    FabricatedPlacements fabricated;
+    resolveSlideIns(built, natural_placements, fabricated, tempo_map, notes, chart.tuning.capo);
 
     // THE LET-RING FIGURE LAW's application: every marked note rings to its FIGURE's end —
     // max(written, min(same-string clamp, figure end)) — and the three bounds compose without any
@@ -3795,9 +3459,15 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     const common::core::ChartConnections connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
 
-    // Slide-out exits follow the hand's next move where it agrees.
+    // Slide-out exits follow the hand's next move where it agrees: the natural stream with the
+    // scoops' dips laid over it, which is the hand this pass has always ridden.
     resolveSlideOutExits(
-        built, connections.arrives_into, chart.fret_hand_positions, tempo_map, chart.tuning.capo);
+        built,
+        connections.arrives_into,
+        withFabricatedPlacements(natural_placements, fabricated),
+        fabricated,
+        tempo_map,
+        chart.tuning.capo);
 
     if (unsupported_harmonics > 0)
     {
@@ -3831,8 +3501,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     {
         chart.notes.push_back(std::move(entry.note));
     }
-    roundOntoTickLattice(chart, tempo_map);
-    dropRestatedPlacements(chart.fret_hand_positions);
+    roundOntoTickLattice(chart.notes, tempo_map);
 
     // Import is a commit point, so the chart leaves here in its normal form through the ONE
     // normalizer every load path calls: each note sheds what it cannot execute, every range is
@@ -3868,6 +3537,28 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             std::string{common::core::chartRepairText(repair)});
     }
 
+    // THE STORED HAND STREAM, derived last, from the normalized chart — after the let-ring law, the
+    // same-string clamp, the lattice and the normalizer have all moved rings the derivation reads —
+    // so what the import stores is what a reader deriving from these notes would find (plan 60 §9
+    // Q11). THE LAST OF FOUR WALKS. The slide passes' fabricated windows are laid over it, and the
+    // lattice and the restatement drop then act on the whole stored stream.
+    chart.fret_hand_positions = withFabricatedPlacements(
+        placementsOf(
+            common::core::deriveFretHandEvents(
+                common::core::chartConnections(chart.notes, tempo_map),
+                tempo_map,
+                chart.tuning.capo),
+            tempo_map),
+        fabricated);
+    roundPlacementsOntoTickLattice(chart.fret_hand_positions, tempo_map);
+    dropRestatedPlacements(chart.fret_hand_positions);
+    if (!chart.fret_hand_positions.empty())
+    {
+        notes.push_back(
+            "generated " + std::to_string(chart.fret_hand_positions.size()) +
+            " fret-hand positions (derived; verify)");
+    }
+
     return chart;
 }
 
@@ -3891,15 +3582,11 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     song.tempo_map = buildTempoMap(score, song.notes);
 
     // Section markers live on the master bars shared by every track, so they build once at the
-    // song level rather than being duplicated into each track's chart. Their whole-note places
-    // double as phrase boundaries for the phrase-aware fret-hand generator (ascending by
-    // construction, since master bars are in order).
-    std::vector<Fraction> phrase_boundary_places;
+    // song level rather than being duplicated into each track's chart.
     for (std::size_t measure = 0; measure < score.master_bars.size(); ++measure)
     {
         // A song section is a NAMED place in the structure, so an unlabelled section mark states
-        // no section here — and states no phrase boundary either, since the boundary is what the
-        // name marks out. Bound to one reference so the guard and the read are the same object.
+        // no section here. Bound to one reference so the guard and the read are the same object.
         // "Unlabelled" is measured by the shared section-name trim, not by emptiness: a bar whose
         // label is nothing but spaces states no name either, and importing it would build a section
         // list the section rules refuse and the package could never be read back.
@@ -3915,7 +3602,6 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
                     .position = downbeat,
                     .name = section_name,
                 });
-            phrase_boundary_places.push_back(song.tempo_map.wholeNotePositionAt(downbeat));
         }
     }
 
@@ -3950,13 +3636,8 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
         {
             seen_non_bass = true;
         }
-        arrangement.chart = buildChart(
-            track,
-            score.master_bars,
-            song.tempo_map,
-            phrase_boundary_places,
-            song.notes,
-            song.let_ring);
+        arrangement.chart =
+            buildChart(track, score.master_bars, song.tempo_map, song.notes, song.let_ring);
 
         if (auto validation = common::core::validateChartRules(arrangement.chart, song.tempo_map);
             !validation.has_value())

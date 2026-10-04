@@ -99,11 +99,9 @@ the user picks which way the two surfaces reconcile.
 
 ## Found by the 2026-09-25 derived-width build
 
-- **The lone-open census row drifted 132 → 67 between 2026-09-20 and 09-24, unexplained.** The
-  local corpus census's "... arriving where nothing fretted sounds" row
-  (`test_corpus_census.cpp`) already measured 67 against its signed 132 before the derived-width
-  rulings, and they did not move it. Its `expected` is unset until a build is named as the cause;
-  re-pin it once explained.
+- ~~**The lone-open census row drifted 132 → 67 between 2026-09-20 and 09-24, unexplained.**~~
+  MOOT 2026-10-04: plan 60 Phase 1 replaced the walk whose drift it tracked, and the row was
+  re-signed against the 13-rule derivation (2224, its leading-open-string fronts by design).
 
 ## Found in the 2026-09-24 sighting
 

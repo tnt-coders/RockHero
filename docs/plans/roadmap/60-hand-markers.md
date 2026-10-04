@@ -283,7 +283,16 @@ built (the stopgap's Phase 0 deviation: it was the order rule stated twice). 60-
 the funnel refusing a marker at an occupied front, is built too (`handChordTarget` restates
 instead of inserting; a move onto a held start is refused at the commit).
 
-### Phase 1 — the derivation core (gated on 60-Q1; needs nothing else) — READY 2026-10-04
+### Phase 1 — the derivation core (gated on 60-Q1; needs nothing else) — CORE BUILT 2026-10-04
+
+**Status (2026-10-04):** the derivation, the one clamp, the end-of-import call and the old walk's
+deletion are built, with a unit test per rule and the importer and census re-pinned (census FHP
+rows re-signed against a same-day baseline of the walk). Acceptance (b)'s scorer is built
+(`test_fret_hand_score.cpp`, `[.fhp-score]`, reading `ROCKHERO_FHP_SCORED_CORPUS_DIR`) and the
+derivation publishes a `FretHandDerivationTally`, which also feeds Q3's rule-6 census rows
+(reported, unsigned). Open: one definitional difference from the reference — the port demands a
+natural harmonic at its node's fret (`heldFretAt`), the reference demands nothing (`fret > 0`);
+the sign-off score on the rebuilt corpus; the offender worklist and the sightings of (c); and (d).
 
 Phase 1 is EXACTLY the measured zero-input 13-rule algorithm (§9 Q9): no marker input, no format
 change, no row change. Every rule's open point is settled by the 2026-10-04 rulings (§9, Q1–Q12);
@@ -294,8 +303,10 @@ the builder reads them as part of this scope.
 ~~`deriveFretHandPositions(notes, plants, markers, tempo_map)` → the derived hand events, each a
 `GridPosition` front with a `FretWindow`~~ — SUPERSEDED 2026-10-04 (§9 Q7, Q8, Q9 in their
 amended, user-signed final forms): the ONLY input is the `ChartConnections` the resolutions already
-build (the saved notes, their whole-note places and predecessors), which carries the `TempoMap`;
-of the tuning only the capo is read (rule 9's clamp needs it: frets are stored absolute, source
+build (the saved notes, their whole-note places and predecessors), with the `TempoMap` beside it
+(CORRECTED 2026-10-04: the connections do not carry the map, and a reference to it inside that
+value type would dangle, so it is an explicit parameter, read only to place an instant in its
+measure); of the tuning only the capo is read (rule 9's clamp needs it: frets are stored absolute, source
 fret + capo, lifecycle rule 21). It returns the derived hand events, each a whole-note `Fraction`
 front (the axis `ChartShape::place` already uses, which the events sit beside in Phase 2) with a
 `FretWindow` (the type exists: `chart.h`). There is no `plants` parameter: plants derive inside
@@ -352,8 +363,10 @@ a corpus population (§9 item 1). The port must implement rule 12 in the measure
 is a demand from the source's onset, including a tapped source (§9 Q2 states the final form: a
 one-note demand at the source's onset widening every group up to the destination's onset).
 (b) The C++ port scored against the same dataset through a hidden-tag test
-(`[.local-fhp-dataset]`, path from `ROCKHERO_FHP_DATASET_DIR`, the variable the Python harness
-already reads, exactly the census rig's pattern) reporting coverage and exact agreement — §9 item
+(`[.fhp-score]` in `test_fret_hand_score.cpp`, the census rig's pattern) reading the scored corpus
+— the converter's `.rock` packages — from `ROCKHERO_FHP_SCORED_CORPUS_DIR`, the variable the
+Python reference reads too (`ROCKHERO_FHP_DATASET_DIR` stays the raw dataset only the Python
+harness reads), reporting coverage and exact agreement — §9 item
 3; without it nothing proves the port is the measured algorithm. The scorer reads the songs
 through the custom-song converter and RockHero's production chart reader, with NO hand-written
 C++ adapter, and depends on the converter's pitched-slide fix (§9, decisions of 2026-10-04).
@@ -780,7 +793,9 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
    demands only widen the hull, so a demand never makes a chord.
 6. **Q6 — rule 10 is ONE rule.** **FINAL:** a run's front is the first onset after the LATEST of:
    the previous run's last onset, the end of its last plain ring (Q3), and the boundary that broke
-   the run. The window BEFORE the first front is the reader's lookup question, which retires the
+   the run. (Read 2026-10-04, as the Python reference reads it: the ring term is the LATEST END
+   among every plain ring struck before the run; reading only the previous run's rings scores
+   identically.) The window BEFORE the first front is the reader's lookup question, which retires the
    importer's first-entry retime with no special case. The audit form's "tap-only" means "an onset
    with no demand", since rule 12 makes a tapped pull-off source a demand. Rule 10 is UNMEASURED:
    the Python reference must first measure its cross-bar share (the bar stop cuts open-string
@@ -793,11 +808,14 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
    `:2563`) pass `g_min_fret_hand_width`. (Audit form superseded: its "two clamps with two jobs"
    was the rule stated twice.)
 8. **Q8 — axis and inputs.** **FINAL:** fronts are whole-note `Fraction` places, as with
-   `ChartShape`; the ONLY input is `ChartConnections`, which carries the `TempoMap`, and only the
-   capo is read from the tuning; there is no `plants` parameter (plants derive inside). The
+   `ChartShape`; the ONLY input is `ChartConnections`, with the `TempoMap` beside it (CORRECTED
+   2026-10-04: the connections do not carry the map, and a reference inside that value type would
+   dangle, so the map is an explicit parameter), and only the capo is read from the tuning; there is no `plants` parameter (plants derive inside). The
    derivation never reads seconds. The bar test is "the measure number changed between
    consecutive groups", read from `position.measure`, and from
    `advanceGridPositionByWholeNotes(...).measure` (`grid_arithmetic.h:216`) for a keyframe demand.
+   (Built 2026-10-04 as ONE spelling for every instant: `tempo_map.gridPositionAtWholeNote(place)
+   .measure`, read once per group.)
    The scorer skips notes before the first generated or authored anchor exactly as the harness's
    `score` does.
 9. **Q9 — markers in Phase 1. RULED: markers wait for Phase 2.** Phase 1 is exactly the measured

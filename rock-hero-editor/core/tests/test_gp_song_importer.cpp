@@ -284,8 +284,8 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 
 // Finds the index of the generated fret-hand position at an exact grid position, or nothing. The
 // slide tests use this to assert the slide-driven hand move rather than the whole generated track,
-// whose shape is the phrase-aware generator's own concern (generateFretHandPositions in
-// gp_chart_builder.cpp).
+// whose shape is the derivation's own concern (deriveFretHandEvents, tested rule by rule in
+// common/core).
 [[nodiscard]] std::optional<std::size_t> fretHandPositionAt(
     const common::core::Chart& chart, const common::core::GridPosition& position)
 {
@@ -450,19 +450,18 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(fixture_spans.postures.empty());
     CHECK(fixture_spans.shapes.empty());
 
-    // The generated fret-hand track opens on the fret-5 palm mute, then the seven-to-nine shift
-    // glide drags the anchor up by its own +2 delta to a fret-7 window (rule 9), keeping the
-    // fretting finger on its slot. The window moves where the ARRIVAL stands — the landing's own
-    // onset, where the finger actually gets there — and that is the landing head's instant too, so
-    // the two coverage demands merge into one. (The full track shape is the phrase-aware
-    // generator's own concern, so this asserts the slide-driven move, not the whole sequence.)
+    // The derived fret-hand track opens on the fret-5 palm mute; the seven-to-nine shift glide's
+    // arrival then outgrows that hand (5 to 9 is five frets), so a new run starts where the ARRIVAL
+    // stands — the landing's own onset, the landing head's instant too, so the two demands merge
+    // into one — and the window sits on that run's floor, 9. (The full track shape is the
+    // derivation's own concern, so this asserts the slide-driven move, not the whole sequence.)
     CHECK(chart.fret_hand_positions.front().fret == 5);
     const std::optional<std::size_t> shift_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(shift_glide.has_value());
     if (shift_glide.has_value())
     {
-        CHECK(chart.fret_hand_positions[*shift_glide].fret == 7);
+        CHECK(chart.fret_hand_positions[*shift_glide].fret == 9);
         CHECK(derivedWidthOf(chart, song->tempo_map, *shift_glide) == 4);
     }
 
@@ -593,25 +592,25 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(origin.keyframes[0].fret == 9);
     CHECK(common::core::endStatedFretOrNull(origin) == nullptr);
 
-    // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: the
-    // glide drags the window up by its own +2 delta at the keyframe's mid-sustain position
-    // (rule 9), landing a fret-7 window there.
+    // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: its
+    // demand at the keyframe's mid-sustain place outgrows the opening hand, so the run it starts
+    // fronts there, on its own floor, 9.
     const std::optional<std::size_t> legato_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(legato_glide.has_value());
     if (legato_glide.has_value())
     {
-        CHECK(chart.fret_hand_positions[*legato_glide].fret == 7);
+        CHECK(chart.fret_hand_positions[*legato_glide].fret == 9);
         CHECK(derivedWidthOf(chart, song->tempo_map, *legato_glide) == 4);
     }
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// An unpitched slide-out is a slide-out, not a rule-9 pitched drag — the generator's walk never
-// repositions for it. Its exit placement stands where the STORED gesture ends, which here is
-// exactly the next onset, so it yields to the real placement already there (the fret-9 landing's)
-// and the window does not dip.
+// An unpitched slide-out is a slide-out, not a pitched statement — the derivation reads no demand
+// from it. Its exit placement stands where the STORED gesture ends, which here is exactly the next
+// onset, so it yields to the real placement already there (the fret-9 landing's) and the window
+// does not dip.
 TEST_CASE(
     "Guitar Pro import yields a slide-out's exit to the next onset's window", "[core][gp-import]")
 {
@@ -646,15 +645,15 @@ TEST_CASE(
     CHECK(chart.notes[1].sustain == Fraction{1, 8});
     CHECK(inkEndsOf(chart, song->tempo_map)[1] == Fraction{1, 10});
 
-    // The natural walk is untouched by the gesture (no rule-9 drag), and the exit placement at
-    // the stored end lands on the fret-9 landing's own placement (the minimal fret-6 window) and
-    // yields to it: the window goes straight from the opening fret-5 window to the landing's.
+    // The derived stream is untouched by the gesture, and the exit placement at the stored end
+    // lands on the fret-9 landing's own placement (the floor of the run it starts) and yields to
+    // it: the window goes straight from the opening fret-5 window to the landing's.
     REQUIRE(chart.fret_hand_positions.size() >= 2);
     CHECK(chart.fret_hand_positions[0].fret == 5);
     CHECK(
         chart.fret_hand_positions[1].position ==
         GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-    CHECK(chart.fret_hand_positions[1].fret == 6);
+    CHECK(chart.fret_hand_positions[1].fret == 9);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -691,11 +690,12 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
     REQUIRE(chart.notes.size() == 5);
 
-    // The slide-in head stays on its notated onset, scooping from two frets below over the
-    // minimum slide window — 50 ms, a fortieth of a whole note at 120 BPM — which a quarter of its
-    // notated duration, capped at the margin, never exceeds.
+    // The slide-in head stays on its notated onset, scooping from where the hand arrives from —
+    // the natural stream moves it from the fret-5 window to the landing's floor, 9, four frets —
+    // over the minimum slide window: 50 ms, a fortieth of a whole note at 120 BPM, which a quarter
+    // of its notated duration, capped at the margin, never exceeds.
     const common::core::ChartNote& landing = chart.notes[2];
-    CHECK(landing.fret == 7);
+    CHECK(landing.fret == 5);
     REQUIRE_FALSE(landing.keyframes.empty());
     CHECK(landing.keyframes.front().offset == Fraction{1, 40});
     CHECK(landing.keyframes.front().fret == 9);
@@ -773,13 +773,10 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// A pitched glide drags the hand by its own fret delta even when the target already fits the
-// window (normalization policy rule 9): with the landing lowered, the one-fret glide's target
-// sits inside the opening 5-8 window, yet the +1 delta still moves the window to 6-9 so the
-// fretting finger keeps its slot.
-TEST_CASE(
-    "Guitar Pro import shifts the hand by the slide delta for in-window targets",
-    "[core][gp-import]")
+// A pitched glide is an ordinary demand at its arrival, so one whose target the standing window
+// already covers moves nothing: with the landing lowered, the one-fret glide's target sits inside
+// the opening 5-8 window, and the hand stays there through it.
+TEST_CASE("Guitar Pro import holds the hand through an in-window glide", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_in_window_slide_fhp_test";
@@ -803,16 +800,12 @@ TEST_CASE(
     REQUIRE(chart.notes[1].keyframes.size() == 1);
     CHECK(chart.notes[1].keyframes[0].fret == 8);
 
-    // Minimal-shift coverage alone would leave the window at 5-8 through the glide; the slide
-    // delta moves it anyway, to a fret-6 window where the arrival stands: the landing's own onset.
+    // The run 5-7-8 fits one hand, so the window stays 5-8 through the glide and the landing;
+    // nothing is placed where the arrival stands.
     CHECK(chart.fret_hand_positions.front().fret == 5);
-    const std::optional<std::size_t> in_window_glide =
-        fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-    REQUIRE(in_window_glide.has_value());
-    if (in_window_glide.has_value())
-    {
-        CHECK(chart.fret_hand_positions[*in_window_glide].fret == 6);
-    }
+    CHECK_FALSE(
+        fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}})
+            .has_value());
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -820,12 +813,9 @@ TEST_CASE(
 // One 4/4 bar, quarter notes: a two-string chord holds frets 2 and 5, and the lower fret-2 note
 // shift-slides to a beat-2 landing while the fret-5 note keeps ringing.
 //
-// THE HELD-FINGER COVER IS NOT THIS FIGURE'S: the arrival stands ON the beat-2 landing and the
-// fret-5 quarter note's ring ends exactly there, so at the instant the hand arrives no planted
-// finger remains to cover. What applies is rule 9's DRAG, stated at the head the arrival stands
-// on: the window translates by the glide's fret delta. The cover governs a glide whose keyframe
-// stands strictly INSIDE its ring — a legato merge or a slide-in — where a partner really is still
-// holding.
+// The arrival stands ON the beat-2 landing, where its demand merges with the landing head's: an
+// ordinary instant of the chord's run. Whether the hand moves there is the run's question alone —
+// a glide inside the chord's window moves nothing, one that escapes it starts a run of its own.
 constexpr const char* g_held_slide_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 <GPIF>
 <GPVersion>8.1.4</GPVersion>
@@ -884,7 +874,8 @@ constexpr const char* g_held_slide_gpif = R"(<?xml version="1.0" encoding="utf-8
 </GPIF>
 )";
 
-TEST_CASE("Guitar Pro import drags the hand by a chord member's slide", "[core][gp-import]")
+TEST_CASE(
+    "Guitar Pro import moves the hand where a chord member's slide escapes", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_held_slide_test";
@@ -896,7 +887,7 @@ TEST_CASE("Guitar Pro import drags the hand by a chord member's slide", "[core][
     // The arrival stands ON the beat-2 landing, which is where the hand window moves.
     const GridPosition keyframe{.measure = 1, .beat = 2};
 
-    SECTION("a lower note sliding inward drags the window up by the glide's delta")
+    SECTION("a lower note sliding inward stays inside the chord's window")
     {
         const std::filesystem::path archive = writeFixtureArchive(scratch, g_held_slide_gpif);
         GpSongImporter importer;
@@ -910,19 +901,13 @@ TEST_CASE("Guitar Pro import drags the hand by a chord member's slide", "[core][
         CHECK(chart.fret_hand_positions.front().fret == 2);
         CHECK(derivedWidthOf(chart, song->tempo_map, 0) == 4);
 
-        // At the landing the sliding 2->3 brought the hand there, so the window drags by that +1
-        // delta to [3,6]. The fret-5 quarter note's ring ends exactly at this instant, so no
-        // planted finger remains for the hand to keep covering.
-        const std::optional<std::size_t> dragged = fretHandPositionAt(chart, keyframe);
-        REQUIRE(dragged.has_value());
-        if (dragged.has_value())
-        {
-            CHECK(chart.fret_hand_positions[*dragged].fret == 3);
-            CHECK(derivedWidthOf(chart, song->tempo_map, *dragged) == 4);
-        }
+        // The sliding 2->3 lands inside the [2,5] window the chord's run already holds, so the
+        // landing joins that run and no window is placed there.
+        CHECK(chart.fret_hand_positions.size() == 1);
+        CHECK_FALSE(fretHandPositionAt(chart, keyframe).has_value());
     }
 
-    SECTION("a lower note sliding outward drags the window down by the glide's delta")
+    SECTION("a lower note sliding outward escapes to its own floor")
     {
         // Drop the landing to fret 1, so the fret-2 note slides down and away from the held 5.
         std::string grow_gpif = g_held_slide_gpif;
@@ -938,14 +923,14 @@ TEST_CASE("Guitar Pro import drags the hand by a chord member's slide", "[core][
         REQUIRE(song->arrangements.size() == 1);
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
-        // The sliding 2->1 drags the window down by its own -1 delta, to [1,4]: the drag is the
-        // glide's, whichever way it runs.
-        const std::optional<std::size_t> dragged = fretHandPositionAt(chart, keyframe);
-        REQUIRE(dragged.has_value());
-        if (dragged.has_value())
+        // The sliding 2->1 outgrows the chord's hand ([1,5] is five frets), so the landing starts
+        // a run whose floor is 1, and the window moves there, to [1,4].
+        const std::optional<std::size_t> escaped = fretHandPositionAt(chart, keyframe);
+        REQUIRE(escaped.has_value());
+        if (escaped.has_value())
         {
-            CHECK(chart.fret_hand_positions[*dragged].fret == 1);
-            CHECK(derivedWidthOf(chart, song->tempo_map, *dragged) == 4);
+            CHECK(chart.fret_hand_positions[*escaped].fret == 1);
+            CHECK(derivedWidthOf(chart, song->tempo_map, *escaped) == 4);
         }
     }
 
@@ -6138,12 +6123,12 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        // The window walk moves the anchor minimally (3 to 5), so the head departs two frets
-        // below the notated fret: 8 + (3 - 5) — ON its notated beat — scooping to 8 over the
-        // minimum slide window, a fortieth of a whole note at 120 BPM: the margin caps the quarter
-        // of the notated quarter the scoop would otherwise take, and that cap never exceeds the
-        // floor. The sustain stays the notated duration.
-        CHECK(chart.notes[1].fret == 6);
+        // The natural stream moves the hand from 3 to the landing's floor, 8, so the head departs
+        // that far below the notated fret: 8 + (3 - 8) — ON its notated beat — scooping to 8 over
+        // the minimum slide window, a fortieth of a whole note at 120 BPM: the margin caps the
+        // quarter of the notated quarter the scoop would otherwise take, and that cap never exceeds
+        // the floor. The sustain stays the notated duration.
+        CHECK(chart.notes[1].fret == 3);
         CHECK(chart.notes[1].position.beat == 2);
         CHECK(chart.notes[1].position.offset == Fraction{});
         REQUIRE(chart.notes[1].keyframes.size() == 1);
@@ -6154,13 +6139,16 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         // margin before the scoop's notated beat.
         CHECK(chart.notes[0].sustain == Fraction{1, 4});
         CHECK(inkEndsOf(chart, built->tempo_map)[0] == Fraction{9, 40});
-        // The 5-8 window already covers the fret-6 approach, so the hand stays planted: the
-        // track is exactly the natural walk, with nothing fabricated at the scoop's end.
+        // The scoop is struck at fret 3, inside the opening window, so the stored stream keeps the
+        // hand at 3 until the scoop arrives at 8, which outgrows it: the window moves there. The
+        // dip the natural stream asked for restates the fret-3 window and drops.
         REQUIRE(chart.fret_hand_positions.size() == 2);
         CHECK(chart.fret_hand_positions[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(chart.fret_hand_positions[0].fret == 3);
-        CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(chart.fret_hand_positions[1].fret == 5);
+        CHECK(
+            chart.fret_hand_positions[1].position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 10}});
+        CHECK(chart.fret_hand_positions[1].fret == 8);
     }
 
     SECTION("a long landing caps the scoop window at the margin")
@@ -6269,7 +6257,7 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[1].fret == 6);
+        CHECK(chart.notes[1].fret == 3);
         // Two moments on the ring: the scoop's arrival first, then the bend's rise. The curve's
         // trailing point at the end repeats the value the curve holds anyway, so the keyframe
         // commit law sheds it.
@@ -6310,20 +6298,21 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
 
     SECTION("a one-fret hand move widens to the two-fret minimum")
     {
-        GpScore score = makeLinearScore(1, syncs);
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1}, 3)}}});
         score.tracks[0].bars.push_back(
-            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), noteBeat(Fraction{1, 4}, 7, 0, 16)}}});
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 4, 0, 16), noteBeat(Fraction{1, 4}, 6)}}});
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 2);
-        // The window walk moves the anchor minimally (3 to 4, since the width-4 window reaches
-        // fret 7 from there) — a one-fret delta — but the approach never travels less than two
-        // frets: the head departs at 5, not 6.
-        CHECK(chart.notes[1].fret == 5);
+        REQUIRE(chart.notes.size() == 3);
+        // The bar line starts a 4-6 run whose floor is one fret above the opening hand's, so the
+        // natural stream moves 3 to 4 at the scooped note — a one-fret delta — but the approach
+        // never travels less than two frets: the head departs at 2, not 3.
+        CHECK(chart.notes[1].fret == 2);
         REQUIRE(chart.notes[1].keyframes.size() == 1);
-        CHECK(chart.notes[1].keyframes[0].fret == 7);
+        CHECK(chart.notes[1].keyframes[0].fret == 4);
     }
 
     SECTION("a slide-in into a held landing keeps the hold")
@@ -6377,19 +6366,12 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(chart.notes[1].keyframes.size() == 1);
         CHECK(chart.notes[1].keyframes[0].fret == 5);
 
-        // The fret-3 approach falls below the window anchored at 5, so the window dips with
-        // the scoop for exactly its duration — the onset's window derives backward from the
-        // active one (5 minus the +2 scoop delta) — and the natural window returns at the
-        // scoop's end.
-        REQUIRE(chart.fret_hand_positions.size() == 3);
+        // The scoop is struck at fret 3, so it is the floor of the one run 5-3-5 makes and the
+        // stored window sits there from the first note: the dip the natural stream asked for and
+        // its restore both restate that window and drop.
+        REQUIRE(chart.fret_hand_positions.size() == 1);
         CHECK(chart.fret_hand_positions[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(chart.fret_hand_positions[0].fret == 5);
-        CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(chart.fret_hand_positions[1].fret == 3);
-        CHECK(
-            chart.fret_hand_positions[2].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 10}});
-        CHECK(chart.fret_hand_positions[2].fret == 5);
+        CHECK(chart.fret_hand_positions[0].fret == 3);
     }
 
     SECTION("a from-above flag rides a downward hand move")
@@ -6422,17 +6404,14 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(chart.notes[1].keyframes.size() == 1);
         CHECK(chart.notes[1].keyframes[0].fret == 3);
 
-        // The fret-1 approach falls below the 3-6 window, so a dip REPLACES the natural
-        // placement at the scoop's onset (positions stay unique — one entry at that
-        // instant) and the restore brings the natural anchor back at the scoop's end.
-        REQUIRE(chart.fret_hand_positions.size() == 3);
+        // The fret-1 approach falls below the natural 3-6 window, so a dip REPLACES the natural
+        // placement at the scoop's onset (positions stay unique — one entry at that instant). The
+        // stored scoop is struck at 1, the floor of its run, so the stored stream's own window
+        // there is 1-4, which covers the arrival: the restore restates it and drops.
+        REQUIRE(chart.fret_hand_positions.size() == 2);
         CHECK(chart.fret_hand_positions[0].fret == 8);
         CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
         CHECK(chart.fret_hand_positions[1].fret == 1);
-        CHECK(
-            chart.fret_hand_positions[2].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 10}});
-        CHECK(chart.fret_hand_positions[2].fret == 3);
     }
 
     SECTION("an open-string landing stays plain")
@@ -6561,12 +6540,13 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
 
-        // The upward mirror: the hand's next anchor departs 3 -> 5 (the minimal move that
-        // reaches fret 8), agreeing with the flags-8 slide-out, so the exit rides the widened
-        // travel 3 + max(+2, +2) = 5 rather than the four-fret default 7.
+        // The upward mirror: the hand's next anchor departs 3 -> 8 (the floor of the fret-8
+        // run), agreeing with the flags-8 slide-out, so the exit rides that travel to 3 + 5 = 8
+        // rather than the four-fret default 7 — and, 8 being the stop the next head is struck at,
+        // steps one fret further on, as in the downward case.
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
-        CHECK(*slide_out == 5);
+        CHECK(*slide_out == 9);
         // Stored to the fret-8 onset, inked a margin before it, and the exit yields to the real
         // placement at that onset, as in the downward case above.
         CHECK(chart.notes[0].sustain == Fraction{1, 4});
@@ -6574,7 +6554,7 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         REQUIRE(chart.fret_hand_positions.size() == 2);
         CHECK(chart.fret_hand_positions[0].fret == 3);
         CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(chart.fret_hand_positions[1].fret == 5);
+        CHECK(chart.fret_hand_positions[1].fret == 8);
     }
 
     SECTION("an upward slide-out at the top of the neck clamps to the last fret")
@@ -6850,7 +6830,7 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
     }
 }
 
-// The phrase-aware fret-hand generator tracks the LEFT hand: a tapped note floats above the
+// The fret-hand derivation tracks the LEFT hand: a tapped note floats above the
 // window instead of dragging the anchor up to it, matching how authored charts anchor two-hand
 // tapping (the source corpus puts taps a median seven frets above the anchor).
 TEST_CASE("Guitar Pro import anchors the hand below tapped notes", "[core][gp-import]")
@@ -6881,8 +6861,8 @@ TEST_CASE("Guitar Pro import anchors the hand below tapped notes", "[core][gp-im
 }
 
 // An opening open-string note anchors nothing, so it must not pin the hand at the nut-reference
-// window: the first placement comes from the first fretted note and
-// retimes back to the chart's first note, so the window is already settled there at song start.
+// window: the first placement comes from the first fretted note, and the first run's front reaches
+// back to the chart's first note, so the window is already settled there at song start.
 TEST_CASE(
     "Guitar Pro import bases the opening position on the first fretted note", "[core][gp-import]")
 {
