@@ -226,6 +226,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Select a time-signature chip on the ruler (the change it marks). */
     SelectTimeSignature,
 
+    /*! \brief Put a typed meter at a measure downbeat: restate the one there, else insert one. */
+    SetTimeSignature,
+
     /*! \brief Select a fret-hand position: a click on its tab-lane hand chip. */
     SelectFretHandPosition,
 

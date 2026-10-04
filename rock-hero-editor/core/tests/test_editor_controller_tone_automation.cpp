@@ -670,6 +670,44 @@ TEST_CASE(
     CHECK(curve_seconds() == Catch::Approx(4.5));
 }
 
+// A meter edit keeps every object's time, so a curve keeps its seconds; but the point it was baked
+// from is re-addressed and the map changed, so the curves are baked again, and again by the undo
+// and the redo. Restating 4/4 as 8/8 puts 2:1+1/2 on 2:2.
+TEST_CASE(
+    "EditorController re-derives automation curves through a meter edit", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(2, 1, 1), .norm_value = 0.8F}});
+    const auto curve_seconds = [&editor]() {
+        const auto written = editor.tone_automation.curves.find(
+            FakeToneAutomation::curveKey(g_tone_document_ref, g_instance, g_param));
+        return written == editor.tone_automation.curves.end() || written->second.empty()
+                   ? -1.0
+                   : written->second.front().seconds;
+    };
+    REQUIRE(curve_seconds() == Catch::Approx(2.25));
+    const int seeded_writes = editor.tone_automation.write_call_count;
+
+    editor.controller.onTimeSignatureSetRequested(1, "8/8");
+    REQUIRE(editor.model().size() == 1);
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK(editor.model().front().points.front().position == pointAt(2, 2));
+    CHECK(curve_seconds() == Catch::Approx(2.25));
+    const int edited_writes = editor.tone_automation.write_call_count;
+    CHECK(edited_writes > seeded_writes);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.model().front().points.front().position == pointAt(2, 1, 1));
+    CHECK(curve_seconds() == Catch::Approx(2.25));
+    const int undone_writes = editor.tone_automation.write_call_count;
+    CHECK(undone_writes > edited_writes);
+
+    editor.controller.onRedoRequested();
+    CHECK(editor.model().front().points.front().position == pointAt(2, 2));
+    CHECK(editor.tone_automation.write_call_count > undone_writes);
+}
+
 // A selected automation point is the one editor-wide selection: it replaces the region
 // selection, arms the lane caret on itself, and clears on a seek.
 TEST_CASE(

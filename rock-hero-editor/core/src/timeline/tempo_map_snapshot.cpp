@@ -32,6 +32,13 @@ std::optional<std::string> TempoMapSnapshot::validate(
     return std::nullopt;
 }
 
+common::core::GridPosition TempoMapSnapshot::carryCursor(
+    const common::core::TempoMap& /*from*/, const common::core::TempoMap& /*to*/,
+    const common::core::GridPosition place) noexcept
+{
+    return place;
+}
+
 EditFocus TempoMapSnapshot::focusReplacing(const TempoMapSnapshot& replaced) const
 {
     const std::vector<common::core::BeatAnchor>& anchors = tempo_map.anchors();

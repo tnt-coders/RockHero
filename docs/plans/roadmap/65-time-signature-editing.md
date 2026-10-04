@@ -137,9 +137,9 @@ Carried from plan 41 (they stand):
     a bad denominator; the chord's target is nothing while playing, with no song, or when the
     cursor's measure downbeat fails `markerCanStartAt`.
   - *The cursor:* `selectMarker` dissolves the caret by re-reading its OLD token under the NEW
-    map, which is different music. The verb mirrors `commitTempoMap` with time as truth instead:
-    read the cursor place, commit, select the landed meter, move the cursor to the re-addressed
-    place.
+    map, which is different music. The verb shares the tempo verbs' `commitGridModel`, with time
+    as truth: read the cursor place, commit, select the landed meter, move the cursor to the
+    re-addressed place.
   - *The persisted caret:* closing WITHOUT saving after a meter edit persists a new-grid caret
     token against the old-grid package. Accepted (the restore lands on a valid slot or demotes);
     `i_editor_settings.h:50-53`'s "cannot go stale" claim is corrected and a watch item recorded.

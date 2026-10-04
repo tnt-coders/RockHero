@@ -67,7 +67,7 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
             TempoMapErrorCode::MissingAnchors, "anchors must contain start and terminal anchors");
     }
 
-    if (anchors.front().position != GridPosition{.measure = 1, .beat = 1, .offset = {}})
+    if (anchors.front().position != measureDownbeat(1))
     {
         return refuse(TempoMapErrorCode::FirstAnchorLate, "anchors must start at measure 1 beat 1");
     }

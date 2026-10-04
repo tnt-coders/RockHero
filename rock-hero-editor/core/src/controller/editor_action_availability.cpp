@@ -89,6 +89,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::InsertTempoAnchor:
         case EditorAction::Id::SetTempoSpanBpm:
+        case EditorAction::Id::SetTimeSignature:
         case EditorAction::Id::MoveTempoAnchor:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
         case EditorAction::Id::ClearFretHandEnd:
@@ -211,6 +212,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::RenameSongSection:
             case EditorAction::Id::InsertTempoAnchor:
             case EditorAction::Id::SetTempoSpanBpm:
+            case EditorAction::Id::SetTimeSignature:
             case EditorAction::Id::MoveTempoAnchor:
             case EditorAction::Id::SelectTempoAnchor:
             case EditorAction::Id::SelectTimeSignature:
@@ -430,6 +432,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::InsertTempoAnchor:
         case EditorAction::Id::SetTempoSpanBpm:
+        case EditorAction::Id::SetTimeSignature:
         case EditorAction::Id::MoveTempoAnchor:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
@@ -521,6 +524,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::InsertTempoAnchor:
         case EditorAction::Id::SetTempoSpanBpm:
+        case EditorAction::Id::SetTimeSignature:
         case EditorAction::Id::MoveTempoAnchor:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:

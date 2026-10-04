@@ -63,6 +63,16 @@ struct GridPosition
 };
 
 /*!
+\brief The downbeat of a measure: the one spelling of beat-1-no-offset.
+\param measure One-based measure number.
+\return That measure's beat 1, with no sub-beat offset.
+*/
+[[nodiscard]] constexpr GridPosition measureDownbeat(int measure) noexcept
+{
+    return GridPosition{.measure = measure, .beat = 1, .offset = {}};
+}
+
+/*!
 \brief The downbeat of the measure a position falls in.
 
 THE ONE downbeat rule: a position is a downbeat exactly when it equals its own measure's downbeat,
@@ -74,7 +84,7 @@ that snaps to one asks this rather than restating beat-1-no-offset.
 */
 [[nodiscard]] constexpr GridPosition measureDownbeat(GridPosition position) noexcept
 {
-    return GridPosition{.measure = position.measure, .beat = 1, .offset = {}};
+    return measureDownbeat(position.measure);
 }
 
 } // namespace rock_hero::common::core

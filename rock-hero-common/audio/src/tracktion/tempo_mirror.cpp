@@ -21,8 +21,7 @@ namespace
 // Quarter-note position of a measure's downbeat, where a time signature takes effect.
 [[nodiscard]] double downbeatQuarterPosition(const core::TempoMap& tempo_map, int measure)
 {
-    return quarterPositionAt(
-        tempo_map, core::GridPosition{.measure = measure, .beat = 1, .offset = {}});
+    return quarterPositionAt(tempo_map, core::measureDownbeat(measure));
 }
 
 } // namespace

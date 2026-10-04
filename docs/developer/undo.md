@@ -41,14 +41,16 @@ validates it, refuses it whole, records nothing when nothing changed, releases a
 marker that is gone, resyncs the audible tone and the engine's tempo-derived caches
 (`syncTempoDerivedAudio`) and publishes once. Verbs build their result on a
 COPY and hand both sides over, so a refusal leaves the live model untouched by construction —
-there is no restore path. Every marker MOVE verb (`Alt+←/→` on a section, tempo anchor, hand
-position or tone change) commits through `commitMarkerMove` beside it instead, which adds the
+there is no restore path. Every marker MOVE verb (`Alt+←/→` on a section, tempo anchor, time
+signature, hand position or tone change) commits through `commitMarkerMove` beside it instead, which adds the
 held-run rule: a run of presses on one selected marker is ONE entry, however fast or slow, because
 a press continuing the run widens the run's entry (`replaceTop`) from the model before its first
 press, and a press that walks the run back to where it began drops the entry (`dropTop`). No timer
 decides it — the run ends at any other commit point: another edit, a selection change, undo or
 redo, a save. It makes the landing selection itself, since a selection change ends the run and
-only the funnel may survive its own. Four snapshots plug in today: `TempoMapSnapshot`
+only the funnel may survive its own. A move that is not invertible step by step builds each press
+from the run's origin (`markerMoveRunOrigin`), so a run walked back lands that origin exactly.
+Five snapshots plug in today: `TempoMapSnapshot`
 (`timeline/tempo_map_snapshot.h` — the song's whole tempo map behind anchor insert, typed tempo,
 move and delete; its `validate` is the shared `validateTempoMapRules`, and its apply goes through
 `Session::setTempoMap()`, which advances the chart revision because the map places every note),
@@ -62,7 +64,13 @@ delete; its `normalize` sorts by position and its `validate` is the shared
 (`chart/fret_hand_positions_snapshot.h` — the current chart's whole fret-hand placement stream
 behind the hand marker's add, move and delete; its `normalize` sorts by position, its `validate`
 is the chart gate's own `validateFretHandPositions`, and its apply writes through
-`Session::writeChart()` so the chart revision the projections are keyed on advances).
+`Session::writeChart()` so the chart revision the projections are keyed on advances), and
+`SongTimelineSnapshot` (`timeline/song_timeline_snapshot.h` — the song's WHOLE timeline, the
+common-core `SongTimeline`: the map, the sections and every arrangement's chart, tone track and
+automation, behind the time-signature verbs, since a meter edit re-addresses all of it in every
+arrangement; its `normalize` drops a meter restating the one before it, its `validate` runs the
+tempo-map, section and chart rules, and its apply is `Session::setSongTimeline()`, the one
+session write that reaches a non-current arrangement).
 Whole-model in every case because a tone delete or retone can MERGE regions and a section or
 placement move re-sorts the list, so an inverse command would have to know every record the edit
 took; a handful of small structs costs nothing to copy, and the round trip is exact by assignment.

@@ -54,8 +54,8 @@ struct TempoAnchorSelection
 };
 
 // A formally selected time-signature chip on the ruler: the change it marks, identified by the
-// measure it starts, since a signature changes only on a downbeat. Selectable so the keyboard can
-// stand on the time-signature row; it carries no verbs until meter editing gives it some.
+// measure it starts, since a signature changes only on a downbeat. Enter retypes its meter, Delete
+// removes it and Alt+arrows move it a measure, each re-addressing the whole song.
 struct TimeSignatureSelection
 {
     // Measure the signature change starts.

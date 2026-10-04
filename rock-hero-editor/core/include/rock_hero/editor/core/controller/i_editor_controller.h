@@ -603,7 +603,8 @@ public:
     /*!
     \brief Handles a deliberate selection of a time-signature chip on the ruler (a click).
 
-    Verb-less and cursor-coupled exactly as the tempo chip selection is.
+    Cursor-coupled exactly as the tempo chip selection is; the selected time signature is what
+    Enter, Delete and Alt+arrows then act on.
 
     \param measure Measure the selected chip's signature change starts.
     */
@@ -691,6 +692,21 @@ public:
     \param text Tempo as typed, in quarter notes per minute.
     */
     virtual void onTempoSpanBpmRequested(common::core::GridPosition position, std::string text) = 0;
+
+    /*!
+    \brief Handles a typed meter for the downbeat of a measure: restate the time signature
+    standing there, else insert one.
+
+    The answer to the meter prompt, whichever published verb opened it (the time-signature chord's
+    insert or restate, or Enter's restate). The text is parsed here, in the core, so the prompt
+    stays a plain text field: "7/8", spaces allowed around either number; anything else is refused
+    and logged, changing nothing. Every object keeps its time; the measures after the change
+    renumber.
+
+    \param measure Measure whose downbeat the meter starts, as the published verb named it.
+    \param text Meter as typed.
+    */
+    virtual void onTimeSignatureSetRequested(int measure, std::string text) = 0;
 
     /*!
     \brief Handles one event of a tempo-chip drag: move the anchor at a grid position to a time.

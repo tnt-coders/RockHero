@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -46,15 +47,13 @@ timeSignaturesOf(const common::core::TempoMap& tempo_map, std::span<const Placed
                 return std::unexpected{MeterEditError{
                     .code = MeterEditErrorCode::MeterOffDownbeat,
                     .message = std::format(
-                        "the {}/{} time signature at {} would start mid-measure under the {}/{} "
-                        "before it",
-                        placed.meter.numerator,
-                        placed.meter.denominator,
+                        "the {} time signature at {} would start mid-measure under the {} before "
+                        "it",
+                        timeSignatureText(placed.meter),
                         common::core::formatGridPositionToken(
                             common::core::advanceGridPositionByWholeNotes(
                                 tempo_map, common::core::GridPosition{}, placed.whole_note)),
-                        previous->meter.numerator,
-                        previous->meter.denominator),
+                        timeSignatureText(previous->meter)),
                 }};
             }
             measure = signatures.back().measure + reign_measures.numerator;
@@ -76,18 +75,31 @@ std::vector<PlacedMeter> placedMetersOf(const common::core::TempoMap& tempo_map)
     {
         meters.push_back(
             PlacedMeter{
-                .whole_note = tempo_map.wholeNotePositionAt(
-                    common::core::GridPosition{
-                        .measure = signature.measure, .beat = 1, .offset = {}
-                    }),
+                .whole_note =
+                    tempo_map.wholeNotePositionAt(common::core::measureDownbeat(signature.measure)),
                 .meter = signature.meter,
             });
     }
     return meters;
 }
 
-std::expected<SongTimeline, MeterEditError> readdressUnderMeters(
-    const SongTimeline& timeline, std::span<const PlacedMeter> meters)
+// Both legs are exact rationals, so nothing rounds, and the assert that says so costs one more
+// address query.
+common::core::GridPosition readdressedPosition(
+    const common::core::TempoMap& from, const common::core::TempoMap& to,
+    const common::core::GridPosition position)
+{
+    const common::core::Fraction whole_note = from.wholeNotePositionAt(position);
+    const common::core::GridPosition readdressed =
+        common::core::advanceGridPositionByWholeNotes(to, common::core::GridPosition{}, whole_note);
+    assert(
+        to.wholeNotePositionAt(readdressed) == whole_note &&
+        "re-addressing keeps the whole-note position exactly");
+    return readdressed;
+}
+
+std::expected<common::core::SongTimeline, MeterEditError> readdressUnderMeters(
+    const common::core::SongTimeline& timeline, std::span<const PlacedMeter> meters)
 {
     const common::core::TempoMap& old_map = timeline.tempo_map;
     std::expected<std::vector<common::core::TimeSignatureChange>, MeterEditError> signatures =
@@ -98,19 +110,10 @@ std::expected<SongTimeline, MeterEditError> readdressUnderMeters(
     }
 
     // The old anchor TOKENS read under the new meters: wrong in time, right in address, so it is
-    // asked only address questions. Every position goes to the whole-note axis under the old
-    // meters and comes back as a token under the new ones; both legs are exact rationals, so
-    // nothing rounds and the assert costs one more address query.
+    // asked only address questions.
     const common::core::TempoMap address_map{*signatures, old_map.anchors()};
     const auto readdress = [&old_map, &address_map](const common::core::GridPosition position) {
-        const common::core::Fraction whole_note = old_map.wholeNotePositionAt(position);
-        const common::core::GridPosition readdressed =
-            common::core::advanceGridPositionByWholeNotes(
-                address_map, common::core::GridPosition{}, whole_note);
-        assert(
-            address_map.wholeNotePositionAt(readdressed) == whole_note &&
-            "re-addressing keeps the whole-note position exactly");
-        return readdressed;
+        return readdressedPosition(old_map, address_map, position);
     };
 
     // A ring or a keyframe offset counts BEATS from its onset, and a beat is one denominator
@@ -127,7 +130,7 @@ std::expected<SongTimeline, MeterEditError> readdressUnderMeters(
     {
         anchor.position = readdress(anchor.position);
     }
-    SongTimeline result{
+    common::core::SongTimeline result{
         .tempo_map = reseatTerminalAnchor(
             common::core::TempoMap{std::move(*signatures), std::move(anchors)}),
         .sections = timeline.sections,
@@ -142,7 +145,7 @@ std::expected<SongTimeline, MeterEditError> readdressUnderMeters(
         section.position = common::core::measureDownbeat(readdress(section.position));
     }
 
-    for (ArrangementTimeline& arrangement : result.arrangements)
+    for (common::core::ArrangementTimeline& arrangement : result.arrangements)
     {
         if (arrangement.chart.has_value())
         {

@@ -594,7 +594,8 @@ thrown. The jump never calls `prepareLandingRow`, which is the rule for landings
 **Two keys read the SELECTION rather than the cursor**, and both take the same projection shape as
 the marker chords above: the core publishes the verb, the view opens the prompt it names.
 `RestateSelection` (`0x1404`, `Enter`) reads `EditorViewState::restate_target` — nothing, rename the
-selected section, retone the selected region, or open the "+" row's parameter picker.
+selected section, type the selected tempo anchor's span tempo or the selected time signature's
+meter, retone the selected region, or open the "+" row's parameter picker.
 `RenameSelection` (`0x1405`, `Ctrl+R`) reads `rename_target` — nothing, rename the selected section,
 or rename the selected region's TONE document — and is silently inert on every kind with no name
 (tempo, time signature, the "+" row), the way `Delete` is. Both are always-active and self-gate on

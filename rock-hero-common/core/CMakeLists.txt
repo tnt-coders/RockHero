@@ -41,6 +41,7 @@ target_sources(
             src/song/arrangement.cpp
             src/song/song.cpp
             src/song/song_section_rules.cpp
+            src/song/song_timeline.cpp
             src/timeline/tempo_map.cpp
             src/timeline/tempo_map_rules.cpp
             src/timeline/tick_lattice.cpp

@@ -1,5 +1,4 @@
 #include "timeline/meter_edits.h"
-#include "timeline/song_timeline.h"
 #include "timeline/tempo_map_edits.h"
 
 #include <algorithm>
@@ -17,6 +16,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
+#include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -38,6 +38,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
+using common::core::ArrangementTimeline;
 using common::core::BeatAnchor;
 using common::core::Chart;
 using common::core::ChartNote;
@@ -46,6 +47,7 @@ using common::core::FretHandPosition;
 using common::core::GridPosition;
 using common::core::Keyframe;
 using common::core::SongSection;
+using common::core::SongTimeline;
 using common::core::TempoMap;
 using common::core::TimeSignature;
 using common::core::TimeSignatureChange;
@@ -1185,36 +1187,6 @@ TEST_CASE("Terminal re-seat leaves a terminal on a downbeat", "[core][meter-edit
     CHECK(reseatTerminalAnchor(map) == map);
     // The transform does not re-seat one either: the slice fixture's terminal keeps its time.
     CHECK(respelledSlices().tempo_map.anchors().back() == anchor("6:1", 8500));
-}
-
-// ---------------------------------------------------------------------------------------------
-// The timeline type.
-
-TEST_CASE("Song timeline round-trips through a song", "[core][meter-edits]")
-{
-    common::core::Song song;
-    song.metadata.title = "Song";
-    song.tempo_map = sliceMap();
-    const SongTimeline source = sliceTimeline();
-    song.sections = source.sections;
-    for (const ArrangementTimeline& share : source.arrangements)
-    {
-        common::core::Arrangement arrangement;
-        arrangement.id = share.id;
-        arrangement.chart_ref = "charts/" + share.id + ".chart.json";
-        arrangement.chart = share.chart;
-        arrangement.tone_track = share.tone_track;
-        arrangement.tone_automation = share.tone_automation;
-        song.arrangements.push_back(std::move(arrangement));
-    }
-    CHECK(makeSongTimeline(song) == source);
-
-    const SongTimeline edited = respelledSlices();
-    const common::core::Song written = songWithTimeline(song, edited);
-    CHECK(makeSongTimeline(written) == edited);
-    CHECK(written.metadata.title == "Song");
-    REQUIRE(written.arrangements.size() == 2);
-    CHECK(written.arrangements[1].chart_ref == "charts/rhythm.chart.json");
 }
 
 } // namespace rock_hero::editor::core

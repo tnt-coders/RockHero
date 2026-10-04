@@ -167,6 +167,16 @@ void Session::setTempoMap(TempoMap tempo_map)
     ++m_chart_revision;
 }
 
+bool Session::setSongTimeline(SongTimeline timeline)
+{
+    if (!writeSongTimeline(m_song, std::move(timeline)))
+    {
+        return false;
+    }
+    ++m_chart_revision;
+    return true;
+}
+
 // Returns the monotonic projection-input write count that keys projection caches.
 std::uint64_t Session::chartRevision() const noexcept
 {

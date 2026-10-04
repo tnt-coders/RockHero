@@ -46,6 +46,7 @@ add_executable(
     test_editor_controller_busy.cpp
     test_editor_controller_input_calibration.cpp
     test_editor_controller_marker_rows.cpp
+    test_editor_controller_meters.cpp
     test_editor_controller_tone_output.cpp
     test_editor_controller_plugins.cpp
     test_editor_controller_project_lifecycle.cpp

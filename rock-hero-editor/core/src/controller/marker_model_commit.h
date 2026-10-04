@@ -15,6 +15,9 @@ member template needs its body where every marker handler translation unit can s
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -103,12 +106,9 @@ bool EditorController::Impl::commitMarkerMove(
     Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed)
 {
     // Held aside, so this press's own landing select below does not end the run it continues.
+    const bool continues = markerMoveRunOrigin<Snapshot>() != nullptr;
     std::optional<MarkerModelSnapshot> held = std::exchange(m_marker_move_origin, std::nullopt);
-    const Snapshot* origin = nullptr;
-    if (held.has_value() && m_undo_history.canCoalesceTop())
-    {
-        origin = std::get_if<Snapshot>(&*held);
-    }
+    const Snapshot* const origin = continues ? std::get_if<Snapshot>(&*held) : nullptr;
 
     if (origin == nullptr)
     {
@@ -163,6 +163,50 @@ bool EditorController::Impl::commitMarkerMove(
         m_marker_move_origin = std::move(held);
     }
     return true;
+}
+
+// THE ORDER RULE of a grid commit, for every model that addresses the rest (a tempo map, a meter
+// list): the cursor's place is read at the tick BEFORE the commit; the landed marker is selected
+// next, because selecting dissolves an armed caret by seeking to its OLD token, which under the new
+// grid is other music; and the cursor moves to its place carried onto the new grid last, so that
+// move is the last word. What survives the commit is the snapshot kind's own law (carryCursor): the
+// musical place where the grid is truth, the time where time is. The landed marker is selected only
+// where it still stands, since normalization may have dropped it, and the publish follows the
+// funnel's publish rule: only when the model landed or a marker was selected.
+template <typename Snapshot>
+void EditorController::Impl::commitGridModel(
+    Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
+    const std::optional<common::core::GridPosition> landed)
+{
+    const std::optional<common::core::GridPosition> place =
+        cursorPosition(common::core::g_tick_quantum_note_value);
+    const common::core::TempoMap old_map = session().song().tempo_map;
+    const MarkerCommit committed =
+        commitMarkerModel(std::move(before), std::move(after), std::move(label));
+    if (committed == MarkerCommit::Refused)
+    {
+        return;
+    }
+    const bool selected = landed.has_value() && selectMarkerStartingAt(landed_row, *landed);
+    if (committed == MarkerCommit::Landed && place.has_value())
+    {
+        moveCursorTo(Snapshot::carryCursor(old_map, session().song().tempo_map, *place));
+    }
+    if (selected || committed == MarkerCommit::Landed)
+    {
+        updateView();
+    }
+}
+
+// A run continues only while its origin is held, the history's top is still the run's own entry,
+// and the origin is a model of this kind.
+template <typename Snapshot> const Snapshot* EditorController::Impl::markerMoveRunOrigin() const
+{
+    if (!m_marker_move_origin.has_value() || !m_undo_history.canCoalesceTop())
+    {
+        return nullptr;
+    }
+    return std::get_if<Snapshot>(&*m_marker_move_origin);
 }
 
 } // namespace rock_hero::editor::core

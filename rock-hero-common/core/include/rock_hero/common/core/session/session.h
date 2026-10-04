@@ -10,6 +10,7 @@
 #include <optional>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <type_traits>
 #include <vector>
@@ -157,15 +158,29 @@ public:
     void setTempoMap(TempoMap tempo_map);
 
     /*!
+    \brief Replaces the song's whole timeline at once, then advances chartRevision() once.
+
+    The seventh narrow mutation surface, and the only one that reaches a NON-current arrangement: a
+    meter edit re-addresses every arrangement, and its undo restores them all, so the map, the
+    sections and every arrangement's chart, tone track and tone automation are written together
+    (\ref writeSongTimeline). Nothing else in the song changes, so the loaded arrangement, its audio
+    and the session timeline derived from that audio stay exactly as they were.
+
+    \param timeline Timeline the caller has already validated, read from this session's song.
+    \return False, writing nothing, when its arrangements are not this song's, by id and in order.
+    */
+    [[nodiscard]] bool setSongTimeline(SongTimeline timeline);
+
+    /*!
     \brief Returns the chart revision counter that keys chart-projection caches.
 
-    Advances every time a writeChart() write ends, every time the tempo map is replaced, every
-    time the song sections are replaced, and every accepted loadSong(). View-state caches pair it
+    Advances every time a writeChart() write ends, every time the tempo map, the song sections or
+    the whole timeline is replaced, and every accepted loadSong(). View-state caches pair it
     with the arrangement id so chart, tempo and section edits invalidate memoized projections
     without any explicit notification path that could be forgotten; the load advance keeps a
     re-opened project whose persisted arrangement ids match from reusing the edited projection.
 
-    \return Monotonic count of chart writes, tempo-map replacements, section replacements and
+    \return Monotonic count of chart writes, tempo-map, section and timeline replacements and
             accepted song loads.
     */
     [[nodiscard]] std::uint64_t chartRevision() const noexcept;

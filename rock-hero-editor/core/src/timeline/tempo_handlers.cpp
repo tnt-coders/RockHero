@@ -15,7 +15,6 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <string>
 #include <string_view>
@@ -129,37 +128,6 @@ void EditorController::Impl::onTempoSpanBpmRequested(
         });
 }
 
-// The one commit of a whole tempo map. The grid is truth (decision 4): content keeps its musical
-// place and moves in time with the map, and so does the cursor — passive or armed — so it is read
-// at the tick BEFORE the map changes and put back on that place after, under the new map. The
-// anchor a verb leaves selected is selected first, because selecting dissolves an armed caret by
-// seeking to it, and that seek would otherwise be the last word.
-void EditorController::Impl::commitTempoMap(
-    TempoMapSnapshot before, common::core::TempoMap after, std::string label,
-    const std::optional<TempoAnchorSelection> landed)
-{
-    const std::optional<common::core::GridPosition> place =
-        cursorPosition(common::core::g_tick_quantum_note_value);
-    const MarkerCommit committed = commitMarkerModel(
-        std::move(before), TempoMapSnapshot{.tempo_map = std::move(after)}, std::move(label));
-    if (committed == MarkerCommit::Refused)
-    {
-        return;
-    }
-    if (landed.has_value())
-    {
-        selectMarker(*landed);
-    }
-    if (committed == MarkerCommit::Landed && place.has_value())
-    {
-        moveCursorTo(*place);
-    }
-    if (landed.has_value() || committed == MarkerCommit::Landed)
-    {
-        updateView();
-    }
-}
-
 // Adds an anchor at a grid position, pinning the time the map already gives it, so the insert moves
 // nothing audible. Like every insert, it leaves what it made SELECTED, so Enter, Delete and
 // Alt+arrows act on the new anchor next. An occupied position, or one at or past the terminal, is
@@ -174,11 +142,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAn
         logMarkerRefusal(label, inserted.error().message);
         return;
     }
-    commitTempoMap(
+    commitGridModel(
         std::move(before),
-        std::move(*inserted),
+        TempoMapSnapshot{.tempo_map = std::move(*inserted)},
         std::string{label},
-        TempoAnchorSelection{.position = action.position});
+        MarkerRow::Tempo,
+        action.position);
 }
 
 // Types the tempo of the span an anchor opens: the anchor stays put and every later anchor ripples
@@ -203,11 +172,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
     // The edit refuses a position no span-opening anchor holds, so the result always prints one.
     std::string label =
         std::string{verb} + " to " + spanBpmTextAt(*rippled, action.position).value_or("");
-    commitTempoMap(
+    commitGridModel(
         std::move(before),
-        std::move(*rippled),
+        TempoMapSnapshot{.tempo_map = std::move(*rippled)},
         std::move(label),
-        TempoAnchorSelection{.position = action.position});
+        MarkerRow::Tempo,
+        action.position);
 }
 
 // Moves the selected anchor one on-screen pixel at the reported zoom (at least a millisecond), in
@@ -335,7 +305,12 @@ void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelectio
         logMarkerRefusal(label, merged.error().message);
         return;
     }
-    commitTempoMap(std::move(before), std::move(*merged), std::string{label}, std::nullopt);
+    commitGridModel(
+        std::move(before),
+        TempoMapSnapshot{.tempo_map = std::move(*merged)},
+        std::string{label},
+        MarkerRow::Tempo,
+        std::nullopt);
 }
 
 // THE one authority for keeping the engine's tempo-derived caches current: the seconds-domain tone

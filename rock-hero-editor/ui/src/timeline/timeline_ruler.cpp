@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
+#include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <span>
 #include <utility>
@@ -988,8 +989,7 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
             return m_tempo_map.secondsAtBeat(changes[index].measure, 1);
         },
         [&changes](const std::size_t index) {
-            return juce::String{changes[index].meter.numerator} + "/" +
-                   juce::String{changes[index].meter.denominator};
+            return juce::String{core::timeSignatureText(changes[index].meter)};
         },
         0,
         pinned_left_seconds,

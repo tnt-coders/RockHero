@@ -85,13 +85,14 @@ target_sources(
             src/timeline/marker_row_handlers.cpp
             src/timeline/meter_edits.cpp
             src/timeline/meter_edits.h
+            src/timeline/meter_handlers.cpp
             src/timeline/section_handlers.cpp
             src/timeline/section_projection.cpp
             src/timeline/section_projection.h
             src/timeline/song_sections_snapshot.cpp
             src/timeline/song_sections_snapshot.h
-            src/timeline/song_timeline.cpp
-            src/timeline/song_timeline.h
+            src/timeline/song_timeline_snapshot.cpp
+            src/timeline/song_timeline_snapshot.h
             src/timeline/tempo_grid_geometry.cpp
             src/timeline/tempo_handlers.cpp
             src/timeline/tempo_map_edits.cpp
@@ -99,6 +100,7 @@ target_sources(
             src/timeline/tempo_map_snapshot.cpp
             src/timeline/tempo_map_snapshot.h
             src/timeline/tempo_span_text.cpp
+            src/timeline/time_signature_text.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/transport_readout_text.cpp
             src/tone/tone_automation_curve.cpp

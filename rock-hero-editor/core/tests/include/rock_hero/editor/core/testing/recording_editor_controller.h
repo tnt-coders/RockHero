@@ -449,6 +449,13 @@ public:
         last_tempo_span_bpm_text = std::move(text);
     }
 
+    /*! \copydoc IEditorController::onTimeSignatureSetRequested */
+    void onTimeSignatureSetRequested(int measure, std::string text) override
+    {
+        last_time_signature_set_measure = measure;
+        last_time_signature_set_text = std::move(text);
+    }
+
     /*! \copydoc IEditorController::onTempoAnchorMoveRequested */
     void onTempoAnchorMoveRequested(
         common::core::GridPosition position, std::int64_t milliseconds) override
@@ -987,6 +994,12 @@ public:
 
     /*! \brief Last tempo text reported through onTempoSpanBpmRequested(). */
     std::string last_tempo_span_bpm_text{};
+
+    /*! \brief Last measure reported through onTimeSignatureSetRequested(). */
+    std::optional<int> last_time_signature_set_measure{};
+
+    /*! \brief Last meter text reported through onTimeSignatureSetRequested(). */
+    std::string last_time_signature_set_text{};
 
     /*! \brief Last anchor position reported through onTempoAnchorMoveRequested(). */
     std::optional<common::core::GridPosition> last_moved_tempo_anchor_position{};

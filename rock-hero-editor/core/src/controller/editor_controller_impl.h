@@ -27,6 +27,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
 #include "timeline/song_sections_snapshot.h"
+#include "timeline/song_timeline_snapshot.h"
 #include "timeline/tempo_map_snapshot.h"
 #include "tone/tone_automation_projection.h"
 #include "tone/tone_model_snapshot.h"
@@ -609,11 +610,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the anchor's chip and returns true; with the lock off it returns false and does nothing.
     [[nodiscard]] bool refuseLockedTempoAnchorMove(
         const TempoAnchorSelection& selection, std::string_view gesture);
-    // The one commit of a whole tempo map (insert, typed tempo, delete): selects `landed` when
-    // given and keeps the cursor on its musical place under the new map (see the definition).
-    void commitTempoMap(
-        TempoMapSnapshot before, common::core::TempoMap after, std::string label,
-        std::optional<TempoAnchorSelection> landed);
+    // Time signatures (src/timeline/meter_handlers.cpp). Song-level like the tempo map they belong
+    // to, and wider than any other marker: a meter edit keeps every object's time and re-addresses
+    // it in every arrangement, so each verb commits the whole song timeline.
+    void onTimeSignatureSetRequested(int measure, const std::string& text);
+    // What the time-signature chord would do at the cursor right now (the published verb; see
+    // the definition for the rule it derives).
+    [[nodiscard]] TimeSignatureChordTarget timeSignatureChordTarget() const;
+    // Moves the selected time signature one measure (the Alt+arrow dispatch for the meter
+    // alternative). Left or Right only; the move dispatch refuses a vertical direction for every
+    // marker kind.
+    void moveSelectedTimeSignature(
+        const TimeSignatureSelection& selection, ChartStepDirection direction);
+    // Deletes the selected time signature (the Delete-key dispatch for the meter alternative).
+    void deleteSelectedTimeSignature(const TimeSignatureSelection& selection);
     // Brings the engine's tempo-derived caches up to the session's map when it changed (see the
     // definition).
     void syncTempoDerivedAudio();
@@ -734,6 +744,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::InsertTempoAnchor& action);
     void performActionImpl(const EditorAction::SetTempoSpanBpm& action);
+    void performActionImpl(const EditorAction::SetTimeSignature& action);
     void performActionImpl(const EditorAction::MoveTempoAnchor& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
@@ -1486,8 +1497,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void selectMarker(const MarkerSelection& marker);
 
     // Selects the row's marker starting exactly at a position, and nothing when none does: the
-    // select a chip click names by position.
-    void selectMarkerStartingAt(MarkerRow row, const common::core::GridPosition& start);
+    // select a chip click names by position. Returns whether one stood there and is now selected.
+    bool selectMarkerStartingAt(MarkerRow row, const common::core::GridPosition& start);
 
     // A marker selected with the pointer seeks nothing, so the cursor may stand outside its span;
     // this moves the cursor to the selected marker's start in that case and leaves it alone
@@ -1508,6 +1519,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The selected tempo anchor's span, as the restate verb would address it; nothing when no
     // anchor is selected or the selected one is gone.
     [[nodiscard]] std::optional<SetTempoTarget> selectedTempoTarget() const;
+    // The selected time signature's meter, as the restate verb would address it; nothing when no
+    // time signature is selected or the selected one is gone.
+    [[nodiscard]] std::optional<SetTimeSignatureTarget> selectedTimeSignatureTarget() const;
     // The selected tone region and the tone it sounds; nothing when no region is selected or the
     // selected one is gone.
     [[nodiscard]] std::optional<RetoneRegionTarget> selectedRegionTarget() const;
@@ -1545,13 +1559,28 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool commitMarkerMove(
         Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed);
 
+    // The commit every whole-grid verb ends in (a tempo map, a meter list): commitMarkerModel,
+    // then the marker on `landed_row` starting at `landed` selected where it still stands, and the
+    // cursor carried onto the new grid by the snapshot's own carryCursor. Defined beside the
+    // funnel in marker_model_commit.h, where its order rule is written down.
+    template <typename Snapshot>
+    void commitGridModel(
+        Snapshot before, Snapshot after, std::string label, MarkerRow landed_row,
+        std::optional<common::core::GridPosition> landed);
+
+    // The model a held run of marker moves started from, while the next move press would continue
+    // that run (commitMarkerMove's own test); nothing when it would start one. A move that is not
+    // invertible step by step builds each press from here. Defined beside the funnel.
+    template <typename Snapshot> [[nodiscard]] const Snapshot* markerMoveRunOrigin() const;
+
     // What both funnels do once a model has landed: release a selection naming a marker that is
     // gone, re-derive the audible tone and the engine's tempo-derived caches, and publish.
     void finishMarkerCommit();
 
     // The marker models a move can change, one per movable marker kind.
     using MarkerModelSnapshot = std::variant<
-        SongSectionsSnapshot, TempoMapSnapshot, FretHandPositionsSnapshot, ToneModelSnapshot>;
+        SongSectionsSnapshot, TempoMapSnapshot, FretHandPositionsSnapshot, ToneModelSnapshot,
+        SongTimelineSnapshot>;
 
     // A held run of marker moves (decision 9 of the tempo plan): every Alt+arrow press on one
     // selected marker is ONE undo entry, however fast or slow, until any other commit point. No

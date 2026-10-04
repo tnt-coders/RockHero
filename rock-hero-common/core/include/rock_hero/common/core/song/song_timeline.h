@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/song.h>
@@ -14,7 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace rock_hero::editor::core
+namespace rock_hero::common::core
 {
 
 /*!
@@ -30,13 +31,13 @@ struct ArrangementTimeline
     std::string id;
 
     /*! \brief The arrangement's chart, absent when it has none. */
-    std::optional<common::core::Chart> chart;
+    std::optional<Chart> chart;
 
     /*! \brief The arrangement's tone schedule. */
-    common::core::ToneTrack tone_track;
+    ToneTrack tone_track;
 
     /*! \brief The arrangement's plugin-parameter automation. */
-    std::vector<common::core::ToneParameterAutomation> tone_automation;
+    std::vector<ToneParameterAutomation> tone_automation;
 
     /*!
     \brief Compares two shares by their stored fields.
@@ -60,10 +61,10 @@ whole-song undo restoring this cannot clobber them.
 struct SongTimeline
 {
     /*! \brief The song's tempo map. */
-    common::core::TempoMap tempo_map;
+    TempoMap tempo_map;
 
     /*! \brief The song's section markers. */
-    std::vector<common::core::SongSection> sections;
+    std::vector<SongSection> sections;
 
     /*! \brief Every arrangement's share, in song order. */
     std::vector<ArrangementTimeline> arrangements;
@@ -82,17 +83,32 @@ struct SongTimeline
 \param song Song to read.
 \return Its tempo map, sections and every arrangement's share.
 */
-[[nodiscard]] SongTimeline makeSongTimeline(const common::core::Song& song);
+[[nodiscard]] SongTimeline makeSongTimeline(const Song& song);
 
 /*!
 \brief Writes a timeline back over the song it was read from.
 
-The inverse of \ref makeSongTimeline, and the write a whole-song meter commit applies.
+The inverse of \ref makeSongTimeline, and the write \ref Session::setSongTimeline applies. The
+timeline's arrangements must be the song's, by id and in order; one read from another song is
+refused whole rather than half-applied.
 
-\param song Song to write into; holds the timeline's arrangements, in its order.
+\param song Song to write into; everything outside the timeline stays unchanged.
 \param timeline Timeline to write.
-\return The song carrying the timeline, everything else unchanged.
+\return True when written; false, with the song untouched, when the arrangements are not the song's.
 */
-[[nodiscard]] common::core::Song songWithTimeline(common::core::Song song, SongTimeline timeline);
+[[nodiscard]] bool writeSongTimeline(Song& song, SongTimeline timeline);
 
-} // namespace rock_hero::editor::core
+/*!
+\brief Validates every slice of a timeline against the rules the package reader enforces.
+
+Asks each slice's own validator rather than restating a rule: the tempo-map rules, the section
+rules, and for every arrangement its chart rules, its tone-track rules and the structural rules of
+each tone automation entry.
+
+\param timeline Timeline to validate.
+\return Empty success, or the first violation's diagnostic, an arrangement's prefixed with its id.
+*/
+[[nodiscard]] std::expected<void, std::string> validateSongTimelineRules(
+    const SongTimeline& timeline);
+
+} // namespace rock_hero::common::core

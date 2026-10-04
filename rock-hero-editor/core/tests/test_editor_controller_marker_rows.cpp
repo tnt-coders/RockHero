@@ -432,19 +432,21 @@ TEST_CASE("EditorController steps off a clicked chip from its start", "[core][ma
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
 }
 
-// A tempo or time-signature chip selection has no editing verbs: Delete and Alt+arrows leave the
-// tempo map untouched, Esc releases it, and a cursor move releases it like every marker selection.
-TEST_CASE("EditorController keeps tempo and signature selections inert", "[core][marker-rows]")
+// The measure-1 time signature refuses Delete and Alt+arrows, leaving the tempo map untouched and
+// the chip selected; Esc releases it, and a cursor move releases a tempo chip like every marker
+// selection.
+TEST_CASE(
+    "EditorController keeps the first meter and releases chip selections", "[core][marker-rows]")
 {
     MarkerRowEditor editor;
     const common::core::TempoMap before = editor.controller.session().song().tempo_map;
 
-    editor.controller.onTimeSignatureSelected(5);
-    REQUIRE(editor.state().selected_time_signature_measure == std::optional{5});
+    editor.controller.onTimeSignatureSelected(1);
+    REQUIRE(editor.state().selected_time_signature_measure == std::optional{1});
     editor.controller.onSelectionDeleteRequested();
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.controller.session().song().tempo_map == before);
-    CHECK(editor.state().selected_time_signature_measure == std::optional{5});
+    CHECK(editor.state().selected_time_signature_measure == std::optional{1});
 
     editor.controller.onChartEscapePressed();
     CHECK_FALSE(editor.state().selected_time_signature_measure.has_value());
@@ -795,8 +797,8 @@ TEST_CASE("EditorController refuses a row jump while playing", "[core][marker-ro
 
 // Enter and Ctrl+R are the SELECTION's verbs, published as the verb each selected kind has: a
 // section restates and renames on its own name, a tempo anchor restates on the tempo of the span it
-// opens and has no name to rename, and a time signature answers nothing to either — as does an
-// empty selection.
+// opens and has no name to rename, a time signature restates on its meter and has no name either,
+// and an empty selection answers nothing to both.
 TEST_CASE(
     "EditorController publishes the selection's restate and rename verbs", "[core][marker-rows]")
 {
@@ -827,7 +829,10 @@ TEST_CASE(
 
     editor.controller.onTimeSignatureSelected(5);
     REQUIRE(editor.state().selected_time_signature_measure == std::optional{5});
-    CHECK(std::holds_alternative<std::monostate>(editor.state().restate_target));
+    const RestateTarget& meter_restate = editor.state().restate_target;
+    const auto* const restate_meter = std::get_if<SetTimeSignatureTarget>(&meter_restate);
+    REQUIRE(restate_meter != nullptr);
+    CHECK(*restate_meter == SetTimeSignatureTarget{.measure = 5, .meter_text = "3/4"});
     CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
 }
 

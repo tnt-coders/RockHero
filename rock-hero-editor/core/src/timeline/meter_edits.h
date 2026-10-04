@@ -5,10 +5,9 @@
 
 #pragma once
 
-#include "timeline/song_timeline.h"
-
 #include <cstdint>
 #include <expected>
+#include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <span>
@@ -48,6 +47,22 @@ struct PlacedMeter
 \return One placed meter per time-signature change, in order.
 */
 [[nodiscard]] std::vector<PlacedMeter> placedMetersOf(const common::core::TempoMap& tempo_map);
+
+/*!
+\brief Re-addresses one position from one meter list to another, keeping its time.
+
+The one re-address every meter-edit slice and the cursor a meter verb carries go through: the
+position's whole-note place under \p from, read back as a token under \p to. Exact rationals both
+ways, so nothing rounds.
+
+\param from Map the position is addressed under.
+\param to Map to address it under; only its meters are read, never its anchors' times.
+\param position Valid grid position under \p from.
+\return The same whole-note place as a grid position under \p to.
+*/
+[[nodiscard]] common::core::GridPosition readdressedPosition(
+    const common::core::TempoMap& from, const common::core::TempoMap& to,
+    common::core::GridPosition position);
 
 /*! \brief Stable reasons a meter edit refuses. */
 enum class MeterEditErrorCode : std::uint8_t
@@ -92,7 +107,7 @@ judges it against the rules as it would any edit.
 \param meters The new meter list, in order, the first at whole note 0.
 \return The re-addressed timeline, or the refusal.
 */
-[[nodiscard]] std::expected<SongTimeline, MeterEditError> readdressUnderMeters(
-    const SongTimeline& timeline, std::span<const PlacedMeter> meters);
+[[nodiscard]] std::expected<common::core::SongTimeline, MeterEditError> readdressUnderMeters(
+    const common::core::SongTimeline& timeline, std::span<const PlacedMeter> meters);
 
 } // namespace rock_hero::editor::core

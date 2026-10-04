@@ -252,8 +252,7 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
     // The walk starts at the first downbeat at or after the terminal: the terminal itself on a
     // valid map, the next barline when a meter edit has left it mid-measure.
     int measure = on_downbeat ? terminal.position.measure : terminal.position.measure + 1;
-    double quarters = quarterPositionAtBeatPosition(beatPositionAt(
-                          GridPosition{.measure = measure, .beat = 1, .offset = {}})) -
+    double quarters = quarterPositionAtBeatPosition(beatPositionAt(measureDownbeat(measure))) -
                       m_anchor_quarter_positions[opener_index];
 
     // Measure by measure through any meter change still ahead of the terminal...

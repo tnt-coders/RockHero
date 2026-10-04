@@ -24,7 +24,7 @@ common::core::GridPosition measureJumpPosition(
     const int target_measure = later              ? from.measure + 1
                                : at_measure_start ? std::max(1, from.measure - 1)
                                                   : from.measure;
-    return common::core::GridPosition{.measure = target_measure, .beat = 1, .offset = {}};
+    return common::core::measureDownbeat(target_measure);
 }
 
 // One binary search either way; the strictness is what makes "previous" from inside a span land on

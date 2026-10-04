@@ -888,6 +888,23 @@ struct EditorAction
     };
 
     /*!
+    \brief Put a meter at a measure's downbeat: restate the time signature standing there,
+    else insert one.
+
+    One verb for both, because both put a meter at a downbeat; the prompt that typed it was
+    opened on a measure the core published, so the verb never re-reads the cursor. Every
+    object keeps its time and the measures after the change renumber (plan 65).
+    */
+    struct SetTimeSignature
+    {
+        /*! \brief Measure whose downbeat the meter starts, in the numbering before the edit. */
+        int measure{1};
+
+        /*! \brief The meter typed; one the tempo-map rules refuse refuses the edit. */
+        common::core::TimeSignature meter{};
+    };
+
+    /*!
     \brief Select a fret-hand position: a click on its tab-lane hand chip.
 
     Addressed by the placement's index in the chart's stream, which the tab projection's placement
@@ -1030,8 +1047,8 @@ struct EditorAction
         ChooseChartHarmonic, SetChartHarmonicNode, ChooseChartBend, SetChartBend,
         ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
         SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor, SelectTimeSignature,
-        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject,
-        JumpToFocusRow>;
+        SetTimeSignature, SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd,
+        StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

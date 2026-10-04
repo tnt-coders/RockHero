@@ -7,6 +7,8 @@
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/song/song_timeline.h>
+#include <rock_hero/common/core/tone/tone_track.h>
 #include <utility>
 #include <vector>
 
@@ -369,6 +371,43 @@ TEST_CASE(
     session.setSongSections({});
     CHECK(session.song().sections.empty());
     CHECK(session.chartRevision() == 2);
+}
+
+// The seventh surface writes every arrangement's timeline at once, the non-current one included,
+// and leaves everything outside the timeline — metadata, audio, the loaded arrangement and the
+// timeline derived from its audio — exactly as it was. A timeline whose arrangements are not this
+// song's is refused whole.
+TEST_CASE("Session setSongTimeline writes every arrangement at once", "[core][session]")
+{
+    Song song = makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0});
+    Arrangement second = song.arrangements.front();
+    second.id = "bass";
+    song.arrangements.push_back(std::move(second));
+    Session session;
+    REQUIRE(session.loadSong(song, 0));
+    const std::uint64_t loaded = session.chartRevision();
+    const TimeRange loaded_timeline = session.timeline();
+
+    SongTimeline timeline = makeSongTimeline(session.song());
+    timeline.sections = {SongSection{.position = {}, .name = "verse"}};
+    timeline.arrangements[1].chart = Chart{};
+    timeline.arrangements[1].tone_track.regions = {
+        ToneRegion{.id = "region", .start = {}, .tone_document_ref = "tones/a/tone.json"},
+    };
+    REQUIRE(session.setSongTimeline(timeline));
+    CHECK(makeSongTimeline(session.song()) == timeline);
+    CHECK(session.chartRevision() == loaded + 1);
+    CHECK(session.song().metadata.title == "Test Song");
+    CHECK(session.song().arrangements[1].audio_asset == song.arrangements[1].audio_asset);
+    CHECK(session.currentArrangement() == &session.song().arrangements[0]);
+    CHECK(session.timeline() == loaded_timeline);
+
+    SongTimeline foreign = timeline;
+    foreign.arrangements[1].id = "keys";
+    foreign.sections.clear();
+    CHECK_FALSE(session.setSongTimeline(foreign));
+    CHECK(session.song().sections == timeline.sections);
+    CHECK(session.chartRevision() == loaded + 1);
 }
 
 } // namespace rock_hero::common::core

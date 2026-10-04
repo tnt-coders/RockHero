@@ -193,7 +193,7 @@ constexpr double g_tick_floor_tolerance_ticks = 1.0e-6;
     const Fraction line = lattice.lineAt(index);
     if (line >= lattice.length)
     {
-        return GridPosition{.measure = measure + 1, .beat = 1, .offset = {}};
+        return measureDownbeat(measure + 1);
     }
     return positionInMeasure(measure, line);
 }

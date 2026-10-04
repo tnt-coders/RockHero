@@ -53,8 +53,7 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
             for (const common::core::TimeSignatureChange& change :
                  session().song().tempo_map.timeSignatures())
             {
-                starts.push_back(
-                    common::core::GridPosition{.measure = change.measure, .beat = 1, .offset = {}});
+                starts.push_back(common::core::measureDownbeat(change.measure));
             }
             break;
         }
@@ -116,9 +115,7 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     }
     if (const auto* const signature = std::get_if<TimeSignatureSelection>(&m_selection))
     {
-        return marker(
-            MarkerRow::TimeSignature,
-            common::core::GridPosition{.measure = signature->measure, .beat = 1, .offset = {}});
+        return marker(MarkerRow::TimeSignature, common::core::measureDownbeat(signature->measure));
     }
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
@@ -308,13 +305,16 @@ void EditorController::Impl::onTimeSignatureSelected(const int measure)
     runAction(EditorAction::SelectTimeSignature{.measure = measure});
 }
 
-void EditorController::Impl::selectMarkerStartingAt(
+bool EditorController::Impl::selectMarkerStartingAt(
     const MarkerRow row, const common::core::GridPosition& start)
 {
-    if (const std::optional<std::size_t> index = markerIndex(row, start); index.has_value())
+    const std::optional<std::size_t> index = markerIndex(row, start);
+    if (!index.has_value())
     {
-        selectMarker(markerSelectionAt(row, *index));
+        return false;
     }
+    selectMarker(markerSelectionAt(row, *index));
+    return true;
 }
 
 // A marker kind's identity is its start, so this is the one lookup every identity-to-index question
@@ -341,9 +341,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectTempoAn
 // A time-signature chip click selects the change it marks and seeks nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::SelectTimeSignature& action)
 {
-    selectMarkerStartingAt(
-        MarkerRow::TimeSignature,
-        common::core::GridPosition{.measure = action.measure, .beat = 1, .offset = {}});
+    selectMarkerStartingAt(MarkerRow::TimeSignature, common::core::measureDownbeat(action.measure));
     updateView();
 }
 
@@ -429,6 +427,11 @@ RestateTarget EditorController::Impl::restateTarget() const
     if (const std::optional<SetTempoTarget> tempo = selectedTempoTarget(); tempo.has_value())
     {
         return *tempo;
+    }
+    if (const std::optional<SetTimeSignatureTarget> meter = selectedTimeSignatureTarget();
+        meter.has_value())
+    {
+        return *meter;
     }
     if (const std::optional<RetoneRegionTarget> region = selectedRegionTarget(); region.has_value())
     {

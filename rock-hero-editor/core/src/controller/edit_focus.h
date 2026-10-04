@@ -113,16 +113,23 @@ template <typename Record>
 [[nodiscard]] std::optional<ChangedRecord<Record>> firstChangedRecord(
     const std::vector<Record>& landed, const std::vector<Record>& replaced)
 {
+    // A predicate rather than a value find: under clang the MSVC standard library vectorizes a
+    // value find over a trivially comparable record, and its dispatcher takes only 1-, 2-, 4- and
+    // 8-byte elements, which a time-signature change (12 bytes) is not.
+    const auto holds = [](const std::vector<Record>& records, const Record& wanted) {
+        return std::ranges::any_of(
+            records, [&wanted](const Record& held) { return held == wanted; });
+    };
     for (const Record& record : landed)
     {
-        if (std::ranges::find(replaced, record) == replaced.end())
+        if (!holds(replaced, record))
         {
             return ChangedRecord<Record>{.record = &record, .present = true};
         }
     }
     for (const Record& record : replaced)
     {
-        if (std::ranges::find(landed, record) == landed.end())
+        if (!holds(landed, record))
         {
             return ChangedRecord<Record>{.record = &record, .present = false};
         }

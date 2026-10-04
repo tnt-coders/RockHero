@@ -84,7 +84,7 @@ primitive" law the plain grid step already follows.
 */
 [[nodiscard]] constexpr common::core::GridPosition chartStartPosition() noexcept
 {
-    return common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}};
+    return common::core::measureDownbeat(1);
 }
 
 /*!

@@ -2026,6 +2026,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
         moveSelectedTempoAnchor(selected, direction);
         return;
     }
+    if (const auto* const signature = std::get_if<TimeSignatureSelection>(&m_selection))
+    {
+        // One measure per press: a meter starts on a downbeat and nowhere else.
+        const TimeSignatureSelection selected = *signature;
+        moveSelectedTimeSignature(selected, direction);
+        return;
+    }
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
         const FretHandPositionSelection selected = *placement;
@@ -2298,8 +2305,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
 // charter was working, however far back that marker stands, and the ruler pins an off-screen chip
 // at the left edge. Where the deleted marker was the row's first, nothing is left selected, and the
 // view stays all the same. A note's delete is not this rule: it leaves the caret on the emptied
-// slot, which is the entry plane's own continuation. A row with no delete verb (the time signature)
-// deletes nothing, and the selection stays.
+// slot, which is the entry plane's own continuation. A refused delete (the measure-1 time
+// signature, the first or terminal tempo anchor) deletes nothing, and the selection stays.
 void EditorController::Impl::deleteSelectedMarker()
 {
     const std::optional<SelectedMarker> marker = selectedMarker();
@@ -2324,6 +2331,11 @@ void EditorController::Impl::deleteSelectedMarker()
     {
         const TempoAnchorSelection selected = *anchor;
         deleteSelectedTempoAnchor(selected);
+    }
+    else if (const auto* const signature = std::get_if<TimeSignatureSelection>(&m_selection))
+    {
+        const TimeSignatureSelection selected = *signature;
+        deleteSelectedTimeSignature(selected);
     }
     else if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {

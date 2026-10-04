@@ -274,7 +274,7 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
             static_cast<int>(common::core::nearestTick(sync.bar_fraction * ticks_in_bar));
         const GridPosition position = common::core::advanceGridPositionByWholeNotes(
             grid_only,
-            GridPosition{.measure = sync.bar + 1, .beat = 1, .offset = {}},
+            common::core::measureDownbeat(sync.bar + 1),
             Fraction{ticks, common::core::g_tick_quantum_denominator});
         const std::int64_t milliseconds = common::core::nearestAnchorMilliseconds(sync.seconds);
 

@@ -366,6 +366,10 @@ namespace
         {
             return "SetTempoSpanBpm";
         }
+        case EditorAction::Id::SetTimeSignature:
+        {
+            return "SetTimeSignature";
+        }
         case EditorAction::Id::MoveTempoAnchor:
         {
             return "MoveTempoAnchor";
@@ -1017,6 +1021,11 @@ void EditorController::onTempoSpanBpmRequested(
     const common::core::GridPosition position, std::string text)
 {
     m_impl->onTempoSpanBpmRequested(position, text);
+}
+
+void EditorController::onTimeSignatureSetRequested(const int measure, std::string text)
+{
+    m_impl->onTimeSignatureSetRequested(measure, text);
 }
 
 void EditorController::onTempoAnchorMoveRequested(
@@ -2633,6 +2642,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // and the measure downbeat the section chord snaps to.
     state.section_chord_target = sectionChordTarget();
     state.tempo_chord_target = tempoChordTarget();
+    state.time_signature_chord_target = timeSignatureChordTarget();
     state.tone_chord_target = toneChordTarget();
     state.restate_target = restateTarget();
     state.rename_target = renameTarget();

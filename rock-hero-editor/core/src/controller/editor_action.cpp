@@ -287,6 +287,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SelectTimeSignature;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SetTimeSignature>)
+    {
+        return EditorAction::Id::SetTimeSignature;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::SelectFretHandPosition>)
     {
         return EditorAction::Id::SelectFretHandPosition;

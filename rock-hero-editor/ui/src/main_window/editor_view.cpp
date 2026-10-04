@@ -285,6 +285,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::RenameSongSection:
             case core::EditorActionId::InsertTempoAnchor:
             case core::EditorActionId::SetTempoSpanBpm:
+            case core::EditorActionId::SetTimeSignature:
             case core::EditorActionId::MoveTempoAnchor:
             case core::EditorActionId::SelectTempoAnchor:
             case core::EditorActionId::SelectTimeSignature:
@@ -381,6 +382,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::RenameSongSection:
         case core::EditorActionId::InsertTempoAnchor:
         case core::EditorActionId::SetTempoSpanBpm:
+        case core::EditorActionId::SetTimeSignature:
         case core::EditorActionId::MoveTempoAnchor:
         case core::EditorActionId::SelectTempoAnchor:
         case core::EditorActionId::SelectTimeSignature:
