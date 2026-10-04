@@ -526,5 +526,5 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
 5. **Re-scoped 2026-10-03 (user):** plan 41 closes after the user's sighting of Phases 1–4 and
    the sub-beat anchor change. Time-signature editing, formerly its Phase 6, is
    `docs/plans/roadmap/65-time-signature-editing.md`, built after plan 60; the tempo repair tools
-   ruled the same day (Scale Tempo, Keep Notes in Time, the tempo lock) are
+   ruled the same day (Scale Tempo, the Note Lock, the tempo lock) are
    `docs/plans/roadmap/66-tempo-repair-tools.md`, built after or with plan 65.

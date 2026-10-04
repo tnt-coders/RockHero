@@ -324,7 +324,7 @@ leaves every object at its instant and gives it a new address, the measures afte
 renumbering. **Scale Tempo keeps time too** (plan 66): it multiplies every grid address in the song
 by a typed factor on the whole-note axis, so x2 doubles every span's tempo and the measure count
 (a meter at measure m lands on 2m-1), and the music stays where it sounds. So does a tempo edit
-made with **Keep Notes in Time** on (plan 66): the grid moves under the notes instead of the notes
+made with the **Note Lock** on (plan 66): the grid moves under the notes instead of the notes
 moving with the beat, which is how a song whose grid is wrong under correctly timed notes is
 repaired.
 
@@ -341,14 +341,14 @@ through the content map (`readdressedPosition`), rounding onto the tick lattice
 - **Scale Tempo** — `scaledTimeline` (`tempo_scale.h`): meters, anchors and content all at f
   times their place (`scaledPlaces`); x2 is exact, /2 and free factors such as 3/2 round. The
   factor's terms are each at most 16 once reduced (`parseScaleFactor`).
-- **Keep Notes in Time** — `timeKeptTimeline` (`keep_notes_in_time.h`): meters where they stood,
+- **the Note Lock** — `timeKeptTimeline` (`keep_notes_in_time.h`): meters where they stood,
   the tempo verb's new anchors, and the content map `timeKeptPlaces`, which sends each place to
   the tick nearest, under the new map, to the instant the old map gave it. Every place rounds once,
   to within half a tick of its old time.
 
 A ring's `sustain` and a keyframe's `offset` are note values — differences on the whole-note axis
-— so a meter edit, whose content map keeps every place, leaves them untouched. Scale Tempo and Keep
-Notes in Time move places, so each is re-expressed as the difference of its mapped ends,
+— so a meter edit, whose content map keeps every place, leaves them untouched. Scale Tempo and the
+Note Lock move places, so each is re-expressed as the difference of its mapped ends,
 P(p+d) − P(p), which keeps every ring end and keyframe on the tick lattice. A later meter
 keeps its time, so a reign that is no longer a whole number of measures before it refuses the
 edit, naming the meter where it stands now; a section left mid-measure snaps to its measure's
@@ -356,7 +356,7 @@ downbeat; a terminal left mid-measure re-seats on the next downbeat (`reseatTerm
 The commit carries the cursor as one more slice (`commitGridModel` takes the verb's content map
 and asks `readdressedPosition`), so it lands on what it stood on even where the terminal re-seat
 re-times the last span. Tempo edits are the contrast: there the grid is truth, and their content
-map, `keptPlace`, keeps the cursor's musical place — unless Keep Notes in Time is on.
+map, `keptPlace`, keeps the cursor's musical place — unless the Note Lock is on.
 
 Every tempo verb that changes a time (typed tempo, anchor delete, anchor move) ends in one step,
 `commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make its new map from a map,

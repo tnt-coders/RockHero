@@ -250,11 +250,11 @@ struct EditorAction
     };
 
     /*!
-    \brief Flip the session's Keep Notes in Time switch.
+    \brief Flip the session's Note Lock switch.
 
     Payload-free for grid snap's reason: a session fact with two states and one verb.
     */
-    struct ToggleKeepNotesInTime
+    struct ToggleNoteLock
     {
     };
 
@@ -1030,7 +1030,7 @@ struct EditorAction
     \brief End a tempo-chip drag (the pointer's release).
 
     Payload-free: what it commits is the move the drag's last legal event held back, and only a
-    Keep-Notes-in-Time drag holds one. A drag with the toggle off has already landed every event,
+    Note Lock drag holds one. A drag with the toggle off has already landed every event,
     so its release does nothing.
     */
     struct ReleaseTempoAnchorDrag
@@ -1068,7 +1068,7 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, ExportSong,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        ToggleGridSnap, ToggleTempoLock, ToggleKeepNotesInTime, SelectArrangement, SelectToneRegion,
+        ToggleGridSnap, ToggleTempoLock, ToggleNoteLock, SelectArrangement, SelectToneRegion,
         CreateToneRegion, DeleteToneRegion, RenameTone, SetToneRegionTone, MoveToneBoundary,
         CreateNewTone, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
         InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,

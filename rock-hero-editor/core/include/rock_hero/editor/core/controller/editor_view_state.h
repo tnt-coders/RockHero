@@ -1079,7 +1079,7 @@ struct EditorViewState
     common::core::TempoMap tempo_map{};
 
     /*!
-    \brief The map a Keep-Notes-in-Time tempo-chip drag would commit, while one is in flight, for
+    \brief The map a Note Lock tempo-chip drag would commit, while one is in flight, for
     the beat grid's drawing only; nothing otherwise.
 
     Such a drag writes nothing until its release re-addresses the song once, so \ref tempo_map
@@ -1232,14 +1232,14 @@ struct EditorViewState
     bool tempo_lock{true};
 
     /*!
-    \brief Whether Keep Notes in Time is on: a tempo edit then holds every object's time and moves
+    \brief Whether the Note Lock is on: a tempo edit then holds every object's time and moves
     the grid under it, instead of moving it with the beat.
 
     A session fact like grid_snap: never persisted, and reset to false at every project boundary.
     The toolbar button and the menu tick render it; the controller alone decides what an edit
     moves.
     */
-    bool keep_notes_in_time{false};
+    bool note_lock{false};
 
     /*!
     \brief Horizontal timeline scale to restore on a fresh project load.

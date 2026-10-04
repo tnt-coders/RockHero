@@ -241,10 +241,10 @@ public:
         tempo_lock_toggle_count += 1;
     }
 
-    /*! \copydoc IEditorController::onKeepNotesInTimeToggleRequested */
-    void onKeepNotesInTimeToggleRequested() override
+    /*! \copydoc IEditorController::onNoteLockToggleRequested */
+    void onNoteLockToggleRequested() override
     {
-        keep_notes_in_time_toggle_count += 1;
+        note_lock_toggle_count += 1;
     }
 
     /*!
@@ -1304,8 +1304,8 @@ public:
     /*! \brief Number of tempo-lock toggle intents received. */
     int tempo_lock_toggle_count{0};
 
-    /*! \brief Number of Keep Notes in Time toggle intents received. */
-    int keep_notes_in_time_toggle_count{0};
+    /*! \brief Number of Note Lock toggle intents received. */
+    int note_lock_toggle_count{0};
 
     /*! \brief Last decision received from the grid-snap warning dialog. */
     std::optional<GridSnapWarningDecision> last_grid_snap_warning_decision{};

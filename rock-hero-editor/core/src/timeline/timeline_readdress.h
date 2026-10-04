@@ -140,7 +140,7 @@ the same path, so it lands on what it stood on.
 \brief Re-addresses the whole song timeline under a new map stated on the whole-note axis, every
 object going where the content map sends it.
 
-THE one pass every whole-song edit runs: a meter edit, Scale Tempo and Keep Notes in Time differ
+THE one pass every whole-song edit runs: a meter edit, Scale Tempo and the Note Lock differ
 only in the map they state and where they send the content (plan 66 decision 5).
 - The new meters' measure numbers are derived by walking their places in order, the first standing
   at measure 1; a place that is not a downbeat under the meters before it refuses the edit, naming
@@ -150,7 +150,7 @@ only in the map they state and where they send the content (plan 66 decision 5).
   (\ref readdressedPosition).
 - A note's ring and its keyframe offsets are note values from its onset, so each becomes the
   distance between where its two instants are sent: a meter edit leaves them untouched, Scale Tempo
-  scales them, and Keep Notes in Time re-rounds them with the places they join.
+  scales them, and the Note Lock re-rounds them with the places they join.
 - A section left off a downbeat snaps back to its measure's downbeat (a section is navigation and
   moves no sound); two snapping onto one downbeat are left for the section rules to refuse, as they
   refuse any repeated position.

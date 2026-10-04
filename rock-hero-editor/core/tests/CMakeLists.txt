@@ -60,7 +60,7 @@ add_executable(
     test_editor_controller_state.cpp
     test_editor_controller_tempo.cpp
     test_editor_controller_scale_tempo.cpp
-    test_editor_controller_keep_notes_in_time.cpp
+    test_editor_controller_note_lock.cpp
     test_editor_controller_transport.cpp
     test_editor_undo_history.cpp
     test_gp_song_importer.cpp

@@ -638,7 +638,7 @@ constexpr int g_add_lane_key = 'a';
     // latched toolbar button, so their surfaces are that button and the menu row, and a user who
     // wants a key binds one.
     add(EditorCommandId::ToggleTempoLock, "Tempo Lock", "Grid & Zoom", {});
-    add(EditorCommandId::ToggleKeepNotesInTime, "Keep Notes in Time", "Grid & Zoom", {});
+    add(EditorCommandId::ToggleNoteLock, "Note Lock", "Grid & Zoom", {});
 
     // Alt+letter is the platform's menu-access plane (Windows access keys), so the map keeps it
     // for exactly that: one command per menu-bar title, in the bar's order. Registering them

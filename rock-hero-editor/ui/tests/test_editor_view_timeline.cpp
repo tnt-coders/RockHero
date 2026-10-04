@@ -1828,7 +1828,7 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
     CHECK(controller.timeline_seek_count == 0);
 }
 
-// A Keep-Notes-in-Time drag publishes the map it would commit beside the session's: the grid and
+// A Note Lock drag publishes the map it would commit beside the session's: the grid and
 // the dragged chip draw from it, so they follow the pointer while content, which reaches the view
 // already placed in time, holds still. The session's beats fall every second; the preview pulls
 // 1:3 from 2 s to 2.5 s, so its first span's beats fall every 1.25 s.

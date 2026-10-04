@@ -113,7 +113,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::ToggleTempoLock:
-        case EditorAction::Id::ToggleKeepNotesInTime:
+        case EditorAction::Id::ToggleNoteLock:
         case EditorAction::Id::SelectToneRegion:
         // Selecting mutates nothing, so it stays reachable like the tone-region selection.
         case EditorAction::Id::SelectSongSection:
@@ -165,7 +165,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SetGridNoteValue:
             case EditorAction::Id::ToggleGridSnap:
             case EditorAction::Id::ToggleTempoLock:
-            case EditorAction::Id::ToggleKeepNotesInTime:
+            case EditorAction::Id::ToggleNoteLock:
             case EditorAction::Id::SelectArrangement:
             case EditorAction::Id::SelectToneRegion:
             case EditorAction::Id::CreateToneRegion:
@@ -297,7 +297,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::ToggleTempoLock:
-        case EditorAction::Id::ToggleKeepNotesInTime:
+        case EditorAction::Id::ToggleNoteLock:
         case EditorAction::Id::SelectArrangement:
         {
             return require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement);
@@ -485,7 +485,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::ToggleTempoLock:
-        case EditorAction::Id::ToggleKeepNotesInTime:
+        case EditorAction::Id::ToggleNoteLock:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:

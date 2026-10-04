@@ -241,7 +241,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetGridNoteValue:
             case core::EditorActionId::ToggleGridSnap:
             case core::EditorActionId::ToggleTempoLock:
-            case core::EditorActionId::ToggleKeepNotesInTime:
+            case core::EditorActionId::ToggleNoteLock:
             case core::EditorActionId::SelectArrangement:
             case core::EditorActionId::SelectToneRegion:
             case core::EditorActionId::CreateToneRegion:
@@ -339,7 +339,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SetGridNoteValue:
         case core::EditorActionId::ToggleGridSnap:
         case core::EditorActionId::ToggleTempoLock:
-        case core::EditorActionId::ToggleKeepNotesInTime:
+        case core::EditorActionId::ToggleNoteLock:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::BeginPluginInsert:
         case core::EditorActionId::ScanPluginCatalog:
@@ -426,8 +426,8 @@ EditorView::EditorView(
               BinaryData::lock_clock_svg, BinaryData::lock_clock_svgSize),
           juce::Drawable::createFromImageData(
               BinaryData::lock_clock_open_svg, BinaryData::lock_clock_open_svgSize))
-    , m_keep_notes_in_time_button(
-          "keep_notes_in_time",
+    , m_note_lock_button(
+          "note_lock",
           juce::Drawable::createFromImageData(
               BinaryData::lock_note_svg, BinaryData::lock_note_svgSize),
           juce::Drawable::createFromImageData(
@@ -582,15 +582,14 @@ EditorView::EditorView(
         m_command_manager.invokeDirectly(toJuceCommandId(EditorCommandId::ToggleTempoLock), false);
     };
     addAndMakeVisible(m_tempo_lock_button);
-    m_keep_notes_in_time_button.setComponentID("keep_notes_in_time_button");
-    m_keep_notes_in_time_button.setTooltip(
-        "Keep Notes in Time: while on, tempo edits leave notes where they sound in the audio and "
+    m_note_lock_button.setComponentID("note_lock_button");
+    m_note_lock_button.setTooltip(
+        "Note Lock: while on, tempo edits leave notes where they sound in the audio and "
         "move the grid under them.");
-    m_keep_notes_in_time_button.onClick = [this] {
-        m_command_manager.invokeDirectly(
-            toJuceCommandId(EditorCommandId::ToggleKeepNotesInTime), false);
+    m_note_lock_button.onClick = [this] {
+        m_command_manager.invokeDirectly(toJuceCommandId(EditorCommandId::ToggleNoteLock), false);
     };
-    addAndMakeVisible(m_keep_notes_in_time_button);
+    addAndMakeVisible(m_note_lock_button);
     m_arrangement_caption.setComponentID("arrangement_caption");
     m_arrangement_caption.setText("Arrangement", juce::dontSendNotification);
     m_arrangement_caption.setJustificationType(juce::Justification::centredRight);
@@ -743,7 +742,7 @@ void EditorView::setState(const core::EditorViewState& state)
     // keeps the view from ever snapping by a different rule than the controller did.
     const common::core::Fraction placement_quantum =
         core::placementQuantumNoteValue(m_state.grid_note_value, m_state.grid_snap);
-    // The grid draws from a Keep-Notes-in-Time drag's preview map while one is in flight; content
+    // The grid draws from a Note Lock drag's preview map while one is in flight; content
     // reaches the view already placed in time, so it holds still under the moving grid.
     const std::optional<common::core::TempoMap>& drag_preview = m_state.tempo_drag_preview;
     m_track_viewport->setGrid(
@@ -767,9 +766,8 @@ void EditorView::setState(const core::EditorViewState& state)
     m_grid_spacing_selector.setEnabled(m_state.project_loaded);
     m_tempo_lock_button.setToggleState(m_state.tempo_lock, juce::dontSendNotification);
     m_tempo_lock_button.setEnabled(m_state.project_loaded);
-    m_keep_notes_in_time_button.setToggleState(
-        m_state.keep_notes_in_time, juce::dontSendNotification);
-    m_keep_notes_in_time_button.setEnabled(m_state.project_loaded);
+    m_note_lock_button.setToggleState(m_state.note_lock, juce::dontSendNotification);
+    m_note_lock_button.setEnabled(m_state.project_loaded);
     if (previous_state.arrangement.choices != m_state.arrangement.choices)
     {
         m_arrangement_selector.clear(juce::dontSendNotification);
@@ -1014,7 +1012,7 @@ void EditorView::resized()
         control_row.getWidth(), std::min(g_transport_height, control_row.getHeight()));
 
     // The left cluster pins to the strip's left edge: the arrangement caption and dropdown, the
-    // grid selector, then the tempo lock and Keep Notes in Time — grid/tempo editing modes, so they
+    // grid selector, then the tempo lock and the Note Lock — grid/tempo editing modes, so they
     // sit beside the grid control they shape rather than with playback. The playback block —
     // transport buttons plus the position readout — centers as a whole on the WINDOW's center
     // line. The block only slides off center when the left cluster would overlap it, and the
@@ -1041,7 +1039,7 @@ void EditorView::resized()
     control_row.removeFromLeft(g_control_gap);
     place_mode_toggle(m_tempo_lock_button);
     control_row.removeFromLeft(g_mode_toggle_gap);
-    place_mode_toggle(m_keep_notes_in_time_button);
+    place_mode_toggle(m_note_lock_button);
 
     constexpr int playback_group_width = g_transport_controls_width + g_position_display_width;
     const int ideal_group_x = getLocalBounds().getCentreX() - playback_group_width / 2;
@@ -1394,7 +1392,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(grid_menu, EditorCommandId::GridCoarser);
     add(grid_menu, EditorCommandId::ToggleGridSnap);
     add(grid_menu, EditorCommandId::ToggleTempoLock);
-    add(grid_menu, EditorCommandId::ToggleKeepNotesInTime);
+    add(grid_menu, EditorCommandId::ToggleNoteLock);
     grid_menu.addSeparator();
     add(grid_menu, EditorCommandId::ZoomIn);
     add(grid_menu, EditorCommandId::ZoomOut);
@@ -1924,10 +1922,10 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setTicked(m_state.tempo_lock);
             break;
         }
-        case EditorCommandId::ToggleKeepNotesInTime:
+        case EditorCommandId::ToggleNoteLock:
         {
             // The tempo lock's shape: always active, ticked by the published switch.
-            info.setTicked(m_state.keep_notes_in_time);
+            info.setTicked(m_state.note_lock);
             break;
         }
         case EditorCommandId::ScaleTempo:
@@ -2763,9 +2761,9 @@ bool EditorView::performCommand(const InvocationInfo& info)
             m_controller.onTempoLockToggleRequested();
             return true;
         }
-        case EditorCommandId::ToggleKeepNotesInTime:
+        case EditorCommandId::ToggleNoteLock:
         {
-            m_controller.onKeepNotesInTimeToggleRequested();
+            m_controller.onNoteLockToggleRequested();
             return true;
         }
         case EditorCommandId::ScaleTempo:

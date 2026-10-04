@@ -1,13 +1,14 @@
 # Plan 66 — Tempo Repair Tools
 
 **Status:** BUILT 2026-10-04, awaiting the user's sighting. Phase 1 (`73ffab27`, the Tempo
-Lock), Phase 2 (`799d2a12`, Scale Tempo, on the generalized `readdressTimeline`), and Phase 3 (Keep
-Notes in Time, the commit after `4f1cb4c9`). Open for the user:
-- the sighting of all three tools, including the Keep-Notes-in-Time drag's grid-only preview
+Lock), Phase 2 (`799d2a12`, Scale Tempo, on the generalized `readdressTimeline`), and Phase 3 (the
+Note Lock, the commit after `4f1cb4c9`; renamed from "Keep Notes in Time" on 2026-10-04). Open
+for the user:
+- the sighting of all three tools, including the Note Lock drag's grid-only preview
   (decision 7, resolved overnight on the recommendation);
 - the strings: "Scale Tempo...", "Scale factor (e.g. 2, 1/2, 3/2)", "Scale", the factor bound
   of 16;
-- the whole-song verbs' cost at 50k notes (Keep Notes in Time ≈ 300 ms against plan 64's
+- the whole-song verbs' cost at 50k notes (the Note Lock ≈ 300 ms against plan 64's
   proposed 250 ms; see plan 64 §6).
 
 Ruled by the user on 2026-10-03 as follow-ups to plan 41 (its "Ruled
@@ -33,7 +34,7 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
 ## Constraints
 
 - Plan 65's constraints (a), (b), (f) and (h) apply unchanged.
-- **Whole-song verbs commit once.** Scale Tempo and every tempo edit made with Keep Notes in Time
+- **Whole-song verbs commit once.** Scale Tempo and every tempo edit made with the Note Lock
   on re-address the whole song: the album-scale analysis
   (`docs/plans/roadmap/64-album-scale-performance.md`) measured ~150–250 ms per whole-song
   re-address at 50k notes, and proposes a ≤ 250 ms bound per whole-song verb (64-Q4). So each
@@ -47,9 +48,9 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
   automation points — is scaled by a factor on the whole-note axis while every TIME stays put. x2
   doubles every span's tempo and the measure count (a meter change at old bar m lands on new bar
   2m-1); /2 and free factors (3/2) round to the tick lattice. A range-scoped form is later.
-- **Keep Notes in Time** (toolbar toggle, OFF by default, session state): while on, a tempo edit
-  keeps every object's time and re-addresses its grid position, instead of moving it with the
-  beat. It applies to tempo edits only (a meter edit already keeps time under 65-Q1 = A). The
+- **Note Lock** (toolbar toggle, OFF by default, session state; named "Keep Notes in Time" until
+  the user renamed it on 2026-10-04 to read with Tempo Lock): while on, a tempo edit keeps every
+  object's time and re-addresses its grid position, instead of moving it with the beat. It applies to tempo edits only (a meter edit already keeps time under 65-Q1 = A). The
   workflow for a non-click song: turn it on, sync anchors to the audio, turn it off.
 - **Tempo lock** (toolbar toggle, ON by default for every song each session, never saved): while
   locked, anchors cannot be MOVED in time (chip drag, `Alt+←/→`); adding one, deleting one, typing
@@ -58,11 +59,11 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
 
 ## Decisions
 
-1. **One transform, two drivers.** Scale Tempo and Keep Notes in Time both run plan 65's
-   whole-note re-addressing transform — Scale Tempo with a factor, Keep Notes in Time with the old
+1. **One transform, two drivers.** Scale Tempo and the Note Lock both run plan 65's
+   whole-note re-addressing transform — Scale Tempo with a factor, the Note Lock with the old
    and new maps — over the same slice list, and both commit through plan 65's whole-song snapshot,
    one undo entry per command. Neither restates the slice list.
-2. **A Keep-Notes-in-Time drag commits on release.** With the toggle off, plan 41's chip drag
+2. **A Note Lock drag commits on release.** With the toggle off, plan 41's chip drag
    stays as built (the anchor moves live, one entry). With it on, the chip and grid follow the
    pointer and the song is re-addressed ONCE at release, from the drag's starting map, as one
    entry — which also rounds every position to the tick lattice once instead of compounding the
@@ -74,7 +75,7 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
 
 4. **The two toggles' icons and tooltips (user, 2026-10-04).** Material Symbols Outlined style,
    weight 400, in `rock-hero-editor/ui/resources/` beside the transport icons: Tempo Lock is
-   Material's `lock_clock` (on) / a custom `lock_clock_open` (off); Keep Notes in Time is a custom
+   Material's `lock_clock` (on) / a custom `lock_clock_open` (off); Note Lock is a custom
    `lock_note` (on) / `lock_note_open` (off) — filled glyph when on, outlined with the open
    shackle when off. The on state is a 1 px `accent` ring with 3 px corners and no fill, the
    editor's selection mark; disabled is the whole button at 0.4 alpha; a small `DrawableButton`
@@ -82,7 +83,7 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    shipped icons' form; Phase 1 moves the `lock_clock` pair into `resources/` and its
    binary-data list, Phase 3 the `lock_note` pair, and the folder is deleted with the second move.
    **Placement (UI review, 2026-10-04):** right of the Grid selector as one pair, Tempo Lock
-   first: `[Arrangement ▾]·8·[Grid ▾]·8·[TL]·4·[KN] … [▶ ■ readout] … [meter]`. The pair is a
+   first: `[Arrangement ▾]·8·[Grid ▾]·8·[TL]·4·[NL] … [▶ ■ readout] … [meter]`. The pair is a
    grid/tempo editing mode beside the grid control it shapes, apart from the playback group; the
    toggles get a "Grid & Zoom" menu row each beside Grid Snap, not instead of the button (a
    default-ON latched mode needs an on-screen indicator). The pair adds 76 px; at the 1280 px
@@ -92,8 +93,8 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    Tooltips, verbatim:
    - "Tempo Lock: while on, tempo anchors can't be dragged or nudged. Adding, deleting and typing
      tempos still work."
-   - "Keep Notes in Time: while on, tempo edits leave notes where they sound in the audio and move
-     the grid under them."
+   - "Note Lock: while on, tempo edits leave notes where they sound in the audio and move the grid
+     under them." (renamed from "Keep Notes in Time" on 2026-10-04)
 
 5. **One transform, generalized (2026-10-04, against plan 65 as built).** Plan 65's
    `readdressUnderMeters` maps every slice by identity on the whole-note axis under a new placed
@@ -111,7 +112,7 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
      - *meter edit*: φ = identity, with the anchors placed where they stood;
      - *Scale Tempo* by f: φ(w) = f·w, with meters and anchors placed at f·w and milliseconds
        held;
-     - *Keep Notes in Time*: anchors placed by the tempo verb's result, meters where they stood
+     - *the Note Lock*: anchors placed by the tempo verb's result, meters where they stood
        in measure terms, and φ(w) = the new map's whole-note position at the old map's time of w.
    - The cursor is carried as one more slice, through the transform's own mapping (φ, the
      lattice, the address under the new map). That is the path content takes, so the cursor stays
@@ -124,7 +125,7 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    single-meter song is never refused; its end re-seats. The terminal re-seats through plan 65's
    `reseatTerminalAnchor`.
 
-7. **Q1 resolved (2026-10-04, overnight, on the recommendation):** a Keep-Notes-in-Time drag
+7. **Q1 resolved (2026-10-04, overnight, on the recommendation):** a Note Lock drag
    previews by the grid alone.
    - **During the drag:** the session is not written. The chip and the beat grid follow the
      pointer through a preview map that the view state publishes for the grid's drawing only.
@@ -139,7 +140,7 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
 
 ## Open questions (build-session)
 
-- **Q1 — what a Keep-Notes-in-Time drag shows before release.** Content must not appear to move
+- **Q1 — what a Note Lock drag shows before release.** Content must not appear to move
   with the beat mid-drag when it will not after release. Settle at build time against the cost
   measured then.
 - **Q2 — meters and the terminal under a non-integer factor.** /2 can land a meter change between
@@ -178,7 +179,7 @@ and verifies with a build and the touched tests.
 - **Tests:** x2 then /2 round-trips a lattice-aligned song exactly; times identical within half a
   tick; a meter at bar m lands at 2m-1 under x2; every result passes the rules; one undo entry.
 
-### Phase 3 — Keep Notes in Time
+### Phase 3 — Note Lock
 
 - The toolbar toggle (OFF by default, session state). With it on, the move, typed BPM and delete
   verbs re-address content against the new map so its times hold; a drag commits on release.
@@ -192,7 +193,7 @@ and verifies with a build and the touched tests.
 ## Final acceptance
 
 As separate invocations: a build, the touched tests, and `pre-commit run --all-files`; clang-tidy
-when the user asks. Measure Scale Tempo and a Keep-Notes-in-Time drag release on the largest local
+when the user asks. Measure Scale Tempo and a Note Lock drag release on the largest local
 import on relwithdebinfo, and report the numbers.
 
 ## Rollback/abort notes

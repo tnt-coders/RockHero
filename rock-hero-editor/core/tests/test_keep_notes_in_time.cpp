@@ -71,7 +71,7 @@ using testing::requireValid;
 // Every verb's new map laid under a random song holds every time within half a tick of the new
 // grid, writes the verb's map exactly and touches nothing but addresses. Where two places round
 // onto one tick the rules refuse the result, as they refuse any edit.
-TEST_CASE("Keep Notes in Time holds every time over random songs", "[core][keep-notes-in-time]")
+TEST_CASE("Keeping notes in time holds every time over random songs", "[core][keep-notes-in-time]")
 {
     int landed = 0;
     for (std::uint32_t seed = 1; seed <= 150; ++seed)
@@ -121,7 +121,8 @@ TEST_CASE("Keep Notes in Time holds every time over random songs", "[core][keep-
 // then lands on 2:2+1/3, and its half-note ring, which ended at 3 s, ends on 3:1; the note at 6 s
 // lands on 4:1+4/5, and its eighth-note ring, which ended at 6.25 s, ends on 4:2+1/5. Every place
 // lands exactly, so every time holds exactly.
-TEST_CASE("Keep Notes in Time re-addresses content where it sounds", "[core][keep-notes-in-time]")
+TEST_CASE(
+    "Keeping notes in time re-addresses content where it sounds", "[core][keep-notes-in-time]")
 {
     SongTimeline before = oneNoteTimeline(
         commonTimeMap({anchor("1:1", 0), anchor("3:1", 4000), anchor("5:1", 8000)}),

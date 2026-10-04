@@ -418,8 +418,8 @@ public:
     /*! \copydoc IEditorController::onTempoLockToggleRequested */
     void onTempoLockToggleRequested() override;
 
-    /*! \copydoc IEditorController::onKeepNotesInTimeToggleRequested */
-    void onKeepNotesInTimeToggleRequested() override;
+    /*! \copydoc IEditorController::onNoteLockToggleRequested */
+    void onNoteLockToggleRequested() override;
 
     /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.

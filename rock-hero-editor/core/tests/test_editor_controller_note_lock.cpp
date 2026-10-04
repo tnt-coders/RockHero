@@ -30,11 +30,11 @@ using testing::checkTimesHeld;
 
 // The eight-measure song (notes at 2:1 and 3:1, hand positions at 1:1 and 3:1) under a map whose
 // tempo changes at 3:1 and 5:1: two measures in 3 s (375 ms a beat), two in 5 s (625 ms a beat),
-// then four at 120 BPM to 9:1 at 16 s. Opened with Keep Notes in Time on, the lock off, and the
+// then four at 120 BPM to 9:1 at 16 s. Opened with the Note Lock on, the tempo lock off, and the
 // anchor at 3:1 selected.
-struct KeepNotesEditor : SongEditorHarness
+struct NoteLockEditor : SongEditorHarness
 {
-    KeepNotesEditor()
+    NoteLockEditor()
     {
         common::core::Song song = makeEightMeasureSong();
         song.tempo_map = common::core::testing::commonTimeMap({
@@ -45,9 +45,9 @@ struct KeepNotesEditor : SongEditorHarness
         });
         open(std::move(song));
         controller.onTempoLockToggleRequested();
-        controller.onKeepNotesInTimeToggleRequested();
+        controller.onNoteLockToggleRequested();
         REQUIRE_FALSE(state().tempo_lock);
-        REQUIRE(state().keep_notes_in_time);
+        REQUIRE(state().note_lock);
         controller.onTempoAnchorSelected(beatAt(3, 1));
         REQUIRE(state().selected_tempo_anchor == std::optional{beatAt(3, 1)});
     }
@@ -57,28 +57,27 @@ struct KeepNotesEditor : SongEditorHarness
 
 // The switch is session state: off at every open, whatever the session before it left, and
 // flipping it records nothing to undo.
-TEST_CASE("Keep Notes in Time is off at every open", "[core][keep-notes-in-time]")
+TEST_CASE("The Note Lock is off at every open", "[core][tempo][note-lock]")
 {
     SongEditorHarness editor;
     editor.open(makeEightMeasureSong());
-    CHECK_FALSE(editor.state().keep_notes_in_time);
+    CHECK_FALSE(editor.state().note_lock);
 
-    editor.controller.onKeepNotesInTimeToggleRequested();
-    CHECK(editor.state().keep_notes_in_time);
+    editor.controller.onNoteLockToggleRequested();
+    CHECK(editor.state().note_lock);
     CHECK(editor.undoEntryCount() == 0);
 
     editor.open(makeEightMeasureSong());
     REQUIRE(editor.project_services.open_call_count == 2);
-    CHECK_FALSE(editor.state().keep_notes_in_time);
+    CHECK_FALSE(editor.state().note_lock);
 }
 
 // With the switch on, every tempo verb that changes a time leaves every object where it sounds,
 // within half a tick of the new grid, as ONE entry that undo takes back whole. A held Alt+arrow
 // run is one entry too, re-addressed from where the run began.
-TEST_CASE(
-    "Keep Notes in Time holds every time through each tempo verb", "[core][keep-notes-in-time]")
+TEST_CASE("The Note Lock holds every time through each tempo verb", "[core][tempo][note-lock]")
 {
-    KeepNotesEditor editor;
+    NoteLockEditor editor;
     editor.controller.onTimelineZoomChanged(100.0);
     const SongTimeline before = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
@@ -117,11 +116,9 @@ TEST_CASE(
 
 // A nudge run that walks back to where it began rounds nothing, because every press re-addresses
 // from the run's origin, so it lands the song exactly as it was and leaves no entry.
-TEST_CASE(
-    "A walked-back nudge run under Keep Notes in Time leaves no entry",
-    "[core][keep-notes-in-time]")
+TEST_CASE("A walked-back nudge run under the Note Lock leaves no entry", "[core][tempo][note-lock]")
 {
-    KeepNotesEditor editor;
+    NoteLockEditor editor;
     editor.controller.onTimelineZoomChanged(100.0);
     const SongTimeline before = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
@@ -134,12 +131,11 @@ TEST_CASE(
 
 // With the switch off the grid is truth (plan 41): the same typed tempo keeps every address, so
 // the notes move with their beats.
-TEST_CASE(
-    "With Keep Notes in Time off a tempo edit keeps every address", "[core][keep-notes-in-time]")
+TEST_CASE("With the Note Lock off a tempo edit keeps every address", "[core][tempo][note-lock]")
 {
-    KeepNotesEditor editor;
-    editor.controller.onKeepNotesInTimeToggleRequested();
-    REQUIRE_FALSE(editor.state().keep_notes_in_time);
+    NoteLockEditor editor;
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE_FALSE(editor.state().note_lock);
     const SongTimeline before = editor.timeline();
 
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "100");
@@ -152,9 +148,9 @@ TEST_CASE(
 // The cursor is carried as one more slice through the content map, so it keeps its time. At 2 s it
 // stands on 2:2+1/3; at 100 BPM the same instant is 1:4+1/3, a tick-lattice place, so it holds
 // exactly.
-TEST_CASE("Keep Notes in Time keeps the cursor's time", "[core][keep-notes-in-time]")
+TEST_CASE("The Note Lock keeps the cursor's time", "[core][tempo][note-lock]")
 {
-    KeepNotesEditor editor;
+    NoteLockEditor editor;
     editor.seek(2.0);
 
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "100");
@@ -163,9 +159,9 @@ TEST_CASE("Keep Notes in Time keeps the cursor's time", "[core][keep-notes-in-ti
 
 // The lock refuses moves first, whatever the switch says: a nudge and a drag both leave the song
 // and the history alone, and the drag holds and previews nothing.
-TEST_CASE("The tempo lock refuses moves under Keep Notes in Time", "[core][keep-notes-in-time]")
+TEST_CASE("The tempo lock refuses moves under the Note Lock", "[core][tempo][note-lock]")
 {
-    KeepNotesEditor editor;
+    NoteLockEditor editor;
     editor.controller.onTempoLockToggleRequested();
     REQUIRE(editor.state().tempo_lock);
     editor.controller.onTimelineZoomChanged(100.0);
@@ -184,11 +180,9 @@ TEST_CASE("The tempo lock refuses moves under Keep Notes in Time", "[core][keep-
 // During a drag the song is not written: the session keeps its map, which is what content keeps
 // drawing from, and the grid's preview map is published beside it. The release lands the whole
 // drag as one entry from the map the drag started on, every time held, and the preview ends.
-TEST_CASE(
-    "A Keep-Notes-in-Time drag previews the grid and commits on release",
-    "[core][keep-notes-in-time]")
+TEST_CASE("A Note Lock drag previews the grid and commits on release", "[core][tempo][note-lock]")
 {
-    KeepNotesEditor editor;
+    NoteLockEditor editor;
     const SongTimeline before = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
 
@@ -228,10 +222,9 @@ TEST_CASE(
 
 // A drag released where it began commits nothing, and one whose anchor stopped being the selection
 // (Esc released it) drops its preview at once and commits nothing at the release.
-TEST_CASE(
-    "A Keep-Notes-in-Time drag that goes nowhere commits nothing", "[core][keep-notes-in-time]")
+TEST_CASE("A Note Lock drag that goes nowhere commits nothing", "[core][tempo][note-lock]")
 {
-    KeepNotesEditor editor;
+    NoteLockEditor editor;
     const SongTimeline before = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
 

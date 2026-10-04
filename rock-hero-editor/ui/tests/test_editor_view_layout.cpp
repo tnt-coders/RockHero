@@ -63,8 +63,7 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
         findRequiredDescendant<juce::ComboBox>(view, "arrangement_selector");
     auto& grid_selector = findRequiredDescendant<juce::Component>(view, "grid_spacing_selector");
     auto& tempo_lock_button = findRequiredDescendant<juce::Component>(view, "tempo_lock_button");
-    auto& keep_notes_in_time_button =
-        findRequiredDescendant<juce::Component>(view, "keep_notes_in_time_button");
+    auto& note_lock_button = findRequiredDescendant<juce::Component>(view, "note_lock_button");
     auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
     auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
@@ -72,15 +71,15 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     // The left cluster pins to the strip's left edge: the arrangement caption and dropdown, the
-    // grid selector, then the tempo lock as a 32 px square one control gap right of it and Keep
-    // Notes in Time as another 4 px right of that, the pair's own tighter gap. The playback block
+    // grid selector, then the tempo lock as a 32 px square one control gap right of it and the
+    // Note Lock as another 4 px right of that, the pair's own tighter gap. The playback block
     // (buttons + position readout) wants its whole width centered on the window, but at this
     // window width the left cluster clamps the block to start right of it.
     CHECK(arrangement_caption.getBounds() == juce::Rectangle<int>{8, 28, 100, 32});
     CHECK(arrangement_selector.getBounds() == juce::Rectangle<int>{112, 28, 124, 32});
     CHECK(grid_selector.getBounds() == juce::Rectangle<int>{248, 28, 132, 32});
     CHECK(tempo_lock_button.getBounds() == juce::Rectangle<int>{388, 28, 32, 32});
-    CHECK(keep_notes_in_time_button.getBounds() == juce::Rectangle<int>{424, 28, 32, 32});
+    CHECK(note_lock_button.getBounds() == juce::Rectangle<int>{424, 28, 32, 32});
     CHECK(controls.getBounds() == juce::Rectangle<int>{456, 28, 36, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
     CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 484, 68});

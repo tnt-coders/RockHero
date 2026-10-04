@@ -82,7 +82,7 @@ reached 1,753 with no measurable effect); thousands of keyframes and hand marker
 |---|---|---|---|
 | **Pointer event / drag / held key repeat** (tempo chip drag, `Alt+←/→` run, selection drag, hover) | per pointer-move or key repeat, inside one paint | **≤ 8 ms** for the model commit + re-derivation, so the whole frame including JUCE paint stays **≤ 16.7 ms** | architecture.md "Timing and Latency" (16 ms frame); RAIL's "about 10 ms" for the app's share |
 | **Caret / key / edit / undo / redo** (arrow key, digit, sustain, legato, Delete, `Ctrl+Z`) | per keystroke | **≤ 50 ms target, 100 ms hard** | Nielsen's 0.1 s "feels instantaneous"; a 30 Hz key repeat needs the target |
-| **Whole-song verbs** (plan 66's Scale Tempo and Keep-Notes-in-Time commit, plan 65's meter edit, paste over the song) | per command | **≤ 250 ms**, one undo entry; never driven per pointer event (§11 Phase 7) | explicitly O(song) work, inside Nielsen's 1 s "flow" bound; user signs (64-Q4) |
+| **Whole-song verbs** (plan 66's Scale Tempo and Note Lock commit, plan 65's meter edit, paste over the song) | per command | **≤ 250 ms**, one undo entry; never driven per pointer event (§11 Phase 7) | explicitly O(song) work, inside Nielsen's 1 s "flow" bound; user signs (64-Q4) |
 | **Load / save** | per open / `Ctrl+S` | open **≤ 2 s** to an interactive editor for 4 × 50k, busy overlay beyond 1 s; save **≤ 1 s** | Nielsen's 1 s / 10 s; user signs (64-Q4) |
 | **GP import** | once per import | **≤ 10 s** with progress for a 50k-note score, behind the busy overlay | Nielsen's 10 s with feedback; user signs (64-Q4) |
 | **3D preview / game frame** | per frame | **≤ 16.7 ms**, CPU-side view queries ≤ 1 ms, no allocation on the audio thread | architecture.md "Timing and Latency", "Rules" |
@@ -121,11 +121,11 @@ keystroke. What remains in every event is the ≈ 130 ms whole scene rebuild, F2
 The whole-song verbs built on 2026-10-04 (plans 65 and 66) measure, at ≈ 50k notes:
 - a meter edit costs ≈ 98 ms (validation 29 ms);
 - Scale Tempo costs 147–231 ms;
-- a Keep-Notes-in-Time tempo edit costs ≈ 272–345 ms, after the shared nearest-tick seek
+- a Note Lock tempo edit costs ≈ 272–345 ms, after the shared nearest-tick seek
   was seeded from the beat position (snap-off placement went from 0.78 to 0.16 µs per call).
 
 About 115 ms of each is the scene re-projection after the commit (F2). So F2's windowing is also what brings these verbs under the proposed 250 ms bound (64-Q4). One more lever belongs to the
-same phase: a Keep-Notes-in-Time φ is exactly the identity before the first anchor the edit
+same phase: a Note Lock φ is exactly the identity before the first anchor the edit
 changes (and after the last, for a move or delete), so the re-address can skip those slices —
 the same "derive only the changed range" decision 1 states for the projections.
 
@@ -189,8 +189,8 @@ lazy-by-value fallback the user signs).
    never different (Phase 2's property test is the proof). Reached in agreement between the
    simplicity and performance reviews (2026-10-04), replacing a range log on `Session`.
 2. **Proportional, never coalesced.** No pointer event is dropped, delayed or merged; each is
-   committed and derived in full. Where a verb is O(song) by its nature (Scale Tempo, Keep Notes
-   in Time, meter edits) it is a command, committed once per command or on release, and the plan
+   committed and derived in full. Where a verb is O(song) by its nature (Scale Tempo, the Note
+   Lock, meter edits) it is a command, committed once per command or on release, and the plan
    says so where the user can see it (Phase 7).
 3. **One scene, one publication.** The controller publishes one `HighwayViewState`, and the tab
    scene is an aliasing `shared_ptr` into its `chart`, so the scene copy goes without making the
@@ -231,8 +231,8 @@ lazy-by-value fallback the user signs).
   2 ms per event at 10k points; A otherwise.** Only asked if Phase 0-b fires.
 - **64-Q4 — the budgets the user signs:** the whole-song verb bound (250 ms), the open bound (2 s
   for 4 × 50k), the save bound (1 s), the import bound (10 s with progress). **R: as stated in §5.**
-- **64-Q5 — Keep Notes in Time ON during a chip drag — ANSWERED by plan 66** (decision 2, "a
-  Keep-Notes-in-Time drag commits on release"; `docs/plans/roadmap/66-tempo-repair-tools.md`).
+- **64-Q5 — the Note Lock ON during a chip drag — ANSWERED by plan 66** (decision 2, "a
+  Note Lock drag commits on release"; `docs/plans/roadmap/66-tempo-repair-tools.md`).
   Recorded here with the correctness reason that stands before the performance one: re-addressing
   rounds every position to the tick lattice, so re-addressing per pointer event would compound
   rounding across the drag, while one re-address from the drag's starting map rounds once (the
@@ -251,10 +251,10 @@ lazy-by-value fallback the user signs).
   affordable; 41 Phase 2's `syncTempoDerivedAudio` is the authority Phase 6 here reshapes. 41's
   "after the projection-cost fix" is this plan.
 - **Plan 65** (time-signature editing, split from 41 on 2026-10-03) and **plan 66** (tempo repair
-  tools: Scale Tempo, Keep Notes in Time, tempo lock) own the whole-song re-addressing transform
+  tools: Scale Tempo, Note Lock, tempo lock) own the whole-song re-addressing transform
   and its whole-song snapshot undo; both already cite this plan's figures and bound their phases
   on them. Phase 7 here budgets those verbs and sizes their snapshots; 66's decision 2 (a
-  Keep-Notes-in-Time drag commits on release) answers 64-Q5.
+  Note Lock drag commits on release) answers 64-Q5.
 - **Plan 60** (hand markers): the FHP tracker is not in scope, but if Phase 0-f shows the shapes
   walk's hand state is not dead at a silence cut, that is a hand-model finding for plan 60.
 - **Plan 40** (chart editing) owns the undo history whose cap Phase 7 re-units.
@@ -456,10 +456,10 @@ the rewritten curve equals a full rewrite point for point. **Exit:** resync ≤ 
 - The history's cap becomes a byte budget (64-Q6) beside the entry count; whole-song snapshots
   report their size. Phase 0-d's figure is handed to plan 65 before its snapshot phase ships
   (65 asks for exactly that).
-- The whole-song verbs — plan 66's Scale Tempo and Keep-Notes-in-Time commits, plan 65's meter
+- The whole-song verbs — plan 66's Scale Tempo and Note Lock commits, plan 65's meter
   edit — derive the covering range, rebuild whole (≤ 250 ms at 50k after Phases 2 and 4), and
-  are committed **once per command or on release** (66 decision 2): `Alt+←/→` with Keep Notes in
-  Time ON commits per press (an explicit command each); the chip drag with it ON re-addresses on
+  are committed **once per command or on release** (66 decision 2): `Alt+←/→` with the Note Lock
+  ON commits per press (an explicit command each); the chip drag with it ON re-addresses on
   release, one undo entry, computed from the drag's starting map so the tick rounding happens once
   (64-Q5). With the toggle OFF a drag is Phase 2's windowed path. This phase contributes the
   budget, the benchmark rows and the snapshot sizing; the verbs themselves are built in 65 and 66.

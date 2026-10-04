@@ -455,7 +455,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 // rounded once, never snapped — the anchor defines the grid, so no grid line can be its step. The
 // core moves the model itself, so the chip, the grid and every chart surface follow live, and it
 // alone decides what to refuse: a refused event leaves the anchor at its last legal time while the
-// drag goes on. With Keep Notes in Time on, the core holds each event instead and the chip and the
+// drag goes on. With the Note Lock on, the core holds each event instead and the chip and the
 // grid follow its published preview, until the release commits.
 void TimelineRuler::mouseDrag(const juce::MouseEvent& event)
 {

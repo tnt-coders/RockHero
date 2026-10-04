@@ -154,9 +154,9 @@ namespace
         {
             return "ToggleTempoLock";
         }
-        case EditorAction::Id::ToggleKeepNotesInTime:
+        case EditorAction::Id::ToggleNoteLock:
         {
-            return "ToggleKeepNotesInTime";
+            return "ToggleNoteLock";
         }
         case EditorAction::Id::ShowPluginBrowser:
         {
@@ -849,9 +849,9 @@ void EditorController::onTempoLockToggleRequested()
     m_impl->onTempoLockToggleRequested();
 }
 
-void EditorController::onKeepNotesInTimeToggleRequested()
+void EditorController::onNoteLockToggleRequested()
 {
-    m_impl->onKeepNotesInTimeToggleRequested();
+    m_impl->onNoteLockToggleRequested();
 }
 
 void EditorController::onTimelineZoomChanged(double pixels_per_second)
@@ -2678,7 +2678,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.grid_snap = m_grid_session.snap;
     state.grid_snap_warning_prompt = m_grid_session.snap_warning_prompt;
     state.tempo_lock = m_grid_session.tempo_lock;
-    state.keep_notes_in_time = m_grid_session.keep_notes_in_time;
+    state.note_lock = m_grid_session.note_lock;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
     state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;

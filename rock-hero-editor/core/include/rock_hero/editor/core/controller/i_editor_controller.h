@@ -189,7 +189,7 @@ public:
     virtual void onTempoLockToggleRequested() = 0;
 
     /*!
-    \brief Handles a request to flip Keep Notes in Time, the session switch that decides what a
+    \brief Handles a request to flip the Note Lock, the session switch that decides what a
     tempo edit moves.
 
     While it is on, a tempo edit that changes a time — a typed tempo, a deleted anchor, a moved
@@ -197,7 +197,7 @@ public:
     the notes instead of the notes moving with the beat. The switch is session-only like grid snap:
     nothing persists it, and every project boundary resets it off.
     */
-    virtual void onKeepNotesInTimeToggleRequested() = 0;
+    virtual void onNoteLockToggleRequested() = 0;
 
     /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.
@@ -740,7 +740,7 @@ public:
     began leaves none. The model itself moves, so every surface follows live. The anchor moves only
     while it is the selection, which the press on its chip made it; a time onto or past a
     neighbour, or below zero for the first anchor, is refused and the anchor stays at its last
-    legal time. Inert while playing, like every marker edit. With Keep Notes in Time on, an event
+    legal time. Inert while playing, like every marker edit. With the Note Lock on, an event
     writes nothing: it holds the move for \ref onTempoAnchorDragReleased to commit and publishes
     the map it would make as EditorViewState::tempo_drag_preview.
 
@@ -753,7 +753,7 @@ public:
     /*!
     \brief Handles the pointer's release after a press on a tempo chip, whether it dragged or not.
 
-    The one gesture boundary the drag reports, and only Keep Notes in Time needs it: with the
+    The one gesture boundary the drag reports, and only the Note Lock needs it: with the
     toggle on, the drag's events write nothing and only preview the grid, because re-addressing
     the whole song costs too much per pointer event, so the release is where the song is
     re-addressed once, as one undo entry. The core alone knows whether a drag held anything: a

@@ -1,6 +1,8 @@
 /*!
 \file keep_notes_in_time.h
-\brief Keep Notes in Time: a tempo edit's new map laid under the song, every time held.
+\brief Keeping notes in time: a tempo edit's new map laid under the song, every time held.
+
+The Note Lock is what drives it: while the lock is on, every tempo edit runs through here.
 */
 
 #pragma once
@@ -15,7 +17,7 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Keep Notes in Time's content map: each place sent to where the new map puts the time the old
+\brief The Note Lock's content map: each place sent to where the new map puts the time the old
 map gave it.
 
 The time is read back as the nearest tick under the new map, so each place rounds once, onto the
@@ -31,7 +33,7 @@ tick lattice, and lands within half a tick of its old time.
 /*!
 \brief Lays a tempo edit's new map under the whole song while every time holds.
 
-Keep Notes in Time's driver of \ref readdressTimeline (plan 66 decision 5): the meters stand where
+The Note Lock's driver of \ref readdressTimeline (plan 66 decision 5): the meters stand where
 they stood, the anchors are the new map's, and the content map is \ref timeKeptPlaces. A tempo edit
 changes no meter, so no meter refuses and the terminal, already on a downbeat, does not re-seat.
 

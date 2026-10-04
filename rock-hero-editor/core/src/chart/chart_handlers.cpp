@@ -372,7 +372,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     disarmChartVerbWindow();
     // A selection change is a commit point for a held marker move too, even back onto the same
     // marker: commitMarkerMove survives only its own landing select, by holding the run aside.
-    // It ends a Keep-Notes-in-Time chip drag the same way, dropping the time the drag held.
+    // It ends a Note Lock chip drag the same way, dropping the time the drag held.
     m_marker_move_origin.reset();
     m_held_tempo_anchor_milliseconds.reset();
     static_cast<void>(settleChart());

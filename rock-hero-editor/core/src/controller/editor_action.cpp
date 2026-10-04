@@ -91,9 +91,9 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ToggleTempoLock;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::ToggleKeepNotesInTime>)
+    else if constexpr (std::is_same_v<A, EditorAction::ToggleNoteLock>)
     {
-        return EditorAction::Id::ToggleKeepNotesInTime;
+        return EditorAction::Id::ToggleNoteLock;
     }
     else if constexpr (std::is_same_v<A, EditorAction::SelectArrangement>)
     {

@@ -106,8 +106,8 @@ Tempo Anchor, Set Tempo... and Delete Tempo Anchor, plus Scale Tempo... wherever
 the refusal flash on the chip and a log line, and inserting, deleting and typing a tempo stay
 available. Its toggle is the toolbar button right of the grid selector (`ModeToggleButton`,
 `ui/src/shared/mode_toggle_button.h`) and the ticked "Tempo Lock" row under "Grid & Zoom" in the
-chart menu, one command (`ToggleTempoLock`) behind both. Its pair, 4 px to its right, is **Keep
-Notes in Time** (`ToggleKeepNotesInTime`), off at every song open and never saved: while it is on,
+chart menu, one command (`ToggleTempoLock`) behind both. Its pair, 4 px to its right, is the **Note
+Lock** (`ToggleNoteLock`), off at every song open and never saved: while it is on,
 a typed tempo, a delete and a move keep every object's time and re-address it instead of moving it
 with the beat (\ref guide_musical_time). A chip drag then writes nothing until the release: the
 core publishes the map the drag would make as `tempo_drag_preview`, and `EditorView::setState`

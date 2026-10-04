@@ -27,7 +27,7 @@ import.
 
 - No new song.json key and no chart format change: `TimeSignatureChange` already persists, and the
   reader's rules (measure >= 1, positive numerator, power-of-two denominator) stay the rules.
-- No tempo repair: Scale Tempo, Keep Notes in Time and the tempo lock are
+- No tempo repair: Scale Tempo, the Note Lock and the tempo lock are
   `docs/plans/roadmap/66-tempo-repair-tools.md`, which reuses this plan's transform and undo.
 - No range-scoped signature edit and no paste across meters (plan 52 owns 52-Q2).
 

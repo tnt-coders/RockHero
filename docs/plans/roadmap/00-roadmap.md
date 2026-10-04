@@ -509,7 +509,7 @@ plan's Gate record.**
 
 ### docs/plans/roadmap/66-tempo-repair-tools.md (no gate — ruled 2026-10-03)
 
-- **66-Q1** what a Keep-Notes-in-Time drag shows before its release commit, and **66-Q2** how a non-integer Scale Tempo factor treats a meter change or the terminal landing off a downbeat — both build-session questions.
+- **66-Q1** what a Note Lock drag shows before its release commit, and **66-Q2** how a non-integer Scale Tempo factor treats a meter change or the terminal landing off a downbeat — both build-session questions.
 
 ### docs/plans/roadmap/64-album-scale-performance.md (no gate — Phases 0–1 now, Phase 2 onward scheduled by the user)
 
@@ -517,7 +517,7 @@ plan's Gate record.**
 - **64-Q2** the windowed re-derivation's mechanism: segments cut where nothing sounds, or checkpoints every 64 onset slots — settled by Phase 0-f's silence-cut property, not the user, unless neither converges. **R: segments if the property holds and the p95 segment is ≤ 2,000 notes; checkpoints otherwise; restructure the shapes walk only if neither converges.**
 - **64-Q3** only if Phase 0-b finds a Tracktion per-point floor: (A) accept the per-span rewrite per drag event; (B) push the tempo-derived audio at play start and rig load, keyed on the whole map by value. **R: B if A exceeds 2 ms per event at 10k points; A otherwise.**
 - **64-Q4** the budgets the user signs: whole-song verb ≤ 250 ms, open ≤ 2 s for 4 × 50k, save ≤ 1 s, GP import ≤ 10 s with progress. **R: as stated in the plan's §5.**
-- **64-Q5** Keep Notes in Time ON during a chip drag: **ANSWERED by plan 66** (decision 2: the drag commits on release, re-addressed once from the drag's starting map).
+- **64-Q5** the Note Lock ON during a chip drag: **ANSWERED by plan 66** (decision 2: the drag commits on release, re-addressed once from the drag's starting map).
 - **64-Q6** the undo history's unit: (A) keep 100 entries; (B) a byte budget (512 MB, oldest dropped) with 100 entries as the count cap too. **R: B.**
 - **64-Q7** where the album-scale benchmark lives: (A) a gitignored per-session local test; (B) a committed, env-gated `[.album-scale]` hidden-tag test beside the corpus census. **R: B.**
 
@@ -780,7 +780,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/plans/roadmap/63-technique-authored-surfaces.md | **Phases 1–2 built 2026-09-29; Phase 3 (sighting) remains** | The bend chip as a caret face: the caret square stays on the slot while the chip wears the ring and draws over it, `Delete` there takes the bend through the one withdraw the picker's "No bend" uses, `Enter`/`B` open the picker, a click arms it | Built the day it was ruled, after a Fable UI review and the user's rulings; a Fable simplicity review then moved the chip predicate onto the chart and folded the "keys still standing" and slot-lookup rules into one authority each |
 | docs/plans/roadmap/64-album-scale-performance.md | **Phases 0–1 now; Phase 2 onward scheduled by the user** (authored 2026-10-03) | Album-scale editor performance: every interaction's cost proportional to the work asked for (the dirty window, the viewport, the plan), never the song — windowed re-derivation, streaming load, a bounded engine resync, a byte-budgeted undo history, an env-gated album-scale benchmark; bit-identical by hash and property | Not started beyond review — Phase 1's fixes F1, F3 and F6 pass a simplicity evaluation (which reshaped all three) and then the performance expert's final design before they are built; the evaluation also found `Session::loadSong` never advancing the chart revision |
 | docs/plans/roadmap/65-time-signature-editing.md | **Not started — sequenced after plan 60** (user, 2026-10-03); on provisional 65-Q1 = A, G65-TS closes at its sighting | Time-signature editing: the `Ctrl+/` meter kind through the marker grammar, the time-preserving whole-note re-addressing transform over every position-bearing slice (sub-beat anchors included), whole-song snapshot undo, property suite | Split out of plan 41 (its Phase 6) on 2026-10-03; not quite simple, so it follows the span-marker work |
-| docs/plans/roadmap/66-tempo-repair-tools.md | **Not started — after or with plan 65** (ruled 2026-10-03) | Scale Tempo, Keep Notes in Time and the tempo lock: keep TIME and re-address the grid, over plan 65's transform and snapshot; whole-song verbs commit once per command or on drag release | Split out of plan 41's ruled follow-ups on 2026-10-03; the lock (Phase 1) is independent of plan 65 |
+| docs/plans/roadmap/66-tempo-repair-tools.md | **Not started — after or with plan 65** (ruled 2026-10-03) | Scale Tempo, the Note Lock and the tempo lock: keep TIME and re-address the grid, over plan 65's transform and snapshot; whole-song verbs commit once per command or on drag release | Split out of plan 41's ruled follow-ups on 2026-10-03; the lock (Phase 1) is independent of plan 65 |
 
 Milestone 0: **REACHED 2026-07-16** — docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist and docs/plans/roadmap/25-note-highway-3d.md Phase 3 exit criteria (notes scroll in time

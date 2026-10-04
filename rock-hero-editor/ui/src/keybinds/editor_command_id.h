@@ -555,10 +555,10 @@ enum class EditorCommandId : std::uint16_t
     ToggleTempoLock = 0x1906,
 
     /*!
-    \brief Flip Keep Notes in Time, under which a tempo edit holds every object's time (no default
+    \brief Flip the Note Lock, under which a tempo edit holds every object's time (no default
     chord).
     */
-    ToggleKeepNotesInTime = 0x1907,
+    ToggleNoteLock = 0x1907,
 
     // 0x1A01 is a spent id; never reuse it.
 

@@ -110,7 +110,7 @@ void EditorController::Impl::commitTempoEdit(
             content);
     };
 
-    if (!m_grid_session.keep_notes_in_time)
+    if (!m_grid_session.note_lock)
     {
         TempoMapSnapshot before = TempoMapSnapshot::capture(session());
         TempoMapEditResult edited = edit(base_of(before).tempo_map);
@@ -337,7 +337,7 @@ void EditorController::Impl::onTempoAnchorMoveRequested(
 // instead would let an event after Esc released the anchor quietly grab it again and open a second
 // entry.
 //
-// With Keep Notes in Time on, an event writes nothing (plan 66 decision 7): re-addressing the whole
+// With the Note Lock on, an event writes nothing (plan 66 decision 7): re-addressing the whole
 // song costs too much per pointer event, so the event's move is HELD for the release to commit and
 // the grid alone previews it. It is judged now, so a refused event keeps the last legal time held,
 // exactly as a live drag keeps the anchor there.
@@ -355,7 +355,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
     {
         return;
     }
-    if (!m_grid_session.keep_notes_in_time)
+    if (!m_grid_session.note_lock)
     {
         moveSelectedTempoAnchorTo(dragged, action.milliseconds);
         return;
@@ -382,7 +382,7 @@ void EditorController::Impl::onTempoAnchorDragReleased()
     }
 }
 
-// Commits the time a Keep-Notes-in-Time drag held: one whole-song re-address from the map the drag
+// Commits the time a Note Lock drag held: one whole-song re-address from the map the drag
 // started on, which it never wrote, so the drag is one entry. The preview ends with the drag
 // whatever the commit does, so the release publishes that first; the projections are keyed on the
 // chart revision, which only a landed commit moves, so that publish re-projects nothing. The lock
@@ -437,16 +437,16 @@ void EditorController::Impl::performActionImpl(EditorAction::ToggleTempoLock /*a
     updateView();
 }
 
-// Flips Keep Notes in Time and republishes, the lock's shape: session-only, and resetGridSession
+// Flips the Note Lock and republishes, the lock's shape: session-only, and resetGridSession
 // puts it back off at every project boundary.
-void EditorController::Impl::onKeepNotesInTimeToggleRequested()
+void EditorController::Impl::onNoteLockToggleRequested()
 {
-    runAction(EditorAction::ToggleKeepNotesInTime{});
+    runAction(EditorAction::ToggleNoteLock{});
 }
 
-void EditorController::Impl::performActionImpl(EditorAction::ToggleKeepNotesInTime /*action*/)
+void EditorController::Impl::performActionImpl(EditorAction::ToggleNoteLock /*action*/)
 {
-    m_grid_session.keep_notes_in_time = !m_grid_session.keep_notes_in_time;
+    m_grid_session.note_lock = !m_grid_session.note_lock;
     updateView();
 }
 

@@ -160,7 +160,7 @@ Rulings of 2026-10-02 (user, after the simplicity review):
 ## Ruled follow-ups (user, 2026-10-03) — moved to plan 66
 
 The three tools the user ruled on 2026-10-03 for a song whose grid is wrong under correctly timed
-notes — Scale Tempo, Keep Notes in Time and the tempo lock — are planned in
+notes — Scale Tempo, the Note Lock and the tempo lock — are planned in
 `docs/plans/roadmap/66-tempo-repair-tools.md`, which carries the rulings in full and builds on plan
 65's whole-song re-addressing and snapshot undo.
 
