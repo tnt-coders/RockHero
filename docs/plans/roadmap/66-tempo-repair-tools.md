@@ -110,6 +110,19 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    single-meter song is never refused; its end re-seats. The terminal re-seats through plan 65's
    `reseatTerminalAnchor`.
 
+7. **Q1 resolved (2026-10-04, overnight, on the recommendation):** a Keep-Notes-in-Time drag
+   previews by the grid alone.
+   - **During the drag:** the session is not written. The chip and the beat grid follow the
+     pointer through a preview map that the view state publishes for the grid's drawing only.
+     Content keeps drawing from the session's unchanged map, so it holds its time, which is
+     exactly what release will produce. No whole-song work runs per pointer event (plan 64
+     decision 2), and nothing on screen shows content moving that release will not move.
+   - **At release:** one re-address from the drag's starting map, through decision 5's
+     transform, commits ONE undo entry.
+   - **With the toggle off:** plan 41's live drag stays as built.
+   - **Rejected:** re-addressing per event from the drag's origin. It is correct, but it is
+     whole-song work per pointer event (about 100 ms at 50k notes).
+
 ## Open questions (build-session)
 
 - **Q1 — what a Keep-Notes-in-Time drag shows before release.** Content must not appear to move
