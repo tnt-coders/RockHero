@@ -244,11 +244,15 @@ a simplicity review before its commit, and verifies with a build and the touched
 
 ### Phase 4 — Pointer chip drag
 
-The primary method for most users (decision 13). Dragging a tempo chip previews the move,
-commits ONE `moveAnchorTo` on release, and `Esc` cancels with no history. The same refusals hold;
-a refused drop snaps back. JUCE's drag threshold keeps a chip click a click. Settle by sighting
-whether the selected anchor's line over the waveform needs emphasis (the track already draws
-every beat line, but a sub-beat anchor stands on none). Sighting: drag an anchor onto a transient at two zooms; undo is one step.
+The primary method for most users (decision 13). A drag IS a held run (decision 9): each pointer
+event past JUCE's drag threshold moves the anchor through the same move tail as `Alt+←/→`
+(`moveSelectedTempoAnchorTo` → `commitMarkerMove`), so the whole drag is one undo entry and every
+surface follows live because the model itself moves. A refused event leaves the anchor at its last
+legal time. There is no drag cancel (user, 2026-10-03): `Esc` keeps its one meaning, release the
+selection, and `Ctrl+Z` undoes the drag. Measure the per-event commit at pointer rate on
+relwithdebinfo before shipping. Settle by sighting whether the selected anchor's line over the
+waveform needs emphasis (the track draws every beat line, but a sub-beat anchor stands on none).
+Sighting: drag an anchor onto a transient at two zooms; undo is one step.
 
 ### Deferred — tap-tempo readout (out of the first releasable editor)
 
@@ -384,7 +388,7 @@ package unchanged.
   Reverting a phase's commits removes it; packages saved meanwhile stay valid.
 - Phase 1a is the only common/core surface change; if the shared rules fight the package error
   model, keep a thin translating shim, never a forked validator.
-- Phase 4's drag previews in view state only and commits once; `Esc` leaves no history.
+- Phase 4's drag is one undo entry; `Ctrl+Z` takes it back whole.
 - Phase 6 is the risky phase: a re-addressing bug corrupts charts silently. Land it only behind
   its property suite; if the time-preservation invariant cannot be made provably green, STOP and
   re-raise Q1 rather than ship an approximate transform.

@@ -271,8 +271,8 @@ format parsing/package details private to the module.
 \code{.txt}
 Song
   metadata          (title, artist, album, year)
-  tempo_map         (song-level beat grid: time-signature changes + sparse beat anchors; the only
-                     place absolute seconds are stored — see the timing note below)
+  tempo_map         (song-level beat grid: time-signature changes + sparse anchors; the only
+                     musical content stored at an absolute time — see the timing note below)
   arrangements[*]
     id                (stable project-local arrangement identifier)
     part              (Lead | Rhythm | Bass)
@@ -296,14 +296,15 @@ packages and defaults to Unknown on load. See
 `docs/plans/roadmap/11-derived-difficulty-calculator.md`.
 
 The tempo map is a **warp-anchor grid**: time signatures are stored as changes (carried forward),
-and time is pinned only on a sparse set of addressed **anchors** (a measure/beat with an absolute
-second). A start anchor (measure 1, beat 1) and a terminal anchor at the one-past-content downbeat
-are always required; every other beat and measure interpolates, so absolute seconds appear only in
-anchors. Interpolation is linear in **quarter-note (metronome) time**, not in beats: the
-quarter-note tempo is constant inside each anchor span and changes only at anchors, so a
-meter-denominator change between anchors (say 4/4 to 7/8) re-slices beat durations — the
-eighth-note beats run twice as fast — instead of stretching each beat to the old length. Anchor
-positions are persisted as on-beat tokens such as `"1:1"` and `"17:1"`.
+and time is pinned only on a sparse set of addressed **anchors** (a grid position — any tick
+position, on a beat or between beats — with an absolute time). A start anchor (measure 1, beat 1)
+and a terminal anchor at the one-past-content downbeat are always required; every other beat and
+measure interpolates, so absolute times appear only in anchors. Interpolation is linear in
+**quarter-note (metronome) time**, not in beats: the quarter-note tempo is constant inside each
+anchor span and changes only at anchors, so a meter-denominator change between anchors (say 4/4 to
+7/8) re-slices beat durations — the eighth-note beats run twice as fast — instead of stretching each
+beat to the old length. Anchor positions use the chart's grid-token grammar: `"1:1"` and `"17:1"` on
+beats, `"17:2+1/2"` between them.
 
 The persisted tempo-map shape is:
 
@@ -318,16 +319,17 @@ The persisted tempo-map shape is:
     "anchors": [
       { "position": "1:1",  "seconds": 1.840 },
       { "position": "17:1", "seconds": 28.057 },
+      { "position": "17:2+1/2", "seconds": 29.112 },
       { "position": "33:1", "seconds": 48.500 }
     ]
   }
 }
 \endcode
 
-Anchor seconds - the only absolute time stored by the tempo map - keep a fixed three-decimal
-(millisecond) grid, with at most +/-0.5 ms quantization error. That is below the onset-detection /
-latency / hit-window floor for the charting and scoring work planned here; higher precision is
-intentionally avoided, since fuzzy note onsets do not carry it.
+Anchor times are whole milliseconds, written in the file as seconds with three decimals; a time
+between milliseconds is refused, not rounded. That leaves at most +/-0.5 ms quantization error. That
+is below the onset-detection / latency / hit-window floor for the charting and scoring work planned
+here; higher precision is intentionally avoided, since fuzzy note onsets do not carry it.
 
 Playable chart storage is implemented: each arrangement may carry a `Chart`
 (`rock-hero-common/core/.../chart/chart.h`) holding the tuning (string pitches, capo, cents
