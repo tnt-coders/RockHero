@@ -64,7 +64,7 @@ Every walkable lattice, minus the ones nobody means as a grid: nothing finer tha
 g_max_tempo_grid_note_value_term-th of a whole note. The session grid is the DRAWN one, generated
 and painted line by line across the visible span (\ref visibleTempoGridLines), which at full
 zoom-out is the whole song — so this bound is what keeps a typed 1/3840 out of the free-text grid
-box; snapping alone (a binary search) would accept it without cost. The tick lattice placement
+box; snapping alone (one direct seek) would accept it without cost. The tick lattice placement
 falls back on is never drawn, which is exactly why it passes \ref isValidTempoGridNoteValue and
 fails here.
 
@@ -148,7 +148,7 @@ downbeat carries a Measure-rank line even when the measure length is not a multi
 Each line maps onto the drawing width with timelineXForPosition and only lines landing in
 [visible_x_begin, visible_x_end) are returned, in ascending column order. Because line times
 increase monotonically along the measure walk, the visible lines form a contiguous run: the scan
-binary-searches the first line that can reach the span and stops once it passes the right edge,
+seeks the first line that can reach the span and stops once it passes the right edge,
 so cost scales with the visible line count rather than the whole song. Lines that collapse onto a
 single column when zoomed far out are merged, with the strongest rank keeping the column's color
 and label identity.

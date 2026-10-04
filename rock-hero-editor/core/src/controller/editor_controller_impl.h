@@ -169,6 +169,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onGridSnapToggleRequested();
     void onGridSnapWarningDecision(GridSnapWarningDecision decision);
     void onTempoLockToggleRequested();
+    void onKeepNotesInTimeToggleRequested();
     void onTimelineZoomChanged(double pixels_per_second);
     void onWaveformVisibleChangeRequested(bool visible);
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
@@ -592,6 +593,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTempoAnchorInsertRequested(common::core::GridPosition position);
     void onTempoSpanBpmRequested(common::core::GridPosition position, const std::string& text);
     void onTempoAnchorMoveRequested(common::core::GridPosition position, std::int64_t milliseconds);
+    void onTempoAnchorDragReleased();
     // Scale Tempo, the whole-song tempo verb: it re-addresses every arrangement, so it commits the
     // whole song timeline as the time-signature verbs do.
     void onScaleTempoRequested(const std::string& text);
@@ -607,6 +609,27 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // anchor move ends in, the Alt+arrow nudge above among them.
     void moveSelectedTempoAnchorTo(
         const TempoAnchorSelection& selection, std::int64_t milliseconds);
+    // How a tempo edit lands (commitTempoEdit). A grid commit names its undo entry from the map the
+    // edit made (a typed tempo prints the tempo it set) and leaves the anchor at `anchor` selected
+    // where one is given. A move is one press of a held run on the selected anchor, so it builds
+    // from the run's origin (runBase) and the cursor follows the anchor.
+    struct TempoGridCommit
+    {
+        std::function<std::string(const common::core::TempoMap&)> label;
+        std::optional<common::core::GridPosition> anchor;
+    };
+    using TempoCommit = std::variant<TempoGridCommit, TempoAnchorSelection>;
+    // THE step every tempo verb that changes a time ends in (a typed tempo, a delete, a move):
+    // `edit` makes the verb's new map from the map it edits, and `landing` says how it commits.
+    // With Keep Notes in Time off the grid is truth, so the map alone is committed and content
+    // moves with its beat; with it on, the whole song is re-addressed under the new map so every
+    // time holds (plan 66 decision 5), the cursor riding the same content map. A refused edit or
+    // re-address is logged under `verb`. Defined in tempo_handlers.cpp, its only user.
+    template <typename Edit>
+    void commitTempoEdit(std::string_view verb, const Edit& edit, const TempoCommit& landing);
+    // The map a held Keep-Notes-in-Time drag would commit (EditorViewState::tempo_drag_preview),
+    // derived from the session's map on every publish so it can never outlive the map it moves.
+    [[nodiscard]] std::optional<common::core::TempoMap> tempoDragPreview() const;
     // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative).
     void deleteSelectedTempoAnchor(const TempoAnchorSelection& selection);
     // THE TEMPO LOCK's one refusal, asked by each move driver before it moves: while the lock is
@@ -732,6 +755,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::SetGridNoteValue action);
     void performActionImpl(EditorAction::ToggleGridSnap action);
     void performActionImpl(EditorAction::ToggleTempoLock action);
+    void performActionImpl(EditorAction::ToggleKeepNotesInTime action);
     void performActionImpl(const EditorAction::SelectArrangement& action);
     void performActionImpl(EditorAction::SelectToneRegion action);
     void performActionImpl(const EditorAction::CreateToneRegion& action);
@@ -750,6 +774,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetTempoSpanBpm& action);
     void performActionImpl(const EditorAction::SetTimeSignature& action);
     void performActionImpl(const EditorAction::MoveTempoAnchor& action);
+    void performActionImpl(EditorAction::ReleaseTempoAnchorDrag action);
     void performActionImpl(const EditorAction::ScaleTempo& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
@@ -1101,6 +1126,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
         // Whether the tempo lock is on, refusing every tempo-anchor move.
         bool tempo_lock{true};
+
+        // Whether Keep Notes in Time is on: a tempo edit then holds every object's time and
+        // re-addresses it, instead of moving it with the beat.
+        bool keep_notes_in_time{false};
     };
     GridSession m_grid_session{};
 
@@ -1579,6 +1608,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // invertible step by step builds each press from here. Defined beside the funnel.
     template <typename Snapshot> [[nodiscard]] const Snapshot* markerMoveRunOrigin() const;
 
+    // The model a move press builds from: the held run's origin while the press continues a run
+    // of this kind (markerMoveRunOrigin), else `before`, the model the press found. Defined beside
+    // the funnel.
+    template <typename Snapshot>
+    [[nodiscard]] const Snapshot& runBase(const Snapshot& before) const;
+
     // What both funnels do once a model has landed: release a selection naming a marker that is
     // gone, re-derive the audible tone and the engine's tempo-derived caches, and publish.
     void finishMarkerCommit();
@@ -1596,6 +1631,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // selection change (setSelection), which commitMarkerMove survives only for its own landing
     // select by holding the run aside. A widened entry therefore always reads origin → now.
     std::optional<MarkerModelSnapshot> m_marker_move_origin{};
+
+    // The time a Keep-Notes-in-Time tempo-chip drag holds back for the selected anchor (plan 66
+    // decision 7): its last legal event, which the release commits as one whole-song re-address.
+    // Nothing is written while it is held; the grid alone previews it (tempoDragPreview). It names
+    // no anchor of its own, so every selection change drops it, as it ends a held run: otherwise a
+    // Tab onto another chip mid-drag would hand that anchor the dragged one's time.
+    std::optional<std::int64_t> m_held_tempo_anchor_milliseconds{};
 
     // The funnel's front half, asked by the commit and by anything that must know in advance what
     // the commit would do with a model (a pending fret entry's red box): the produced model

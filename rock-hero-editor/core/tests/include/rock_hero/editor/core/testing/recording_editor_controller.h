@@ -241,6 +241,12 @@ public:
         tempo_lock_toggle_count += 1;
     }
 
+    /*! \copydoc IEditorController::onKeepNotesInTimeToggleRequested */
+    void onKeepNotesInTimeToggleRequested() override
+    {
+        keep_notes_in_time_toggle_count += 1;
+    }
+
     /*!
     \brief Records decisions emitted by the grid-snap warning dialog.
     \param decision User-selected warning decision.
@@ -468,6 +474,12 @@ public:
     {
         last_moved_tempo_anchor_position = position;
         last_moved_tempo_anchor_milliseconds = milliseconds;
+    }
+
+    /*! \copydoc IEditorController::onTempoAnchorDragReleased */
+    void onTempoAnchorDragReleased() override
+    {
+        tempo_anchor_drag_release_count += 1;
     }
 
     /*! \copydoc IEditorController::onToneRegionSelected */
@@ -1016,6 +1028,9 @@ public:
     /*! \brief Last time reported through onTempoAnchorMoveRequested(). */
     std::optional<std::int64_t> last_moved_tempo_anchor_milliseconds{};
 
+    /*! \brief Number of tempo-chip drag releases received. */
+    int tempo_anchor_drag_release_count{0};
+
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};
 
@@ -1288,6 +1303,9 @@ public:
 
     /*! \brief Number of tempo-lock toggle intents received. */
     int tempo_lock_toggle_count{0};
+
+    /*! \brief Number of Keep Notes in Time toggle intents received. */
+    int keep_notes_in_time_toggle_count{0};
 
     /*! \brief Last decision received from the grid-snap warning dialog. */
     std::optional<GridSnapWarningDecision> last_grid_snap_warning_decision{};

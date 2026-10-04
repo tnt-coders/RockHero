@@ -91,6 +91,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetTempoSpanBpm:
         case EditorAction::Id::SetTimeSignature:
         case EditorAction::Id::MoveTempoAnchor:
+        case EditorAction::Id::ReleaseTempoAnchorDrag:
         case EditorAction::Id::ScaleTempo:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
         case EditorAction::Id::ClearFretHandEnd:
@@ -112,6 +113,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::ToggleTempoLock:
+        case EditorAction::Id::ToggleKeepNotesInTime:
         case EditorAction::Id::SelectToneRegion:
         // Selecting mutates nothing, so it stays reachable like the tone-region selection.
         case EditorAction::Id::SelectSongSection:
@@ -163,6 +165,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SetGridNoteValue:
             case EditorAction::Id::ToggleGridSnap:
             case EditorAction::Id::ToggleTempoLock:
+            case EditorAction::Id::ToggleKeepNotesInTime:
             case EditorAction::Id::SelectArrangement:
             case EditorAction::Id::SelectToneRegion:
             case EditorAction::Id::CreateToneRegion:
@@ -215,6 +218,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SetTempoSpanBpm:
             case EditorAction::Id::SetTimeSignature:
             case EditorAction::Id::MoveTempoAnchor:
+            case EditorAction::Id::ReleaseTempoAnchorDrag:
             case EditorAction::Id::ScaleTempo:
             case EditorAction::Id::SelectTempoAnchor:
             case EditorAction::Id::SelectTimeSignature:
@@ -293,6 +297,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::ToggleTempoLock:
+        case EditorAction::Id::ToggleKeepNotesInTime:
         case EditorAction::Id::SelectArrangement:
         {
             return require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement);
@@ -436,6 +441,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetTempoSpanBpm:
         case EditorAction::Id::SetTimeSignature:
         case EditorAction::Id::MoveTempoAnchor:
+        case EditorAction::Id::ReleaseTempoAnchorDrag:
         case EditorAction::Id::ScaleTempo:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
@@ -479,6 +485,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::ToggleTempoLock:
+        case EditorAction::Id::ToggleKeepNotesInTime:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:
@@ -529,6 +536,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetTempoSpanBpm:
         case EditorAction::Id::SetTimeSignature:
         case EditorAction::Id::MoveTempoAnchor:
+        case EditorAction::Id::ReleaseTempoAnchorDrag:
         case EditorAction::Id::ScaleTempo:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:

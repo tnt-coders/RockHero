@@ -75,6 +75,12 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Flip the session's tempo lock, which refuses every tempo-anchor move while on. */
     ToggleTempoLock,
 
+    /*!
+    \brief Flip the session's Keep Notes in Time switch, under which a tempo edit holds every
+    object's time and re-addresses it.
+    */
+    ToggleKeepNotesInTime,
+
     /*! \brief Switch the editor to another arrangement of the loaded song. */
     SelectArrangement,
 
@@ -222,6 +228,9 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Move the selected tempo anchor to a time: one event of a tempo-chip drag. */
     MoveTempoAnchor,
+
+    /*! \brief End a tempo-chip drag: commit the move a Keep-Notes-in-Time drag held back. */
+    ReleaseTempoAnchorDrag,
 
     /*! \brief Scale every grid address in the song by a typed factor, every time held. */
     ScaleTempo,

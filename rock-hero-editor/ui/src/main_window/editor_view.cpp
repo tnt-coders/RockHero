@@ -69,6 +69,8 @@ constexpr int g_transport_controls_width{96};
 constexpr int g_grid_spacing_selector_width{132};
 // A latched-mode toggle is a square the size of a transport button.
 constexpr int g_mode_toggle_size{g_transport_height};
+// The two tempo modes sit closer to each other than to the grid selector, so they read as a pair.
+constexpr int g_mode_toggle_gap{4};
 constexpr int g_master_meter_width{384};
 constexpr int g_master_meter_min_width{196};
 // Floor wide enough to fit the closed-device sentinel without truncation; ceiling chosen so the
@@ -239,6 +241,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetGridNoteValue:
             case core::EditorActionId::ToggleGridSnap:
             case core::EditorActionId::ToggleTempoLock:
+            case core::EditorActionId::ToggleKeepNotesInTime:
             case core::EditorActionId::SelectArrangement:
             case core::EditorActionId::SelectToneRegion:
             case core::EditorActionId::CreateToneRegion:
@@ -287,6 +290,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetTempoSpanBpm:
             case core::EditorActionId::SetTimeSignature:
             case core::EditorActionId::MoveTempoAnchor:
+            case core::EditorActionId::ReleaseTempoAnchorDrag:
             case core::EditorActionId::ScaleTempo:
             case core::EditorActionId::SelectTempoAnchor:
             case core::EditorActionId::SelectTimeSignature:
@@ -335,6 +339,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SetGridNoteValue:
         case core::EditorActionId::ToggleGridSnap:
         case core::EditorActionId::ToggleTempoLock:
+        case core::EditorActionId::ToggleKeepNotesInTime:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::BeginPluginInsert:
         case core::EditorActionId::ScanPluginCatalog:
@@ -385,6 +390,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SetTempoSpanBpm:
         case core::EditorActionId::SetTimeSignature:
         case core::EditorActionId::MoveTempoAnchor:
+        case core::EditorActionId::ReleaseTempoAnchorDrag:
         case core::EditorActionId::ScaleTempo:
         case core::EditorActionId::SelectTempoAnchor:
         case core::EditorActionId::SelectTimeSignature:
@@ -420,6 +426,12 @@ EditorView::EditorView(
               BinaryData::lock_clock_svg, BinaryData::lock_clock_svgSize),
           juce::Drawable::createFromImageData(
               BinaryData::lock_clock_open_svg, BinaryData::lock_clock_open_svgSize))
+    , m_keep_notes_in_time_button(
+          "keep_notes_in_time",
+          juce::Drawable::createFromImageData(
+              BinaryData::lock_note_svg, BinaryData::lock_note_svgSize),
+          juce::Drawable::createFromImageData(
+              BinaryData::lock_note_open_svg, BinaryData::lock_note_open_svgSize))
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
@@ -570,6 +582,15 @@ EditorView::EditorView(
         m_command_manager.invokeDirectly(toJuceCommandId(EditorCommandId::ToggleTempoLock), false);
     };
     addAndMakeVisible(m_tempo_lock_button);
+    m_keep_notes_in_time_button.setComponentID("keep_notes_in_time_button");
+    m_keep_notes_in_time_button.setTooltip(
+        "Keep Notes in Time: while on, tempo edits leave notes where they sound in the audio and "
+        "move the grid under them.");
+    m_keep_notes_in_time_button.onClick = [this] {
+        m_command_manager.invokeDirectly(
+            toJuceCommandId(EditorCommandId::ToggleKeepNotesInTime), false);
+    };
+    addAndMakeVisible(m_keep_notes_in_time_button);
     m_arrangement_caption.setComponentID("arrangement_caption");
     m_arrangement_caption.setText("Arrangement", juce::dontSendNotification);
     m_arrangement_caption.setJustificationType(juce::Justification::centredRight);
@@ -722,8 +743,14 @@ void EditorView::setState(const core::EditorViewState& state)
     // keeps the view from ever snapping by a different rule than the controller did.
     const common::core::Fraction placement_quantum =
         core::placementQuantumNoteValue(m_state.grid_note_value, m_state.grid_snap);
+    // The grid draws from a Keep-Notes-in-Time drag's preview map while one is in flight; content
+    // reaches the view already placed in time, so it holds still under the moving grid.
+    const std::optional<common::core::TempoMap>& drag_preview = m_state.tempo_drag_preview;
     m_track_viewport->setGrid(
-        m_state.tempo_map, m_state.grid_note_value, placement_quantum, m_state.grid_snap);
+        drag_preview.has_value() ? *drag_preview : m_state.tempo_map,
+        m_state.grid_note_value,
+        placement_quantum,
+        m_state.grid_snap);
     if (shouldFocusCursorAfterStateChange(previous_state, m_state))
     {
         // Restored zoom applies before the recenter so centering math uses the restored scale.
@@ -740,6 +767,9 @@ void EditorView::setState(const core::EditorViewState& state)
     m_grid_spacing_selector.setEnabled(m_state.project_loaded);
     m_tempo_lock_button.setToggleState(m_state.tempo_lock, juce::dontSendNotification);
     m_tempo_lock_button.setEnabled(m_state.project_loaded);
+    m_keep_notes_in_time_button.setToggleState(
+        m_state.keep_notes_in_time, juce::dontSendNotification);
+    m_keep_notes_in_time_button.setEnabled(m_state.project_loaded);
     if (previous_state.arrangement.choices != m_state.arrangement.choices)
     {
         m_arrangement_selector.clear(juce::dontSendNotification);
@@ -984,13 +1014,14 @@ void EditorView::resized()
         control_row.getWidth(), std::min(g_transport_height, control_row.getHeight()));
 
     // The left cluster pins to the strip's left edge: the arrangement caption and dropdown, the
-    // grid selector, then the tempo lock — a grid/tempo editing mode, so it sits beside the grid
-    // control it shapes rather than with playback. The playback block — transport buttons plus
-    // the position readout — centers as a whole on the WINDOW's center line. The block only
-    // slides off center when the left cluster would overlap it, and the master meter takes
-    // whatever right-edge width the block leaves free (hiding below its minimum), so the
-    // centered block wins over the meter's preferred width. The readout slot width already
-    // includes the g_content_inset its bounds trim off, so the block width is a plain sum.
+    // grid selector, then the tempo lock and Keep Notes in Time — grid/tempo editing modes, so they
+    // sit beside the grid control they shape rather than with playback. The playback block —
+    // transport buttons plus the position readout — centers as a whole on the WINDOW's center
+    // line. The block only slides off center when the left cluster would overlap it, and the
+    // master meter takes whatever right-edge width the block leaves free (hiding below its
+    // minimum), so the centered block wins over the meter's preferred width. The readout slot
+    // width already includes the g_content_inset its bounds trim off, so the block width is a
+    // plain sum.
     m_arrangement_caption.setBounds(
         control_row.removeFromLeft(std::min(g_arrangement_caption_width, control_row.getWidth())));
     // The combo fills the strip height with the same 4px inner gap as the grid selector's box so
@@ -1001,12 +1032,16 @@ void EditorView::resized()
     control_row.removeFromLeft(g_control_gap);
     m_grid_spacing_selector.setBounds(control_row.removeFromLeft(
         std::min(g_grid_spacing_selector_width, control_row.getWidth())));
+    const auto place_mode_toggle = [&control_row](juce::Component& toggle) {
+        const juce::Rectangle<int> slot =
+            control_row.removeFromLeft(std::min(g_mode_toggle_size, control_row.getWidth()));
+        const int side = std::min(slot.getWidth(), slot.getHeight());
+        toggle.setBounds(slot.withSizeKeepingCentre(side, side));
+    };
     control_row.removeFromLeft(g_control_gap);
-    const juce::Rectangle<int> tempo_lock_slot =
-        control_row.removeFromLeft(std::min(g_mode_toggle_size, control_row.getWidth()));
-    const int tempo_lock_side = std::min(tempo_lock_slot.getWidth(), tempo_lock_slot.getHeight());
-    m_tempo_lock_button.setBounds(
-        tempo_lock_slot.withSizeKeepingCentre(tempo_lock_side, tempo_lock_side));
+    place_mode_toggle(m_tempo_lock_button);
+    control_row.removeFromLeft(g_mode_toggle_gap);
+    place_mode_toggle(m_keep_notes_in_time_button);
 
     constexpr int playback_group_width = g_transport_controls_width + g_position_display_width;
     const int ideal_group_x = getLocalBounds().getCentreX() - playback_group_width / 2;
@@ -1359,6 +1394,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(grid_menu, EditorCommandId::GridCoarser);
     add(grid_menu, EditorCommandId::ToggleGridSnap);
     add(grid_menu, EditorCommandId::ToggleTempoLock);
+    add(grid_menu, EditorCommandId::ToggleKeepNotesInTime);
     grid_menu.addSeparator();
     add(grid_menu, EditorCommandId::ZoomIn);
     add(grid_menu, EditorCommandId::ZoomOut);
@@ -1886,6 +1922,12 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         {
             // Grid snap's shape: always active, ticked by the published lock.
             info.setTicked(m_state.tempo_lock);
+            break;
+        }
+        case EditorCommandId::ToggleKeepNotesInTime:
+        {
+            // The tempo lock's shape: always active, ticked by the published switch.
+            info.setTicked(m_state.keep_notes_in_time);
             break;
         }
         case EditorCommandId::ScaleTempo:
@@ -2719,6 +2761,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::ToggleTempoLock:
         {
             m_controller.onTempoLockToggleRequested();
+            return true;
+        }
+        case EditorCommandId::ToggleKeepNotesInTime:
+        {
+            m_controller.onKeepNotesInTimeToggleRequested();
             return true;
         }
         case EditorCommandId::ScaleTempo:
@@ -3714,6 +3761,11 @@ void EditorView::onTempoAnchorMoveRequested(
     const common::core::GridPosition position, const std::int64_t milliseconds)
 {
     m_controller.onTempoAnchorMoveRequested(position, milliseconds);
+}
+
+void EditorView::onTempoAnchorDragReleased()
+{
+    m_controller.onTempoAnchorDragReleased();
 }
 
 // Forwards a time-signature-chip click; like a section chip, it selects and seeks nothing.

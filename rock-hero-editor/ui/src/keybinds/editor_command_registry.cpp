@@ -634,10 +634,11 @@ constexpr int g_add_lane_key = 'a';
     // a per-gesture tier: it belongs with the grid's own commands, not in the Alt authoring plane.
     // Plain `G` is the ghost-note technique, and exact modifier matching keeps the two apart.
     add(EditorCommandId::ToggleGridSnap, "Grid Snap", "Grid & Zoom", {chord('g', command)});
-    // The tempo lock ships with no default chord: it is a mode that is ON by default and left
-    // deliberately, so its surfaces are the toolbar button and the menu row, and a user who wants
-    // a key binds one.
+    // The two tempo modes ship with no default chord: each is entered deliberately and shown by a
+    // latched toolbar button, so their surfaces are that button and the menu row, and a user who
+    // wants a key binds one.
     add(EditorCommandId::ToggleTempoLock, "Tempo Lock", "Grid & Zoom", {});
+    add(EditorCommandId::ToggleKeepNotesInTime, "Keep Notes in Time", "Grid & Zoom", {});
 
     // Alt+letter is the platform's menu-access plane (Windows access keys), so the map keeps it
     // for exactly that: one command per menu-bar title, in the bar's order. Registering them

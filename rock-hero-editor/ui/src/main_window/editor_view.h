@@ -495,6 +495,9 @@ private:
         common::core::GridPosition position, std::int64_t milliseconds) override;
 
     // TimelineRuler::Listener implementation.
+    void onTempoAnchorDragReleased() override;
+
+    // TimelineRuler::Listener implementation.
     void onTimeSignatureSelected(int measure) override;
 
     // TimelineRuler::Listener implementation.
@@ -732,6 +735,9 @@ private:
 
     // Toolbar toggle for the tempo lock, right of the grid selector.
     ModeToggleButton m_tempo_lock_button;
+
+    // Toolbar toggle for Keep Notes in Time, paired with the tempo lock just right of it.
+    ModeToggleButton m_keep_notes_in_time_button;
 
     // Transport-bar meter for the final mix output.
     AudioLevelMeter m_master_output_meter;

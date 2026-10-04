@@ -1,5 +1,6 @@
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_model_commit.h"
+#include "timeline/keep_notes_in_time.h"
 #include "timeline/song_timeline_snapshot.h"
 #include "timeline/tempo_map_edits.h"
 #include "timeline/tempo_map_snapshot.h"
@@ -41,6 +42,12 @@ constexpr std::string_view g_move_tempo_anchor_label{"Move Tempo Anchor"};
 // The label Scale Tempo records its undo entry under and logs its refusals under.
 constexpr std::string_view g_scale_tempo_label{"Scale Tempo"};
 
+// The verb a typed tempo logs its refusals under; its undo entry adds the tempo it set.
+constexpr std::string_view g_set_tempo_label{"Set Tempo"};
+
+// The label a tempo-anchor delete records its undo entry under and logs its refusals under.
+constexpr std::string_view g_delete_tempo_anchor_label{"Delete Tempo Anchor"};
+
 // The tempo text of the span the anchor standing exactly at a position opens, as its chip prints
 // it, or nothing where no anchor opening a span stands there (the terminal opens none). The one
 // lookup the chord, Enter's verb and the typed tempo's undo label all print through.
@@ -68,6 +75,78 @@ constexpr std::string_view g_scale_tempo_label{"Scale Tempo"};
 }
 
 } // namespace
+
+// Rationale lives on the declaration in editor_controller_impl.h. Both branches land through one
+// `land`, so each verb states its commit once, whichever the toggle chose. The base may be the
+// snapshot captured here, so every read of it happens before `before` is handed over.
+template <typename Edit>
+void EditorController::Impl::commitTempoEdit(
+    const std::string_view verb, const Edit& edit, const TempoCommit& landing)
+{
+    const auto* const moved = std::get_if<TempoAnchorSelection>(&landing);
+    const auto base_of = [this, moved](const auto& found) -> const auto& {
+        return moved != nullptr ? runBase(found) : found;
+    };
+    const auto land = [this, verb, moved, &landing](
+                          auto before,
+                          auto after,
+                          const common::core::TempoMap& edited,
+                          const ContentMap& content) {
+        if (moved != nullptr)
+        {
+            if (commitMarkerMove(std::move(before), std::move(after), std::string{verb}, *moved))
+            {
+                followMovedMarker(moved->position);
+            }
+            return;
+        }
+        const TempoGridCommit& grid = std::get<TempoGridCommit>(landing);
+        commitGridModel(
+            std::move(before),
+            std::move(after),
+            grid.label(edited),
+            MarkerRow::Tempo,
+            grid.anchor,
+            content);
+    };
+
+    if (!m_grid_session.keep_notes_in_time)
+    {
+        TempoMapSnapshot before = TempoMapSnapshot::capture(session());
+        TempoMapEditResult edited = edit(base_of(before).tempo_map);
+        if (!edited.has_value())
+        {
+            logMarkerRefusal(verb, edited.error().message);
+            return;
+        }
+        const common::core::TempoMap tempo_map = std::move(*edited);
+        land(std::move(before), TempoMapSnapshot{.tempo_map = tempo_map}, tempo_map, keptPlace);
+        return;
+    }
+
+    SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
+    const common::core::SongTimeline& base = base_of(before).timeline;
+    TempoMapEditResult edited = edit(base.tempo_map);
+    if (!edited.has_value())
+    {
+        logMarkerRefusal(verb, edited.error().message);
+        return;
+    }
+    const common::core::TempoMap tempo_map = std::move(*edited);
+    std::expected<common::core::SongTimeline, ReaddressError> readdressed =
+        timeKeptTimeline(base, tempo_map);
+    if (!readdressed.has_value())
+    {
+        logMarkerRefusal(verb, readdressed.error().message);
+        return;
+    }
+    const ContentMap content = timeKeptPlaces(base.tempo_map, tempo_map);
+    land(
+        std::move(before),
+        SongTimelineSnapshot{.timeline = std::move(*readdressed)},
+        tempo_map,
+        content);
+}
 
 // The tempo chord authors at the cursor and never reads the selection: the cursor's placement slot,
 // the tone chord's read — the grid line with snap on, the tick with snap off. An anchor already
@@ -127,7 +206,7 @@ void EditorController::Impl::onTempoSpanBpmRequested(
     const std::optional<double> quarter_bpm = common::core::parseFiniteDecimal(text);
     if (!quarter_bpm.has_value())
     {
-        logMarkerRefusal("Set Tempo", "not a number: " + text);
+        logMarkerRefusal(g_set_tempo_label, "not a number: " + text);
         return;
     }
     runAction(
@@ -166,29 +245,23 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAn
 // the tempo changed or not, and only a refusal leaves the selection where it was.
 void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanBpm& action)
 {
-    constexpr std::string_view verb{"Set Tempo"};
-    TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-    TempoMapEditResult rippled = setTempoSpanBpm(
-        before.tempo_map,
-        action.position,
-        action.quarter_bpm,
-        latestAudioEndSeconds(session().song()));
-    if (!rippled.has_value())
-    {
-        logMarkerRefusal(verb, rippled.error().message);
-        return;
-    }
-
-    // The edit refuses a position no span-opening anchor holds, so the result always prints one.
-    std::string label =
-        std::string{verb} + " to " + spanBpmTextAt(*rippled, action.position).value_or("");
-    commitGridModel(
-        std::move(before),
-        TempoMapSnapshot{.tempo_map = std::move(*rippled)},
-        std::move(label),
-        MarkerRow::Tempo,
-        action.position,
-        keptPlace);
+    const double cover_until_seconds = latestAudioEndSeconds(session().song());
+    commitTempoEdit(
+        g_set_tempo_label,
+        [&action, cover_until_seconds](const common::core::TempoMap& tempo_map) {
+            return setTempoSpanBpm(
+                tempo_map, action.position, action.quarter_bpm, cover_until_seconds);
+        },
+        TempoGridCommit{
+            // The edit refuses a position no span-opening anchor holds, so the result always
+            // prints one.
+            .label =
+                [&action](const common::core::TempoMap& tempo_map) {
+                    return std::string{g_set_tempo_label} + " to " +
+                           spanBpmTextAt(tempo_map, action.position).value_or("");
+                },
+            .anchor = action.position,
+        });
 }
 
 // The prompt hands back raw text, so the parse is the core's: text that is not a factor, or one
@@ -263,6 +336,11 @@ void EditorController::Impl::onTempoAnchorMoveRequested(
 // is asked only of the SELECTED anchor, which is what proves the run is this drag's: selecting here
 // instead would let an event after Esc released the anchor quietly grab it again and open a second
 // entry.
+//
+// With Keep Notes in Time on, an event writes nothing (plan 66 decision 7): re-addressing the whole
+// song costs too much per pointer event, so the event's move is HELD for the release to commit and
+// the grid alone previews it. It is judged now, so a refused event keeps the last legal time held,
+// exactly as a live drag keeps the anchor there.
 void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnchor& action)
 {
     const TempoAnchorSelection dragged{.position = action.position};
@@ -277,7 +355,72 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
     {
         return;
     }
-    moveSelectedTempoAnchorTo(dragged, action.milliseconds);
+    if (!m_grid_session.keep_notes_in_time)
+    {
+        moveSelectedTempoAnchorTo(dragged, action.milliseconds);
+        return;
+    }
+    if (const TempoMapEditResult moved =
+            moveTempoAnchor(session().song().tempo_map, action.position, action.milliseconds);
+        !moved.has_value())
+    {
+        logMarkerRefusal(g_move_tempo_anchor_label, moved.error().message);
+        return;
+    }
+    m_held_tempo_anchor_milliseconds = action.milliseconds;
+    updateView();
+}
+
+// Every chip-press release reports here, the core and not the ruler deciding whether the drag
+// moved: only a held time has anything to commit, so the rest end before the action pipeline
+// logs or gates them.
+void EditorController::Impl::onTempoAnchorDragReleased()
+{
+    if (m_held_tempo_anchor_milliseconds.has_value())
+    {
+        runAction(EditorAction::ReleaseTempoAnchorDrag{});
+    }
+}
+
+// Commits the time a Keep-Notes-in-Time drag held: one whole-song re-address from the map the drag
+// started on, which it never wrote, so the drag is one entry. The preview ends with the drag
+// whatever the commit does, so the release publishes that first; the projections are keyed on the
+// chart revision, which only a landed commit moves, so that publish re-projects nothing. The lock
+// is asked again because the release IS the move, and a bound key can lock mid-drag.
+void EditorController::Impl::performActionImpl(EditorAction::ReleaseTempoAnchorDrag /*action*/)
+{
+    const std::optional<std::int64_t> held =
+        std::exchange(m_held_tempo_anchor_milliseconds, std::nullopt);
+    const auto* const anchor = std::get_if<TempoAnchorSelection>(&m_selection);
+    if (!held.has_value() || anchor == nullptr)
+    {
+        return;
+    }
+    // A copy: the commit re-selects the anchor it lands.
+    const TempoAnchorSelection dragged = *anchor;
+    updateView();
+    if (!refuseLockedTempoAnchorMove(dragged, "dragging"))
+    {
+        moveSelectedTempoAnchorTo(dragged, *held);
+    }
+}
+
+// Derived on every publish rather than stored, so it can never outlive the map it moves: a held
+// time the session's map no longer admits (an undo moved a neighbour past it) previews nothing.
+std::optional<common::core::TempoMap> EditorController::Impl::tempoDragPreview() const
+{
+    const std::optional<std::int64_t>& held = m_held_tempo_anchor_milliseconds;
+    const auto* const anchor = std::get_if<TempoAnchorSelection>(&m_selection);
+    if (!held.has_value() || anchor == nullptr)
+    {
+        return std::nullopt;
+    }
+    TempoMapEditResult moved = moveTempoAnchor(session().song().tempo_map, anchor->position, *held);
+    if (!moved.has_value())
+    {
+        return std::nullopt;
+    }
+    return std::move(*moved);
 }
 
 // Flips the tempo lock and republishes, so the toolbar button and the menu tick move together off
@@ -291,6 +434,19 @@ void EditorController::Impl::onTempoLockToggleRequested()
 void EditorController::Impl::performActionImpl(EditorAction::ToggleTempoLock /*action*/)
 {
     m_grid_session.tempo_lock = !m_grid_session.tempo_lock;
+    updateView();
+}
+
+// Flips Keep Notes in Time and republishes, the lock's shape: session-only, and resetGridSession
+// puts it back off at every project boundary.
+void EditorController::Impl::onKeepNotesInTimeToggleRequested()
+{
+    runAction(EditorAction::ToggleKeepNotesInTime{});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ToggleKeepNotesInTime /*action*/)
+{
+    m_grid_session.keep_notes_in_time = !m_grid_session.keep_notes_in_time;
     updateView();
 }
 
@@ -320,22 +476,12 @@ bool EditorController::Impl::refuseLockedTempoAnchorMove(
 void EditorController::Impl::moveSelectedTempoAnchorTo(
     const TempoAnchorSelection& selection, const std::int64_t milliseconds)
 {
-    TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-    TempoMapEditResult moved = moveTempoAnchor(before.tempo_map, selection.position, milliseconds);
-    if (!moved.has_value())
-    {
-        logMarkerRefusal(g_move_tempo_anchor_label, moved.error().message);
-        return;
-    }
-
-    if (commitMarkerMove(
-            std::move(before),
-            TempoMapSnapshot{.tempo_map = std::move(*moved)},
-            std::string{g_move_tempo_anchor_label},
-            selection))
-    {
-        followMovedMarker(selection.position);
-    }
+    commitTempoEdit(
+        g_move_tempo_anchor_label,
+        [&selection, milliseconds](const common::core::TempoMap& tempo_map) {
+            return moveTempoAnchor(tempo_map, selection.position, milliseconds);
+        },
+        selection);
 }
 
 // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative): the two spans
@@ -343,21 +489,18 @@ void EditorController::Impl::moveSelectedTempoAnchorTo(
 // first anchor and the terminal are refused; every map keeps both.
 void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelection& selection)
 {
-    constexpr std::string_view label{"Delete Tempo Anchor"};
-    TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-    TempoMapEditResult merged = deleteTempoAnchor(before.tempo_map, selection.position);
-    if (!merged.has_value())
-    {
-        logMarkerRefusal(label, merged.error().message);
-        return;
-    }
-    commitGridModel(
-        std::move(before),
-        TempoMapSnapshot{.tempo_map = std::move(*merged)},
-        std::string{label},
-        MarkerRow::Tempo,
-        std::nullopt,
-        keptPlace);
+    commitTempoEdit(
+        g_delete_tempo_anchor_label,
+        [&selection](const common::core::TempoMap& tempo_map) {
+            return deleteTempoAnchor(tempo_map, selection.position);
+        },
+        TempoGridCommit{
+            .label =
+                [](const common::core::TempoMap& /*tempo_map*/) {
+                    return std::string{g_delete_tempo_anchor_label};
+                },
+            .anchor = std::nullopt,
+        });
 }
 
 // THE one authority for keeping the engine's tempo-derived caches current: the seconds-domain tone

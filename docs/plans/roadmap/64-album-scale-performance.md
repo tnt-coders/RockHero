@@ -117,6 +117,17 @@ remainder is the planner's whole-stream copy (1.24 ms) plus two diff walks (≈ 
 only delta composition removes, so it is assigned to Phase 2 — 2.6 % of the 100 ms budget per
 keystroke. What remains in every event is the ≈ 130 ms whole scene rebuild, F2.
 
+The whole-song verbs built on 2026-10-04 (plans 65 and 66) measure, at ≈ 50k notes:
+- a meter edit costs ≈ 98 ms (validation 29 ms);
+- Scale Tempo costs 147–231 ms;
+- a Keep-Notes-in-Time tempo edit costs ≈ 272–345 ms, after the shared nearest-tick seek
+  was seeded from the beat position (snap-off placement went from 0.78 to 0.16 µs per call).
+
+About 115 ms of each is the scene re-projection after the commit (F2). So F2's windowing is also what brings these verbs under the proposed 250 ms bound (64-Q4). One more lever belongs to the
+same phase: a Keep-Notes-in-Time φ is exactly the identity before the first anchor the edit
+changes (and after the last, for a move or delete), so the re-address can skip those slices —
+the same "derive only the changed range" decision 1 states for the projections.
+
 Track B (2,164 → 25,968 notes, 147 → 1,753 anchors, 48 → 576 keyframed notes) agrees and shows
 the caret step's second variable: 2.4 → 21 → 144 → **328 ms**. Anchors moved nothing measurable
 (every tempo lookup is a binary search). GP import census: 25.3 µs/note end to end over 113

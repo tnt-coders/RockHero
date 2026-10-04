@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
@@ -2335,6 +2336,16 @@ struct SongEditorHarness
     [[nodiscard]] const common::core::TempoMap& tempoMap() const
     {
         return controller.session().song().tempo_map;
+    }
+
+    // The stored time of the anchor standing exactly at a position, or nothing when none does.
+    [[nodiscard]] std::optional<std::int64_t> anchorMilliseconds(
+        const common::core::GridPosition& position) const
+    {
+        const std::vector<common::core::BeatAnchor>& anchors = tempoMap().anchors();
+        const auto found =
+            std::ranges::find(anchors, position, &common::core::BeatAnchor::position);
+        return found != anchors.end() ? std::optional{found->milliseconds} : std::nullopt;
     }
 
     // The song's whole timeline as it now stands: what a whole-song verb commits and its undo

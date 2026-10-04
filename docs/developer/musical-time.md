@@ -313,7 +313,10 @@ Two performance mechanisms matter when querying it:
 leaves every object at its instant and gives it a new address, the measures after the change
 renumbering. **Scale Tempo keeps time too** (plan 66): it multiplies every grid address in the song
 by a typed factor on the whole-note axis, so x2 doubles every span's tempo and the measure count
-(a meter at measure m lands on 2m-1), and the music stays where it sounds.
+(a meter at measure m lands on 2m-1), and the music stays where it sounds. So does a tempo edit
+made with **Keep Notes in Time** on (plan 66): the grid moves under the notes instead of the notes
+moving with the beat, which is how a song whose grid is wrong under correctly timed notes is
+repaired.
 
 Both run ONE transform, `readdressTimeline` (`editor/core/src/timeline/timeline_readdress.h`). A
 driver states the new map on the whole-note axis — `PlacedMeter`s and `PlacedAnchor`s, placed by
@@ -328,6 +331,10 @@ through the content map (`readdressedPosition`), rounding onto the tick lattice
 - **Scale Tempo** — `scaledTimeline` (`tempo_scale.h`): meters, anchors and content all at f
   times their place (`scaledPlaces`); x2 is exact, /2 and free factors such as 3/2 round. The
   factor's terms are each at most 16 once reduced (`parseScaleFactor`).
+- **Keep Notes in Time** — `timeKeptTimeline` (`keep_notes_in_time.h`): meters where they stood,
+  the tempo verb's new anchors, and the content map `timeKeptPlaces`, which sends each place to
+  the tick nearest, under the new map, to the instant the old map gave it. Every place rounds once,
+  to within half a tick of its old time.
 
 A ring's `sustain` and a keyframe's `offset` count BEATS, which a denominator change or a scale
 re-means, so they are re-expressed as the new beat distance between the mapped ends. A later meter
@@ -337,7 +344,17 @@ downbeat; a terminal left mid-measure re-seats on the next downbeat (`reseatTerm
 The commit carries the cursor as one more slice (`commitGridModel` takes the verb's content map
 and asks `readdressedPosition`), so it lands on what it stood on even where the terminal re-seat
 re-times the last span. Tempo edits are the contrast: there the grid is truth, and their content
-map, `keptPlace`, keeps the cursor's musical place.
+map, `keptPlace`, keeps the cursor's musical place — unless Keep Notes in Time is on.
+
+Every tempo verb that changes a time (typed tempo, anchor delete, anchor move) ends in one step,
+`commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make its new map from a map,
+and it commits either that map alone (`TempoMapSnapshot`, `keptPlace`) or, with the toggle on, the
+whole song re-addressed under it (`SongTimelineSnapshot`, `timeKeptPlaces`), as one entry either
+way. A held `Alt+←/→` run re-addresses from the run's origin, as the meter move does, so it rounds
+once. A chip drag with the toggle on writes nothing per pointer event: the core holds the move and
+publishes the map it would make as `EditorViewState::tempo_drag_preview`, which the grid lines and
+the ruler draw from while every content position keeps the session's map, and the release
+(`IEditorController::onTempoAnchorDragReleased`) commits it as one re-address.
 
 The flow every feature follows: charts author `GridPosition` → a projection resolves seconds
 through the `TempoMap` once (`chart_projection.cpp` and `highway_projection.cpp` both walk a

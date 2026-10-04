@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <expected>
 #include <rock_hero/common/core/chart/chart.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -26,23 +25,19 @@ namespace
 
 using common::core::Chart;
 using common::core::Fraction;
-using common::core::GridPosition;
 using common::core::SongTimeline;
 using common::core::TempoMap;
 using common::core::TimeSignatureChange;
 using common::core::testing::anchor;
 using testing::at;
 using testing::chartOf;
+using testing::checkTimesHeld;
 using testing::Dice;
-using testing::forEachSlicePair;
 using testing::g_reseated_time_tolerance_seconds;
-using testing::g_time_tolerance_seconds;
 using testing::makeNote;
 using testing::oneNoteTimeline;
 using testing::randomTimeline;
 using testing::requireValid;
-using testing::SliceKind;
-using testing::SlicePair;
 using testing::sliceTimeline;
 
 using Catch::Matchers::WithinAbs;
@@ -56,46 +51,13 @@ using Catch::Matchers::WithinAbs;
     });
 }
 
-// Half the longer of the two ticks beside a position: the most a rounding onto the lattice moves it
-// in time.
-[[nodiscard]] double halfTickSeconds(const TempoMap& tempo_map, const GridPosition& position)
-{
-    const Fraction tick = common::core::g_tick_quantum_note_value;
-    const double here = tempo_map.secondsAt(position);
-    const double later =
-        tempo_map.secondsAt(
-            common::core::advanceGridPositionByWholeNotes(tempo_map, position, tick)) -
-        here;
-    const double earlier =
-        here - tempo_map.secondsAt(
-                   common::core::advanceGridPositionByWholeNotes(
-                       tempo_map, position, Fraction{-tick.numerator, tick.denominator}));
-    return std::max(later, earlier) / 2.0;
-}
-
-// Checks every content position of a scaled timeline against the one it came from: its time held
-// within half a tick of the new grid, the most the rounding onto the lattice moves it, and within
-// the re-seat's half millisecond more where the terminal re-seated, re-timing the last span.
-// Sections are navigation and may snap, so they are the section rules' to judge.
+// Checks a scaled timeline's times against the one it came from, within the re-seat's half
+// millisecond more where the terminal re-seated, re-timing the last span.
 void checkScaledTimes(const SongTimeline& before, const SongTimeline& after)
 {
-    const TempoMap& old_map = before.tempo_map;
-    const TempoMap& new_map = after.tempo_map;
-    const bool reseated =
-        new_map.anchors().back().milliseconds != old_map.anchors().back().milliseconds;
-    const double reseat_slack = reseated ? g_reseated_time_tolerance_seconds : 0.0;
-    forEachSlicePair(before, after, [&old_map, &new_map, reseat_slack](const SlicePair& pair) {
-        if (pair.kind == SliceKind::Section)
-        {
-            return;
-        }
-        CHECK_THAT(
-            new_map.secondsAt(pair.new_position),
-            WithinAbs(
-                old_map.secondsAt(pair.old_position),
-                halfTickSeconds(new_map, pair.new_position) + reseat_slack +
-                    g_time_tolerance_seconds));
-    });
+    const bool reseated = after.tempo_map.anchors().back().milliseconds !=
+                          before.tempo_map.anchors().back().milliseconds;
+    checkTimesHeld(before, after, reseated ? g_reseated_time_tolerance_seconds : 0.0);
 }
 
 } // namespace

@@ -154,6 +154,10 @@ namespace
         {
             return "ToggleTempoLock";
         }
+        case EditorAction::Id::ToggleKeepNotesInTime:
+        {
+            return "ToggleKeepNotesInTime";
+        }
         case EditorAction::Id::ShowPluginBrowser:
         {
             return "ShowPluginBrowser";
@@ -373,6 +377,10 @@ namespace
         case EditorAction::Id::MoveTempoAnchor:
         {
             return "MoveTempoAnchor";
+        }
+        case EditorAction::Id::ReleaseTempoAnchorDrag:
+        {
+            return "ReleaseTempoAnchorDrag";
         }
         case EditorAction::Id::ScaleTempo:
         {
@@ -841,6 +849,11 @@ void EditorController::onTempoLockToggleRequested()
     m_impl->onTempoLockToggleRequested();
 }
 
+void EditorController::onKeepNotesInTimeToggleRequested()
+{
+    m_impl->onKeepNotesInTimeToggleRequested();
+}
+
 void EditorController::onTimelineZoomChanged(double pixels_per_second)
 {
     m_impl->onTimelineZoomChanged(pixels_per_second);
@@ -1041,6 +1054,11 @@ void EditorController::onTempoAnchorMoveRequested(
     const common::core::GridPosition position, const std::int64_t milliseconds)
 {
     m_impl->onTempoAnchorMoveRequested(position, milliseconds);
+}
+
+void EditorController::onTempoAnchorDragReleased()
+{
+    m_impl->onTempoAnchorDragReleased();
 }
 
 void EditorController::onToneRegionSelected(std::string region_id)
@@ -2606,6 +2624,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
+    state.tempo_drag_preview = tempoDragPreview();
     // Song-level, so they resolve here rather than in the per-arrangement tab projection; the
     // list is small enough that per-push resolution needs no memoization.
     std::optional<common::core::GridPosition> selected_section_position;
@@ -2659,6 +2678,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.grid_snap = m_grid_session.snap;
     state.grid_snap_warning_prompt = m_grid_session.snap_warning_prompt;
     state.tempo_lock = m_grid_session.tempo_lock;
+    state.keep_notes_in_time = m_grid_session.keep_notes_in_time;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
     state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;

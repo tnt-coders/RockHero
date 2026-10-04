@@ -9,6 +9,7 @@ rules a result must pass, and one walk pairing every position of two timelines.
 #include <algorithm>
 #include <array>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -26,6 +27,7 @@ rules a result must pass, and one walk pairing every position of two timelines.
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
@@ -677,6 +679,46 @@ void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, con
             }
         }
     }
+}
+
+// Half the longer of the two ticks beside a position: the most a rounding onto the lattice moves it
+// in time.
+[[nodiscard]] inline double halfTickSeconds(const TempoMap& tempo_map, const GridPosition& position)
+{
+    const Fraction tick = common::core::g_tick_quantum_note_value;
+    const double here = tempo_map.secondsAt(position);
+    const double later =
+        tempo_map.secondsAt(
+            common::core::advanceGridPositionByWholeNotes(tempo_map, position, tick)) -
+        here;
+    const double earlier =
+        here - tempo_map.secondsAt(
+                   common::core::advanceGridPositionByWholeNotes(
+                       tempo_map, position, Fraction{-tick.numerator, tick.denominator}));
+    return std::max(later, earlier) / 2.0;
+}
+
+// Checks every content position of a re-addressed timeline against the one it came from: its time
+// held within half a tick of the new grid, the most the rounding onto the lattice moves it, plus
+// `slack_seconds` where the edit itself re-timed a span. Sections are navigation and may snap, so
+// they are the section rules' to judge.
+inline void checkTimesHeld(
+    const SongTimeline& before, const SongTimeline& after, const double slack_seconds)
+{
+    const TempoMap& old_map = before.tempo_map;
+    const TempoMap& new_map = after.tempo_map;
+    forEachSlicePair(before, after, [&old_map, &new_map, slack_seconds](const SlicePair& pair) {
+        if (pair.kind == SliceKind::Section)
+        {
+            return;
+        }
+        CHECK_THAT(
+            new_map.secondsAt(pair.new_position),
+            Catch::Matchers::WithinAbs(
+                old_map.secondsAt(pair.old_position),
+                halfTickSeconds(new_map, pair.new_position) + slack_seconds +
+                    g_time_tolerance_seconds));
+    });
 }
 
 // The timeline's sections and arrangements with every address the re-address writes cleared (each

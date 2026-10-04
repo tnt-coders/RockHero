@@ -554,6 +554,12 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Flip the tempo lock, which refuses every tempo-anchor move (no default chord). */
     ToggleTempoLock = 0x1906,
 
+    /*!
+    \brief Flip Keep Notes in Time, under which a tempo edit holds every object's time (no default
+    chord).
+    */
+    ToggleKeepNotesInTime = 0x1907,
+
     // 0x1A01 is a spent id; never reuse it.
 
     /*! \brief Open the File menu (`Alt+F`), the platform's own menu-access convention. */

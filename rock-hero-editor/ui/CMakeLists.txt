@@ -7,7 +7,9 @@ rock_hero_juce_add_binary_data(
     resources/stop.svg
     resources/help.svg
     resources/lock_clock.svg
-    resources/lock_clock_open.svg)
+    resources/lock_clock_open.svg
+    resources/lock_note.svg
+    resources/lock_note_open.svg)
 
 add_library(rock_hero_editor_ui STATIC)
 add_library(rock_hero::editor::ui ALIAS rock_hero_editor_ui)

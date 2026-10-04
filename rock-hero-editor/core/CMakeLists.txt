@@ -84,6 +84,8 @@ target_sources(
             src/signal_chain/signal_chain_workflow.h
             src/tasks/juce_editor_task_runner.cpp
             src/tasks/juce_message_thread_scheduler.cpp
+            src/timeline/keep_notes_in_time.cpp
+            src/timeline/keep_notes_in_time.h
             src/timeline/marker_row_handlers.cpp
             src/timeline/meter_edits.cpp
             src/timeline/meter_edits.h

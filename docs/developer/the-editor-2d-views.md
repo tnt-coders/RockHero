@@ -106,7 +106,18 @@ Tempo Anchor, Set Tempo... and Delete Tempo Anchor, plus Scale Tempo... wherever
 the refusal flash on the chip and a log line, and inserting, deleting and typing a tempo stay
 available. Its toggle is the toolbar button right of the grid selector (`ModeToggleButton`,
 `ui/src/shared/mode_toggle_button.h`) and the ticked "Tempo Lock" row under "Grid & Zoom" in the
-chart menu, one command (`ToggleTempoLock`) behind both. The time-signature chip carries the meter
+chart menu, one command (`ToggleTempoLock`) behind both. Its pair, 4 px to its right, is **Keep
+Notes in Time** (`ToggleKeepNotesInTime`), off at every song open and never saved: while it is on,
+a typed tempo, a delete and a move keep every object's time and re-address it instead of moving it
+with the beat (\ref guide_musical_time). A chip drag then writes nothing until the release: the
+core publishes the map the drag would make as `tempo_drag_preview`, and `EditorView::setState`
+hands it to `TrackViewport::setGrid`, so the canvas grid lines and the whole ruler (tick marks,
+measure and beat labels, the tempo and time-signature chips) follow the pointer, while everything
+placed in time — notes, hand markers, sections, tone regions and automation, the cursor overlay
+and the transport readout — keeps the session's `tempo_map` and holds still. The ruler reports
+every release of a chip press (`TimelineRuler::Listener::onTempoAnchorDragReleased`), and the
+core, which alone knows whether the drag held a time, commits there. The time-signature chip
+carries the meter
 verbs (plan 65): `Enter` and a double-click open the meter prompt ("Set Time Signature", one field
 typed as "7/8") through the core's published restate verb, `Delete` removes the change, `Alt+←/→`
 moves it one measure, and a right-click on the signature row opens the rows that apply there — Add

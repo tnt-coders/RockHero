@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
@@ -75,19 +74,6 @@ struct TempoEditor : SongEditorHarness
             }
         }
         return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    // The stored time of the anchor standing exactly at a position, or nothing when none does.
-    [[nodiscard]] std::optional<std::int64_t> anchorMilliseconds(const GridPosition& position) const
-    {
-        const std::vector<common::core::BeatAnchor>& anchors = tempoMap().anchors();
-        const auto found =
-            std::ranges::find(anchors, position, &common::core::BeatAnchor::position);
-        if (found == anchors.end())
-        {
-            return std::nullopt;
-        }
-        return found->milliseconds;
     }
 
     [[nodiscard]] TempoChordTarget chord() const

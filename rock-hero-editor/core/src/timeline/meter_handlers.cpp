@@ -268,8 +268,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
     }
     // The run's origin is what the press re-addresses, so its terminal is the end the step must
     // stay before; a terminal the run has since re-seated later does not count.
-    const SongTimelineSnapshot* const origin = markerMoveRunOrigin<SongTimelineSnapshot>();
-    const common::core::SongTimeline& base = origin != nullptr ? origin->timeline : before.timeline;
+    const common::core::SongTimeline& base = runBase(before).timeline;
     if (place >=
         base.tempo_map.wholeNotePositionAt(common::core::terminalGridPosition(base.tempo_map)))
     {

@@ -334,7 +334,9 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     disarmChartVerbWindow();
     // A selection change is a commit point for a held marker move too, even back onto the same
     // marker: commitMarkerMove survives only its own landing select, by holding the run aside.
+    // It ends a Keep-Notes-in-Time chip drag the same way, dropping the time the drag held.
     m_marker_move_origin.reset();
+    m_held_tempo_anchor_milliseconds.reset();
     static_cast<void>(settleChart());
     // The selection is one of the three inputs the audible tone is derived from (syncAudibleTone),
     // so every replacement re-derives it here: a selected region IS the active tone, and a

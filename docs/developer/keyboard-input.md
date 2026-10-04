@@ -319,6 +319,11 @@ own. Like snap it flips a session fact the core owns and nothing persists; unlik
 nothing before turning off. While it is on, the core refuses the tempo-anchor moves themselves —
 see the tempo verbs in \ref guide_2d_views.
 
+`ToggleKeepNotesInTime` (`0x1907`) is its pair, in the same group with the same shape: no default
+chord, a toolbar button 4 px right of the lock's whose click runs the command, and a ticked menu
+row. It is OFF at every song open. While it is on, the tempo verbs that change a time keep every
+object's time instead of moving it with the beat (\ref guide_musical_time).
+
 `ScaleTempo` (`0x1409`, "Scale Tempo...", category Tempo) has no default chord either: a whole-song
 grid repair is rare and deliberate, so its surfaces are the Edit menu item and the tempo row's
 right-click row, and the row runs the same command (`invokeDirectly`) and prints the command's

@@ -249,6 +249,15 @@ struct EditorAction
     {
     };
 
+    /*!
+    \brief Flip the session's Keep Notes in Time switch.
+
+    Payload-free for grid snap's reason: a session fact with two states and one verb.
+    */
+    struct ToggleKeepNotesInTime
+    {
+    };
+
     /*! \brief Switch the editor to another arrangement of the loaded song. */
     struct SelectArrangement
     {
@@ -1018,6 +1027,17 @@ struct EditorAction
     };
 
     /*!
+    \brief End a tempo-chip drag (the pointer's release).
+
+    Payload-free: what it commits is the move the drag's last legal event held back, and only a
+    Keep-Notes-in-Time drag holds one. A drag with the toggle off has already landed every event,
+    so its release does nothing.
+    */
+    struct ReleaseTempoAnchorDrag
+    {
+    };
+
+    /*!
     \brief Scale every grid address in the song by a factor, every time held (Scale Tempo).
 
     The whole song is re-addressed once and lands as one entry. The Tempo Lock does not block it:
@@ -1048,19 +1068,20 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, ExportSong,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        ToggleGridSnap, ToggleTempoLock, SelectArrangement, SelectToneRegion, CreateToneRegion,
-        DeleteToneRegion, RenameTone, SetToneRegionTone, MoveToneBoundary, CreateNewTone,
-        ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin,
-        MovePlugin, SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin,
-        SetToneAutomationPoints, NewToneDocument, OpenToneFile, SaveToneFile, SaveToneFileAs,
-        ImportToneFile, ExportToneFile, ResolveToneImportPrompt, StepChartCaret, JumpChartCaret,
-        ExtendTimeSelection, MoveSelection, DeleteSelection, InsertAtCaret, InsertRingPoint,
-        TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain, ToggleChartTechnique,
-        ChooseChartHarmonic, SetChartHarmonicNode, ChooseChartBend, SetChartBend,
-        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
-        SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor, ScaleTempo,
-        SelectTimeSignature, SetTimeSignature, SelectFretHandPosition,
-        AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject, JumpToFocusRow>;
+        ToggleGridSnap, ToggleTempoLock, ToggleKeepNotesInTime, SelectArrangement, SelectToneRegion,
+        CreateToneRegion, DeleteToneRegion, RenameTone, SetToneRegionTone, MoveToneBoundary,
+        CreateNewTone, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
+        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
+        OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
+        ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
+        DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
+        AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
+        ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
+        RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
+        ReleaseTempoAnchorDrag, ScaleTempo, SelectTimeSignature, SetTimeSignature,
+        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject,
+        JumpToFocusRow>;
 };
 
 /*!

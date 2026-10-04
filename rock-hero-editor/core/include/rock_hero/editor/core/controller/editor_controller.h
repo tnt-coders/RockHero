@@ -418,6 +418,9 @@ public:
     /*! \copydoc IEditorController::onTempoLockToggleRequested */
     void onTempoLockToggleRequested() override;
 
+    /*! \copydoc IEditorController::onKeepNotesInTimeToggleRequested */
+    void onKeepNotesInTimeToggleRequested() override;
+
     /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.
     \param pixels_per_second Horizontal timeline scale currently displayed.
@@ -541,6 +544,9 @@ public:
     /*! \copydoc IEditorController::onTempoAnchorMoveRequested */
     void onTempoAnchorMoveRequested(
         common::core::GridPosition position, std::int64_t milliseconds) override;
+
+    /*! \copydoc IEditorController::onTempoAnchorDragReleased */
+    void onTempoAnchorDragReleased() override;
 
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;

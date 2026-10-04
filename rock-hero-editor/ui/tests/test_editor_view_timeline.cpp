@@ -50,6 +50,11 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         move_count += 1;
     }
 
+    void onTempoAnchorDragReleased() override
+    {
+        release_count += 1;
+    }
+
     void onTimeSignatureSelected(int measure) override
     {
         last_selected_signature_measure = measure;
@@ -120,10 +125,12 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     std::optional<common::core::GridPosition> last_selected_tempo_anchor{};
     std::optional<int> last_selected_signature_measure{};
 
-    // Anchor and time a tempo-chip drag last asked for, and how many drag events asked.
+    // Anchor and time a tempo-chip drag last asked for, how many drag events asked, and how many
+    // drags reported their release.
     std::optional<common::core::GridPosition> last_moved_tempo_anchor{};
     std::optional<std::int64_t> last_moved_tempo_milliseconds{};
     int move_count{0};
+    int release_count{0};
 };
 
 // Builds a one-measure 4/4 map for viewport-grid rendering checks.
@@ -744,10 +751,14 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
         CHECK(listener.move_count == 2);
         CHECK(listener.last_moved_tempo_milliseconds == std::optional<std::int64_t>{1800});
 
-        // The release ends the drag; nothing moves afterwards.
-        ruler.mouseUp(makeMouseDownEvent(ruler, 184.0f, 60.0f));
+        // The release reports the drag's end once and disarms it; nothing moves or reports
+        // afterwards.
+        ruler.mouseUp(testing::makeMouseDragEvent(ruler, 184.0f, 60.0f, 204.0f, 21.0f));
+        CHECK(listener.release_count == 1);
         ruler.mouseDrag(testing::makeMouseDragEvent(ruler, 250.0f, 21.0f, 204.0f, 21.0f));
+        ruler.mouseUp(testing::makeMouseDragEvent(ruler, 250.0f, 21.0f, 204.0f, 21.0f));
         CHECK(listener.move_count == 2);
+        CHECK(listener.release_count == 1);
         CHECK(placement_count == 0);
     }
     SECTION("a press released inside the threshold is a click")
@@ -757,6 +768,8 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
         ruler.mouseUp(makeMouseDownEvent(ruler, 205.0f, 21.0f));
         CHECK(listener.last_selected_tempo_anchor == std::optional{third_beat});
         CHECK(listener.move_count == 0);
+        // The release is reported all the same; the core knows nothing was held.
+        CHECK(listener.release_count == 1);
 
         ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 204.0f, 21.0f));
         CHECK(listener.restate_count == 1);
@@ -768,8 +781,10 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
         ruler.setMarkerEditsEnabled(false);
         ruler.mouseDown(makeMouseDownEvent(ruler, 204.0f, 21.0f));
         ruler.mouseDrag(testing::makeMouseDragEvent(ruler, 228.0f, 21.0f, 204.0f, 21.0f));
+        ruler.mouseUp(testing::makeMouseDragEvent(ruler, 228.0f, 21.0f, 204.0f, 21.0f));
         CHECK(placement_count == 1);
         CHECK(listener.move_count == 0);
+        CHECK(listener.release_count == 0);
         CHECK_FALSE(listener.last_selected_tempo_anchor.has_value());
     }
 }
@@ -1806,7 +1821,72 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
         testing::makeMouseDragEvent(timeline_ruler, drag_x, 21.0f, press_x, 21.0f));
     CHECK(controller.last_moved_tempo_anchor_position == std::optional{third_beat});
     CHECK(controller.last_moved_tempo_anchor_milliseconds == std::optional<std::int64_t>{2500});
+    CHECK(controller.tempo_anchor_drag_release_count == 0);
+    timeline_ruler.mouseUp(
+        testing::makeMouseDragEvent(timeline_ruler, drag_x, 21.0f, press_x, 21.0f));
+    CHECK(controller.tempo_anchor_drag_release_count == 1);
     CHECK(controller.timeline_seek_count == 0);
+}
+
+// A Keep-Notes-in-Time drag publishes the map it would commit beside the session's: the grid and
+// the dragged chip draw from it, so they follow the pointer while content, which reaches the view
+// already placed in time, holds still. The session's beats fall every second; the preview pulls
+// 1:3 from 2 s to 2.5 s, so its first span's beats fall every 1.25 s.
+TEST_CASE("EditorView draws the grid and the dragged chip from a drag preview", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    view.setBounds(0, 0, 1280, 800);
+    const auto map_with_third_beat_at = [](const std::int64_t milliseconds) {
+        return common::core::TempoMap{
+            std::vector{
+                common::core::TimeSignatureChange{
+                    .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+                },
+            },
+            std::vector{anchor("1:1", 0), anchor("1:3", milliseconds), anchor("2:1", 4000)},
+        };
+    };
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = map_with_third_beat_at(2000);
+    state.tempo_drag_preview = map_with_third_beat_at(2500);
+    state.selected_tempo_anchor = common::core::GridPosition{.measure = 1, .beat = 3};
+    state.marker_edits_enabled = true;
+    view.setState(state);
+
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    REQUIRE(
+        findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll").getViewPositionX() ==
+        0);
+
+    const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
+    REQUIRE(lower_track_y < track_content.getHeight());
+    const juce::Image image = track_content.createComponentSnapshot(track_content.getLocalBounds());
+    const auto has_line_at = [&](const double seconds) {
+        const int x = canvasColumnForTime(track_viewport, track_content, seconds);
+        return std::abs(
+                   image.getPixelAt(x, lower_track_y).getBrightness() -
+                   image.getPixelAt(x + 12, lower_track_y).getBrightness()) > 0.01f;
+    };
+    CHECK(has_line_at(1.25));
+    CHECK_FALSE(has_line_at(1.0));
+
+    const std::optional<juce::Rectangle<int>> chip = timeline_ruler.selectedChipBounds();
+    REQUIRE(chip.has_value());
+    if (chip.has_value())
+    {
+        const float preview_x = canvasXForTime(track_viewport, track_content, 2.5);
+        const float session_x = canvasXForTime(track_viewport, track_content, 2.0);
+        const auto chip_x = static_cast<float>(chip->getX());
+        CHECK(std::abs(chip_x - preview_x) < std::abs(chip_x - session_x));
+    }
 }
 
 // Verifies the track grid, overlay snapping, and ruler snapping all use the state note value.

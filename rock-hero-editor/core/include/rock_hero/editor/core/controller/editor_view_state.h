@@ -1079,6 +1079,17 @@ struct EditorViewState
     common::core::TempoMap tempo_map{};
 
     /*!
+    \brief The map a Keep-Notes-in-Time tempo-chip drag would commit, while one is in flight, for
+    the beat grid's drawing only; nothing otherwise.
+
+    Such a drag writes nothing until its release re-addresses the song once, so \ref tempo_map
+    stays the session's map and everything placed in time keeps its place. The grid lines, the
+    ruler's measure and beat labels, and its tempo and time-signature chips draw from this map
+    instead, so the grid and the dragged chip follow the pointer while the notes hold still.
+    */
+    std::optional<common::core::TempoMap> tempo_drag_preview{};
+
+    /*!
     \brief Song-structure sections resolved to seconds for the ruler's section chip row; empty
     when the song defines none.
     */
@@ -1219,6 +1230,16 @@ struct EditorViewState
     The toolbar button and the menu tick render it; the controller alone refuses the moves.
     */
     bool tempo_lock{true};
+
+    /*!
+    \brief Whether Keep Notes in Time is on: a tempo edit then holds every object's time and moves
+    the grid under it, instead of moving it with the beat.
+
+    A session fact like grid_snap: never persisted, and reset to false at every project boundary.
+    The toolbar button and the menu tick render it; the controller alone decides what an edit
+    moves.
+    */
+    bool keep_notes_in_time{false};
 
     /*!
     \brief Horizontal timeline scale to restore on a fresh project load.

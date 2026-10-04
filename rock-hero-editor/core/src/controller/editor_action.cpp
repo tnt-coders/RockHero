@@ -91,6 +91,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ToggleTempoLock;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::ToggleKeepNotesInTime>)
+    {
+        return EditorAction::Id::ToggleKeepNotesInTime;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::SelectArrangement>)
     {
         return EditorAction::Id::SelectArrangement;
@@ -282,6 +286,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     else if constexpr (std::is_same_v<A, EditorAction::MoveTempoAnchor>)
     {
         return EditorAction::Id::MoveTempoAnchor;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ReleaseTempoAnchorDrag>)
+    {
+        return EditorAction::Id::ReleaseTempoAnchorDrag;
     }
     else if constexpr (std::is_same_v<A, EditorAction::ScaleTempo>)
     {

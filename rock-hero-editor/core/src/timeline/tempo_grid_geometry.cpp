@@ -86,6 +86,12 @@ public:
                static_cast<double>(remainder) / static_cast<double>(m_ticks_per_beat);
     }
 
+    // Seconds of the current line under the walked map.
+    [[nodiscard]] double lineSeconds() const noexcept
+    {
+        return m_tempo_map.secondsAtGlobalBeatPosition(beatPosition());
+    }
+
     // One-based measure number of the current line.
     [[nodiscard]] int measure() const noexcept
     {
@@ -157,51 +163,21 @@ public:
     // moveToLastLine() recovers the final candidate.
     [[nodiscard]] bool seekFirstLineAtOrAfter(double seconds)
     {
-        // Largest measure whose downbeat is not after the target; earlier measures cannot hold
-        // the first at-or-after line because every line is at or after its measure's downbeat.
-        const int terminal_measure =
-            m_tempo_map.beatAtGlobalIndex(m_tempo_map.terminalGlobalBeatIndex()).first;
-        int chosen_measure = 1;
-        int search_lo = 1;
-        int search_hi = terminal_measure;
-        while (search_lo <= search_hi)
-        {
-            const int mid = search_lo + (search_hi - search_lo) / 2;
-            if (m_tempo_map.secondsAtBeat(mid, 1) <= seconds)
-            {
-                chosen_measure = mid;
-                search_lo = mid + 1;
-            }
-            else
-            {
-                search_hi = mid - 1;
-            }
-        }
-
-        moveToMeasure(chosen_measure, m_tempo_map.globalBeatIndex(chosen_measure, 1));
-
-        // Smallest line step in this measure whose time reaches the target; every line past this
-        // measure's span resolves through advance() below.
+        // Read straight off the map rather than searched for: the measure the target's beat falls
+        // in, then the first step at or past its offset into that measure. A target outside the
+        // authored range clamps to its first or terminal beat.
+        const double beat_position = m_tempo_map.beatPositionAtSeconds(seconds);
+        const int measure =
+            m_tempo_map.beatAtGlobalIndex(static_cast<std::int64_t>(std::floor(beat_position)))
+                .first;
+        moveToMeasure(measure, m_tempo_map.globalBeatIndex(measure, 1));
+        const double offset_units = (beat_position - static_cast<double>(m_measure_beat_index)) *
+                                    static_cast<double>(m_note.denominator);
+        const auto step = std::max<std::int64_t>(
+            0,
+            static_cast<std::int64_t>(std::ceil(offset_units / static_cast<double>(m_step_units))));
         const std::int64_t last_step = lastLineOffsetUnits() / m_step_units;
-        std::int64_t chosen_step = last_step + 1;
-        std::int64_t step_lo = 0;
-        std::int64_t step_hi = last_step;
-        while (step_lo <= step_hi)
-        {
-            const std::int64_t mid = step_lo + (step_hi - step_lo) / 2;
-            m_offset_units = mid * m_step_units;
-            if (m_tempo_map.secondsAtGlobalBeatPosition(beatPosition()) >= seconds)
-            {
-                chosen_step = mid;
-                step_hi = mid - 1;
-            }
-            else
-            {
-                step_lo = mid + 1;
-            }
-        }
-
-        if (chosen_step > last_step)
+        if (step > last_step)
         {
             // Every line of this measure is before the target, so the candidate is the next
             // measure's downbeat (when one exists inside the authored range).
@@ -210,9 +186,23 @@ public:
         }
         else
         {
-            m_offset_units = chosen_step * m_step_units;
+            m_offset_units = step * m_step_units;
         }
 
+        // The seed went through floating time, so a line within rounding of the target may sit
+        // one step off; settle it on the exact test the seek promises, in seconds.
+        while (valid() && lineSeconds() < seconds)
+        {
+            advance();
+        }
+        while (valid() && retreat())
+        {
+            if (lineSeconds() < seconds)
+            {
+                advance();
+                break;
+            }
+        }
         return valid();
     }
 
@@ -354,7 +344,8 @@ std::vector<TempoGridLine> visibleTempoGridLines(
     }
 
     // Line positions increase along the measure walk, so a forward cursor resolves each line's
-    // time in amortized constant time; it returns the same values as the seek's binary search.
+    // time in amortized constant time; it returns the same values as the seek's random-access
+    // query.
     common::core::TempoMap::ForwardBeatTimeCursor beat_time_cursor{tempo_map};
     for (; walker.valid(); walker.advance())
     {
@@ -408,9 +399,7 @@ namespace
 // lines. Distances are measured in seconds, not pixels, so the snap is exact and independent of
 // zoom; the earlier line wins exact halfway targets so repeated clicks snap stably instead of
 // jumping forward.
-void seekNearestGridLine(
-    MeasureGridWalker& walker, const common::core::TempoMap& tempo_map,
-    common::core::TimePosition target)
+void seekNearestGridLine(MeasureGridWalker& walker, common::core::TimePosition target)
 {
     if (!walker.seekFirstLineAtOrAfter(target.seconds))
     {
@@ -419,13 +408,13 @@ void seekNearestGridLine(
         return;
     }
 
-    const double after_seconds = tempo_map.secondsAtGlobalBeatPosition(walker.beatPosition());
+    const double after_seconds = walker.lineSeconds();
     if (!walker.retreat())
     {
         return;
     }
 
-    const double before_seconds = tempo_map.secondsAtGlobalBeatPosition(walker.beatPosition());
+    const double before_seconds = walker.lineSeconds();
     if (std::abs(before_seconds - target.seconds) > std::abs(after_seconds - target.seconds))
     {
         walker.advance();
@@ -439,8 +428,8 @@ common::core::TimePosition nearestTempoGridTime(
     common::core::TimePosition target)
 {
     MeasureGridWalker walker{tempo_map, normalizedGridNoteValue(grid_note_value)};
-    seekNearestGridLine(walker, tempo_map, target);
-    return common::core::TimePosition{tempo_map.secondsAtGlobalBeatPosition(walker.beatPosition())};
+    seekNearestGridLine(walker, target);
+    return common::core::TimePosition{walker.lineSeconds()};
 }
 
 common::core::GridPosition nearestTempoGridPosition(
@@ -448,7 +437,7 @@ common::core::GridPosition nearestTempoGridPosition(
     common::core::TimePosition target)
 {
     MeasureGridWalker walker{tempo_map, normalizedGridNoteValue(grid_note_value)};
-    seekNearestGridLine(walker, tempo_map, target);
+    seekNearestGridLine(walker, target);
     return walker.gridPosition();
 }
 

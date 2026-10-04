@@ -1,6 +1,16 @@
 # Plan 66 — Tempo Repair Tools
 
-**Status:** Not started. Ruled by the user on 2026-10-03 as follow-ups to plan 41 (its "Ruled
+**Status:** BUILT 2026-10-04, awaiting the user's sighting. Phase 1 (`73ffab27`, the Tempo
+Lock), Phase 2 (`799d2a12`, Scale Tempo, on the generalized `readdressTimeline`), and Phase 3 (Keep
+Notes in Time, the commit after `4f1cb4c9`). Open for the user:
+- the sighting of all three tools, including the Keep-Notes-in-Time drag's grid-only preview
+  (decision 7, resolved overnight on the recommendation);
+- the strings: "Scale Tempo...", "Scale factor (e.g. 2, 1/2, 3/2)", "Scale", the factor bound
+  of 16;
+- the whole-song verbs' cost at 50k notes (Keep Notes in Time ≈ 300 ms against plan 64's
+  proposed 250 ms; see plan 64 §6).
+
+Ruled by the user on 2026-10-03 as follow-ups to plan 41 (its "Ruled
 follow-ups" section, moved here the same day; git history keeps that text), placed after the
 projection-cost fix. Builds on `docs/plans/roadmap/65-time-signature-editing.md`'s whole-song
 re-addressing transform and snapshot undo, so it is **built after plan 65 or with it**, and so

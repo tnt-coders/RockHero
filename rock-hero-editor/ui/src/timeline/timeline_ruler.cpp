@@ -455,7 +455,8 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 // rounded once, never snapped — the anchor defines the grid, so no grid line can be its step. The
 // core moves the model itself, so the chip, the grid and every chart surface follow live, and it
 // alone decides what to refuse: a refused event leaves the anchor at its last legal time while the
-// drag goes on.
+// drag goes on. With Keep Notes in Time on, the core holds each event instead and the chip and the
+// grid follow its published preview, until the release commits.
 void TimelineRuler::mouseDrag(const juce::MouseEvent& event)
 {
     if (m_listener == nullptr || !event.mouseWasDraggedSinceMouseDown() ||
@@ -475,11 +476,16 @@ void TimelineRuler::mouseDrag(const juce::MouseEvent& event)
             common::core::nearestAnchorMilliseconds(pointer->seconds - drag.press_seconds));
 }
 
-// The release only disarms: each accepted event already landed in the model and the drag's one
-// undo entry, exactly as a released Alt+arrow leaves its run standing.
+// The release disarms an armed chip press and reports the gesture's end, moved or not: whether a
+// drag held anything to commit is the core's to know.
 void TimelineRuler::mouseUp(const juce::MouseEvent& /*event*/)
 {
+    const bool armed = m_tempo_chip_drag.has_value();
     m_tempo_chip_drag.reset();
+    if (armed && m_listener != nullptr)
+    {
+        m_listener->onTempoAnchorDragReleased();
+    }
 }
 
 // Opens the prompt for a double-clicked section, tempo or signature chip — the selection's restate

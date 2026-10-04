@@ -129,6 +129,14 @@ public:
             common::core::GridPosition position, std::int64_t milliseconds) = 0;
 
         /*!
+        \brief Called when the pointer releases after a press on a tempo chip.
+
+        The drag's one boundary, reported whether the pointer moved or not: whether the release
+        commits anything is the listener's answer.
+        */
+        virtual void onTempoAnchorDragReleased() = 0;
+
+        /*!
         \brief Called when the user clicks a time-signature chip.
         \param measure Measure the clicked chip's signature change starts.
         */
