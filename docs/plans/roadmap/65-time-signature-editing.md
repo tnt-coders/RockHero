@@ -1,6 +1,12 @@
 # Plan 65 — Time-Signature Editing
 
-**Status:** Ready; building. Split out of plan 41 on 2026-10-03, where it was Phase 6 (written
+**Status:** BUILT 2026-10-04, awaiting the G65-TS sighting: Phase 1 (`e69c2f2f`, the transform,
+plus `8605b9a3`, the `TimeSignature` value type), Phase 2 (`cf65eff2`, the verbs, the whole-song
+snapshot and `commitGridModel`), Phase 3 (`1974fe54`, `Ctrl+/`, the prompt, the ruler rows and the
+renumber flash). Open for the user: the sighting below; the UI strings ("Add or Set Time
+Signature", "Add/Set Time Signature", "Time signature (e.g. 7/8)", "Set", the three menu rows);
+the undo-memory finding (≈ 10 MB per meter entry at 50k notes, plan 64 F9). Split out of plan 41
+on 2026-10-03, where it was Phase 6 (written
 2026-07-06, last revised there 2026-10-02; git history keeps that text). First sequenced after plan
 60; on 2026-10-04 the user moved it forward ("IF time signature edit is clear enough to implement
 I would like you to proceed"). A readiness audit the same day (against `master @ 0ec22b40`)

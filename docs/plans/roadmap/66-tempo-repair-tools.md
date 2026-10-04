@@ -85,6 +85,31 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    - "Keep Notes in Time: while on, tempo edits leave notes where they sound in the audio and move
      the grid under them."
 
+5. **One transform, generalized (2026-10-04, against plan 65 as built).** Plan 65's
+   `readdressUnderMeters` maps every slice by identity on the whole-note axis under a new placed
+   meter list. Both tools here are the same pass with a different map, so the one function is
+   generalized rather than joined by a second:
+   - It takes the new map stated on the whole-note axis: the placed meters (`PlacedMeter`) and the
+     placed anchors (a whole-note position plus milliseconds).
+   - It also takes a content map φ from old whole-note position to new whole-note position.
+   - It derives measure numbers for both meters and anchors, maps every content slice through φ
+     (rounding to the tick lattice through `nearestTick` only where φ is not exact), re-expresses
+     rings and keyframe offsets from their mapped ends, snaps sections, and re-seats the terminal.
+   - Its three drivers:
+     - *meter edit*: φ = identity, with the anchors placed where they stood;
+     - *Scale Tempo* by f: φ(w) = f·w, with meters and anchors placed at f·w and milliseconds
+       held;
+     - *Keep Notes in Time*: anchors placed by the tempo verb's result, meters where they stood
+       in measure terms, and φ(w) = the new map's whole-note position at the old map's time of w.
+   - Every driver holds TIME, so the cursor is carried by its seconds. `SongTimelineSnapshot`'s
+     `carryCursor` becomes "the same seconds under the new map", which drops the meter-specific
+     re-address.
+6. **Q2 resolved by plan 65's ruling** (65-Q3: meters keep their time and an indivisible reign
+   refuses). Scale Tempo places every meter at f·w, so a reign of k measures becomes f·k measures.
+   When that is not whole before a later meter, the factor is refused, naming the meter. A
+   single-meter song is never refused; its end re-seats. The terminal re-seats through plan 65's
+   `reseatTerminalAnchor`.
+
 ## Open questions (build-session)
 
 - **Q1 — what a Keep-Notes-in-Time drag shows before release.** Content must not appear to move
