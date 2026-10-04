@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/chart/head_margins.h>
@@ -12,34 +13,26 @@ namespace rock_hero::common::core
 {
 
 // The stream is sorted, so a chord's members are contiguous and a head repeats only as the last
-// one filed. The beats are minimumSustainDistanceBeats' own expression applied to the start just
-// asked, so the authority answers once per head instead of twice.
-HeadMargins::HeadMargins(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+// one filed.
+HeadMargins::HeadMargins(
+    const std::vector<ChartNote>& notes, const std::vector<Fraction>& places,
+    const TempoMap& tempo_map)
 {
-    for (const ChartNote& note : notes)
+    for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        if (!m_entries.empty() && m_entries.back().head == note.position)
+        const GridPosition& head = notes[index].position;
+        if (!m_entries.empty() && m_entries.back().head == head)
         {
             continue;
         }
-        const GridPosition start = marginBefore(tempo_map, note.position);
         m_entries.push_back(
-            Entry{
-                .head = note.position,
-                .before = start,
-                .beats = beatDistance(tempo_map, start, note.position),
-            });
+            Entry{.head = head, .length = minimumSustainDistance(tempo_map, places[index])});
     }
 }
 
-GridPosition HeadMargins::before(const GridPosition& head) const
+Fraction HeadMargins::length(const GridPosition& head) const
 {
-    return entryAt(head).before;
-}
-
-Fraction HeadMargins::beats(const GridPosition& head) const
-{
-    return entryAt(head).beats;
+    return entryAt(head).length;
 }
 
 const HeadMargins::Entry& HeadMargins::entryAt(const GridPosition& head) const

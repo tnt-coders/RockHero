@@ -130,8 +130,8 @@ ChartSlotKey chartCaretSlotFor(
     }
     const auto& keyframe = std::get<ChartKeyframeKey>(key);
     return ChartSlotKey{
-        .position =
-            common::core::advanceGridPosition(tempo_map, keyframe.note.position, keyframe.offset),
+        .position = common::core::advanceGridPositionByWholeNotes(
+            tempo_map, keyframe.note.position, keyframe.offset),
         .string = keyframe.note.string,
     };
 }
@@ -239,7 +239,7 @@ std::vector<ChartKeyframeRef> selectedKeyframeIndices(
 // A keyframe's group is the keyframes at its instant across every note that carries one. Those are
 // not contiguous — each rides its own note at its own offset — so this walks the notes whose onset
 // precedes the instant (a keyframe lies strictly past its onset, so no later note can hold one) and
-// asks each for a keyframe at exactly that beat distance. Notes struck at the instant are not
+// asks each for a keyframe at exactly that distance. Notes struck at the instant are not
 // members: a keyframe sits along a ring, not at an onset, in either direction.
 std::vector<ChartSelectionKey> chartOnsetGroupKeys(
     const common::core::TempoMap& tempo_map, const std::vector<common::core::ChartNote>& notes,
@@ -249,6 +249,7 @@ std::vector<ChartSelectionKey> chartOnsetGroupKeys(
     if (note_key == nullptr)
     {
         const common::core::GridPosition instant = chartCaretSlotFor(tempo_map, key).position;
+        const common::core::Fraction instant_place = tempo_map.wholeNotePositionAt(instant);
         std::vector<ChartSelectionKey> keys;
         for (const common::core::ChartNote& note : notes)
         {
@@ -257,7 +258,7 @@ std::vector<ChartSelectionKey> chartOnsetGroupKeys(
                 break;
             }
             const common::core::Fraction offset =
-                common::core::beatDistance(tempo_map, note.position, instant);
+                instant_place - tempo_map.wholeNotePositionAt(note.position);
             if (common::core::standingKeyframe(note, offset) != nullptr)
             {
                 keys.emplace_back(ChartKeyframeKey{.note = chartSlotKeyOf(note), .offset = offset});

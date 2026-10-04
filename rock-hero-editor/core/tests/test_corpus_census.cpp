@@ -173,57 +173,12 @@ private:
 }
 
 // ---------------------------------------------------------------------------------------------
-// The measure table, in BOTH axes the census needs.
-//
-// The chart's own axis counts a measure as its numerator of SIGNATURE beats, which is the unit
-// `ChartNote::sustain` is measured in. Guitar Pro's playback rule is stated in absolute time, so
-// the let-ring walk runs on the whole-note axis, where a 6/8 bar really is shorter than a 4/4 one.
-// Both are prefix sums over the same master bars `makeMeasureGrid` reads in the builder, so
-// nothing here can drift from the positions the import produces.
+// Every measure fact the census reads — a bar's meter and where its downbeat stands on the
+// whole-note axis — is the import's own tempo map's, which is built from the same master bars one
+// to one, so nothing here can drift from the positions the import produces. Guitar Pro's playback
+// rule is stated in absolute time, so the let-ring walk runs on that axis, where a 6/8 bar really
+// is shorter than a 4/4 one.
 // ---------------------------------------------------------------------------------------------
-
-struct MeasureTable
-{
-    std::vector<int> numerator;
-    std::vector<int> denominator;
-    std::vector<Fraction> first_beat;
-    std::vector<Fraction> start_whole;
-};
-
-[[nodiscard]] MeasureTable makeMeasureTable(const GpScore& score)
-{
-    MeasureTable table;
-    Fraction beats{};
-    Fraction whole{};
-    for (const GpMasterBar& bar : score.master_bars)
-    {
-        table.numerator.push_back(bar.meter.numerator);
-        table.denominator.push_back(bar.meter.denominator);
-        table.first_beat.push_back(beats);
-        table.start_whole.push_back(whole);
-        beats = beats + Fraction{bar.meter.numerator};
-        whole = whole + bar.meter.measureWholeNotes();
-    }
-    return table;
-}
-
-// Converts an absolute whole-note position back onto the chart's signature-beat axis. A position
-// past the final bar extrapolates at the last measure's meter, which is what a ring running off
-// the end of the score needs.
-[[nodiscard]] Fraction beatAtWhole(const MeasureTable& table, const Fraction whole)
-{
-    if (table.start_whole.empty())
-    {
-        return Fraction{};
-    }
-    const auto after = std::ranges::upper_bound(table.start_whole, whole);
-    const std::size_t measure =
-        after == table.start_whole.begin()
-            ? 0
-            : static_cast<std::size_t>(std::distance(table.start_whole.begin(), after)) - 1;
-    return table.first_beat[measure] +
-           ((whole - table.start_whole[measure]) * Fraction{table.denominator[measure]});
-}
 
 // ---------------------------------------------------------------------------------------------
 // One voice's beat chain. alphaTab's `Beat.nextBeat` walks the SAME voice slot across bar lines,
@@ -261,9 +216,10 @@ struct ChainDiagnostics
 // builder skips them for exactly that reason, so the chain skips them too and counts what it
 // passed over — the same for a beat notated past the end of its bar.
 [[nodiscard]] std::vector<std::vector<ChainBeat>> makeVoiceChains(
-    const GpTrack& track, const MeasureTable& table, ChainDiagnostics& diagnostics)
+    const GpTrack& track, const TempoMap& tempo_map, const std::size_t bar_count,
+    ChainDiagnostics& diagnostics)
 {
-    if (table.numerator.empty())
+    if (bar_count == 0)
     {
         return {};
     }
@@ -276,12 +232,14 @@ struct ChainDiagnostics
     std::vector<std::vector<ChainBeat>> chains(voice_count);
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
-        const std::size_t measure = std::min(bar_index, table.numerator.size() - 1);
-        const int denominator = table.denominator[measure];
-        const Fraction beat_whole{1, denominator};
+        const std::size_t measure = std::min(bar_index, bar_count - 1);
+        const GridPosition downbeat = common::core::measureDownbeat(static_cast<int>(measure) + 1);
+        const Fraction bar_place = tempo_map.wholeNotePositionAt(downbeat);
+        const Fraction bar_length =
+            tempo_map.timeSignatureAt(downbeat.measure).meter.measureWholeNotes();
         for (std::size_t voice = 0; voice < track.bars[bar_index].voices.size(); ++voice)
         {
-            Fraction position_beats{};
+            Fraction position_whole{};
             for (const GpBeat& beat : track.bars[bar_index].voices[voice])
             {
                 if (beat.grace != GpGracePlacement::None)
@@ -291,26 +249,20 @@ struct ChainDiagnostics
                         beat.notes, [](const GpNote& note) { return note.let_ring; }));
                     continue;
                 }
-                const Fraction onset = position_beats;
-                position_beats = position_beats + (beat.duration_whole * Fraction{denominator});
-                if (onset >= Fraction{table.numerator[measure]})
+                const Fraction onset = position_whole;
+                position_whole = position_whole + beat.duration_whole;
+                if (onset >= bar_length)
                 {
                     ++diagnostics.overfull;
                     continue;
                 }
-                const int whole_beats = onset.numerator / onset.denominator;
                 chains[voice].push_back(
                     ChainBeat{
                         .beat = &beat,
                         .measure = measure,
-                        .onset_whole = table.start_whole[measure] + (onset * beat_whole),
+                        .onset_whole = bar_place + onset,
                         .duration_whole = beat.duration_whole,
-                        .position =
-                            GridPosition{
-                                .measure = static_cast<int>(measure) + 1,
-                                .beat = whole_beats + 1,
-                                .offset = onset - Fraction{whole_beats},
-                            },
+                        .position = tempo_map.gridPositionAtWholeNote(bar_place + onset),
                         .rest = beat.notes.empty(),
                         .let_ring = std::ranges::any_of(
                             beat.notes, [](const GpNote& note) { return note.let_ring; }),
@@ -364,11 +316,11 @@ struct LetRingRegion
 };
 
 [[nodiscard]] LetRingRing walkLetRing(
-    const std::vector<ChainBeat>& chain, const MeasureTable& table, const std::size_t index,
+    const std::vector<ChainBeat>& chain, const TempoMap& tempo_map, const std::size_t index,
     const int string)
 {
-    const std::size_t measure = chain[index].measure;
-    const Fraction cap{table.numerator[measure], table.denominator[measure]};
+    const int measure = static_cast<int>(chain[index].measure) + 1;
+    const Fraction cap = tempo_map.timeSignatureAt(measure).meter.measureWholeNotes();
     std::size_t last = index;
     Fraction ring = chain[index].duration_whole;
     LetRingStop stop = LetRingStop::ScoreEnd;
@@ -790,13 +742,13 @@ struct SourceLanding
     return !common::core::rightHandOnset(note.attack);
 }
 
-// The note stream indexed the three ways every gate below asks about it: each note's exact global
-// beat, the slots it groups into, and one ascending column per string. Built once per derivation
-// so no gate walks the stream looking backward.
+// The note stream indexed the three ways every gate below asks about it: each note's exact
+// whole-note place, the slots it groups into, and one ascending column per string. Built once per
+// derivation so no gate walks the stream looking backward.
 struct StreamIndex
 {
     std::vector<Fraction> onset;
-    std::vector<Fraction> slot_beat;
+    std::vector<Fraction> slot_place;
     std::vector<std::size_t> slot_first;
     std::vector<std::size_t> slot_last;
     std::map<GridPosition, std::size_t> slot_of;
@@ -815,15 +767,15 @@ struct StreamIndex
     index.onset.reserve(notes.size());
     for (const ChartNote& note : notes)
     {
-        index.onset.push_back(common::core::beatDistance(tempo_map, GridPosition{}, note.position));
+        index.onset.push_back(tempo_map.wholeNotePositionAt(note.position));
     }
     for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
         const GridPosition& position = notes[note_index].position;
-        if (index.slot_beat.empty() || index.slot_of.find(position) == index.slot_of.end())
+        if (index.slot_place.empty() || index.slot_of.find(position) == index.slot_of.end())
         {
-            index.slot_of.emplace(position, index.slot_beat.size());
-            index.slot_beat.push_back(index.onset[note_index]);
+            index.slot_of.emplace(position, index.slot_place.size());
+            index.slot_place.push_back(index.onset[note_index]);
             index.slot_first.push_back(note_index);
             index.slot_last.push_back(note_index + 1);
         }
@@ -840,9 +792,9 @@ struct StreamIndex
     return index;
 }
 
-// The latest note on `string` whose onset is strictly before `beat`, or nothing.
+// The latest note on `string` whose onset is strictly before `place`, or nothing.
 [[nodiscard]] std::optional<std::size_t> lastNoteBefore(
-    const StreamIndex& index, const int string, const Fraction beat)
+    const StreamIndex& index, const int string, const Fraction place)
 {
     if (string < 1 || string > common::core::g_max_chart_strings)
     {
@@ -850,7 +802,7 @@ struct StreamIndex
     }
     const std::vector<std::size_t>& column = index.by_string[static_cast<std::size_t>(string)];
     const auto after = std::ranges::lower_bound(
-        column, beat, std::ranges::less{}, [&index](const std::size_t note_index) {
+        column, place, std::ranges::less{}, [&index](const std::size_t note_index) {
             return index.onset[note_index];
         });
     if (after == column.begin())
@@ -860,8 +812,8 @@ struct StreamIndex
     return *std::prev(after);
 }
 
-// Whether any onset on `string` sits exactly at `beat` — the adjacency half of the continuity law.
-[[nodiscard]] bool onsetLandsAt(const StreamIndex& index, const int string, const Fraction beat)
+// Whether any onset on `string` sits exactly at `place` — the adjacency half of the continuity law.
+[[nodiscard]] bool onsetLandsAt(const StreamIndex& index, const int string, const Fraction place)
 {
     if (string < 1 || string > common::core::g_max_chart_strings)
     {
@@ -869,10 +821,10 @@ struct StreamIndex
     }
     const std::vector<std::size_t>& column = index.by_string[static_cast<std::size_t>(string)];
     const auto at = std::ranges::lower_bound(
-        column, beat, std::ranges::less{}, [&index](const std::size_t note_index) {
+        column, place, std::ranges::less{}, [&index](const std::size_t note_index) {
             return index.onset[note_index];
         });
-    return at != column.end() && index.onset[*at] == beat;
+    return at != column.end() && index.onset[*at] == place;
 }
 
 // WHICH SPANS ARE SUCCESSORS is read straight off \ref common::core::ChartShape::landing_opened,
@@ -898,25 +850,24 @@ void countDerivation(
     out.natural_harmonic_notes += std::ranges::count_if(
         saved, [](const ChartNote& note) { return common::core::frettingFingerOnNode(note); });
 
-    // The fret-hand windows on the same beat axis the spans are read on, so the convergence
+    // The fret-hand windows on the same whole-note axis the spans are read on, so the convergence
     // invariant compares two derivations rather than two coordinate systems. Ascending by
     // construction (the chart stores them sorted by position), so the window covering an instant
     // is the last one at or before it.
-    std::vector<Fraction> hand_position_beats;
-    hand_position_beats.reserve(hand_positions.size());
+    std::vector<Fraction> hand_position_places;
+    hand_position_places.reserve(hand_positions.size());
     for (const common::core::FretHandPosition& window : hand_positions)
     {
-        hand_position_beats.push_back(
-            common::core::beatDistance(tempo_map, GridPosition{}, window.position));
+        hand_position_places.push_back(tempo_map.wholeNotePositionAt(window.position));
     }
     const auto window_covering =
-        [&hand_position_beats](const Fraction beat) -> std::optional<std::size_t> {
-        const auto after = std::ranges::upper_bound(hand_position_beats, beat);
-        if (after == hand_position_beats.begin())
+        [&hand_position_places](const Fraction place) -> std::optional<std::size_t> {
+        const auto after = std::ranges::upper_bound(hand_position_places, place);
+        if (after == hand_position_places.begin())
         {
             return std::nullopt;
         }
-        return static_cast<std::size_t>(std::distance(hand_position_beats.begin(), after) - 1);
+        return static_cast<std::size_t>(std::distance(hand_position_places.begin(), after) - 1);
     };
 
     // THE HAND-COUPLING GATE's placement classes, read once per track: which windows arrive
@@ -926,19 +877,18 @@ void countDerivation(
     // that, so reading the stored fret here would score the generator's most literal placement as
     // an unjustified one. Only the open string moves no finger to the window's post.
     {
-        std::map<Fraction, std::pair<bool, bool>> onsets; // beat -> {any note, any fretted}
+        std::map<Fraction, std::pair<bool, bool>> onsets; // place -> {any note, any fretted}
         for (const ChartNote& note : saved)
         {
-            const Fraction beat =
-                common::core::beatDistance(tempo_map, GridPosition{}, note.position);
-            auto& [any, fretted] = onsets[beat];
+            const Fraction place = tempo_map.wholeNotePositionAt(note.position);
+            auto& [any, fretted] = onsets[place];
             any = true;
             fretted = fretted || common::core::fretFor(note) != 0;
         }
-        out.fhp_placements += static_cast<long long>(hand_position_beats.size());
-        for (const Fraction& beat : hand_position_beats)
+        out.fhp_placements += static_cast<long long>(hand_position_places.size());
+        for (const Fraction& place : hand_position_places)
         {
-            const auto at = onsets.find(beat);
+            const auto at = onsets.find(place);
             if (at != onsets.end() && at->second.first && !at->second.second)
             {
                 ++out.fhp_placements_unfretted;
@@ -962,19 +912,18 @@ void countDerivation(
         std::vector<SoundingRing> rings;
         for (std::size_t note = 0; note < saved.size(); ++note)
         {
-            const Fraction beat =
-                common::core::beatDistance(tempo_map, GridPosition{}, saved[note].position);
+            const Fraction place = tempo_map.wholeNotePositionAt(saved[note].position);
             rings.push_back(
                 SoundingRing{
-                    .onset = beat,
-                    .end = beat + saved[note].sustain,
+                    .onset = place,
+                    .end = place + saved[note].sustain,
                     .note = &saved[note],
                     .held = &held_frets[note],
                 });
         }
-        for (std::size_t placement = 0; placement < hand_position_beats.size(); ++placement)
+        for (std::size_t placement = 0; placement < hand_position_places.size(); ++placement)
         {
-            const Fraction& arrival = hand_position_beats[placement];
+            const Fraction& arrival = hand_position_places[placement];
             const common::core::FretWindow window{
                 .fret = hand_positions[placement].fret,
                 .width = hand_widths[placement],
@@ -1014,8 +963,7 @@ void countDerivation(
     {
         if (shape.landing_opened)
         {
-            successor_starts.insert(
-                common::core::beatDistance(tempo_map, GridPosition{}, shape.position));
+            successor_starts.insert(tempo_map.wholeNotePositionAt(shape.position));
         }
     }
 
@@ -1040,8 +988,7 @@ void countDerivation(
                                  ? 1
                                  : 0;
 
-        const Fraction start =
-            common::core::beatDistance(tempo_map, GridPosition{}, shape.position);
+        const Fraction start = tempo_map.wholeNotePositionAt(shape.position);
         const Fraction end = start + shape.sustain;
 
         // THE DATING RULE: the ruled promise is that no span starts inside the one before it.
@@ -1050,8 +997,8 @@ void countDerivation(
 
         // THE HAND-COUPLING GATE: windows arriving strictly inside this span's run.
         {
-            const auto first_inside = std::ranges::upper_bound(hand_position_beats, start);
-            const auto past_run = std::ranges::lower_bound(hand_position_beats, end);
+            const auto first_inside = std::ranges::upper_bound(hand_position_places, start);
+            const auto past_run = std::ranges::lower_bound(hand_position_places, end);
             const auto inside = std::distance(first_inside, past_run);
             if (inside > 0)
             {
@@ -1324,18 +1271,18 @@ void countDerivation(
         // ---- one pass over the slots the span covers answers every interior question: the
         // picking-hand trigger, the lone re-pick and its witness, and the continuity law's own
         // interior gap.
-        const auto first_slot = std::ranges::lower_bound(index.slot_beat, start);
+        const auto first_slot = std::ranges::lower_bound(index.slot_place, start);
         bool picking_hand_inside = false;
         bool lone_repick_here = false;
         bool interior_gap_here = false;
         bool interior_repick_here = false;
 
-        for (auto slot_at = first_slot; slot_at != index.slot_beat.end() && *slot_at <= end;
+        for (auto slot_at = first_slot; slot_at != index.slot_place.end() && *slot_at <= end;
              ++slot_at)
         {
             const auto slot =
-                static_cast<std::size_t>(std::distance(index.slot_beat.begin(), slot_at));
-            const Fraction now = index.slot_beat[slot];
+                static_cast<std::size_t>(std::distance(index.slot_place.begin(), slot_at));
+            const Fraction now = index.slot_place[slot];
             std::vector<std::size_t> struck_here;
             for (std::size_t note = index.slot_first[slot]; note < index.slot_last[slot]; ++note)
             {
@@ -1519,11 +1466,9 @@ void countDerivation(
             }
             else
             {
-                // The margin is kept before the LANDING, so it is read there: `lands` counts beats
-                // from the grid origin, exactly as `index.onset` does.
-                const Fraction margin = common::core::minimumSustainDistanceBeats(
-                    tempo_map,
-                    common::core::advanceGridPosition(tempo_map, GridPosition{}, *lands));
+                // The margin is kept before the LANDING, so it is read there: `lands` is a place
+                // on the whole-note axis, exactly as `index.onset` is.
+                const Fraction margin = common::core::minimumSustainDistance(tempo_map, *lands);
                 long long resting = 0;
                 for (const std::size_t member : struck_at_start)
                 {
@@ -1655,7 +1600,7 @@ struct Census
     long long tails_after_rules{0};
     long long hidden_rings{0};
     long long hidden_strokes{0};
-    double hidden_ring_beats{0.0};
+    double hidden_ring_whole_notes{0.0};
     long long roll_beats{0};
     long long vibrato_narrow{0};
     long long vibrato_wide{0};
@@ -1758,8 +1703,6 @@ struct Census
 
 void walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
 {
-    const MeasureTable table = makeMeasureTable(score);
-
     // Section marks on the absolute whole-note axis; a mark sits on its master bar's downbeat.
     // TWO populations, because the corpus makes them wildly different questions: every bar the
     // score MARKS, and the subset carrying a label — which is all the chart itself can store, and
@@ -1768,18 +1711,25 @@ void walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
     std::vector<Fraction> named_markers;
     for (std::size_t bar = 0; bar < score.master_bars.size(); ++bar)
     {
+        const int measure = static_cast<int>(bar) + 1;
+        // The import's map states the master bars' meters one to one; a census that read another
+        // grid than the chart's would measure a different song.
+        CHECK(tempo_map.timeSignatureAt(measure).meter == score.master_bars[bar].meter);
+        const Fraction downbeat_place =
+            tempo_map.wholeNotePositionAt(common::core::measureDownbeat(measure));
         const std::optional<std::string>& section = score.master_bars[bar].section;
         if (section.has_value())
         {
-            markers.push_back(table.start_whole[bar]);
+            markers.push_back(downbeat_place);
             ++census.section_marks;
             if (!section->empty())
             {
-                named_markers.push_back(table.start_whole[bar]);
+                named_markers.push_back(downbeat_place);
                 ++census.section_marks_named;
             }
         }
-        if (bar > 0 && table.denominator[bar] != table.denominator[bar - 1])
+        if (bar > 0 && score.master_bars[bar].meter.denominator !=
+                           score.master_bars[bar - 1].meter.denominator)
         {
             ++census.denominator_changes;
         }
@@ -1795,7 +1745,7 @@ void walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
     {
         ChainDiagnostics diagnostics;
         const std::vector<std::vector<ChainBeat>> chains =
-            makeVoiceChains(track, table, diagnostics);
+            makeVoiceChains(track, tempo_map, score.master_bars.size(), diagnostics);
         census.grace_beats_skipped += diagnostics.graces;
         census.letring_marks_on_graces += diagnostics.grace_letring_marks;
         census.overfull_beats_skipped += diagnostics.overfull;
@@ -1959,7 +1909,7 @@ void walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
                     }
                     ++census.letring_marks;
 
-                    const LetRingRing ring = walkLetRing(chain, table, index, note.string);
+                    const LetRingRing ring = walkLetRing(chain, tempo_map, index, note.string);
                     ++census.rings;
                     switch (ring.stop)
                     {
@@ -2111,10 +2061,8 @@ void walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
                     // the number the divergence candidates are weighed against.
                     if (ring.stop == LetRingStop::Cap)
                     {
-                        const double onset_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                            beatAtWhole(table, ring.onset_whole).toDouble());
-                        const double end_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                            beatAtWhole(table, ring.end_whole).toDouble());
+                        const double onset_seconds = tempo_map.secondsAtWholeNote(ring.onset_whole);
+                        const double end_seconds = tempo_map.secondsAtWholeNote(ring.end_whole);
                         census.cap_ring_seconds.add(end_seconds - onset_seconds);
                     }
                 }
@@ -2347,9 +2295,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                         ++census.hidden_rings;
                         ++census.tails_after_rules;
                         stroke_hidden = true;
-                        census.hidden_ring_beats +=
-                            static_cast<double>(saved[note].sustain.numerator) /
-                            static_cast<double>(saved[note].sustain.denominator);
+                        census.hidden_ring_whole_notes += saved[note].sustain.toDouble();
                     }
                     else if (resolutions.ink_end[note].numerator > 0)
                     {
@@ -2399,7 +2345,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  tails standing after rules 1-4          : " << census.tails_after_rules << "\n";
     std::cout << "  ... hidden: the curtain owns part of it : " << census.hidden_rings << "\n";
     std::cout << "  ... strokes with a hidden member        : " << census.hidden_strokes << "\n";
-    std::cout << "  ... beats of stored ring they carry     : " << census.hidden_ring_beats << "\n";
+    std::cout << "  ... whole notes of stored ring they hold: " << census.hidden_ring_whole_notes
+              << "\n";
     std::cout << "  roll beats                              : " << census.roll_beats << "\n";
     std::cout << "  vibrato narrow / wide, in the source    : " << census.vibrato_narrow << " / "
               << census.vibrato_wide << "\n";

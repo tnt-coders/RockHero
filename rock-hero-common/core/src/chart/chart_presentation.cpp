@@ -20,7 +20,7 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Rule 1 for one note whose ring the onset `gap` beats ahead binds: the ink stops one margin
+// Rule 1 for one note whose ring the onset `gap` whole notes ahead binds: the ink stops one margin
 // before that onset and never before the note's own onset. The margin belongs to the BINDING
 // ONSET, not to the ringing note: it is that head's spacing being kept, and the margin is a
 // duration, so a tempo change between the two would otherwise measure it at the wrong rate. A ring
@@ -29,7 +29,7 @@ namespace
     const ChartNote& note, const Fraction gap, const GridPosition& binding_onset,
     const HeadMargins& margins)
 {
-    return std::min(note.sustain, std::max(gap - margins.beats(binding_onset), Fraction{}));
+    return std::min(note.sustain, std::max(gap - margins.length(binding_onset), Fraction{}));
 }
 
 // Rule 1 for one note: the binding onset is the first later onset the ring does not run STRICTLY
@@ -39,14 +39,16 @@ namespace
 // an onset at all — a tie merged across a neighbour, a cross-voice hold — is reported through
 // `deliberate_hold`, which rule 2 reads as a statement without switching the crop off.
 [[nodiscard]] Fraction inkEndOf(
-    const std::vector<ChartNote>& notes, const std::size_t index, const std::size_t group_end,
-    const HeadMargins& margins, const TempoMap& tempo_map, bool& deliberate_hold)
+    const ChartConnections& connections, const std::size_t index, const std::size_t group_end,
+    const HeadMargins& margins, bool& deliberate_hold)
 {
+    const std::vector<ChartNote>& notes = connections.saved_notes;
+    const std::vector<Fraction>& places = connections.places;
     const ChartNote& note = notes[index];
     deliberate_hold = false;
     for (std::size_t ahead = group_end; ahead < notes.size(); ++ahead)
     {
-        const Fraction gap = beatDistance(tempo_map, note.position, notes[ahead].position);
+        const Fraction gap = places[ahead] - places[index];
         if (!(gap < note.sustain))
         {
             return croppedInkEnd(note, gap, notes[ahead].position, margins);
@@ -62,10 +64,10 @@ namespace
 // a duration: the same written value earns at a slow tempo and not at a fast one. Whole-note
 // techniques (muting, emphasis, harmonics) are deliberately absent: they say the same thing with or
 // without a tail.
-[[nodiscard]] bool earnsTail(const ChartNote& note, const TempoMap& tempo_map)
+[[nodiscard]] bool earnsTail(const ChartNote& note, const Fraction place, const TempoMap& tempo_map)
 {
-    const double onset = tempo_map.secondsAt(note.position);
-    const double end = tempo_map.secondsAt(sustainEndPosition(tempo_map, note));
+    const double onset = tempo_map.secondsAtWholeNote(place);
+    const double end = tempo_map.secondsAtWholeNote(place + note.sustain);
     return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() || hasVibrato(note.vibrato) ||
            note.tremolo || end - onset > g_minimum_kept_sustain_seconds;
 }
@@ -145,9 +147,10 @@ ChartPresentation chartPresentation(
         {
             bool deliberate_hold = false;
             const Fraction ink_end =
-                inkEndOf(notes, index, group_end, margins, tempo_map, deliberate_hold);
+                inkEndOf(connections, index, group_end, margins, deliberate_hold);
             presentation.ink_end.push_back(drawsNoDeadTail(notes[index]) ? Fraction{} : ink_end);
-            group_earned = group_earned || deliberate_hold || earnsTail(notes[index], tempo_map);
+            group_earned = group_earned || deliberate_hold ||
+                           earnsTail(notes[index], connections.places[index], tempo_map);
         }
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
@@ -230,10 +233,10 @@ std::vector<Fraction> chartHolds(
         // member exactly as a strummed one is, and in a DERIVED chart a lone tail-less note a span
         // covers past was necessarily renewed — an un-renewed death breaks the grip, so the span
         // could not reach past it at all.
-        const std::optional<SpanCoverage> covering = cover.reaching(onset);
+        const std::optional<SpanCoverage> covering = cover.reaching(connections.places[index]);
         if (covering.has_value())
         {
-            const Fraction span_hold = beatDistance(tempo_map, onset, covering->end);
+            const Fraction span_hold = covering->end - connections.places[index];
             for (std::size_t member = index; member < group_end; ++member)
             {
                 const ChartNote& note = notes[member];

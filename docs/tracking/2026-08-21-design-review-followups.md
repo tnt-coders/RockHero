@@ -209,9 +209,10 @@ before that reading exists.
     the minimum-sustain-distance margin of the final restrike still pulls the trimmed end back
     across it — a spacing fact durations cannot prevent), and strict positive sustain is exactly
     what keeps the exact-adjacency fallback's result positive-length.
-14. **`planMoveNotes`' comment says a move off the grid is "refused, never clamped"; `advanceGridPosition`
-    clamps to measure 1 beat 1**, so a lone note dragged left past bar 1 is silently repositioned.
-    Either refuse when the destination clamps or correct the comment.
+14. **`planMoveNotes`' comment says a move off the grid is "refused, never clamped";
+    `advanceGridPositionByWholeNotes` clamps to measure 1 beat 1**, so a lone note dragged left past
+    bar 1 is silently repositioned. Either refuse when the destination clamps or correct the
+    comment.
 15. **Flattened sum types in the pending entry**: `ChartFretEntry::began_as_insert` and
     `ChartPendingFretViewState`'s insert/retype fields are a two-case variant stored as a flag plus
     both cases' fields (four `began_as_insert ? :` branches). A `std::variant<InsertAt, Retype>`

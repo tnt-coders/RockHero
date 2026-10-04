@@ -18,16 +18,16 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Sixteen seconds of default 4/4 — eight bars — which is all the beat axis these cases need.
+// Sixteen seconds of default 4/4 — eight bars — which is all the timeline these cases need.
 [[nodiscard]] TempoMap makeTempoMap()
 {
     return TempoMap::defaultMap(TimeDuration{16.0});
 }
 
-// A picked note at a measure and beat, ringing one beat unless a case says otherwise.
+// A picked note at a measure and beat, ringing a quarter unless a case says otherwise.
 [[nodiscard]] ChartNote noteAt(
     const int measure, const int beat, const int string, const int fret,
-    const Fraction ring = Fraction{1})
+    const Fraction ring = Fraction{1, 4})
 {
     ChartNote note;
     note.position = GridPosition{.measure = measure, .beat = beat};
@@ -85,10 +85,10 @@ TEST_CASE("Fret-hand width reaches the highest stated onset fret", "[core][chart
 // ring's end does not — a slide-out is the hand leaving the board.
 TEST_CASE("Fret-hand width reaches a pitched keyframe but not a slide-out", "[core][chart]")
 {
-    ChartNote glide = noteAt(1, 1, 1, 5, Fraction{2});
+    ChartNote glide = noteAt(1, 1, 1, 5, Fraction{1, 2});
     glide.keyframes = {
-        Keyframe{.offset = Fraction{1}, .fret = 10},
-        Keyframe{.offset = Fraction{2}, .fret = 14},
+        Keyframe{.offset = Fraction{1, 4}, .fret = 10},
+        Keyframe{.offset = Fraction{1, 2}, .fret = 14},
     };
     CHECK(widthsOf({glide}, {placementAt(1, 5)}) == std::vector<int>{6});
 }
@@ -124,10 +124,10 @@ TEST_CASE("Fret-hand width ignores a stated fret below the index finger", "[core
 TEST_CASE("Fret-hand width reads only its own placement's stretch", "[core][chart]")
 {
     // Struck under the first placement, gliding under the second: 3:4, then a hold at 4:1.
-    ChartNote long_glide = noteAt(2, 2, 1, 5, Fraction{8});
+    ChartNote long_glide = noteAt(2, 2, 1, 5, Fraction{2});
     long_glide.keyframes = {
-        Keyframe{.offset = Fraction{6}, .fret = 11},
-        Keyframe{.offset = Fraction{7}, .fret = 11},
+        Keyframe{.offset = Fraction{3, 2}, .fret = 11},
+        Keyframe{.offset = Fraction{7, 4}, .fret = 11},
     };
     const std::vector<ChartNote> notes{
         noteAt(1, 1, 3, 20),
@@ -143,7 +143,7 @@ TEST_CASE("Fret-hand width reads only its own placement's stretch", "[core][char
 TEST_CASE("Fret-hand width reaches a ring struck before the placement", "[core][chart]")
 {
     CHECK(
-        widthsOf({noteAt(1, 1, 1, 10, Fraction{8}), noteAt(2, 2, 2, 5)}, {placementAt(2, 5)}) ==
+        widthsOf({noteAt(1, 1, 1, 10, Fraction{2}), noteAt(2, 2, 2, 5)}, {placementAt(2, 5)}) ==
         std::vector<int>{6});
 }
 
@@ -152,10 +152,10 @@ TEST_CASE("Fret-hand width reaches a ring struck before the placement", "[core][
 TEST_CASE("Fret-hand width ignores released and lower carried rings", "[core][chart]")
 {
     CHECK(
-        widthsOf({noteAt(1, 1, 1, 10, Fraction{4}), noteAt(2, 2, 2, 5)}, {placementAt(2, 5)}) ==
+        widthsOf({noteAt(1, 1, 1, 10, Fraction{1}), noteAt(2, 2, 2, 5)}, {placementAt(2, 5)}) ==
         std::vector<int>{4});
     CHECK(
-        widthsOf({noteAt(1, 1, 1, 3, Fraction{8}), noteAt(2, 2, 2, 7)}, {placementAt(2, 7)}) ==
+        widthsOf({noteAt(1, 1, 1, 3, Fraction{2}), noteAt(2, 2, 2, 7)}, {placementAt(2, 7)}) ==
         std::vector<int>{4});
 }
 
@@ -163,8 +163,8 @@ TEST_CASE("Fret-hand width ignores released and lower carried rings", "[core][ch
 // placement is down at the fret it reached, not the one it was struck at.
 TEST_CASE("Fret-hand width carries a slid ring at the fret it reached", "[core][chart]")
 {
-    ChartNote slid = noteAt(1, 1, 1, 5, Fraction{8});
-    slid.keyframes = {Keyframe{.offset = Fraction{2}, .fret = 11}};
+    ChartNote slid = noteAt(1, 1, 1, 5, Fraction{2});
+    slid.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 11}};
     CHECK(widthsOf({slid}, {placementAt(1, 5), placementAt(2, 6)}) == std::vector<int>{7, 6});
 }
 
@@ -173,8 +173,8 @@ TEST_CASE("Fret-hand width carries a slid ring at the fret it reached", "[core][
 // further.
 TEST_CASE("Fret-hand width splits a ring at a keyframe on a placement", "[core][chart]")
 {
-    ChartNote glide = noteAt(1, 1, 1, 5, Fraction{8});
-    glide.keyframes = {Keyframe{.offset = Fraction{4}, .fret = 12}};
+    ChartNote glide = noteAt(1, 1, 1, 5, Fraction{2});
+    glide.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}};
     CHECK(widthsOf({glide}, {placementAt(1, 5), placementAt(2, 8)}) == std::vector<int>{4, 5});
 }
 
@@ -183,8 +183,8 @@ TEST_CASE("Fret-hand width splits a ring at a keyframe on a placement", "[core][
 TEST_CASE("Fret-hand width skips a tap's own keyframes", "[core][chart]")
 {
     ChartNote tap = tapAt(1, 1, 1, 15);
-    tap.sustain = Fraction{2};
-    tap.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 18}};
+    tap.sustain = Fraction{1, 2};
+    tap.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 18}};
     CHECK(widthsOf({tap}, {placementAt(1, 5)}, {9}) == std::vector<int>{5});
 }
 
@@ -193,7 +193,7 @@ TEST_CASE("Fret-hand width skips a tap's own keyframes", "[core][chart]")
 TEST_CASE("Fret-hand width carries a tap's held stop into the next placement", "[core][chart]")
 {
     ChartNote tap = tapAt(1, 1, 1, 17);
-    tap.sustain = Fraction{8};
+    tap.sustain = Fraction{2};
     CHECK(widthsOf({tap}, {placementAt(2, 5)}, {9}) == std::vector<int>{5});
 }
 
@@ -201,8 +201,8 @@ TEST_CASE("Fret-hand width carries a tap's held stop into the next placement", "
 // landing after the first placement belongs to it.
 TEST_CASE("Fret-hand width takes an early note's later keyframe", "[core][chart]")
 {
-    ChartNote early = noteAt(1, 1, 1, 3, Fraction{8});
-    early.keyframes = {Keyframe{.offset = Fraction{6}, .fret = 11}};
+    ChartNote early = noteAt(1, 1, 1, 3, Fraction{2});
+    early.keyframes = {Keyframe{.offset = Fraction{3, 2}, .fret = 11}};
     CHECK(widthsOf({early}, {placementAt(2, 7)}) == std::vector<int>{5});
 }
 

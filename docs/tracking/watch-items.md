@@ -128,11 +128,11 @@ should be investigated whenever that code is opened.
 ### The fret-hand window morphs over one margin — trigger: a margin-long morph reads as a jump when sighted
 
 An ordinary fret-hand placement morphs over the minimum sustain distance before its arrival
-(`makeChartViewState`, `marginBefore`), and deliberately so: that window starts exactly where the
-previous tail's ink stops, so the hand never visibly leaves while a note it holds is still drawn. A
-separate, longer approach lead was built on 2026-09-22 and reverted the next day, because a morph
-that starts before the ink ends shows the hand leaving a ringing note. The cost is that a morph as
-short as the margin may read as a snap rather than a move.
+(`makeChartViewState`, `minimumSustainDistance`), and deliberately so: that window starts exactly
+where the previous tail's ink stops, so the hand never visibly leaves while a note it holds is still
+drawn. A separate, longer approach lead was built on 2026-09-22 and reverted the next day, because a
+morph that starts before the ink ends shows the hand leaving a ringing note. The cost is that a
+morph as short as the margin may read as a snap rather than a move.
 
 Remedy: derive the morph's START from the chart instead of a constant. The window begins moving
 where the last ink under the old window ends — never earlier — and, where nothing under it rings,
@@ -245,7 +245,7 @@ The span-implied hold itself is unified: both view states carry `display_hold_en
 **This entry originally understated its own subject and was rewritten on 2026-08-11 after an
 independent review.** As first shipped the lane's hold was not merely *longer* than the board's, it
 was **unbounded**: the lane drew a ribbon straight to `display_hold_ends[i]` with no cap at all, so a
-sustainless chord under a four-beat span with the same string restruck at beats 2 and 3 drew string
+sustainless chord under a whole-note span with the same string restruck at beats 2 and 3 drew string
 1's tail through both later heads and out the far side, tremolo teeth and vibrato sine riding the
 whole length — a picture 40-Q2-B guarantees no *stored* sustain can produce. The claim that "no chart
 data disagrees" was the wrong test; the right one was that the derived hold had no bound the stored one
@@ -306,11 +306,11 @@ crowded in fast ones.
 
 It is `g_minimum_sustain_distance_seconds`, held below the kept-sustain bound
 by a `static_assert` so every earned tail keeps ink. The remedy this item proposed — a grid ladder
-picking the smallest plain note value at least the target — was not taken: `marginBefore` walks
-back from the onset being PROTECTED through the tempo map's own time axis and floors onto the
-chart's 1/3840-whole-note tick lattice, so the answer is tick-exact, honours a tempo anchor inside
-the margin, and is never shorter than the duration. `minimumSustainDistanceBeats` is that position
-measured back in beats, which leaves one authority where the ladder would have left two.
+picking the smallest plain note value at least the target — was not taken: `tickPlaceReached` walks
+back from the onset being PROTECTED through the tempo map's own time axis and rounds away from it
+onto the chart's 1/3840-whole-note tick lattice, so the answer is tick-exact, honours a tempo anchor
+inside the margin, and is never shorter than the duration. `minimumSustainDistance` is that reach
+as a whole-note distance, which leaves one authority where the ladder would have left two.
 
 ### The 3D board's tail-reveal lead stays a note value — trigger: the reveal reads too abrupt or too lazy at a tempo extreme
 

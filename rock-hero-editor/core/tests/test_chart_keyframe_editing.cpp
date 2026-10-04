@@ -91,8 +91,8 @@ struct PendingKeyframeFixture
 };
 
 // Lane-local pixels of the fixture's two clickable marks, and of the two tail slots a typed
-// digit is exercised at: 3.0s (two beats into the ring, on the travel leg toward the junction)
-// and 5.0s (six beats in, out where the path holds at the junction's own fret).
+// digit is exercised at: 3.0s (two quarters into the ring, on the travel leg toward the junction)
+// and 5.0s (six quarters in, out where the path holds at the junction's own fret).
 constexpr float g_onset_x{40.0f};
 constexpr float g_junction_x{80.0f};
 constexpr float g_travel_tail_x{60.0f};
@@ -108,14 +108,14 @@ constexpr ChartPointerModifiers g_alt{.ctrl = false, .shift = false, .alt = true
 // The fixture's ring ends at 6.0s, one measure past the junction's linked head.
 constexpr float g_ring_end_x{120.0f};
 
-// The glide chart with a SLIDE-OUT at the ring's end: the same eight-beat gesture, plus the fret
-// the hand slides out toward exactly where the ring stops. The figure where the end's own statement
-// is reached by the object walk rather than by a landing, since no slot holds it.
+// The glide chart with a SLIDE-OUT at the ring's end: the same two-whole-note gesture, plus the
+// fret the hand slides out toward exactly where the ring stops. The figure where the end's own
+// statement is reached by the object walk rather than by a landing, since no slot holds it.
 [[nodiscard]] common::core::Chart makeSlideOutGlideChart()
 {
     common::core::Chart chart = makeGlideChart();
     chart.notes[0].keyframes.push_back(
-        common::core::Keyframe{.offset = common::core::Fraction{8}, .fret = 12});
+        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 12});
     return chart;
 }
 
@@ -156,12 +156,14 @@ TEST_CASE("A click selects the keyframe under it and arms the caret on it", "[co
 // the grid is what proves the union: the grid line alone would step straight past it.
 TEST_CASE("The caret steps onto a keyframe", "[core][chart]")
 {
-    // The junction moved half a beat off the quarter-note grid: 3.5 beats in, at 3.75s.
+    // The junction moved an eighth off the quarter-note grid: three and a half quarters in, at
+    // 3.75s.
     common::core::Chart chart = makeGlideChart();
-    chart.notes[0].keyframes[0].offset = common::core::Fraction{7, 2};
+    chart.notes[0].keyframes[0].offset = common::core::Fraction{7, 8};
     KeyframeFixture fixture{std::move(chart)};
 
-    // Arm on the empty grid slot two beats in (3.0s): nothing sits there, so nothing is selected.
+    // Arm on the empty grid slot two quarters in (3.0s): nothing sits there, so nothing is
+    // selected.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
     CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
@@ -205,12 +207,12 @@ TEST_CASE("The caret steps onto a keyframe", "[core][chart]")
 // cursor in place, as every group selection leaves it.
 TEST_CASE("A double click on a keyframe selects the junctions at its instant", "[core][chart]")
 {
-    // A second glide on string 4 arriving four beats in beside the fixture's, and a note struck on
-    // string 5 at that very instant, which the group must not sweep in.
+    // A second glide on string 4 arriving four quarters in beside the fixture's, and a note struck
+    // on string 5 at that very instant, which the group must not sweep in.
     common::core::Chart chart = makeGlideChart();
     common::core::ChartNote partner =
-        makeTestNote({.measure = 2, .beat = 1}, 4, 7, common::core::Fraction{8});
-    partner.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 11}};
+        makeTestNote({.measure = 2, .beat = 1}, 4, 7, common::core::Fraction{2});
+    partner.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 11}};
     chart.notes.push_back(std::move(partner));
     chart.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 5, 3));
     KeyframeFixture fixture{std::move(chart)};
@@ -234,8 +236,8 @@ TEST_CASE("Ctrl+double-click adds and removes the junctions at an instant", "[co
 {
     common::core::Chart chart = makeGlideChart();
     common::core::ChartNote partner =
-        makeTestNote({.measure = 2, .beat = 1}, 4, 7, common::core::Fraction{8});
-    partner.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 11}};
+        makeTestNote({.measure = 2, .beat = 1}, 4, 7, common::core::Fraction{2});
+    partner.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 11}};
     chart.notes.push_back(std::move(partner));
     KeyframeFixture fixture{std::move(chart)};
     const auto ctrl_double_click = [&fixture](const float x, const float y) {
@@ -270,7 +272,7 @@ TEST_CASE("Ctrl+double-click adds and removes the junctions at an instant", "[co
 }
 
 // A caret armed on a lone keyframe rides its nudge exactly as one on a lone note does: the point's
-// slot moves a beat, and the caret moves with it rather than being left on the emptied slot. The
+// slot moves a quarter, and the caret moves with it rather than being left on the emptied slot. The
 // step back is the subtle case — a run replaying to its origin RETIRES its entry rather than
 // replacing it, and the caret must ride that step home like any other.
 TEST_CASE("The caret rides a moved keyframe out and back", "[core][chart]")
@@ -393,7 +395,7 @@ TEST_CASE("A bare vibrato on a covered slot vibrates the ring from there", "[cor
     REQUIRE(vibrating.notes.size() == 1);
     REQUIRE(vibrating.notes[0].keyframes.size() == 2);
     const common::core::Keyframe& point = vibrating.notes[0].keyframes[1];
-    CHECK(point.offset == common::core::Fraction{6});
+    CHECK(point.offset == common::core::Fraction{3, 2});
     CHECK_FALSE(point.fret.has_value());
     CHECK(point.vibrato == common::core::VibratoState::Wide);
     // The ring still opens still, and the junction before the point is untouched.
@@ -414,7 +416,7 @@ TEST_CASE("A bare vibrato on a covered slot stops at the next point", "[core][ch
 {
     common::core::Chart chart = makeGlideChart();
     chart.notes[0].keyframes.push_back(
-        common::core::Keyframe{.offset = common::core::Fraction{7}, .bend = 1.0});
+        common::core::Keyframe{.offset = common::core::Fraction{7, 4}, .bend = 1.0});
     KeyframeFixture fixture{std::move(chart)};
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
@@ -423,7 +425,7 @@ TEST_CASE("A bare vibrato on a covered slot stops at the next point", "[core][ch
     const common::core::Chart vibrating = currentChart(fixture.controller);
     REQUIRE(vibrating.notes.size() == 1);
     REQUIRE(vibrating.notes[0].keyframes.size() == 3);
-    CHECK(vibrating.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(vibrating.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
     CHECK(vibrating.notes[0].keyframes[1].vibrato == common::core::VibratoState::Narrow);
     CHECK_FALSE(common::core::hasVibrato(vibrating.notes[0].keyframes[2].vibrato));
 
@@ -470,7 +472,7 @@ TEST_CASE("A bare vibrato inside a vibrating leg changes it from there", "[core]
         REQUIRE(cleared.notes.size() == 1);
         REQUIRE(cleared.notes[0].keyframes.size() == 2);
         CHECK(cleared.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
-        CHECK(cleared.notes[0].keyframes[1].offset == common::core::Fraction{6});
+        CHECK(cleared.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
         CHECK_FALSE(common::core::hasVibrato(cleared.notes[0].keyframes[1].vibrato));
     }
 
@@ -484,7 +486,7 @@ TEST_CASE("A bare vibrato inside a vibrating leg changes it from there", "[core]
         REQUIRE(widened.notes.size() == 1);
         REQUIRE(widened.notes[0].keyframes.size() == 2);
         CHECK(widened.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
-        CHECK(widened.notes[0].keyframes[1].offset == common::core::Fraction{6});
+        CHECK(widened.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
         CHECK(widened.notes[0].keyframes[1].vibrato == common::core::VibratoState::Wide);
     }
 }
@@ -518,7 +520,7 @@ TEST_CASE("Delete takes the selected keyframe and undo puts it back", "[core][ch
     CHECK(cut.notes[0].keyframes.empty());
     // The note it rode is untouched — deleting a keyframe is not deleting the gesture.
     CHECK(cut.notes[0].fret == 5);
-    CHECK(cut.notes[0].sustain == common::core::Fraction{8});
+    CHECK(cut.notes[0].sustain == common::core::Fraction{2});
 
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
@@ -591,7 +593,7 @@ TEST_CASE("Delete takes a point whose fret says nothing whole in one press", "[c
     REQUIRE(restored.notes[0].keyframes.size() == 1);
     CHECK(
         restored.notes[0].keyframes[0] == common::core::Keyframe{
-                                              .offset = common::core::Fraction{4},
+                                              .offset = common::core::Fraction{1},
                                               .fret = {},
                                               .bend = {},
                                               .vibrato = common::core::VibratoState::Narrow,
@@ -627,7 +629,7 @@ TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart
     const common::core::Chart recreated = currentChart(fixture.controller);
     REQUIRE(recreated.notes.size() == 1);
     REQUIRE(recreated.notes[0].keyframes.size() == 2);
-    CHECK(recreated.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(recreated.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
     CHECK(recreated.notes[0].keyframes[1].fret == 7);
     CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
 
@@ -660,7 +662,7 @@ TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[co
     const common::core::Chart recreated = currentChart(fixture.controller);
     REQUIRE(recreated.notes.size() == 1);
     REQUIRE(recreated.notes[0].keyframes.size() == 2);
-    CHECK(recreated.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(recreated.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
     CHECK(recreated.notes[0].keyframes[1].fret == 9);
 }
 
@@ -703,7 +705,7 @@ TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[cor
     REQUIRE(severed.notes.size() == 2);
     CHECK(severed.notes[0].position == original.notes[0].position);
     CHECK(severed.notes[0].fret == 5);
-    CHECK(severed.notes[0].sustain == common::core::Fraction{4});
+    CHECK(severed.notes[0].sustain == common::core::Fraction{1});
     // The origin keeps the keyframe it travels to: the leg the user split at is real travel, and
     // the junction is an equal-fret handover to the new head. The arrival stands AT that head, at
     // the ring's own end, and the chart PROVES it is an arrival and not a slide-out: the fret it
@@ -711,14 +713,14 @@ TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[cor
     // margin before the head by presentation, as every tail is.
     REQUIRE(severed.notes[0].keyframes.size() == 1);
     CHECK(severed.notes[0].keyframes[0].fret == 9);
-    CHECK(severed.notes[0].keyframes[0].offset == common::core::Fraction{4});
+    CHECK(severed.notes[0].keyframes[0].offset == common::core::Fraction{1});
 
     CHECK(
         severed.notes[1].position ==
         common::core::GridPosition{.measure = 3, .beat = 1, .offset = {}});
     CHECK(severed.notes[1].string == 3);
     CHECK(severed.notes[1].fret == 9);
-    CHECK(severed.notes[1].sustain == common::core::Fraction{4});
+    CHECK(severed.notes[1].sustain == common::core::Fraction{1});
     CHECK(severed.notes[1].keyframes.empty());
     // A split head is struck: the join, not the split, is the unstruck junction.
     CHECK(severed.notes[1].attack == common::core::NoteAttack::Pick);
@@ -747,7 +749,7 @@ TEST_CASE("The junction toggle splits at a point a digit planted", "[core][chart
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
 
-    // Two beats into the eight-beat ring, on the leg travelling from the head's 5 toward 9.
+    // Two quarters into the two-whole-note ring, on the leg travelling from the head's 5 toward 9.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(6);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
@@ -759,12 +761,12 @@ TEST_CASE("The junction toggle splits at a point a digit planted", "[core][chart
     // The origin keeps everything up to the cut; the remainder opens on the point's own fret and
     // carries the arrival on, rebased onto its new onset.
     CHECK(severed.notes[0].fret == 5);
-    CHECK(severed.notes[0].sustain == common::core::Fraction{2});
+    CHECK(severed.notes[0].sustain == common::core::Fraction{1, 2});
     CHECK(severed.notes[1].position == common::core::GridPosition{.measure = 2, .beat = 3});
     CHECK(severed.notes[1].fret == 6);
-    CHECK(severed.notes[1].sustain == common::core::Fraction{6});
+    CHECK(severed.notes[1].sustain == common::core::Fraction{3, 2});
     REQUIRE(severed.notes[1].keyframes.size() == 1);
-    CHECK(severed.notes[1].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(severed.notes[1].keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(severed.notes[1].keyframes[0].fret == 9);
 }
 
@@ -795,17 +797,17 @@ TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[c
     fixture.controller.onChartJunctionToggleRequested();
     const common::core::Chart severed = currentChart(fixture.controller);
     REQUIRE(severed.notes.size() == 3);
-    // The typed note's two halves, each one grid step of the 1/16 grid — a quarter beat in 4/4.
+    // The typed note's two halves, each one grid step of the 1/16 grid — a sixteenth in 4/4.
     const common::core::ChartNote& origin = severed.notes[0];
     const common::core::ChartNote& split = severed.notes[2];
     CHECK(origin.string == 2);
     CHECK(origin.fret == 7);
-    CHECK(origin.sustain == common::core::Fraction{1, 4});
+    CHECK(origin.sustain == common::core::Fraction{1, 16});
     // The point restated the fret in force, and it stays: an ARRIVAL wears a linked head at the
     // ink end, so a silent one is ordinary visible authoring state, unlike a silent SLIDE-OUT,
     // which the gate dissolves for having no face at all.
     REQUIRE(origin.keyframes.size() == 1);
-    CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 4});
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 16});
     CHECK(origin.keyframes[0].fret == 7);
     CHECK(split.string == 2);
     CHECK(split.fret == 7);
@@ -813,7 +815,7 @@ TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[c
         split.position == common::core::GridPosition{
                               .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 4}
                           });
-    CHECK(split.sustain == common::core::Fraction{1, 4});
+    CHECK(split.sustain == common::core::Fraction{1, 16});
 }
 
 // The verb is selection-scoped like every technique verb beside it, so an EMPTY selection is
@@ -868,7 +870,7 @@ TEST_CASE("The junction toggle joins a split product back", "[core][chart]")
 
 // The arrow move steps whichever kind the selection holds, each where it lives: a note by its
 // slot, a keyframe by its offset along the ring it rides. The step is the placement quantum's —
-// one beat on this fixture's quarter-note grid.
+// a quarter on this fixture's quarter-note grid.
 //
 // Every step RE-KEYS the selection, because a keyframe's identity IS its offset: the plan says so
 // itself, since the default follow would leave the key naming an offset nothing sits on. The second
@@ -886,7 +888,7 @@ TEST_CASE("The arrow move steps a selected keyframe's offset", "[core][chart]")
     const common::core::Chart stepped = currentChart(fixture.controller);
     REQUIRE(stepped.notes.size() == 1);
     REQUIRE(stepped.notes[0].keyframes.size() == 1);
-    CHECK(stepped.notes[0].keyframes[0].offset == common::core::Fraction{5});
+    CHECK(stepped.notes[0].keyframes[0].offset == common::core::Fraction{5, 4});
     // Only the offset moved: the point keeps its fret, and the note keeps its slot and its ring.
     CHECK(stepped.notes[0].keyframes[0].fret == 9);
     CHECK(stepped.notes[0].position == original.notes[0].position);
@@ -904,12 +906,12 @@ TEST_CASE("The arrow move steps a selected keyframe's offset", "[core][chart]")
     };
 
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(stepped_offset() == common::core::Fraction{6});
+    CHECK(stepped_offset() == common::core::Fraction{3, 2});
 
     // The string step reaches notes alone — a keyframe has no string of its own — so Alt+Up over
     // one is inert rather than refused, and leaves the point where the two right steps put it.
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Up);
-    CHECK(stepped_offset() == common::core::Fraction{6});
+    CHECK(stepped_offset() == common::core::Fraction{3, 2});
 
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
@@ -919,7 +921,7 @@ TEST_CASE("The arrow move steps a selected keyframe's offset", "[core][chart]")
     // they started at, so that entry is gone with them (test_chart_move_gesture.cpp pins the burst
     // law itself). This press therefore opens a fresh run, whose single undo restores the point.
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    REQUIRE(stepped_offset() == common::core::Fraction{5});
+    REQUIRE(stepped_offset() == common::core::Fraction{5, 4});
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
 }
@@ -934,10 +936,10 @@ TEST_CASE("A held move burst stops one step short of the ring's end", "[core][ch
 {
     common::core::Chart plain;
     plain.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    plain.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8})};
+    plain.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{2})};
     KeyframeFixture fixture{std::move(plain)};
 
-    // A ring digit typed four beats along the tail plants a point that travels from the onset's
+    // A ring digit typed four quarters along the tail plants a point that travels from the onset's
     // 5, and the arrows then drag it outward.
     click(fixture.controller, g_junction_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(6);
@@ -951,28 +953,28 @@ TEST_CASE("A held move burst stops one step short of the ring's end", "[core][ch
         const common::core::Chart chart = currentChart(fixture.controller);
         REQUIRE(chart.notes.size() == 1);
         REQUIRE(chart.notes[0].keyframes.size() == 1);
-        CHECK(chart.notes[0].sustain == common::core::Fraction{8});
+        CHECK(chart.notes[0].sustain == common::core::Fraction{2});
         CHECK(common::core::endStatedFretOrNull(chart.notes[0]) == nullptr);
         return chart.notes[0].keyframes[0].offset;
     };
-    REQUIRE(point() == common::core::Fraction{4});
+    REQUIRE(point() == common::core::Fraction{1});
 
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(point() == common::core::Fraction{7});
+    CHECK(point() == common::core::Fraction{7, 4});
 
-    // The end is eight beats out, so this press and the one after it are refused: the point holds
-    // at seven and the run keeps exactly the steps it had.
+    // The end is eight quarters out, so this press and the one after it are refused: the point
+    // holds at seven and the run keeps exactly the steps it had.
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(point() == common::core::Fraction{7});
+    CHECK(point() == common::core::Fraction{7, 4});
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(point() == common::core::Fraction{7});
+    CHECK(point() == common::core::Fraction{7, 4});
 
     // Nothing accumulated, so one press back is one step back — inside the same burst, which a
     // run that recorded its refused steps could not do.
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
-    CHECK(point() == common::core::Fraction{6});
+    CHECK(point() == common::core::Fraction{3, 2});
     // The whole run is still one entry beside the typed point's.
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_after_typing + 1);
 }
@@ -1072,7 +1074,7 @@ TEST_CASE(
     const common::core::Chart original = currentChart(fixture.controller);
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
-    // Two beats into the ring, on the leg travelling from the head's 5 toward the junction's 9.
+    // Two quarters into the ring, on the leg travelling from the head's 5 toward the junction's 9.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
 
@@ -1082,7 +1084,7 @@ TEST_CASE(
     // second onset and not a cut.
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
-    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(stated.notes[0].keyframes[0].fret == 5);
     CHECK(stated.notes[0].keyframes[1].fret == 9);
     CHECK(stated.notes[0].sustain == original.notes[0].sustain);
@@ -1127,7 +1129,7 @@ TEST_CASE(
     const common::core::Chart planted = currentChart(fixture.controller);
     REQUIRE(planted.notes.size() == 1);
     REQUIRE(planted.notes[0].keyframes.size() == 2);
-    CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
     CHECK(planted.notes[0].keyframes[1].fret == 9);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
     CHECK(
@@ -1212,19 +1214,19 @@ TEST_CASE("A slide is authored as its start, then its landing, on one tail", "[c
     const common::core::Chart original = currentChart(fixture.controller);
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
-    // The start: two beats in, at the note's own fret, so it says nothing yet.
+    // The start: two quarters in, at the note's own fret, so it says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(5);
-    // The landing: six beats in on the same tail, on the ring plane again — the bare digit would
+    // The landing: six quarters in on the same tail, on the ring plane again — the bare digit would
     // cut the ring there instead.
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(9);
     const common::core::Chart authored = currentChart(fixture.controller);
     REQUIRE(authored.notes.size() == 1);
     REQUIRE(authored.notes[0].keyframes.size() == 2);
-    CHECK(authored.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(authored.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(authored.notes[0].keyframes[0].fret == 5);
-    CHECK(authored.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(authored.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
     CHECK(authored.notes[0].keyframes[1].fret == 9);
 
     // Both say something now — the start is where the hold ends and travel begins — so leaving
@@ -1253,7 +1255,7 @@ TEST_CASE("A planted point kept once it says something", "[core][chart]")
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
-    CHECK(stated.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(stated.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
     CHECK(stated.notes[0].keyframes[1].fret == 7);
 
     click(fixture.controller, g_onset_x, g_string_3_y);
@@ -1284,13 +1286,13 @@ TEST_CASE(
         const common::core::Chart cut = currentChart(fixture.controller);
         REQUIRE(cut.notes.size() == 2);
         CHECK(cut.notes[0].position == original.notes[0].position);
-        CHECK(cut.notes[0].sustain == common::core::Fraction{2});
+        CHECK(cut.notes[0].sustain == common::core::Fraction{1, 2});
         CHECK(cut.notes[0].keyframes.empty());
         const common::core::ChartNote& head = cut.notes[1];
         CHECK(head.position == common::core::GridPosition{.measure = 2, .beat = 3});
         CHECK(head.string == 3);
         CHECK(head.fret == 5);
-        CHECK(head.sustain == common::core::Fraction{6});
+        CHECK(head.sustain == common::core::Fraction{3, 2});
         CHECK(head.attack == common::core::NoteAttack::Pick);
         // The struck head is what the settle selects, and the cut is one entry.
         CHECK(
@@ -1308,7 +1310,7 @@ TEST_CASE(
         const common::core::Chart planted = currentChart(fixture.controller);
         REQUIRE(planted.notes.size() == 1);
         REQUIRE(planted.notes[0].keyframes.size() == 1);
-        CHECK(planted.notes[0].keyframes[0].offset == common::core::Fraction{2});
+        CHECK(planted.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
         CHECK(planted.notes[0].keyframes[0].fret == 5);
         // The ring is untouched: nothing was chopped.
         CHECK(planted.notes[0].sustain == original.notes[0].sustain);
@@ -1331,14 +1333,14 @@ TEST_CASE("A digit at a caret on a travel leg cuts the glide", "[core][chart]")
     const common::core::Chart cut = currentChart(fixture.controller);
     REQUIRE(cut.notes.size() == 2);
     CHECK(cut.notes[0].fret == 5);
-    CHECK(cut.notes[0].sustain == common::core::Fraction{2});
+    CHECK(cut.notes[0].sustain == common::core::Fraction{1, 2});
     CHECK(cut.notes[0].keyframes.empty());
     const common::core::ChartNote& head = cut.notes[1];
     CHECK(head.position == common::core::GridPosition{.measure = 2, .beat = 3});
     CHECK(head.fret == 7);
-    CHECK(head.sustain == common::core::Fraction{6});
+    CHECK(head.sustain == common::core::Fraction{3, 2});
     REQUIRE(head.keyframes.size() == 1);
-    CHECK(head.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(head.keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(head.keyframes[0].fret == 9);
 
     fixture.controller.onUndoRequested();
@@ -1354,13 +1356,13 @@ TEST_CASE("A ring digit at a caret on a travel leg states a point", "[core][char
     const common::core::Chart original = currentChart(fixture.controller);
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
-    // Two beats in, the leg from 5 to 9 passes through 7: stating 7 there says nothing yet.
+    // Two quarters in, the leg from 5 to 9 passes through 7: stating 7 there says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(7);
     const common::core::Chart silent = currentChart(fixture.controller);
     REQUIRE(silent.notes.size() == 1);
     REQUIRE(silent.notes[0].keyframes.size() == 2);
-    CHECK(silent.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(silent.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(silent.notes[0].keyframes[0].fret == 7);
     CHECK(
         publishedState(fixture.view).chart_edit.selected_keyframes ==
@@ -1374,7 +1376,7 @@ TEST_CASE("A ring digit at a caret on a travel leg states a point", "[core][char
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
-    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(stated.notes[0].keyframes[0].fret == 6);
     CHECK(stated.notes[0].sustain == original.notes[0].sustain);
     CHECK(
@@ -1395,9 +1397,9 @@ TEST_CASE("A ring digit at a caret on a travel leg states a point", "[core][char
 TEST_CASE("The two planes' digits at a bend point", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
-    // A whole step pushed at 5.0s, six beats in, out where the path holds at the junction's 9.
+    // A whole step pushed at 5.0s, six quarters in, out where the path holds at the junction's 9.
     chart.notes[0].keyframes.push_back(
-        common::core::Keyframe{.offset = common::core::Fraction{6}, .fret = {}, .bend = 1.0});
+        common::core::Keyframe{.offset = common::core::Fraction{3, 2}, .fret = {}, .bend = 1.0});
     KeyframeFixture fixture{std::move(chart)};
     const common::core::Chart original = currentChart(fixture.controller);
 
@@ -1408,7 +1410,7 @@ TEST_CASE("The two planes' digits at a bend point", "[core][chart]")
         return typed.notes[0].keyframes[1];
     };
     const auto check_stated = [](const common::core::Keyframe& point) {
-        CHECK(point.offset == common::core::Fraction{6});
+        CHECK(point.offset == common::core::Fraction{3, 2});
         CHECK(point.fret == std::optional{7});
         const std::optional<double>& bend = point.bend;
         REQUIRE(bend.has_value());
@@ -1433,7 +1435,7 @@ TEST_CASE("The two planes' digits at a bend point", "[core][chart]")
         fixture.controller.onChartFretDigitTyped(7);
         const common::core::Chart cut = currentChart(fixture.controller);
         REQUIRE(cut.notes.size() == 2);
-        CHECK(cut.notes[0].sustain == common::core::Fraction{6});
+        CHECK(cut.notes[0].sustain == common::core::Fraction{3, 2});
         CHECK(cut.notes[1].fret == 7);
         CHECK_THAT(cut.notes[1].bend, Catch::Matchers::WithinULP(1.0, 0));
         const ChartEditViewState left = publishedState(fixture.view).chart_edit;
@@ -1557,7 +1559,7 @@ TEST_CASE("A pending cut previews the divided ring under its box", "[core][chart
     fixture.controller.onChartFretDigitTyped(2);
     const common::core::Chart cut = currentChart(fixture.controller);
     REQUIRE(cut.notes.size() == 2);
-    CHECK(cut.notes[0].sustain == common::core::Fraction{2});
+    CHECK(cut.notes[0].sustain == common::core::Fraction{1, 2});
     CHECK(cut.notes[1].fret == 12);
     CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
 }
@@ -1712,9 +1714,9 @@ TEST_CASE("A digit on a selected slide-out retypes it", "[core][chart]")
     const common::core::Chart retyped = currentChart(fixture.controller);
     REQUIRE(retyped.notes.size() == 1);
     REQUIRE(retyped.notes[0].keyframes.size() == 2);
-    CHECK(retyped.notes[0].keyframes[1].offset == common::core::Fraction{8});
+    CHECK(retyped.notes[0].keyframes[1].offset == common::core::Fraction{2});
     CHECK(retyped.notes[0].keyframes[1].fret == 7);
-    CHECK(retyped.notes[0].sustain == common::core::Fraction{8});
+    CHECK(retyped.notes[0].sustain == common::core::Fraction{2});
 }
 
 // A SILENCED SLIDE-OUT LINGERS IN FOCUS AND GOES ON LEAVE, like every other silent point. The
@@ -1727,15 +1729,15 @@ TEST_CASE("A point typed before a slide-out silences it until focus leaves", "[c
     common::core::Chart falling;
     falling.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote note =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{2});
     common::core::setSlideOut(note, 6);
     falling.notes = {std::move(note)};
     KeyframeFixture fixture{std::move(falling)};
     const common::core::Chart original = currentChart(fixture.controller);
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
-    // One beat inside the six-second end, at the fixture geometry's 20 px/s: seven beats along the
-    // ring, where the ring digit states a point on the path.
+    // A quarter inside the six-second end, at the fixture geometry's 20 px/s: seven quarters along
+    // the ring, where the ring digit states a point on the path.
     constexpr float one_beat_inside_x{110.0f};
     click(fixture.controller, one_beat_inside_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(6);
@@ -1743,10 +1745,10 @@ TEST_CASE("A point typed before a slide-out silences it until focus leaves", "[c
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
-    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{7});
+    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{7, 4});
     CHECK(stated.notes[0].keyframes[0].fret == 6);
     // The silenced slide-out is still there, with the ring it pins.
-    CHECK(stated.notes[0].sustain == common::core::Fraction{8});
+    CHECK(stated.notes[0].sustain == common::core::Fraction{2});
     CHECK(common::core::endStatedFretOrNull(stated.notes[0]) != nullptr);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
 
@@ -1756,8 +1758,8 @@ TEST_CASE("A point typed before a slide-out silences it until focus leaves", "[c
     const common::core::Chart swept = currentChart(fixture.controller);
     REQUIRE(swept.notes.size() == 1);
     REQUIRE(swept.notes[0].keyframes.size() == 1);
-    CHECK(swept.notes[0].keyframes[0].offset == common::core::Fraction{7});
-    CHECK(swept.notes[0].sustain == common::core::Fraction{8});
+    CHECK(swept.notes[0].keyframes[0].offset == common::core::Fraction{7, 4});
+    CHECK(swept.notes[0].sustain == common::core::Fraction{2});
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
 
     fixture.controller.onUndoRequested();
@@ -1776,14 +1778,14 @@ TEST_CASE("Alt+Insert on a tail states the fret in force", "[core][chart]")
         const common::core::Chart original = currentChart(fixture.controller);
         const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
-        // Six beats in, where the glide holds its junction's 9.
+        // Six quarters in, where the glide holds its junction's 9.
         click(fixture.controller, g_holding_tail_x, g_string_3_y);
         fixture.controller.onRingPointInsertRequested();
 
         const common::core::Chart planted = currentChart(fixture.controller);
         REQUIRE(planted.notes.size() == 1);
         REQUIRE(planted.notes[0].keyframes.size() == 2);
-        CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{6});
+        CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{3, 2});
         CHECK(planted.notes[0].keyframes[1].fret == 9);
         CHECK(
             publishedState(fixture.view).chart_edit.selected_keyframes ==
@@ -1878,7 +1880,7 @@ TEST_CASE("Alt+Insert at an abutting end states the arrival", "[core][chart]")
     // 9 to the end, so the fret in force there IS the landing's own stop.
     common::core::Chart abutting = makeGlideChart();
     abutting.notes.push_back(
-        makeTestNote({.measure = 4, .beat = 1}, 3, 9, common::core::Fraction{4}));
+        makeTestNote({.measure = 4, .beat = 1}, 3, 9, common::core::Fraction{1}));
     KeyframeFixture fixture{std::move(abutting)};
 
     click(fixture.controller, g_ring_end_x, g_string_3_y);
@@ -1904,7 +1906,7 @@ TEST_CASE("Alt+Insert at an abutting end states the arrival", "[core][chart]")
 // ring's end, the cut inside a ring, and the head under the caret selected rather than edited.
 TEST_CASE("Insert at the caret states a note at the fret in force", "[core][chart]")
 {
-    // Half a beat past the glide's ring end, on its own string.
+    // An eighth past the glide's ring end, on its own string.
     constexpr float past_ring_end_x{130.0f};
 
     SECTION("an empty string gives the open string")
@@ -1954,11 +1956,11 @@ TEST_CASE("Insert at the caret states a note at the fret in force", "[core][char
         fixture.controller.onInsertAtCaretRequested();
         const common::core::Chart cut = currentChart(fixture.controller);
         REQUIRE(cut.notes.size() == 2);
-        CHECK(cut.notes[0].sustain == common::core::Fraction{6});
+        CHECK(cut.notes[0].sustain == common::core::Fraction{3, 2});
         CHECK(cut.notes[0].keyframes == original.notes[0].keyframes);
         CHECK(cut.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 3});
         CHECK(cut.notes[1].fret == 9);
-        CHECK(cut.notes[1].sustain == common::core::Fraction{2});
+        CHECK(cut.notes[1].sustain == common::core::Fraction{1, 2});
         CHECK(cut.notes[1].attack == common::core::NoteAttack::Pick);
         CHECK(
             publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
@@ -1996,9 +1998,9 @@ TEST_CASE("A cut inside a scrape refuses", "[core][chart]")
     common::core::Chart scraping;
     scraping.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote scrape =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{8});
+        makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{2});
     scrape.attack = common::core::NoteAttack::PickSlide;
-    scrape.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 3}};
+    scrape.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 3}};
     common::core::setSlideOut(scrape, 12);
     scraping.notes = {std::move(scrape)};
     KeyframeFixture fixture{std::move(scraping)};
@@ -2078,7 +2080,7 @@ TEST_CASE("A ring digit at a ring's end states the end statement", "[core][chart
         const common::core::Chart retyped = currentChart(fixture.controller);
         REQUIRE(retyped.notes.size() == 1);
         REQUIRE(retyped.notes[0].keyframes.size() == 2);
-        CHECK(retyped.notes[0].keyframes[1].offset == common::core::Fraction{8});
+        CHECK(retyped.notes[0].keyframes[1].offset == common::core::Fraction{2});
         CHECK(retyped.notes[0].keyframes[1].fret == 7);
         CHECK(
             publishedState(fixture.view).chart_edit.selected_keyframes ==

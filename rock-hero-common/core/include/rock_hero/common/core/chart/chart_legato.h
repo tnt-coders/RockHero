@@ -29,6 +29,24 @@ producer and more than one consumer.
 inline constexpr std::size_t g_no_chart_predecessor{std::numeric_limits<std::size_t>::max()};
 
 /*!
+\brief A note's same-string predecessor as the connection rules read it: the earlier note and the
+whole notes from its onset to the note's.
+
+The two travel together because every pairwise rule — the hold test, the adjacency clause, the
+arrival — reads both, and a gap means nothing without the note it is measured from. Present or
+absent as a whole (\ref ChartConnections::predecessorOf), so no caller invents a gap for a
+predecessor that does not exist.
+*/
+struct LegatoPredecessor
+{
+    /*! \brief The nearest earlier note on the same string. */
+    const ChartNote& note;
+
+    /*! \brief Whole notes from that note's onset to the successor's. */
+    Fraction onset_gap;
+};
+
+/*!
 \brief The motion a note's connection claim justifies, or `Unjustified` when nothing does.
 
 The ONE authority for which way a legato connection runs, and the only place the question is
@@ -76,30 +94,28 @@ convention to agree with. A caller asking a HYPOTHETICAL hold (the `H` assist, w
 author the ring a claim needs) asks it by handing over a predecessor carrying that ring.
 
 \param note Note whose claim is in question.
-\param predecessor Nearest earlier note on the same string, or `nullptr` when there is none.
-\param tempo_map Song tempo map supplying the beat axis for the hold test.
+\param predecessor Nearest earlier note on the same string and the gap to it, or nothing when
+       there is none.
 
 \return The motion the claim resolves to, or `Unjustified` when nothing justifies one.
 */
 [[nodiscard]] LegatoMotion resolveLegato(
-    const ChartNote& note, const ChartNote* predecessor, const TempoMap& tempo_map);
+    const ChartNote& note, const std::optional<LegatoPredecessor>& predecessor);
 
 /*!
-\brief Does \p predecessor's ring END exactly on \p successor's onset — one instant carrying both,
-whatever the end states?
+\brief Does \p predecessor's ring END exactly on the next head's onset — one instant carrying
+both, whatever the end states?
 
 Clause 2 of \ref arrivesIntoNextHead on its own, and here because two readers need it: that relation
 and \ref ChartConnections::end_heads, which the surfaces read for the band two marks at one
 x take. Strict equality is the whole of it, so the two cannot come to measure adjacency differently.
 
-\param predecessor Note whose ring's end is in question.
-\param successor The next note on the same string.
-\param tempo_map Song tempo map supplying the beat axis the adjacency is measured on.
+\param predecessor Note whose ring's end is in question, with the gap to the next note on its
+       string.
 
 \return True when the ring ends precisely where the next head starts.
 */
-[[nodiscard]] bool endsOnNextHead(
-    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map);
+[[nodiscard]] bool endsOnNextHead(const LegatoPredecessor& predecessor);
 
 /*!
 \brief THE SHIFT SLIDE, as a fact the chart PROVES: does \p predecessor's end statement glide INTO
@@ -130,14 +146,13 @@ ONE PRODUCER, TWO WAYS TO ASK. The connections walk resolves it once per revisio
 \ref ChartConnections::arrives_into, which every consumer reads; a caller already HOLDING the pair
 (\ref resolveLegato, the `Shift+L` join) asks here rather than deriving the relation twice.
 
-\param predecessor Note whose end statement is in question.
+\param predecessor Note whose end statement is in question, with the gap to \p successor.
 \param successor The next note on the same string.
-\param tempo_map Song tempo map supplying the beat axis the adjacency is measured on.
 
 \return True when the end statement is an arrival into \p successor.
 */
 [[nodiscard]] bool arrivesIntoNextHead(
-    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map);
+    const LegatoPredecessor& predecessor, const ChartNote& successor);
 
 /*!
 \brief Each note's nearest earlier note on its own string — THE same-string predecessor relation.
@@ -165,7 +180,7 @@ predecessors to the saved form, where the connections would copy the whole strea
 `LeftTap` is never listed: its claim is local, so nothing can withdraw it.
 
 \param notes Note stream sorted by (position, string).
-\param tempo_map Song tempo map supplying the beat axis.
+\param tempo_map Song tempo map supplying the meter each claim's gap is measured in.
 
 \return Indices into `notes` of every unjustified `Legato` claim, ascending; empty when the stream
         already satisfies the invariant.
@@ -201,6 +216,15 @@ struct ChartConnections
     std::vector<ChartNote> saved_notes;
 
     /*!
+    \brief Each note's onset on the whole-note axis (\ref chartNotePlaces), computed once here.
+
+    THE coordinate every pass over this revision reasons in: a same-string gap, a ring's end and a
+    keyframe's instant are all exact sums and differences of these places, so no reader re-addresses
+    a pair through the tempo map.
+    */
+    std::vector<Fraction> places;
+
+    /*!
     \brief What each note's connection claim resolves to.
 
     `Unjustified` for every note that makes no claim, exactly as for a claim nothing justifies: both
@@ -218,6 +242,17 @@ struct ChartConnections
     restatement of this rule and a backward scan per selected note.
     */
     std::vector<std::size_t> predecessors;
+
+    /*!
+    \brief Note \p index's same-string predecessor and the gap to it, or nothing when \p index is
+    the first note on its string: the one place that pair is assembled from \ref predecessors and
+    \ref places.
+
+    \param index Index into the note stream.
+
+    \return The predecessor, referring into \ref saved_notes, or nothing.
+    */
+    [[nodiscard]] std::optional<LegatoPredecessor> predecessorOf(std::size_t index) const;
 
     /*!
     \brief True where this note's ring HANDS ITS STRING OVER: the next strike on it claims a
@@ -280,7 +315,7 @@ One forward walk over the same-string predecessors (\ref chartPredecessors), so 
 motions cost one pass over the stream rather than a backward search per note.
 
 \param notes Note stream sorted by (position, string).
-\param tempo_map Song tempo map supplying the beat axis.
+\param tempo_map Song tempo map supplying the meter every place is measured in.
 
 \return The connections; every vector is index-parallel to `notes`.
 */
@@ -339,7 +374,7 @@ edit that reflows the spans re-derives every default.
 
 \param connections The resolved connections the spans were derived from.
 \param shapes The spans and postures derived from them (\ref deriveChartShapes).
-\param tempo_map Song tempo map supplying the beat axis each span's extent is advanced along.
+\param tempo_map Song tempo map supplying the meter each span's place is measured in.
 
 \return Per note, the fret the fretting hand presses under it, or nothing where no finger is down
         beneath it; index-parallel to `connections.saved_notes`.
@@ -422,7 +457,7 @@ struct ChartResolutions
     std::vector<std::optional<int>> held_stops;
 
     /*!
-    \brief Each note's held length in beats: how long the hand stays down.
+    \brief Each note's held length in whole notes: how long the hand stays down.
 
     ONE RULE, and \ref chartHolds states it — including which populations stand outside it.
     Nothing is restated here, because a summary at the field is a second place to keep true.
@@ -441,7 +476,7 @@ to disagree with it: a caller holding a stale span list has nowhere to pass it. 
 in that one stream too, so there is no second posture input a caller could forget to hand over.
 
 \param notes Note stream sorted by (position, string).
-\param tempo_map Song tempo map supplying the beat axis.
+\param tempo_map Song tempo map supplying the meter every place is measured in.
 
 \return The resolutions; every per-note vector is index-parallel to `notes`.
 */
@@ -485,7 +520,7 @@ reads a predecessor's fret at the ring's end, node, attack class, position and r
 no flatten can create or destroy another note's justification.
 
 \param notes Note stream sorted by (position, string); flattened in place.
-\param tempo_map Song tempo map supplying the beat axis.
+\param tempo_map Song tempo map supplying the meter every place is measured in.
 
 \return One \ref ChartRepair::UnjustifiedLegato conversion per flattened claim, in note order, each
         naming the claim's position and string; empty when the stream already satisfied the

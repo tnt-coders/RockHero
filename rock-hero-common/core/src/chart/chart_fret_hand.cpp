@@ -69,21 +69,28 @@ void forEachHeldFret(const ChartNote& note, const std::optional<int>& held, cons
     return widths;
 }
 
-} // namespace
-
-// One fold over every note's held fingers. Each interval widens the range of every placement whose
-// stretch it overlaps: the stretch standing at its start (the last placement at or before it, or
-// the first placement when it starts earlier) through the last placement starting before its end.
-std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
-    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& held_frets,
+// One fold over every note's held fingers, on the whole-note axis: each interval is its note's
+// place plus two ring offsets, and each placement's stretch starts at its own place. Each interval
+// widens the range of every placement whose stretch it overlaps: the stretch standing at its start
+// (the last placement at or before it, or the first placement when it starts earlier) through the
+// last placement starting before its end.
+[[nodiscard]] std::vector<std::optional<HeldFretRange>> heldFretRangesOf(
+    const std::vector<ChartNote>& notes, const std::vector<Fraction>& places,
+    const std::vector<std::optional<int>>& held_frets,
     const std::vector<FretHandPosition>& placements, const TempoMap& tempo_map)
 {
+    std::vector<Fraction> placement_places;
+    placement_places.reserve(placements.size());
+    for (const FretHandPosition& placement : placements)
+    {
+        placement_places.push_back(tempo_map.wholeNotePositionAt(placement.position));
+    }
     std::vector<std::optional<HeldFretRange>> ranges(placements.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        const ChartNote& note = notes[index];
+        const Fraction place = places[index];
         forEachHeldFret(
-            note,
+            notes[index],
             held_frets[index],
             [&](const Fraction from, const Fraction to, const std::optional<int>& held) {
                 if (!held.has_value() || !(from < to))
@@ -91,20 +98,16 @@ std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
                     return;
                 }
                 const int fret = *held;
-                const GridPosition start = advanceGridPosition(tempo_map, note.position, from);
-                const GridPosition end = advanceGridPosition(tempo_map, note.position, to);
-                auto placement = std::ranges::upper_bound(
-                    placements, start, std::ranges::less{}, &FretHandPosition::position);
-                if (placement != placements.begin())
+                auto placement = std::ranges::upper_bound(placement_places, place + from);
+                if (placement != placement_places.begin())
                 {
                     placement = std::prev(placement);
                 }
-                const auto past = std::ranges::lower_bound(
-                    placements, end, std::ranges::less{}, &FretHandPosition::position);
+                const auto past = std::ranges::lower_bound(placement_places, place + to);
                 for (; placement < past; ++placement)
                 {
                     std::optional<HeldFretRange>& range = ranges[static_cast<std::size_t>(
-                        std::distance(placements.begin(), placement))];
+                        std::distance(placement_places.begin(), placement))];
                     if (range.has_value())
                     {
                         range->lowest = std::min(range->lowest, fret);
@@ -120,15 +123,29 @@ std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
     return ranges;
 }
 
-// The saved notes and the held stops resolved beside them are index-parallel by construction; this
-// is the one place that pairs them for the fold. A bare tap's default — the grip the covering span
-// holds — is a finger the window covers like any other.
+} // namespace
+
+std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
+    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& held_frets,
+    const std::vector<FretHandPosition>& placements, const TempoMap& tempo_map)
+{
+    return heldFretRangesOf(
+        notes, chartNotePlaces(notes, tempo_map), held_frets, placements, tempo_map);
+}
+
+// The saved notes, their places and the held stops resolved beside them are index-parallel by
+// construction; this is the one place that pairs them for the fold. A bare tap's default — the
+// grip the covering span holds — is a finger the window covers like any other.
 std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
     const ChartResolutions& resolutions, const std::vector<FretHandPosition>& placements,
     const TempoMap& tempo_map)
 {
-    return deriveHeldFretRanges(
-        resolutions.connections.saved_notes, resolutions.held_stops, placements, tempo_map);
+    return heldFretRangesOf(
+        resolutions.connections.saved_notes,
+        resolutions.connections.places,
+        resolutions.held_stops,
+        placements,
+        tempo_map);
 }
 
 std::vector<int> deriveFretHandWidths(

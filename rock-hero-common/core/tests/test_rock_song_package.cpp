@@ -107,8 +107,9 @@ private:
     return std::expected<Song, SongPackageError>{std::in_place, std::move(read->song)};
 }
 
-// Writes a fixture chart document. The writer settles connection claims against the beat axis, so
-// it takes a tempo map; these fixtures carry no claims, so the fixtures' own default map serves.
+// Writes a fixture chart document. The writer settles connection claims, which reads onsets
+// through the tempo map, so it takes one; these fixtures carry no claims, so the fixtures' own
+// default map serves.
 [[nodiscard]] std::expected<void, ChartError> writeFixtureChart(
     const std::filesystem::path& path, const Chart& chart)
 {
@@ -1466,7 +1467,7 @@ TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-p
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 3,
             .fret = 5,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -1525,7 +1526,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 3,
             .fret = 5,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -1542,7 +1543,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 4,
             .fret = 2,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = 0.0,
             .keyframes = {},
         });
@@ -1579,7 +1580,7 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 3}},
             .string = 2,
             .fret = 9,
-            .sustain = Fraction{5, 4},
+            .sustain = Fraction{5, 16},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -1589,12 +1590,12 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 1,
             .fret = 12,
-            .sustain = Fraction{3, 4},
+            .sustain = Fraction{3, 16},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
             // The scrape's required terminal: the keyframe at the ring's end, which is where a
             // release is stated.
-            .keyframes = {Keyframe{.offset = Fraction{3, 4}, .fret = 4}},
+            .keyframes = {Keyframe{.offset = Fraction{3, 16}, .fret = 4}},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1631,12 +1632,12 @@ TEST_CASE(
 
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
     // Hand-written, because the canonical writer cannot produce this document: string 1 rings four
-    // beats through its own restrike two beats later.
+    // quarters through its own restrike two quarters later.
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "4" },)"
-        R"( { "position": "1:3", "string": 1, "fret": 7, "sustain": "1/8" } ] })");
+        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1" },)"
+        R"( { "position": "1:3", "string": 1, "fret": 7, "sustain": "1/32" } ] })");
 
     Song song = makeSong(source_audio);
     song.arrangements.front().chart_ref = chart_ref;
@@ -1652,7 +1653,7 @@ TEST_CASE(
     {
         const Chart& loaded_chart = *read->song.arrangements.front().chart;
         REQUIRE(loaded_chart.notes.size() == 2);
-        CHECK(loaded_chart.notes.front().sustain == Fraction{2});
+        CHECK(loaded_chart.notes.front().sustain == Fraction{1, 2});
     }
 }
 
@@ -1673,7 +1674,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5, "sustain": "1/8",)"
+        R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5, "sustain": "1/32",)"
         R"( "attack": "legato" } ] })");
 
     Song song = makeSong(source_audio);
@@ -1702,7 +1703,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             .string = 1,
             .fret = 5,
             // Rings exactly to the claim below, which is what justifies it.
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -1710,7 +1711,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
             .string = 1,
             .fret = 7,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .attack = NoteAttack::Legato,
             .bend = 0.0,
             .keyframes = {},
@@ -1744,7 +1745,7 @@ TEST_CASE(
             .position = GridPosition{.measure = 1, .beat = 9},
             .string = 3,
             .fret = 5,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -1764,7 +1765,7 @@ TEST_CASE(
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "position": "1:9", "string": 3, "fret": 5, "sustain": "1/8" } ] })");
+        R"( "notes": [ { "position": "1:9", "string": 3, "fret": 5, "sustain": "1/32" } ] })");
 
     // A position off the grid is structural — no repair can express it — so the load refuses
     // the package rather than normalizing it.
@@ -1791,10 +1792,10 @@ TEST_CASE(
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 12,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 4}},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1818,8 +1819,8 @@ TEST_CASE(
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/2",)"
-        R"( "attack": "pickSlide", "keyframes": [ { "offset": "1/2", "fret": 12 } ] } ] })");
+        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/8",)"
+        R"( "attack": "pickSlide", "keyframes": [ { "offset": "1/8", "fret": 12 } ] } ] })");
 
     const auto loaded = readRockSongPackageDirectory(package_directory);
     REQUIRE(loaded.has_value());
@@ -1834,7 +1835,7 @@ TEST_CASE(
         CHECK(repaired.attack == NoteAttack::Pick);
         CHECK(endStatedFretOrNull(repaired) == nullptr);
         CHECK(repaired.keyframes.empty());
-        CHECK(repaired.sustain == Fraction{1, 2});
+        CHECK(repaired.sustain == Fraction{1, 8});
     }
 }
 

@@ -1066,20 +1066,20 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // 4/4 at 120 BPM: a beat is half a second, and the margin is a tenth of a beat.
+    // 4/4 at 120 BPM: a quarter is half a second, and the margin is a tenth of a quarter.
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // Two beats of ring on string 3, meeting the next onset on its own string exactly — the
+        // Two quarters of ring on string 3, meeting the next onset on its own string exactly — the
         // furthest a stored ring may reach (sustainBoundOf). Presentation stops its ink one margin
-        // back to clear that head, so 1.9 to 2.0 beats is ring only the reveal draws.
+        // back to clear that head, so 19/40 to 1/2 is ring only the reveal draws.
         common::core::ChartNote{
             .position = common::core::GridPosition{.measure = 1, .beat = 1},
             .string = 3,
             .fret = 7,
-            .sustain = common::core::Fraction{2},
+            .sustain = common::core::Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         },
@@ -1087,7 +1087,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
             .position = common::core::GridPosition{.measure = 1, .beat = 3},
             .string = 3,
             .fret = 5,
-            .sustain = common::core::Fraction{1},
+            .sustain = common::core::Fraction{1, 4},
             .bend = {},
             .keyframes = {},
         },
@@ -1164,7 +1164,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // 4/4 at 120 BPM: a beat is half a second, and the margin is a tenth of a beat.
+    // 4/4 at 120 BPM: a quarter is half a second, and the margin is a tenth of a quarter.
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
     const auto note = [](const common::core::GridPosition& position,
@@ -1183,18 +1183,26 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        note(common::core::GridPosition{.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1}),
-        note(common::core::GridPosition{.measure = 1, .beat = 1}, 2, 7, common::core::Fraction{1}),
+        note(
+            common::core::GridPosition{.measure = 1, .beat = 1},
+            1,
+            5,
+            common::core::Fraction{1, 4}),
+        note(
+            common::core::GridPosition{.measure = 1, .beat = 1},
+            2,
+            7,
+            common::core::Fraction{1, 4}),
         note(
             common::core::GridPosition{.measure = 1, .beat = 2},
             1,
             5,
-            common::core::Fraction{1, 2}),
+            common::core::Fraction{1, 8}),
         note(
             common::core::GridPosition{.measure = 1, .beat = 2},
             2,
             7,
-            common::core::Fraction{1, 2}),
+            common::core::Fraction{1, 8}),
         // The note that CLOSES the span, standing exactly at its musical close.
         note(
             common::core::GridPosition{
@@ -1202,9 +1210,13 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
             },
             3,
             7,
-            common::core::Fraction{1, 2}),
+            common::core::Fraction{1, 8}),
         // A note the span does not reach at all, for the other half of the selection arm.
-        note(common::core::GridPosition{.measure = 2, .beat = 1}, 3, 7, common::core::Fraction{1}),
+        note(
+            common::core::GridPosition{.measure = 2, .beat = 1},
+            3,
+            7,
+            common::core::Fraction{1, 4}),
     };
     common::core::Arrangement arrangement;
     arrangement.chart = std::move(chart);
@@ -1737,7 +1749,7 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
         .slides = {},
         .keyframes = {common::core::KeyframeViewState{
             .seconds = 10.0,
-            .offset = common::core::Fraction{8},
+            .offset = common::core::Fraction{2},
             .mark = common::core::KeyframeCurveMark{},
             .bend_point = std::size_t{1},
         }},

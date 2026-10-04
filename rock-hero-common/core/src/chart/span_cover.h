@@ -19,7 +19,7 @@ rather than in the files that ask.
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_shapes.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
@@ -49,8 +49,8 @@ struct SpanCoverage
     */
     std::size_t span{0};
 
-    /*! \brief How far that span's furniture reaches. */
-    GridPosition end{};
+    /*! \brief How far that span's furniture reaches, as a place on the whole-note axis. */
+    Fraction end{};
 };
 
 /*!
@@ -77,7 +77,8 @@ extension and the legato that extension justified would be repaired away.
 
 A prefix table over the span list rather than a forward cursor, because the holds walk asks it per
 onset group while the held-stop default asks it per tap — one O(spans) build serves every query at
-O(log spans), stateless, so every caller reads the same authority.
+O(log spans), stateless, so every caller reads the same authority. Every instant is a whole-note
+place, so a reach is the span's own place plus its stored close and nothing is re-addressed.
 */
 class SpanCover
 {
@@ -85,22 +86,23 @@ public:
     /*!
     \brief Builds the prefix table over one revision's spans.
 
-    \param shapes Spans sorted by position; borrowed, so it must outlive this cover.
-    \param tempo_map Song tempo map supplying the beat axis each span's extent is advanced along.
+    \param shapes Spans sorted by position.
+    \param tempo_map Song tempo map supplying the meter each span's place is measured in.
     */
     SpanCover(const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
-        : m_shapes{shapes}
     {
+        m_starts.reserve(shapes.size());
         m_best.reserve(shapes.size());
         std::optional<SpanCoverage> best;
         for (std::size_t span = 0; span < shapes.size(); ++span)
         {
-            const GridPosition span_end =
-                advanceGridPosition(tempo_map, shapes[span].position, shapes[span].sustain);
+            const Fraction start = tempo_map.wholeNotePositionAt(shapes[span].position);
+            const Fraction span_end = start + shapes[span].sustain;
             if (!best.has_value() || best->end < span_end)
             {
                 best = SpanCoverage{.span = span, .end = span_end};
             }
+            m_starts.push_back(start);
             m_best.push_back(*best);
         }
     }
@@ -108,20 +110,19 @@ public:
     /*!
     \brief The span an instant stands in: the furthest-reaching span started at or before it.
 
-    \param at Instant the caller is asking about.
+    \param at Whole-note place of the instant the caller is asking about.
 
     \return The furthest-reaching span started at or before `at` whose reach is still ahead of it.
     */
-    [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& at) const
+    [[nodiscard]] std::optional<SpanCoverage> reaching(const Fraction at) const
     {
-        const auto first_excluded =
-            std::ranges::upper_bound(m_shapes, at, std::ranges::less{}, &ChartShape::position);
-        if (first_excluded == m_shapes.begin())
+        const auto first_excluded = std::ranges::upper_bound(m_starts, at);
+        if (first_excluded == m_starts.begin())
         {
             return std::nullopt;
         }
         const SpanCoverage& best =
-            m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), first_excluded)) - 1];
+            m_best[static_cast<std::size_t>(std::distance(m_starts.begin(), first_excluded)) - 1];
         if (best.end <= at)
         {
             return std::nullopt;
@@ -130,7 +131,8 @@ public:
     }
 
 private:
-    const std::vector<ChartShape>& m_shapes;
+    // Each span's front on the whole-note axis, ascending with the span list.
+    std::vector<Fraction> m_starts;
 
     // Per prefix of the span list: the furthest-reaching span among the first N.
     std::vector<SpanCoverage> m_best;

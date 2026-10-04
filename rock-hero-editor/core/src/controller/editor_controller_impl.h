@@ -1333,9 +1333,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // on — the slot of an insert or a cut, the point a ring digit would plant, the objects a retype
     // addresses, or the hand position whose fret it retypes.
     [[nodiscard]] std::string chartFretEntrySubject(const ChartFretEntry& entry) const;
-    // The slot an offset along a ring lands on — the inverse of the `beatDistance` that measured
-    // it, so a site named as (note, offset) can name its own slot for the selection it plants and
-    // the box it draws without either re-deriving it.
+    // The slot an offset along a ring lands on — the inverse of the whole-note distance that
+    // measured it, so a site named as (note, offset) can name its own slot for the selection it
+    // plants and the box it draws without either re-deriving it.
     [[nodiscard]] ChartSlotKey chartRingSiteSlot(
         const ChartSlotKey& note, common::core::Fraction offset) const;
 

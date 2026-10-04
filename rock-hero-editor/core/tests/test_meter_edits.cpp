@@ -163,7 +163,7 @@ struct EditFootprint
     std::vector<bool> section_snapped;
 
     // Rings and keyframes whose onset and end lie under different denominators in either map: the
-    // durations the re-expression exists for.
+    // durations a meter change sits inside, which must keep their value all the same.
     int crossing_rings{0};
     int crossing_keyframes{0};
 };
@@ -269,7 +269,20 @@ struct EditFootprint
             }
         }
     });
-    // Every field but the re-addressed and re-expressed ones is untouched.
+    // A ring and a keyframe offset are note values, so a meter edit leaves every one untouched.
+    REQUIRE(after.arrangements.size() == before.arrangements.size());
+    for (std::size_t arrangement = 0; arrangement < before.arrangements.size(); ++arrangement)
+    {
+        const Chart& old_chart = chartOf(before, arrangement);
+        const Chart& new_chart = chartOf(after, arrangement);
+        REQUIRE(new_chart.notes.size() == old_chart.notes.size());
+        for (std::size_t index = 0; index < old_chart.notes.size(); ++index)
+        {
+            CHECK(new_chart.notes[index].sustain == old_chart.notes[index].sustain);
+            CHECK(new_chart.notes[index].keyframes == old_chart.notes[index].keyframes);
+        }
+    }
+    // Every field but the re-addressed ones is untouched.
     CHECK(addressesErased(after) == addressesErased(before));
     return footprint;
 }
@@ -402,29 +415,44 @@ TEST_CASE("Meter edit re-addresses note onsets", "[core][meter-edits]")
     CHECK(chart.notes[1].position == at("4:3"));
 }
 
-TEST_CASE("Meter edit re-expresses a ring crossing a denominator change", "[core][meter-edits]")
+// A ring is a note value, so a meter edit leaves it untouched: the half note from 2:4 that ended
+// at 3:2 of the 3/4 ends at 3:3 of the 6/8 the same edit respelled it as, at the very same second.
+TEST_CASE("Meter edit leaves a ring crossing a meter change untouched", "[core][meter-edits]")
 {
+    const SongTimeline before = sliceTimeline();
     const SongTimeline after = respelledSlices();
     const Chart& chart = chartOf(after, 0);
-    REQUIRE_FALSE(chart.notes.empty());
-    // From 2:4, two beats ran one quarter of 4/4 and one of 3/4 to 3:2; in 6/8 the same end is
-    // 3:3, one quarter and two eighths away.
-    CHECK(chart.notes[0].sustain == Fraction{3});
-    CHECK(common::core::sustainEndPosition(after.tempo_map, chart.notes[0]) == at("3:3"));
-    // A ring inside the respelled reign doubles with the beat it counts.
     REQUIRE(chart.notes.size() == 2);
-    CHECK(chart.notes[1].sustain == Fraction{1});
+    CHECK(chart.notes[0].sustain == Fraction{1, 2});
+    CHECK(
+        common::core::advanceGridPositionByWholeNotes(
+            after.tempo_map, chart.notes[0].position, chart.notes[0].sustain) == at("3:3"));
+    CHECK_THAT(
+        after.tempo_map.secondsAt(
+            common::core::advanceGridPositionByWholeNotes(
+                after.tempo_map, chart.notes[0].position, chart.notes[0].sustain)),
+        Catch::Matchers::WithinULP(before.tempo_map.secondsAt(at("3:2")), 0));
+    // A ring inside the respelled reign keeps its value too.
+    CHECK(chart.notes[1].sustain == Fraction{1, 8});
 }
 
-TEST_CASE("Meter edit re-expresses a keyframe crossing a denominator change", "[core][meter-edits]")
+// A keyframe offset is a note value from the onset, so it stays too: a dotted quarter from 2:4
+// stood at 3:1+1/2 of the 3/4 and stands at 3:2 of the 6/8, at the same second.
+TEST_CASE("Meter edit leaves a keyframe crossing a meter change untouched", "[core][meter-edits]")
 {
+    const SongTimeline before = sliceTimeline();
     const SongTimeline after = respelledSlices();
     const Chart& chart = chartOf(after, 0);
     REQUIRE_FALSE(chart.notes.empty());
     REQUIRE(chart.notes[0].keyframes.size() == 1);
-    // One and a half beats from 2:4 reached 3:1+1/2 in 3/4, which is 3:2 in 6/8: two beats.
-    CHECK(chart.notes[0].keyframes[0].offset == Fraction{2});
+    CHECK(chart.notes[0].keyframes[0].offset == Fraction{3, 8});
     CHECK(chart.notes[0].keyframes[0].bend == std::optional{1.0});
+    const GridPosition instant = common::core::advanceGridPositionByWholeNotes(
+        after.tempo_map, chart.notes[0].position, chart.notes[0].keyframes[0].offset);
+    CHECK(instant == at("3:2"));
+    CHECK_THAT(
+        after.tempo_map.secondsAt(instant),
+        Catch::Matchers::WithinULP(before.tempo_map.secondsAt(at("3:1+1/2")), 0));
 }
 
 TEST_CASE("Meter edit re-addresses fret-hand positions", "[core][meter-edits]")

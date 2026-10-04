@@ -56,7 +56,8 @@ namespace
 //
 // The extent is therefore positive exactly where the musical close is, and never past it.
 [[nodiscard]] Fraction drawnShapeExtent(
-    const ChartShape& shape, const HeadMargins& margins, const TempoMap& tempo_map)
+    const ChartShape& shape, const Fraction place, const HeadMargins& margins,
+    const TempoMap& tempo_map)
 {
     // Bound to a local so the presence test and every read below are provably the same object.
     const std::optional<GridPosition>& closing = shape.closing_onset;
@@ -66,13 +67,13 @@ namespace
         // The margin at the CLOSING ONSET: it is that head's spacing that is being kept, and a
         // tempo change between the span's front and its close would otherwise measure it at the
         // wrong rate.
-        limit = beatDistance(tempo_map, shape.position, *closing) - margins.beats(*closing);
+        limit = tempo_map.wholeNotePositionAt(*closing) - place - margins.length(*closing);
     }
     return drawnHoldExtent(shape.sustain, limit, shape.stated_extent);
 }
 
 // The approach a fret-hand placement rides when the placement lands exactly on a glide arrival,
-// keyed by the keyframe's grid position: where the leg into that arrival starts, and whether it
+// keyed by the keyframe's whole-note place: where the leg into that arrival starts, and whether it
 // eases like unpitched travel. The arrival itself is the placement's own instant — nothing
 // presentation decides moves a statement — so the hand travels with the rail and completes where
 // the sound goes.
@@ -85,17 +86,17 @@ struct SlideRamp
 };
 
 // Walks every glide in the stored stream once and records the segment each arrival rides. A pass
-// of its own rather than a table filled inside the note loop below, because the key is a grid
-// position the fret-hand pass looks a ramp up by, and the note loop resolves seconds.
+// of its own rather than a table filled inside the note loop below, because the key is a place the
+// fret-hand pass looks a ramp up by, and the note loop resolves seconds.
 //
 // The SLIDE-OUT is the RESOLVED fact: a slide-out and a shift slide's arrival are the same
 // statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
 // Asking position alone would ease every arrival with the slide-out curve.
-[[nodiscard]] std::map<GridPosition, SlideRamp> makeSlideRampStarts(
+[[nodiscard]] std::map<Fraction, SlideRamp> makeSlideRampStarts(
     const ChartConnections& connections, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
-    std::map<GridPosition, SlideRamp> starts;
+    std::map<Fraction, SlideRamp> starts;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
@@ -108,8 +109,8 @@ struct SlideRamp
         }
         const bool slides_out = noteSlidesOut(connections, index);
 
-        const double onset_beat = tempo_map.beatPositionAt(note.position);
-        double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
+        const Fraction place = connections.places[index];
+        double segment_start_seconds = tempo_map.secondsAtWholeNote(place);
         int segment_start_fret = note.fret;
         for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
              ++keyframe_index)
@@ -134,8 +135,8 @@ struct SlideRamp
             // fret left off and ends where the ring does, and is marked unpitched so the ease
             // matches the slide-out.
             const bool unpitched = slides_out && keyframe_index + 1 == note.keyframes.size();
-            const double keyframe_seconds =
-                tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
+            const Fraction keyframe_place = place + keyframe.offset;
+            const double keyframe_seconds = tempo_map.secondsAtWholeNote(keyframe_place);
             if (*fret != segment_start_fret || unpitched)
             {
                 const SlideRamp ramp{
@@ -147,11 +148,7 @@ struct SlideRamp
                 // string and a shift slide's arrival on another can end on the same head, and the
                 // placement standing there is the hand LANDING. The key names no string, so the tie
                 // is settled here rather than by which note the walk happened to reach first.
-                SlideRamp& filed =
-                    starts
-                        .try_emplace(
-                            advanceGridPosition(tempo_map, note.position, keyframe.offset), ramp)
-                        .first->second;
+                SlideRamp& filed = starts.try_emplace(keyframe_place, ramp).first->second;
                 if (filed.unpitched && !unpitched)
                 {
                     filed = ramp;
@@ -187,7 +184,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
 
     // Where each fret-hand placement's approach ramp begins; asked once for the whole chart and
     // read by the placement pass at the bottom.
-    const std::map<GridPosition, SlideRamp> slide_ramp_starts =
+    const std::map<Fraction, SlideRamp> slide_ramp_starts =
         makeSlideRampStarts(resolutions.connections, tempo_map);
 
     state.shapes.reserve(resolutions.shapes.size());
@@ -252,7 +249,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
-        const double start_beat = tempo_map.beatPositionAt(shape.position);
+        const Fraction place = tempo_map.wholeNotePositionAt(shape.position);
         // WHERE the span's one opening mark draws, TAKEN FROM THE WALK ([D2]; published as \ref
         // ChartShape::bracket_position). Every span an EVENT states carries its own FRONT; a
         // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
@@ -308,16 +305,14 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         }
         state.shapes.push_back(
             ShapeViewState{
-                .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
+                .start_seconds = tempo_map.secondsAtWholeNote(place),
                 // BOTH ENDS, from the one site that owns them. The DRAWN extent is where rule 12a's
                 // margin is taken and the only place it is (\ref drawnShapeExtent); the CLOSE is
                 // what the walk stored, published verbatim so the editor's reveal has the truth to
                 // reach for and no surface has to undo the trim to get it.
-                .drawn_end_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    start_beat +
-                    drawnShapeExtent(shape, resolutions.margins, tempo_map).toDouble()),
-                .close_seconds =
-                    tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
+                .drawn_end_seconds = tempo_map.secondsAtWholeNote(
+                    place + drawnShapeExtent(shape, place, resolutions.margins, tempo_map)),
+                .close_seconds = tempo_map.secondsAtWholeNote(place + shape.sustain),
                 // A strummed chord is a box; sequential arrival, or a posture string ringing
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],
@@ -328,30 +323,27 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             });
     }
 
-    // Note onsets ascend, and the forward cursor resolves them in amortized constant time. Ring
-    // ends and intra-note payload offsets can jump past later onsets, so those use the plain
-    // resolver instead of a second cursor.
-    TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
+    // EVERY instant below — onsets included — takes the one route to the clock: its whole-note
+    // place, then the time query. One instant reached two ways (a ring ending on the next head, a
+    // free tail's ink end on its ring end) is then one exact place and so one double, which is what
+    // lets a surface compare them exactly.
+    const std::vector<Fraction>& places = resolutions.connections.places;
     state.notes.reserve(notes.size());
     state.display_hold_ends.reserve(notes.size());
     for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
         const ChartNote& note = notes[note_index];
-        const double onset_beat = tempo_map.beatPositionAt(note.position);
+        const Fraction place = places[note_index];
         NoteViewState view;
-        view.start_seconds = onset_cursor.secondsAt(onset_beat);
-        view.margin_start_seconds = tempo_map.secondsAt(resolutions.margins.before(note.position));
-        view.ring_end_seconds =
-            tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble());
-        // Resolved through the same expression as the ring end so a free tail's two ends are one
-        // number, which is what lets a surface test "draws in full" exactly.
+        view.start_seconds = tempo_map.secondsAtWholeNote(place);
+        view.margin_start_seconds =
+            tempo_map.secondsAtWholeNote(place - resolutions.margins.length(note.position));
+        view.ring_end_seconds = tempo_map.secondsAtWholeNote(place + note.sustain);
         const Fraction& ink_end = resolutions.ink_end[note_index];
-        view.ink_end_seconds =
-            ink_end.numerator > 0
-                ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + ink_end.toDouble())
-                : view.start_seconds;
-        state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
-            onset_beat + resolutions.holds[note_index].toDouble()));
+        view.ink_end_seconds = ink_end.numerator > 0 ? tempo_map.secondsAtWholeNote(place + ink_end)
+                                                     : view.start_seconds;
+        state.display_hold_ends.push_back(
+            tempo_map.secondsAtWholeNote(place + resolutions.holds[note_index]));
         // THE TAIL LAW's verdict, carried per note so the board knows which ribbons the curtain
         // owns PART of and from where (\ref NoteViewState::rested): the one reading both
         // distance-scoped consumers share (\ref hasRestingRemainder), so a member resting at its
@@ -365,21 +357,16 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             // The resting remainder's start on the clock — the landmark whose cases
             // \ref ChartPresentation::rested_from states — the anchor the board hangs the note's
             // local reveal window on, so the stated portion rides outside it.
-            view.reveal_from_seconds =
-                tempo_map.secondsAtGlobalBeatPosition(onset_beat + rested_from->toDouble());
+            view.reveal_from_seconds = tempo_map.secondsAtWholeNote(place + *rested_from);
             // The board's reveal-window depth, resolved here because tempo is not on the
-            // renderer's read surface: \ref g_tail_reveal_lead_whole_note at this onset's own
-            // meter (\ref tailRevealLeadBeats), SHORTENED at the song's front to the room
-            // available — a positive-but-smaller lead that compresses the curtain rather than
-            // disabling it. Only an onset at the song's very first instant yields a zero lead,
-            // and the renderer treats that one note as not rested at all.
-            const double lead_beat = std::max(
-                0.0,
-                onset_beat - tailRevealLeadBeats(
-                                 tempo_map.timeSignatureAt(note.position.measure).meter.denominator)
-                                 .toDouble());
+            // renderer's read surface: \ref g_tail_reveal_lead_whole_note measured back from the
+            // onset, SHORTENED at the song's front to the room available — a positive-but-smaller
+            // lead that compresses the curtain rather than disabling it. Only an onset at the
+            // song's very first instant yields a zero lead, and the renderer treats that one note
+            // as not rested at all.
+            const Fraction lead_place = std::max(Fraction{}, place - g_tail_reveal_lead_whole_note);
             view.reveal_lead_seconds =
-                view.start_seconds - tempo_map.secondsAtGlobalBeatPosition(lead_beat);
+                view.start_seconds - tempo_map.secondsAtWholeNote(lead_place);
         }
         view.string = note.string;
         view.fret = note.fret;
@@ -441,8 +428,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
              ++keyframe_index)
         {
             const Keyframe& keyframe = note.keyframes[keyframe_index];
-            const double keyframe_seconds =
-                tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
+            const double keyframe_seconds = tempo_map.secondsAtWholeNote(place + keyframe.offset);
             const VibratoState was = ring.vibrato;
             ring.advance(keyframe);
             if (ring.vibrato != was)
@@ -514,14 +500,14 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     for (std::size_t fhp_index = 0; fhp_index < chart.fret_hand_positions.size(); ++fhp_index)
     {
         const FretHandPosition& fhp = chart.fret_hand_positions[fhp_index];
-        const double arrival_seconds = tempo_map.secondsAt(fhp.position);
+        const Fraction fhp_place = tempo_map.wholeNotePositionAt(fhp.position);
+        const double arrival_seconds = tempo_map.secondsAtWholeNote(fhp_place);
         double ramp_start_seconds = 0.0;
         bool unpitched_ramp = false;
         // The settle is the stretch of the glide past its rail's ink end: the rail is drawn to
         // the crop, the hand completes at the arrival, and the board eases the difference.
         double settle_seconds = 0.0;
-        if (const auto slide = slide_ramp_starts.find(fhp.position);
-            slide != slide_ramp_starts.end())
+        if (const auto slide = slide_ramp_starts.find(fhp_place); slide != slide_ramp_starts.end())
         {
             ramp_start_seconds = slide->second.start_seconds;
             unpitched_ramp = slide->second.unpitched;
@@ -530,7 +516,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         }
         else
         {
-            ramp_start_seconds = tempo_map.secondsAt(marginBefore(tempo_map, fhp.position));
+            // A placement is not a head, so its margin is asked of the authority directly.
+            ramp_start_seconds = tempo_map.secondsAtWholeNote(
+                fhp_place - minimumSustainDistance(tempo_map, fhp_place));
         }
         // A ramp never reaches back past the previous arrival: crowded transitions shorten
         // against it rather than overlapping it.

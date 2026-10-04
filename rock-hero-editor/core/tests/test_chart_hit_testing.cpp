@@ -173,13 +173,13 @@ namespace
             .keyframes =
                 {common::core::KeyframeViewState{
                      .seconds = 6.0,
-                     .offset = common::core::Fraction{2},
+                     .offset = common::core::Fraction{1, 2},
                      .mark = common::core::KeyframeStopMark{.stop = 0},
                      .bend_point = std::nullopt,
                  },
                  common::core::KeyframeViewState{
                      .seconds = 10.0,
-                     .offset = common::core::Fraction{4},
+                     .offset = common::core::Fraction{1},
                      .mark = common::core::KeyframeStopMark{.stop = 1},
                      .bend_point = std::nullopt,
                  }},
@@ -362,7 +362,7 @@ TEST_CASE("Chart selection keys separate the kinds sharing one slot", "[core][ch
     const ChartSlotKey slot = slotAt(2, 1);
     const ChartSelectionKey note = noteKey(slot);
     const ChartSelectionKey keyframe =
-        ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{1, 2}};
+        ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{1, 8}};
 
     ChartSelection selection;
     selection.add(note);
@@ -418,23 +418,25 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
     CHECK(chartOnsetGroupKeys(tempo_map, notes, noteKey(slotAt(9, 1))).empty());
 
     // A keyframe's group is every keyframe at its INSTANT, across the notes that carry one: the two
-    // measure-2 strings glide together and arrive together three beats in, while string 2's
+    // measure-2 strings glide together and arrive together three quarters in, while string 2's
     // earlier point is not a member. String 1's ring stops short of its own measure-3 restrike, as
     // the chart's laws require, and that onset's own group stays its notes — the restrike and the
     // string-4 note — with no arrival swept in.
     std::vector<common::core::ChartNote> gliding = notes;
-    gliding[0].sustain = common::core::Fraction{4};
-    gliding[0].keyframes = {common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 7}};
-    gliding[1].sustain = common::core::Fraction{6};
-    gliding[1].keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 6},
-        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
+    gliding[0].sustain = common::core::Fraction{1};
+    gliding[0].keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{3, 4}, .fret = 7}
     };
-    const ChartSelectionKey junction = keyframeKey(slotAt(2, 1), common::core::Fraction{3});
+    gliding[1].sustain = common::core::Fraction{3, 2};
+    gliding[1].keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 6},
+        common::core::Keyframe{.offset = common::core::Fraction{3, 4}, .fret = 9},
+    };
+    const ChartSelectionKey junction = keyframeKey(slotAt(2, 1), common::core::Fraction{3, 4});
     CHECK(
         chartOnsetGroupKeys(tempo_map, gliding, junction) ==
         (std::vector<ChartSelectionKey>{
-            junction, keyframeKey(slotAt(2, 2), common::core::Fraction{3})
+            junction, keyframeKey(slotAt(2, 2), common::core::Fraction{3, 4})
         }));
     CHECK(
         chartOnsetGroupKeys(tempo_map, gliding, noteKey(slotAt(3, 1))) ==
@@ -582,7 +584,7 @@ TEST_CASE("Chart hit testing reaches a bend-only point at its dot", "[core][char
             .slides = {},
             .keyframes = {common::core::KeyframeViewState{
                 .seconds = 6.0,
-                .offset = common::core::Fraction{2},
+                .offset = common::core::Fraction{1, 2},
                 .mark = common::core::KeyframeCurveMark{},
                 .bend_point = std::size_t{1},
             }},
@@ -630,7 +632,7 @@ TEST_CASE("Chart hit testing reaches a cropped bend point by its chip at the cro
                 .slides = {},
                 .keyframes = {common::core::KeyframeViewState{
                     .seconds = 10.0,
-                    .offset = common::core::Fraction{4},
+                    .offset = common::core::Fraction{1},
                     .mark = common::core::KeyframeCurveMark{},
                     .bend_point = last_point,
                 }},
@@ -707,13 +709,13 @@ TEST_CASE("Chart hit testing answers a chip stack with the chip painted on top",
             .keyframes =
                 {common::core::KeyframeViewState{
                      .seconds = 9.9,
-                     .offset = common::core::Fraction{79, 10},
+                     .offset = common::core::Fraction{79, 40},
                      .mark = common::core::KeyframeCurveMark{},
                      .bend_point = std::size_t{1},
                  },
                  common::core::KeyframeViewState{
                      .seconds = 10.0,
-                     .offset = common::core::Fraction{8},
+                     .offset = common::core::Fraction{2},
                      .mark = common::core::KeyframeCurveMark{},
                      .bend_point = std::size_t{2},
                  }},
@@ -781,7 +783,7 @@ TEST_CASE("Chart hit testing answers a focused ring before the head it steps bac
             .slides = {},
             .keyframes = {common::core::KeyframeViewState{
                 .seconds = 10.0,
-                .offset = common::core::Fraction{8},
+                .offset = common::core::Fraction{2},
                 .mark = common::core::KeyframeCurveMark{},
                 .bend_point = std::size_t{1},
             }},
@@ -871,7 +873,7 @@ TEST_CASE("Chart hit testing answers a mixed chip stack with the bend chip on to
         keyframes.begin(),
         common::core::KeyframeViewState{
             .seconds = 9.9,
-            .offset = common::core::Fraction{79, 10},
+            .offset = common::core::Fraction{79, 40},
             .mark = common::core::KeyframeCurveMark{},
             .bend_point = std::size_t{1},
         });
@@ -926,13 +928,13 @@ TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[
             .keyframes =
                 {common::core::KeyframeViewState{
                      .seconds = 6.0,
-                     .offset = common::core::Fraction{2},
+                     .offset = common::core::Fraction{1, 2},
                      .mark = common::core::KeyframeCurveMark{},
                      .bend_point = std::size_t{1},
                  },
                  common::core::KeyframeViewState{
                      .seconds = 9.5,
-                     .offset = common::core::Fraction{15, 4},
+                     .offset = common::core::Fraction{15, 16},
                      .mark = common::core::KeyframeCurveMark{},
                      .bend_point = std::size_t{2},
                  }},
@@ -1009,17 +1011,17 @@ TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[
 TEST_CASE("Chart selection keys a keyframe by its offset", "[core][chart]")
 {
     common::core::ChartNote glide =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{4});
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{1});
     glide.keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
-        common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 12},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 12},
     };
     const std::vector<common::core::ChartNote> notes{glide};
     const common::core::ChartViewState tab = makeGlideTabState();
     const ChartSlotKey slot = slotAt(2, 3);
 
     ChartSelection selection;
-    selection.add(keyframeKey(slot, common::core::Fraction{4}));
+    selection.add(keyframeKey(slot, common::core::Fraction{1}));
     CHECK(
         selectedKeyframeIndices(notes, tab.notes, selection) ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
@@ -1036,12 +1038,12 @@ TEST_CASE("Chart selection keys a keyframe by its offset", "[core][chart]")
     // A key naming an offset no keyframe sits on resolves to nothing, exactly as a note key whose
     // note was deleted does.
     selection.clear();
-    selection.add(keyframeKey(slot, common::core::Fraction{3}));
+    selection.add(keyframeKey(slot, common::core::Fraction{3, 4}));
     CHECK(selectedKeyframeIndices(notes, tab.notes, selection).empty());
 
     // And so does a key whose NOTE is gone.
     selection.clear();
-    selection.add(keyframeKey(slotAt(9, 3), common::core::Fraction{2}));
+    selection.add(keyframeKey(slotAt(9, 3), common::core::Fraction{1, 2}));
     CHECK(selectedKeyframeIndices(notes, tab.notes, selection).empty());
 }
 
@@ -1053,8 +1055,8 @@ TEST_CASE("Chart selection carries keyframes beside the notes", "[core][chart]")
 {
     const ChartSlotKey slot = slotAt(2, 1);
     const ChartSelectionKey note = noteKey(slot);
-    const ChartSelectionKey keyframe = keyframeKey(slot, common::core::Fraction{2});
-    const ChartSelectionKey later = keyframeKey(slot, common::core::Fraction{4});
+    const ChartSelectionKey keyframe = keyframeKey(slot, common::core::Fraction{1, 2});
+    const ChartSelectionKey later = keyframeKey(slot, common::core::Fraction{1});
 
     ChartSelection selection;
     selection.add(later);
@@ -1068,8 +1070,8 @@ TEST_CASE("Chart selection carries keyframes beside the notes", "[core][chart]")
     CHECK(
         selection.keyframes() ==
         (std::vector<ChartKeyframeKey>{
-            ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{2}},
-            ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{4}}
+            ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{1, 2}},
+            ChartKeyframeKey{.note = slot, .offset = common::core::Fraction{1}}
         }));
 
     // Toggling a keyframe off leaves the note on the same slot standing, which is the pairing the
@@ -1080,7 +1082,7 @@ TEST_CASE("Chart selection carries keyframes beside the notes", "[core][chart]")
     CHECK_FALSE(selection.empty());
 
     // A keyframe sits on the slot its offset reaches along its note's ring, on the note's own
-    // string — two beats past a measure-2 downbeat is beat 3 under the 4/4 default map — so a
+    // string — two quarters past a measure-2 downbeat is beat 3 under the 4/4 default map — so a
     // caret arms for it exactly as it arms for a note.
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});

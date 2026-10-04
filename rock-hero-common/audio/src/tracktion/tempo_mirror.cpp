@@ -10,18 +10,11 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// Quarter-note position of a grid position: the edit's beat unit is pinned to quarters, so every
-// address mirrors through the map's own whole-note axis, which a quarter is a quarter of.
-[[nodiscard]] double quarterPositionAt(
-    const core::TempoMap& tempo_map, const core::GridPosition& position)
-{
-    return 4.0 * tempo_map.wholeNotePositionAt(position).toDouble();
-}
-
-// Quarter-note position of a measure's downbeat, where a time signature takes effect.
+// Quarter-note position of a measure's downbeat, where a time signature takes effect. The edit's
+// beat unit is pinned to quarters, so every address mirrors through the map's own quarter axis.
 [[nodiscard]] double downbeatQuarterPosition(const core::TempoMap& tempo_map, int measure)
 {
-    return quarterPositionAt(tempo_map, core::measureDownbeat(measure));
+    return tempo_map.quarterPositionAt(core::measureDownbeat(measure));
 }
 
 } // namespace
@@ -49,8 +42,8 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
     {
         const core::BeatAnchor& from = anchors[index];
         const core::BeatAnchor& to = anchors[index + 1];
-        const double from_quarters = quarterPositionAt(tempo_map, from.position);
-        const double to_quarters = quarterPositionAt(tempo_map, to.position);
+        const double from_quarters = tempo_map.quarterPositionAt(from.position);
+        const double to_quarters = tempo_map.quarterPositionAt(to.position);
         const double span_seconds = to.seconds() - from.seconds();
         if (span_seconds <= 0.0 || to_quarters <= from_quarters)
         {

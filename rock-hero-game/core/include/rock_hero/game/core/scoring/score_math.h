@@ -45,15 +45,16 @@ A single note is a one-member chord; a chord scores the sum of its member notes.
 Credit is pro-rated by the held fraction and rounded to the nearest point; a dropped sustain
 banks the partial credit earned before the drop.
 
-\param ruleset Constants defining the per-beat sustain score.
-\param sustain_beats Charted sustain length in beats; zero means no sustain and no credit.
+\param ruleset Constants defining the sustain score per whole note.
+\param sustain_whole_notes Charted sustain length in whole notes; zero means no sustain and no
+       credit.
        Never negative — chart validation rejects negative sustains upstream.
 \param held_fraction Fraction of the sustain span held in tolerance; clamped to [0, 1], and a
        non-finite value earns nothing.
 \return Sustain score before any multiplier.
 */
 [[nodiscard]] int sustainScoreForHold(
-    const ScoringRuleset& ruleset, common::core::Fraction sustain_beats,
+    const ScoringRuleset& ruleset, common::core::Fraction sustain_whole_notes,
     double held_fraction) noexcept;
 
 /*!

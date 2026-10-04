@@ -20,8 +20,8 @@ each wearing that stop's mark at the stop's instant.
 
 The projection publishes a note's stops and its keyframes from one walk; a fixture that states its
 stops by hand derives the keyframes here, so the two lists cannot disagree. Each offset is the
-stop's one-based ordinal in beats: a hand-built view resolves no tempo map, and only a selection
-keys a keyframe by its offset.
+stop's one-based ordinal in quarter notes: a hand-built view resolves no tempo map, and only a
+selection keys a keyframe by its offset.
 
 \param slides The note's stops, in time order.
 \return One keyframe per stop, naming it.
@@ -36,7 +36,7 @@ keys a keyframe by its offset.
         keyframes.push_back(
             KeyframeViewState{
                 .seconds = slides[index].seconds,
-                .offset = Fraction{static_cast<int>(index) + 1},
+                .offset = Fraction{static_cast<int>(index) + 1, 4},
                 .mark = KeyframeStopMark{.stop = index},
                 .bend_point = std::nullopt,
             });

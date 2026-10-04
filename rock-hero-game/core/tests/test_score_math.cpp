@@ -54,18 +54,19 @@ TEST_CASE("Chord base score sums the member notes", "[core][scoring]")
     CHECK(baseScoreForChord(ruleset, 6) == 300);
 }
 
-// Sustain credit is 25 per beat pro-rated by the held fraction, rounded to the nearest point,
-// with tracker noise past a full hold clamped instead of minting extra score.
+// Sustain credit is 100 per whole note — 25 a quarter — pro-rated by the held fraction, rounded
+// to the nearest point, with tracker noise past a full hold clamped instead of minting extra
+// score.
 TEST_CASE("Sustain credit pro-rates by the held fraction", "[core][scoring]")
 {
     const ScoringRuleset ruleset{};
-    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{2, 1}, 1.0) == 50);
-    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{2, 1}, 0.5) == 25);
-    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{1, 2}, 1.0) == 13);
+    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{1, 2}, 1.0) == 50);
+    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{1, 2}, 0.5) == 25);
+    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{1, 8}, 1.0) == 13);
     CHECK(sustainScoreForHold(ruleset, common::core::Fraction{}, 1.0) == 0);
-    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{2, 1}, 0.0) == 0);
-    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{2, 1}, 1.5) == 50);
-    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{2, 1}, -0.5) == 0);
+    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{1, 2}, 0.0) == 0);
+    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{1, 2}, 1.5) == 50);
+    CHECK(sustainScoreForHold(ruleset, common::core::Fraction{1, 2}, -0.5) == 0);
 }
 
 // A degenerate sustain tracker can emit 0/0: a non-finite held fraction earns nothing instead
@@ -75,10 +76,10 @@ TEST_CASE("Non-finite held fractions earn no sustain credit", "[core][scoring]")
     const ScoringRuleset ruleset{};
     CHECK(
         sustainScoreForHold(
-            ruleset, common::core::Fraction{2, 1}, std::numeric_limits<double>::quiet_NaN()) == 0);
+            ruleset, common::core::Fraction{1, 2}, std::numeric_limits<double>::quiet_NaN()) == 0);
     CHECK(
         sustainScoreForHold(
-            ruleset, common::core::Fraction{2, 1}, std::numeric_limits<double>::infinity()) == 0);
+            ruleset, common::core::Fraction{1, 2}, std::numeric_limits<double>::infinity()) == 0);
 }
 
 // Star awards under rh-score-1: 1/2/3/4/5 stars at score-to-max-base ratios 0.2/0.6/1.2/2.0/2.8,

@@ -127,19 +127,19 @@ void TempoMap::buildDerivedIndices()
             });
     }
 
+    // Through the same quarter query every chart instant's time takes, so an instant standing on
+    // an anchor resolves to that anchor's own time bit for bit.
     m_anchor_quarter_positions.reserve(m_anchors.size());
     for (const BeatAnchor& anchor : m_anchors)
     {
-        m_anchor_quarter_positions.push_back(
-            quarterPositionAtBeatPosition(beatPositionAt(anchor.position)));
+        m_anchor_quarter_positions.push_back(quarterPositionAt(anchor.position));
     }
 
     // Segment downbeat times resolve through anchor interpolation, so this fill must run after
     // the anchor quarter positions above exist.
     for (SignatureSegment& segment : m_segments)
     {
-        segment.start_seconds =
-            secondsAtGlobalBeatPosition(static_cast<double>(segment.start_beat_index));
+        segment.start_seconds = secondsAtWholeNote(segment.start_whole_note_position);
     }
 }
 
@@ -182,13 +182,6 @@ const TempoMap::SignatureSegment& TempoMap::segmentForQuarterPosition(
     const auto after = std::ranges::upper_bound(
         m_segments, quarter_position, {}, &SignatureSegment::startQuarterPosition);
     return after == m_segments.begin() ? m_segments.front() : *std::prev(after);
-}
-
-// A grid position on the beat axis: its beat's index plus the sub-beat offset.
-double TempoMap::beatPositionAt(const GridPosition position) const noexcept
-{
-    return static_cast<double>(globalBeatIndex(position.measure, position.beat)) +
-           position.offset.toDouble();
 }
 
 // Converts a beat position to metronome time. A fractional position belongs to the beat it starts
@@ -246,14 +239,14 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
         return static_cast<double>(milliseconds_at(quarter_count)) >= cover_until_milliseconds;
     };
     const auto measure_quarters = [this](const int at_measure) {
-        return 4.0 * segmentForMeasure(at_measure).meter.measureWholeNotes().toDouble();
+        return quarterPositionOf(segmentForMeasure(at_measure).meter.measureWholeNotes());
     };
 
     // The walk starts at the first downbeat at or after the terminal: the terminal itself on a
     // valid map, the next barline when a meter edit has left it mid-measure.
     int measure = on_downbeat ? terminal.position.measure : terminal.position.measure + 1;
-    double quarters = quarterPositionAtBeatPosition(beatPositionAt(measureDownbeat(measure))) -
-                      m_anchor_quarter_positions[opener_index];
+    double quarters =
+        quarterPositionAt(measureDownbeat(measure)) - m_anchor_quarter_positions[opener_index];
 
     // Measure by measure through any meter change still ahead of the terminal...
     const int last_change = m_time_signatures.back().measure;
@@ -353,8 +346,8 @@ TimeSignatureChange TempoMap::timeSignatureAtSeconds(double seconds) const noexc
 }
 
 // Inverts the metronome-linear interpolation: inverse-lerps the containing anchor span to a
-// quarter position, then converts back to beats through the containing segment's scale.
-double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
+// quarter position. A map with no anchors has no time to invert and answers the origin.
+double TempoMap::quarterPositionAtSeconds(double seconds) const noexcept
 {
     if (m_anchors.empty())
     {
@@ -363,12 +356,12 @@ double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
 
     if (m_anchors.size() == 1 || seconds <= m_anchors.front().seconds())
     {
-        return beatPositionAt(m_anchors.front().position);
+        return m_anchor_quarter_positions.front();
     }
 
     if (seconds >= m_anchors.back().seconds())
     {
-        return beatPositionAt(m_anchors.back().position);
+        return m_anchor_quarter_positions.back();
     }
 
     // The span starts at the last anchor at or before the position; the clamps above guarantee an
@@ -383,16 +376,27 @@ double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
         m_anchors[span_start + 1].seconds() - m_anchors[span_start].seconds();
     if (seconds_span <= 0.0)
     {
-        return beatPositionAt(m_anchors[span_start].position);
+        return m_anchor_quarter_positions[span_start];
     }
 
     const double fraction = (seconds - m_anchors[span_start].seconds()) / seconds_span;
-    const double quarter_position = m_anchor_quarter_positions[span_start] +
-                                    fraction * (m_anchor_quarter_positions[span_start + 1] -
-                                                m_anchor_quarter_positions[span_start]);
+    return m_anchor_quarter_positions[span_start] +
+           fraction * (m_anchor_quarter_positions[span_start + 1] -
+                       m_anchor_quarter_positions[span_start]);
+}
+
+// The quarter position converted back to beats through the containing segment's scale.
+double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
+{
+    const double quarter_position = quarterPositionAtSeconds(seconds);
     const SignatureSegment& segment = segmentForQuarterPosition(quarter_position);
     return static_cast<double>(segment.start_beat_index) +
            (quarter_position - segment.startQuarterPosition()) / segment.quartersPerBeat();
+}
+
+double TempoMap::wholeNotePositionAtSeconds(double seconds) const noexcept
+{
+    return wholeNotePositionOf(quarterPositionAtSeconds(seconds));
 }
 
 double TempoMap::spanQuarterLength(std::size_t span) const noexcept
@@ -453,26 +457,46 @@ Fraction TempoMap::wholeNotePositionAt(const GridPosition position) const noexce
 }
 
 // Inverts the whole-note axis inside the owning segment: the whole notes past its downbeat, in that
-// segment's beats, split into the beat index and the sub-beat remainder. The clamp to the song's
+// segment's beats, split into the whole beats and the sub-beat remainder. The clamp to the song's
 // start keeps the remainder non-negative, so plain integer division floors it.
-std::pair<std::int64_t, Fraction> TempoMap::beatAtWholeNotePosition(
-    const Fraction whole_note_position) const noexcept
+GridPosition TempoMap::gridPositionAtWholeNote(const Fraction whole_note_position) const noexcept
 {
     const Fraction target = std::max(whole_note_position, Fraction{});
     const SignatureSegment& segment = segmentForWholeNotePosition(target);
     const Fraction beats_into_segment =
         (target - segment.start_whole_note_position) * Fraction{segment.meter.denominator};
     const int whole_beats = beats_into_segment.numerator / beats_into_segment.denominator;
-    return {
-        segment.start_beat_index + whole_beats,
-        beats_into_segment - Fraction{whole_beats},
+    const auto [measure, beat] = beatAtGlobalIndex(segment.start_beat_index + whole_beats);
+    return GridPosition{
+        .measure = measure,
+        .beat = beat,
+        .offset = beats_into_segment - Fraction{whole_beats},
     };
 }
 
-// Resolves a sub-beat offset as a fraction of the beat span containing the position.
+double TempoMap::quarterPositionOf(const Fraction whole_note_position) noexcept
+{
+    return 4.0 * whole_note_position.toDouble();
+}
+
+double TempoMap::wholeNotePositionOf(const double quarter_position) noexcept
+{
+    return quarter_position / 4.0;
+}
+
+double TempoMap::quarterPositionAt(const GridPosition position) const noexcept
+{
+    return quarterPositionOf(wholeNotePositionAt(position));
+}
+
 double TempoMap::secondsAt(const GridPosition position) const noexcept
 {
-    return secondsAtGlobalBeatPosition(beatPositionAt(position));
+    return secondsAtWholeNote(wholeNotePositionAt(position));
+}
+
+double TempoMap::secondsAtWholeNote(const Fraction whole_note_position) const noexcept
+{
+    return secondsAtQuarterPosition(quarterPositionOf(whole_note_position));
 }
 
 double TempoMap::secondsAtBeat(int measure, int beat) const noexcept
@@ -492,25 +516,26 @@ std::int64_t TempoMap::terminalGlobalBeatIndex() const noexcept
     return globalBeatIndex(terminal.measure, terminal.beat);
 }
 
-// Interpolates on the metronome axis inside the anchor span found by binary search over the
-// precomputed anchor quarter positions, clamping outside the authored map. This is the shared hot
-// query behind every beat, note, and grid-line time lookup, so it must never rescan the anchor
-// list.
+// A beat position's time, through its quarter position: secondsAtQuarterPosition owns the binary
+// search and the clamps outside the authored map, so this hot grid-line query never rescans the
+// anchor list.
 double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const noexcept
+{
+    return secondsAtQuarterPosition(quarterPositionAtBeatPosition(global_beat_position));
+}
+
+// First anchor at or after the position, clamped so a left neighbor always exists; positions past
+// the terminal anchor clamp to its time.
+double TempoMap::secondsAtQuarterPosition(const double quarter_position) const noexcept
 {
     if (m_anchors.empty())
     {
         return 0.0;
     }
-
-    if (m_anchors.size() == 1 || global_beat_position <= 0.0)
+    if (m_anchors.size() == 1)
     {
         return m_anchors.front().seconds();
     }
-
-    // First anchor at or after the position, clamped so a left neighbor always exists; positions
-    // past the terminal anchor clamp to its time.
-    const double quarter_position = quarterPositionAtBeatPosition(global_beat_position);
     const auto right_iterator =
         std::ranges::lower_bound(m_anchor_quarter_positions, quarter_position);
     const auto right_index = std::max<std::size_t>(

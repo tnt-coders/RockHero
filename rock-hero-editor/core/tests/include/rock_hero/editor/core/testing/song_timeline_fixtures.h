@@ -128,7 +128,7 @@ inline void requireValid(const SongTimeline& timeline)
 // The slice fixture: 4/4 from measure 1 and 3/4 from measure 3 at 120 BPM (a quarter is 500 ms),
 // the terminal at 6:1 (4 1/4 whole notes), with a sub-beat anchor on either side of the change.
 // Respelling the 3/4 as 6/8 keeps every measure's length, so no measure renumbers and only the
-// addresses inside the changed reign, and the beat counts crossing into it, change.
+// addresses inside the changed reign change.
 
 [[nodiscard]] inline TempoMap sliceMap()
 {
@@ -206,11 +206,11 @@ inline void requireValid(const SongTimeline& timeline)
                         at("2:4"),
                         1,
                         5,
-                        Fraction{2},
-                        {Keyframe{.offset = Fraction{3, 2}, .bend = 1.0}}),
-                    makeNote(at("4:2"), 2, 7, Fraction{1, 2}, {}),
+                        Fraction{1, 2},
+                        {Keyframe{.offset = Fraction{3, 8}, .bend = 1.0}}),
+                    makeNote(at("4:2"), 2, 7, Fraction{1, 8}, {}),
                 }),
-            sliceArrangement("rhythm", {makeNote(at("5:3"), 3, 2, Fraction{1, 2}, {})}),
+            sliceArrangement("rhythm", {makeNote(at("5:3"), 3, 2, Fraction{1, 8}, {})}),
         },
     };
 }
@@ -391,36 +391,16 @@ inline constexpr std::array<int, 6> g_grids{16, 12, 24, 32, 20, 3840};
             if (dice.chance(25))
             {
                 // A slide reaching another fret where the ring ends.
-                keyframes.push_back(
-                    Keyframe{
-                        .offset = common::core::beatDistance(
-                            tempo_map, onset, positionAt(tempo_map, cursor + ring)),
-                        .fret = fret + 2,
-                    });
+                keyframes.push_back(Keyframe{.offset = ring, .fret = fret + 2});
             }
             else if (dice.chance(30) && units >= 2)
             {
                 // A bend rising inside the ring and released at its end.
                 const Fraction rise{dice.roll(1, units - 1), grid};
-                keyframes.push_back(
-                    Keyframe{
-                        .offset = common::core::beatDistance(
-                            tempo_map, onset, positionAt(tempo_map, cursor + rise)),
-                        .bend = 1.0,
-                    });
-                keyframes.push_back(
-                    Keyframe{
-                        .offset = common::core::beatDistance(
-                            tempo_map, onset, positionAt(tempo_map, cursor + ring)),
-                        .bend = 0.0,
-                    });
+                keyframes.push_back(Keyframe{.offset = rise, .bend = 1.0});
+                keyframes.push_back(Keyframe{.offset = ring, .bend = 0.0});
             }
-            notes.push_back(makeNote(
-                onset,
-                string,
-                fret,
-                common::core::beatDistance(tempo_map, onset, positionAt(tempo_map, cursor + ring)),
-                std::move(keyframes)));
+            notes.push_back(makeNote(onset, string, fret, ring, std::move(keyframes)));
             cursor = cursor + ring;
             if (dice.chance(60))
             {
@@ -625,8 +605,10 @@ void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, con
                 check(
                     SlicePair{
                         .kind = SliceKind::RingEnd,
-                        .old_position = common::core::sustainEndPosition(old_map, old_note),
-                        .new_position = common::core::sustainEndPosition(new_map, new_note),
+                        .old_position = common::core::advanceGridPositionByWholeNotes(
+                            old_map, old_note.position, old_note.sustain),
+                        .new_position = common::core::advanceGridPositionByWholeNotes(
+                            new_map, new_note.position, new_note.sustain),
                         .old_onset = old_note.position,
                         .new_onset = new_note.position,
                     });
@@ -636,9 +618,9 @@ void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, con
                     check(
                         SlicePair{
                             .kind = SliceKind::Keyframe,
-                            .old_position = common::core::advanceGridPosition(
+                            .old_position = common::core::advanceGridPositionByWholeNotes(
                                 old_map, old_note.position, old_note.keyframes[key].offset),
-                            .new_position = common::core::advanceGridPosition(
+                            .new_position = common::core::advanceGridPositionByWholeNotes(
                                 new_map, new_note.position, new_note.keyframes[key].offset),
                             .old_onset = old_note.position,
                             .new_onset = new_note.position,

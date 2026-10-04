@@ -17,9 +17,9 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// The glide chart's lane at 20 px per second: its onset (2.0s), a covered slot two beats in (3.0s,
-// on the travel toward the junction), the junction (4.0s), the ring's end (6.0s), and an empty slot
-// past it (8.0s), all on string 3.
+// The glide chart's lane at 20 px per second: its onset (2.0s), a covered slot two quarters in
+// (3.0s, on the travel toward the junction), the junction (4.0s), the ring's end (6.0s), and an
+// empty slot past it (8.0s), all on string 3.
 constexpr float g_onset_x{40.0f};
 constexpr float g_covered_x{60.0f};
 constexpr float g_ring_end_x{120.0f};
@@ -171,7 +171,7 @@ TEST_CASE("A bare bend on a covered slot plants a bend point on the ring", "[cor
     REQUIRE(chart != nullptr);
     REQUIRE(chart->notes[0].keyframes.size() == 2);
     const common::core::Keyframe& point = chart->notes[0].keyframes[0];
-    CHECK(point.offset == common::core::Fraction{2});
+    CHECK(point.offset == common::core::Fraction{1, 2});
     CHECK_FALSE(point.fret.has_value());
     const std::optional<double>& bend = point.bend;
     REQUIRE(bend.has_value());
@@ -424,7 +424,7 @@ TEST_CASE("Delete on a bend chip takes the bend", "[core][chart]")
     {
         common::core::Chart chart = makeGlideChart();
         chart.notes[0].keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = {}, .bend = 1.0}
+            common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = {}, .bend = 1.0}
         };
         BendFixture fixture{std::move(chart)};
         click(fixture.controller, g_junction_x, g_string_3_y);

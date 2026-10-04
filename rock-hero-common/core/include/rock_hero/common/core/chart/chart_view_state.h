@@ -427,9 +427,9 @@ struct NoteViewState
     \brief The instant one minimum sustain distance before the onset, floored onto the tick
     lattice: where a hand's approach to this head begins.
 
-    \ref marginBefore at the onset, read from the revision's \ref HeadMargins and resolved onto the
-    clock here because tempo is not on the board's read surface: both hands' lights rise over the
-    stretch from this instant to \ref start_seconds.
+    The onset less its margin length, read from the revision's \ref HeadMargins and resolved onto
+    the clock here because tempo is not on the board's read surface: both hands' lights rise over
+    the stretch from this instant to \ref start_seconds.
     */
     double margin_start_seconds{0.0};
 
@@ -1091,9 +1091,10 @@ struct ChartViewState
     `docs/plans/in-progress/note-sustain-model.md`). One chart, one hold, two idioms.
 
     Resolved here from \ref chartHolds, the ONE authority for that rule, rather than recomputed in
-    seconds: computing it twice — once in beats for the chart rules and once in seconds for the
-    board — is one rule spelled twice, and each copy is free to carry the same defect on its own,
-    such as a long span shadowed by a short one that started inside it silently losing its hold.
+    seconds: computing it twice — once in note values for the chart rules and once in seconds for
+    the board — is one rule spelled twice, and each copy is free to carry the same defect on its
+    own, such as a long span shadowed by a short one that started inside it silently losing its
+    hold.
 
     Feeds the board's visible-range prefix maximum, so a pinned strum stays in range for as long
     as it is held.

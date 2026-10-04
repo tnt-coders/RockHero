@@ -94,7 +94,7 @@ struct ChartKeyframeKey
     /*! \brief Slot of the note the keyframe rides. */
     ChartSlotKey note{};
 
-    /*! \brief The keyframe's beat-fraction offset from that note's onset. */
+    /*! \brief The keyframe's distance from that note's onset, in whole notes. */
     common::core::Fraction offset{};
 
     /*!

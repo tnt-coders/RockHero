@@ -4,9 +4,16 @@
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 
 namespace rock_hero::editor::core
 {
+
+common::core::Fraction minimumSlideWindow(
+    const common::core::TempoMap& tempo_map, const common::core::Fraction from)
+{
+    return common::core::tickPlaceReached(tempo_map, from, g_minimum_slide_window_seconds) - from;
+}
 
 bool pickSlideDefaultUpward(const int start_fret, const int capo) noexcept
 {

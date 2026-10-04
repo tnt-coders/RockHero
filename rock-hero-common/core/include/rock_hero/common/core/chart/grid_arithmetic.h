@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -48,20 +49,44 @@ THIS INITIALIZER IS THE ONLY STATEMENT OF THE VALUE: every other comment, guide 
 inline constexpr double g_minimum_sustain_distance_seconds{0.05};
 
 /*!
-\brief Returns the minimum sustain distance in signature beats at the onset it protects.
+\brief The lattice place a stretch of seconds reaches from a place: THE one conversion of a
+duration in time into a length on the chart's axis.
 
-The margin is the stretch of \ref g_minimum_sustain_distance_seconds immediately BEFORE an onset,
-so how many BEATS it spans is a question about the tempo there and not about the meter: it is
-measured back through the tempo map and floored onto the tick lattice (\ref marginBefore), which
-makes a tempo change inside the margin exact and the answer never shorter than the duration.
+The stretch is walked on the tempo map's own time axis, so every tempo anchor between the two
+instants is part of it and a stretch spanning a tempo change is exact rather than an average. The
+instant reached is then rounded onto the tick lattice (\ref g_tick_quantum_note_value) AWAY from
+`from`: floored going back and ceiled going forward, because a length rounded the other way would
+be shorter than the duration it names. A count within a millionth of a tick of a line is taken as
+on it, so a stretch that lands squarely on a tick is not given a whole tick by the round trip's
+last-bit error.
 
-\param tempo_map Tempo map supplying the time axis and the beat grid.
-\param onset The onset being PROTECTED — the head the margin is kept before, never the position of
-       the ring, span or gesture that keeps it.
-\return The margin as an exact beat fraction; zero where the onset is the grid origin.
+Going back, the answer never passes the grid origin and never stands later than `from`: the time
+axis clamps at the first anchor, so a place there reaches no earlier. Going forward it is always
+at least one tick past `from`: the time axis also clamps at the terminal anchor, and a place at or
+past it would otherwise reach nothing.
+
+\param tempo_map Tempo map supplying the time axis.
+\param from A place on the tick lattice the stretch is measured from.
+\param seconds The signed stretch: negative reaches back, positive forward.
+\return The lattice place reached.
 */
-[[nodiscard]] Fraction minimumSustainDistanceBeats(
-    const TempoMap& tempo_map, const GridPosition& onset);
+[[nodiscard]] Fraction tickPlaceReached(const TempoMap& tempo_map, Fraction from, double seconds);
+
+/*!
+\brief The minimum sustain distance kept before an onset, as a whole-note length.
+
+The stretch of \ref g_minimum_sustain_distance_seconds immediately BEFORE the onset, so how long it
+is on the chart's axis is a question about the tempo there: \ref tickPlaceReached measures it back
+and floors it onto the lattice, which makes a tempo change inside the margin exact and the answer
+never shorter than the duration. Every ink crop, trim and ramp that keeps the margin reads this
+length (through \ref HeadMargins inside a scene build) rather than composing a margin of its own.
+
+\param tempo_map Tempo map supplying the time axis.
+\param onset The whole-note place of the onset being PROTECTED — the head the margin is kept
+       before, never the place of the ring, span or gesture that keeps it.
+\return The margin in whole notes; zero where the onset is the grid origin.
+*/
+[[nodiscard]] Fraction minimumSustainDistance(const TempoMap& tempo_map, Fraction onset);
 
 /*!
 \brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn
@@ -97,8 +122,9 @@ static_assert(g_minimum_sustain_distance_seconds < g_minimum_kept_sustain_second
 The execution form's one display constant: a tail the tail law hides draws only inside a SLIDING
 WINDOW rising this deep from the hit line — fully lit at the line, fading to nothing at the window's
 outer edge, so the ink continuously materializes as it scrolls in. A window, never a whole-tail
-fade. Resolved at each note's own meter and tempo, referenced as a note value and never a pixel, so
-a window in a fast song is the shorter wall-clock rise a fast song reads as. Deliberately NOT a
+fade. Measured back from each onset on the whole-note axis and resolved through the tempo map,
+referenced as a note value and never a pixel, so a window in a fast song is the shorter wall-clock
+rise a fast song reads as. Deliberately NOT a
 duration like the minimum sustain distance: a reveal is a MUSICAL lead-in the scrolling board
 carries the ink through, not a gap between two marks that has to stay readable at any tempo. The 2D
 lane never reads it: the lane draws the execution form always. THE TUNABLE the reveal's feel is
@@ -106,23 +132,6 @@ sighted against — the initializer below is the one statement of its value, and
 it.
 */
 inline constexpr Fraction g_tail_reveal_lead_whole_note{1, 4};
-
-/*!
-\brief Returns the reveal lead in signature beats.
-
-A whole note is `signature_denominator` beats, so the lead scales with the meter: a quarter of a
-whole note is one beat in x/4, two in x/8.
-
-\param signature_denominator Note value that represents one beat (the signature's denominator).
-\return The lead as an exact beat fraction.
-*/
-[[nodiscard]] constexpr Fraction tailRevealLeadBeats(const int signature_denominator) noexcept
-{
-    return Fraction{
-        signature_denominator * g_tail_reveal_lead_whole_note.numerator,
-        g_tail_reveal_lead_whole_note.denominator
-    };
-}
 
 /*!
 \brief True when the predecessor's ring reaches the onset: strict adjacency.
@@ -148,15 +157,16 @@ With the same-string clamp (\ref sustainBoundOf) this is equality in practice: a
 may reach its successor's onset and never pass it, and the successor of a claim IS the next onset
 on that string.
 
-\param predecessor Onset of the previous note on the same string.
-\param sustain That note's stored ring in beats.
-\param onset Onset of the note taking the hammer-on or pull-off.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
+\param sustain The previous note's stored ring on the same string, in whole notes.
+\param onset_gap Whole notes from that note's onset to the onset of the note taking the hammer-on
+       or pull-off.
 \return True when the predecessor is still ringing at the onset.
 */
-[[nodiscard]] bool predecessorHoldReaches(
-    const GridPosition& predecessor, Fraction sustain, const GridPosition& onset,
-    const TempoMap& tempo_map);
+[[nodiscard]] constexpr bool predecessorHoldReaches(
+    const Fraction sustain, const Fraction onset_gap) noexcept
+{
+    return sustain >= onset_gap;
+}
 
 /*!
 \brief The grid position of the tempo map's terminal anchor: the chart's closing barline.
@@ -175,63 +185,11 @@ The tempo-map rules keep the terminal anchor on a downbeat with no offset.
 }
 
 /*!
-\brief Advances a grid position by an exact number of beats.
-
-Whole beats carry across beat and measure boundaries through the tempo map's time-signature
-segments (a beat is one signature beat, so crossing a meter change re-slices exactly the way the
-map's beat axis does); the fractional remainder becomes the resulting sub-beat offset. Negative
-deltas move earlier; a result that would land before the grid origin clamps to measure 1 beat 1
-with a zero offset. Positions past the terminal anchor keep extending — signatures carry forward.
-
-\param tempo_map Tempo map supplying the signature-derived beat axis.
-\param position Valid grid position to advance (offset in [0, 1)).
-\param beats Signed exact beat delta.
-\return The advanced position, clamped at the grid origin.
-*/
-[[nodiscard]] GridPosition advanceGridPosition(
-    const TempoMap& tempo_map, GridPosition position, Fraction beats);
-
-/*!
-\brief The grid position one minimum-sustain-distance margin before an onset.
-
-THE ONE AUTHORITY on where the margin begins, and the only place the margin is a length at all: the
-stretch of \ref g_minimum_sustain_distance_seconds immediately before `onset`, resolved through the
-tempo map's own time axis so a tempo anchor inside the margin is honoured exactly, then FLOORED
-onto the chart's tick lattice (\ref g_tick_quantum_note_value) — floored, because a margin rounded
-the other way would be shorter than the duration it names. \ref minimumSustainDistanceBeats is this
-position measured back in beats, and every ink crop, trim and ramp reads one of the two rather
-than composing a margin of its own.
-
-Its readers: where the fretting hand begins its morph toward a placement at `onset` when no glide
-carries it there, where the picking hand's light begins its rise toward an onset there, and every
-drawn element that must stay clear of the head that follows it. Clamped at the grid origin like
-\ref advanceGridPosition, so an onset standing closer to the chart's start than the margin yields
-the origin itself.
-
-\param tempo_map Tempo map supplying the time axis and the beat grid.
-\param onset Valid grid position the margin is measured back from.
-\return The tick line one margin or more before the onset.
-*/
-[[nodiscard]] GridPosition marginBefore(const TempoMap& tempo_map, GridPosition onset);
-
-/*!
-\brief Measures the signed exact beat distance from one grid position to another.
-
-The inverse of advanceGridPosition: advancing `from` by the returned distance reaches `to`
-exactly. Positive when `to` is later than `from`.
-
-\param tempo_map Tempo map supplying the signature-derived beat axis.
-\param from Position the distance is measured from.
-\param to Position the distance is measured to.
-\return Signed distance in beats as an exact rational.
-*/
-[[nodiscard]] Fraction beatDistance(const TempoMap& tempo_map, GridPosition from, GridPosition to);
-
-/*!
 \brief Measures the signed exact whole-note distance from one grid position to another.
 
-The inverse of \ref advanceGridPositionByWholeNotes, as \ref beatDistance is of
-\ref advanceGridPosition: advancing `from` by the returned distance reaches `to` exactly.
+The inverse of \ref advanceGridPositionByWholeNotes: advancing `from` by the returned distance
+reaches `to` exactly. For a single-shot question about one pair; a pass over a note stream measures
+its distances by subtracting the places it computed once (\ref chartNotePlaces).
 
 \param tempo_map Tempo map supplying the meter of every measure crossed.
 \param from Position the distance is measured from.
@@ -245,12 +203,10 @@ The inverse of \ref advanceGridPositionByWholeNotes, as \ref beatDistance is of
 \brief The grid position a whole-note duration after another, exact across every meter change
 between them.
 
-\ref advanceGridPosition carries a BEAT count, the right walk for a ring or a keyframe offset
-measured from its own onset. This carries MUSICAL TIME: the move verb steps every instant it moves
-by one whole-note delta, so a note keeps each instant it holds the same distance apart, and a
-lattice position stepped by whole ticks lands on the lattice in whichever meter it arrives in — the
-same beat count re-read in a larger denominator would not. Clamped at the grid origin like
-\ref advanceGridPosition, so a step back past the song's start falls short of the duration asked.
+Every duration the chart stores is a whole-note value, so this is how a ring or a keyframe offset
+reaches its instant and how the move verb steps a note: a lattice position stepped by whole ticks
+lands on the lattice in whichever meter it arrives in. Clamped at the grid origin, so a step back
+past the song's start falls short of the duration asked.
 
 \param tempo_map Tempo map supplying the meter of every measure crossed.
 \param position Valid grid position.
@@ -261,16 +217,19 @@ same beat count re-read in a larger denominator would not. Clamped at the grid o
     const TempoMap& tempo_map, GridPosition position, Fraction whole_notes);
 
 /*!
-\brief Resolves the grid position where a note's sustain ends.
+\brief Every note's onset as a place on the whole-note axis, computed once for a pass.
 
-A zero sustain ends at the onset itself. Sustains may cross beat, measure, and signature
-boundaries; the endpoint is exact.
+THE coordinate every derivation pass reasons in. A duration is a difference of two places and an
+instant inside a note is its onset's place plus an offset, so a pass that asks for the places once
+measures every gap, ring end and keyframe instant by exact addition and subtraction — never by
+re-addressing a pair through the tempo map, which costs two segment searches per question.
 
-\param tempo_map Tempo map supplying the signature-derived beat axis.
-\param note Chart note whose sustain endpoint is wanted.
-\return The onset advanced by the note's sustain.
+\param notes Note stream whose onsets are wanted.
+\param tempo_map Tempo map supplying the meter of every measure.
+\return Index-parallel to `notes`: each onset's whole notes from measure 1 beat 1.
 */
-[[nodiscard]] GridPosition sustainEndPosition(const TempoMap& tempo_map, const ChartNote& note);
+[[nodiscard]] std::vector<Fraction> chartNotePlaces(
+    const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
 \brief Snaps a grid position to the nearest line of the measure-anchored note-value grid.

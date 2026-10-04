@@ -862,7 +862,7 @@ std::optional<EditorController::Impl::RowObjectStop> EditorController::Impl::nex
         {
             consider(
                 RowObjectStop{
-                    .position = common::core::advanceGridPosition(
+                    .position = common::core::advanceGridPositionByWholeNotes(
                         tempo_map, note.position, keyframe.offset),
                     .is_head = false,
                     .object = ChartSelectionKey{
@@ -2156,8 +2156,8 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         gesture.note_keys = chartSelection().notes();
         gesture.keyframe_keys = chartSelection().keyframes();
     }
-    // The step records the NOTE VALUE in force rather than a beat amount, because the meter where
-    // the run has reached scales it — the same reason a duration step stores one.
+    // The step records the NOTE VALUE in force rather than a precomputed length, because the meter
+    // where the run has reached scales it — the same reason a duration step stores one.
     gesture.steps.push_back(
         ChartMoveStep{.note_value = placementQuantum(), .direction = direction});
     const ChartMoveDelta delta = chartMoveGestureDelta(
@@ -2677,8 +2677,8 @@ ChartSlotKey EditorController::Impl::chartRingSiteSlot(
     const ChartSlotKey& note, const common::core::Fraction offset) const
 {
     return ChartSlotKey{
-        .position =
-            common::core::advanceGridPosition(session().song().tempo_map, note.position, offset),
+        .position = common::core::advanceGridPositionByWholeNotes(
+            session().song().tempo_map, note.position, offset),
         .string = note.string,
     };
 }
@@ -3138,9 +3138,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     {
         gesture = *live;
     }
-    // The step records the NOTE VALUE it snapped by rather than a beat amount, because the planner
-    // snaps the ring's end onto that lattice's own lines: the meter at whatever measure the end
-    // lands in scales the value there, so nothing here needs to know where any ring ends.
+    // The step records the NOTE VALUE it snapped by rather than a precomputed length, because the
+    // planner snaps the ring's end onto that lattice's own lines: the meter at whatever measure the
+    // end lands in scales the value there, so nothing here needs to know where any ring ends.
     gesture.steps.push_back(
         ChartSustainStep{.note_value = placementQuantum(), .grow = direction > 0});
 

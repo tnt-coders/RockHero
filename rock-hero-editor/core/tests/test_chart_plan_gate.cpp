@@ -38,8 +38,8 @@ using common::core::testing::anchor;
     return TempoMap::defaultMap(common::core::TimeDuration{16.0});
 }
 
-// 4/4 for two measures, then 6/8: a beat is a different note value on either side of the barline,
-// so the lattice rules the gate asks read differently there.
+// 4/4 for three measures, then 6/8: the fixtures' content stands on both sides of a meter change,
+// where a beat is a different note value and every address reads the new meter.
 [[nodiscard]] TempoMap makeMeterChangeMap()
 {
     return TempoMap{
@@ -48,7 +48,7 @@ using common::core::testing::anchor;
                 .measure = 1, .meter = {.numerator = 4, .denominator = 4}
             },
             common::core::TimeSignatureChange{
-                .measure = 3, .meter = {.numerator = 6, .denominator = 8}
+                .measure = 4, .meter = {.numerator = 6, .denominator = 8}
             },
         },
         std::vector{
@@ -65,31 +65,31 @@ using common::core::testing::anchor;
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    ChartNote glide = makeTestNote({.measure = 1, .beat = 3}, 3, 7, Fraction{4});
+    ChartNote glide = makeTestNote({.measure = 1, .beat = 3}, 3, 7, Fraction{1});
     glide.keyframes = {
-        Keyframe{.offset = Fraction{2}, .fret = 8},
-        Keyframe{.offset = Fraction{4}, .fret = 9},
+        Keyframe{.offset = Fraction{1, 2}, .fret = 8},
+        Keyframe{.offset = Fraction{1}, .fret = 9},
     };
-    ChartNote hammer = makeTestNote({.measure = 2, .beat = 1}, 4, 4, Fraction{1});
+    ChartNote hammer = makeTestNote({.measure = 2, .beat = 1}, 4, 4, Fraction{1, 4});
     hammer.attack = NoteAttack::Legato;
-    ChartNote tap = makeTestNote({.measure = 2, .beat = 4}, 6, 5, Fraction{1, 2});
+    ChartNote tap = makeTestNote({.measure = 2, .beat = 4}, 6, 5, Fraction{1, 8});
     tap.attack = NoteAttack::Tap;
-    ChartNote held = makeTestNote({.measure = 3, .beat = 3}, 1, 7, Fraction{2});
-    held.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
+    ChartNote held = makeTestNote({.measure = 3, .beat = 3}, 1, 7, Fraction{1, 2});
+    held.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
     chart.notes = {
-        makeTestNote({.measure = 1, .beat = 1}, 1, 3, Fraction{2}),
+        makeTestNote({.measure = 1, .beat = 1}, 1, 3, Fraction{1, 2}),
         makeTestNote({.measure = 1, .beat = 1}, 2, 5),
-        makeTestNote({.measure = 1, .beat = 3}, 1, 5, Fraction{4}),
+        makeTestNote({.measure = 1, .beat = 3}, 1, 5, Fraction{1}),
         std::move(glide),
-        makeTestNote({.measure = 1, .beat = 4}, 4, 2, Fraction{1}),
+        makeTestNote({.measure = 1, .beat = 4}, 4, 2, Fraction{1, 4}),
         std::move(hammer),
-        makeTestNote({.measure = 2, .beat = 3}, 5, 0, Fraction{1, 2}),
+        makeTestNote({.measure = 2, .beat = 3}, 5, 0, Fraction{1, 8}),
         std::move(tap),
         std::move(held),
-        makeTestNote({.measure = 5, .beat = 1}, 1, 5, Fraction{2}),
-        makeTestNote({.measure = 5, .beat = 1}, 2, 7, Fraction{2}),
-        makeTestNote({.measure = 5, .beat = 1}, 3, 7, Fraction{2}),
-        makeTestNote({.measure = 6, .beat = 1}, 5, 3, Fraction{8}),
+        makeTestNote({.measure = 5, .beat = 1}, 1, 5, Fraction{1, 2}),
+        makeTestNote({.measure = 5, .beat = 1}, 2, 7, Fraction{1, 2}),
+        makeTestNote({.measure = 5, .beat = 1}, 3, 7, Fraction{1, 2}),
+        makeTestNote({.measure = 6, .beat = 1}, 5, 3, Fraction{2}),
     };
     return chart;
 }
@@ -231,7 +231,7 @@ template <typename Edit>
     return notes;
 }
 
-// The position one beat after `position` on a 4/4 grid, rolling into the next measure.
+// The position a quarter after `position` on a 4/4 grid, rolling into the next measure.
 [[nodiscard]] GridPosition beatAfter(const GridPosition position)
 {
     return position.beat < 4 ? GridPosition{.measure = position.measure, .beat = position.beat + 1}
@@ -239,9 +239,9 @@ template <typename Edit>
 }
 
 // Every candidate the edit script derives from a chart, each in slot order: a short and a long
-// ring planted at every slot of a beat grid (empty slots, the insides of rings, held slots),
+// ring planted at every slot of a quarter grid (empty slots, the insides of rings, held slots),
 // legal and off-the-neck frets alike; every note removed, retyped, re-struck under each attack,
-// regrown and shrunk, and moved a beat and a string; and two onsets planted at once inside each
+// regrown and shrunk, and moved a quarter and a string; and two onsets planted at once inside each
 // note's ring.
 [[nodiscard]] std::vector<std::vector<ChartNote>> editScript(const Chart& chart)
 {
@@ -253,7 +253,7 @@ template <typename Edit>
         {
             for (int string = 1; string <= 6; ++string)
             {
-                for (const Fraction sustain : {Fraction{1, 8}, Fraction{6}})
+                for (const Fraction sustain : {Fraction{1, 32}, Fraction{3, 2}})
                 {
                     for (const int fret : {3, common::core::g_max_fret + 1})
                     {
@@ -285,7 +285,7 @@ template <typename Edit>
             candidates.push_back(
                 rewritten(notes, index, [attack](ChartNote& edited) { edited.attack = attack; }));
         }
-        for (const Fraction sustain : {Fraction{1, 8}, Fraction{12}})
+        for (const Fraction sustain : {Fraction{1, 32}, Fraction{3}})
         {
             candidates.push_back(rewritten(notes, index, [sustain](ChartNote& edited) {
                 static_cast<void>(common::core::clipPayloadsToSustain(edited, sustain));

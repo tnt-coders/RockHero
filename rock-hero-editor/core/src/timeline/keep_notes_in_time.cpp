@@ -13,11 +13,10 @@ ContentMap timeKeptPlaces(common::core::TempoMap old_map, common::core::TempoMap
 {
     return [from = std::move(old_map),
             to = std::move(new_map)](const common::core::Fraction whole_note) {
-        const auto [beat_index, beat_offset] = from.beatAtWholeNotePosition(whole_note);
-        const double seconds = from.secondsAtGlobalBeatPosition(
-            static_cast<double>(beat_index) + beat_offset.toDouble());
         return to.wholeNotePositionAt(nearestTempoGridPosition(
-            to, common::core::g_tick_quantum_note_value, common::core::TimePosition{seconds}));
+            to,
+            common::core::g_tick_quantum_note_value,
+            common::core::TimePosition{from.secondsAtWholeNote(whole_note)}));
     };
 }
 

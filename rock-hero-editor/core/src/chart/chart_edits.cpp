@@ -139,55 +139,11 @@ struct KeyedSplit
     return split;
 }
 
-// An offset along a ring — the end's, or a keyframe's — is a beat count from the onset, and a beat
-// is a different note value on either side of a meter change. Stepping the INSTANT it names by a
-// whole-note delta and measuring it again from `onset_after` keeps its musical distance from the
-// onset and keeps it on the tick lattice; adding a beat delta to the count would do neither once
-// the step crosses a denominator change.
-[[nodiscard]] common::core::Fraction carriedOffset(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition onset_before,
-    const common::core::Fraction offset, const common::core::Fraction whole_note_delta,
-    const common::core::GridPosition onset_after)
-{
-    return common::core::beatDistance(
-        tempo_map,
-        onset_after,
-        common::core::advanceGridPositionByWholeNotes(
-            tempo_map,
-            common::core::advanceGridPosition(tempo_map, onset_before, offset),
-            whole_note_delta));
-}
-
-// A ring a verb AUTHORS is a note value carried from the onset along the whole-note axis to a
-// lattice end, then measured back as the beat count the note stores. Stated as beats at the onset's
-// meter it would re-read as another length past a denominator change and could end between two
-// ticks there.
-[[nodiscard]] common::core::Fraction authoredRing(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition onset,
-    const common::core::Fraction whole_notes)
-{
-    return common::core::beatDistance(
-        tempo_map,
-        onset,
-        common::core::advanceGridPositionByWholeNotes(tempo_map, onset, whole_notes));
-}
-
-// The minimum slide window is stated in beats (the import reads the same constant), so its worth
-// in whole notes is taken at the onset's own meter and carried from there.
-[[nodiscard]] common::core::Fraction minimumSlideWindowRing(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition onset)
-{
-    const int denominator = std::max(1, tempo_map.timeSignatureAt(onset.measure).meter.denominator);
-    return authoredRing(
-        tempo_map, onset, g_minimum_slide_window * common::core::Fraction{1, denominator});
-}
-
 // Slides every note by the delta in place, or answers false and leaves them half-moved for the
 // caller to discard. Refused, never clamped: a move that would leave the neck or the grid is
 // invalid. The grid arithmetic itself clamps at the origin, so leaving the grid shows up as a move
-// that fell short of the delta asked for. The ring's end and every keyframe travel as instants of
-// their own, by the same whole-note delta as the onset, and are measured again from where the
-// onset landed (carriedOffset): a note carried across a meter change keeps its real length.
+// that fell short of the delta asked for. A ring and every keyframe offset are note values from the
+// onset, so a note carried by a whole-note delta keeps them all exactly, across any meter change.
 [[nodiscard]] bool moveKeyedNotes(
     const common::core::TempoMap& tempo_map, std::vector<common::core::ChartNote>& notes,
     const common::core::Fraction whole_note_delta, const int string_delta, const int string_count)
@@ -202,13 +158,6 @@ struct KeyedSplit
             common::core::wholeNoteDistance(tempo_map, from, note.position) != whole_note_delta)
         {
             return false;
-        }
-        note.sustain =
-            carriedOffset(tempo_map, from, note.sustain, whole_note_delta, note.position);
-        for (common::core::Keyframe& keyframe : note.keyframes)
-        {
-            keyframe.offset =
-                carriedOffset(tempo_map, from, keyframe.offset, whole_note_delta, note.position);
         }
     }
     return true;
@@ -473,7 +422,7 @@ struct AddressedStop
 // forever.
 //
 // Two degenerate ends are harmless and deliberately unguarded: an authored ring at or below zero
-// puts the end at or before the onset, where advanceGridPosition clamps at the grid origin and
+// puts the end at or before the onset, where the whole-note axis clamps at the grid origin and
 // adjacentTempoGridPosition can collapse onto its input — a ring stepped back past the start of the
 // song simply stops moving, and the floor holds the note's visible ring either way.
 [[nodiscard]] common::core::Fraction authoredSustain(
@@ -484,8 +433,8 @@ struct AddressedStop
     for (const ChartSustainStep& step : steps)
     {
         const common::core::GridPosition end =
-            common::core::advanceGridPosition(tempo_map, start.position, ring);
-        ring = common::core::beatDistance(
+            common::core::advanceGridPositionByWholeNotes(tempo_map, start.position, ring);
+        ring = common::core::wholeNoteDistance(
             tempo_map,
             start.position,
             adjacentTempoGridPosition(tempo_map, step.note_value, end, step.grow));
@@ -545,7 +494,8 @@ struct AddressedStop
         if (index > 0)
         {
             const common::core::RingState carried = common::core::ringStateAt(note, start);
-            product.position = common::core::advanceGridPosition(tempo_map, note.position, start);
+            product.position =
+                common::core::advanceGridPositionByWholeNotes(tempo_map, note.position, start);
             product.fret = carried.fret;
             product.bend = carried.bend;
             product.vibrato = carried.vibrato;
@@ -613,7 +563,10 @@ struct AddressedStop
     // joinable, and the predicate is asked of the PAIR this function holds rather than of a
     // resolved vector it has no index into.
     // A fret-hand harmonic is a touch, and a touch holds nothing to hand over.
-    const bool arrives = common::core::arrivesIntoNextHead(predecessor, head, tempo_map);
+    const common::core::Fraction gap =
+        common::core::wholeNoteDistance(tempo_map, predecessor.position, head.position);
+    const bool arrives = common::core::arrivesIntoNextHead(
+        common::core::LegatoPredecessor{.note = predecessor, .onset_gap = gap}, head);
     if (common::core::isScrape(predecessor.attack) ||
         common::core::slideOutFretOrNull(predecessor, arrives) != nullptr ||
         common::core::fretHandHarmonic(predecessor))
@@ -631,8 +584,6 @@ struct AddressedStop
         };
     }
 
-    const common::core::Fraction gap =
-        common::core::beatDistance(tempo_map, predecessor.position, head.position);
     // An arrival already standing at the junction is part of what is in force there — which is what
     // makes the round trip's point restate the fret rather than change it.
     const common::core::RingState at = common::core::ringStateAt(predecessor, gap);
@@ -683,7 +634,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     // onset need not be (a septuplet grid's step is not a whole number of ticks). The finalize
     // gate's same-string normalization does the clamping: a ring that would run through the next
     // onset on the string ends exactly on it.
-    note.sustain = common::core::beatDistance(
+    note.sustain = common::core::wholeNoteDistance(
         tempo_map,
         note.position,
         adjacentTempoGridPosition(tempo_map, grid_note_value, note.position, true));
@@ -706,7 +657,7 @@ std::optional<ChartPathTail> chartPathTailAt(
     }
     const common::core::ChartNote& note = *covering;
     const common::core::Fraction offset =
-        common::core::beatDistance(tempo_map, note.position, position);
+        common::core::wholeNoteDistance(tempo_map, note.position, position);
     if (!(common::core::Fraction{0} < offset) || note.sustain < offset)
     {
         return std::nullopt;
@@ -809,8 +760,7 @@ int chartFretInForceAt(
     const common::core::ChartNote* latest = nullptr;
     for (const common::core::ChartNote& candidate : notes)
     {
-        if (!(common::core::Fraction{0} <
-              common::core::beatDistance(tempo_map, candidate.position, slot.position)))
+        if (!(candidate.position < slot.position))
         {
             break;
         }
@@ -937,7 +887,7 @@ ChartMoveDelta chartMoveGestureDelta(
     const common::core::GridPosition anchor =
         !note_keys.empty()
             ? note_keys.front().position
-            : common::core::advanceGridPosition(
+            : common::core::advanceGridPositionByWholeNotes(
                   tempo_map, keyframe_keys.front().note.position, keyframe_keys.front().offset);
     for (const ChartMoveStep& step : steps)
     {
@@ -982,12 +932,7 @@ common::core::Fraction chartSteppedKeyframeOffset(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartKeyframeKey& keyframe, const common::core::Fraction whole_note_delta)
 {
-    const common::core::Fraction stepped = carriedOffset(
-        tempo_map,
-        keyframe.note.position,
-        keyframe.offset,
-        whole_note_delta,
-        keyframe.note.position);
+    const common::core::Fraction stepped = keyframe.offset + whole_note_delta;
     const common::core::ChartNote* const note = chartNoteAt(chart.notes, keyframe.note);
     if (note == nullptr)
     {
@@ -1093,8 +1038,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                 }
                 else
                 {
-                    keyframe.offset = carriedOffset(
-                        tempo_map, note.position, keyframe.offset, whole_note_delta, note.position);
+                    keyframe.offset = keyframe.offset + whole_note_delta;
                     // Against the CLAMPED end: a step that would strand an interior point on or
                     // past the head its own ring stops at is refused, never clamped — clamping it
                     // would stack it on the slide-out.
@@ -1356,7 +1300,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         if (common::core::isScrape(stepped.attack))
         {
             const common::core::Fraction window =
-                minimumSlideWindowRing(tempo_map, stepped.position);
+                minimumSlideWindow(tempo_map, tempo_map.wholeNotePositionAt(stepped.position));
             if (target < window)
             {
                 target = window;
@@ -1474,10 +1418,8 @@ ChartSelectionPlan planSetLegato(
             continue;
         }
         const std::size_t predecessor_index = connections.predecessors[index];
-        const common::core::ChartNote* const predecessor =
-            predecessor_index == common::core::g_no_chart_predecessor
-                ? nullptr
-                : &connections.saved_notes[predecessor_index];
+        const std::optional<common::core::LegatoPredecessor> predecessor =
+            connections.predecessorOf(index);
         // The hypothetical the press asks about: this note AS A CLAIM. The claim attack has to be
         // in place because the resolver answers a `LeftTap` locally — it reports the hammer motion
         // for a tap no predecessor could justify, and asking in that form would write a claim the
@@ -1486,8 +1428,7 @@ ChartSelectionPlan planSetLegato(
         // because its node vetoes the pull clause and its open string leaves nothing to hammer on.
         common::core::ChartNote asked = connections.saved_notes[index];
         asked.attack = common::core::NoteAttack::Legato;
-        common::core::LegatoMotion resolved =
-            common::core::resolveLegato(asked, predecessor, tempo_map);
+        common::core::LegatoMotion resolved = common::core::resolveLegato(asked, predecessor);
         // The assist: when the HOLD is the only thing missing — the claim would resolve if the
         // predecessor were still ringing — the verb grows that ring to the successor's ONSET in
         // the same plan, so pressing L authors the connection instead of demanding the drag first
@@ -1501,13 +1442,15 @@ ChartSelectionPlan planSetLegato(
         // onset the assist grows to IS the predecessor's sustainBoundOf — exactly what a manual
         // drag could reach, and exactly what the finalize gate would clamp to.
         bool hold_was_the_only_blocker = false;
-        if (resolved == common::core::LegatoMotion::Unjustified && predecessor != nullptr)
+        if (resolved == common::core::LegatoMotion::Unjustified && predecessor.has_value())
         {
-            common::core::ChartNote still_ringing = *predecessor;
-            still_ringing.sustain =
-                common::core::beatDistance(tempo_map, predecessor->position, note.position);
-            const common::core::LegatoMotion if_held =
-                common::core::resolveLegato(asked, &still_ringing, tempo_map);
+            common::core::ChartNote still_ringing = predecessor->note;
+            still_ringing.sustain = predecessor->onset_gap;
+            const common::core::LegatoMotion if_held = common::core::resolveLegato(
+                asked,
+                common::core::LegatoPredecessor{
+                    .note = still_ringing, .onset_gap = predecessor->onset_gap
+                });
             hold_was_the_only_blocker = if_held != common::core::LegatoMotion::Unjustified;
             // A slide-out's tail is its authored exit window, not slack to spend: reshaping it to
             // buy a connection would rewrite the gesture. The connection itself stays legal — the
@@ -1516,7 +1459,7 @@ ChartSelectionPlan planSetLegato(
             // its hold is never the only blocker.)
             if (hold_was_the_only_blocker &&
                 common::core::slideOutFretOrNull(
-                    *predecessor, connections.arrives_into[predecessor_index]) == nullptr)
+                    predecessor->note, connections.arrives_into[predecessor_index]) == nullptr)
             {
                 static_cast<void>(common::core::clipPayloadsToSustain(
                     candidate[predecessor_index], still_ringing.sustain));
@@ -1529,7 +1472,8 @@ ChartSelectionPlan planSetLegato(
             refused.push_back(
                 ChartRefusedNote{
                     .note = chartSlotKeyOf(note),
-                    .reason = predecessor == nullptr ? "nothing earlier on the string to connect to"
+                    .reason = !predecessor.has_value()
+                                  ? "nothing earlier on the string to connect to"
                               : hold_was_the_only_blocker
                                   ? "the ring before it stops short and cannot be grown to reach it"
                                   : "no connection between the two stops",
@@ -1651,11 +1595,10 @@ ChartSelectionPlan planSetAttack(
                 // that can hold the gesture is left exactly as authored — the ring is the note's
                 // own truth, and this verb changes the attack, not the duration.
                 const common::core::Fraction window =
-                    minimumSlideWindowRing(tempo_map, note.position);
+                    minimumSlideWindow(tempo_map, tempo_map.wholeNotePositionAt(note.position));
                 if (retyped.sustain < window)
                 {
-                    common::core::Fraction wanted = authoredRing(
-                        tempo_map, note.position, g_pick_slide_default_sustain_whole_note);
+                    common::core::Fraction wanted = g_pick_slide_default_sustain_whole_note;
                     const std::optional<common::core::Fraction> bound =
                         common::core::sustainBoundOf(chart.notes, note, tempo_map);
                     if (bound.has_value() && *bound < wanted)

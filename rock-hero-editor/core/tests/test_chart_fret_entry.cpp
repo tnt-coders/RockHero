@@ -101,7 +101,7 @@ TEST_CASE("EditorController digit inside a sustain cuts the ring", "[core][chart
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     const common::core::Chart original = *chartOrNull(controller);
 
-    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat ring on
+    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's half-note ring on
     // string 1. Reach it via the empty string-2 lane and an arrow down, so the click itself
     // selects nothing.
     click(controller, 90.0f, 180.0f);
@@ -111,12 +111,12 @@ TEST_CASE("EditorController digit inside a sustain cuts the ring", "[core][chart
     const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 4);
     CHECK(chart->notes[2].fret == 7);
-    CHECK(chart->notes[2].sustain == common::core::Fraction{1});
+    CHECK(chart->notes[2].sustain == common::core::Fraction{1, 4});
     CHECK(chart->notes[2].keyframes.empty());
     CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 3, .beat = 2});
     CHECK(chart->notes[3].string == 1);
     CHECK(chart->notes[3].fret == 5);
-    CHECK(chart->notes[3].sustain == common::core::Fraction{1});
+    CHECK(chart->notes[3].sustain == common::core::Fraction{1, 4});
     const EditorViewState* const state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{3});
@@ -146,7 +146,7 @@ TEST_CASE(
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     const common::core::Chart original = *chartOrNull(controller);
 
-    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat ring on
+    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's half-note ring on
     // string 1. Reach it via the empty string-2 lane and an arrow down, so the click itself
     // selects nothing.
     click(controller, 90.0f, 180.0f);
@@ -154,12 +154,12 @@ TEST_CASE(
     controller.onChartRingDigitTyped(5);
 
     const auto* chart = chartOrNull(controller);
-    // No new note, and the ring is untouched: the digit landed as a keyframe one beat along it.
+    // No new note, and the ring is untouched: the digit landed as a keyframe a quarter along it.
     REQUIRE(chart->notes.size() == 3);
     CHECK(chart->notes[2].fret == 7);
-    CHECK(chart->notes[2].sustain == common::core::Fraction{2});
+    CHECK(chart->notes[2].sustain == common::core::Fraction{1, 2});
     REQUIRE(chart->notes[2].keyframes.size() == 1);
-    CHECK(chart->notes[2].keyframes[0].offset == common::core::Fraction{1});
+    CHECK(chart->notes[2].keyframes[0].offset == common::core::Fraction{1, 4});
     CHECK(chart->notes[2].keyframes[0].fret == 5);
 
     controller.onUndoRequested();
@@ -188,7 +188,7 @@ TEST_CASE("EditorController digit at a ring's end places an adjacent note", "[co
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     const common::core::Chart original = *chartOrNull(controller);
 
-    // Measure 3 beat 3 (5.0s) is exactly where the measure-3 note's two-beat ring ends.
+    // Measure 3 beat 3 (5.0s) is exactly where the measure-3 note's half-note ring ends.
     click(controller, 100.0f, 180.0f);
     controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     controller.onChartFretDigitTyped(5);
@@ -1004,7 +1004,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 9,
-            .sustain = common::core::Fraction{4},
+            .sustain = common::core::Fraction{1},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -1235,9 +1235,9 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
 }
 
 // Off-grid authoring with snap off: Alt+Left/Right moves the selection by one tick (1/3840 whole
-// note, which is 1/960 beat in x/4). A grid step with snap back on carries the selection onto the
-// grid's adjacent LINE rather than one step out, so the tick offset does not ride along — the same
-// snap the caret step and the duration verb's first press make — and a tick step from a line
+// note, which is 1/3840 of a whole note). A grid step with snap back on carries the selection onto
+// the grid's adjacent LINE rather than one step out, so the tick offset does not ride along — the
+// same snap the caret step and the duration verb's first press make — and a tick step from a line
 // lands one tick from it, on the lattice.
 TEST_CASE("EditorController moves the selection by one tick with grid snap off", "[core][chart]")
 {

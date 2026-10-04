@@ -77,8 +77,8 @@ TEST_CASE("Scale Tempo lands the whole song as one entry, every time held", "[co
     REQUIRE(chart.notes.size() == 3);
     CHECK(chart.notes[0].position == beatAt(3, 1));
     CHECK(chart.notes[2].position == beatAt(5, 1));
-    // The two-beat ring from 3:1 ended at 3:3 (5 s); four beats from 5:1 end there still.
-    CHECK(chart.notes[2].sustain == common::core::Fraction{4});
+    // The half-note ring from 3:1 ended at 3:3 (5 s); a whole note from 5:1 ends there still.
+    CHECK(chart.notes[2].sustain == common::core::Fraction{1});
     CHECK_THAT(editor.tempoMap().secondsAt(chart.notes[2].position), WithinAbs(4.0, 1e-9));
     REQUIRE(chart.fret_hand_positions.size() == 2);
     CHECK(chart.fret_hand_positions[1].position == beatAt(5, 1));

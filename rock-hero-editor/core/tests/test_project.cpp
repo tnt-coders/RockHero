@@ -255,7 +255,7 @@ void writeChartedProjectPackage(
                 .contents = R"({ "formatVersion": 1,)"
                             R"( "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
                             R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5,)"
-                            R"( "sustain": "1/8")" +
+                            R"( "sustain": "1/32")" +
                             note_properties + R"( } ] })",
             },
             ArchiveEntry{
@@ -589,7 +589,7 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
             CHECK(chart.notes.front().dead);
             CHECK(std::is_eq(chart.notes.front().bend <=> 0.0));
             // The ring is untouched: a dead note's damped stroke has a duration like any other.
-            CHECK(chart.notes.front().sustain == common::core::Fraction{1, 8});
+            CHECK(chart.notes.front().sustain == common::core::Fraction{1, 32});
         }
         CHECK(project.songConvertedOnLoad());
         REQUIRE(project.loadConversions().size() == 1);

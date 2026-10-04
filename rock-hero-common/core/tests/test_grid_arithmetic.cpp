@@ -41,62 +41,61 @@ using rock_hero::common::core::testing::anchor;
     };
 }
 
-// Seconds between two grid positions, the quantity the margin is stated in.
+// Seconds between two whole-note places, the quantity the margin is stated in.
 [[nodiscard]] double secondsBetween(
-    const TempoMap& tempo_map, const GridPosition& from, const GridPosition& to)
+    const TempoMap& tempo_map, const Fraction from, const Fraction to)
 {
-    return tempo_map.secondsAt(to) - tempo_map.secondsAt(from);
+    return tempo_map.secondsAtWholeNote(to) - tempo_map.secondsAtWholeNote(from);
 }
 
 } // namespace
 
 // THE MARGIN IS A DURATION: the same span of seconds at any tempo, which is the whole point of the
 // law — the gap a player and a charter read on screen must not shrink because the song is fast.
-// The beat counts differ (50 ms is 1/20 of a beat at 60 BPM and a sixth of one at 200), the
-// seconds do not.
+// The lengths differ (50 ms is an eightieth of a whole note at 60 BPM and a twenty-fourth at 200),
+// the seconds do not.
 TEST_CASE("The minimum sustain distance spans one duration at every tempo", "[core][chart]")
 {
-    const GridPosition onset{.measure = 3, .beat = 2, .offset = {}};
-
     const TempoMap slow = steadyMap(60.0);
     const TempoMap fast = steadyMap(200.0);
-    CHECK(minimumSustainDistanceBeats(slow, onset) == Fraction{1, 20});
-    CHECK(minimumSustainDistanceBeats(fast, onset) == Fraction{1, 6});
+    const Fraction onset = slow.wholeNotePositionAt(GridPosition{.measure = 3, .beat = 2});
+    CHECK(minimumSustainDistance(slow, onset) == Fraction{1, 80});
+    CHECK(minimumSustainDistance(fast, onset) == Fraction{1, 24});
 
     // Measured back through each map, both land on the one duration — within a tick, the lattice
     // the answer is floored onto.
     const double slow_tick_seconds = 60.0 / 60.0 * 4.0 / g_tick_quantum_denominator;
     const double fast_tick_seconds = 60.0 / 200.0 * 4.0 / g_tick_quantum_denominator;
     CHECK(
-        secondsBetween(slow, marginBefore(slow, onset), onset) ==
+        secondsBetween(slow, onset - minimumSustainDistance(slow, onset), onset) ==
         Catch::Approx(g_minimum_sustain_distance_seconds).margin(slow_tick_seconds));
     CHECK(
-        secondsBetween(fast, marginBefore(fast, onset), onset) ==
+        secondsBetween(fast, onset - minimumSustainDistance(fast, onset), onset) ==
         Catch::Approx(g_minimum_sustain_distance_seconds).margin(fast_tick_seconds));
 }
 
-// A tempo anchor standing INSIDE the margin is honoured exactly, because the walk leaves the beat
-// axis for the map's time axis and comes back rather than scaling one local rate. Measure 1 runs
-// at 60 BPM, then the beat into measure 2 is pinned forty times faster: the margin before the
-// downbeat therefore reaches back over the whole fast beat and on into the preceding one, which a
-// single-rate margin could never produce.
+// A tempo anchor standing INSIDE the margin is honoured exactly, because the walk leaves the
+// whole-note axis for the map's time axis and comes back rather than scaling one local rate.
+// Measure 1 runs at 60 BPM, then the quarter into measure 2 is pinned forty times faster: the
+// margin before the downbeat therefore reaches back over the whole fast quarter and on into the
+// preceding one, which a single-rate margin could never produce.
 TEST_CASE("The minimum sustain distance honours a tempo anchor inside it", "[core][chart]")
 {
     const TempoMap map{
         {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
         {anchor("1:1", 0), anchor("1:4", 3000), anchor("2:1", 3025), anchor("5:1", 7000)},
     };
-    const GridPosition onset{.measure = 2, .beat = 1, .offset = {}};
+    const Fraction onset{1};
 
-    // 0.025 s of the 50 ms margin is spent on the fast beat and 0.025 s at one second per beat, so
-    // the margin starts 39/40 of a beat into measure 1 beat 3 — on the tick lattice exactly.
+    // 0.025 s of the 50 ms margin is spent on the fast quarter and 0.025 s at one second per
+    // quarter, so the margin starts 39/40 of a quarter into measure 1 beat 3 — on the tick lattice
+    // exactly.
+    const Fraction start = tickPlaceReached(map, onset, -g_minimum_sustain_distance_seconds);
     CHECK(
-        marginBefore(map, onset) ==
+        map.gridPositionAtWholeNote(start) ==
         GridPosition{.measure = 1, .beat = 3, .offset = Fraction{39, 40}});
-    CHECK(minimumSustainDistanceBeats(map, onset) == Fraction{41, 40});
-    CHECK(
-        secondsBetween(map, marginBefore(map, onset), onset) ==
-        Catch::Approx(g_minimum_sustain_distance_seconds));
+    CHECK(minimumSustainDistance(map, onset) == Fraction{41, 160});
+    CHECK(secondsBetween(map, start, onset) == Catch::Approx(g_minimum_sustain_distance_seconds));
 }
 
 // The margin always lands ON the chart's tick lattice and is never SHORTER than the duration: the
@@ -111,30 +110,72 @@ TEST_CASE("The minimum sustain distance lands on the tick lattice", "[core][char
         GridPosition{.measure = 4, .beat = 4, .offset = Fraction{7, 16}},
     };
 
-    // A 4/4 beat is a quarter of a whole note, so it holds a quarter of the ticks and an offset on
-    // the lattice reduces to a denominator dividing that count.
-    constexpr int ticks_per_beat = g_tick_quantum_denominator / 4;
     for (const GridPosition& onset : onsets)
     {
-        const GridPosition start = marginBefore(map, onset);
-        CHECK(ticks_per_beat % start.offset.denominator == 0);
-        CHECK(secondsBetween(map, start, onset) >= g_minimum_sustain_distance_seconds);
+        const Fraction place = map.wholeNotePositionAt(onset);
+        const Fraction start = tickPlaceReached(map, place, -g_minimum_sustain_distance_seconds);
+        CHECK(isOnTickLattice(start));
+        CHECK(secondsBetween(map, start, place) >= g_minimum_sustain_distance_seconds);
     }
 }
 
 // An onset standing closer to the chart's start than the margin has nowhere to reach back to, so
-// the walk clamps at the grid origin exactly as advanceGridPosition does and the margin is simply
-// what room there was.
+// the walk clamps at the grid origin and the margin is simply what room there was.
 TEST_CASE("The minimum sustain distance clamps at the chart's start", "[core][chart]")
 {
     const TempoMap map = steadyMap(60.0);
 
-    CHECK(marginBefore(map, GridPosition{}) == GridPosition{});
-    CHECK(minimumSustainDistanceBeats(map, GridPosition{}) == Fraction{});
+    CHECK(tickPlaceReached(map, Fraction{}, -g_minimum_sustain_distance_seconds) == Fraction{});
+    CHECK(minimumSustainDistance(map, Fraction{}) == Fraction{});
 
-    const GridPosition early{.measure = 1, .beat = 1, .offset = Fraction{1, 20}};
-    CHECK(marginBefore(map, early) == GridPosition{});
-    CHECK(minimumSustainDistanceBeats(map, early) == Fraction{1, 20});
+    const Fraction early{1, 80};
+    CHECK(tickPlaceReached(map, early, -g_minimum_sustain_distance_seconds) == Fraction{});
+    CHECK(minimumSustainDistance(map, early) == Fraction{1, 80});
+}
+
+// Going FORWARD the reach is ceiled onto the lattice, so it is never shorter than the duration,
+// and it is always at least one tick: the time axis clamps at the terminal anchor, so a place at
+// or past it would otherwise reach nowhere at all.
+TEST_CASE("A forward reach is at least one tick, even past the terminal", "[core][chart]")
+{
+    const TempoMap map = steadyMap(60.0);
+    const Fraction one_tick = g_tick_quantum_note_value;
+
+    // 50 ms at 60 BPM is exactly an eightieth of a whole note.
+    CHECK(tickPlaceReached(map, Fraction{1}, 0.05) == Fraction{81, 80});
+    // At 137 BPM the stretch lies between two ticks, so the reach takes the later one.
+    const TempoMap odd = steadyMap(137.0);
+    const Fraction reached = tickPlaceReached(odd, Fraction{1}, 0.05);
+    CHECK(isOnTickLattice(reached));
+    CHECK(secondsBetween(odd, Fraction{1}, reached) >= 0.05);
+    CHECK(secondsBetween(odd, Fraction{1}, reached - one_tick) < 0.05);
+
+    // The terminal anchor stands at 5:1, whole note 4. From it, and from past it, the time axis
+    // has nowhere left to go, and the reach is the one tick a forward stretch never falls under.
+    CHECK(tickPlaceReached(map, Fraction{4}, 0.05) == Fraction{4} + one_tick);
+    CHECK(tickPlaceReached(map, Fraction{6}, 0.05) == Fraction{6} + one_tick);
+    // One tick short of the terminal, the stretch is cut off at it — which is still one tick on.
+    CHECK(tickPlaceReached(map, Fraction{4} - one_tick, 0.05) == Fraction{4});
+}
+
+// A whole-note place addresses across beat, measure and signature boundaries: the 4/4 measures
+// hold four quarter-note beats and the 7/8 measures seven eighth-note ones.
+TEST_CASE("A whole-note place addresses across measures and meters", "[core][chart]")
+{
+    const TempoMap map = signatureChangeMap();
+
+    CHECK(
+        map.gridPositionAtWholeNote(Fraction{15, 8}) ==
+        GridPosition{.measure = 2, .beat = 4, .offset = Fraction{1, 2}});
+    CHECK(map.gridPositionAtWholeNote(Fraction{2}) == GridPosition{.measure = 3, .beat = 1});
+    CHECK(
+        map.gridPositionAtWholeNote(Fraction{2} + Fraction{7, 8}) ==
+        GridPosition{.measure = 4, .beat = 1});
+    CHECK(
+        map.gridPositionAtWholeNote(Fraction{33, 16}) ==
+        GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
+    // Nothing exists before the origin, so a place before it clamps there.
+    CHECK(map.gridPositionAtWholeNote(Fraction{-1, 4}) == GridPosition{});
 }
 
 // Advancement inside one beat accumulates the offset exactly; crossing the beat carries.
@@ -144,89 +185,57 @@ TEST_CASE("Grid advancement carries offsets across beats", "[core][chart]")
     const GridPosition base{.measure = 1, .beat = 1, .offset = Fraction{1, 4}};
 
     CHECK(
-        advanceGridPosition(map, base, Fraction{1, 2}) ==
+        advanceGridPositionByWholeNotes(map, base, Fraction{1, 8}) ==
         GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
     CHECK(
-        advanceGridPosition(map, base, Fraction{3, 4}) ==
+        advanceGridPositionByWholeNotes(map, base, Fraction{3, 16}) ==
         GridPosition{.measure = 1, .beat = 2, .offset = {}});
     CHECK(
-        advanceGridPosition(map, base, Fraction{7, 4}) ==
+        advanceGridPositionByWholeNotes(map, base, Fraction{7, 16}) ==
         GridPosition{.measure = 1, .beat = 3, .offset = {}});
 }
 
-// Whole-beat carries cross measure and signature boundaries on the tempo map's beat axis: the
-// 4/4 measures hold four beats and the 7/8 measures hold seven.
-TEST_CASE("Grid advancement carries across measures and signature changes", "[core][chart]")
-{
-    const TempoMap map = signatureChangeMap();
-
-    CHECK(
-        advanceGridPosition(
-            map, GridPosition{.measure = 2, .beat = 4, .offset = Fraction{1, 2}}, Fraction{1}) ==
-        GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
-    CHECK(
-        advanceGridPosition(
-            map, GridPosition{.measure = 3, .beat = 1, .offset = {}}, Fraction{7}) ==
-        GridPosition{.measure = 4, .beat = 1, .offset = {}});
-    CHECK(
-        advanceGridPosition(
-            map, GridPosition{.measure = 1, .beat = 1, .offset = {}}, Fraction{8}) ==
-        GridPosition{.measure = 3, .beat = 1, .offset = {}});
-}
-
-// Negative deltas move earlier, and results never go before the grid origin.
-TEST_CASE("Grid advancement clamps negative results at the origin", "[core][chart]")
-{
-    const TempoMap map = signatureChangeMap();
-
-    CHECK(
-        advanceGridPosition(
-            map, GridPosition{.measure = 1, .beat = 2, .offset = {}}, Fraction{-1, 2}) ==
-        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}});
-    CHECK(
-        advanceGridPosition(
-            map, GridPosition{.measure = 3, .beat = 1, .offset = {}}, Fraction{-1}) ==
-        GridPosition{.measure = 2, .beat = 4, .offset = {}});
-    CHECK(advanceGridPosition(map, GridPosition{}, Fraction{-3, 4}) == GridPosition{});
-}
-
-// Distance is the exact inverse of advancement, including tuplet fractions the corpus uses.
-TEST_CASE("Beat distance inverts advancement exactly", "[core][chart]")
+// Distance is the exact inverse of advancement, including tuplet fractions the corpus uses and
+// steps that cross the meter change.
+TEST_CASE("Whole-note distance inverts advancement exactly", "[core][chart]")
 {
     const TempoMap map = signatureChangeMap();
     const GridPosition base{.measure = 2, .beat = 3, .offset = Fraction{2, 5}};
     const std::vector<Fraction> deltas{
-        Fraction{1, 5},
-        Fraction{3, 7},
-        Fraction{22, 9},
-        Fraction{1, 12},
-        Fraction{-7, 5},
-        Fraction{-13, 7},
-        Fraction{9},
+        Fraction{1, 20},
+        Fraction{3, 28},
+        Fraction{11, 18},
+        Fraction{1, 48},
+        Fraction{-7, 20},
+        Fraction{-13, 28},
+        Fraction{9, 4},
     };
 
     for (const Fraction delta : deltas)
     {
-        const GridPosition advanced = advanceGridPosition(map, base, delta);
-        CHECK(beatDistance(map, base, advanced) == delta);
+        const GridPosition advanced = advanceGridPositionByWholeNotes(map, base, delta);
+        CHECK(wholeNoteDistance(map, base, advanced) == delta);
     }
-    CHECK(beatDistance(map, base, base) == Fraction{});
+    CHECK(wholeNoteDistance(map, base, base) == Fraction{});
 }
 
-// Sustain endpoints are onset advancement; a zero sustain ends at the onset itself.
+// A ring's end is its onset advanced by the ring; the endpoint is exact across a meter change.
 TEST_CASE("Sustain endpoints resolve through the tempo map", "[core][chart]")
 {
     const TempoMap map = signatureChangeMap();
 
     ChartNote note{};
     note.position = GridPosition{.measure = 1, .beat = 4, .offset = {}};
-    note.sustain = Fraction{3, 2};
+    note.sustain = Fraction{3, 8};
     CHECK(
-        sustainEndPosition(map, note) ==
+        advanceGridPositionByWholeNotes(map, note.position, note.sustain) ==
         GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 2}});
 
-    note.sustain = Fraction{};
-    CHECK(sustainEndPosition(map, note) == note.position);
+    // A dotted quarter from the last quarter of measure 2 ends one eighth-note beat into the 7/8.
+    note.position = GridPosition{.measure = 2, .beat = 4};
+    CHECK(
+        advanceGridPositionByWholeNotes(map, note.position, note.sustain) ==
+        GridPosition{.measure = 3, .beat = 2});
 }
 
 // The 1/8 grid in 4/4 steps every half beat; positions snap to the nearest line and exact ties
@@ -477,21 +486,20 @@ TEST_CASE("A septuplet grid's lines are ticks that step and snap exactly", "[cor
     {
         const auto exact_ticks = static_cast<std::int64_t>(line) * 3840;
         const std::int64_t tick = nearestTick(exact_ticks, 28);
-        const GridPosition expected =
-            advanceGridPosition(map, downbeat, Fraction{static_cast<int>(tick), 960});
+        const GridPosition expected = advanceGridPositionByWholeNotes(
+            map, downbeat, Fraction{static_cast<int>(tick), g_tick_quantum_denominator});
         CHECK(lines[line] == expected);
         // The exact septuplet instant, snapped, is that same line.
         const GridPosition exact =
-            advanceGridPosition(map, downbeat, Fraction{static_cast<int>(line), 7});
+            advanceGridPositionByWholeNotes(map, downbeat, Fraction{static_cast<int>(line), 28});
         CHECK(snapGridPosition(map, exact, septuplet_sixteenth) == expected);
         CHECK(snapGridPosition(map, exact, g_tick_quantum_note_value) == expected);
     }
 }
 
 // THE WHOLE-NOTE AXIS: the one axis a meter change does not bend. Against the 4/4-then-7/8 map a
-// beat is a quarter note before measure 3 and an eighth note from it, so one whole-note step is a
-// different beat count on each side, and a BEAT count carried across the change is not the same
-// duration at all.
+// beat is a quarter note before measure 3 and an eighth note from it, so the one note value spans
+// a different number of beats on each side, and the axis is what keeps it one length.
 TEST_CASE("The whole-note axis measures the same duration in every meter", "[core][chart]")
 {
     const TempoMap map = signatureChangeMap();
@@ -502,28 +510,22 @@ TEST_CASE("The whole-note axis measures the same duration in every meter", "[cor
     // Past the last signature the 7/8 reign keeps going: seven more measures of 7/8.
     CHECK(map.wholeNotePositionAt(GridPosition{.measure = 10, .beat = 1}) == Fraction{65, 8});
 
-    // A quarter note on from m2:4.5 lands one eighth-note beat into measure 3 — where one BEAT on
-    // lands half an eighth later, the quarter-note beat re-read as an eighth-note one.
+    // A quarter note on from m2:4.5 lands one eighth-note beat into measure 3.
     const GridPosition a_quarter_on{.measure = 3, .beat = 2};
     CHECK(advanceGridPositionByWholeNotes(map, late_in_two, Fraction{1, 4}) == a_quarter_on);
-    CHECK(
-        advanceGridPosition(map, late_in_two, Fraction{1}) ==
-        GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
     // Distance is the inverse, both ways.
     CHECK(wholeNoteDistance(map, late_in_two, a_quarter_on) == Fraction{1, 4});
     CHECK(advanceGridPositionByWholeNotes(map, a_quarter_on, Fraction{-1, 4}) == late_in_two);
 
-    // A position on the lattice stays on it across the change when stepped by whole ticks, and
-    // leaves it when the same step is taken as a beat count: an odd tick of a quarter-note beat
-    // is half a tick of an eighth-note one.
+    // A position on the lattice stays on it across the change when stepped by whole ticks: an odd
+    // tick of a quarter-note beat lands on an odd tick of an eighth-note one.
     const GridPosition odd_tick{.measure = 2, .beat = 4, .offset = Fraction{959, 960}};
     const GridPosition carried = advanceGridPositionByWholeNotes(map, odd_tick, Fraction{1, 4});
     CHECK(carried == GridPosition{.measure = 3, .beat = 2, .offset = Fraction{479, 480}});
     CHECK(isOnTickLattice(map, carried));
-    CHECK_FALSE(isOnTickLattice(map, advanceGridPosition(map, odd_tick, Fraction{1})));
 
     // The grid has nothing before its origin: a step back past it clamps there and reads as a
-    // step that fell short, exactly as the beat axis clamps.
+    // step that fell short.
     const GridPosition second_beat{.measure = 1, .beat = 2};
     CHECK(advanceGridPositionByWholeNotes(map, second_beat, Fraction{-1}) == GridPosition{});
     CHECK(wholeNoteDistance(map, second_beat, GridPosition{}) == Fraction{-1, 4});

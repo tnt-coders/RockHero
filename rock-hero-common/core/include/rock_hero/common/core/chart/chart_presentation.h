@@ -31,8 +31,8 @@ story the furniture above it already tells.
 struct ChartPresentation
 {
     /*!
-    \brief Where each note's ink stops, as a note-relative offset in beats; index-parallel to the
-    stored stream.
+    \brief Where each note's ink stops, as a note-relative offset in whole notes; index-parallel to
+    the stored stream.
 
     THE ONE DRAWN LENGTH, and scoring's contract: what is drawn is what is judged, so a keyframe
     before the ink end is judged at its stored instant, the leg crossing it is judged as far as it
@@ -91,7 +91,7 @@ The rules, in order:
 1. **Crop to the margin.** The *binding* onset is the first later sounding onset — a different
    grid position, on any string — that the ring does not *pass*, passing meaning running *strictly*
    past it. A ring ending exactly *on* an onset passes nothing and binds there, the common let-ring
-   collision. The ink stops one minimum sustain distance (\ref minimumSustainDistanceBeats, the
+   collision. The ink stops one minimum sustain distance (\ref minimumSustainDistance, the
    margin read at the binding onset, floored onto the tick lattice) before that onset, and never
    before the note's own onset. A ring no later onset binds, or one that ends at or before that
    crop, draws in full. Passing an onset — a tie merged across a neighbour, a cross-voice hold —
@@ -132,7 +132,7 @@ The rules, in order:
                    (\ref chartConnections).
 \param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins): rule
                1's crop reads it at the binding onset.
-\param tempo_map Tempo map supplying the meter at each note and the exact beat axis.
+\param tempo_map Tempo map supplying the time axis rule 2 measures each ring on.
 
 \return Per stored note, in the same order: the ink end and the law's verdict.
 */
@@ -168,9 +168,9 @@ the shape (\ref deriveChartShapes bounds a span by its members' ring chains).
                    stored ring a covered resting or handed-over member holds, and its `hands_over`
                    marks the members whose pin ends at that ring.
 \param shapes Hand-posture spans sorted by position.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
+\param tempo_map Tempo map supplying the meter each span's place is measured in.
 
-\return Per-note held length in beats, sized like the inputs.
+\return Per-note held length in whole notes, sized like the inputs.
 */
 [[nodiscard]] std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const ChartConnections& connections,

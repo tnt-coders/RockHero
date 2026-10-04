@@ -94,6 +94,46 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
     }
 }
 
+// The one walk that answers "when is this string struck again", which the truncation, the
+// span-implied hold's cap and the editor's growth verbs all read. Same-position notes are on
+// different strings by construction (a duplicate onset is an invalid chart), so the search starts
+// past the note's whole onset group and stops at the first later note on the string: every note is
+// a strike, so that one is the bound.
+[[nodiscard]] std::vector<ChartNote>::const_iterator nextStrikeOnString(
+    const std::vector<ChartNote>& notes, const ChartNote& note)
+{
+    const auto later = std::ranges::subrange(
+        std::ranges::upper_bound(notes, note.position, std::ranges::less{}, &ChartNote::position),
+        notes.end());
+    return std::ranges::find(later, note.string, &ChartNote::string);
+}
+
+// A target at or past the bound ends exactly on it: adjacency is legal.
+[[nodiscard]] Fraction heldWithinBound(const Fraction target, const std::optional<Fraction>& bound)
+{
+    if (bound.has_value() && !(target < *bound))
+    {
+        return *bound;
+    }
+    return target;
+}
+
+// A ring past its bound ends exactly on it, clipping payloads with the tail.
+[[nodiscard]] std::optional<TailTruncation> truncatedToBound(
+    std::vector<ChartNote>& notes, const std::size_t index, const std::optional<Fraction>& bound)
+{
+    ChartNote& note = notes[index];
+    const Fraction end = heldWithinBound(note.sustain, bound);
+    if (!(end < note.sustain))
+    {
+        return std::nullopt;
+    }
+    return TailTruncation{
+        .index = index,
+        .statement_lost = clipPayloadsToSustain(note, end),
+    };
+}
+
 } // namespace
 
 void dropNotePath(ChartNote& note)
@@ -357,23 +397,15 @@ bool clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     return shedEndStatementVibrato(note) || lost;
 }
 
-// The one walk that answers "when is this string struck again", which the truncation below, the
-// span-implied hold's cap and the editor's growth verbs all read. Same-position notes are on
-// different strings by construction (a duplicate onset is an invalid chart), so the search starts
-// past the note's whole onset group and stops at the first later note on the string.
 std::optional<Fraction> sustainBoundOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
 {
-    const auto later = std::ranges::subrange(
-        std::ranges::upper_bound(notes, note.position, std::ranges::less{}, &ChartNote::position),
-        notes.end());
-    // Every note is a strike, so the next one on the string is the bound.
-    const auto next = std::ranges::find(later, note.string, &ChartNote::string);
-    if (next == later.end())
+    const auto next = nextStrikeOnString(notes, note);
+    if (next == notes.end())
     {
         return std::nullopt;
     }
-    return beatDistance(tempo_map, note.position, next->position);
+    return wholeNoteDistance(tempo_map, note.position, next->position);
 }
 
 // The walk back from an instant to the string's last earlier onset; lower_bound rather than
@@ -392,38 +424,33 @@ Fraction ringEndWithinBound(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map,
     const Fraction target)
 {
-    const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
-    if (bound.has_value() && !(target < *bound))
-    {
-        return *bound;
-    }
-    return target;
+    return heldWithinBound(target, sustainBoundOf(notes, note, tempo_map));
 }
 
-// A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.
 std::optional<TailTruncation> normalizeSustainOverlapAt(
     std::vector<ChartNote>& notes, const std::size_t index, const TempoMap& tempo_map)
 {
-    ChartNote& note = notes[index];
-    const Fraction end = ringEndWithinBound(notes, note, tempo_map, note.sustain);
-    if (!(end < note.sustain))
-    {
-        return std::nullopt;
-    }
-    return TailTruncation{
-        .index = index,
-        .statement_lost = clipPayloadsToSustain(note, end),
-    };
+    return truncatedToBound(notes, index, sustainBoundOf(notes, notes[index], tempo_map));
 }
 
+// The whole stream's bounds, each a difference of two places computed once, rather than a pair of
+// tempo-map lookups per note.
 std::vector<TailTruncation> normalizeSustainOverlaps(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
+    const std::vector<Fraction> places = chartNotePlaces(notes, tempo_map);
     std::vector<TailTruncation> truncated;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        if (const std::optional<TailTruncation> truncation =
-                normalizeSustainOverlapAt(notes, index, tempo_map);
+        const auto next = nextStrikeOnString(notes, notes[index]);
+        const std::optional<Fraction> bound =
+            next == notes.end()
+                ? std::nullopt
+                : std::optional<Fraction>{
+                      places[static_cast<std::size_t>(std::distance(notes.cbegin(), next))] -
+                      places[index]
+                  };
+        if (const std::optional<TailTruncation> truncation = truncatedToBound(notes, index, bound);
             truncation.has_value())
         {
             truncated.push_back(*truncation);
@@ -744,8 +771,11 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // Where the ring ends is a stored instant like the onset, so it lies on the tick lattice too:
-    // the chart can state no instant finer than a tick, and none between two.
-    if (!isOnTickLattice(tempo_map, sustainEndPosition(tempo_map, note)))
+    // the chart can state no instant finer than a tick, and none between two. The onset was
+    // checked onto the lattice above, and a lattice place plus a duration is on the lattice exactly
+    // when the duration is a whole number of ticks — so the test is the duration's own, and that
+    // ORDER is what makes it sound.
+    if (!isOnTickLattice(note.sustain))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
@@ -846,8 +876,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
             }};
         }
         previous_offset = keyframe.offset;
-        if (!isOnTickLattice(
-                tempo_map, advanceGridPosition(tempo_map, note.position, keyframe.offset)))
+        // A whole number of ticks from a lattice onset, for the reason the ring's end is.
+        if (!isOnTickLattice(keyframe.offset))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,

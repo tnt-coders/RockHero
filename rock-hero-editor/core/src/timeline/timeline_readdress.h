@@ -148,8 +148,9 @@ only in the map they state and where they send the content (plan 66 decision 5).
 - The new anchors' addresses are derived from their places, keeping their milliseconds.
 - Note onsets, fret-hand positions, tone region starts and tone automation points are mapped
   (\ref readdressedPosition).
-- A note's ring and its keyframe offsets are BEAT counts, so they are re-expressed: the new beat
-  distance from the mapped onset to the mapped end.
+- A note's ring and its keyframe offsets are note values from its onset, so each becomes the
+  distance between where its two instants are sent: a meter edit leaves them untouched, Scale Tempo
+  scales them, and Keep Notes in Time re-rounds them with the places they join.
 - A section left off a downbeat snaps back to its measure's downbeat (a section is navigation and
   moves no sound); two snapping onto one downbeat are left for the section rules to refuse, as they
   refuse any repeated position.

@@ -40,13 +40,13 @@ using common::core::NoteAttack;
 using common::core::NoteEmphasis;
 using common::core::VibratoState;
 
-// One note event on the global rational beat axis, before tie merging. The grid position is
-// derived from `global_beat` where a note needs one rather than carried beside it: the two are one
-// fact in two coordinate systems, and gridPositionForGlobalBeat is the conversion.
+// One note event on the whole-note axis, before tie merging. The grid position is derived from
+// `place` where a note needs one rather than carried beside it: the two are one fact in two
+// coordinate systems, and the tempo map's gridPositionAtWholeNote is the conversion.
 struct NoteEvent
 {
-    Fraction global_beat{};    // onset on the global beat axis
-    Fraction duration_beats{}; // how long the string rings, in the onset measure's beat unit
+    Fraction place{};          // onset on the whole-note axis
+    Fraction duration_whole{}; // how long the string rings, in whole notes
     GpNote source;
     bool tremolo{false};
 
@@ -67,7 +67,7 @@ struct NoteEvent
     // (a dead, palm-muted or staccato note is pre-empted at the emission). The mark is a bare
     // fact here rather than a computed end because the figure law that answers "how long" runs
     // once over the finished built stream (\ref letRingFigureEnds): a bend's points are
-    // percentages of what the source wrote, so `duration_beats` has to keep saying that while
+    // percentages of what the source wrote, so `duration_whole` has to keep saying that while
     // the ring is normalized past it.
     bool let_ring{false};
 };
@@ -75,102 +75,35 @@ struct NoteEvent
 // What the source notated for an event: what the string rings plus whatever an ornament stole.
 [[nodiscard]] Fraction notatedDuration(const NoteEvent& event)
 {
-    return event.duration_beats + event.stolen_lead;
+    return event.duration_whole + event.stolen_lead;
 }
 
-// Per-measure grid facts derived from the master bars once, on BOTH axes the builder measures in.
-// The chart's own axis counts a measure as its numerator of SIGNATURE beats, which is the unit
-// `ChartNote::sustain` is stated in; absolute METRIC length is the whole-note axis, where a 6/8 bar
-// really is shorter than a 4/4 one. Only the let-ring cap needs the second one — "one full
-// measure-duration" is a length, not a beat count — so the two are prefix sums over one loop rather
-// than a conversion anybody has to remember to apply. The feel rides along because it is the one
-// other per-measure fact the master bars state that the beat walk needs.
-struct MeasureGrid
+// The master bar a track's bar reads its meter and feel from: a track with more bars than the
+// score has master bars clamps onto the last one. The meter and the downbeat's place are read from
+// the import's tempo map, built from the same master bars one to one; the feel, which the map does
+// not carry, from the master bar itself.
+[[nodiscard]] std::size_t measureIndexForBar(
+    const std::vector<GpMasterBar>& master_bars, const std::size_t bar_index)
 {
-    std::vector<common::core::TimeSignature> meter; // meter per measure, index 0 = measure 1
-    std::vector<int> first_global_beat;             // global beat index of each measure's downbeat
-    std::vector<Fraction> first_whole;              // each measure's downbeat in whole notes
-    std::vector<GpTripletFeel> triplet_feel; // the feel each measure plays its written pairs with
-};
-
-[[nodiscard]] MeasureGrid makeMeasureGrid(const GpScore& score)
-{
-    MeasureGrid grid;
-    int global_beat = 0;
-    Fraction whole;
-    for (const GpMasterBar& bar : score.master_bars)
-    {
-        grid.meter.push_back(bar.meter);
-        grid.first_global_beat.push_back(global_beat);
-        grid.first_whole.push_back(whole);
-        grid.triplet_feel.push_back(bar.triplet_feel);
-        global_beat += bar.meter.numerator;
-        whole = whole + bar.meter.measureWholeNotes();
-    }
-    return grid;
-}
-
-// The global signature-beat position of an absolute whole-note one — the inverse of the layout
-// above, which the let-ring audibility horizon needs because it is measured in whole notes and
-// lands wherever it lands. A position past the final bar extrapolates at the last measure's meter,
-// which is what a ring running off the end of the score asks for. The grid is never empty: a score
-// with no master bars is refused before any of this runs.
-[[nodiscard]] Fraction globalBeatAtWhole(const MeasureGrid& grid, const Fraction whole)
-{
-    const auto after = std::ranges::upper_bound(grid.first_whole, whole);
-    const std::size_t measure =
-        after == grid.first_whole.begin()
-            ? 0
-            : static_cast<std::size_t>(std::distance(grid.first_whole.begin(), after)) - 1;
-    return Fraction{grid.first_global_beat[measure]} +
-           ((whole - grid.first_whole[measure]) * Fraction{grid.meter[measure].denominator});
-}
-
-// The measure a global-beat position falls in, clamped into the grid like every other lookup.
-[[nodiscard]] std::size_t measureIndexAtGlobalBeat(const MeasureGrid& grid, const Fraction global)
-{
-    const auto after = std::ranges::upper_bound(
-        grid.first_global_beat, global, std::ranges::less{}, [](const int beats) {
-            return Fraction{beats};
-        });
-    return after == grid.first_global_beat.begin()
-               ? 0
-               : static_cast<std::size_t>(std::distance(grid.first_global_beat.begin(), after)) - 1;
-}
-
-// The measure a track's bar reads its meter and feel from: a track with more bars than the
-// grid has measures clamps onto the last one.
-[[nodiscard]] std::size_t measureIndexForBar(const MeasureGrid& grid, const std::size_t bar_index)
-{
-    return std::min(bar_index, grid.meter.size() - 1);
-}
-
-// The inverse of \ref globalBeatAtWhole, for the one consumer that measures a METRIC length from
-// a beat-axis anchor (the let-ring audibility horizon below): "one full measure-duration" is a
-// length, so it is added on the whole-note axis, where a 6/8 bar really is shorter than a 4/4 one,
-// and the answer comes back on the chart's own beat axis.
-[[nodiscard]] Fraction wholeAtGlobalBeat(const MeasureGrid& grid, const Fraction global)
-{
-    const std::size_t measure = measureIndexAtGlobalBeat(grid, global);
-    return grid.first_whole[measure] + ((global - Fraction{grid.first_global_beat[measure]}) *
-                                        Fraction{1, grid.meter[measure].denominator});
+    return std::min(bar_index, master_bars.size() - 1);
 }
 
 // THE AUDIBILITY HORIZON: how far a struck note can still be asked to ring — one ORIGIN-BAR
-// metric length past the beat it is measured from, which is Guitar Pro's own let-ring audibility
+// metric length past the onset it is measured from, which is Guitar Pro's own let-ring audibility
 // rule. ONE statement of that length for the two readers of it in the let-ring figure law
 // (\ref letRingFigureEnds): the seam that decides which marks share a figure, and the cap that
 // bounds the figure's one end. Two spellings of "how long is this still audible" would be free to
 // disagree, applying the horizon at one place and not the other.
 //
-// The length is ORIGIN-relative in both readers: it is the bar the anchor beat itself sits in that
+// The length is ORIGIN-relative in both readers: it is the bar the anchor itself sits in that
 // states the duration, so a mark under a meter change is bounded by the metre it was written in
-// rather than the one it rings into.
-[[nodiscard]] Fraction audibilityHorizonFrom(const MeasureGrid& grid, const Fraction beat)
+// rather than the one it rings into. A place past the final bar reads the last bar's meter, which
+// is what a ring running off the end of the score asks for.
+[[nodiscard]] Fraction audibilityHorizonFrom(
+    const common::core::TempoMap& tempo_map, const Fraction place)
 {
-    const std::size_t measure = measureIndexAtGlobalBeat(grid, beat);
-    const Fraction bar_whole = grid.meter[measure].measureWholeNotes();
-    return globalBeatAtWhole(grid, wholeAtGlobalBeat(grid, beat) + bar_whole);
+    const int measure = tempo_map.gridPositionAtWholeNote(place).measure;
+    return place + tempo_map.timeSignatureAt(measure).meter.measureWholeNotes();
 }
 
 // Shrinks a per-slot ornament lead so `count` slots fit strictly inside the available gap: when
@@ -227,17 +160,20 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
 // anchor past the final bar so every note position lies inside the map. Unusable sync points are
 // dropped with a conversion note, so the build itself cannot fail.
 [[nodiscard]] common::core::TempoMap buildTempoMap(
-    const GpScore& score, const MeasureGrid& grid, std::vector<std::string>& notes)
+    const GpScore& score, std::vector<std::string>& notes)
 {
+    // One change wherever a master bar's meter differs from the bar before it, so the map's meter
+    // at every measure IS that master bar's: the builder reads its meters and downbeats from here.
+    const std::vector<GpMasterBar>& bars = score.master_bars;
     std::vector<common::core::TimeSignatureChange> signatures;
-    for (std::size_t measure = 0; measure < grid.meter.size(); ++measure)
+    for (std::size_t measure = 0; measure < bars.size(); ++measure)
     {
-        if (measure == 0 || grid.meter[measure] != grid.meter[measure - 1])
+        if (measure == 0 || bars[measure].meter != bars[measure - 1].meter)
         {
             signatures.push_back(
                 common::core::TimeSignatureChange{
                     .measure = static_cast<int>(measure) + 1,
-                    .meter = grid.meter[measure],
+                    .meter = bars[measure].meter,
                 });
         }
     }
@@ -245,7 +181,7 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
     // The grid without its timing: the whole-note axis every sync point is placed on and every
     // extrapolation is measured along, which is the tempo map's own rather than a copy of it.
     const common::core::TempoMap grid_only{signatures, {}};
-    const int total_measures = static_cast<int>(grid.meter.size());
+    const int total_measures = static_cast<int>(bars.size());
     const GridPosition origin{.measure = 1, .beat = 1, .offset = {}};
     const GridPosition terminal{.measure = total_measures + 1, .beat = 1, .offset = {}};
 
@@ -267,14 +203,13 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
         // within half a tick of a beat lands on it, and the end of a bar carries onto the next
         // downbeat (the terminal one after the last bar, which pins the song's end exactly).
         const auto bar_index = static_cast<std::size_t>(sync.bar);
-        const double ticks_in_bar = (grid.meter[bar_index].measureWholeNotes() *
+        const double ticks_in_bar = (bars[bar_index].meter.measureWholeNotes() *
                                      Fraction{common::core::g_tick_quantum_denominator})
                                         .toDouble();
         const auto ticks =
             static_cast<int>(common::core::nearestTick(sync.bar_fraction * ticks_in_bar));
-        const GridPosition position = common::core::advanceGridPositionByWholeNotes(
-            grid_only,
-            common::core::measureDownbeat(sync.bar + 1),
+        const GridPosition position = grid_only.gridPositionAtWholeNote(
+            grid_only.wholeNotePositionAt(common::core::measureDownbeat(sync.bar + 1)) +
             Fraction{ticks, common::core::g_tick_quantum_denominator});
         const std::int64_t milliseconds = common::core::nearestAnchorMilliseconds(sync.seconds);
 
@@ -316,8 +251,7 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
         const double first_tempo = score.sync_points.empty()
                                        ? score.base_tempo_quarter_bpm
                                        : std::max(1.0, score.sync_points.front().modified_tempo);
-        const double lead_in_quarters =
-            4.0 * grid_only.wholeNotePositionAt(first.position).toDouble();
+        const double lead_in_quarters = grid_only.quarterPositionAt(first.position);
         std::int64_t milliseconds = common::core::nearestAnchorMilliseconds(
             first.seconds() - (lead_in_quarters * 60.0 / first_tempo));
         if (milliseconds < 0)
@@ -342,9 +276,8 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
     const common::core::BeatAnchor last = anchors.back();
     if (last.position != terminal)
     {
-        const double terminal_quarters = 4.0 * (grid_only.wholeNotePositionAt(terminal) -
-                                                grid_only.wholeNotePositionAt(last.position))
-                                                   .toDouble();
+        const double terminal_quarters =
+            grid_only.quarterPositionAt(terminal) - grid_only.quarterPositionAt(last.position);
         const std::int64_t milliseconds = std::max(
             last.milliseconds + 1,
             common::core::nearestAnchorMilliseconds(
@@ -597,37 +530,14 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
     return first_track ? common::core::Part::Lead : common::core::Part::Rhythm;
 }
 
-// Splits a global-beat-axis position back into measure/beat/offset grid fields. Grace leads can
-// cross a bar line backward (a grace before a downbeat sounds in the previous bar), so the
-// measure is looked up from the position rather than taken from the principal's bar.
-[[nodiscard]] GridPosition gridPositionForGlobalBeat(const MeasureGrid& grid, const Fraction global)
+// True when a place the builder DERIVED (rather than read from a beat) lies inside the score,
+// before the terminal downbeat that closes its final bar. A slide-out or a scoop window can run off
+// the end of the score, and a fabricated hand placement there fails validateChartRules and takes
+// the WHOLE song's import down with it. Callers that fabricate furniture check this and simply omit
+// the furniture: there is no board past the end of the song to put a hand on.
+[[nodiscard]] bool withinScore(const common::core::TempoMap& tempo_map, const Fraction place)
 {
-    const std::size_t measure_index = measureIndexAtGlobalBeat(grid, global);
-    const Fraction in_measure = (global - Fraction{grid.first_global_beat[measure_index]});
-    const int whole_beats = in_measure.numerator / in_measure.denominator;
-    return GridPosition{
-        .measure = static_cast<int>(measure_index) + 1,
-        .beat = whole_beats + 1,
-        .offset = (in_measure - Fraction{whole_beats}),
-    };
-}
-
-// True when a position the builder DERIVED (rather than read from a beat) is a position the chart
-// rules will accept. The measure always lands in range because the lookup above clamps it, but the
-// beat does not: a global beat past the final bar's last beat — a slide-out or a scoop window
-// running off the end of the score — yields a beat past that measure's own count, and a fabricated
-// hand placement there fails validateChartRules and takes the WHOLE song's import down with it.
-// Callers that fabricate furniture check this and simply omit the furniture: there is no board
-// past the end of the song to put a hand on.
-[[nodiscard]] bool withinGrid(const MeasureGrid& grid, const GridPosition& position)
-{
-    if (position.measure < 1 || static_cast<std::size_t>(position.measure) > grid.meter.size())
-    {
-        return false;
-    }
-    const auto measure_index = static_cast<std::size_t>(position.measure - 1);
-    return position.beat >= 1 && position.beat <= grid.meter[measure_index].numerator &&
-           position.offset.numerator >= 0 && position.offset < Fraction{1};
+    return place < tempo_map.wholeNotePositionAt(common::core::terminalGridPosition(tempo_map));
 }
 
 // The GP bend model evaluated at a percent of the note duration: the origin value holds to
@@ -918,8 +828,8 @@ constexpr Fraction g_trill_step_whole{1, 16};
 // itself is fair game: the run pulls off to it and hammers back from it, which the resolver reads
 // from the frets alone.
 [[nodiscard]] std::vector<NoteEvent> expandTrilledEvents(
-    const std::vector<NoteEvent>& events, const MeasureGrid& grid,
-    const std::vector<int>& tuning_midi, const int capo, std::vector<std::string>& notes)
+    const std::vector<NoteEvent>& events, const std::vector<int>& tuning_midi, const int capo,
+    std::vector<std::string>& notes)
 {
     std::vector<NoteEvent> expanded;
     expanded.reserve(events.size());
@@ -958,14 +868,9 @@ constexpr Fraction g_trill_step_whole{1, 16};
             continue;
         }
 
-        // The step on this measure's signature-beat axis, which is the unit an event's duration is
-        // carried in. The measure always resolves: gridPositionForGlobalBeat clamps into the grid.
-        const GridPosition onset = gridPositionForGlobalBeat(grid, event.global_beat);
-        const Fraction step =
-            g_trill_step_whole *
-            Fraction{grid.meter[static_cast<std::size_t>(onset.measure - 1)].denominator};
+        const Fraction step = g_trill_step_whole;
         const Fraction count_fraction =
-            event.duration_beats * Fraction{step.denominator, step.numerator};
+            event.duration_whole * Fraction{step.denominator, step.numerator};
         const auto count = static_cast<int>(count_fraction.numerator / count_fraction.denominator);
         if (count <= 1)
         {
@@ -976,7 +881,7 @@ constexpr Fraction g_trill_step_whole{1, 16};
         }
 
         NoteEvent principal = event;
-        principal.duration_beats = step;
+        principal.duration_whole = step;
         principal.stolen_lead = notatedDuration(event) - step;
         principal.source.tie_origin = false;
         // The mark is consumed by the spell-out; leaving it would claim a trill still to expand.
@@ -995,11 +900,11 @@ constexpr Fraction g_trill_step_whole{1, 16};
             // The alternation is the trilled note's own line continuing, so every piece stays in
             // the voice that wrote the trill.
             piece.voice = event.voice;
-            piece.global_beat = event.global_beat + (Fraction{index} * step);
+            piece.place = event.place + (Fraction{index} * step);
             // The last note absorbs the remainder, so the run's total ring equals the source's
             // exactly even where the span does not divide (dots and tuplets).
-            piece.duration_beats =
-                last ? event.duration_beats - (Fraction{count - 1} * step) : step;
+            piece.duration_whole =
+                last ? event.duration_whole - (Fraction{count - 1} * step) : step;
             // Built rather than copied-and-cleared: what a hammered or pulled stop carries is a
             // short list, and stating it is what keeps a later GpNote field from silently joining
             // the run. The alternation itself is the fret, odd steps on the auxiliary.
@@ -1114,8 +1019,7 @@ enum class RollSpread : std::uint8_t
 // same-string clamp cannot bound away, two notes at one (position, string) being a collision rather
 // than an overlap.
 [[nodiscard]] RollSpread expandRolledBeat(
-    std::vector<NoteEvent>& events, const std::size_t first_event, const GpBeat& beat,
-    const int denominator)
+    std::vector<NoteEvent>& events, const std::size_t first_event, const GpBeat& beat)
 {
     std::vector<std::size_t> members;
     for (std::size_t index = first_event; index < events.size(); ++index)
@@ -1152,10 +1056,10 @@ enum class RollSpread : std::uint8_t
     {
         return RollSpread::Refused;
     }
-    const Fraction step = Fraction{step_ticks, g_roll_ticks_per_whole} * Fraction{denominator};
+    const Fraction step{step_ticks, g_roll_ticks_per_whole};
     for (std::size_t rank = 0; rank < members.size(); ++rank)
     {
-        if (!(Fraction{static_cast<int>(rank)} * step < events[members[rank]].duration_beats))
+        if (!(Fraction{static_cast<int>(rank)} * step < events[members[rank]].duration_whole))
         {
             // A member left with nothing to ring is not a member sounding late. The whole figure
             // is refused rather than written with a hole in it. Judged on the ON-BEAT placement,
@@ -1178,7 +1082,7 @@ enum class RollSpread : std::uint8_t
                                     (g_position_quanta_per_whole / g_roll_ticks_per_whole);
     const auto quanta =
         static_cast<int>(std::llround(anticipation * static_cast<double>(written_span_quanta)));
-    Fraction shift = Fraction{quanta, g_position_quanta_per_whole} * Fraction{denominator};
+    Fraction shift{quanta, g_position_quanta_per_whole};
 
     // Whether the figure may open that early. It may not reach back past the song's own start, and
     // it may not open on a slot an earlier sounding already holds on the same string: the clamp
@@ -1190,7 +1094,7 @@ enum class RollSpread : std::uint8_t
     const auto opens_clear = [&events, &members, first_event](const Fraction back) {
         for (const std::size_t member : members)
         {
-            if (events[member].global_beat - back < Fraction{})
+            if (events[member].place - back < Fraction{})
             {
                 return false;
             }
@@ -1201,7 +1105,7 @@ enum class RollSpread : std::uint8_t
             for (const std::size_t member : members)
             {
                 if (earlier.source.string == events[member].source.string &&
-                    !(earlier.global_beat < events[member].global_beat - back))
+                    !(earlier.place < events[member].place - back))
                 {
                     return false;
                 }
@@ -1225,8 +1129,8 @@ enum class RollSpread : std::uint8_t
         // and forward by this member's own wait, while the end the beat stated stays exactly where
         // it is. An early member therefore rings longer, and a staccato member rings into the
         // halved end its own mark gave it.
-        member.global_beat = member.global_beat - shift + wait;
-        member.duration_beats = member.duration_beats + shift - wait;
+        member.place = member.place - shift + wait;
+        member.duration_whole = member.duration_whole + shift - wait;
     }
     return placement;
 }
@@ -1249,7 +1153,8 @@ enum class RollSpread : std::uint8_t
 // (each alternation fills the ring the note is finally left with). The single sort at the end is
 // what puts every fabricated onset back in stream order.
 [[nodiscard]] std::vector<NoteEvent> collectEvents(
-    const GpTrack& track, const MeasureGrid& grid, const int capo, std::vector<std::string>& notes)
+    const GpTrack& track, const std::vector<GpMasterBar>& master_bars,
+    const common::core::TempoMap& tempo_map, const int capo, std::vector<std::string>& notes)
 {
     std::vector<NoteEvent> events;
     int overfull = 0;
@@ -1267,11 +1172,11 @@ enum class RollSpread : std::uint8_t
     std::vector<std::vector<std::vector<GpBeat>>> expanded_bars(track.bars.size());
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
-        const std::size_t measure_index = measureIndexForBar(grid, bar_index);
+        const std::size_t measure_index = measureIndexForBar(master_bars, bar_index);
         for (const std::vector<GpBeat>& voice : track.bars[bar_index].voices)
         {
             expanded_bars[bar_index].push_back(expandTremoloBeats(
-                swungBeats(voice, grid.triplet_feel[measure_index]),
+                swungBeats(voice, master_bars[measure_index].triplet_feel),
                 kept_tremolo_marks,
                 rolls_on_tremolo));
         }
@@ -1302,12 +1207,12 @@ enum class RollSpread : std::uint8_t
                                const GpNote& source,
                                const std::size_t voice,
                                const bool tremolo,
-                               const Fraction global,
+                               const Fraction place,
                                const Fraction duration,
                                const bool grace) {
         NoteEvent event;
-        event.duration_beats = source.staccato ? duration * Fraction{1, 2} : duration;
-        event.global_beat = global;
+        event.duration_whole = source.staccato ? duration * Fraction{1, 2} : duration;
+        event.place = place;
         event.source = source;
         event.tremolo = tremolo;
         event.voice = voice;
@@ -1346,17 +1251,19 @@ enum class RollSpread : std::uint8_t
     std::map<std::size_t, SoundingBeat> last_beat_per_voice;
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
-        const std::size_t measure_index = measureIndexForBar(grid, bar_index);
-        const int beats_in_bar = grid.meter[measure_index].numerator;
-        const int denominator = grid.meter[measure_index].denominator;
-        // A thirty-second note in this measure's meter, on the signature-beat axis.
-        const Fraction full_lead{denominator, 32};
+        const common::core::GridPosition downbeat = common::core::measureDownbeat(
+            static_cast<int>(measureIndexForBar(master_bars, bar_index)) + 1);
+        const Fraction bar_place = tempo_map.wholeNotePositionAt(downbeat);
+        const Fraction bar_length =
+            tempo_map.timeSignatureAt(downbeat.measure).meter.measureWholeNotes();
+        // A thirty-second note.
+        const Fraction full_lead{1, 32};
 
         for (std::size_t voice_index = 0; voice_index < expanded_bars[bar_index].size();
              ++voice_index)
         {
             std::vector<const GpBeat*>& pending = pending_graces_per_voice[voice_index];
-            Fraction position_beats{};
+            Fraction position_whole{};
             for (const GpBeat& beat : expanded_bars[bar_index][voice_index])
             {
                 if (beat.grace != GpGracePlacement::None)
@@ -1368,9 +1275,9 @@ enum class RollSpread : std::uint8_t
                     continue;
                 }
 
-                const Fraction duration_beats = (beat.duration_whole * Fraction{denominator});
-                const Fraction onset = position_beats;
-                position_beats = position_beats + duration_beats;
+                const Fraction duration = beat.duration_whole;
+                const Fraction onset = position_whole;
+                position_whole = position_whole + duration;
                 if (beat.notes.empty())
                 {
                     // A rest cannot host a grace run: graces ornament a sounding principal.
@@ -1378,7 +1285,7 @@ enum class RollSpread : std::uint8_t
                     pending.clear();
                     continue;
                 }
-                if (onset >= Fraction{beats_in_bar})
+                if (onset >= bar_length)
                 {
                     ++overfull;
                     dropped_graces += static_cast<int>(pending.size());
@@ -1386,8 +1293,7 @@ enum class RollSpread : std::uint8_t
                     continue;
                 }
 
-                const Fraction principal_global =
-                    (Fraction{grid.first_global_beat[measure_index]} + onset);
+                const Fraction principal_place = bar_place + onset;
                 // This beat's own events start here; they are pushed contiguously, so the range
                 // is what the NEXT beat's before-beat run steals its lead from.
                 const std::size_t beat_first_event = events.size();
@@ -1409,7 +1315,7 @@ enum class RollSpread : std::uint8_t
                         const auto last = last_beat_per_voice.find(voice_index);
                         const bool has_last = last != last_beat_per_voice.end();
                         const Fraction floor = has_last ? last->second.onset : Fraction{0};
-                        const Fraction gap = principal_global - floor;
+                        const Fraction gap = principal_place - floor;
                         const Fraction lead = fitLeadToGap(full_lead, gap, before_count);
                         if (lead.numerator <= 0)
                         {
@@ -1418,7 +1324,7 @@ enum class RollSpread : std::uint8_t
                         else
                         {
                             const Fraction first_onset =
-                                principal_global - (Fraction{before_count} * lead);
+                                principal_place - (Fraction{before_count} * lead);
                             // The run steals its lead from the beat before it: Guitar Pro sounds a
                             // before-beat grace in the preceding note's time, so that beat's
                             // events stop where the ornament starts rather than ringing under it.
@@ -1436,12 +1342,12 @@ enum class RollSpread : std::uint8_t
                                      ++offset)
                                 {
                                     NoteEvent& earlier = events[last->second.first_event + offset];
-                                    if (earlier.global_beat < first_onset &&
-                                        earlier.global_beat + earlier.duration_beats > first_onset)
+                                    if (earlier.place < first_onset &&
+                                        earlier.place + earlier.duration_whole > first_onset)
                                     {
-                                        const Fraction rings = first_onset - earlier.global_beat;
+                                        const Fraction rings = first_onset - earlier.place;
                                         earlier.stolen_lead = notatedDuration(earlier) - rings;
-                                        earlier.duration_beats = rings;
+                                        earlier.duration_whole = rings;
                                     }
                                 }
                             }
@@ -1453,7 +1359,7 @@ enum class RollSpread : std::uint8_t
                                     continue;
                                 }
                                 const Fraction back = Fraction{remaining} * lead;
-                                const Fraction global = principal_global - back;
+                                const Fraction grace_place = principal_place - back;
                                 for (const GpNote& grace_note : grace->notes)
                                 {
                                     // A grace beat takes no bar time and its mark never extends,
@@ -1463,7 +1369,7 @@ enum class RollSpread : std::uint8_t
                                         grace_note,
                                         voice_index,
                                         grace->tremolo_stroke.numerator > 0,
-                                        global,
+                                        grace_place,
                                         lead,
                                         true);
                                 }
@@ -1476,7 +1382,7 @@ enum class RollSpread : std::uint8_t
                     // notes on their strings land one lead later per grace, ends unchanged.
                     if (on_count > 0)
                     {
-                        const Fraction lead = fitLeadToGap(full_lead, duration_beats, on_count);
+                        const Fraction lead = fitLeadToGap(full_lead, duration, on_count);
                         if (lead.numerator <= 0)
                         {
                             dropped_graces += on_count;
@@ -1491,14 +1397,14 @@ enum class RollSpread : std::uint8_t
                                     continue;
                                 }
                                 const Fraction forward = Fraction{slot} * lead;
-                                const Fraction global = principal_global + forward;
+                                const Fraction grace_place = principal_place + forward;
                                 for (const GpNote& grace_note : grace->notes)
                                 {
                                     emit_note(
                                         grace_note,
                                         voice_index,
                                         grace->tremolo_stroke.numerator > 0,
-                                        global,
+                                        grace_place,
                                         lead,
                                         true);
                                     shifted_strings.push_back(grace_note.string);
@@ -1522,20 +1428,19 @@ enum class RollSpread : std::uint8_t
                         source,
                         voice_index,
                         beat.tremolo_stroke.numerator > 0,
-                        shifted ? (principal_global + principal_shift) : principal_global,
-                        shifted ? (duration_beats - principal_shift) : duration_beats,
+                        shifted ? (principal_place + principal_shift) : principal_place,
+                        shifted ? (duration - principal_shift) : duration,
                         false);
                 }
                 if (beat.roll_direction != GpRollDirection::None)
                 {
-                    const RollSpread placement =
-                        expandRolledBeat(events, first_own_event, beat, denominator);
+                    const RollSpread placement = expandRolledBeat(events, first_own_event, beat);
                     spread_rolls += placement != RollSpread::Refused ? 1 : 0;
                     unspread_rolls += placement == RollSpread::Refused ? 1 : 0;
                     clamped_anticipations += placement == RollSpread::ClampedOnBeat ? 1 : 0;
                 }
                 last_beat_per_voice[voice_index] = SoundingBeat{
-                    .onset = principal_global + principal_shift,
+                    .onset = principal_place + principal_shift,
                     .first_event = beat_first_event,
                     .event_count = events.size() - beat_first_event,
                 };
@@ -1595,25 +1500,25 @@ enum class RollSpread : std::uint8_t
             "staccato) and never extend");
     }
 
-    events = expandTrilledEvents(events, grid, track.tuning_midi, capo, notes);
+    events = expandTrilledEvents(events, track.tuning_midi, capo, notes);
 
     std::ranges::stable_sort(events, [](const NoteEvent& lhs, const NoteEvent& rhs) {
-        if (lhs.global_beat != rhs.global_beat)
+        if (lhs.place != rhs.place)
         {
-            return lhs.global_beat < rhs.global_beat;
+            return lhs.place < rhs.place;
         }
         return lhs.source.string < rhs.source.string;
     });
     return events;
 }
 
-// Built notes plus their onset on the global beat axis (needed for tie and slide spans). The note
+// Built notes plus their onset on the whole-note axis (needed for tie and slide spans). The note
 // carries everything else, including how long it rings — the builder stores ACTUAL durations, so
 // an end kept beside the sustain would be a second copy of the same fact.
 struct BuiltNote
 {
     ChartNote note;
-    Fraction global_beat{};
+    Fraction place{};
     int gp_string{0};
     int slide_flags{0};
 
@@ -1627,7 +1532,7 @@ struct BuiltNote
 
     // Onset of the tied continuation the slide flags were inherited from, when they were: the
     // glide leaves from the junction, not the merged note's onset (policy rule 15).
-    std::optional<Fraction> slide_from_beat;
+    std::optional<Fraction> slide_from_place;
 
     // Whether this note carries a live LET RING mark, carried from the event that opened it and
     // answered once every other pass that can lengthen the ring is done (\ref letRingFigureEnds).
@@ -1636,17 +1541,17 @@ struct BuiltNote
     bool let_ring{false};
 };
 
-// Where the string stops ringing, on the global beat axis.
+// Where the string stops ringing, on the whole-note axis.
 [[nodiscard]] Fraction ringEndOf(const BuiltNote& entry)
 {
-    return entry.global_beat + entry.note.sustain;
+    return entry.place + entry.note.sustain;
 }
 
 // The next HEAD on this record's own string, or nullptr — the successor the slide-out/arrival
 // relation is a fact about. The stream is in onset order, so the first later record on the string
 // is it. A record `merged_away` marks was folded into its predecessor and is no head; a null table
 // says the stream holds heads only, which is what it holds once the merges have been compacted out.
-[[nodiscard]] const ChartNote* nextHeadOnString(
+[[nodiscard]] const BuiltNote* nextHeadOnString(
     const std::vector<BuiltNote>& built, const std::size_t index,
     const std::vector<bool>* const merged_away)
 {
@@ -1658,7 +1563,7 @@ struct BuiltNote
         }
         if (built[ahead].note.string == built[index].note.string)
         {
-            return &built[ahead].note;
+            return &built[ahead];
         }
     }
     return nullptr;
@@ -1676,22 +1581,23 @@ struct BuiltNote
 // next head ends exactly on it while a shorter one never can. One step is always enough, the
 // relation comparing the candidate against a single stop.
 [[nodiscard]] int slideOutExitClearOfNextHead(
-    const ChartNote& note, const ChartNote* const next_head,
-    const common::core::TempoMap& tempo_map, const int candidate, const bool upward, const int capo)
+    const BuiltNote& entry, const BuiltNote* const next_head, const int candidate,
+    const bool upward, const int capo)
 {
     if (next_head == nullptr)
     {
         return candidate;
     }
-    const Fraction gap = common::core::beatDistance(tempo_map, note.position, next_head->position);
-    if (note.sustain < gap)
+    const Fraction gap = next_head->place - entry.place;
+    if (entry.note.sustain < gap)
     {
         return candidate;
     }
-    ChartNote trial = note;
+    ChartNote trial = entry.note;
     static_cast<void>(common::core::clipPayloadsToSustain(trial, gap));
     common::core::setSlideOut(trial, candidate);
-    if (!common::core::arrivesIntoNextHead(trial, *next_head, tempo_map))
+    if (!common::core::arrivesIntoNextHead(
+            common::core::LegatoPredecessor{.note = trial, .onset_gap = gap}, next_head->note))
     {
         return candidate;
     }
@@ -1767,7 +1673,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     const BuiltNote& entry = built[index];
     // fretHandStopAt rather than heldFretAt: an open note is a statement here, one a grip can
     // contradict.
-    return common::core::fretHandStopAt(entry.note, std::nullopt, instant - entry.global_beat);
+    return common::core::fretHandStopAt(entry.note, std::nullopt, instant - entry.place);
 }
 
 // A note's GRIP STATEMENT for the let-ring figure law below: the stop it states at the asked
@@ -1828,8 +1734,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // silence states nothing, so a rest of any length closes nothing and material re-entering bars
 // later on the SAME grip merely CONFIRMS it and joins the stack (open strings state stop 0, so
 // they confirm too). One corpus chart would carry such a figure across 33 bars, whose single end —
-// computed from its LAST member, as the law's own arithmetic requires — reaches five notes struck
-// 130 beats earlier that the tab writes at half a beat each. Measuring the horizon member to
+// computed from its LAST member, as the law's own arithmetic requires — reaches five short notes
+// struck over 32 bars earlier. Measuring the horizon member to
 // member rather than from the figure's first note is what keeps a continuous texture of any length
 // ONE figure: only real silence expires an asking. A per-member cap is not the fix — it patches
 // the symptom at the tail while leaving the mis-grouping upstream intact, and it re-rags the stack
@@ -1850,7 +1756,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // Returns the figure end for every marked note, index-parallel to `built`.
 [[nodiscard]] std::vector<std::optional<Fraction>> letRingFigureEnds(
     const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& planted_stops,
-    const MeasureGrid& grid)
+    const common::core::TempoMap& tempo_map)
 {
     // A grip is string -> the note that last stated it, so a slid finger carries its statement
     // forward: the stop is re-asked of that note at the instant under judgment.
@@ -1864,8 +1770,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         }
         // Never before the gripping note began: the donation asks a LATER figure's grip about an
         // earlier note, and a note states nothing ahead of its own onset.
-        return statedStopAt(
-            built, held->second, std::max(instant, built[held->second].global_beat));
+        return statedStopAt(built, held->second, std::max(instant, built[held->second].place));
     };
     // Writes one note into a grip as its string's latest statement — unless it rides above the
     // stop already gripped there (\ref gripStatementAt), which it restates WITHOUT rewriting: the
@@ -1923,8 +1828,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         while (at < indices.size())
         {
             std::vector<std::size_t> slot;
-            const Fraction onset = built[indices[at]].global_beat;
-            while (at < indices.size() && built[indices[at]].global_beat == onset)
+            const Fraction onset = built[indices[at]].place;
+            while (at < indices.size() && built[indices[at]].place == onset)
             {
                 slot.push_back(indices[at]);
                 ++at;
@@ -1936,7 +1841,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
             // the figure's opening, so only real silence expires an asking.
             const bool expired =
                 current.has_value() &&
-                audibilityHorizonFrom(grid, built[figures[*current].back()].global_beat) < onset;
+                audibilityHorizonFrom(tempo_map, built[figures[*current].back()].place) < onset;
             if (!current.has_value() || expired || contradicts(slot, onset))
             {
                 // The hand moved, or the asking expired: only the second can end a phrase here.
@@ -1970,7 +1875,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         std::size_t largest = 0;
         for (const std::size_t index : figure)
         {
-            largest = std::max(largest, ++strokes[built[index].global_beat]);
+            largest = std::max(largest, ++strokes[built[index].place]);
         }
         return largest;
     };
@@ -1993,20 +1898,20 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // mark before a long silence would take the returning stack's end as its own. Same
         // question as the seam's, asked of the same authority: does the closer arrive within the
         // fragment's own audibility horizon?
-        if (audibilityHorizonFrom(grid, built[fragment.back()].global_beat) <
-            built[closer.front()].global_beat)
+        if (audibilityHorizonFrom(tempo_map, built[fragment.back()].place) <
+            built[closer.front()].place)
         {
             continue;
         }
         Grip closer_grip;
         for (const std::size_t index : closer)
         {
-            state_into(closer_grip, index, built[index].global_beat);
+            state_into(closer_grip, index, built[index].place);
         }
         std::vector<std::size_t> kept;
         for (const std::size_t index : fragment)
         {
-            const Fraction onset = built[index].global_beat;
+            const Fraction onset = built[index].place;
             const std::optional<common::core::ChartStop> gripped =
                 gripped_at(closer_grip, built[index].note.string, onset);
             const std::optional<common::core::ChartStop> stated =
@@ -2034,26 +1939,26 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     // individual ring's own onset. A per-ring cap bounds each member of a stack separately and
     // stops it raggedly — the disease the one-end law exists to cure — holding every open drone to
     // a single bar while its fretted stackmates ring on to the figure's answer.
-    const auto scope_end = [&built, &voices, &grid](
+    const auto scope_end = [&built, &voices, &tempo_map](
                                const Fraction last_marked,
                                const std::size_t voice) -> std::optional<Fraction> {
-        const auto capped = [&grid, last_marked](const Fraction anchor) {
-            return std::min(anchor, audibilityHorizonFrom(grid, last_marked));
+        const auto capped = [&tempo_map, last_marked](const Fraction anchor) {
+            return std::min(anchor, audibilityHorizonFrom(tempo_map, last_marked));
         };
         const std::vector<std::size_t>& voiced = voices.at(voice);
         const auto own_next = std::ranges::upper_bound(
             voiced, last_marked, std::ranges::less{}, [&built](const std::size_t index) {
-                return built[index].global_beat;
+                return built[index].place;
             });
         if (own_next != voiced.end())
         {
-            return capped(built[*own_next].global_beat);
+            return capped(built[*own_next].place);
         }
-        const auto track_next = std::ranges::upper_bound(
-            built, last_marked, std::ranges::less{}, &BuiltNote::global_beat);
+        const auto track_next =
+            std::ranges::upper_bound(built, last_marked, std::ranges::less{}, &BuiltNote::place);
         if (track_next != built.end())
         {
-            return capped(track_next->global_beat);
+            return capped(track_next->place);
         }
         return std::nullopt;
     };
@@ -2087,7 +1992,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
             const BuiltNote& entry = built[index];
             if (entry.let_ring)
             {
-                last_marked = std::max(last_marked.value_or(entry.global_beat), entry.global_beat);
+                last_marked = std::max(last_marked.value_or(entry.place), entry.place);
             }
         }
         if (!last_marked.has_value())
@@ -2128,7 +2033,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
             const BuiltNote& entry = built[index];
             if (entry.let_ring)
             {
-                written_reach = std::max(written_reach, entry.global_beat + entry.note.sustain);
+                written_reach = std::max(written_reach, entry.place + entry.note.sustain);
             }
         }
         // THE FIGURE'S END (\ref scope_end asked of the figure): the first onset the figure's own
@@ -2222,7 +2127,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             continue;
         }
         const BuiltNote& other = built[index];
-        if (!(other.global_beat <= instant && instant < ringEndOf(other)))
+        if (!(other.place <= instant && instant < ringEndOf(other)))
         {
             continue; // not sounding at this instant
         }
@@ -2248,15 +2153,15 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             {
                 continue;
             }
-            const Fraction keyframe_beat = other.global_beat + keyframe.offset;
-            if (keyframe_beat < instant)
+            const Fraction keyframe_place = other.place + keyframe.offset;
+            if (keyframe_place < instant)
             {
                 fret = *stated_fret; // already reached this keyframe
                 continue;
             }
             // Keyframes are ascending, so nothing past here can precede the instant. A keyframe
             // landing exactly on it means the note is gliding in lockstep — treat it as moving.
-            co_sliding = keyframe_beat == instant;
+            co_sliding = keyframe_place == instant;
             break;
         }
         if (co_sliding || fret <= 0)
@@ -2280,7 +2185,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 //   1. A TAPPED note is not a coverage event. Two-hand taps sit a median seven frets above the
 //      fretting hand, so the anchor stays on the fretted / left-hand notes and any held chord
 //      shape while the tap floats above the window; the highway camera frames the tap separately.
-//   2. The hand RE-ANCHORS at musical boundaries — section starts (phrase_boundary_beats) and
+//   2. The hand RE-ANCHORS at musical boundaries — section starts (phrase_boundary_places) and
 //      rests >= g_fhp_phrase_rest_seconds — biased to the phrase's floor fret, not only when a
 //      note leaves the window (only ~35% of authored moves are forced). Within a segment it moves
 //      minimally when forced and drags with pitched slides.
@@ -2294,7 +2199,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 // docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
 [[nodiscard]] std::vector<common::core::FretHandPosition> generateFretHandPositions(
     const std::vector<BuiltNote>& built, const common::core::ChartConnections& connections,
-    const common::core::TempoMap& tempo_map, const std::vector<Fraction>& phrase_boundary_beats,
+    const common::core::TempoMap& tempo_map, const std::vector<Fraction>& phrase_boundary_places,
     const int capo)
 {
     // One instant the fret hand must cover: the fretted extent of an onset group, or a pitched
@@ -2303,7 +2208,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     // fit like a struck onset.
     struct CoverageEvent
     {
-        Fraction global_beat{};
+        Fraction place{};
         GridPosition position;
         int min_fret{0};
         int max_fret{0};
@@ -2314,11 +2219,11 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     while (index < built.size())
     {
         CoverageEvent onset{
-            .global_beat = built[index].global_beat,
+            .place = built[index].place,
             .position = built[index].note.position,
         };
         std::size_t onset_end = index;
-        while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
+        while (onset_end < built.size() && built[onset_end].place == built[index].place)
         {
             const ChartNote& note = built[onset_end].note;
             // Right-hand onsets float above the window and never anchor the hand.
@@ -2382,19 +2287,19 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     {
                         continue;
                     }
-                    const Fraction keyframe_beat = built[onset_end].global_beat + keyframe.offset;
-                    const GridPosition keyframe_position = common::core::advanceGridPosition(
-                        tempo_map, note.position, keyframe.offset);
+                    const Fraction keyframe_place = built[onset_end].place + keyframe.offset;
+                    const GridPosition keyframe_position =
+                        tempo_map.gridPositionAtWholeNote(keyframe_place);
                     int held_min = 0;
                     int held_max = 0;
                     if (heldHullAtSlideKeyframe(
-                            built, onset_end, keyframe_beat, held_min, held_max))
+                            built, onset_end, keyframe_place, held_min, held_max))
                     {
                         // A finger stays planted: the hand must still cover it, so the event is
                         // the sounding hull, fit like a struck onset — no drag.
                         events.push_back(
                             CoverageEvent{
-                                .global_beat = keyframe_beat,
+                                .place = keyframe_place,
                                 .position = keyframe_position,
                                 .min_fret = std::min(keyframe_fret, held_min),
                                 .max_fret = std::max(keyframe_fret, held_max),
@@ -2406,7 +2311,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                         // Nothing else is held: the whole hand travels with the slide (rule 9).
                         events.push_back(
                             CoverageEvent{
-                                .global_beat = keyframe_beat,
+                                .place = keyframe_place,
                                 .position = keyframe_position,
                                 .min_fret = keyframe_fret,
                                 .max_fret = keyframe_fret,
@@ -2435,14 +2340,13 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                 {
                     continue;
                 }
-                if (!(prior.global_beat < onset.global_beat) ||
-                    !(onset.global_beat < prior.global_beat + prior.note.sustain))
+                if (!(prior.place < onset.place) ||
+                    !(onset.place < prior.place + prior.note.sustain))
                 {
                     continue;
                 }
                 const std::optional<int> pinned =
-                    common::core::ringStateAt(prior.note, onset.global_beat - prior.global_beat)
-                        .fret;
+                    common::core::ringStateAt(prior.note, onset.place - prior.place).fret;
                 if (pinned.has_value() && *pinned > 0)
                 {
                     onset.min_fret = std::min(onset.min_fret, *pinned);
@@ -2458,12 +2362,12 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     // same-instant events merge into one coverage demand (a keyframe coinciding with an onset
     // is one instant the hand covers once).
     std::ranges::stable_sort(events, [](const CoverageEvent& lhs, const CoverageEvent& rhs) {
-        return lhs.global_beat < rhs.global_beat;
+        return lhs.place < rhs.place;
     });
     std::vector<CoverageEvent> merged;
     for (const CoverageEvent& event : events)
     {
-        if (!merged.empty() && merged.back().global_beat == event.global_beat)
+        if (!merged.empty() && merged.back().place == event.place)
         {
             merged.back().min_fret = std::min(merged.back().min_fret, event.min_fret);
             merged.back().max_fret = std::max(merged.back().max_fret, event.max_fret);
@@ -2489,26 +2393,26 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     int capacity = common::core::g_min_fret_hand_width;
     bool have_anchor = false;
     double previous_seconds = 0.0;
-    Fraction previous_beat{};
+    Fraction previous_place{};
     std::size_t phrase_index = 0;
     for (const CoverageEvent& event : merged)
     {
-        const double seconds = tempo_map.secondsAtGlobalBeatPosition(event.global_beat.toDouble());
+        const double seconds = tempo_map.secondsAtWholeNote(event.place);
         // A new segment begins at the first event, across a long rest, or at a section start that
         // falls strictly after the previous event.
         bool boundary = !have_anchor || seconds - previous_seconds >= g_fhp_phrase_rest_seconds;
-        while (phrase_index < phrase_boundary_beats.size() &&
-               phrase_boundary_beats[phrase_index] <= previous_beat)
+        while (phrase_index < phrase_boundary_places.size() &&
+               phrase_boundary_places[phrase_index] <= previous_place)
         {
             ++phrase_index;
         }
-        if (have_anchor && phrase_index < phrase_boundary_beats.size() &&
-            phrase_boundary_beats[phrase_index] <= event.global_beat)
+        if (have_anchor && phrase_index < phrase_boundary_places.size() &&
+            phrase_boundary_places[phrase_index] <= event.place)
         {
             boundary = true;
         }
         previous_seconds = seconds;
-        previous_beat = event.global_beat;
+        previous_place = event.place;
 
         // A boundary holds before the first anchor too, so a window standing to cover the event
         // always exists where one is asked about.
@@ -2663,11 +2567,11 @@ void upsertPlacement(
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
 // notation. The gesture is an ON-BEAT scoop: the ornament is the manner of the note's ATTACK and
 // occupies the note's own time slot — notation practice and faithful score players pluck on the
-// notated tick at an offset pitch and resolve to the target a quarter of the duration in. The head
-// therefore keeps its notated position at a derived approach fret and glides to the notated fret
-// over the scoop window: a quarter of the notated duration, capped at the sustain margin, floored
-// at the minimum slide window, and kept strictly before the note's slide chain and slide-out end
-// (bend curves order only against the sustain, so the scoop leaves them untouched). Anticipation —
+// notated tick at an offset pitch and resolve to the target just after it. The head therefore
+// keeps its notated position at a derived approach fret and glides to the notated fret over the
+// scoop window: the minimum slide window measured forward from the onset, kept strictly before the
+// note's slide chain and slide-out end (bend curves order only against the sustain, so the scoop
+// leaves them untouched). Anticipation —
 // the approach sounding BEFORE the beat with the target landing ON it — is the before-beat
 // grace-with-slide notation, which resolves through the ordinary chain; a bare slide-in must not
 // fabricate it.
@@ -2685,8 +2589,7 @@ void upsertPlacement(
 // judge it: a slide-in into a held landing keeps its hold like any notated slide.
 void resolveSlideIns(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
-    const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
-    std::vector<std::string>& notes, const int capo)
+    const common::core::TempoMap& tempo_map, std::vector<std::string>& notes, const int capo)
 {
     int unplaceable = 0;
     // Applied after the loop so every start fret derives from the pristine natural track — a
@@ -2744,16 +2647,7 @@ void resolveSlideIns(
 
         // The scoop window (see the function comment); an existing chain keyframe keeps the
         // payload ascending by gliding through half its own offset instead.
-        Fraction window = note.sustain * Fraction{1, 4};
-        const Fraction margin = common::core::minimumSustainDistanceBeats(tempo_map, note.position);
-        if (margin < window)
-        {
-            window = margin;
-        }
-        if (window < g_minimum_slide_window)
-        {
-            window = g_minimum_slide_window;
-        }
+        Fraction window = minimumSlideWindow(tempo_map, entry.place);
         if (const Fraction first_travel = firstStatedFretOffset(note);
             first_travel.numerator > 0 && window >= first_travel)
         {
@@ -2789,13 +2683,12 @@ void resolveSlideIns(
                 // The restore rides the scoop's end, which can run off the end of the score; a
                 // placement outside the grid would fail validation for the whole song, and the
                 // dip alone is a coherent state (the window simply stays where the scoop left it).
-                if (const GridPosition restore_position =
-                        gridPositionForGlobalBeat(grid, entry.global_beat + window);
-                    withinGrid(grid, restore_position))
+                if (const Fraction restore_place = entry.place + window;
+                    withinScore(tempo_map, restore_place))
                 {
                     restore_placements.push_back(
                         common::core::FretHandPosition{
-                            .position = restore_position,
+                            .position = tempo_map.gridPositionAtWholeNote(restore_place),
                             .fret = active->fret,
                         });
                 }
@@ -2842,7 +2735,7 @@ void resolveSlideIns(
 // written against; spacing before the next head is display's alone.
 void resolveSlideOutExits(
     std::vector<BuiltNote>& built, const std::vector<bool>& arrives_into,
-    std::vector<common::core::FretHandPosition>& placements, const MeasureGrid& grid,
+    std::vector<common::core::FretHandPosition>& placements,
     const common::core::TempoMap& tempo_map, const int capo)
 {
     std::vector<common::core::FretHandPosition> exit_placements;
@@ -2880,15 +2773,14 @@ void resolveSlideOutExits(
         const auto active = after - 1;
 
         std::size_t next_note = index + 1;
-        while (next_note < built.size() && built[next_note].global_beat <= entry.global_beat)
+        while (next_note < built.size() && built[next_note].place <= entry.place)
         {
             ++next_note;
         }
         // The gesture ends where the ring does, which is what a slide-out having no offset of its
         // own means.
-        const GridPosition end_position =
-            gridPositionForGlobalBeat(grid, entry.global_beat + note.sustain);
-        if (!withinGrid(grid, end_position))
+        const Fraction end_place = entry.place + note.sustain;
+        if (!withinScore(tempo_map, end_place))
         {
             // The slide-out ends past the last bar, at the very end of the score. A placement
             // there is not representable, and fabricating one would fail validation for the whole
@@ -2896,6 +2788,7 @@ void resolveSlideOutExits(
             // is what happens anyway when there is no room to ride.
             continue;
         }
+        const GridPosition end_position = tempo_map.gridPositionAtWholeNote(end_place);
         const bool has_next = next_note < built.size();
         if (has_next && built[next_note].note.position < end_position)
         {
@@ -2915,14 +2808,14 @@ void resolveSlideOutExits(
         const bool meets_next = has_next && end_position == built[next_note].note.position;
         // The strike the gesture meets, as the run of its notes; empty where it meets none.
         const auto next_strike = built.begin() + static_cast<std::ptrdiff_t>(next_note);
-        const auto after_next_strike =
-            meets_next ? std::find_if(
-                             next_strike,
-                             built.end(),
-                             [next_strike](const BuiltNote& other) {
-                                 return other.global_beat != next_strike->global_beat;
-                             })
-                       : next_strike;
+        const auto after_next_strike = meets_next
+                                           ? std::find_if(
+                                                 next_strike,
+                                                 built.end(),
+                                                 [next_strike](const BuiltNote& other) {
+                                                     return other.place != next_strike->place;
+                                                 })
+                                           : next_strike;
         const bool next_strike_takes_instant =
             meets_next && std::any_of(next_strike, after_next_strike, [](const BuiltNote& other) {
                 return anchorsFretHand(other.note);
@@ -2941,9 +2834,8 @@ void resolveSlideOutExits(
         {
             const int travel = widenedToMinimumTravel(delta, downward);
             exit_fret = slideOutExitClearOfNextHead(
-                entry.note,
+                entry,
                 nextHeadOnString(built, index, nullptr),
-                tempo_map,
                 std::clamp(
                     departing + travel,
                     common::core::firstPlayableFret(capo),
@@ -3003,39 +2895,30 @@ void resolveSlideOutExits(
 // so a hold followed by a release keeps its hold; only where no tick is left inside the ring does
 // the later fold into the earlier, its stated channels winning. A ring keeps at least one tick.
 // Hand placements that round together keep the first, as the exit pass's first-inserted rule does.
+//
+// Every instant is rounded as a PLACE on the whole-note axis, where the lattice lies, and a
+// duration is then the difference of two rounded places — a whole number of ticks by construction.
 void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
 {
-    const auto on_lattice = [&tempo_map](const GridPosition& position) {
-        return common::core::snapGridPosition(
-            tempo_map, position, common::core::g_tick_quantum_note_value);
-    };
-    const auto next_tick = [&tempo_map](const GridPosition& position) {
-        return common::core::adjacentGridPosition(
-            tempo_map, position, common::core::g_tick_quantum_note_value, true);
-    };
-
+    const Fraction tick = common::core::g_tick_quantum_note_value;
     for (ChartNote& note : chart.notes)
     {
-        const GridPosition onset = on_lattice(note.position);
-        GridPosition end =
-            on_lattice(common::core::advanceGridPosition(tempo_map, note.position, note.sustain));
+        const Fraction place = tempo_map.wholeNotePositionAt(note.position);
+        const Fraction onset = common::core::nearestTickPlace(place);
+        Fraction end = common::core::nearestTickPlace(place + note.sustain);
         if (!(onset < end))
         {
-            end = next_tick(onset);
+            end = onset + tick;
         }
         std::vector<Keyframe> keyframes;
         keyframes.reserve(note.keyframes.size());
         for (const Keyframe& keyframe : note.keyframes)
         {
-            const GridPosition previous =
-                keyframes.empty()
-                    ? onset
-                    : common::core::advanceGridPosition(tempo_map, onset, keyframes.back().offset);
-            GridPosition at = on_lattice(
-                common::core::advanceGridPosition(tempo_map, note.position, keyframe.offset));
+            const Fraction previous = keyframes.empty() ? onset : onset + keyframes.back().offset;
+            Fraction at = common::core::nearestTickPlace(place + keyframe.offset);
             if (!(previous < at))
             {
-                at = next_tick(previous);
+                at = previous + tick;
             }
             if (end < at && !keyframes.empty())
             {
@@ -3052,11 +2935,11 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                 continue;
             }
             Keyframe rounded = keyframe;
-            rounded.offset = common::core::beatDistance(tempo_map, onset, at);
+            rounded.offset = at - onset;
             keyframes.push_back(rounded);
         }
-        note.position = onset;
-        note.sustain = common::core::beatDistance(tempo_map, onset, end);
+        note.position = tempo_map.gridPositionAtWholeNote(onset);
+        note.sustain = end - onset;
         note.keyframes = std::move(keyframes);
     }
 
@@ -3064,7 +2947,8 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
     placements.reserve(chart.fret_hand_positions.size());
     for (common::core::FretHandPosition placement : chart.fret_hand_positions)
     {
-        placement.position = on_lattice(placement.position);
+        placement.position = tempo_map.gridPositionAtWholeNote(
+            common::core::nearestTickPlace(tempo_map.wholeNotePositionAt(placement.position)));
         if (placements.empty() || placements.back().position < placement.position)
         {
             placements.push_back(placement);
@@ -3101,9 +2985,9 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
 // adds to, for the one reason: a reader asks what the whole import did, and a per-track answer
 // would have to be summed by every caller.
 [[nodiscard]] Chart buildChart(
-    const GpTrack& track, const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
-    const std::vector<Fraction>& phrase_boundary_beats, std::vector<std::string>& notes,
-    GpLetRingReport& let_ring)
+    const GpTrack& track, const std::vector<GpMasterBar>& master_bars,
+    const common::core::TempoMap& tempo_map, const std::vector<Fraction>& phrase_boundary_places,
+    std::vector<std::string>& notes, GpLetRingReport& let_ring)
 {
     Chart chart;
     // Every value below arrives unvalidated from the score file, and each one the chart rules
@@ -3130,7 +3014,8 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             std::to_string(chart.tuning.capo));
     }
 
-    const std::vector<NoteEvent> events = collectEvents(track, grid, chart.tuning.capo, notes);
+    const std::vector<NoteEvent> events =
+        collectEvents(track, master_bars, tempo_map, chart.tuning.capo, notes);
 
     std::vector<BuiltNote> built;
     std::map<int, std::size_t> open_note_per_string;
@@ -3147,7 +3032,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     for (const NoteEvent& event : events)
     {
         const GpNote& source = event.source;
-        const Fraction event_end = event.global_beat + event.duration_beats;
+        const Fraction event_end = event.place + event.duration_whole;
 
         if (source.tie_destination)
         {
@@ -3158,12 +3043,12 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
                 BuiltNote& origin = built[open->second];
                 if (event_end > ringEndOf(origin))
                 {
-                    origin.note.sustain = event_end - origin.global_beat;
+                    origin.note.sustain = event_end - origin.place;
                 }
                 // Where this continuation begins on the merged ring: the anchor its own
                 // per-segment statements rebase onto, for the vibrato channel and the bend curve
                 // alike.
-                const Fraction base = event.global_beat - origin.global_beat;
+                const Fraction base = event.place - origin.place;
                 stateVibratoAt(origin.note, base, source.vibrato);
                 // Tremolo is deliberately NOT a channel: it is re-picking, so a mid-ring "start"
                 // would be new onsets rather than a state change (the keyframe model's admission
@@ -3174,7 +3059,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
                     for (BendCurvePoint point :
                          buildBendPoints(*source.bend, notatedDuration(event), notes))
                     {
-                        if (event.duration_beats < point.offset)
+                        if (event.duration_whole < point.offset)
                         {
                             // The curve is written over the notated duration; a continuation an
                             // ornament shortened folds in only the part that still sounds. Points
@@ -3198,7 +3083,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
                 origin.slide_flags |= source.slide_flags;
                 if (source.slide_flags != 0)
                 {
-                    origin.slide_from_beat = event.global_beat;
+                    origin.slide_from_place = event.place;
                 }
                 if (!source.tie_origin)
                 {
@@ -3218,14 +3103,14 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         }
 
         BuiltNote entry;
-        entry.global_beat = event.global_beat;
+        entry.place = event.place;
         entry.gp_string = source.string;
         entry.slide_flags = source.slide_flags;
         entry.voice = event.voice;
         entry.let_ring = event.let_ring;
 
         ChartNote& note = entry.note;
-        note.position = gridPositionForGlobalBeat(grid, event.global_beat);
+        note.position = tempo_map.gridPositionAtWholeNote(event.place);
         note.string = source.string + 1;
         // Guitar Pro's frets are CAPO-RELATIVE (confirmed by authored experiment: with a capo at
         // 3, an entered "1" sounds the pitch at absolute fret 4), while the chart stores absolute
@@ -3243,7 +3128,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         {
             ++frets_off_the_neck;
         }
-        note.sustain = event.duration_beats;
+        note.sustain = event.duration_whole;
         note.vibrato = source.vibrato;
         note.tremolo = event.tremolo;
         note.emphasis = source.emphasis;
@@ -3439,7 +3324,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         if (!built.empty())
         {
             const BuiltNote& previous = built.back();
-            if (previous.global_beat == entry.global_beat && previous.note.string == note.string)
+            if (previous.place == entry.place && previous.note.string == note.string)
             {
                 ++dropped_duplicates;
                 continue;
@@ -3486,16 +3371,17 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             ++index;
             continue;
         }
-        const Fraction beat = built[index].global_beat;
+        const Fraction onset = built[index].place;
         const bool upward = (built[index].slide_flags & 128) != 0;
-        const auto notated_span = [](const BuiltNote& entry) {
-            return entry.note.sustain.numerator > 0 ? entry.note.sustain : g_minimum_slide_window;
+        const auto notated_span = [&tempo_map](const BuiltNote& entry) {
+            return entry.note.sustain.numerator > 0 ? entry.note.sustain
+                                                    : minimumSlideWindow(tempo_map, entry.place);
         };
         // First pass over the onset: take the gesture's longest span and drop opposed directions.
         // Flags stay set here so the conversion pass can still find the survivors.
         Fraction span = notated_span(built[index]);
         std::size_t scan = index + 1;
-        for (; scan < built.size() && built[scan].global_beat == beat; ++scan)
+        for (; scan < built.size() && built[scan].place == onset; ++scan)
         {
             if ((built[scan].slide_flags & (64 | 128)) == 0)
             {
@@ -3569,9 +3455,9 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         // Flags inherited from a tied continuation glide from the junction, not the merged
         // note's onset: a hold keyframe pins the pitch until the sliding segment begins (the
         // tied 6 holds through its chord, then slides — policy rule 15).
-        if (entry.slide_from_beat.has_value())
+        if (entry.slide_from_place.has_value())
         {
-            const Fraction hold_offset = *entry.slide_from_beat - entry.global_beat;
+            const Fraction hold_offset = *entry.slide_from_place - entry.place;
             if (hold_offset.numerator > 0)
             {
                 keyframeAt(note, hold_offset).fret = note.fret;
@@ -3611,7 +3497,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
                 flags |= 4;
                 break;
             }
-            const Fraction gap = next->global_beat - entry.global_beat;
+            const Fraction gap = next->place - entry.place;
             if ((flags & 2) != 0 && (flags & 1) == 0)
             {
                 // Legato: the landing continues this note. Keyframe at the junction, sustain
@@ -3619,7 +3505,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
                 keyframeAt(note, gap).fret = next->note.fret;
                 if (ringEndOf(entry) < ringEndOf(*next))
                 {
-                    note.sustain = ringEndOf(*next) - entry.global_beat;
+                    note.sustain = ringEndOf(*next) - entry.place;
                 }
                 // The landing's vibrato lands ON the junction it arrives at — the same coupling the
                 // bend fold below relies on, and the sign-off's anchor for Guitar Pro's anchorless
@@ -3706,16 +3592,16 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             }
             if (note.sustain <= last_stated_fret)
             {
-                note.sustain = last_stated_fret + g_minimum_slide_window;
+                note.sustain = last_stated_fret +
+                               minimumSlideWindow(tempo_map, entry.place + last_stated_fret);
             }
             // Read after the ring is settled, because the relation the exit must stay clear of
             // asks whether that ring reaches the next head.
             common::core::setSlideOut(
                 note,
                 slideOutExitClearOfNextHead(
-                    note,
+                    entry,
                     nextHeadOnString(built, index, &merged_away),
-                    tempo_map,
                     target,
                     upward,
                     chart.tuning.capo));
@@ -3787,8 +3673,8 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     const common::core::ChartConnections slide_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
     chart.fret_hand_positions = generateFretHandPositions(
-        built, slide_connections, tempo_map, phrase_boundary_beats, chart.tuning.capo);
-    resolveSlideIns(built, chart.fret_hand_positions, grid, tempo_map, notes, chart.tuning.capo);
+        built, slide_connections, tempo_map, phrase_boundary_places, chart.tuning.capo);
+    resolveSlideIns(built, chart.fret_hand_positions, tempo_map, notes, chart.tuning.capo);
     if (!chart.fret_hand_positions.empty())
     {
         notes.push_back(
@@ -3824,7 +3710,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     const std::vector<std::optional<int>> let_ring_planted =
         common::core::chartPlantedStops(let_ring_connections);
     const std::vector<std::optional<Fraction>> figure_ends =
-        letRingFigureEnds(built, let_ring_planted, grid);
+        letRingFigureEnds(built, let_ring_planted, tempo_map);
     int let_ring_marks_kept = 0;
     // What each mark's ring was BEFORE the law spoke, remembered rather than counted now,
     // because the clamp below can take an extension back whole; the report belongs to the rings
@@ -3846,7 +3732,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
         const std::optional<Fraction>& end = figure_ends[index];
         if (end.has_value())
         {
-            const Fraction ring = *end - entry.global_beat;
+            const Fraction ring = *end - entry.place;
             // LENGTHEN ONLY: written is the law's floor, and truncation is the same-string
             // clamp's job below — physics this pass deliberately does not restate.
             if (ring > entry.note.sustain)
@@ -3911,12 +3797,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
 
     // Slide-out exits follow the hand's next move where it agrees.
     resolveSlideOutExits(
-        built,
-        connections.arrives_into,
-        chart.fret_hand_positions,
-        grid,
-        tempo_map,
-        chart.tuning.capo);
+        built, connections.arrives_into, chart.fret_hand_positions, tempo_map, chart.tuning.capo);
 
     if (unsupported_harmonics > 0)
     {
@@ -4007,14 +3888,13 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     song.metadata.artist = score.artist;
     song.metadata.album = score.album;
 
-    const MeasureGrid grid = makeMeasureGrid(score);
-    song.tempo_map = buildTempoMap(score, grid, song.notes);
+    song.tempo_map = buildTempoMap(score, song.notes);
 
     // Section markers live on the master bars shared by every track, so they build once at the
-    // song level rather than being duplicated into each track's chart. Their global-beat positions
+    // song level rather than being duplicated into each track's chart. Their whole-note places
     // double as phrase boundaries for the phrase-aware fret-hand generator (ascending by
     // construction, since master bars are in order).
-    std::vector<Fraction> phrase_boundary_beats;
+    std::vector<Fraction> phrase_boundary_places;
     for (std::size_t measure = 0; measure < score.master_bars.size(); ++measure)
     {
         // A song section is a NAMED place in the structure, so an unlabelled section mark states
@@ -4028,12 +3908,14 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
             section.has_value() ? common::core::trimmedSongSectionName(*section) : std::string{};
         if (!section_name.empty())
         {
+            const GridPosition downbeat =
+                common::core::measureDownbeat(static_cast<int>(measure) + 1);
             song.sections.push_back(
                 common::core::SongSection{
-                    .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
+                    .position = downbeat,
                     .name = section_name,
                 });
-            phrase_boundary_beats.emplace_back(grid.first_global_beat[measure]);
+            phrase_boundary_places.push_back(song.tempo_map.wholeNotePositionAt(downbeat));
         }
     }
 
@@ -4069,7 +3951,12 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
             seen_non_bass = true;
         }
         arrangement.chart = buildChart(
-            track, grid, song.tempo_map, phrase_boundary_beats, song.notes, song.let_ring);
+            track,
+            score.master_bars,
+            song.tempo_map,
+            phrase_boundary_places,
+            song.notes,
+            song.let_ring);
 
         if (auto validation = common::core::validateChartRules(arrangement.chart, song.tempo_map);
             !validation.has_value())

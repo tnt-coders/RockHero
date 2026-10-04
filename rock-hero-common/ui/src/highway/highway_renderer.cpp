@@ -380,7 +380,7 @@ constexpr double g_tail_inner_alpha = common::core::g_tail_core_alpha;
 // Seconds of tail over which a sustain rises from nothing at its onset. A FIXED span rather
 // than a fraction, for the reason the tremolo ramp is counted in teeth: the rise then occupies
 // the same stretch of board on every note instead of a dozen frames on a long sustain and none
-// on a short one. Two beats of a ribbon at 120 BPM is a second, so this is a few percent of a
+// on a short one. Two quarters of a ribbon at 120 BPM is a second, so this is a few percent of a
 // typical tail — long enough to read as emerging, short enough that no sustain looks late.
 constexpr double g_tail_onset_fade_seconds = 0.05;
 

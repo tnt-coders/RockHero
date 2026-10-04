@@ -89,12 +89,12 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
 }
 
 // A valid scrape: fret 9 start, one turnaround keyframe, and the required slide-out terminal
-// exactly at the one-beat sustain, per the pick-slide invariants the planners must preserve.
+// exactly at the quarter-note sustain, per the pick-slide invariants the planners must preserve.
 [[nodiscard]] common::core::ChartNote makeScrape(common::core::GridPosition position, int string)
 {
-    common::core::ChartNote note = makeTestNote(position, string, 9, common::core::Fraction{1});
+    common::core::ChartNote note = makeTestNote(position, string, 9, common::core::Fraction{1, 4});
     note.attack = common::core::NoteAttack::PickSlide;
-    note.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 3}};
+    note.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 3}};
     common::core::setSlideOut(note, 12);
     return note;
 }
@@ -145,7 +145,7 @@ void applyAndValidate(
     return chart;
 }
 
-// A glide over a four-beat ring: fret 7 from the onset, arriving at fret 9 two beats in and
+// A glide over a whole-note ring: fret 7 from the onset, arriving at fret 9 two quarters in and
 // stating fret 12 exactly where the ring ends — which is the SLIDE-OUT, the fret the hand leaves
 // toward, since a statement at the ring's end is a fret the note never sounds. One note, so a
 // plan's whole effect on the stream is readable without hunting for the record it touched.
@@ -154,16 +154,16 @@ void applyAndValidate(
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote glide =
-        makeTestNote({.measure = 2, .beat = 1}, 1, 7, common::core::Fraction{4});
+        makeTestNote({.measure = 2, .beat = 1}, 1, 7, common::core::Fraction{1});
     glide.keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
-        common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 12},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 12},
     };
     chart.notes = {std::move(glide)};
     return chart;
 }
 
-// A four-beat glide on string 1 stating frets a beat apart at beats 2 and 3, so every bound a
+// A whole-note glide on string 1 stating frets a quarter apart at beats 2 and 3, so every bound a
 // stepped offset can reach — the onset below it, the ring above it, and the neighbour beside it —
 // is one step away from something.
 [[nodiscard]] common::core::Chart makeSteppedGlideChart()
@@ -171,10 +171,10 @@ void applyAndValidate(
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote glide =
-        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1});
     glide.keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
-        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7},
+        common::core::Keyframe{.offset = common::core::Fraction{3, 4}, .fret = 9},
     };
     chart.notes = {std::move(glide)};
     return chart;
@@ -317,7 +317,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                         {.measure = 2, .beat = 1},
                                         1,
                                         fret,
-                                        common::core::Fraction{1});
+                                        common::core::Fraction{1, 4});
                                     subject.attack = attack;
                                     subject.palm_mute = palm_mute;
                                     subject.dead = dead;
@@ -333,7 +333,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                     {
                                         subject.keyframes.push_back(
                                             common::core::Keyframe{
-                                                .offset = common::core::Fraction{1, 2},
+                                                .offset = common::core::Fraction{1, 8},
                                                 .bend = 1.0,
                                             });
                                     }
@@ -341,7 +341,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                     {
                                         subject.keyframes = {
                                             common::core::Keyframe{
-                                                .offset = common::core::Fraction{1, 2}, .fret = 9
+                                                .offset = common::core::Fraction{1, 8}, .fret = 9
                                             },
                                         };
                                     }
@@ -350,7 +350,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                             {.measure = 1, .beat = 1},
                                             1,
                                             9,
-                                            common::core::Fraction{4}),
+                                            common::core::Fraction{1}),
                                         subject,
                                     };
 
@@ -448,10 +448,10 @@ TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "
     if (uncrowded.has_value())
     {
         REQUIRE(uncrowded->inserted.size() == 1);
-        CHECK(uncrowded->inserted.front().sustain == common::core::Fraction{1, 2});
+        CHECK(uncrowded->inserted.front().sustain == common::core::Fraction{1, 8});
     }
 
-    // The fixture's string-1 note at measure 3 beat 1 is struck one beat after this slot, so a
+    // The fixture's string-1 note at measure 3 beat 1 is struck a quarter after this slot, so a
     // half-note grid's ring cannot run through it: the finalize gate's normalization ends it there.
     const auto crowded = planInsertNote(
         chart,
@@ -464,7 +464,7 @@ TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "
         const common::core::ChartNote* placed =
             noteAt(crowded->inserted, {.measure = 2, .beat = 4}, 1);
         REQUIRE(placed != nullptr);
-        CHECK(placed->sustain == common::core::Fraction{1});
+        CHECK(placed->sustain == common::core::Fraction{1, 4});
     }
 
     // From between two lines the ring is the rest of the step, not a whole one: an eighth-note grid
@@ -479,14 +479,14 @@ TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "
     if (between_lines.has_value())
     {
         REQUIRE(between_lines->inserted.size() == 1);
-        CHECK(between_lines->inserted.front().sustain == common::core::Fraction{1, 4});
+        CHECK(between_lines->inserted.front().sustain == common::core::Fraction{1, 16});
     }
 }
 
 // Re-placing a note identical to the one already on the slot changes nothing, so the plan is empty.
 // The ring has to come from the GRID to make that true, because the placed ring overwrites the
 // handed note's own sustain — so each case passes the grid whose step is the occupant's ring (a
-// 4/4 beat is a quarter note), and the two-beat note is here so the case cannot pass merely
+// 4/4 beat is a quarter note), and the half note is here so the case cannot pass merely
 // because the fixture grid happened to match.
 TEST_CASE("planInsertNote returns nullopt for an unchanged placement", "[core][chart]")
 {
@@ -494,7 +494,7 @@ TEST_CASE("planInsertNote returns nullopt for an unchanged placement", "[core][c
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto grid_of = [](const common::core::ChartNote& note) {
-        return note.sustain * common::core::Fraction{1, 4};
+        return note.sustain * common::core::Fraction{1, 16};
     };
     CHECK_FALSE(
         planInsertNote(chart, tempo_map, chart.notes[0], grid_of(chart.notes[0])).has_value());
@@ -519,13 +519,13 @@ TEST_CASE(
                 .position = {.measure = 1, .beat = 1},
                 .string = 1,
                 .fret = 5,
-                .sustain = common::core::Fraction{2},
+                .sustain = common::core::Fraction{1, 2},
                 .keyframes = std::move(keyframes),
             },
         };
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    // The new onset lands one beat into the two-beat sustain.
+    // The new onset lands a quarter into the half-note sustain.
     const auto insert = [&chart, &tempo_map] {
         return planInsertNote(
             chart, tempo_map, makeTestNote({.measure = 1, .beat = 2}, 1, 7), g_fixture_sustain);
@@ -535,10 +535,10 @@ TEST_CASE(
     {
         ring_with({
             common::core::Keyframe{
-                .offset = common::core::Fraction{1, 2}, .fret = {}, .bend = 0.5, .vibrato = {}
+                .offset = common::core::Fraction{1, 8}, .fret = {}, .bend = 0.5, .vibrato = {}
             },
             common::core::Keyframe{
-                .offset = common::core::Fraction{2}, .fret = {}, .bend = 1.0, .vibrato = {}
+                .offset = common::core::Fraction{1, 2}, .fret = {}, .bend = 1.0, .vibrato = {}
             },
         });
         const auto plan = insert();
@@ -548,16 +548,16 @@ TEST_CASE(
             // The earlier note is re-emitted with its sustain cut to the onset distance and its end
             // statement carried to the new end.
             REQUIRE(plan->removed.size() == 1);
-            CHECK(plan->removed.front().sustain == common::core::Fraction{2});
+            CHECK(plan->removed.front().sustain == common::core::Fraction{1, 2});
             CHECK(plan->removed.front().keyframes.size() == 2);
 
             const common::core::ChartNote* truncated =
                 noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
             REQUIRE(truncated != nullptr);
-            CHECK(truncated->sustain == common::core::Fraction{1});
+            CHECK(truncated->sustain == common::core::Fraction{1, 4});
             REQUIRE(truncated->keyframes.size() == 2);
-            CHECK(truncated->keyframes[0].offset == common::core::Fraction{1, 2});
-            CHECK(truncated->keyframes[1].offset == common::core::Fraction{1});
+            CHECK(truncated->keyframes[0].offset == common::core::Fraction{1, 8});
+            CHECK(truncated->keyframes[1].offset == common::core::Fraction{1, 4});
             // Bound once, with the explicit guard the CI-only optional checker needs.
             const std::optional<double>& carried = truncated->keyframes[1].bend;
             REQUIRE(carried.has_value());
@@ -580,17 +580,17 @@ TEST_CASE(
         // it: something the charter authored on a note the insert never touched.
         ring_with({
             common::core::Keyframe{
-                .offset = common::core::Fraction{1, 2}, .fret = {}, .bend = 0.5, .vibrato = {}
+                .offset = common::core::Fraction{1, 8}, .fret = {}, .bend = 0.5, .vibrato = {}
             },
             common::core::Keyframe{
-                .offset = common::core::Fraction{3, 2}, .fret = {}, .bend = 1.0, .vibrato = {}
+                .offset = common::core::Fraction{3, 8}, .fret = {}, .bend = 1.0, .vibrato = {}
             },
         });
         const auto plan = insert();
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
         REQUIRE(chart.notes.size() == 1);
-        CHECK(chart.notes[0].sustain == common::core::Fraction{2});
+        CHECK(chart.notes[0].sustain == common::core::Fraction{1, 2});
         CHECK(chart.notes[0].keyframes.size() == 2);
     }
 
@@ -601,7 +601,7 @@ TEST_CASE(
         // touched.
         ring_with({
             common::core::Keyframe{
-                .offset = common::core::Fraction{1},
+                .offset = common::core::Fraction{1, 4},
                 .fret = {},
                 .bend = {},
                 .vibrato = common::core::VibratoState::Narrow
@@ -611,7 +611,7 @@ TEST_CASE(
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
         REQUIRE(chart.notes.size() == 1);
-        CHECK(chart.notes[0].sustain == common::core::Fraction{2});
+        CHECK(chart.notes[0].sustain == common::core::Fraction{1, 2});
         CHECK(chart.notes[0].keyframes.size() == 1);
     }
 
@@ -620,7 +620,7 @@ TEST_CASE(
         // A bend at the end is the curve's last value, so the point survives the cut whole.
         ring_with({
             common::core::Keyframe{
-                .offset = common::core::Fraction{1}, .fret = {}, .bend = 1.0, .vibrato = {}
+                .offset = common::core::Fraction{1, 4}, .fret = {}, .bend = 1.0, .vibrato = {}
             },
         });
         const auto plan = insert();
@@ -630,9 +630,9 @@ TEST_CASE(
             const common::core::ChartNote* truncated =
                 noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
             REQUIRE(truncated != nullptr);
-            CHECK(truncated->sustain == common::core::Fraction{1});
+            CHECK(truncated->sustain == common::core::Fraction{1, 4});
             REQUIRE(truncated->keyframes.size() == 1);
-            CHECK(truncated->keyframes[0].offset == common::core::Fraction{1});
+            CHECK(truncated->keyframes[0].offset == common::core::Fraction{1, 4});
             // Bound once, with the explicit guard the CI-only optional checker needs.
             const std::optional<double>& kept = truncated->keyframes[0].bend;
             REQUIRE(kept.has_value());
@@ -648,8 +648,9 @@ TEST_CASE(
 // along that ring the slot sits, which is where a point the digit states would go.
 TEST_CASE("chartPathTailAt reports which ring covers the slot and how far along", "[core][chart]")
 {
-    // Fret 5 from the onset, arriving at 7 two beats in and 9 three beats in, over a four-beat
-    // ring: one leg before the first statement, one between two, and a hold past the last.
+    // Fret 5 from the onset, arriving at 7 two quarters in and 9 three quarters in, over a
+    // whole-note ring: one leg before the first statement, one between two, and a hold past the
+    // last.
     const common::core::Chart chart = makeSteppedGlideChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -662,7 +663,7 @@ TEST_CASE("chartPathTailAt reports which ring covers the slot and how far along"
     if (mid.has_value())
     {
         CHECK(mid->note == keyAt(glideOnset(), 1));
-        CHECK(mid->offset == common::core::Fraction{5, 2});
+        CHECK(mid->offset == common::core::Fraction{5, 8});
     }
 
     // The onset itself is no tail — its facts are the note's own — and neither is another string.
@@ -676,7 +677,8 @@ TEST_CASE("chartPathTailAt reports which ring covers the slot and how far along"
 // path of its own, which is no reason a digit cannot state one on it.
 TEST_CASE("chartPathTailAt answers on a plain note's tail", "[core][chart]")
 {
-    // The fixture's string-1 note at measure 3 beat 1 rings two beats at fret 7 and states no path.
+    // The fixture's string-1 note at measure 3 beat 1 rings two quarters at fret 7 and states no
+    // path.
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -686,7 +688,7 @@ TEST_CASE("chartPathTailAt answers on a plain note's tail", "[core][chart]")
     if (plain.has_value())
     {
         CHECK(plain->note == keyAt({.measure = 3, .beat = 1}, 1));
-        CHECK(plain->offset == common::core::Fraction{1});
+        CHECK(plain->offset == common::core::Fraction{1, 4});
     }
 }
 
@@ -706,14 +708,14 @@ TEST_CASE("chartPathTailAt says when the offset is the ring's end", "[core][char
         CHECK_FALSE(inside->at_ring_end);
     }
 
-    // The four-beat ring ends on the next measure's downbeat.
+    // The whole-note ring ends on the next measure's downbeat.
     const std::optional<ChartPathTail> end =
         chartPathTailAt(chart.notes, tempo_map, {.measure = 3, .beat = 1}, 1);
     REQUIRE(end.has_value());
     if (end.has_value())
     {
         CHECK(end->at_ring_end);
-        CHECK(end->offset == common::core::Fraction{4});
+        CHECK(end->offset == common::core::Fraction{1});
     }
 }
 
@@ -733,7 +735,7 @@ TEST_CASE("chartPathTailAt reports the ring ending on an abutting head", "[core]
     if (end.has_value())
     {
         CHECK(end->note == keyAt(glideOnset(), 1));
-        CHECK(end->offset == common::core::Fraction{4});
+        CHECK(end->offset == common::core::Fraction{1});
         CHECK(end->at_ring_end);
     }
 }
@@ -746,7 +748,7 @@ TEST_CASE("planInsertKeyframe states a point along the path", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan = planInsertKeyframe(
-        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{7, 2}, 11);
+        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{7, 8}, 11);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -755,7 +757,7 @@ TEST_CASE("planInsertKeyframe states a point along the path", "[core][chart]")
         const common::core::ChartNote& stated = plan->inserted.front();
         REQUIRE(stated.keyframes.size() == 3);
         // Inserted at its sorted place, after both existing statements.
-        CHECK(stated.keyframes[2].offset == common::core::Fraction{7, 2});
+        CHECK(stated.keyframes[2].offset == common::core::Fraction{7, 8});
         CHECK(stated.keyframes[2].fret == 11);
         // Nothing else moves: the head keeps its fret, the ring its length, the siblings theirs.
         CHECK(stated.fret == 5);
@@ -777,13 +779,13 @@ TEST_CASE("planInsertKeyframe inside a vibrated leg keeps the vibrato running", 
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+    common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
     note.vibrato = common::core::VibratoState::Narrow;
     chart.notes = {std::move(note)};
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const auto plan =
-        planInsertKeyframe(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{2}, 9);
+    const auto plan = planInsertKeyframe(
+        chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1, 2}, 9);
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -793,7 +795,7 @@ TEST_CASE("planInsertKeyframe inside a vibrated leg keeps the vibrato running", 
     applyAndValidate(applied, tempo_map, *plan);
     REQUIRE(applied.notes.size() == 1);
     REQUIRE(applied.notes[0].keyframes.size() == 1);
-    CHECK(applied.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(applied.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(applied.notes[0].keyframes[0].fret == 9);
     CHECK(applied.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
     // Drawn, one region from the onset (2.0s) across the point (3.0s) to the ring's end (4.0s).
@@ -824,14 +826,14 @@ TEST_CASE("planInsertKeyframe refuses what the rules refuse", "[core][chart]")
 
     // Offset zero is the ONSET, whose facts the note itself carries: a keyframe there would be a
     // second spelling of a value the note already states.
-    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{0}, 11)));
+    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{}, 11)));
     // Past the ring there is nothing left to state on.
-    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{5}, 11)));
+    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{5, 4}, 11)));
     // A second record on one offset leaves the offsets no longer strictly ascending.
-    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{2}, 11)));
+    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{1, 2}, 11)));
     // And a slot holding no note names nothing to state a point on.
     const auto empty = planInsertKeyframe(
-        chart, tempo_map, keyAt({.measure = 4, .beat = 1}, 1), common::core::Fraction{1}, 5);
+        chart, tempo_map, keyAt({.measure = 4, .beat = 1}, 1), common::core::Fraction{1, 4}, 5);
     REQUIRE_FALSE(empty.has_value());
     CHECK(std::holds_alternative<ChartPlanInvalid>(empty.error()));
 }
@@ -844,25 +846,25 @@ TEST_CASE("planInsertKeyframe leaves a scrape travelling", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // Fret 9 start, a turnaround at 3 half a beat in, the terminal at 12 on the one-beat ring.
+    // Fret 9 start, a turnaround at 3 an eighth in, the terminal at 12 on the quarter-note ring.
     chart.notes = {makeScrape({.measure = 2, .beat = 1}, 1)};
     const common::core::TempoMap tempo_map = makeTempoMap();
     const ChartSlotKey slot = keyAt(glideOnset(), 1);
 
-    // A quarter beat in the pick is passing 6 on its way from 9 to 3; stating that bends nothing.
+    // A sixteenth in the pick is passing 6 on its way from 9 to 3; stating that bends nothing.
     CHECK(
         common::core::keyframeSaysNothingNew(
             chart.notes.front(),
-            common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 6}));
+            common::core::Keyframe{.offset = common::core::Fraction{1, 16}, .fret = 6}));
 
     // Repeating the turnaround's own position leaves a segment the pick would rest on.
     const auto stilled =
-        planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 4}, 3);
+        planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 16}, 3);
     REQUIRE_FALSE(stilled.has_value());
     CHECK(std::holds_alternative<ChartPlanInvalid>(stilled.error()));
 
     // A real turnaround between the two is an ordinary leg and commits.
-    CHECK(planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 4}, 7).has_value());
+    CHECK(planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 16}, 7).has_value());
 }
 
 // Deleting matching keys removes their full values and labels with the plural count.
@@ -1026,7 +1028,7 @@ TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]
     const common::core::Chart chart = makeSteppedGlideChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartKeyframeKey> first{keyframeKeyAt(
-        {.measure = 2, .beat = 1}, 1, common::core::Fraction{2})};
+        {.measure = 2, .beat = 1}, 1, common::core::Fraction{1, 2})};
 
     const auto plan = planMoveSelection(
         chart, tempo_map, {}, first, common::core::Fraction{1, 8}, 0, "Move Keyframe");
@@ -1036,11 +1038,11 @@ TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]
         REQUIRE(plan->inserted.size() == 1);
         const common::core::ChartNote& stepped = plan->inserted.front();
         REQUIRE(stepped.keyframes.size() == 2);
-        CHECK(stepped.keyframes[0].offset == common::core::Fraction{5, 2});
+        CHECK(stepped.keyframes[0].offset == common::core::Fraction{5, 8});
         // Only the offset moves: the point keeps every statement it made, and the point beside it
         // is untouched.
         CHECK(stepped.keyframes[0].fret == 7);
-        CHECK(stepped.keyframes[1].offset == common::core::Fraction{3});
+        CHECK(stepped.keyframes[1].offset == common::core::Fraction{3, 4});
         // The note the point rides keeps its own slot and its ring.
         CHECK(stepped.position == chart.notes.front().position);
         CHECK(stepped.sustain == chart.notes.front().sustain);
@@ -1054,7 +1056,7 @@ TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]
             applied,
             tempo_map,
             {},
-            {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{5, 2})},
+            {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{5, 8})},
             common::core::Fraction{-1, 8},
             0,
             "Move Keyframe");
@@ -1076,9 +1078,9 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     const common::core::Chart chart = makeSteppedGlideChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartKeyframeKey> first{keyframeKeyAt(
-        {.measure = 2, .beat = 1}, 1, common::core::Fraction{2})};
+        {.measure = 2, .beat = 1}, 1, common::core::Fraction{1, 2})};
     const std::vector<ChartKeyframeKey> second{keyframeKeyAt(
-        {.measure = 2, .beat = 1}, 1, common::core::Fraction{3})};
+        {.measure = 2, .beat = 1}, 1, common::core::Fraction{3, 4})};
 
     SECTION("stepped onto the onset")
     {
@@ -1146,9 +1148,9 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         {
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& stepped = plan->inserted.front();
-            CHECK(stepped.sustain == common::core::Fraction{4});
+            CHECK(stepped.sustain == common::core::Fraction{1});
             REQUIRE(stepped.keyframes.size() == 2);
-            CHECK(stepped.keyframes.back().offset == common::core::Fraction{15, 4});
+            CHECK(stepped.keyframes.back().offset == common::core::Fraction{15, 16});
             CHECK(common::core::endStatedFretOrNull(stepped) == nullptr);
         }
     }
@@ -1162,9 +1164,9 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         common::core::Chart one_point;
         one_point.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote note =
-            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1});
         common::core::Keyframe carried{
-            .offset = common::core::Fraction{3}, .fret = 5, .bend = {}, .vibrato = {}
+            .offset = common::core::Fraction{3, 4}, .fret = 5, .bend = {}, .vibrato = {}
         };
         SECTION("a fret the path already holds")
         {
@@ -1201,9 +1203,9 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
             const auto glide =
                 std::ranges::find(plan->inserted, glideOnset(), &common::core::ChartNote::position);
             REQUIRE(glide != plan->inserted.end());
-            CHECK(glide->sustain == common::core::Fraction{4});
+            CHECK(glide->sustain == common::core::Fraction{1});
             REQUIRE(glide->keyframes.size() == 2);
-            CHECK(glide->keyframes.back().offset == common::core::Fraction{31, 8});
+            CHECK(glide->keyframes.back().offset == common::core::Fraction{31, 32});
         }
     }
 }
@@ -1215,11 +1217,11 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
 // refusal is what says so.
 TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][chart]")
 {
-    // The glide chart's fret-12 statement sits exactly at its four-beat end: the slide-out.
+    // The glide chart's fret-12 statement sits exactly at its whole-note end: the slide-out.
     const common::core::Chart chart = makeGlideChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartKeyframeKey> slide_out{keyframeKeyAt(
-        glideOnset(), 1, common::core::Fraction{4})};
+        glideOnset(), 1, common::core::Fraction{1})};
     REQUIRE(common::core::endStatedFretOrNull(chart.notes.front()) != nullptr);
 
     SECTION("outward lengthens the slide-out")
@@ -1231,7 +1233,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         {
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& moved = plan->inserted.front();
-            CHECK(moved.sustain == common::core::Fraction{5});
+            CHECK(moved.sustain == common::core::Fraction{5, 4});
             const int* const slides_out_toward = common::core::endStatedFretOrNull(moved);
             REQUIRE(slides_out_toward != nullptr);
             if (slides_out_toward != nullptr)
@@ -1240,7 +1242,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             }
             // The junction before it did not move.
             REQUIRE(moved.keyframes.size() == 2);
-            CHECK(moved.keyframes.front().offset == common::core::Fraction{2});
+            CHECK(moved.keyframes.front().offset == common::core::Fraction{1, 2});
         }
     }
     SECTION("inward shortens the slide-out")
@@ -1252,7 +1254,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         {
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& moved = plan->inserted.front();
-            CHECK(moved.sustain == common::core::Fraction{3});
+            CHECK(moved.sustain == common::core::Fraction{3, 4});
             CHECK(common::core::endStatedFretOrNull(moved) != nullptr);
         }
     }
@@ -1262,7 +1264,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         // step onto that head lands there, and a step PAST it clamps onto it rather than refusing.
         // The slide-out IS the ring's end, so the ring ends on the head with its exit completing
         // there, which is what the store says the hands did; the spacing the mark needs to be seen
-        // is presentation's. The head is five beats out, one past the four-beat slide-out.
+        // is presentation's. The head is five quarters out, one past the whole-note slide-out.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const auto parked = [&](const common::core::Fraction step) {
@@ -1277,9 +1279,9 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             REQUIRE(glide != nullptr);
             if (glide != nullptr)
             {
-                CHECK(glide->sustain == common::core::Fraction{5});
+                CHECK(glide->sustain == common::core::Fraction{5, 4});
                 REQUIRE(glide->keyframes.size() == 2);
-                CHECK(glide->keyframes.back().offset == common::core::Fraction{5});
+                CHECK(glide->keyframes.back().offset == common::core::Fraction{5, 4});
                 const int* const slides_out_toward = common::core::endStatedFretOrNull(*glide);
                 REQUIRE(slides_out_toward != nullptr);
                 if (slides_out_toward != nullptr)
@@ -1295,7 +1297,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         parked(common::core::Fraction{1, 4});
         parked(common::core::Fraction{1, 2});
         // A FURTHER press in the same direction is HELD, not NoChange: the plan is diffed against
-        // the PRE-GESTURE chart, which still holds the four-beat ring, so the replay describes the
+        // the PRE-GESTURE chart, which still holds the whole-note ring, so the replay describes the
         // same edit the previous press did — an identical entry replacing itself, nothing visible
         // moving. NoChange is the other case, a FIRST press on a slide-out already parked there.
         parked(common::core::Fraction{3, 4});
@@ -1319,7 +1321,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             const auto glide = std::ranges::find(
                 inside->inserted, glideOnset(), &common::core::ChartNote::position);
             REQUIRE(glide != inside->inserted.end());
-            CHECK(glide->sustain == common::core::Fraction{39, 8});
+            CHECK(glide->sustain == common::core::Fraction{39, 32});
             CHECK(common::core::endStatedFretOrNull(*glide) != nullptr);
         }
     }
@@ -1330,14 +1332,15 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         // than paying back a step that moved nothing.
         common::core::Chart parked;
         parked.tuning.strings = chart.tuning.strings;
-        common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5});
+        common::core::ChartNote glide =
+            makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5, 4});
         glide.keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
-            common::core::Keyframe{.offset = common::core::Fraction{5}, .fret = 12},
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9},
+            common::core::Keyframe{.offset = common::core::Fraction{5, 4}, .fret = 12},
         };
         parked.notes = {std::move(glide), makeTestNote({.measure = 3, .beat = 2}, 1, 3)};
         const std::vector<ChartKeyframeKey> at_head{keyframeKeyAt(
-            glideOnset(), 1, common::core::Fraction{5})};
+            glideOnset(), 1, common::core::Fraction{5, 4})};
         const auto plan = planMoveSelection(
             parked, tempo_map, {}, at_head, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
@@ -1354,7 +1357,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             REQUIRE(shortened != nullptr);
             if (shortened != nullptr)
             {
-                CHECK(shortened->sustain == common::core::Fraction{4});
+                CHECK(shortened->sustain == common::core::Fraction{1});
             }
         }
     }
@@ -1366,15 +1369,16 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         // here, so the slide-out's own step is a no-op and only the junction is asking to move.
         common::core::Chart parked;
         parked.tuning.strings = chart.tuning.strings;
-        common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5});
+        common::core::ChartNote glide =
+            makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5, 4});
         glide.keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{9, 2}, .fret = 9},
-            common::core::Keyframe{.offset = common::core::Fraction{5}, .fret = 12},
+            common::core::Keyframe{.offset = common::core::Fraction{9, 8}, .fret = 9},
+            common::core::Keyframe{.offset = common::core::Fraction{5, 4}, .fret = 12},
         };
         parked.notes = {std::move(glide), makeTestNote({.measure = 3, .beat = 2}, 1, 3)};
         const std::vector<ChartKeyframeKey> both{
-            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{9, 2}),
-            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{5}),
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{9, 8}),
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{5, 4}),
         };
         const auto plan = planMoveSelection(
             parked, tempo_map, {}, both, common::core::Fraction{1, 4}, 0, "Move Selection");
@@ -1419,8 +1423,8 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         // together slides the whole slide-out outward, where a bound read off the ring's OLD end
         // would have refused a step that changes nothing about the figure.
         const std::vector<ChartKeyframeKey> both{
-            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
-            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2}),
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1}),
         };
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, both, common::core::Fraction{1, 4}, 0, "Move Selection");
@@ -1429,10 +1433,10 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         {
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& moved = plan->inserted.front();
-            CHECK(moved.sustain == common::core::Fraction{5});
+            CHECK(moved.sustain == common::core::Fraction{5, 4});
             REQUIRE(moved.keyframes.size() == 2);
-            CHECK(moved.keyframes.front().offset == common::core::Fraction{3});
-            CHECK(moved.keyframes.back().offset == common::core::Fraction{5});
+            CHECK(moved.keyframes.front().offset == common::core::Fraction{3, 4});
+            CHECK(moved.keyframes.back().offset == common::core::Fraction{5, 4});
             CHECK(common::core::endStatedFretOrNull(moved) != nullptr);
         }
     }
@@ -1449,8 +1453,8 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
 TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-    // The mover stands five beats past the tail's onset, clear of its four-beat ring, and steps
-    // back a half note — landing three beats in, where that ring is still sounding.
+    // The mover stands five quarters past the tail's onset, clear of its whole-note ring, and steps
+    // back a half note — landing three quarters in, where that ring is still sounding.
     constexpr common::core::GridPosition tail_onset{.measure = 2, .beat = 1, .offset = {}};
     constexpr common::core::GridPosition mover_slot{.measure = 3, .beat = 2, .offset = {}};
     const std::vector<ChartSlotKey> mover{keyAt(mover_slot, 1)};
@@ -1460,7 +1464,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
     const auto figure = [&](const common::core::Keyframe carried) {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote tail = makeTestNote(tail_onset, 1, 7, common::core::Fraction{4});
+        common::core::ChartNote tail = makeTestNote(tail_onset, 1, 7, common::core::Fraction{1});
         tail.keyframes = {carried};
         chart.notes = {std::move(tail), makeTestNote(mover_slot, 1, 5)};
         return chart;
@@ -1476,7 +1480,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         // deletion. A refused plan is not applied at all, so the chart is left exactly as it was.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{7, 2}, .fret = {}, .bend = 1.0, .vibrato = {}
+                .offset = common::core::Fraction{7, 8}, .fret = {}, .bend = 1.0, .vibrato = {}
             });
         const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE_FALSE(plan.has_value());
@@ -1486,11 +1490,11 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
     SECTION("a slide-out past the landing rides back onto the landing itself")
     {
         // The slide-out IS the ring's end, so it moves because the end did — no statement is lost —
-        // and it lands exactly on the new head, three beats out, which is where the store says the
-        // slide-out completes. Nothing spaces it: the drawn tail is presentation's to place.
+        // and it lands exactly on the new head, three quarters out, which is where the store says
+        // the slide-out completes. Nothing spaces it: the drawn tail is presentation's to place.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}
+                .offset = common::core::Fraction{1}, .fret = 3, .bend = {}, .vibrato = {}
             });
         const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE(plan.has_value());
@@ -1500,9 +1504,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{3});
+                CHECK(tail->sustain == common::core::Fraction{3, 4});
                 REQUIRE(tail->keyframes.size() == 1);
-                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3, 4});
                 const int* const slides_out_toward = common::core::endStatedFretOrNull(*tail);
                 REQUIRE(slides_out_toward != nullptr);
                 if (slides_out_toward != nullptr)
@@ -1517,7 +1521,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
     {
         const common::core::Chart chart = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}
+                .offset = common::core::Fraction{1, 4}, .fret = 9, .bend = {}, .vibrato = {}
             });
         const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE(plan.has_value());
@@ -1527,9 +1531,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{3});
+                CHECK(tail->sustain == common::core::Fraction{3, 4});
                 REQUIRE(tail->keyframes.size() == 1);
-                CHECK(tail->keyframes.front().offset == common::core::Fraction{1});
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{1, 4});
             }
         }
     }
@@ -1541,7 +1545,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         // sliding out toward fret 9 there.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}
+                .offset = common::core::Fraction{3, 4}, .fret = 9, .bend = {}, .vibrato = {}
             });
         const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE(plan.has_value());
@@ -1551,9 +1555,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{3});
+                CHECK(tail->sustain == common::core::Fraction{3, 4});
                 REQUIRE(tail->keyframes.size() == 1);
-                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3, 4});
                 CHECK(tail->keyframes.front().fret == 9);
             }
         }
@@ -1567,7 +1571,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         // long it lives. A statement is never deleted by a verb that was handed a ring's length.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{3}, .fret = 7, .bend = {}, .vibrato = {}
+                .offset = common::core::Fraction{3, 4}, .fret = 7, .bend = {}, .vibrato = {}
             });
         const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE(plan.has_value());
@@ -1577,9 +1581,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{3});
+                CHECK(tail->sustain == common::core::Fraction{3, 4});
                 REQUIRE(tail->keyframes.size() == 1);
-                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3, 4});
                 CHECK(tail->keyframes.front().fret == 7);
             }
         }
@@ -1587,12 +1591,12 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
 
     SECTION("a slide-out riding onto a point stating another fret refuses the move")
     {
-        // The point three beats in states fret 9 and the slide-out at the ring's end goes toward 3.
-        // The landing pulls the end back onto the point, and the slide-out arriving there would
+        // The point three quarters in states fret 9 and the slide-out at the ring's end goes toward
+        // 3. The landing pulls the end back onto the point, and the slide-out arriving there would
         // overwrite the 9 with its 3 (overlayKeyframe) — as much a lost statement as an erased one.
         common::core::Chart chart = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}
+                .offset = common::core::Fraction{3, 4}, .fret = 9, .bend = {}, .vibrato = {}
             });
         common::core::setSlideOut(chart.notes.front(), 3);
         const auto refused = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
@@ -1603,7 +1607,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         // the two statements of one instant say the same, and the shortened tail keeps one of them.
         common::core::Chart restated = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{3}, .fret = 3, .bend = {}, .vibrato = {}
+                .offset = common::core::Fraction{3, 4}, .fret = 3, .bend = {}, .vibrato = {}
             });
         common::core::setSlideOut(restated.notes.front(), 3);
         const auto plan = moveNotes(restated, tempo_map, mover, step_back, 0, "Move Note");
@@ -1614,9 +1618,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{3});
+                CHECK(tail->sustain == common::core::Fraction{3, 4});
                 REQUIRE(tail->keyframes.size() == 1);
-                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3, 4});
                 CHECK(tail->keyframes.front().fret == 3);
             }
         }
@@ -1624,15 +1628,15 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
 
     SECTION("a moved ring running through an unmoved head refuses to erase its own point")
     {
-        // The other direction: the RINGING note moves, forward a half note to three beats before
-        // the head that stays put, so its own four-beat ring now runs through that head and is
+        // The other direction: the RINGING note moves, forward a half note to three quarters before
+        // the head that stays put, so its own whole-note ring now runs through that head and is
         // truncated there. A point past the head would be erased from the note being moved.
         const std::vector<ChartSlotKey> ringing{keyAt(tail_onset, 1)};
         constexpr common::core::Fraction step_forward{1, 2};
         constexpr common::core::GridPosition moved_onset{.measure = 2, .beat = 3, .offset = {}};
         const common::core::Chart erasing = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{7, 2}, .fret = {}, .bend = 1.0, .vibrato = {}
+                .offset = common::core::Fraction{7, 8}, .fret = {}, .bend = 1.0, .vibrato = {}
             });
         const auto refused = moveNotes(erasing, tempo_map, ringing, step_forward, 0, "Move Note");
         REQUIRE_FALSE(refused.has_value());
@@ -1641,7 +1645,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         // With nothing standing past the head, the moved ring simply ends on it.
         const common::core::Chart clear = figure(
             common::core::Keyframe{
-                .offset = common::core::Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}
+                .offset = common::core::Fraction{1, 4}, .fret = 9, .bend = {}, .vibrato = {}
             });
         const auto plan = moveNotes(clear, tempo_map, ringing, step_forward, 0, "Move Note");
         REQUIRE(plan.has_value());
@@ -1651,9 +1655,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(moved != nullptr);
             if (moved != nullptr)
             {
-                CHECK(moved->sustain == common::core::Fraction{3});
+                CHECK(moved->sustain == common::core::Fraction{3, 4});
                 REQUIRE(moved->keyframes.size() == 1);
-                CHECK(moved->keyframes.front().offset == common::core::Fraction{1});
+                CHECK(moved->keyframes.front().offset == common::core::Fraction{1, 4});
             }
         }
     }
@@ -1671,7 +1675,7 @@ TEST_CASE("planMoveSelection carries a selected note's own keyframe along", "[co
         chart,
         tempo_map,
         {keyAt({.measure = 2, .beat = 1}, 1)},
-        {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{2})},
+        {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{1, 2})},
         common::core::Fraction{1, 4},
         0,
         "Move Selection");
@@ -1682,8 +1686,8 @@ TEST_CASE("planMoveSelection carries a selected note's own keyframe along", "[co
         const common::core::ChartNote& moved = plan->inserted.front();
         CHECK(moved.position == common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
         REQUIRE(moved.keyframes.size() == 2);
-        CHECK(moved.keyframes[0].offset == common::core::Fraction{2});
-        CHECK(moved.keyframes[1].offset == common::core::Fraction{3});
+        CHECK(moved.keyframes[0].offset == common::core::Fraction{1, 2});
+        CHECK(moved.keyframes[1].offset == common::core::Fraction{3, 4});
     }
 }
 
@@ -1697,7 +1701,7 @@ TEST_CASE("planMoveSelection leaves a keyframe-only selection to the string step
         chart,
         makeTempoMap(),
         {},
-        {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{2})},
+        {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{1, 2})},
         common::core::Fraction{},
         1,
         "Move Keyframe");
@@ -1806,7 +1810,7 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
             tempo_map,
             chart.notes,
             {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
             ChartFretSet{.fret = 10});
         REQUIRE(plan.has_value());
         if (plan.has_value())
@@ -1831,8 +1835,8 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
             chart.notes,
             {},
             {
-                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
-                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2}),
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1}),
             },
             ChartFretShift{.delta = 2});
         REQUIRE(plan.has_value());
@@ -1860,7 +1864,7 @@ TEST_CASE("planRetypeFrets retypes a selected keyframe's fret", "[core][chart]")
             tempo_map,
             mixed.notes,
             {keyAt(glideOnset(), 1)},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
             ChartFretShift{.delta = 1});
         REQUIRE(plan.has_value());
         if (plan.has_value())
@@ -1892,7 +1896,7 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             tempo_map,
             chart.notes,
             {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
             ChartFretSet{.fret = 0});
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
@@ -1906,7 +1910,7 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             tempo_map,
             capoed.notes,
             {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
             ChartFretSet{.fret = 4});
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
@@ -1922,8 +1926,8 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             chart.notes,
             {},
             {
-                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
-                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2}),
+                keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1}),
             },
             ChartFretShift{.delta = common::core::g_max_fret - 9});
         REQUIRE_FALSE(plan.has_value());
@@ -1938,8 +1942,8 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
-        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{3}),
+        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1, 4}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{3, 4}),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{
@@ -1953,13 +1957,14 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        // The one-beat ring's end reaches its own onset on the first step and would pass it on the
-        // second, so it is left exactly as it was; deleting the note is the verb for removing it.
+        // The quarter-note ring's end reaches its own onset on the first step and would pass it on
+        // the second, so it is left exactly as it was; deleting the note is the verb for removing
+        // it.
         CHECK(noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1) == nullptr);
         const common::core::ChartNote* shrunk =
             noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(shrunk != nullptr);
-        CHECK(shrunk->sustain == common::core::Fraction{1});
+        CHECK(shrunk->sustain == common::core::Fraction{1, 4});
         CHECK(plan->label == "Shrink Sustain");
     }
 
@@ -1979,8 +1984,9 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // A ring a tick step could have authored: one beat and a hair, ending between two grid lines.
-    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 960})};
+    // A ring a tick step could have authored: a quarter and a hair, ending between two grid lines.
+    chart.notes = {makeTestNote(
+        {.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 3840})};
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
@@ -1997,7 +2003,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
             if (grown != nullptr)
             {
                 // The next line, not 961/960 + 1: a grid step lands on the grid.
-                CHECK(grown->sustain == common::core::Fraction{2});
+                CHECK(grown->sustain == common::core::Fraction{1, 2});
             }
         }
     }
@@ -2014,7 +2020,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
             REQUIRE(shrunk != nullptr);
             if (shrunk != nullptr)
             {
-                CHECK(shrunk->sustain == common::core::Fraction{1});
+                CHECK(shrunk->sustain == common::core::Fraction{1, 4});
             }
         }
     }
@@ -2037,7 +2043,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
             {
                 // The tick remainder is gone for good, and that is the point: a grid step means
                 // "put the end on the grid line", so the run cannot return to a ring between them.
-                CHECK(reversed->sustain == common::core::Fraction{1});
+                CHECK(reversed->sustain == common::core::Fraction{1, 4});
             }
         }
     }
@@ -2052,7 +2058,7 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{2})};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1, 2})};
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
@@ -2070,20 +2076,20 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
     };
 
     std::vector<ChartSustainStep> steps{tickStep(true)};
-    CHECK(ring_after(steps) == common::core::Fraction{1921, 960});
+    CHECK(ring_after(steps) == common::core::Fraction{1921, 3840});
 
     steps.push_back(gridStep(g_quarter_grid, true));
-    CHECK(ring_after(steps) == common::core::Fraction{3});
+    CHECK(ring_after(steps) == common::core::Fraction{3, 4});
 
     steps.push_back(tickStep(true));
-    CHECK(ring_after(steps) == common::core::Fraction{2881, 960});
+    CHECK(ring_after(steps) == common::core::Fraction{2881, 3840});
 
     // Back one grid step: the end sits a hair past the line at 3, so the line strictly before it is
     // the one at 3 itself — the tick nudge is what the grid step snaps away.
     steps.push_back(gridStep(g_quarter_grid, false));
-    CHECK(ring_after(steps) == common::core::Fraction{3});
+    CHECK(ring_after(steps) == common::core::Fraction{3, 4});
 
-    // And one more puts the end back on the line the two-beat ring started on, so the whole run
+    // And one more puts the end back on the line the half-note ring started on, so the whole run
     // describes nothing at all: NoChange, the answer that retires the gesture's entry. Only a run
     // that STARTED on a line can come back to its start — see the off-grid case above.
     steps.push_back(gridStep(g_quarter_grid, false));
@@ -2101,10 +2107,10 @@ TEST_CASE("planAdjustSustain snaps each chord member to its own line", "[core][c
     chart.notes = {
         // Ends a hair past beat 2 and a hair before beat 4 — different cells of the grid, so the
         // same grow step reaches a different line for each, by a different distance (959/960 of
-        // a beat for the first, 1/960 for the second). One shared answer for the selection, a
+        // a quarter for the first, 1/960 for the second). One shared answer for the selection, a
         // line or a delta, cannot satisfy both.
-        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 960}),
-        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{2879, 960}),
+        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 3840}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{2879, 3840}),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{
@@ -2124,8 +2130,8 @@ TEST_CASE("planAdjustSustain snaps each chord member to its own line", "[core][c
         REQUIRE(high != nullptr);
         if (low != nullptr && high != nullptr)
         {
-            CHECK(low->sustain == common::core::Fraction{2});
-            CHECK(high->sustain == common::core::Fraction{3});
+            CHECK(low->sustain == common::core::Fraction{1, 2});
+            CHECK(high->sustain == common::core::Fraction{3, 4});
         }
     }
 }
@@ -2150,8 +2156,8 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
     };
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // Half a beat: an end between the lines of every grid this test steps.
-    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1, 2})};
+    // A sixteenth: an end between the lines of every grid this test steps.
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1, 16})};
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     SECTION("an eighth-note grid lines up with the beat")
@@ -2166,7 +2172,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
             REQUIRE(grown != nullptr);
             if (grown != nullptr)
             {
-                CHECK(grown->sustain == common::core::Fraction{1});
+                CHECK(grown->sustain == common::core::Fraction{1, 8});
             }
         }
     }
@@ -2184,7 +2190,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
             if (grown != nullptr)
             {
                 // Lines sit on beats 1, 3 and 5 of the measure, so the end at beat 1½ reaches 3.
-                CHECK(grown->sustain == common::core::Fraction{2});
+                CHECK(grown->sustain == common::core::Fraction{1, 4});
             }
         }
     }
@@ -2194,7 +2200,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
 // ring is exactly reversible. In 7/8 a quarter-note grid steps two beats, so the lines sit on
 // beats 1, 3, 5 and 7 with the next downbeat one beat after the last — and a step primitive that
 // stepped two beats back from that downbeat and re-snapped to the nearest line would skip beat 7,
-// taking a six-beat ring to four. The ring's end here starts on beat 7 itself.
+// taking a dotted-half ring to a half note. The ring's end here starts on beat 7 itself.
 TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart]")
 {
     const common::core::TempoMap tempo_map{
@@ -2210,7 +2216,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
     };
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{6})};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{3, 4})};
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     // Assertion-free (read inside CHECK expressions), as in the tick-nudged run above.
@@ -2225,8 +2231,8 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
 
-    // Beat 7 to the next downbeat is one beat, the short last gap of the measure.
-    CHECK(ring_after({gridStep(g_quarter_grid, true)}) == common::core::Fraction{7});
+    // Beat 7 to the next downbeat is one eighth, the short last gap of the measure.
+    CHECK(ring_after({gridStep(g_quarter_grid, true)}) == common::core::Fraction{7, 8});
     // And back down onto beat 7 — not past it onto beat 5 — so the run describes nothing.
     const auto closed = planAdjustSustain(
         chart,
@@ -2264,9 +2270,9 @@ TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[cor
     {
         const common::core::ChartNote* grown = noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(grown != nullptr);
-        // Two beats to its own string's restrike, and the string-2 onset one beat in blocks
+        // Two quarters to its own string's restrike, and the string-2 onset a quarter in blocks
         // nothing; the third step past the bound reports the bound.
-        CHECK(grown->sustain == common::core::Fraction{2});
+        CHECK(grown->sustain == common::core::Fraction{1, 2});
         CHECK(plan->label == "Grow Sustain");
     }
 }
@@ -2277,7 +2283,7 @@ TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[cor
 // entry whose undo shortens the ring.
 TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][chart]")
 {
-    // The measure-3 note rings two beats with no same-string successor, so no bound is involved.
+    // The measure-3 note rings two quarters with no same-string successor, so no bound is involved.
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -2298,7 +2304,7 @@ TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][cha
         REQUIRE(note != nullptr);
         if (note != nullptr)
         {
-            CHECK(note->sustain == common::core::Fraction{3});
+            CHECK(note->sustain == common::core::Fraction{3, 4});
         }
         CHECK(grown->label == "Grow Sustain");
     }
@@ -2326,7 +2332,7 @@ TEST_CASE("planAdjustSustain leaves a tail already at the bound alone", "[core][
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{2}),
+        makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{1, 2}),
         makeTestNote({.measure = 1, .beat = 2}, 2, 0),
         makeTestNote({.measure = 1, .beat = 3}, 1, 0),
     };
@@ -2367,9 +2373,9 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
-        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{1}),
-        // The string-1 member's own restrike three beats later: its bound, and nothing to the
+        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1, 4}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{1, 4}),
+        // The string-1 member's own restrike three quarters later: its bound, and nothing to the
         // string-2 member.
         makeTestNote({.measure = 2, .beat = 4}, 1, 0),
     };
@@ -2403,26 +2409,26 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
     };
 
     press(/*grow=*/true);
-    CHECK(ring_of(1) == common::core::Fraction{2});
-    CHECK(ring_of(2) == common::core::Fraction{2});
+    CHECK(ring_of(1) == common::core::Fraction{1, 2});
+    CHECK(ring_of(2) == common::core::Fraction{1, 2});
     press(/*grow=*/true);
-    CHECK(ring_of(1) == common::core::Fraction{3});
-    CHECK(ring_of(2) == common::core::Fraction{3});
+    CHECK(ring_of(1) == common::core::Fraction{3, 4});
+    CHECK(ring_of(2) == common::core::Fraction{3, 4});
 
     // A fourth beat would ring through the string-1 restrike, so that member pins at its bound
     // while its neighbour keeps going.
     press(/*grow=*/true);
-    CHECK(ring_of(1) == common::core::Fraction{3});
-    CHECK(ring_of(2) == common::core::Fraction{4});
+    CHECK(ring_of(1) == common::core::Fraction{3, 4});
+    CHECK(ring_of(2) == common::core::Fraction{1});
 
     // Coming back, the pinned member leaves its bound on exactly the step that put it there — the
     // clamp never entered the replay, so it could not shorten the next step's starting value.
     press(/*grow=*/false);
-    CHECK(ring_of(1) == common::core::Fraction{3});
-    CHECK(ring_of(2) == common::core::Fraction{3});
+    CHECK(ring_of(1) == common::core::Fraction{3, 4});
+    CHECK(ring_of(2) == common::core::Fraction{3, 4});
     press(/*grow=*/false);
-    CHECK(ring_of(1) == common::core::Fraction{2});
-    CHECK(ring_of(2) == common::core::Fraction{2});
+    CHECK(ring_of(1) == common::core::Fraction{1, 2});
+    CHECK(ring_of(2) == common::core::Fraction{1, 2});
 
     // Back on the ring it started from, the gesture describes nothing, which is NoChange rather
     // than a plan describing nothing: the controller's answer is to take the gesture's undo entry
@@ -2444,7 +2450,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{3})};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{3, 4})};
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
     const std::vector<common::core::ChartNote> base = chart.notes;
@@ -2483,17 +2489,17 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
     };
 
     static_cast<void>(press(/*grow=*/false));
-    CHECK(ring() == common::core::Fraction{2});
+    CHECK(ring() == common::core::Fraction{1, 2});
     const auto second = press(/*grow=*/false);
-    CHECK(ring() == common::core::Fraction{1});
+    CHECK(ring() == common::core::Fraction{1, 4});
     // The next line IS the onset, so the ring holds where the previous step left it rather than
-    // being clamped to some invented floor or restored to its three-beat start — and the plan is
+    // being clamped to some invented floor or restored to its dotted-half start — and the plan is
     // the one before it, to the note. It stays that way for every further press into the floor.
     const auto floored = press(/*grow=*/false);
-    CHECK(ring() == common::core::Fraction{1});
+    CHECK(ring() == common::core::Fraction{1, 4});
     CHECK(describes_the_same(floored, second));
     const auto still_floored = press(/*grow=*/false);
-    CHECK(ring() == common::core::Fraction{1});
+    CHECK(ring() == common::core::Fraction{1, 4});
     CHECK(describes_the_same(still_floored, second));
 
     // The run the caller is left holding, having dropped both of those presses: two shrinks. The
@@ -2509,7 +2515,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
     {
         live.notes = base;
         REQUIRE(applyChartChange(live, *regrown).has_value());
-        CHECK(ring() == common::core::Fraction{2});
+        CHECK(ring() == common::core::Fraction{1, 2});
     }
     // A run that replays back to its start describes nothing: NoChange is what tells the caller to
     // take the gesture's entry back out and walk the chart to `base`.
@@ -2532,7 +2538,7 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
 
     common::core::Chart live = chart;
     std::vector<ChartSustainStep> steps;
-    // Sixteenth-note steps against the 4/4 map: a quarter of a beat each, so the one-beat scrape
+    // Sixteenth-note steps against the 4/4 map: a sixteenth each, so the quarter-note scrape
     // walks its ring down in four presses and back up in three.
     const auto press = [&](bool grow) {
         steps.push_back(gridStep(g_sixteenth_grid, grow));
@@ -2553,15 +2559,17 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     }
     const common::core::ChartNote* scrape = noteAt(live.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(scrape != nullptr);
+    const common::core::Fraction window =
+        minimumSlideWindow(tempo_map, tempo_map.wholeNotePositionAt({.measure = 3, .beat = 1}));
     if (scrape != nullptr)
     {
-        CHECK(scrape->sustain == g_minimum_slide_window);
+        CHECK(scrape->sustain == window);
         // The turnaround is clipped away with the tail, and the terminal rides the shortening
         // ring — it is a keyframe at the end now, so the floored scrape keeps exactly one.
         REQUIRE(scrape->keyframes.size() == 1);
         if (scrape->keyframes.size() == 1)
         {
-            CHECK(scrape->keyframes[0].offset == g_minimum_slide_window);
+            CHECK(scrape->keyframes[0].offset == window);
             CHECK(scrape->keyframes[0].fret == 12);
         }
     }
@@ -2576,11 +2584,11 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     REQUIRE(scrape != nullptr);
     if (scrape != nullptr)
     {
-        CHECK(scrape->sustain == common::core::Fraction{3, 4});
+        CHECK(scrape->sustain == common::core::Fraction{3, 16});
         REQUIRE(scrape->keyframes.size() == 2);
         if (scrape->keyframes.size() == 2)
         {
-            CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+            CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 8});
             CHECK(scrape->keyframes[0].fret == 3);
         }
         // And the terminal re-attaches at the replayed end, still aimed where it was.
@@ -2607,7 +2615,7 @@ TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "
     applyAndValidate(chart, tempo_map, *slide_out_plan);
     const common::core::ChartNote* slid_out = noteAt(chart.notes, glideOnset(), 1);
     REQUIRE(slid_out != nullptr);
-    CHECK(slid_out->sustain == common::core::Fraction{3});
+    CHECK(slid_out->sustain == common::core::Fraction{3, 4});
     REQUIRE(common::core::endStatedFretOrNull(*slid_out) != nullptr);
 
     const std::vector<common::core::ChartNote> base = chart.notes;
@@ -2620,10 +2628,10 @@ TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "
     applyAndValidate(chart, tempo_map, *grown_plan);
     const common::core::ChartNote* grown = noteAt(chart.notes, glideOnset(), 1);
     REQUIRE(grown != nullptr);
-    CHECK(grown->sustain == common::core::Fraction{4});
+    CHECK(grown->sustain == common::core::Fraction{1});
     CHECK(common::core::endStatedFretOrNull(*grown) == nullptr);
     REQUIRE(grown->keyframes.size() == 2);
-    CHECK(grown->keyframes.back().offset == common::core::Fraction{3});
+    CHECK(grown->keyframes.back().offset == common::core::Fraction{3, 4});
     CHECK(grown->keyframes.back().fret == 9);
 
     // Same second gesture, opposite step: the replay has returned to the gesture's start. That
@@ -2795,7 +2803,7 @@ TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]
 }
 
 // A ring too short to hold a gesture at all grows to the DEFAULT scrape length so the path has
-// somewhere to travel: a quarter note, not a degeneracy floor of an eighth of a beat, which a
+// somewhere to travel: a quarter note, not a degeneracy floor of a thirty-second, which a
 // corpus survey found to be 16x shorter than any scrape anyone charted. A ring that CAN hold the
 // gesture is kept exactly as authored — the ring is the note's own truth, and this verb changes
 // the attack, not the duration.
@@ -2804,8 +2812,8 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1, 16}),
-        makeTestNote({.measure = 2, .beat = 1}, 2, 7, common::core::Fraction{1, 2}),
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1, 64}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 7, common::core::Fraction{1, 8}),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{
@@ -2820,15 +2828,18 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
     {
         const common::core::ChartNote* stub = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
         REQUIRE(stub != nullptr);
-        CHECK(stub->sustain == common::core::Fraction{1});
-        CHECK(stub->sustain > g_minimum_slide_window);
+        CHECK(stub->sustain == common::core::Fraction{1, 4});
+        CHECK(
+            stub->sustain >
+            minimumSlideWindow(
+                tempo_map, tempo_map.wholeNotePositionAt({.measure = 2, .beat = 1})));
         // The terminal ends the ring by definition, so the sustain above IS the gesture's
         // length: a scrape rings no longer than it travels.
         CHECK(common::core::endStatedFretOrNull(*stub) != nullptr);
 
         const common::core::ChartNote* kept = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(kept != nullptr);
-        CHECK(kept->sustain == common::core::Fraction{1, 2});
+        CHECK(kept->sustain == common::core::Fraction{1, 8});
 
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -3135,7 +3146,7 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
 {
     common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    // measure 3 / string 1 carries a two-beat tail in the fixture.
+    // measure 3 / string 1 carries a half-note tail in the fixture.
     constexpr std::size_t held = 2;
     const common::core::Fraction ring = chart.notes[held].sustain;
     REQUIRE(ring.numerator > 0);
@@ -3158,21 +3169,23 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
         common::core::chartConnections(chart.notes, tempo_map);
     const std::vector<common::core::Fraction> ink_end =
         common::core::chartPresentation(
-            connections, common::core::HeadMargins{connections.saved_notes, tempo_map}, tempo_map)
+            connections,
+            common::core::HeadMargins{connections.saved_notes, connections.places, tempo_map},
+            tempo_map)
             .ink_end;
     REQUIRE(ink_end.size() == chart.notes.size());
     CHECK(ink_end[held] == common::core::Fraction{});
     CHECK(chart.notes[held].sustain == ring);
 
     // And the duration verbs go on working on it: nothing about the note is frozen by the mute.
-    // The two-beat ring ends on a grid line, so one grid step is one beat.
+    // The half-note ring ends on a grid line, so one grid step is a quarter.
     const auto grown =
         planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE(grown.has_value());
     if (grown.has_value())
     {
         REQUIRE(grown->inserted.size() == 1);
-        CHECK(grown->inserted.front().sustain == ring + common::core::Fraction{1});
+        CHECK(grown->inserted.front().sustain == ring + common::core::Fraction{1, 4});
     }
 }
 
@@ -3322,9 +3335,9 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     SECTION("pitched slide: transpose moves the start only")
     {
         common::core::ChartNote slide =
-            makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+            makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1, 4});
         slide.keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
+            common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 7}
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
@@ -3333,9 +3346,9 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     SECTION("pitched slide: set-exact assigns the start only")
     {
         common::core::ChartNote slide =
-            makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+            makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1, 4});
         slide.keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
+            common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 7}
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
@@ -3366,8 +3379,8 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
 TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
 {
     common::core::ChartNote slide =
-        makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-    slide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+        makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1, 4});
+    slide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 7}};
 
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -3384,8 +3397,8 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
 TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its keyframe fret", "[core][chart]")
 {
     common::core::ChartNote slide =
-        makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-    slide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+        makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1, 4});
+    slide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 7}};
 
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -3411,13 +3424,15 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its keyframe fre
 TEST_CASE("writtenChartPlan records the written form of a transition", "[core][chart]")
 {
     const common::core::ChartNote plain =
-        makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+        makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1, 4});
     common::core::ChartNote started = plain;
     // Past the last stop the path holds 5, so a 5 stated there says nothing.
-    started.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 5}};
+    started.keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1, 16}, .fret = 5}
+    };
     common::core::ChartNote landed = started;
     landed.keyframes.push_back(
-        common::core::Keyframe{.offset = common::core::Fraction{3, 4}, .fret = 9});
+        common::core::Keyframe{.offset = common::core::Fraction{3, 16}, .fret = 9});
 
     const ChartEditPlan plant{.removed = {plain}, .inserted = {started}, .label = "Insert"};
     CHECK(writtenChartPlan(plant).empty());
@@ -3442,7 +3457,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
 
     SECTION("shrink compresses the terminal onto the new end")
     {
-        // A sixteenth-note step is a quarter beat off the one-beat ring's on-grid end.
+        // A sixteenth-note step is a sixteenth off the quarter-note ring's on-grid end.
         const auto plan = planAdjustSustain(
             chart, tempo_map, chart.notes, keys, {gridStep(g_sixteenth_grid, false)});
         REQUIRE(plan.has_value());
@@ -3451,11 +3466,11 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             const common::core::ChartNote* scrape =
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
-            CHECK(scrape->sustain == common::core::Fraction{3, 4});
+            CHECK(scrape->sustain == common::core::Fraction{3, 16});
             // The turnaround, then the terminal: the slide-out is the keyframe at the ring's end,
             // so compressing the ring moves it and leaves the count alone.
             REQUIRE(scrape->keyframes.size() == 2);
-            CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+            CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 8});
             CHECK(scrape->keyframes[0].fret == 3);
             const int* const terminal = common::core::endStatedFretOrNull(*scrape);
             REQUIRE(terminal != nullptr);
@@ -3485,9 +3500,9 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             const common::core::ChartNote* walled_scrape =
                 noteAt(onto->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(walled_scrape != nullptr);
-            CHECK(walled_scrape->sustain == common::core::Fraction{3, 2});
+            CHECK(walled_scrape->sustain == common::core::Fraction{3, 8});
             REQUIRE(walled_scrape->keyframes.size() == 2);
-            CHECK(walled_scrape->keyframes.back().offset == common::core::Fraction{3, 2});
+            CHECK(walled_scrape->keyframes.back().offset == common::core::Fraction{3, 8});
             CHECK(common::core::endStatedFretOrNull(*walled_scrape) != nullptr);
         }
         const auto inside = planAdjustSustain(
@@ -3498,14 +3513,14 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             const common::core::ChartNote* scrape =
                 noteAt(inside->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
-            CHECK(scrape->sustain == common::core::Fraction{5, 4});
+            CHECK(scrape->sustain == common::core::Fraction{5, 16});
             CHECK(common::core::endStatedFretOrNull(*scrape) != nullptr);
         }
     }
 
     SECTION("growth rides the terminal out to the new end")
     {
-        // An eighth-note step is half a beat in 4/4.
+        // An eighth-note step is an eighth in 4/4.
         const auto plan = planAdjustSustain(
             chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
         REQUIRE(plan.has_value());
@@ -3514,13 +3529,13 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             const common::core::ChartNote* scrape =
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
-            CHECK(scrape->sustain == common::core::Fraction{3, 2});
+            CHECK(scrape->sustain == common::core::Fraction{3, 8});
             // The terminal rides a scrape's ring in both directions, so it sits at the grown end.
             const common::core::Keyframe* const slide_out = common::core::endFretStatement(*scrape);
             REQUIRE(slide_out != nullptr);
             if (slide_out != nullptr)
             {
-                CHECK(slide_out->offset == common::core::Fraction{3, 2});
+                CHECK(slide_out->offset == common::core::Fraction{3, 8});
                 CHECK(slide_out->fret == 12);
             }
         }
@@ -3528,7 +3543,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
 
     SECTION("shrink floors at the minimum gesture window")
     {
-        // One quarter-note step takes the one-beat ring's end back onto its own onset.
+        // One quarter-note step takes the quarter-note ring's end back onto its own onset.
         const auto plan = planAdjustSustain(
             chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
         REQUIRE(plan.has_value());
@@ -3537,7 +3552,9 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             const common::core::ChartNote* scrape =
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
-            CHECK(scrape->sustain == g_minimum_slide_window);
+            const common::core::Fraction window = minimumSlideWindow(
+                tempo_map, tempo_map.wholeNotePositionAt({.measure = 3, .beat = 1}));
+            CHECK(scrape->sustain == window);
             // The turnaround no longer fits inside the floored window; the terminal alone rides,
             // and it is a keyframe of its own at the floored end.
             REQUIRE(scrape->keyframes.size() == 1);
@@ -3545,7 +3562,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             REQUIRE(slide_out != nullptr);
             if (slide_out != nullptr)
             {
-                CHECK(slide_out->offset == g_minimum_slide_window);
+                CHECK(slide_out->offset == window);
                 CHECK(slide_out->fret == 12);
             }
         }
@@ -3560,15 +3577,15 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     common::core::ChartNote scrape = makeScrape({.measure = 3, .beat = 1}, 1);
     // 9 -> 3 -> 12 -> 3: valid travel whose terminal fret equals the first surviving leg's.
     scrape.keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 3},
-        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 12},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 16}, .fret = 3},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 12},
     };
     common::core::setSlideOut(scrape, 3);
     chart.notes[2] = scrape;
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
-    // Shrink to half a beat: only the first turnaround survives, and the terminal fret 3 would sit
+    // Shrink to an eighth: only the first turnaround survives, and the terminal fret 3 would sit
     // still against it, so the earlier differing fret 12 terminates instead.
     const auto plan = planAdjustSustain(
         chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, false)});
@@ -3578,16 +3595,16 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
         const common::core::ChartNote* shrunk =
             noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(shrunk != nullptr);
-        CHECK(shrunk->sustain == common::core::Fraction{1, 2});
+        CHECK(shrunk->sustain == common::core::Fraction{1, 8});
         // The surviving turnaround, then the re-aimed terminal at the new end.
         REQUIRE(shrunk->keyframes.size() == 2);
-        CHECK(shrunk->keyframes[0].offset == common::core::Fraction{1, 4});
+        CHECK(shrunk->keyframes[0].offset == common::core::Fraction{1, 16});
         CHECK(shrunk->keyframes[0].fret == 3);
         const common::core::Keyframe* const slide_out = common::core::endFretStatement(*shrunk);
         REQUIRE(slide_out != nullptr);
         if (slide_out != nullptr)
         {
-            CHECK(slide_out->offset == common::core::Fraction{1, 2});
+            CHECK(slide_out->offset == common::core::Fraction{1, 8});
             CHECK(slide_out->fret == 12);
         }
         common::core::Chart applied = chart;
@@ -3605,7 +3622,7 @@ TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // Turnaround at fret 3 half a beat in, terminal at fret 12 on the one-beat ring's end.
+    // Turnaround at fret 3 an eighth in, terminal at fret 12 on the quarter-note ring's end.
     chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -3622,14 +3639,14 @@ TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[
             common::core::GridPosition{.measure = 1, .beat = 1},
             &common::core::ChartNote::position);
         REQUIRE(scrape != plan->inserted.end());
-        // Three quarters of a beat to the new head, exactly: the terminal rides onto it, past the
+        // Three sixteenths to the new head, exactly: the terminal rides onto it, past the
         // turnaround it still travels away from.
-        CHECK(scrape->sustain == common::core::Fraction{3, 4});
+        CHECK(scrape->sustain == common::core::Fraction{3, 16});
         CHECK(common::core::isScrape(scrape->attack));
         REQUIRE(scrape->keyframes.size() == 2);
-        CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+        CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 8});
         CHECK(scrape->keyframes[0].fret == 3);
-        CHECK(scrape->keyframes[1].offset == common::core::Fraction{3, 4});
+        CHECK(scrape->keyframes[1].offset == common::core::Fraction{3, 16});
         const int* const terminal = common::core::endStatedFretOrNull(*scrape);
         REQUIRE(terminal != nullptr);
         if (terminal != nullptr)
@@ -3659,7 +3676,7 @@ TEST_CASE("planSetAttack refuses a scrape on a slide that holds a fret", "[core]
     common::core::Chart chart = makeTestChart();
     // The note's own fret is 7, so a keyframe at 7 is a segment with no travel at all.
     chart.notes[2].keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 7}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -3681,7 +3698,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     common::core::Chart chart = makeTestChart();
     chart.notes[2].tremolo = true;
     chart.notes[2].keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9}
+        common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 9}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -3709,7 +3726,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     // as a bare leg boundary, silent here (nothing vibrated before it) and the commit law's to
     // sweep.
     REQUIRE(scrape->keyframes.size() == 2);
-    CHECK(scrape->keyframes.front().offset == common::core::Fraction{1, 2});
+    CHECK(scrape->keyframes.front().offset == common::core::Fraction{1, 8});
     CHECK(common::core::keyframeStatesNothing(scrape->keyframes.front()));
     const int* const terminal = common::core::endStatedFretOrNull(*scrape);
     REQUIRE(terminal != nullptr);
@@ -3748,7 +3765,7 @@ TEST_CASE("planSetAttack keeps a vibrato ending through the scrape round trip", 
     common::core::Chart chart = makeTestChart();
     chart.notes[2].vibrato = common::core::VibratoState::Narrow;
     chart.notes[2].keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9}
+        common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 9}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -3766,7 +3783,7 @@ TEST_CASE("planSetAttack keeps a vibrato ending through the scrape round trip", 
     const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(scrape != nullptr);
     REQUIRE(scrape->keyframes.size() == 2);
-    CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+    CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 8});
     CHECK(common::core::keyframeStatesNothing(scrape->keyframes[0]));
     const int* const terminal = common::core::endStatedFretOrNull(*scrape);
     REQUIRE(terminal != nullptr);
@@ -3788,9 +3805,9 @@ TEST_CASE("planSetAttack keeps a vibrato ending through the scrape round trip", 
     REQUIRE(restored != nullptr);
     CHECK(restored->vibrato == common::core::VibratoState::Narrow);
     REQUIRE(restored->keyframes.size() == 1);
-    CHECK(restored->keyframes[0].offset == common::core::Fraction{1, 2});
+    CHECK(restored->keyframes[0].offset == common::core::Fraction{1, 8});
     CHECK(common::core::keyframeStatesNothing(restored->keyframes[0]));
-    // Drawn, the region runs from the onset (4.0s) to the ending half a beat in (4.25s).
+    // Drawn, the region runs from the onset (4.0s) to the ending an eighth in (4.25s).
     const std::vector<common::core::VibratoSpanViewState> regions =
         vibratoRegionsOf(chart, tempo_map, 2);
     REQUIRE(regions.size() == 1);
@@ -3814,11 +3831,11 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
         makeTestNote({.measure = 1, .beat = 3}, 2, 9),
         makeTestNote({.measure = 1, .beat = 4}, 2, 5),
     };
-    // Each predecessor rings its whole one-beat gap, so its hold reaches the successor's onset —
-    // the strict adjacency the resolver requires. The kept-sustain bound plays no part: the legato
-    // test reads the STORED ring, never the drawn tail.
-    chart.notes[0].sustain = common::core::Fraction{1};
-    chart.notes[2].sustain = common::core::Fraction{1};
+    // Each predecessor rings its whole quarter-note gap, so its hold reaches the successor's onset
+    // — the strict adjacency the resolver requires. The kept-sustain bound plays no part: the
+    // legato test reads the STORED ring, never the drawn tail.
+    chart.notes[0].sustain = common::core::Fraction{1, 4};
+    chart.notes[2].sustain = common::core::Fraction{1, 4};
 
     const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
@@ -3881,7 +3898,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 1}, 1, 7),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
-        chart.notes[0].sustain = common::core::Fraction{1};
+        chart.notes[0].sustain = common::core::Fraction{1, 4};
         const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
@@ -3898,7 +3915,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 2}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 8}),
             makeTestNote({.measure = 1, .beat = 3}, 1, 7),
         };
         common::core::setSlideOut(chart.notes[0], 5);
@@ -3919,7 +3936,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{1, 4}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[0].harmonic_node = 12.0;
@@ -3938,7 +3955,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 4}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
             makeScrape({.measure = 1, .beat = 3}, 2),
         };
@@ -3968,7 +3985,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 4}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
             // First on string 2, so nothing justifies a claim on it.
             makeTestNote({.measure = 1, .beat = 2}, 2, 4),
@@ -4011,10 +4028,10 @@ TEST_CASE(
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
         {
-            // The grown predecessor rides the same plan: its tail ends exactly at the margin
-            // point before the onset (two beats less the quarter-beat margin in 4/4).
+            // The grown predecessor rides the same plan: its tail now reaches
+            // the onset exactly, a half note.
             REQUIRE(planned.plan->inserted.size() == 2);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{2});
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{1, 2});
             CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Pick);
             CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
         }
@@ -4034,7 +4051,7 @@ TEST_CASE(
         if (planned.plan.has_value())
         {
             REQUIRE(planned.plan->inserted.size() == 2);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{2});
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{1, 2});
             CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
         }
     }
@@ -4061,8 +4078,8 @@ TEST_CASE(
         if (planned.plan.has_value())
         {
             REQUIRE(planned.plan->inserted.size() == 4);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{4});
-            CHECK(planned.plan->inserted[1].sustain == common::core::Fraction{4});
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{1});
+            CHECK(planned.plan->inserted[1].sustain == common::core::Fraction{1});
             CHECK(planned.plan->inserted[2].attack == common::core::NoteAttack::Legato);
             CHECK(planned.plan->inserted[3].attack == common::core::NoteAttack::Legato);
         }
@@ -4077,7 +4094,7 @@ TEST_CASE(
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1, 4}),
             makeTestNote({.measure = 1, .beat = 3}, 1, 5),
         };
         common::core::setSlideOut(chart.notes[0], 12);
@@ -4128,7 +4145,7 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1, 4}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 5),
         };
         chart.notes[1].harmonic_node = 17.0;
@@ -4148,7 +4165,7 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1, 4}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 0),
         };
         chart.notes[1].harmonic_node = 12.0;
@@ -4174,7 +4191,7 @@ TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[cor
         // String 2's note is first on its string, so nothing justifies a claim on it.
         makeTestNote({.measure = 1, .beat = 2}, 2, 4),
     };
-    chart.notes[0].sustain = common::core::Fraction{1};
+    chart.notes[0].sustain = common::core::Fraction{1, 4};
 
     const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
@@ -4221,7 +4238,7 @@ TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[co
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 4}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[1].attack = common::core::NoteAttack::LeftTap;
@@ -4248,7 +4265,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
         makeTestNote({.measure = 1, .beat = 1}, 1, 9),
         makeTestNote({.measure = 1, .beat = 3}, 1, 5),
     };
-    chart.notes[0].sustain = common::core::Fraction{2};
+    chart.notes[0].sustain = common::core::Fraction{1, 2};
     chart.notes[1].attack = common::core::NoteAttack::Legato;
 
     const auto plan = planAdjustSustain(
@@ -4262,7 +4279,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     {
         // Only the tail is in the plan: the claim is untouched, and the chart stays valid with it.
         REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted[0].sustain == common::core::Fraction{1});
+        CHECK(plan->inserted[0].sustain == common::core::Fraction{1, 4});
         applyAndValidate(chart, tempo_map, *plan);
         CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
         const common::core::ChartConnections connections =
@@ -4276,7 +4293,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     // change too, which is how the settle folds into the burst's own undo entry.
     common::core::Chart pre_burst = chart;
     pre_burst.notes = {
-        makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{2}),
+        makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1, 2}),
         chart.notes[1],
     };
     const std::vector<std::size_t> unjustified =
@@ -4294,7 +4311,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
 
     const ChartEditPlan folded = planSettleChart(chart, unjustified, pre_burst, "Shrink Sustain");
     REQUIRE(folded.inserted.size() == 2);
-    CHECK(folded.inserted[0].sustain == common::core::Fraction{1});
+    CHECK(folded.inserted[0].sustain == common::core::Fraction{1, 4});
     CHECK(folded.inserted[1].attack == common::core::NoteAttack::Pick);
     CHECK(folded.label == "Shrink Sustain");
 }
@@ -4308,7 +4325,7 @@ TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart
     common::core::Chart pre_burst;
     pre_burst.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     pre_burst.notes = {
-        makeTestNote({.measure = 1, .beat = 1}, 3, 5, common::core::Fraction{2}),
+        makeTestNote({.measure = 1, .beat = 1}, 3, 5, common::core::Fraction{1, 2}),
         makeTestNote({.measure = 1, .beat = 3}, 3, 7),
     };
     pre_burst.notes[1].attack = common::core::NoteAttack::Legato;
@@ -4357,7 +4374,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
                 makeTestNote({.measure = 1, .beat = 1}, 1, 9),
                 makeTestNote({.measure = 1, .beat = 2}, 1, 5),
             };
-            chart.notes[0].sustain = common::core::Fraction{3, 4};
+            chart.notes[0].sustain = common::core::Fraction{3, 16};
             chart.notes[1].attack = attack;
             CAPTURE(static_cast<int>(attack));
 
@@ -4481,7 +4498,7 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan =
-        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -4494,14 +4511,14 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     const common::core::ChartNote& origin = chart.notes[0];
     CHECK(origin.position == glideOnset());
     CHECK(origin.fret == 7);
-    CHECK(origin.sustain == common::core::Fraction{2});
+    CHECK(origin.sustain == common::core::Fraction{1, 2});
     CHECK(origin.attack == common::core::NoteAttack::Pick);
     REQUIRE(origin.keyframes.size() == 1);
     // The arrival stands AT the new head, at the origin's own ring end: the store holds what the
     // hands did, and the chart PROVES the statement is an arrival rather than a slide-out, naming
     // the very stop the new head is struck at, at the same instant. Presentation alone spaces the
     // DRAWN copy a margin early.
-    CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(origin.keyframes[0].fret == 9);
 
     const common::core::ChartNote& product = chart.notes[1];
@@ -4511,9 +4528,9 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     // left, and its own later keyframe rides along rebased onto the new onset (4 - 2 = 2) — where
     // it lands on the product's own ring end, so the fixture's end statement stays a slide-out.
     CHECK(product.fret == 9);
-    CHECK(product.sustain == common::core::Fraction{2});
+    CHECK(product.sustain == common::core::Fraction{1, 2});
     REQUIRE(product.keyframes.size() == 1);
-    CHECK(product.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(product.keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(product.keyframes[0].fret == 12);
     // A split head is STRUCK and stores `Pick` directly, keeping the origin's payloads: a junction
     // with no strike is the join's one longer ring, so the split authors the re-attack.
@@ -4540,11 +4557,12 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
         chart.notes[0].keyframes.insert(
             chart.notes[0].keyframes.begin(),
             common::core::Keyframe{
-                .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Narrow
+                .offset = common::core::Fraction{1, 4},
+                .vibrato = common::core::VibratoState::Narrow
             });
         const common::core::Chart original = chart;
-        const auto plan =
-            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})});
+        const auto plan = splitAt(
+            chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 4})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
         CHECK(chart == original);
@@ -4554,7 +4572,7 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
     {
         const common::core::Chart chart = makeGlideChart();
         const auto plan =
-            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4})});
+            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
@@ -4564,17 +4582,19 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote scrape =
-            makeTestNote(glideOnset(), 1, 9, common::core::Fraction{4});
+            makeTestNote(glideOnset(), 1, 9, common::core::Fraction{1});
         scrape.attack = common::core::NoteAttack::PickSlide;
-        scrape.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 5}};
+        scrape.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 5}
+        };
         common::core::setSlideOut(scrape, 3);
         chart.notes = {std::move(scrape)};
 
         // A scrape is ONE gesture of the picking hand end to end, so it has no junction to sever:
         // the walk refuses it outright rather than shipping a product the charter never wrote (a
         // fretting-hand note with the scrape's remainder) that the join could never take back.
-        const auto plan =
-            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        const auto plan = splitAt(
+            chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
@@ -4582,8 +4602,8 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
     SECTION("a key naming no keyframe")
     {
         const common::core::Chart chart = makeGlideChart();
-        const auto plan =
-            splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3})});
+        const auto plan = splitAt(
+            chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3, 4})});
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
     }
@@ -4598,16 +4618,16 @@ TEST_CASE("planToggleJunctions keeps a silent arrival on the origin", "[core][ch
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     common::core::Chart chart = makeGlideChart();
-    // The glide's arrival at 9, then a point a beat later restating 9 where the path already
+    // The glide's arrival at 9, then a point a quarter later restating 9 where the path already
     // holds it — the point a digit typed at the note's own fret plants.
     chart.notes[0].keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
-        common::core::Keyframe{.offset = common::core::Fraction{3}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9},
+        common::core::Keyframe{.offset = common::core::Fraction{3, 4}, .fret = 9},
     };
     const common::core::Chart original = chart;
 
     const auto plan =
-        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3})});
+        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3, 4})});
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -4617,18 +4637,18 @@ TEST_CASE("planToggleJunctions keeps a silent arrival on the origin", "[core][ch
 
     REQUIRE(chart.notes.size() == 2);
     const common::core::ChartNote& origin = chart.notes[0];
-    CHECK(origin.sustain == common::core::Fraction{3});
+    CHECK(origin.sustain == common::core::Fraction{3, 4});
     REQUIRE(origin.keyframes.size() == 2);
-    CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(origin.keyframes[0].fret == 9);
     // The silent one, standing at the cut: it restates the fret the path already holds, and is an
     // ARRIVAL because the new head is struck at that very fret.
-    CHECK(origin.keyframes[1].offset == common::core::Fraction{3});
+    CHECK(origin.keyframes[1].offset == common::core::Fraction{3, 4});
     CHECK(origin.keyframes[1].fret == 9);
     const common::core::ChartNote& split = chart.notes[1];
     CHECK(split.position == common::core::GridPosition{.measure = 2, .beat = 4, .offset = {}});
     CHECK(split.fret == 9);
-    CHECK(split.sustain == common::core::Fraction{1});
+    CHECK(split.sustain == common::core::Fraction{1, 4});
     CHECK(split.keyframes.empty());
 
     const auto joined = joinHeads(chart, tempo_map, {keyAt(split.position, 1)});
@@ -4651,9 +4671,9 @@ TEST_CASE("planCutRing strikes a fresh head on the ring's remainder", "[core][ch
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    // Three beats in: past the arrival at 9, a beat short of the slide-out at the ring's end.
+    // Three quarters in: past the arrival at 9, a quarter short of the slide-out at the ring's end.
     const auto plan =
-        planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{3}, 10);
+        planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{3, 4}, 10);
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -4666,20 +4686,20 @@ TEST_CASE("planCutRing strikes a fresh head on the ring's remainder", "[core][ch
     const common::core::ChartNote& origin = chart.notes[0];
     CHECK(origin.position == glideOnset());
     CHECK(origin.fret == 7);
-    CHECK(origin.sustain == common::core::Fraction{3});
+    CHECK(origin.sustain == common::core::Fraction{3, 4});
     REQUIRE(origin.keyframes.size() == 1);
-    CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 2});
     CHECK(origin.keyframes[0].fret == 9);
 
     const common::core::ChartNote& head = chart.notes[1];
     CHECK(head.position == common::core::GridPosition{.measure = 2, .beat = 4, .offset = {}});
     CHECK(head.string == 1);
     CHECK(head.fret == 10);
-    CHECK(head.sustain == common::core::Fraction{1});
+    CHECK(head.sustain == common::core::Fraction{1, 4});
     CHECK(head.attack == common::core::NoteAttack::Pick);
     // The slide-out rides over, rebased (4 - 3 = 1): still at the end of the whole ring.
     REQUIRE(head.keyframes.size() == 1);
-    CHECK(head.keyframes[0].offset == common::core::Fraction{1});
+    CHECK(head.keyframes[0].offset == common::core::Fraction{1, 4});
     CHECK(head.keyframes[0].fret == 12);
 
     REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
@@ -4697,7 +4717,7 @@ TEST_CASE("planCutRing ends the origin on a statement standing at the cut", "[co
     {
         common::core::Chart chart = makeGlideChart();
         const auto plan =
-            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{2}, 5);
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1, 2}, 5);
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -4708,17 +4728,23 @@ TEST_CASE("planCutRing ends the origin on a statement standing at the cut", "[co
         REQUIRE(chart.notes.size() == 2);
         const common::core::ChartNote& origin = chart.notes[0];
         const common::core::ChartNote& head = chart.notes[1];
-        CHECK(origin.sustain == common::core::Fraction{2});
+        CHECK(origin.sustain == common::core::Fraction{1, 2});
         REQUIRE(origin.keyframes.size() == 1);
-        CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+        CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 2});
         CHECK(origin.keyframes[0].fret == 9);
         CHECK(head.fret == 5);
-        CHECK(head.sustain == common::core::Fraction{2});
+        CHECK(head.sustain == common::core::Fraction{1, 2});
         REQUIRE(head.keyframes.size() == 1);
-        CHECK(head.keyframes[0].offset == common::core::Fraction{2});
+        CHECK(head.keyframes[0].offset == common::core::Fraction{1, 2});
         CHECK(head.keyframes[0].fret == 12);
 
-        const bool arrives = common::core::arrivesIntoNextHead(origin, head, tempo_map);
+        const bool arrives = common::core::arrivesIntoNextHead(
+            common::core::LegatoPredecessor{
+                .note = origin,
+                .onset_gap =
+                    common::core::wholeNoteDistance(tempo_map, origin.position, head.position),
+            },
+            head);
         CHECK_FALSE(arrives);
         const int* const slide_out = common::core::slideOutFretOrNull(origin, arrives);
         REQUIRE(slide_out != nullptr);
@@ -4732,7 +4758,7 @@ TEST_CASE("planCutRing ends the origin on a statement standing at the cut", "[co
     {
         common::core::Chart chart = makeGlideChart();
         const auto plan =
-            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{2}, 9);
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1, 2}, 9);
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -4743,9 +4769,15 @@ TEST_CASE("planCutRing ends the origin on a statement standing at the cut", "[co
         REQUIRE(chart.notes.size() == 2);
         const common::core::ChartNote& origin = chart.notes[0];
         REQUIRE(origin.keyframes.size() == 1);
-        CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+        CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 2});
         CHECK(origin.keyframes[0].fret == 9);
-        const bool arrives = common::core::arrivesIntoNextHead(origin, chart.notes[1], tempo_map);
+        const bool arrives = common::core::arrivesIntoNextHead(
+            common::core::LegatoPredecessor{
+                .note = origin,
+                .onset_gap = common::core::wholeNoteDistance(
+                    tempo_map, origin.position, chart.notes[1].position),
+            },
+            chart.notes[1]);
         CHECK(arrives);
         CHECK(common::core::slideOutFretOrNull(origin, arrives) == nullptr);
     }
@@ -4760,17 +4792,17 @@ TEST_CASE("planCutRing opens the head on the channel states in force", "[core][c
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote ringing =
-        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{4});
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{1});
     ringing.keyframes = {
-        common::core::Keyframe{.offset = common::core::Fraction{1}, .bend = 1.0},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .bend = 1.0},
         common::core::Keyframe{
-            .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Narrow
+            .offset = common::core::Fraction{1, 2}, .vibrato = common::core::VibratoState::Narrow
         },
     };
     chart.notes = {std::move(ringing)};
 
     const auto plan = planCutRing(
-        chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 2), common::core::Fraction{3}, 7);
+        chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 2), common::core::Fraction{3, 4}, 7);
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -4807,7 +4839,7 @@ TEST_CASE("planCutRing strikes the head with strike defaults", "[core][chart]")
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote ringing =
-            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1});
         ringing.attack = common::core::NoteAttack::Tap;
         ringing.palm_mute = true;
         ringing.tremolo = true;
@@ -4815,7 +4847,7 @@ TEST_CASE("planCutRing strikes the head with strike defaults", "[core][chart]")
         chart.notes = {std::move(ringing)};
 
         const auto plan = planCutRing(
-            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{2}, 7);
+            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{1, 2}, 7);
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -4838,12 +4870,12 @@ TEST_CASE("planCutRing strikes the head with strike defaults", "[core][chart]")
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         // The open string touched at the twelfth fret.
         common::core::ChartNote ringing =
-            makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{4});
+            makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1});
         ringing.harmonic_node = 12.0;
         chart.notes = {std::move(ringing)};
 
         const auto plan = planCutRing(
-            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{2}, 7);
+            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{1, 2}, 7);
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -4869,7 +4901,11 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {makeScrape({.measure = 2, .beat = 1}, 1)};
         const auto plan = planCutRing(
-            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{1, 4}, 5);
+            chart,
+            tempo_map,
+            keyAt({.measure = 2, .beat = 1}, 1),
+            common::core::Fraction{1, 16},
+            5);
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
@@ -4878,7 +4914,7 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
     {
         const common::core::Chart chart = makeGlideChart();
         const auto plan =
-            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{4}, 5);
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{1}, 5);
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
@@ -4887,7 +4923,7 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
     {
         const common::core::Chart chart = makeGlideChart();
         const auto plan =
-            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{0}, 5);
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{}, 5);
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
@@ -4896,7 +4932,7 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
     {
         const common::core::Chart chart = makeGlideChart();
         const auto plan =
-            planCutRing(chart, tempo_map, keyAt(glideOnset(), 2), common::core::Fraction{1}, 5);
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 2), common::core::Fraction{1, 4}, 5);
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
@@ -4913,9 +4949,9 @@ TEST_CASE("chartFretInForceAt reads the stop the string already holds", "[core][
         return chartFretInForceAt(chart.notes, tempo_map, keyAt(position, string));
     };
 
-    // One beat in, travelling from 7 toward the arrival at 9: the stop stated last is 7.
+    // A quarter in, travelling from 7 toward the arrival at 9: the stop stated last is 7.
     CHECK(in_force({.measure = 2, .beat = 2}, 1) == 7);
-    // Three beats in, past the arrival.
+    // Three quarters in, past the arrival.
     CHECK(in_force({.measure = 2, .beat = 4}, 1) == 9);
     // At the ring's end, where the slide-out states 12: the last pitched stop, never the target.
     CHECK(in_force({.measure = 3, .beat = 1}, 1) == 9);
@@ -5460,18 +5496,18 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+    common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
     note.vibrato = common::core::VibratoState::Narrow;
     note.keyframes = {
         // The vibrato ends here, so the state in force AT this point is still.
         common::core::Keyframe{
-            .offset = common::core::Fraction{2},
+            .offset = common::core::Fraction{1, 2},
             .fret = 9,
             .vibrato = common::core::VibratoState::None
         },
         // And starts again here.
         common::core::Keyframe{
-            .offset = common::core::Fraction{3}, .vibrato = common::core::VibratoState::Narrow
+            .offset = common::core::Fraction{3, 4}, .vibrato = common::core::VibratoState::Narrow
         },
     };
     chart.notes = {std::move(note)};
@@ -5482,7 +5518,9 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
     {
         ChartSelection selection;
         selection.add(
-            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
+            ChartKeyframeKey{
+                .note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3, 4}
+            });
         CHECK(law.carried(chart, selection));
     }
 
@@ -5490,7 +5528,9 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
     {
         ChartSelection selection;
         selection.add(
-            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
+            ChartKeyframeKey{
+                .note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{1, 2}
+            });
         CHECK_FALSE(law.carried(chart, selection));
     }
 
@@ -5499,7 +5539,9 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         ChartSelection vibrating;
         vibrating.add(note_key);
         vibrating.add(
-            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
+            ChartKeyframeKey{
+                .note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3, 4}
+            });
         CHECK(law.carried(chart, vibrating));
 
         // The onset vibrates and the other anchor does not, so the press means SET — the same
@@ -5507,7 +5549,9 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         ChartSelection mixed;
         mixed.add(note_key);
         mixed.add(
-            ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
+            ChartKeyframeKey{
+                .note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{1, 2}
+            });
         CHECK_FALSE(law.carried(chart, mixed));
     }
 
@@ -5532,15 +5576,15 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+    common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
     glide.keyframes = {
         common::core::Keyframe{
-            .offset = common::core::Fraction{1},
+            .offset = common::core::Fraction{1, 4},
             .fret = 9,
             .bend = 1.0,
             .vibrato = common::core::VibratoState::Narrow
         },
-        common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 11},
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 11},
     };
     common::core::setSlideOut(glide, 3);
     chart.notes = {std::move(glide)};
@@ -5550,8 +5594,8 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     const auto plan = splitAt(
         chart,
         tempo_map,
-        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1}),
-         keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 4}),
+         keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -5560,9 +5604,9 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     applyAndValidate(chart, tempo_map, *plan);
 
     REQUIRE(chart.notes.size() == 3);
-    CHECK(chart.notes[0].sustain == common::core::Fraction{1});
-    CHECK(chart.notes[1].sustain == common::core::Fraction{1});
-    CHECK(chart.notes[2].sustain == common::core::Fraction{2});
+    CHECK(chart.notes[0].sustain == common::core::Fraction{1, 4});
+    CHECK(chart.notes[1].sustain == common::core::Fraction{1, 4});
+    CHECK(chart.notes[2].sustain == common::core::Fraction{1, 2});
 
     // The state the first junction states is what the second note OPENS with, so the push and the
     // vibrato carry across the cut instead of restarting at the note's own defaults.
@@ -5573,7 +5617,7 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     // Its own arrival stands AT the head that follows it, which the relation reads as an arrival
     // and not a slide-out: the fret it names is that head's own stop.
     REQUIRE(second.keyframes.size() == 1);
-    CHECK(second.keyframes[0].offset == common::core::Fraction{1});
+    CHECK(second.keyframes[0].offset == common::core::Fraction{1, 4});
     CHECK(second.keyframes[0].fret == 11);
 
     // The third opens at the second junction, where the bend has not been restated and the leg
@@ -5595,7 +5639,7 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     // product's onset state, which the check above already pins.
     REQUIRE(chart.notes[0].keyframes.size() == 1);
     const common::core::Keyframe& first_arrival = chart.notes[0].keyframes[0];
-    CHECK(first_arrival.offset == common::core::Fraction{1});
+    CHECK(first_arrival.offset == common::core::Fraction{1, 4});
     CHECK(first_arrival.fret == 9);
     CHECK_FALSE(hasVibrato(first_arrival.vibrato));
     const std::optional<double>& first_arrival_bend = first_arrival.bend;
@@ -5618,11 +5662,11 @@ TEST_CASE("planToggleJunctions joins a head into its predecessor as a point", "[
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote head =
-        makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{2});
+        makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{1, 2});
     head.attack = common::core::NoteAttack::Legato;
-    head.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 9}};
+    head.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 9}};
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}), std::move(head)
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1}), std::move(head)
     };
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -5640,16 +5684,16 @@ TEST_CASE("planToggleJunctions joins a head into its predecessor as a point", "[
     const common::core::ChartNote& path = chart.notes[0];
     CHECK(path.position == common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}});
     CHECK(path.fret == 5);
-    // The two rings end to end: four beats to the junction, then the head's own two.
-    CHECK(path.sustain == common::core::Fraction{6});
+    // The two rings end to end: four quarters to the junction, then the head's own two.
+    CHECK(path.sustain == common::core::Fraction{3, 2});
     REQUIRE(path.keyframes.size() == 2);
     // The junction states the fret the head sounded — the very value a split's product head would
     // take back — and the head's own later statement rides along rebased onto this onset.
-    CHECK(path.keyframes[0].offset == common::core::Fraction{4});
+    CHECK(path.keyframes[0].offset == common::core::Fraction{1});
     CHECK(path.keyframes[0].fret == 7);
     CHECK_FALSE(path.keyframes[0].bend.has_value());
     CHECK_FALSE(hasVibrato(path.keyframes[0].vibrato));
-    CHECK(path.keyframes[1].offset == common::core::Fraction{5});
+    CHECK(path.keyframes[1].offset == common::core::Fraction{5, 4});
     CHECK(path.keyframes[1].fret == 9);
 
     // The point takes the selection, which is what makes the verb a toggle: the next press finds
@@ -5657,7 +5701,7 @@ TEST_CASE("planToggleJunctions joins a head into its predecessor as a point", "[
     CHECK(
         joined->selection ==
         std::vector<ChartSelectionKey>{ChartKeyframeKey{
-            .note = keyAt({.measure = 2, .beat = 1}, 1), .offset = common::core::Fraction{4}
+            .note = keyAt({.measure = 2, .beat = 1}, 1), .offset = common::core::Fraction{1}
         }});
 
     // One entry, and it reverses field for field.
@@ -5673,10 +5717,10 @@ TEST_CASE("planToggleJunctions joins a vibrating head as its own leg's width", "
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote predecessor =
-        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1});
     predecessor.vibrato = common::core::VibratoState::Narrow;
     common::core::ChartNote head =
-        makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{2});
+        makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{1, 2});
     head.attack = common::core::NoteAttack::Legato;
     head.vibrato = common::core::VibratoState::Narrow;
     chart.notes = {std::move(predecessor), std::move(head)};
@@ -5693,7 +5737,7 @@ TEST_CASE("planToggleJunctions joins a vibrating head as its own leg's width", "
 
     REQUIRE(chart.notes.size() == 1);
     REQUIRE(chart.notes[0].keyframes.size() == 1);
-    CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{4});
+    CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1});
     CHECK(chart.notes[0].keyframes[0].fret == 7);
     CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
     // Both legs vibrate at one width, so the ring draws as one region from onset to end.
@@ -5716,10 +5760,10 @@ TEST_CASE("planToggleJunctions joins an equal-fret head as a silent point", "[co
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote head =
-        makeTestNote({.measure = 3, .beat = 1}, 1, 5, common::core::Fraction{2});
+        makeTestNote({.measure = 3, .beat = 1}, 1, 5, common::core::Fraction{1, 2});
     head.attack = common::core::NoteAttack::Legato;
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}), std::move(head)
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1}), std::move(head)
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -5734,16 +5778,16 @@ TEST_CASE("planToggleJunctions joins an equal-fret head as a silent point", "[co
     // In MEMORY the point is there: it is what the lane draws and what the selection names.
     REQUIRE(chart.notes.size() == 1);
     REQUIRE(chart.notes[0].keyframes.size() == 1);
-    CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{4});
+    CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1});
     CHECK(chart.notes[0].keyframes[0].fret == 5);
-    CHECK(chart.notes[0].sustain == common::core::Fraction{6});
+    CHECK(chart.notes[0].sustain == common::core::Fraction{3, 2});
 
     // The HISTORY records the written form, and the written form has no point at all: the entry is
     // exactly one grown ring and one removed note.
     const ChartEditPlan written = writtenChartPlan(joined->plan);
     CHECK(written.removed.size() == 2);
     REQUIRE(written.inserted.size() == 1);
-    CHECK(written.inserted[0].sustain == common::core::Fraction{6});
+    CHECK(written.inserted[0].sustain == common::core::Fraction{3, 2});
     CHECK(written.inserted[0].keyframes.empty());
 }
 
@@ -5758,7 +5802,7 @@ TEST_CASE("planToggleJunctions makes split then join a byte-exact round trip", "
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto split =
-        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
     REQUIRE(split.has_value());
     if (!split.has_value())
     {
@@ -5768,7 +5812,7 @@ TEST_CASE("planToggleJunctions makes split then join a byte-exact round trip", "
     REQUIRE(chart.notes.size() == 2);
     // The arrival stands ON the new head, at the origin's own ring end.
     REQUIRE(chart.notes[0].keyframes.size() == 1);
-    CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
 
     const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 3}, 1)});
     REQUIRE(joined.has_value());
@@ -5799,11 +5843,11 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote trailing =
-            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1});
         common::core::setSlideOut(trailing, 3);
         chart.notes = {
             std::move(trailing),
-            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{2})
+            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{1, 2})
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
         REQUIRE_FALSE(joined.has_value());
@@ -5816,7 +5860,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
             makeScrape({.measure = 2, .beat = 1}, 1),
-            makeTestNote({.measure = 2, .beat = 2}, 1, 7, common::core::Fraction{1})
+            makeTestNote({.measure = 2, .beat = 2}, 1, 7, common::core::Fraction{1, 4})
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 2}, 1)});
         REQUIRE_FALSE(joined.has_value());
@@ -5828,11 +5872,11 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote squeal =
-            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{2});
+            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{1, 2});
         squeal.attack = common::core::NoteAttack::Pinch;
         squeal.harmonic_node = 19.0;
         chart.notes = {
-            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}),
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1}),
             std::move(squeal)
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
@@ -5847,9 +5891,9 @@ TEST_CASE("planToggleJunctions splits and joins in one press", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
     common::core::ChartNote head =
-        makeTestNote({.measure = 3, .beat = 1}, 2, 7, common::core::Fraction{2});
+        makeTestNote({.measure = 3, .beat = 1}, 2, 7, common::core::Fraction{1, 2});
     head.attack = common::core::NoteAttack::Legato;
-    chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{4}));
+    chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{1}));
     chart.notes.push_back(std::move(head));
     std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
     const common::core::Chart original = chart;
@@ -5859,7 +5903,7 @@ TEST_CASE("planToggleJunctions splits and joins in one press", "[core][chart]")
         chart,
         tempo_map,
         {keyAt({.measure = 3, .beat = 1}, 2)},
-        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
     REQUIRE(toggled.has_value());
     if (!toggled.has_value())
     {
@@ -5875,7 +5919,7 @@ TEST_CASE("planToggleJunctions splits and joins in one press", "[core][chart]")
     REQUIRE(grown != nullptr);
     if (grown != nullptr)
     {
-        CHECK(grown->sustain == common::core::Fraction{6});
+        CHECK(grown->sustain == common::core::Fraction{3, 2});
         REQUIRE(grown->keyframes.size() == 1);
         CHECK(grown->keyframes[0].fret == 7);
     }
@@ -5906,7 +5950,7 @@ TEST_CASE("planSetVibrato states the vibrato at a selected keyframe", "[core][ch
                           chart,
                           tempo_map,
                           {},
-                          {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                          {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                           common::core::VibratoState::Narrow,
                           "Vibrato")
                           .plan;
@@ -5928,7 +5972,7 @@ TEST_CASE("planSetVibrato states the vibrato at a selected keyframe", "[core][ch
     // The position channel is untouched — the coupling law works because the keyframe is one
     // record, not because a verb copies fields between channels.
     CHECK(note.keyframes[0].fret == 9);
-    // Drawn, only that leg vibrates: from the keyframe (two beats in, 3.0s) to the next one, the
+    // Drawn, only that leg vibrates: from the keyframe (two quarters in, 3.0s) to the next one, the
     // slide-out at the ring's end (4.0s).
     const std::vector<common::core::VibratoSpanViewState> regions =
         vibratoRegionsOf(chart, tempo_map, 0);
@@ -5954,12 +5998,12 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
         note.vibrato = common::core::VibratoState::Narrow;
-        // A point restating the fret begins an unvibrated leg two beats in, so the vibrato ends
+        // A point restating the fret begins an unvibrated leg two quarters in, so the vibrato ends
         // there while the point also states a fret.
         note.keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7},
         };
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
@@ -5967,7 +6011,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                               common::core::VibratoState::Narrow,
                               "Vibrato")
                               .plan;
@@ -6013,11 +6057,11 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-        // A delayed start: the ring opens still and vibrates from two beats in. Nothing about the
-        // hand's position is stated, so this point exists for the vibrato alone.
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
+        // A delayed start: the ring opens still and vibrates from two quarters in. Nothing about
+        // the hand's position is stated, so this point exists for the vibrato alone.
         note.keyframes = {common::core::Keyframe{
-            .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Narrow
+            .offset = common::core::Fraction{1, 2}, .vibrato = common::core::VibratoState::Narrow
         }};
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
@@ -6026,7 +6070,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                               common::core::VibratoState::None,
                               "Remove Vibrato")
                               .plan;
@@ -6041,7 +6085,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         // nothing. It stays in the plan as a bare leg boundary — authoring state, which the
         // history sheds and the note's leaving focus dissolves.
         REQUIRE(chart.notes[0].keyframes.size() == 1);
-        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{2});
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
         CHECK(common::core::keyframeStatesNothing(chart.notes[0].keyframes[0]));
         CHECK(vibratoRegionsOf(chart, tempo_map, 0).empty());
         const ChartEditPlan written = writtenChartPlan(*plan);
@@ -6056,10 +6100,10 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-        // The ordinary vibrato from the onset, ended two beats in by a bare point.
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
+        // The ordinary vibrato from the onset, ended two quarters in by a bare point.
         note.vibrato = common::core::VibratoState::Narrow;
-        note.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{2}}};
+        note.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1, 2}}};
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
 
@@ -6096,11 +6140,11 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-        // The ordinary vibrato from the onset, stepping to the wide one two beats in.
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
+        // The ordinary vibrato from the onset, stepping to the wide one two quarters in.
         note.vibrato = common::core::VibratoState::Narrow;
         note.keyframes = {common::core::Keyframe{
-            .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Wide
+            .offset = common::core::Fraction{1, 2}, .vibrato = common::core::VibratoState::Wide
         }};
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
@@ -6109,7 +6153,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                               common::core::VibratoState::Narrow,
                               "Vibrato")
                               .plan;
@@ -6143,13 +6187,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-        // A still onset, the wide vibrato from one beat in, ended by a bare point at two.
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
+        // A still onset, the wide vibrato from a quarter in, ended by a bare point at two.
         note.keyframes = {
             common::core::Keyframe{
-                .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Wide
+                .offset = common::core::Fraction{1, 4}, .vibrato = common::core::VibratoState::Wide
             },
-            common::core::Keyframe{.offset = common::core::Fraction{2}},
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}},
         };
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
@@ -6158,7 +6202,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 4})},
                               common::core::VibratoState::None,
                               "Remove Vibrato")
                               .plan;
@@ -6187,11 +6231,11 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-        // The ordinary vibrato from the onset, stepping to the wide one two beats in.
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
+        // The ordinary vibrato from the onset, stepping to the wide one two quarters in.
         note.vibrato = common::core::VibratoState::Narrow;
         note.keyframes = {common::core::Keyframe{
-            .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Wide
+            .offset = common::core::Fraction{1, 2}, .vibrato = common::core::VibratoState::Wide
         }};
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
@@ -6200,7 +6244,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                               common::core::VibratoState::None,
                               "Remove Vibrato")
                               .plan;
@@ -6214,7 +6258,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         // Dissolving the point would let the onset's leg run on to the ring's end, so it stays
         // bare: the stored form of vibrato ending where nothing else does.
         REQUIRE(chart.notes[0].keyframes.size() == 1);
-        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{2});
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1, 2});
         CHECK_FALSE(chart.notes[0].keyframes[0].fret.has_value());
         CHECK_FALSE(chart.notes[0].keyframes[0].bend.has_value());
         CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::None);
@@ -6239,16 +6283,16 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 5, common::core::Fraction{4});
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 5, common::core::Fraction{1});
         // A hold on the 5 until beat 1 1/2, then a glide to 7 by beat 2, the ordinary vibrato
         // stepping to the wide one at beat 1 while the hand still rests.
         note.vibrato = common::core::VibratoState::Narrow;
         note.keyframes = {
             common::core::Keyframe{
-                .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Wide
+                .offset = common::core::Fraction{1, 4}, .vibrato = common::core::VibratoState::Wide
             },
-            common::core::Keyframe{.offset = common::core::Fraction{3, 2}, .fret = 5},
-            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
+            common::core::Keyframe{.offset = common::core::Fraction{3, 8}, .fret = 5},
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7},
         };
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
@@ -6257,7 +6301,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 4})},
                               common::core::VibratoState::None,
                               "Remove Vibrato")
                               .plan;
@@ -6270,7 +6314,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         REQUIRE(chart.notes.size() == 1);
         // The point stays bare: a fret restated there would state a stop the path already holds.
         REQUIRE(chart.notes[0].keyframes.size() == 3);
-        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1});
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1, 4});
         CHECK_FALSE(chart.notes[0].keyframes[0].fret.has_value());
         CHECK_FALSE(chart.notes[0].keyframes[0].bend.has_value());
         CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::None);
@@ -6291,7 +6335,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         CHECK(view.slides[1].fret == 7);
         CHECK_THAT(view.slides[1].seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
         REQUIRE(view.keyframes.size() == 3);
-        CHECK(view.keyframes[0].offset == common::core::Fraction{1});
+        CHECK(view.keyframes[0].offset == common::core::Fraction{1, 4});
         CHECK(
             view.keyframes[0].mark ==
             common::core::KeyframeMark{common::core::KeyframeRestMark{.fret = 5}});
@@ -6307,12 +6351,12 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 5, common::core::Fraction{4});
-        // A glide from 5 to 7 over two beats, bent halfway along it: a bend may change mid-travel,
-        // a vibrato may not (common::core::shedMidTravelVibrato).
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 5, common::core::Fraction{1});
+        // A glide from 5 to 7 over two quarters, bent halfway along it: a bend may change
+        // mid-travel, a vibrato may not (common::core::shedMidTravelVibrato).
         note.keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{1}, .bend = 1.0},
-            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
+            common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .bend = 1.0},
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7},
         };
         chart.notes = {std::move(note)};
 
@@ -6320,7 +6364,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                         chart,
                         tempo_map,
                         {},
-                        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+                        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 4})},
                         common::core::VibratoState::Narrow,
                         "Add Vibrato")
                         .plan.has_value());
@@ -6336,7 +6380,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                               common::core::VibratoState::None,
                               "Remove Vibrato")
                               .plan;
@@ -6361,18 +6405,18 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
         note.vibrato = common::core::VibratoState::Narrow;
         note.keyframes = {
             // Authored by someone else: this press never points at it.
             common::core::Keyframe{
-                .offset = common::core::Fraction{1},
+                .offset = common::core::Fraction{1, 4},
                 .fret = 9,
                 .vibrato = common::core::VibratoState::Narrow
             },
             // The leg this begins does not vibrate until the press below states it.
             common::core::Keyframe{
-                .offset = common::core::Fraction{2},
+                .offset = common::core::Fraction{1, 2},
                 .fret = 11,
                 .vibrato = common::core::VibratoState::None
             },
@@ -6384,7 +6428,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                               chart,
                               tempo_map,
                               {},
-                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                               common::core::VibratoState::Narrow,
                               "Vibrato")
                               .plan;
@@ -6462,7 +6506,7 @@ TEST_CASE("planSetVibrato on a note vibrates its first leg only", "[core][chart]
     }
     applyAndValidate(chart, tempo_map, *plan);
 
-    // The onset (2.0s) to the glide's stop two beats in (3.0s), and nothing past it.
+    // The onset (2.0s) to the glide's stop two quarters in (3.0s), and nothing past it.
     const std::vector<common::core::VibratoSpanViewState> regions =
         vibratoRegionsOf(chart, tempo_map, 0);
     REQUIRE(regions.size() == 1);
@@ -6485,7 +6529,7 @@ TEST_CASE("planSetVibrato on a keyframe vibrates only up to the next slide stop"
                           chart,
                           tempo_map,
                           {},
-                          {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                          {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                           common::core::VibratoState::Narrow,
                           "Vibrato")
                           .plan;
@@ -6536,7 +6580,7 @@ TEST_CASE("planSetVibrato through a slide stop is one press per leg", "[core][ch
                                 chart,
                                 tempo_map,
                                 {},
-                                {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                                {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})},
                                 common::core::VibratoState::Narrow,
                                 "Vibrato")
                                 .plan;
@@ -6566,11 +6610,11 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    // A four-beat fret-7 hold vibrating from its onset, carrying `keyframe` two beats in.
+    // A whole-note fret-7 hold vibrating from its onset, carrying `keyframe` two quarters in.
     const auto vibrated_hold = [](const common::core::Keyframe& keyframe) {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{1});
         note.vibrato = common::core::VibratoState::Narrow;
         note.keyframes = {keyframe};
         chart.notes = {std::move(note)};
@@ -6582,7 +6626,7 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         // The bare keyframe is the vibrato's ending, so the region stops there (3.0s) until the
         // boundary is deleted, and then runs to the ring's end (4.0s).
         common::core::Chart chart =
-            vibrated_hold(common::core::Keyframe{.offset = common::core::Fraction{2}});
+            vibrated_hold(common::core::Keyframe{.offset = common::core::Fraction{1, 2}});
         const common::core::Chart original = chart;
         const std::vector<common::core::VibratoSpanViewState> before =
             vibratoRegionsOf(chart, tempo_map, 0);
@@ -6590,7 +6634,7 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         CHECK_THAT(before[0].end_seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
 
         const auto plan = planDeleteSelection(
-            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6619,13 +6663,13 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
     {
         common::core::Chart chart = vibrated_hold(
             common::core::Keyframe{
-                .offset = common::core::Fraction{2},
+                .offset = common::core::Fraction{1, 2},
                 .fret = 9,
                 .vibrato = common::core::VibratoState::Wide,
             });
         const common::core::Chart original = chart;
         const std::vector<ChartKeyframeKey> point{keyframeKeyAt(
-            glideOnset(), 1, common::core::Fraction{2})};
+            glideOnset(), 1, common::core::Fraction{1, 2})};
         const auto plan = planDeleteSelection(chart, tempo_map, {}, point);
         REQUIRE(plan.has_value());
         if (!plan.has_value())
@@ -6665,13 +6709,13 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
     {
         common::core::Chart chart = vibrated_hold(
             common::core::Keyframe{
-                .offset = common::core::Fraction{2},
+                .offset = common::core::Fraction{1, 2},
                 .fret = 9,
                 .bend = 2.0,
                 .vibrato = common::core::VibratoState::Narrow,
             });
         const auto plan = planDeleteSelection(
-            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6695,12 +6739,12 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         // The width repeats the onset's, so with the fret gone the point says nothing new.
         common::core::Chart chart = vibrated_hold(
             common::core::Keyframe{
-                .offset = common::core::Fraction{2},
+                .offset = common::core::Fraction{1, 2},
                 .fret = 9,
                 .vibrato = common::core::VibratoState::Narrow,
             });
         const auto plan = planDeleteSelection(
-            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6716,7 +6760,7 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         common::core::Chart chart = makeGlideChart();
         const common::core::Chart original = chart;
         const auto plan = planDeleteSelection(
-            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6727,11 +6771,11 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
 
         REQUIRE(chart.notes.size() == 1);
         REQUIRE(chart.notes[0].keyframes.size() == 1);
-        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{4});
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1});
         CHECK(chart.notes[0].keyframes[0].fret == 12);
         // The note's own onset facts are none of this verb's business.
         CHECK(chart.notes[0].fret == 7);
-        CHECK(chart.notes[0].sustain == common::core::Fraction{4});
+        CHECK(chart.notes[0].sustain == common::core::Fraction{1});
 
         REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
         CHECK(chart == original);
@@ -6744,8 +6788,8 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
             chart,
             tempo_map,
             {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
-             keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4})});
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2}),
+             keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6761,7 +6805,7 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
             chart,
             tempo_map,
             {keyAt(glideOnset(), 1)},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1, 2})});
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6776,13 +6820,12 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
 }
 
 // EVERY VERB PRODUCES TICK-LATTICE POSITIONS. Validation refuses an instant between two ticks, so
-// a verb that authored one — a ring one exact septuplet step long, a move by one exact step, a beat
-// count carried into a meter of another denominator — would be refused on exactly the grids and
-// maps it is most needed on. Each case is a plan the gate must ACCEPT, on a position it could not
-// have reached by beat arithmetic.
+// a verb that authored one — a ring one exact septuplet step long, a move by one exact step — would
+// be refused on exactly the grids and maps it is most needed on. Each case is a plan the gate must
+// ACCEPT, including across a meter change.
 TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
 {
-    // A seventh of a 4/4 beat: 137.14 ticks, so no exact step from a line is a tick.
+    // A seventh of a quarter note: 137.14 ticks, so no exact step from a line is a tick.
     constexpr common::core::Fraction septuplet_grid{1, 28};
     const common::core::GridPosition downbeat{.measure = 2, .beat = 1};
 
@@ -6801,7 +6844,10 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
         if (first.has_value())
         {
             applyAndValidate(chart, tempo_map, *first);
-            CHECK(common::core::sustainEndPosition(tempo_map, chart.notes.front()) == next_line);
+            CHECK(
+                common::core::advanceGridPositionByWholeNotes(
+                    tempo_map, chart.notes.front().position, chart.notes.front().sustain) ==
+                next_line);
         }
         const auto second =
             planInsertNote(chart, tempo_map, makeTestNote(next_line, 1, 7), septuplet_grid);
@@ -6812,7 +6858,8 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
             REQUIRE(chart.notes.size() == 2);
             // Entered one after another, septuplet notes touch exactly, which legato needs.
             CHECK(
-                common::core::sustainEndPosition(tempo_map, chart.notes[0]) ==
+                common::core::advanceGridPositionByWholeNotes(
+                    tempo_map, chart.notes[0].position, chart.notes[0].sustain) ==
                 chart.notes[1].position);
         }
     }
@@ -6825,7 +6872,7 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {makeTestNote(
-            downbeat, 1, 5, common::core::beatDistance(tempo_map, downbeat, next_line))};
+            downbeat, 1, 5, common::core::wholeNoteDistance(tempo_map, downbeat, next_line))};
         REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
 
         // The press is measured at the anchor as its distance to the next line: 137 ticks, where
@@ -6845,28 +6892,28 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
             CHECK(chart.notes.front().position == next_line);
             CHECK(
                 chart.notes.front().sustain ==
-                common::core::beatDistance(tempo_map, downbeat, next_line));
+                common::core::wholeNoteDistance(tempo_map, downbeat, next_line));
         }
     }
 
-    SECTION("a note moved across a meter change keeps its real length and every instant on a tick")
+    SECTION("a note moved across a meter change keeps its note values and every instant on a tick")
     {
         const common::core::TempoMap tempo_map = makeMeterChangeMap();
-        // An odd tick of a quarter-note beat is half a tick of an eighth-note one, so a beat count
-        // carried into measure 3 lands between ticks; the whole-note delta lands on them.
+        // An odd tick of a quarter-note beat lands on an odd tick of an eighth-note one: the
+        // whole-note delta keeps every instant on the lattice.
         const common::core::GridPosition onset{
             .measure = 2, .beat = 3, .offset = common::core::Fraction{959, 960}
         };
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{1})};
+        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{1, 4})};
         chart.notes.front().keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
+            common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 7}
         };
         REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
 
-        // A half note right: the quarter-note ring is two eighth-note beats once it sits in 6/8,
-        // and the point half a quarter in is one eighth in — the same music, re-counted.
+        // A half note right: the quarter-note ring and the point an eighth in move with the onset,
+        // their values untouched.
         const auto plan = moveNotes(
             chart, tempo_map, {keyAt(onset, 1)}, common::core::Fraction{1, 2}, 0, "Move Note");
         REQUIRE(plan.has_value());
@@ -6879,9 +6926,9 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
                 common::core::GridPosition{
                     .measure = 3, .beat = 2, .offset = common::core::Fraction{479, 480}
                 });
-            CHECK(moved.sustain == common::core::Fraction{2});
+            CHECK(moved.sustain == common::core::Fraction{1, 4});
             REQUIRE(moved.keyframes.size() == 1);
-            CHECK(moved.keyframes.front().offset == common::core::Fraction{1});
+            CHECK(moved.keyframes.front().offset == common::core::Fraction{1, 8});
         }
     }
 
@@ -6891,20 +6938,19 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
         const common::core::GridPosition onset{.measure = 2, .beat = 4};
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        // Three beats from the last 4/4 beat: one quarter to the barline, then two eighths.
-        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{3})};
+        // A half note from the last 4/4 beat: a quarter to the barline, then a quarter of 6/8.
+        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{1, 2})};
         chart.notes.front().keyframes = {
-            common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 7}
+            common::core::Keyframe{.offset = common::core::Fraction{1, 4}, .fret = 7}
         };
         REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
 
-        // One tick is 1/3840 of a whole note everywhere; as a 4/4 beat count (1/960) it would be
-        // half a 6/8 tick, which the gate refuses.
+        // One tick is 1/3840 of a whole note in every meter, so the step lands on the 6/8 lattice.
         const auto plan = planMoveSelection(
             chart,
             tempo_map,
             {},
-            {keyframeKeyAt(onset, 1, common::core::Fraction{1})},
+            {keyframeKeyAt(onset, 1, common::core::Fraction{1, 4})},
             common::core::g_tick_quantum_note_value,
             0,
             "Move Keyframe");
@@ -6912,7 +6958,8 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
         if (plan.has_value())
         {
             applyAndValidate(chart, tempo_map, *plan);
-            CHECK(chart.notes.front().keyframes.front().offset == common::core::Fraction{481, 480});
+            CHECK(
+                chart.notes.front().keyframes.front().offset == common::core::Fraction{961, 3840});
         }
     }
 
@@ -6926,12 +6973,11 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         // A one-tick ring that ends exactly on the barline: too short to scrape, and the only
         // short ring from this onset whose end is a tick in the meter it lands in.
-        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{1, 960})};
+        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{1, 3840})};
         REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
 
-        // The quarter-note default is a note VALUE: one tick to the barline, then 959 ticks of 6/8,
-        // which is one eighth-note beat and 479/480 of the next. Stated as one BEAT at the onset's
-        // meter it would end 479.5 ticks into measure 3, between two ticks.
+        // The quarter-note default is a note value: one tick to the barline, then 959 ticks of 6/8,
+        // which ends one eighth-note beat and 479/480 of the next into measure 3 — on a tick.
         const auto plan = planSetAttack(
                               chart,
                               tempo_map,
@@ -6944,9 +6990,10 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
         {
             applyAndValidate(chart, tempo_map, *plan);
             const common::core::ChartNote& scrape = chart.notes.front();
-            CHECK(scrape.sustain == common::core::Fraction{1919, 960});
+            CHECK(scrape.sustain == common::core::Fraction{1, 4});
             CHECK(
-                common::core::sustainEndPosition(tempo_map, scrape) ==
+                common::core::advanceGridPositionByWholeNotes(
+                    tempo_map, scrape.position, scrape.sustain) ==
                 common::core::GridPosition{
                     .measure = 3, .beat = 2, .offset = common::core::Fraction{479, 480}
                 });

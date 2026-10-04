@@ -188,7 +188,7 @@ armed caret) or where an entry recorded no focus. Re-check which of those reach
   `attack`, `mute` and `emphasis` each spell their tokens once in the reader's if-chain and again
   in the writer's switch, with only a round-trip test standing between a writer-side rename and
   silent divergence. `chart_tokens.h` already owns exactly this parse/format-pair shape for grid
-  positions and beat fractions, so the third instance is the one that earns lifting all three into
+  positions and fraction tokens, so the third instance is the one that earns lifting all three into
   it. Deliberately not done with the emphasis change: it would have pulled two unrelated enums
   into that diff.
 - **The harmonic/touch tripwire is weaker than the emphasis one it was the model for.** It tests
@@ -517,11 +517,10 @@ remains:
 
 - **Four bare `1e-9` onset epsilons in `gp_chart_builder.cpp`** that should alias the named
   constant the way `highway_renderer.cpp` does.
-- **`withinGrid` in `gp_chart_builder.cpp` restates `isValidGridPosition`**, papering over the
-  real asymmetry: the file's two beat-to-position converters answer differently past the last bar
-  (`advanceGridPosition` extends the final signature, `gridPositionForGlobalBeat` clamps the
-  measure and emits an out-of-range beat). Making the latter extend like the tempo map deletes
-  `withinGrid` and both call-site guards; short of that, call the authority.
+- ~~**`withinGrid` in `gp_chart_builder.cpp` restates `isValidGridPosition`**~~ — **GONE
+  2026-10-04** with `whole-note-durations.md`: the importer derives every place on the whole-note
+  axis and converts through the tempo map's one `gridPositionAtWholeNote`, so both beat-to-position
+  converters and `withinGrid` are deleted; `withinScore` compares a place against the terminal.
 - ~~**Two payload-clip helpers for one rule**~~ — **GONE 2026-09-23** with
   `ring-ends-and-authoring-planes.md`: presentation no longer clips a payload (it only stops the
   ink), so `clipPayloadsTo` is deleted and `clipPayloadsToSustain` (`chart_rules.h`) is the one
@@ -705,7 +704,8 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
     tap-at-claimed-stop split (#277) is unbuilt, so until it lands a span can keep the light lit a
     little past such a tap. The history below is the original.
   - **The FHP silence fade** — the fretting hand's backlight going out through a left-hand rest
-    of a quarter note or more and returning ahead of the next statement, led by `marginBefore`.
+    of a quarter note or more and returning ahead of the next statement, led by the minimum sustain
+    distance (`minimumSustainDistance`).
     Revisit **after the derivation plan lands**: the rule's threshold and its lead are both
     musical, and what "left-hand information" means is exactly the kind of closed list that plan
     is settling. Two open questions rode it and are still open — whether a picking-hand TAP keeps

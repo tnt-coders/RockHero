@@ -57,17 +57,17 @@ namespace rock_hero::editor::core
 }
 
 // The glide chart the keyframe scenarios run on: one pitched slide on string 3 whose junction sits
-// four beats into an eight-beat ring, so a few steps either way still land a point strictly inside
-// the ring and short of the next path stop. Every other lane is empty, so a probe can only land on
-// the gesture under test. At the default grid its onset (measure 2 beat 1) is 2.0s and the
+// a whole note into a two-whole-note ring, so a few steps either way still land a point strictly
+// inside the ring and short of the next path stop. Every other lane is empty, so a probe can only
+// land on the gesture under test. At the default grid its onset (measure 2 beat 1) is 2.0s and the
 // junction's linked head draws at 4.0s.
 [[nodiscard]] inline common::core::Chart makeGlideChart()
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote glide =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
-    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 9}};
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{2});
+    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 9}};
     chart.notes = {std::move(glide)};
     return chart;
 }
@@ -82,7 +82,7 @@ namespace rock_hero::editor::core
     if (stated)
     {
         chart.notes[0].keyframes.push_back(
-            common::core::Keyframe{.offset = common::core::Fraction{8}, .fret = 12});
+            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 12});
     }
     chart.notes.push_back(makeTestNote({.measure = 4, .beat = 1}, 3, 3));
     return chart;

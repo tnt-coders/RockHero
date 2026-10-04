@@ -6,7 +6,6 @@
 #include <format>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -20,15 +19,20 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// A place as a token under the new meters, rounded onto the lattice only where it lies off it.
-// Exact rationals both ways, so the lattice place survives whole, and the assert that says so
-// costs one more address query.
-[[nodiscard]] common::core::GridPosition addressOf(
-    const common::core::TempoMap& to, const common::core::Fraction whole_note)
+// Where the content map sends an old place, rounded onto the lattice only where it lands off it.
+[[nodiscard]] common::core::Fraction mappedPlace(
+    const ContentMap& content, const common::core::Fraction whole_note)
 {
-    const common::core::Fraction place = common::core::nearestTickPlace(whole_note);
-    const common::core::GridPosition position =
-        common::core::advanceGridPositionByWholeNotes(to, common::core::GridPosition{}, place);
+    return common::core::nearestTickPlace(content(whole_note));
+}
+
+// A lattice place as a token under the new meters. Exact rationals both ways, so the place
+// survives whole, and the assert that says so costs one more address query.
+[[nodiscard]] common::core::GridPosition addressOf(
+    const common::core::TempoMap& to, const common::core::Fraction place)
+{
+    assert(common::core::isOnTickLattice(place) && "only a lattice place is addressed");
+    const common::core::GridPosition position = to.gridPositionAtWholeNote(place);
     assert(
         to.wholeNotePositionAt(position) == place &&
         "addressing keeps the whole-note place exactly");
@@ -84,11 +88,8 @@ timeSignaturesOf(
                         "the {} time signature at {} would start mid-measure under the {} before "
                         "it",
                         timeSignatureText(placed.meter),
-                        common::core::formatGridPositionToken(
-                            common::core::advanceGridPositionByWholeNotes(
-                                old_map,
-                                common::core::GridPosition{},
-                                placeNow(old_map, content, placed.whole_note))),
+                        common::core::formatGridPositionToken(old_map.gridPositionAtWholeNote(
+                            placeNow(old_map, content, placed.whole_note))),
                         timeSignatureText(previous->meter)),
                 }};
             }
@@ -144,7 +145,7 @@ common::core::GridPosition readdressedPosition(
     const common::core::TempoMap& from, const common::core::TempoMap& to, const ContentMap& content,
     const common::core::GridPosition position)
 {
-    return addressOf(to, content(from.wholeNotePositionAt(position)));
+    return addressOf(to, mappedPlace(content, from.wholeNotePositionAt(position)));
 }
 
 std::expected<common::core::SongTimeline, ReaddressError> readdressTimeline(
@@ -167,22 +168,14 @@ std::expected<common::core::SongTimeline, ReaddressError> readdressTimeline(
             return readdressedPosition(old_map, address_map, content, position);
         };
 
-    // A ring or a keyframe offset counts BEATS from its onset, and a beat is one denominator
-    // note, so it is re-expressed: the new beat distance from the mapped onset to the place it
-    // reached under the old map, mapped.
-    const auto reexpress = [&address_map, &mapped](
-                               const common::core::GridPosition onset,
-                               const common::core::GridPosition old_end) {
-        return common::core::beatDistance(address_map, onset, mapped(old_end));
-    };
-
     std::vector<common::core::BeatAnchor> placed_anchors;
     placed_anchors.reserve(anchors.size());
     for (const PlacedAnchor& anchor : anchors)
     {
         placed_anchors.push_back(
             common::core::BeatAnchor{
-                .position = addressOf(address_map, anchor.whole_note),
+                .position =
+                    addressOf(address_map, common::core::nearestTickPlace(anchor.whole_note)),
                 .milliseconds = anchor.milliseconds,
             });
     }
@@ -208,17 +201,18 @@ std::expected<common::core::SongTimeline, ReaddressError> readdressTimeline(
             common::core::Chart& chart = *arrangement.chart;
             for (common::core::ChartNote& note : chart.notes)
             {
-                // Every duration is measured under the old map from the old onset, so the onset is
-                // written last.
-                const common::core::GridPosition onset = mapped(note.position);
+                // A ring and a keyframe offset are note values from the onset, so each becomes the
+                // distance between where its two instants are sent — both rounded the way every
+                // place is, which keeps the end on the lattice wherever the onset rounds. A meter
+                // edit sends every place to itself, so it leaves every duration untouched.
+                const common::core::Fraction old_onset = old_map.wholeNotePositionAt(note.position);
+                const common::core::Fraction onset = mappedPlace(content, old_onset);
                 for (common::core::Keyframe& keyframe : note.keyframes)
                 {
-                    keyframe.offset = reexpress(
-                        onset,
-                        common::core::advanceGridPosition(old_map, note.position, keyframe.offset));
+                    keyframe.offset = mappedPlace(content, old_onset + keyframe.offset) - onset;
                 }
-                note.sustain = reexpress(onset, common::core::sustainEndPosition(old_map, note));
-                note.position = onset;
+                note.sustain = mappedPlace(content, old_onset + note.sustain) - onset;
+                note.position = addressOf(address_map, onset);
             }
             for (common::core::FretHandPosition& placement : chart.fret_hand_positions)
             {

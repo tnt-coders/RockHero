@@ -56,8 +56,14 @@ struct ScoringRuleset
     */
     int base_note_score{50};
 
-    /*! \brief Sustain score per beat of sustain, pro-rated by the held fraction. */
-    int sustain_score_per_beat{25};
+    /*!
+    \brief Sustain score per whole note of sustain (25 a quarter, in every meter), pro-rated by the
+    held fraction.
+
+    A note value rather than a rate per second: it rewards held music, and a per-second rate would
+    pay a slow song more for the same note.
+    */
+    int sustain_score_per_whole_note{100};
 
     /*!
     \brief Cents tolerance around the charted pitch trajectory that counts a sustain as held.

@@ -216,7 +216,7 @@ holds `ChartSelectionKey` values, and that key is a **sum** —
 `ChartSlotKey`, the `(position, string)` the note stream is keyed by; the second is not, and that
 is why the key is a sum rather than a kind tag beside a slot. A
 note carries many keyframes, so a keyframe's identity is `(note slot, offset)` — the authored
-beat-fraction offset and never an index, because removing an earlier keyframe shifts every later
+whole-note offset and never an index, because removing an earlier keyframe shifts every later
 index and moves no offset. Carrying that offset as a field only one kind uses would make "a note
 key with an offset" spellable and owe every reader a rule about what it meant; as a sum neither
 shape exists to be misread.

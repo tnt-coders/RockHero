@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -33,11 +34,11 @@ namespace
     return TempoMap::defaultMap(TimeDuration{16.0});
 }
 
-// The ring a fixture note starts with when the case is not about its duration: an eighth of a
-// beat. Positive, as every stored ring must be (a zero one is refused); under the kept-sustain
+// The ring a fixture note starts with when the case is not about its duration: a thirty-second
+// note. Positive, as every stored ring must be (a zero one is refused); under the kept-sustain
 // bound, so it presents no tail and earns no group one; and shorter than every gap these fixtures
 // use, so it justifies no legato claim. A case that turns on the duration states its own.
-constexpr Fraction g_fixture_ring{1, 8};
+constexpr Fraction g_fixture_ring{1, 32};
 
 // One chart exercising every construct the format defines.
 [[nodiscard]] Chart makeFullChart()
@@ -73,20 +74,20 @@ constexpr Fraction g_fixture_ring{1, 8};
             .position = GridPosition{.measure = 1, .beat = 2},
             .string = 4,
             .fret = 12,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .attack = NoteAttack::Tap,
             .bend = 0.0,
             .keyframes =
-                {Keyframe{.offset = Fraction{1, 4}, .fret = 13},
+                {Keyframe{.offset = Fraction{1, 16}, .fret = 13},
                  // The slide-out: a fret stated exactly at the ring's end, where the hand leaves
                  // toward it rather than sounding it.
-                 Keyframe{.offset = Fraction{1, 2}, .fret = 15}},
+                 Keyframe{.offset = Fraction{1, 8}, .fret = 15}},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 4,
             .fret = 7,
-            .sustain = Fraction{4},
+            .sustain = Fraction{1},
             .vibrato = VibratoState::Narrow,
             // The bend channel: an unbent onset, then a curl, a full step, and a slide-out, each on
             // its own keyframe. Nothing states a fret, so the note never travels — a compound bend
@@ -94,16 +95,16 @@ constexpr Fraction g_fixture_ring{1, 8};
             .bend = 0.0,
             .keyframes =
                 {
-                    Keyframe{.offset = Fraction{1, 2}, .bend = 0.5},
-                    Keyframe{.offset = Fraction{2}, .bend = 2.0},
-                    Keyframe{.offset = Fraction{4}, .bend = 0.0},
+                    Keyframe{.offset = Fraction{1, 8}, .bend = 0.5},
+                    Keyframe{.offset = Fraction{1, 2}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{1}, .bend = 0.0},
                 },
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 5,
             .fret = 5,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .attack = NoteAttack::Pinch,
             // Beyond the stop at fret 5, because nothing vibrates behind the fretting finger. The
             // 5th partial's node rather than the octave's, COMPUTED rather than typed: it is what
@@ -121,13 +122,13 @@ constexpr Fraction g_fixture_ring{1, 8};
             .position = GridPosition{.measure = 3, .beat = 2},
             .string = 6,
             .fret = 3,
-            .sustain = Fraction{1, 3},
+            .sustain = Fraction{1, 12},
             .attack = NoteAttack::Slap,
             .bend = 0.0,
             // A shift-slide glide, written the way every pitched arrival is: the stop sits one
             // margin INSIDE the ring — at the end it would be the slide-out instead — and the ring
             // runs on to the re-picked landing (the 3:2+1/3 note below).
-            .keyframes = {Keyframe{.offset = Fraction{1, 12}, .fret = 5}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 48}, .fret = 5}},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 3}},
@@ -150,21 +151,21 @@ constexpr Fraction g_fixture_ring{1, 8};
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
             .fret = 17,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
             .keyframes =
-                {Keyframe{.offset = Fraction{1, 2}, .fret = 5},
-                 Keyframe{.offset = Fraction{1}, .fret = 9}},
+                {Keyframe{.offset = Fraction{1, 8}, .fret = 5},
+                 Keyframe{.offset = Fraction{1, 4}, .fret = 9}},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
             .string = 4,
             .fret = 3,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 12}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 12}},
         },
         // A connection claim with the note that justifies it: the predecessor rings exactly to the
         // claim's onset, which is what the hold test asks (strict adjacency — and the same-string
@@ -174,7 +175,7 @@ constexpr Fraction g_fixture_ring{1, 8};
             .position = GridPosition{.measure = 4, .beat = 3},
             .string = 6,
             .fret = 5,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -205,7 +206,8 @@ constexpr Fraction g_fixture_ring{1, 8};
     const std::vector<ChartNote>& notes, const GridPosition& position, const TempoMap& tempo_map)
 {
     const ChartResolutions resolved = chartResolutions(notes, tempo_map);
-    const std::vector<bool> arrivals = chartShapeArrivals(notes, resolved.shapes, tempo_map);
+    const std::vector<bool> arrivals =
+        chartShapeArrivals(resolved.connections, resolved.shapes, tempo_map);
     REQUIRE(arrivals.size() == resolved.shapes.size());
     // The span COVERING the slot, not the one starting exactly on it. THE DATING RULE puts a span's
     // FRONT at its earliest uncovered member onset, so a strum that picks around a still-ringing
@@ -216,8 +218,8 @@ constexpr Fraction g_fixture_ring{1, 8};
     for (std::size_t index = 0; index < resolved.shapes.size(); ++index)
     {
         const ChartShape& shape = resolved.shapes[index];
-        const Fraction start = beatDistance(tempo_map, GridPosition{}, shape.position);
-        const Fraction at = beatDistance(tempo_map, GridPosition{}, position);
+        const Fraction start = tempo_map.wholeNotePositionAt(shape.position);
+        const Fraction at = tempo_map.wholeNotePositionAt(position);
         if (!(at < start) && (at < start + shape.sustain || at == start))
         {
             found = arrivals[index];
@@ -228,8 +230,8 @@ constexpr Fraction g_fixture_ring{1, 8};
     return found.has_value() && *found;
 }
 
-// A four-beat fret-5 hold on the low E opening at `onset`'s width, for the per-leg vibrato cases:
-// long enough that a keyframe one, two or three beats in lies strictly inside the ring.
+// A whole-note fret-5 hold on the low E opening at `onset`'s width, for the per-leg vibrato cases:
+// long enough that a keyframe one, two or three quarters in lies strictly inside the ring.
 [[nodiscard]] ChartNote vibratoLegNote(
     const VibratoState onset, const std::vector<Keyframe>& keyframes)
 {
@@ -237,7 +239,7 @@ constexpr Fraction g_fixture_ring{1, 8};
     note.position = GridPosition{.measure = 1, .beat = 1};
     note.string = 1;
     note.fret = 5;
-    note.sustain = Fraction{4};
+    note.sustain = Fraction{1};
     note.vibrato = onset;
     note.keyframes = keyframes;
     return note;
@@ -589,7 +591,7 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 1;
         note.fret = 0;
-        note.sustain = Fraction{1};
+        note.sustain = Fraction{1, 4};
         note.harmonic_node = 12.0;
         REQUIRE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
         // A negative-form range test has both halves false for NaN, so NaN would pass it; the
@@ -600,8 +602,8 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
 }
 
 // The tick lattice is the finest position a chart may state, and every stored instant is held to
-// it: the onset, where the ring ends, and each keyframe. A 4/4 beat holds 960 ticks, so a whole
-// number of 960ths lands on the lattice and half a tick past one does not.
+// it: the onset, where the ring ends, and each keyframe. A quarter note holds 960 ticks and a whole
+// note 3840, so a whole number of either lands on the lattice and half a tick past one does not.
 TEST_CASE("Chart rules refuse an instant between two ticks", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -611,8 +613,8 @@ TEST_CASE("Chart rules refuse an instant between two ticks", "[core][chart]")
     note.position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 960}};
     note.string = 1;
     note.fret = 5;
-    note.sustain = Fraction{1};
-    note.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 7}};
+    note.sustain = Fraction{1, 4};
+    note.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 7}};
     REQUIRE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
 
     SECTION("an onset between two ticks")
@@ -622,17 +624,56 @@ TEST_CASE("Chart rules refuse an instant between two ticks", "[core][chart]")
     }
     SECTION("a ring ending between two ticks")
     {
-        note.sustain = Fraction{1920 + 1, 1920};
+        note.sustain = Fraction{7680 + 1, 7680};
         CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
     }
     SECTION("a keyframe between two ticks, however close to one")
     {
-        note.keyframes.front().offset = Fraction{99, 1600};
+        note.keyframes.front().offset = Fraction{99, 6400};
         CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
     }
     SECTION("a septuplet instant, which no tick divides")
     {
         note.position.offset = Fraction{4, 7};
+        CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+    }
+}
+
+// A duration is a note value, so its lattice test is its own: a whole number of ticks of a whole
+// note is on the lattice wherever it starts, and a septuplet's seventh is on it nowhere — whatever
+// meter the note stands in. That holds only because the onset is held to the lattice first.
+TEST_CASE("A duration's lattice test is the same in every meter", "[core][chart]")
+{
+    ChartTuning tuning;
+    tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    const std::vector<TimeSignature> meters{
+        {.numerator = 4, .denominator = 4},
+        {.numerator = 6, .denominator = 8},
+        {.numerator = 7, .denominator = 8},
+        {.numerator = 5, .denominator = 16},
+        {.numerator = 3, .denominator = 2},
+    };
+    for (const TimeSignature meter : meters)
+    {
+        const TempoMap tempo_map{
+            {TimeSignatureChange{.measure = 1, .meter = meter}},
+            {BeatAnchor{.position = GridPosition{.measure = 1, .beat = 1}, .milliseconds = 0},
+             BeatAnchor{.position = GridPosition{.measure = 5, .beat = 1}, .milliseconds = 8000}},
+        };
+        ChartNote note;
+        note.position = GridPosition{.measure = 2, .beat = 2};
+        note.string = 1;
+        note.fret = 5;
+
+        note.sustain = g_tick_quantum_note_value;
+        CHECK(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+        note.sustain = Fraction{1, 7};
+        CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+
+        note.sustain = Fraction{1, 2};
+        note.keyframes = {Keyframe{.offset = g_tick_quantum_note_value, .fret = 7}};
+        CHECK(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+        note.keyframes.front().offset = Fraction{1, 7};
         CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
     }
 }
@@ -833,13 +874,13 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         CHECK_FALSE(
             parseChartDocument(
                 R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "sustain": "1/8",)"
+                R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "sustain": "1/32",)"
                 R"( "harmonic": "natural" } ] })")
                 .has_value());
         CHECK_FALSE(
             parseChartDocument(
                 R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/8",)"
+                R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/32",)"
                 R"( "touch": 12.0 } ] })")
                 .has_value());
     }
@@ -941,14 +982,14 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     note.position = GridPosition{.measure = 1, .beat = 1};
     note.string = 1;
     note.fret = 5;
-    note.sustain = Fraction{2};
+    note.sustain = Fraction{1, 2};
     note.vibrato = VibratoState::Narrow;
     note.bend = 1.0;
     note.keyframes = {
-        Keyframe{.offset = Fraction{1, 4}, .fret = 7},
-        Keyframe{.offset = Fraction{1, 2}, .bend = 0.0},
-        Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Wide},
-        Keyframe{.offset = Fraction{3, 2}, .fret = 9, .bend = 2.0, .vibrato = VibratoState::Narrow},
+        Keyframe{.offset = Fraction{1, 16}, .fret = 7},
+        Keyframe{.offset = Fraction{1, 8}, .bend = 0.0},
+        Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Wide},
+        Keyframe{.offset = Fraction{3, 8}, .fret = 9, .bend = 2.0, .vibrato = VibratoState::Narrow},
     };
 
     Chart chart;
@@ -1006,15 +1047,15 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     const auto parse_note = [](const std::string& body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-            R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1/2", )" +
+            R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", )" +
             body + R"( } ] })");
     };
 
-    const auto slides = parse_note(R"("slides": [ { "offset": "1/4", "fret": 7 } ])");
+    const auto slides = parse_note(R"("slides": [ { "offset": "1/16", "fret": 7 } ])");
     REQUIRE_FALSE(slides.has_value());
     CHECK(slides.error().message.find("re-import") != std::string::npos);
 
-    const auto waypoints = parse_note(R"("waypoints": [ { "offset": "1/4", "fret": 7 } ])");
+    const auto waypoints = parse_note(R"("waypoints": [ { "offset": "1/16", "fret": 7 } ])");
     REQUIRE_FALSE(waypoints.has_value());
     CHECK(waypoints.error().message.find("re-import") != std::string::npos);
 
@@ -1022,7 +1063,7 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     REQUIRE_FALSE(bend_curve.has_value());
     CHECK(bend_curve.error().message.find("re-import") != std::string::npos);
 
-    const auto slide_out_object = parse_note(R"("slideOut": { "offset": "1/2", "fret": 9 })");
+    const auto slide_out_object = parse_note(R"("slideOut": { "offset": "1/8", "fret": 9 })");
     REQUIRE_FALSE(slide_out_object.has_value());
     CHECK(slide_out_object.error().message.find("re-import") != std::string::npos);
 
@@ -1035,9 +1076,9 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     // The controls: each key in its CURRENT shape loads, so the refusals above are about the old
     // shape and not about the key existing. The slide-out's current shape is a keyframe stated at
     // the sustain, which the first control already is.
-    CHECK(parse_note(R"("keyframes": [ { "offset": "1/4", "fret": 7 } ])").has_value());
+    CHECK(parse_note(R"("keyframes": [ { "offset": "1/16", "fret": 7 } ])").has_value());
     CHECK(parse_note(R"("bend": 1.0)").has_value());
-    CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "fret": 9 } ])").has_value());
+    CHECK(parse_note(R"("keyframes": [ { "offset": "1/8", "fret": 9 } ])").has_value());
 }
 
 // The vibrato channel is a WIDTH axis, and the document says so in words: the ordinary vibrato is
@@ -1050,7 +1091,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
     const auto parse_note = [](const std::string& body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-            R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1", )" +
+            R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1/4", )" +
             body + R"( } ] })");
     };
 
@@ -1065,14 +1106,14 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             note.position = GridPosition{.measure = 1, .beat = 1};
             note.string = 1;
             note.fret = 5;
-            note.sustain = Fraction{2};
+            note.sustain = Fraction{1, 2};
             note.vibrato = width;
             // The keyframe's leg steps to the OTHER width, so across the loop each word is also
             // spelled on a keyframe: a repeated width would be silent, and the writer drops it.
             const VibratoState other =
                 width == VibratoState::Narrow ? VibratoState::Wide : VibratoState::Narrow;
             note.keyframes = {
-                Keyframe{.offset = Fraction{1}, .vibrato = other},
+                Keyframe{.offset = Fraction{1, 4}, .vibrato = other},
             };
             chart.notes = {note};
 
@@ -1098,7 +1139,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 1;
         note.fret = 5;
-        note.sustain = Fraction{1};
+        note.sustain = Fraction{1, 4};
         chart.notes = {note};
         CHECK(chartDocumentText(chart, tempo_map).find(R"("vibrato")") == std::string::npos);
     }
@@ -1120,16 +1161,16 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
     {
         // Nothing carries, so a keyframe never has to say vibrato ends, and `off` is a read error
         // there exactly as at the onset.
-        const auto off = parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "off" } ])");
+        const auto off = parse_note(R"("keyframes": [ { "offset": "1/8", "vibrato": "off" } ])");
         REQUIRE_FALSE(off.has_value());
         CHECK(off.error().message.find("vibrato is unknown") != std::string::npos);
         CHECK_FALSE(
-            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "none" } ])").has_value());
+            parse_note(R"("keyframes": [ { "offset": "1/8", "vibrato": "none" } ])").has_value());
         CHECK(
-            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "narrow" } ])").has_value());
-        CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "wide" } ])").has_value());
+            parse_note(R"("keyframes": [ { "offset": "1/8", "vibrato": "narrow" } ])").has_value());
+        CHECK(parse_note(R"("keyframes": [ { "offset": "1/8", "vibrato": "wide" } ])").has_value());
         const auto unknown =
-            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "slight" } ])");
+            parse_note(R"("keyframes": [ { "offset": "1/8", "vibrato": "slight" } ])");
         REQUIRE_FALSE(unknown.has_value());
         CHECK(unknown.error().message.find("vibrato is unknown") != std::string::npos);
     }
@@ -1145,7 +1186,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             std::string::npos);
 
         const auto keyframe =
-            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": false } ])");
+            parse_note(R"("keyframes": [ { "offset": "1/8", "vibrato": false } ])");
         REQUIRE_FALSE(keyframe.has_value());
         CHECK(
             keyframe.error().message.find(R"(re-import the package to get "vibrato": "narrow")") !=
@@ -1173,18 +1214,18 @@ TEST_CASE("vibratoBefore reads the leg an instant lies in", "[core][chart]")
 {
     const ChartNote note = vibratoLegNote(
         VibratoState::Narrow,
-        {Keyframe{.offset = Fraction{1}, .fret = 7, .vibrato = VibratoState::Wide},
-         Keyframe{.offset = Fraction{2}, .fret = 7}});
+        {Keyframe{.offset = Fraction{1, 4}, .fret = 7, .vibrato = VibratoState::Wide},
+         Keyframe{.offset = Fraction{1, 2}, .fret = 7}});
 
     // The onset's leg.
-    CHECK(vibratoBefore(note, Fraction{1, 2}) == VibratoState::Narrow);
+    CHECK(vibratoBefore(note, Fraction{1, 8}) == VibratoState::Narrow);
     // A keyframe's leg, and the unvibrated leg the last one begins.
-    CHECK(vibratoBefore(note, Fraction{3, 2}) == VibratoState::Wide);
-    CHECK(vibratoBefore(note, Fraction{3}) == VibratoState::None);
+    CHECK(vibratoBefore(note, Fraction{3, 8}) == VibratoState::Wide);
+    CHECK(vibratoBefore(note, Fraction{3, 4}) == VibratoState::None);
     // A keyframe AT the instant is ignored: the answer is the leg it ends, the onset's at the first
     // and the first keyframe's at the second.
-    CHECK(vibratoBefore(note, Fraction{1}) == VibratoState::Narrow);
-    CHECK(vibratoBefore(note, Fraction{2}) == VibratoState::Wide);
+    CHECK(vibratoBefore(note, Fraction{1, 4}) == VibratoState::Narrow);
+    CHECK(vibratoBefore(note, Fraction{1, 2}) == VibratoState::Wide);
 }
 
 // Every creator of a mid-ring keyframe starts from this record, so a point planted for its fret or
@@ -1192,12 +1233,12 @@ TEST_CASE("vibratoBefore reads the leg an instant lies in", "[core][chart]")
 TEST_CASE("keyframeInLeg carries the width of the leg it divides", "[core][chart]")
 {
     const ChartNote note =
-        vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 5}});
+        vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 2}, .fret = 5}});
 
     SECTION("inside a vibrated leg it carries that leg's width and states nothing else")
     {
-        const Keyframe point = keyframeInLeg(note, Fraction{1});
-        CHECK(point.offset == Fraction{1});
+        const Keyframe point = keyframeInLeg(note, Fraction{1, 4});
+        CHECK(point.offset == Fraction{1, 4});
         CHECK_FALSE(point.fret.has_value());
         CHECK_FALSE(point.bend.has_value());
         CHECK(point.vibrato == VibratoState::Narrow);
@@ -1208,13 +1249,13 @@ TEST_CASE("keyframeInLeg carries the width of the leg it divides", "[core][chart
         stated.fret = 9;
         planted.keyframes.insert(planted.keyframes.begin(), stated);
         CHECK(acceptedAlone(planted));
-        CHECK(ringStateAt(planted, Fraction{3, 2}).vibrato == VibratoState::Narrow);
+        CHECK(ringStateAt(planted, Fraction{3, 8}).vibrato == VibratoState::Narrow);
     }
 
     SECTION("inside an unvibrated leg it carries None")
     {
-        const Keyframe point = keyframeInLeg(note, Fraction{3});
-        CHECK(point.offset == Fraction{3});
+        const Keyframe point = keyframeInLeg(note, Fraction{3, 4});
+        CHECK(point.offset == Fraction{3, 4});
         CHECK_FALSE(point.fret.has_value());
         CHECK_FALSE(point.bend.has_value());
         CHECK(point.vibrato == VibratoState::None);
@@ -1228,23 +1269,23 @@ TEST_CASE(
     "[core][chart]")
 {
     ChartNote note =
-        vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 5}});
+        vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 2}, .fret = 5}});
 
     SECTION("a keyframe standing there is the one reached")
     {
-        keyframeAt(note, Fraction{2}).bend = 1.0;
+        keyframeAt(note, Fraction{1, 2}).bend = 1.0;
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].fret == 5);
         CHECK(note.keyframes[0].bend.has_value());
     }
     SECTION("where none stands one is planted in order, carrying the leg's width")
     {
-        keyframeAt(note, Fraction{1}).bend = 1.0;
+        keyframeAt(note, Fraction{1, 4}).bend = 1.0;
         REQUIRE(note.keyframes.size() == 2);
-        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(note.keyframes[0].offset == Fraction{1, 4});
         CHECK_FALSE(note.keyframes[0].fret.has_value());
         CHECK(note.keyframes[0].vibrato == VibratoState::Narrow);
-        CHECK(note.keyframes[1].offset == Fraction{2});
+        CHECK(note.keyframes[1].offset == Fraction{1, 2});
     }
 }
 
@@ -1256,9 +1297,9 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
     SECTION("no keyframe after a vibrated leg: a bare keyframe is created")
     {
         ChartNote note = vibratoLegNote(VibratoState::Narrow, {});
-        endVibratoAt(note, Fraction{2});
+        endVibratoAt(note, Fraction{1, 2});
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
         CHECK_FALSE(note.keyframes[0].fret.has_value());
         CHECK_FALSE(note.keyframes[0].bend.has_value());
         CHECK(note.keyframes[0].vibrato == VibratoState::None);
@@ -1267,14 +1308,15 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
 
     SECTION("the path is untouched: a bare ending inside a glide leaves the glide whole")
     {
-        // A glide from 5 to 7 over two beats. A fret restated at one beat would have split it into
-        // a hold and a glide; the bare ending states no position, so the path is the same stops.
+        // A glide from 5 to 7 over two quarters. A fret restated at a quarter would have split it
+        // into a hold and a glide; the bare ending states no position, so the path is the same
+        // stops.
         const ChartNote gliding =
-            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 7}});
+            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 2}, .fret = 7}});
         ChartNote ending = gliding;
-        endVibratoAt(ending, Fraction{1});
+        endVibratoAt(ending, Fraction{1, 4});
         REQUIRE(ending.keyframes.size() == 2);
-        CHECK(ending.keyframes[0].offset == Fraction{1});
+        CHECK(ending.keyframes[0].offset == Fraction{1, 4});
         CHECK_FALSE(ending.keyframes[0].fret.has_value());
         CHECK(ending.keyframes[0].vibrato == VibratoState::None);
         // Writing it is this function's whole job; the chart then refuses it, since no vibrato
@@ -1310,14 +1352,14 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
     {
         // The leg before the instant is the one the stop at 1 begins, not the vibrated onset's.
         ChartNote note =
-            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1}, .fret = 5}});
+            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 4}, .fret = 5}});
         const ChartNote before = note;
-        endVibratoAt(note, Fraction{2});
+        endVibratoAt(note, Fraction{1, 2});
         CHECK(note == before);
         CHECK(acceptedAlone(note));
 
         ChartNote plain = vibratoLegNote(VibratoState::None, {});
-        endVibratoAt(plain, Fraction{2});
+        endVibratoAt(plain, Fraction{1, 2});
         CHECK(plain.keyframes.empty());
         CHECK(acceptedAlone(plain));
     }
@@ -1325,10 +1367,11 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
     SECTION("a width-only keyframe after a vibrated leg becomes bare")
     {
         ChartNote note = vibratoLegNote(
-            VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Wide}});
-        endVibratoAt(note, Fraction{2});
+            VibratoState::Narrow,
+            {Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Wide}});
+        endVibratoAt(note, Fraction{1, 2});
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
         CHECK_FALSE(note.keyframes[0].fret.has_value());
         CHECK_FALSE(note.keyframes[0].bend.has_value());
         CHECK(note.keyframes[0].vibrato == VibratoState::None);
@@ -1340,10 +1383,11 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
         // endVibratoAt never erases: the point stays as the bare beginning of a leg, and whether
         // it says anything is the commit law's question, which calls it silent here.
         ChartNote note = vibratoLegNote(
-            VibratoState::None, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
-        endVibratoAt(note, Fraction{2});
+            VibratoState::None,
+            {Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}});
+        endVibratoAt(note, Fraction{1, 2});
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
         CHECK(keyframeStatesNothing(note.keyframes[0]));
         CHECK(keyframeSaysNothingNew(vibratoLegNote(VibratoState::None, {}), note.keyframes[0]));
         CHECK(acceptedAlone(note));
@@ -1355,10 +1399,10 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
     {
         ChartNote note = vibratoLegNote(
             VibratoState::Narrow,
-            {Keyframe{.offset = Fraction{2}, .fret = 7, .vibrato = VibratoState::Wide}});
-        endVibratoAt(note, Fraction{2});
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Wide}});
+        endVibratoAt(note, Fraction{1, 2});
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
         CHECK(note.keyframes[0].fret == 7);
         CHECK_FALSE(note.keyframes[0].bend.has_value());
         CHECK(note.keyframes[0].vibrato == VibratoState::None);
@@ -1370,11 +1414,11 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
 // alone. Whether a bare one SAYS anything is the commit law's question, tested below.
 TEST_CASE("keyframeStatesNothing reports a keyframe carrying no channel", "[core][chart]")
 {
-    CHECK(keyframeStatesNothing(Keyframe{.offset = Fraction{2}}));
-    CHECK_FALSE(keyframeStatesNothing(Keyframe{.offset = Fraction{2}, .fret = 7}));
-    CHECK_FALSE(keyframeStatesNothing(Keyframe{.offset = Fraction{2}, .bend = 1.0}));
+    CHECK(keyframeStatesNothing(Keyframe{.offset = Fraction{1, 2}}));
+    CHECK_FALSE(keyframeStatesNothing(Keyframe{.offset = Fraction{1, 2}, .fret = 7}));
+    CHECK_FALSE(keyframeStatesNothing(Keyframe{.offset = Fraction{1, 2}, .bend = 1.0}));
     CHECK_FALSE(
-        keyframeStatesNothing(Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}));
+        keyframeStatesNothing(Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}));
 }
 
 // The strip clears channels, and a keyframe it empties INSIDE the ring stays as a bare leg
@@ -1393,13 +1437,13 @@ TEST_CASE("stripKeyframeChannels clears channels and keeps an emptied keyframe",
         ChartNote note = vibratoLegNote(
             VibratoState::None,
             {
-                Keyframe{.offset = Fraction{1}, .fret = 7},
-                Keyframe{.offset = Fraction{2}, .fret = 9, .bend = 1.0},
-                Keyframe{.offset = Fraction{3}, .bend = 0.5},
+                Keyframe{.offset = Fraction{1, 4}, .fret = 7},
+                Keyframe{.offset = Fraction{1, 2}, .fret = 9, .bend = 1.0},
+                Keyframe{.offset = Fraction{3, 4}, .bend = 0.5},
             });
         CHECK(stripKeyframeChannels(note, strip_fret));
         REQUIRE(note.keyframes.size() == 3);
-        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(note.keyframes[0].offset == Fraction{1, 4});
         CHECK(keyframeStatesNothing(note.keyframes[0]));
         CHECK_FALSE(note.keyframes[1].fret.has_value());
         CHECK(note.keyframes[1].bend.has_value());
@@ -1415,22 +1459,22 @@ TEST_CASE("stripKeyframeChannels clears channels and keeps an emptied keyframe",
         ChartNote note = vibratoLegNote(
             VibratoState::None,
             {
-                Keyframe{.offset = Fraction{2}, .fret = 7},
-                Keyframe{.offset = Fraction{4}, .fret = 9},
+                Keyframe{.offset = Fraction{1, 2}, .fret = 7},
+                Keyframe{.offset = Fraction{1}, .fret = 9},
             });
         CHECK(stripKeyframeChannels(note, strip_fret));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
         CHECK(keyframeStatesNothing(note.keyframes[0]));
     }
 
     SECTION("a keyframe at the ring's end that keeps a channel stays")
     {
         ChartNote note = vibratoLegNote(
-            VibratoState::None, {Keyframe{.offset = Fraction{4}, .fret = 9, .bend = 1.0}});
+            VibratoState::None, {Keyframe{.offset = Fraction{1}, .fret = 9, .bend = 1.0}});
         CHECK(stripKeyframeChannels(note, strip_fret));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{4});
+        CHECK(note.keyframes[0].offset == Fraction{1});
         CHECK(note.keyframes[0].bend.has_value());
     }
 }
@@ -1440,7 +1484,7 @@ TEST_CASE("stripKeyframeChannels clears channels and keeps an emptied keyframe",
 // where no leg begins, it never does. The law is asked of the note WITHOUT the point.
 TEST_CASE("keyframeSaysNothingNew judges a width against the leg before it", "[core][chart]")
 {
-    const Keyframe bare{.offset = Fraction{2}};
+    const Keyframe bare{.offset = Fraction{1, 2}};
 
     SECTION("a bare keyframe after a vibrated leg ends the vibrato and says so")
     {
@@ -1455,7 +1499,7 @@ TEST_CASE("keyframeSaysNothingNew judges a width against the leg before it", "[c
 
         // The leg before is the one the stop at 1 begins, not the vibrated onset's.
         const ChartNote stopped =
-            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1}, .fret = 7}});
+            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 4}, .fret = 7}});
         CHECK(keyframeSaysNothingNew(stopped, bare));
     }
 
@@ -1463,24 +1507,24 @@ TEST_CASE("keyframeSaysNothingNew judges a width against the leg before it", "[c
     {
         const ChartNote narrow = vibratoLegNote(VibratoState::Narrow, {});
         CHECK(keyframeSaysNothingNew(
-            narrow, Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}));
+            narrow, Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}));
         CHECK_FALSE(keyframeSaysNothingNew(
-            narrow, Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Wide}));
+            narrow, Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Wide}));
     }
 
     SECTION("at the ring's end no leg begins, so no width says anything there")
     {
-        const Keyframe end_bare{.offset = Fraction{4}};
+        const Keyframe end_bare{.offset = Fraction{1}};
         for (const VibratoState onset : {VibratoState::None, VibratoState::Narrow})
         {
             CHECK(keyframeSaysNothingNew(vibratoLegNote(onset, {}), end_bare));
         }
         CHECK(keyframeSaysNothingNew(
             vibratoLegNote(VibratoState::None, {}),
-            Keyframe{.offset = Fraction{4}, .vibrato = VibratoState::Wide}));
+            Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Wide}));
         // A fret there is the slide-out, a statement whatever the leg before.
         CHECK_FALSE(keyframeSaysNothingNew(
-            vibratoLegNote(VibratoState::Narrow, {}), Keyframe{.offset = Fraction{4}, .fret = 7}));
+            vibratoLegNote(VibratoState::Narrow, {}), Keyframe{.offset = Fraction{1}, .fret = 7}));
     }
 }
 
@@ -1494,24 +1538,24 @@ TEST_CASE(
     {
         ChartNote note = vibratoLegNote(
             VibratoState::None,
-            {Keyframe{.offset = Fraction{2}, .fret = 5, .vibrato = VibratoState::Narrow}});
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 5, .vibrato = VibratoState::Narrow}});
         CHECK(
             shedSilentStatements(vibratoLegNote(VibratoState::None, {}), note.keyframes[0]) ==
-            Keyframe{.offset = Fraction{2}, .fret = {}, .vibrato = VibratoState::Narrow});
+            Keyframe{.offset = Fraction{1, 2}, .fret = {}, .vibrato = VibratoState::Narrow});
         CHECK(stripSilentKeyframes(note));
         REQUIRE(note.keyframes.size() == 1);
         CHECK(
             note.keyframes[0] ==
-            Keyframe{.offset = Fraction{2}, .fret = {}, .vibrato = VibratoState::Narrow});
+            Keyframe{.offset = Fraction{1, 2}, .fret = {}, .vibrato = VibratoState::Narrow});
     }
 
     SECTION("a bend at rest where the curve rests beside a new fret")
     {
         ChartNote note = vibratoLegNote(
-            VibratoState::None, {Keyframe{.offset = Fraction{2}, .fret = 7, .bend = 0.0}});
+            VibratoState::None, {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .bend = 0.0}});
         CHECK(stripSilentKeyframes(note));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0] == Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}});
+        CHECK(note.keyframes[0] == Keyframe{.offset = Fraction{1, 2}, .fret = 7, .bend = {}});
     }
 
     SECTION("a point whose every statement says something is untouched")
@@ -1519,7 +1563,7 @@ TEST_CASE(
         ChartNote note = vibratoLegNote(
             VibratoState::None,
             {Keyframe{
-                .offset = Fraction{2}, .fret = 7, .bend = 1.0, .vibrato = VibratoState::Narrow
+                .offset = Fraction{1, 2}, .fret = 7, .bend = 1.0, .vibrato = VibratoState::Narrow
             }});
         CHECK_FALSE(stripSilentKeyframes(note));
         CHECK(note.keyframes.size() == 1);
@@ -1538,7 +1582,7 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 1;
         note.fret = 5;
-        note.sustain = Fraction{1};
+        note.sustain = Fraction{1, 4};
         note.bend = onset_bend;
         note.keyframes = {keyframe};
         Chart chart;
@@ -1554,11 +1598,11 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
 
     SECTION("a keyframe carrying no channel is legal, and any one channel is too")
     {
-        CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}}, 0.0).has_value());
-        CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .fret = 7}, 0.0).has_value());
-        CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .bend = 1.0}, 0.0).has_value());
+        CHECK(validate_with(Keyframe{.offset = Fraction{1, 8}}, 0.0).has_value());
+        CHECK(validate_with(Keyframe{.offset = Fraction{1, 8}, .fret = 7}, 0.0).has_value());
+        CHECK(validate_with(Keyframe{.offset = Fraction{1, 8}, .bend = 1.0}, 0.0).has_value());
         CHECK(
-            validate_with(Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}, 0.0)
+            validate_with(Keyframe{.offset = Fraction{1, 8}, .vibrato = VibratoState::Narrow}, 0.0)
                 .has_value());
 
         // On the LOAD path, which normalizes before it validates (rock_song_package_read.cpp),
@@ -1570,8 +1614,8 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
         empty_statement.position = GridPosition{.measure = 1, .beat = 1};
         empty_statement.string = 1;
         empty_statement.fret = 5;
-        empty_statement.sustain = Fraction{1};
-        empty_statement.keyframes = {Keyframe{.offset = Fraction{1, 2}}};
+        empty_statement.sustain = Fraction{1, 4};
+        empty_statement.keyframes = {Keyframe{.offset = Fraction{1, 8}}};
         loaded.notes = {empty_statement};
         const std::vector<ChartConversion> conversions = normalizeChart(loaded, tempo_map);
         REQUIRE(conversions.size() == 1);
@@ -1585,31 +1629,31 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
     {
         // Zero would be a second spelling of a value the note itself already states.
         refuses(Keyframe{.offset = Fraction{}, .fret = 7});
-        refuses(Keyframe{.offset = Fraction{3, 2}, .fret = 7});
+        refuses(Keyframe{.offset = Fraction{3, 8}, .fret = 7});
         // The ring's own end is inclusive: a fret stated there is the SLIDE-OUT, the one statement
         // whose whole meaning is that the sound stops at it.
-        CHECK(validate_with(Keyframe{.offset = Fraction{1}, .fret = 7}, 0.0).has_value());
+        CHECK(validate_with(Keyframe{.offset = Fraction{1, 4}, .fret = 7}, 0.0).has_value());
     }
 
     SECTION("a bend is a push, never a pull, at the onset and along the ring alike")
     {
-        refuses(Keyframe{.offset = Fraction{1, 2}, .bend = -0.5});
-        refuses(Keyframe{.offset = Fraction{1, 2}, .fret = 7}, -0.5);
+        refuses(Keyframe{.offset = Fraction{1, 8}, .bend = -0.5});
+        refuses(Keyframe{.offset = Fraction{1, 8}, .fret = 7}, -0.5);
         // The same amounts upward are ordinary data, so the refusals are about the SIGN.
-        CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .bend = 0.5}, 0.5).has_value());
+        CHECK(validate_with(Keyframe{.offset = Fraction{1, 8}, .bend = 0.5}, 0.5).has_value());
     }
 
     SECTION("a stated fret is a real position")
     {
-        refuses(Keyframe{.offset = Fraction{1, 2}, .fret = -1});
+        refuses(Keyframe{.offset = Fraction{1, 8}, .fret = -1});
         // Fret zero is not a negative but a stop at the nut, which is nothing pressed: the capo
         // floor STRIPS it rather than refusing the payload, so it fails through the normalizer's
         // fixpoint under a different code. Asserting that difference is what keeps the two rules
         // from being read as one.
-        const auto at_the_nut = validate_with(Keyframe{.offset = Fraction{1, 2}, .fret = 0}, 0.0);
+        const auto at_the_nut = validate_with(Keyframe{.offset = Fraction{1, 8}, .fret = 0}, 0.0);
         REQUIRE_FALSE(at_the_nut.has_value());
         CHECK(at_the_nut.error().code == ChartErrorCode::InvalidNote);
-        CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .fret = 1}, 0.0).has_value());
+        CHECK(validate_with(Keyframe{.offset = Fraction{1, 8}, .fret = 1}, 0.0).has_value());
     }
 }
 
@@ -1629,27 +1673,27 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         note.sustain = sustain;
         return note;
     };
-    // Three beats of ring on a string struck again two beats in: the truncation cuts to exact
+    // Three quarters of ring on a string struck again two quarters in: the truncation cuts to exact
     // adjacency with that strike.
     std::vector<ChartNote> notes{
-        note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{3}, 5),
-        note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+        note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{3, 4}, 5),
+        note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1, 4}, 7),
     };
 
     SECTION("a bend-only end statement keeps its value at the new end")
     {
         notes[0].keyframes = {
-            Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
-            Keyframe{.offset = Fraction{3}, .bend = 0.0},
+            Keyframe{.offset = Fraction{1, 8}, .bend = 1.0},
+            Keyframe{.offset = Fraction{3, 4}, .bend = 0.0},
         };
         CHECK(
             normalizeSustainOverlaps(notes, tempo_map) ==
             std::vector<TailTruncation>{TailTruncation{.index = 0, .statement_lost = false}});
-        CHECK(notes[0].sustain == Fraction{2});
+        CHECK(notes[0].sustain == Fraction{1, 2});
         REQUIRE(notes[0].keyframes.size() == 2);
         // Bound once so every read below is provably the same object.
         const Keyframe& ends = notes[0].keyframes[1];
-        CHECK(ends.offset == Fraction{2});
+        CHECK(ends.offset == Fraction{1, 2});
         const std::optional<double>& reached = ends.bend;
         REQUIRE(reached.has_value());
         if (reached.has_value())
@@ -1662,8 +1706,8 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         // holds what the hands did, and nothing in it spaces a mark. The truncation is its own
         // fixpoint.
         CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
-        CHECK(notes[0].sustain == Fraction{2});
-        CHECK(notes[0].keyframes[1].offset == Fraction{2});
+        CHECK(notes[0].sustain == Fraction{1, 2});
+        CHECK(notes[0].keyframes[1].offset == Fraction{1, 2});
     }
 
     SECTION("a stated fret carried onto the head is the slide-out there and stays on it")
@@ -1672,13 +1716,13 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         // ring cut back onto its own statement slides out toward it — on the head itself, which is
         // where the material says the slide-out completes. Here it names 7 and the head is struck
         // at 5, so the relation refuses the arrival reading (arrivesIntoNextHead, clause 5).
-        notes[0].keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}};
+        notes[0].keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 7}};
         CHECK(
             normalizeSustainOverlaps(notes, tempo_map) ==
             std::vector<TailTruncation>{TailTruncation{.index = 0, .statement_lost = false}});
-        CHECK(notes[0].sustain == Fraction{2});
+        CHECK(notes[0].sustain == Fraction{1, 2});
         REQUIRE(notes[0].keyframes.size() == 1);
-        CHECK(notes[0].keyframes.front().offset == Fraction{2});
+        CHECK(notes[0].keyframes.front().offset == Fraction{1, 2});
         const int* const slide_out = endStatedFretOrNull(notes[0]);
         REQUIRE(slide_out != nullptr);
         if (slide_out != nullptr)
@@ -1693,15 +1737,15 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         // inclusive), so the end's statement arrives on top of that one instead of doubling its
         // offset.
         notes[0].keyframes = {
-            Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
-            Keyframe{.offset = Fraction{3}, .fret = 9},
+            Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow},
+            Keyframe{.offset = Fraction{3, 4}, .fret = 9},
         };
         CHECK(
             normalizeSustainOverlaps(notes, tempo_map) ==
             std::vector<TailTruncation>{TailTruncation{.index = 0, .statement_lost = true}});
         REQUIRE(notes[0].keyframes.size() == 1);
         const Keyframe& merged = notes[0].keyframes.front();
-        CHECK(merged.offset == Fraction{2});
+        CHECK(merged.offset == Fraction{1, 2});
         // An end statement leaves no VIBRATO, whatever else it states, so the vibrato it landed on
         // goes with the ring that would have sounded it (shedEndStatementVibrato).
         CHECK(merged.fret == 9);
@@ -1720,7 +1764,7 @@ TEST_CASE("The silent-keyframe sweep takes a silent end statement", "[core][char
     note.position = GridPosition{.measure = 1, .beat = 1};
     note.string = 1;
     note.fret = 5;
-    note.sustain = Fraction{2};
+    note.sustain = Fraction{1, 2};
 
     SECTION("a slide-out toward the fret in force")
     {
@@ -1728,18 +1772,18 @@ TEST_CASE("The silent-keyframe sweep takes a silent end statement", "[core][char
         CHECK(stripSilentKeyframes(note));
         CHECK(note.keyframes.empty());
         // Only the statement goes: the tail simply ends where it ended.
-        CHECK(note.sustain == Fraction{2});
+        CHECK(note.sustain == Fraction{1, 2});
         CHECK_FALSE(stripSilentKeyframes(note));
     }
     SECTION("a slide-out toward a fret an earlier junction reached")
     {
         // "The fret in force" is the PATH's answer, so a junction's fret counts exactly as the
         // onset's own does — and the junction itself, which travels, stays.
-        note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = {}}};
+        note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7, .bend = {}, .vibrato = {}}};
         setSlideOut(note, 7);
         CHECK(stripSilentKeyframes(note));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(note.keyframes[0].offset == Fraction{1, 4});
     }
     SECTION("a slide-out that travels stays")
     {
@@ -1752,7 +1796,7 @@ TEST_CASE("The silent-keyframe sweep takes a silent end statement", "[core][char
         // A scrape's whole path must TRAVEL, so its terminal states a fret the path does not hold
         // — the gesture's required exit is unreachable by this rule by construction.
         note.attack = NoteAttack::PickSlide;
-        note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}}};
+        note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 9, .bend = {}, .vibrato = {}}};
         setSlideOut(note, 12);
         CHECK_FALSE(stripSilentKeyframes(note));
         CHECK(endStatedFretOrNull(note) != nullptr);
@@ -1773,7 +1817,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 1;
         note.fret = 5;
-        note.sustain = Fraction{1};
+        note.sustain = Fraction{1, 4};
         note.keyframes = keyframes;
         return note;
     };
@@ -1782,7 +1826,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
     {
         ChartTuning capo_tuning = tuning;
         capo_tuning.capo = 3;
-        ChartNote note = note_with({Keyframe{.offset = Fraction{1, 2}, .fret = 2, .bend = 1.0}});
+        ChartNote note = note_with({Keyframe{.offset = Fraction{1, 8}, .fret = 2, .bend = 1.0}});
         note.fret = 7;
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, capo_tuning);
         REQUIRE(repairs.size() == 1);
@@ -1798,7 +1842,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
 
         // The discriminating twin: the same below-floor fret with nothing else stated leaves its
         // keyframe bare — the strip drops nothing — and the commit law then sweeps it as silent.
-        ChartNote bare = note_with({Keyframe{.offset = Fraction{1, 2}, .fret = 2}});
+        ChartNote bare = note_with({Keyframe{.offset = Fraction{1, 8}, .fret = 2}});
         bare.fret = 7;
         CHECK(normalizeChartNote(bare, capo_tuning).size() == 1);
         REQUIRE(bare.keyframes.size() == 1);
@@ -1810,7 +1854,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
     SECTION("an open string loses its path and keeps its vibrato")
     {
         ChartNote note = note_with(
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow}});
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 7, .vibrato = VibratoState::Narrow}});
         note.fret = 0;
         setSlideOut(note, 9);
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
@@ -1827,18 +1871,18 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
 
     SECTION("a keyframe that says nothing the path does not already say is dropped")
     {
-        // THE KEYFRAME COMMIT LAW's load half. The leg from 5 to 9 over one beat passes through 7
+        // THE KEYFRAME COMMIT LAW's load half. The leg from 5 to 9 over a quarter passes through 7
         // at the halfway mark, so a point stating 7 there changes nothing and goes; the hold
         // boundary stating 5 a quarter in — the path was travelling and now waits — says
         // something and stays, as does the arrival.
         Chart chart;
         chart.tuning = tuning;
         chart.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 4}, .fret = 5},
-             Keyframe{.offset = Fraction{5, 8}, .fret = 7},
-             Keyframe{.offset = Fraction{1}, .fret = 9}})};
+            {Keyframe{.offset = Fraction{1, 16}, .fret = 5},
+             Keyframe{.offset = Fraction{5, 32}, .fret = 7},
+             Keyframe{.offset = Fraction{1, 4}, .fret = 9}})};
         // With the hold boundary in place the leg runs 5 -> 9 over the remaining three quarters,
-        // which passes through 7 at half a beat past the boundary: 1/4 + 3/8 = 5/8. The point is
+        // which passes through 7 at an eighth past the boundary: 1/4 + 3/8 = 5/8. The point is
         // LEGAL to the per-note rules — it is authoring state in memory — so only the whole-chart
         // load normalizer sheds it, and the validator, which mirrors the per-note normalizer,
         // accepts the note as it stands.
@@ -1854,14 +1898,14 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         REQUIRE(conversions.size() == 1);
         CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
         REQUIRE(chart.notes.front().keyframes.size() == 2);
-        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
-        CHECK(chart.notes.front().keyframes[1].offset == Fraction{1});
+        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 16});
+        CHECK(chart.notes.front().keyframes[1].offset == Fraction{1, 4});
         // Vibrato or a push that CHANGES something is a statement whatever the fret says.
         Chart vibrating;
         vibrating.tuning = tuning;
         vibrating.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{1}, .fret = 9}})};
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 7, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 4}, .fret = 9}})};
         CHECK(normalizeChart(vibrating, makeTempoMap()).empty());
     }
 
@@ -1874,26 +1918,26 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         Chart chart;
         chart.tuning = tuning;
         chart.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
-             Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
-             Keyframe{.offset = Fraction{3, 4}, .bend = 1.0},
-             Keyframe{.offset = Fraction{7, 8}, .bend = 0.0},
-             Keyframe{.offset = Fraction{1}, .bend = 0.0}})};
+            {Keyframe{.offset = Fraction{1, 16}, .bend = 1.0},
+             Keyframe{.offset = Fraction{1, 8}, .bend = 1.0},
+             Keyframe{.offset = Fraction{3, 16}, .bend = 1.0},
+             Keyframe{.offset = Fraction{7, 32}, .bend = 0.0},
+             Keyframe{.offset = Fraction{1, 4}, .bend = 0.0}})};
         const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
         REQUIRE(conversions.size() == 1);
         CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
         REQUIRE(chart.notes.front().keyframes.size() == 3);
-        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
-        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 4});
-        CHECK(chart.notes.front().keyframes[2].offset == Fraction{7, 8});
+        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 16});
+        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 16});
+        CHECK(chart.notes.front().keyframes[2].offset == Fraction{7, 32});
         // A point on a SLOPED segment is kept even where it is collinear: the flat case is the
         // only one judged, because bend values are doubles and no approximate test may strip a
         // statement.
         Chart sloped;
         sloped.tuning = tuning;
         sloped.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 2}, .bend = 0.5},
-             Keyframe{.offset = Fraction{1}, .bend = 1.0}})};
+            {Keyframe{.offset = Fraction{1, 8}, .bend = 0.5},
+             Keyframe{.offset = Fraction{1, 4}, .bend = 1.0}})};
         CHECK(normalizeChart(sloped, makeTempoMap()).empty());
     }
 
@@ -1905,28 +1949,28 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         Chart chart;
         chart.tuning = tuning;
         chart.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{1, 2}, .fret = 5, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Wide}})};
+            {Keyframe{.offset = Fraction{1, 16}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 8}, .fret = 5, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{3, 16}, .vibrato = VibratoState::Wide}})};
         const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
         REQUIRE(conversions.size() == 1);
         CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
         REQUIRE(chart.notes.front().keyframes.size() == 2);
-        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
-        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 4});
+        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 16});
+        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 16});
         // Alone, the repeated width is silent too: legal in memory, swept on load like any
         // silent point, never refused.
         Chart repeated;
         repeated.tuning = tuning;
         repeated.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}})};
+            {Keyframe{.offset = Fraction{1, 16}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 8}, .vibrato = VibratoState::Narrow}})};
         CHECK(validateChartRules(repeated, makeTempoMap()).has_value());
         const std::vector<ChartConversion> swept = normalizeChart(repeated, makeTempoMap());
         REQUIRE(swept.size() == 1);
         CHECK(swept.front().repair == ChartRepair::SilentKeyframe);
         REQUIRE(repeated.notes.front().keyframes.size() == 1);
-        CHECK(repeated.notes.front().keyframes[0].offset == Fraction{1, 4});
+        CHECK(repeated.notes.front().keyframes[0].offset == Fraction{1, 16});
         CHECK(validateChartRules(repeated, makeTempoMap()).has_value());
         // Judged per channel: a repeated width beside a fret the path does not pass through is a
         // statement, and the keyframe stays whole. The vibrato begins at a stop, on the hold the
@@ -1934,8 +1978,8 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         Chart stepped;
         stepped.tuning = tuning;
         stepped.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 4}, .fret = 5, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{1, 2}, .fret = 9, .vibrato = VibratoState::Narrow}})};
+            {Keyframe{.offset = Fraction{1, 16}, .fret = 5, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 8}, .fret = 9, .vibrato = VibratoState::Narrow}})};
         CHECK(normalizeChart(stepped, makeTempoMap()).empty());
     }
 
@@ -1944,7 +1988,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         // The stored form of vibrato ending where nothing else changes: the point states no
         // channel, but it begins an UNVIBRATED leg after a vibrated one, and without it the
         // onset's leg would vibrate to the ring's end.
-        ChartNote ending = note_with({Keyframe{.offset = Fraction{1, 2}}});
+        ChartNote ending = note_with({Keyframe{.offset = Fraction{1, 8}}});
         ending.vibrato = VibratoState::Narrow;
         CHECK_FALSE(stripSilentKeyframes(ending));
         REQUIRE(ending.keyframes.size() == 1);
@@ -1965,7 +2009,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         // still legal, but silent — the sweep takes it, the load reports it, the writer sheds it.
         Chart plain;
         plain.tuning = tuning;
-        plain.notes = {note_with({Keyframe{.offset = Fraction{1, 2}}})};
+        plain.notes = {note_with({Keyframe{.offset = Fraction{1, 8}}})};
         CHECK(validateChartRules(plain, makeTempoMap()).has_value());
         ChartNote swept_note = plain.notes.front();
         CHECK(stripSilentKeyframes(swept_note));
@@ -1986,8 +2030,8 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         // Vibrato stated where the string is let go has no ring to sound in, so the load sheds
         // it and says so; the slide-out itself stays.
         ChartNote note = note_with(
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow}});
-        note.sustain = Fraction{1, 2};
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 7, .vibrato = VibratoState::Narrow}});
+        note.sustain = Fraction{1, 8};
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
         REQUIRE(repairs.size() == 1);
         CHECK(repairs.front() == ChartRepair::EndStatementVibrato);
@@ -2006,7 +2050,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         // A dragged mute is exactly a dead string that travels, so the position channel stays
         // while the two channels a damped string cannot sound are stripped.
         ChartNote note = note_with({Keyframe{
-            .offset = Fraction{1, 2}, .fret = 7, .bend = 1.0, .vibrato = VibratoState::Narrow
+            .offset = Fraction{1, 8}, .fret = 7, .bend = 1.0, .vibrato = VibratoState::Narrow
         }});
         note.dead = true;
         note.vibrato = VibratoState::Narrow;
@@ -2031,7 +2075,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
     {
         // The repair clears the onset's width, which leaves the bare ending after an UNVIBRATED
         // leg: silent, so the commit law sweeps it rather than any rule refusing the note.
-        ChartNote note = note_with({Keyframe{.offset = Fraction{1, 2}}});
+        ChartNote note = note_with({Keyframe{.offset = Fraction{1, 8}}});
         note.dead = true;
         note.vibrato = VibratoState::Narrow;
         Chart chart;
@@ -2053,8 +2097,8 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         // so a bend or vibrato riding one is exactly as latent as the note's own and never
         // reaches the file — while the fret statements, which ARE the path, survive.
         ChartNote note = note_with(
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 9, .bend = 1.0},
-             Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Narrow}});
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 9, .bend = 1.0},
+             Keyframe{.offset = Fraction{3, 16}, .vibrato = VibratoState::Narrow}});
         note.attack = NoteAttack::PickSlide;
         setSlideOut(note, 12);
         const ChartNote saved = savedChartNote(note);
@@ -2108,18 +2152,18 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
                     .has_value());
     CHECK_FALSE(parseChartDocument(
                     R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                    R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "sustain": "1/8",)"
+                    R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "sustain": "1/32",)"
                     R"( "attack": "chug" } ] })")
                     .has_value());
     CHECK_FALSE(parseChartDocument(
                     R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                    R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "sustain": "1/8",)"
+                    R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "sustain": "1/32",)"
                     R"( "bend": [[0, 1]] } ] })")
                     .has_value());
     // A keyframe must carry a parseable offset — the slide-out included, since it is one of them.
     CHECK_FALSE(parseChartDocument(
                     R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                    R"( "notes": [ { "position": "1:1", "string": 1, "fret": 3, "sustain": "1/8",)"
+                    R"( "notes": [ { "position": "1:1", "string": 1, "fret": 3, "sustain": "1/32",)"
                     R"( "keyframes": [ { "fret": 15 } ] } ] })")
                     .has_value());
 
@@ -2136,31 +2180,32 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     CHECK_FALSE(
         parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": 2)").has_value());
     CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "attack": 7)")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/32", "attack": 7)")
             .has_value());
     CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "palmMute": 1)")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/32", "palmMute": 1)")
             .has_value());
     CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "dead": 1)")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/32", "dead": 1)")
             .has_value());
-    CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": "3", "sustain": "1/8")").has_value());
+    CHECK_FALSE(parse_note(R"("position": "1:1", "string": 1, "fret": "3", "sustain": "1/32")")
+                    .has_value());
     CHECK_FALSE(
         parse_note(
-            R"("position": "1:1", "string": 1, "fret": 3, "sustain": "1", "bend": [["0", "half"]])")
+            R"("position": "1:1", "string": 1, "fret": 3, "sustain": "1/4", "bend": [["0", "half"]])")
             .has_value());
     // And the well-typed forms of the same fields still load, so the check refuses types rather
     // than fields.
-    CHECK(parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "2")").has_value());
+    CHECK(parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/2")").has_value());
     CHECK(parse_note(
-              R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "attack": "tap")")
+              R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "attack": "tap")")
               .has_value());
     CHECK(parse_note(
-              R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "palmMute": true)")
+              R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "palmMute": true)")
               .has_value());
-    CHECK(parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "dead": true)")
-              .has_value());
+    CHECK(
+        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "dead": true)")
+            .has_value());
 
     // The ring is REQUIRED, and absence is malformed rather than "no tail": reading a missing key
     // as zero would invent the one datum the model cannot derive.
@@ -2189,8 +2234,8 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // sorted one, so an out-of-order document must not reach them.
     const auto unsorted = parseChartDocument(
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ )"
-        R"({ "position": "2:1", "string": 1, "fret": 5, "sustain": "1/8" }, )"
-        R"({ "position": "1:1", "string": 1, "fret": 3, "sustain": "1/8" } ] })");
+        R"({ "position": "2:1", "string": 1, "fret": 5, "sustain": "1/32" }, )"
+        R"({ "position": "1:1", "string": 1, "fret": 3, "sustain": "1/32" } ] })");
     REQUIRE_FALSE(unsorted.has_value());
     CHECK(unsorted.error().code == ChartErrorCode::MalformedDocument);
     CHECK(unsorted.error().message.find("sorted") != std::string::npos);
@@ -2199,7 +2244,7 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // attack path every other misspelling takes — no branch of its own, so it fails exactly as
     // `"attack": "wobble"` does.
     const auto none_attack = parse_note(
-        R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1", "attack": "none")");
+        R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/4", "attack": "none")");
     REQUIRE_FALSE(none_attack.has_value());
     CHECK(none_attack.error().code == ChartErrorCode::MalformedDocument);
     CHECK(
@@ -2226,45 +2271,47 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
     };
 
     CHECK(
-        emphasis_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8")") ==
+        emphasis_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32")") ==
         NoteEmphasis::Normal);
     CHECK(
         emphasis_of(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
             R"( "emphasis": "accent")") == NoteEmphasis::Accent);
     CHECK(
         emphasis_of(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
             R"( "emphasis": "ghost")") == NoteEmphasis::Ghost);
 
     // "normal" is the value absence already means, so spelling it is malformed like an explicit
     // "pick" attack, and an unknown token is a hard read error rather than a silent default.
     CHECK_FALSE(
         parse_note(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": "normal")")
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": "normal")")
             .has_value());
     CHECK_FALSE(
         parse_note(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": "loud")")
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": "loud")")
             .has_value());
     CHECK_FALSE(
         parse_note(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": true)")
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": true)")
             .has_value());
     // The empty string is not a token either. It reads back as the same "" the absent key gives,
     // so accepting it would let a present-but-meaningless field pass as the default.
     CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": "")")
+        parse_note(
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": "")")
             .has_value());
 
     // The tripwire: the removed key fails the load and names the fix, exactly as the removed
     // harmonic/touch keys do. Delete this with the tripwire.
     CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "accent": true)")
+        parse_note(
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "accent": true)")
             .has_value());
     CHECK_FALSE(
         parse_note(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "accent": false)")
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "accent": false)")
             .has_value());
 
     // Round trip: both named values survive a write and read, and a normal note writes no key at
@@ -2333,28 +2380,30 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     };
 
     CHECK(
-        mutes_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8")") ==
+        mutes_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32")") ==
         std::pair{false, false});
     CHECK(
         mutes_of(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "palmMute": true)") ==
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "palmMute": true)") ==
         std::pair{true, false});
     CHECK(
-        mutes_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "dead": true)") ==
+        mutes_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "dead": true)") ==
         std::pair{false, true});
     CHECK(
         mutes_of(
-            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
             R"( "palmMute": true, "dead": true)") == std::pair{true, true});
 
     // The tripwire: the removed single "mute" key fails the load and names the fix, exactly as the
     // removed accent and harmonic/touch keys do. A silently ignored key would load every muted note
     // in the corpus as unmuted. Delete this with the tripwire.
     CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "mute": "palm")")
+        parse_note(
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "mute": "palm")")
             .has_value());
     CHECK_FALSE(
-        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "mute": "full")")
+        parse_note(
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "mute": "full")")
             .has_value());
 
     // Round trip: every combination survives a write and read, and each flag is written only when
@@ -2521,7 +2570,7 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     CHECK(bad_beat_result.error().code == ChartErrorCode::InvalidNote);
 
     Chart slide_past_sustain = makeFullChart();
-    slide_past_sustain.notes[2].keyframes.back().offset = Fraction{3};
+    slide_past_sustain.notes[2].keyframes.back().offset = Fraction{3, 4};
     const auto slide_result = validateChartRules(slide_past_sustain, tempo_map);
     REQUIRE_FALSE(slide_result.has_value());
     CHECK(slide_result.error().code == ChartErrorCode::InvalidNotePayload);
@@ -2537,19 +2586,19 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     // A keyframe sitting exactly on a later onset of its string is LEGAL and nothing moves it: the
     // store holds what the hands did, and the spacing a mark needs to be seen belongs to
     // presentation alone. The ring here runs PAST the landing, so the one
-    // rule a note cannot obey alone truncates it to exact adjacency — the third-beat gap, 1/3 — and
-    // carries the statement to that end, where a stated fret IS the slide-out. That is the whole of
-    // what the load path reports.
+    // rule a note cannot obey alone truncates it to exact adjacency — a gap of a third of a
+    // quarter, 1/12 — and carries the statement to that end, where a stated fret IS the slide-out.
+    // That is the whole of what the load path reports.
     Chart keyframe_on_onset = makeFullChart();
-    keyframe_on_onset.notes[5].sustain = Fraction{1, 2};
-    keyframe_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
+    keyframe_on_onset.notes[5].sustain = Fraction{1, 8};
+    keyframe_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 12}, .fret = 5}};
     CHECK(validateChartRules(keyframe_on_onset, tempo_map).has_value());
     const std::vector<ChartConversion> moved = normalizeChart(keyframe_on_onset, tempo_map);
     REQUIRE(moved.size() == 1);
     CHECK(moved[0].repair == ChartRepair::OverlappingTail);
-    CHECK(keyframe_on_onset.notes[5].sustain == Fraction{1, 3});
+    CHECK(keyframe_on_onset.notes[5].sustain == Fraction{1, 12});
     REQUIRE(keyframe_on_onset.notes[5].keyframes.size() == 1);
-    CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{1, 3});
+    CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{1, 12});
     CHECK(endStatedFretOrNull(keyframe_on_onset.notes[5]) != nullptr);
     // And the normalized chart is its own fixpoint: a second pass reports nothing.
     CHECK(normalizeChart(keyframe_on_onset, tempo_map).empty());
@@ -2614,8 +2663,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         // load repair the form the gate refuses. The keyframe the strip empties stays as a bare,
         // silent leg boundary for the commit law to sweep.
         ChartNote open_slide = make_note(1, 1, 0);
-        open_slide.sustain = Fraction{1};
-        open_slide.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}};
+        open_slide.sustain = Fraction{1, 4};
+        open_slide.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 5}};
         CHECK_FALSE(validate({open_slide}).has_value());
         ChartNote shed_slide = open_slide;
         CHECK(
@@ -2628,7 +2677,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK(shed_slide.keyframes.empty());
 
         ChartNote open_exit = make_note(1, 1, 0);
-        open_exit.sustain = Fraction{1};
+        open_exit.sustain = Fraction{1, 4};
         setSlideOut(open_exit, 5);
         CHECK_FALSE(validate({open_exit}).has_value());
         static_cast<void>(normalizeChartNote(open_exit, ChartTuning{}));
@@ -2636,22 +2685,22 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
         // The capo'd open is no different: the capo does not move.
         ChartNote capo_open = make_note(1, 1, 0);
-        capo_open.sustain = Fraction{1};
-        capo_open.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}};
+        capo_open.sustain = Fraction{1, 4};
+        capo_open.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 5}};
         CHECK_FALSE(validate({capo_open}, 2).has_value());
 
         // A fretted glide is untouched.
         ChartNote fretted = make_note(1, 1, 3);
-        fretted.sustain = Fraction{1};
-        fretted.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}};
+        fretted.sustain = Fraction{1, 4};
+        fretted.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 5}};
         CHECK(validate({fretted}).has_value());
 
         // Nor can a glide ARRIVE at the open string (same rule, other end): every stop on a
         // pitched path is a pressed position, so a keyframe at fret 0 refuses like one under
         // the capo. The importer degrades such a glide to the unpitched slide-out instead.
         ChartNote to_open = make_note(1, 1, 3);
-        to_open.sustain = Fraction{1};
-        to_open.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 0}};
+        to_open.sustain = Fraction{1, 4};
+        to_open.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 0}};
         CHECK_FALSE(validate({to_open}).has_value());
     }
 
@@ -2663,8 +2712,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         const auto make_scrape = [&make_note](const int start) {
             ChartNote scrape = make_note(1, 1, start);
             scrape.attack = NoteAttack::PickSlide;
-            scrape.sustain = Fraction{1};
-            scrape.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 9}};
+            scrape.sustain = Fraction{1, 4};
+            scrape.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 9}};
             setSlideOut(scrape, 12);
             return scrape;
         };
@@ -2684,7 +2733,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
         // A pitched note's unpitched slide-out exits above the capo too.
         ChartNote slide_out = make_note(1, 1, 7);
-        slide_out.sustain = Fraction{1};
+        slide_out.sustain = Fraction{1, 4};
         setSlideOut(slide_out, 3);
         CHECK(validate({slide_out}).has_value());
         CHECK_FALSE(validate({slide_out}, 3).has_value());
@@ -2731,7 +2780,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         // dead note changes no verdict either, because the rule reads the dead flag alone.
         ChartNote palm_bend = make_note(1, 1, 5);
         palm_bend.palm_mute = true;
-        palm_bend.sustain = Fraction{1};
+        palm_bend.sustain = Fraction{1, 4};
         palm_bend.bend = 1.0;
         CHECK(validate({palm_bend}).has_value());
 
@@ -2786,8 +2835,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         // Positions survive the same test: the dragged muted slide is real music — and a slide
         // is one of the two things that earn a dead note its tail (E25, below).
         ChartNote muted_slide = dead;
-        muted_slide.sustain = Fraction{1};
-        muted_slide.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 9}};
+        muted_slide.sustain = Fraction{1, 4};
+        muted_slide.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 9}};
         CHECK(validate({muted_slide}).has_value());
     }
 
@@ -2799,11 +2848,11 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         // test_chart_presentation.cpp — so nothing here refuses or trims one.
         ChartNote plain_tail = make_note(1, 1, 5);
         plain_tail.dead = true;
-        plain_tail.sustain = Fraction{1};
+        plain_tail.sustain = Fraction{1, 4};
         CHECK(validate({plain_tail}).has_value());
         ChartNote unchanged = plain_tail;
         CHECK(normalizeChartNote(unchanged, ChartTuning{}).empty());
-        CHECK(unchanged.sustain == Fraction{1});
+        CHECK(unchanged.sustain == Fraction{1, 4});
 
         ChartNote chug = plain_tail;
         chug.tremolo = true;
@@ -2816,7 +2865,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         // The palm mute is untouched: a palm-muted note rings, so its tail is an ordinary one.
         ChartNote palm_tail = make_note(1, 1, 5);
         palm_tail.palm_mute = true;
-        palm_tail.sustain = Fraction{1};
+        palm_tail.sustain = Fraction{1, 4};
         CHECK(validate({palm_tail}).has_value());
 
         // A dead tap harmonic is reduced to the plain note at its stop (the tapped form is
@@ -2827,11 +2876,11 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         dead_tap_harmonic.attack = NoteAttack::Tap;
         dead_tap_harmonic.harmonic_node = 17.0;
         dead_tap_harmonic.tremolo = true;
-        dead_tap_harmonic.sustain = Fraction{1};
+        dead_tap_harmonic.sustain = Fraction{1, 4};
         CHECK(
             normalizeChartNote(dead_tap_harmonic, ChartTuning{}) ==
             std::vector<ChartRepair>{ChartRepair::DisabledHarmonic});
-        CHECK(dead_tap_harmonic.sustain == Fraction{1});
+        CHECK(dead_tap_harmonic.sustain == Fraction{1, 4});
     }
 
     SECTION("a note must ring: a non-positive sustain is refused, never repaired")
@@ -2850,7 +2899,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK(normalized.sustain == Fraction{});
 
         ChartNote negative = make_note(1, 1, 5);
-        negative.sustain = Fraction{-1, 4};
+        negative.sustain = Fraction{-1, 16};
         CHECK_FALSE(validate({negative}).has_value());
 
         // EVERY attack, with no exemption for any of them: the rule reads the duration alone, and
@@ -2907,11 +2956,11 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
     {
         ChartNote natural = make_note(1, 1, 0);
         natural.harmonic_node = 12.0;
-        natural.sustain = Fraction{1};
+        natural.sustain = Fraction{1, 4};
         CHECK(validate({natural}).has_value());
 
         ChartNote sliding = natural;
-        sliding.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 14}};
+        sliding.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 14}};
         CHECK_FALSE(validate({sliding}).has_value());
 
         ChartNote trailing = natural;
@@ -2932,7 +2981,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         ChartNote fretted = make_note(1, 1, 5);
         fretted.attack = NoteAttack::Pinch;
         fretted.harmonic_node = 17.0;
-        fretted.sustain = Fraction{1};
+        fretted.sustain = Fraction{1, 4};
         fretted.bend = 1.0;
         CHECK(validate({fretted}).has_value());
     }
@@ -2948,8 +2997,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
     SECTION("the capo floor binds pitched glide keyframes and scrape travel alike")
     {
         ChartNote glide = make_note(1, 1, 5);
-        glide.sustain = Fraction{1};
-        glide.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}};
+        glide.sustain = Fraction{1, 4};
+        glide.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 4}};
         CHECK(validate({glide}, 3).has_value());
 
         glide.keyframes.front().fret = 2;
@@ -2960,8 +3009,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         // turnaround above the capo stands.
         ChartNote scrape = make_note(1, 1, 5);
         scrape.attack = NoteAttack::PickSlide;
-        scrape.sustain = Fraction{1};
-        scrape.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 1}};
+        scrape.sustain = Fraction{1, 4};
+        scrape.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 1}};
         setSlideOut(scrape, 6);
         CHECK_FALSE(validate({scrape}, 3).has_value());
         scrape.keyframes.front().fret = 4;
@@ -3000,8 +3049,8 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
     SECTION("a fret, keyframe, or exit past the board clamps onto it")
     {
         ChartNote past = make_note(1, 1, 30);
-        past.sustain = Fraction{1};
-        past.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 27}};
+        past.sustain = Fraction{1, 4};
+        past.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 27}};
         setSlideOut(past, 26);
         CHECK_FALSE(valid(past));
         CHECK(idempotent(past));
@@ -3028,10 +3077,10 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         // fret — a slide-out toward the floor is still a slide-out — so it lifts onto the floor
         // instead.
         ChartNote glide = make_note(1, 1, 9);
-        glide.sustain = Fraction{1};
+        glide.sustain = Fraction{1, 4};
         glide.keyframes = {
-            Keyframe{.offset = Fraction{1, 4}, .fret = 7},
-            Keyframe{.offset = Fraction{1, 2}, .fret = 2},
+            Keyframe{.offset = Fraction{1, 16}, .fret = 7},
+            Keyframe{.offset = Fraction{1, 8}, .fret = 2},
         };
         setSlideOut(glide, 3);
         CHECK_FALSE(valid(glide));
@@ -3058,7 +3107,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         // string, and a scrape at the nut is no scrape.
         ChartNote scrape = make_note(1, 1, 0);
         scrape.attack = NoteAttack::PickSlide;
-        scrape.sustain = Fraction{1};
+        scrape.sustain = Fraction{1, 4};
         setSlideOut(scrape, 12);
         CHECK_FALSE(valid(scrape));
         CHECK(
@@ -3080,7 +3129,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         // Stilled by the repairs that came before it: the exit lifts onto the start.
         ChartNote scrape = make_note(1, 1, 4);
         scrape.attack = NoteAttack::PickSlide;
-        scrape.sustain = Fraction{1};
+        scrape.sustain = Fraction{1, 4};
         setSlideOut(scrape, 1);
         CHECK_FALSE(valid(scrape));
         CHECK(idempotent(scrape));
@@ -3092,14 +3141,14 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         // leg begins, it is nothing.
         CHECK(scrape.keyframes.empty());
         CHECK(endStatedFretOrNull(scrape) == nullptr);
-        CHECK(scrape.sustain == Fraction{1});
+        CHECK(scrape.sustain == Fraction{1, 4});
         CHECK(valid(scrape));
 
         // And stilled on its own: a turnaround that sits where the start is.
         ChartNote stilled = make_note(1, 1, 12);
         stilled.attack = NoteAttack::PickSlide;
-        stilled.sustain = Fraction{1};
-        stilled.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 12}};
+        stilled.sustain = Fraction{1, 4};
+        stilled.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 12}};
         setSlideOut(stilled, 5);
         CHECK_FALSE(valid(stilled));
         CHECK(
@@ -3112,7 +3161,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         // test never runs, and the whole-stream validator refuses it.
         ChartNote no_terminal = make_note(1, 1, 12);
         no_terminal.attack = NoteAttack::PickSlide;
-        no_terminal.sustain = Fraction{1};
+        no_terminal.sustain = Fraction{1, 4};
         CHECK(normalizeChartNote(no_terminal, tuning).empty());
         CHECK_FALSE(validateChartNotes({no_terminal}, tuning, tempo_map).has_value());
     }
@@ -3172,9 +3221,9 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         // String 2 rings two bars through its own restrike: the truncation bounds it at that
         // onset.
         ChartNote overlapping = make_note(1, 2, 9);
-        overlapping.sustain = Fraction{8};
+        overlapping.sustain = Fraction{2};
         const ChartNote restrike = make_note(3, 2, 7);
-        // String 1 claims a connection its predecessor's eighth-of-a-beat ring cannot reach.
+        // String 1 claims a connection its predecessor's thirty-second-note ring cannot reach.
         const ChartNote released = make_note(1, 1, 9);
         ChartNote claim = make_note(2, 1, 5);
         claim.attack = NoteAttack::Legato;
@@ -3191,8 +3240,8 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         CHECK(conversions[1].where == "hand position 1:1");
         CHECK(conversions[2].repair == ChartRepair::UnjustifiedLegato);
         CHECK(conversions[2].where == "1:2 string 1");
-        // The overlapping ring ends exactly on its string's restrike, two beats on.
-        CHECK(chart.notes[1].sustain == Fraction{2});
+        // The overlapping ring ends exactly on its string's restrike, two quarters on.
+        CHECK(chart.notes[1].sustain == Fraction{1, 2});
         CHECK(chart.notes[2].attack == NoteAttack::Pick);
         CHECK(validateChartRules(chart, tempo_map).has_value());
 
@@ -3214,7 +3263,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
 TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    // Two notes a beat apart on one string, the first ringing exactly to the second: the shape
+    // Two notes a quarter apart on one string, the first ringing exactly to the second: the shape
     // every clause below varies one field of. Returns `bool`, never a deduced type: an element of a
     // std::vector<bool> is a proxy into `connections`, which dies at the return.
     const auto pair_with = [&tempo_map](const ChartNote& first, const ChartNote& second) -> bool {
@@ -3231,7 +3280,7 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 3;
         note.fret = 5;
-        note.sustain = Fraction{1};
+        note.sustain = Fraction{1, 4};
         setSlideOut(note, fret);
         return note;
     };
@@ -3240,7 +3289,7 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
         note.position = GridPosition{.measure = 1, .beat = 2};
         note.string = 3;
         note.fret = fret;
-        note.sustain = Fraction{1};
+        note.sustain = Fraction{1, 4};
         return note;
     };
 
@@ -3259,14 +3308,14 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
     SECTION("clause 2: adjacency is exact, and a slide-out that merely abuts is a slide-out")
     {
         ChartNote falls_short = glide_to(9);
-        falls_short.sustain = Fraction{1, 2};
-        falls_short.keyframes.back().offset = Fraction{1, 2};
+        falls_short.sustain = Fraction{1, 8};
+        falls_short.keyframes.back().offset = Fraction{1, 8};
         CHECK_FALSE(pair_with(falls_short, head_at(9)));
         // And a ring running PAST the head is something else again; the same-string clamp cuts it
         // before any pair exists, but the relation refuses it on its own terms.
         ChartNote runs_past = glide_to(9);
-        runs_past.sustain = Fraction{2};
-        runs_past.keyframes.back().offset = Fraction{2};
+        runs_past.sustain = Fraction{1, 2};
+        runs_past.keyframes.back().offset = Fraction{1, 2};
         CHECK_FALSE(pair_with(runs_past, head_at(9)));
     }
     SECTION("clause 3: a scrape on either side never arrives")
@@ -3346,12 +3395,12 @@ TEST_CASE("The connections report a ring ending on the next head", "[core][chart
     ring.position = GridPosition{.measure = 1, .beat = 1};
     ring.string = 3;
     ring.fret = 5;
-    ring.sustain = Fraction{1};
+    ring.sustain = Fraction{1, 4};
     ChartNote head;
     head.position = GridPosition{.measure = 1, .beat = 2};
     head.string = 3;
     head.fret = 9;
-    head.sustain = Fraction{1};
+    head.sustain = Fraction{1, 4};
 
     // The arrival and the abutting slide-out answer alike, and so does a ring stating nothing at
     // all: what shares the instant is the ring's END, not a gesture.
@@ -3365,8 +3414,8 @@ TEST_CASE("The connections report a ring ending on the next head", "[core][chart
 
     // A ring stopping short shares no instant, and neither does one on another string.
     ChartNote short_ring = falling;
-    short_ring.sustain = Fraction{1, 2};
-    short_ring.keyframes.back().offset = Fraction{1, 2};
+    short_ring.sustain = Fraction{1, 8};
+    short_ring.keyframes.back().offset = Fraction{1, 8};
     CHECK_FALSE(ends_on_next_head(short_ring, head));
     ChartNote other_string = head;
     other_string.string = 4;
@@ -3385,7 +3434,7 @@ TEST_CASE("An end statement sheds its vibrato and keeps its bend", "[core][chart
     note.position = GridPosition{.measure = 1, .beat = 1};
     note.string = 3;
     note.fret = 5;
-    note.sustain = Fraction{1};
+    note.sustain = Fraction{1, 4};
 
     SECTION("a fret and a bend stand together at the end, whichever gesture the fret proves")
     {
@@ -3403,10 +3452,10 @@ TEST_CASE("An end statement sheds its vibrato and keeps its bend", "[core][chart
         // Through the normalizer, which is the load path's own half of the law.
         CHECK(normalizeChartNote(note, tuning).empty());
         // And through a clip, which carries the end's statement to the new end whole.
-        static_cast<void>(clipPayloadsToSustain(note, Fraction{1, 2}));
+        static_cast<void>(clipPayloadsToSustain(note, Fraction{1, 8}));
         REQUIRE(note.keyframes.size() == 1);
         const std::optional<double>& carried = note.keyframes[0].bend;
-        CHECK(note.keyframes[0].offset == Fraction{1, 2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 8});
         CHECK(note.keyframes[0].fret == 9);
         REQUIRE(carried.has_value());
         if (carried.has_value())
@@ -3423,9 +3472,9 @@ TEST_CASE("An end statement sheds its vibrato and keeps its bend", "[core][chart
         CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
         // No fret beside it, so shedding the vibrato leaves nothing stated and the keyframe goes:
         // a bare keyframe at the ring's end, where no leg begins, is nothing.
-        note.keyframes = {
-            Keyframe{.offset = Fraction{1}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide}
-        };
+        note.keyframes = {Keyframe{
+            .offset = Fraction{1, 4}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide
+        }};
         CHECK(shedEndStatementVibrato(note));
         CHECK(note.keyframes.empty());
     }
@@ -3440,16 +3489,18 @@ TEST_CASE("A vibrato change standing mid-travel is taken back", "[core][chart]")
     note.position = GridPosition{.measure = 1, .beat = 1};
     note.string = 3;
     note.fret = 5;
-    note.sustain = Fraction{4};
+    note.sustain = Fraction{1};
     const ChartTuning tuning{};
 
     SECTION("a vibrato start inside a glide is taken back, and the normalizer reports it")
     {
         note.keyframes = {
             Keyframe{
-                .offset = Fraction{1}, .fret = {}, .bend = {}, .vibrato = VibratoState::Narrow
+                .offset = Fraction{1, 4}, .fret = {}, .bend = {}, .vibrato = VibratoState::Narrow
             },
-            Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
+            Keyframe{
+                .offset = Fraction{1, 2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow
+            },
         };
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
         REQUIRE(repairs.size() == 1);
@@ -3463,8 +3514,10 @@ TEST_CASE("A vibrato change standing mid-travel is taken back", "[core][chart]")
     {
         note.vibrato = VibratoState::Wide;
         note.keyframes = {
-            Keyframe{.offset = Fraction{3}, .fret = {}, .bend = {}, .vibrato = VibratoState::None},
-            Keyframe{.offset = Fraction{4}, .fret = 9, .bend = {}, .vibrato = VibratoState::None},
+            Keyframe{
+                .offset = Fraction{3, 4}, .fret = {}, .bend = {}, .vibrato = VibratoState::None
+            },
+            Keyframe{.offset = Fraction{1}, .fret = 9, .bend = {}, .vibrato = VibratoState::None},
         };
         CHECK(shedMidTravelVibrato(note));
         CHECK(note.keyframes[0].vibrato == VibratoState::Wide);
@@ -3474,21 +3527,25 @@ TEST_CASE("A vibrato change standing mid-travel is taken back", "[core][chart]")
         note.keyframes = {
             // A bend alone inside the glide from 5 to 7.
             Keyframe{
-                .offset = Fraction{1, 2}, .fret = {}, .bend = 1.0, .vibrato = VibratoState::None
+                .offset = Fraction{1, 8}, .fret = {}, .bend = 1.0, .vibrato = VibratoState::None
             },
-            Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = VibratoState::None},
+            Keyframe{
+                .offset = Fraction{1, 4}, .fret = 7, .bend = {}, .vibrato = VibratoState::None
+            },
             // A hold on the 7, then a vibrato start on it: the hand rests.
             Keyframe{
-                .offset = Fraction{3, 2}, .fret = 7, .bend = {}, .vibrato = VibratoState::None
+                .offset = Fraction{3, 8}, .fret = 7, .bend = {}, .vibrato = VibratoState::None
             },
             Keyframe{
-                .offset = Fraction{2}, .fret = {}, .bend = {}, .vibrato = VibratoState::Narrow
+                .offset = Fraction{1, 2}, .fret = {}, .bend = {}, .vibrato = VibratoState::Narrow
             },
             Keyframe{
-                .offset = Fraction{5, 2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow
+                .offset = Fraction{5, 8}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow
             },
             // Past the last stop the path holds, so a width step there is at rest too.
-            Keyframe{.offset = Fraction{3}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide},
+            Keyframe{
+                .offset = Fraction{3, 4}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide
+            },
         };
         const std::vector<Keyframe> before = note.keyframes;
         CHECK_FALSE(shedMidTravelVibrato(note));
@@ -3507,51 +3564,51 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
     note.position = GridPosition{.measure = 1, .beat = 1};
     note.string = 3;
     note.fret = 5;
-    note.sustain = Fraction{4};
+    note.sustain = Fraction{1};
 
     SECTION("an end statement riding back alone loses nothing")
     {
         note.keyframes = {
-            Keyframe{.offset = Fraction{1, 2}, .fret = {}, .bend = 1.0, .vibrato = {}},
-            Keyframe{.offset = Fraction{4}, .fret = 7, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{1, 8}, .fret = {}, .bend = 1.0, .vibrato = {}},
+            Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = {}},
         };
-        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{1}));
+        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{1, 4}));
         REQUIRE(note.keyframes.size() == 2);
-        CHECK(note.keyframes[1].offset == Fraction{1});
+        CHECK(note.keyframes[1].offset == Fraction{1, 4});
         CHECK(note.keyframes[1].fret == 7);
     }
     SECTION("an interior point past the new end is erased, and that is a loss")
     {
         note.keyframes = {
-            Keyframe{.offset = Fraction{3, 2}, .fret = {}, .bend = 1.0, .vibrato = {}},
-            Keyframe{.offset = Fraction{4}, .fret = {}, .bend = 0.0, .vibrato = {}},
+            Keyframe{.offset = Fraction{3, 8}, .fret = {}, .bend = 1.0, .vibrato = {}},
+            Keyframe{.offset = Fraction{1}, .fret = {}, .bend = 0.0, .vibrato = {}},
         };
-        CHECK(clipPayloadsToSustain(note, Fraction{1}));
+        CHECK(clipPayloadsToSustain(note, Fraction{1, 4}));
         // The end statement still rides back; only the bend point past the end is gone.
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(note.keyframes[0].offset == Fraction{1, 4});
     }
     SECTION("a ridden end statement overwriting a standing value is a loss")
     {
         note.keyframes = {
-            Keyframe{.offset = Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}},
-            Keyframe{.offset = Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{3, 4}, .fret = 9, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{1}, .fret = 3, .bend = {}, .vibrato = {}},
         };
-        CHECK(clipPayloadsToSustain(note, Fraction{3}));
+        CHECK(clipPayloadsToSustain(note, Fraction{3, 4}));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{3});
+        CHECK(note.keyframes[0].offset == Fraction{3, 4});
         // The 9 the point stated is gone under the carried slide-out.
         CHECK(note.keyframes[0].fret == 3);
     }
     SECTION("a ridden end statement restating the standing value loses nothing")
     {
         note.keyframes = {
-            Keyframe{.offset = Fraction{3}, .fret = 3, .bend = {}, .vibrato = {}},
-            Keyframe{.offset = Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{3, 4}, .fret = 3, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{1}, .fret = 3, .bend = {}, .vibrato = {}},
         };
-        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{3}));
+        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{3, 4}));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{3});
+        CHECK(note.keyframes[0].offset == Fraction{3, 4});
         CHECK(note.keyframes[0].fret == 3);
     }
     SECTION("an origin junction past the new end is erased, and the slide-out rides regardless")
@@ -3559,12 +3616,12 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
         // The slide-out toward 5 travels from the junction at 7. The cut erases that junction and
         // the slide-out still rides back, now toward the fret the onset already holds.
         note.keyframes = {
-            Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = {}},
-            Keyframe{.offset = Fraction{4}, .fret = 5, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{1, 2}, .fret = 7, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{1}, .fret = 5, .bend = {}, .vibrato = {}},
         };
-        CHECK(clipPayloadsToSustain(note, Fraction{3, 2}));
+        CHECK(clipPayloadsToSustain(note, Fraction{3, 8}));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{3, 2});
+        CHECK(note.keyframes[0].offset == Fraction{3, 8});
         CHECK(note.keyframes[0].fret == 5);
         CHECK(endStatedFretOrNull(note) != nullptr);
     }
@@ -3573,31 +3630,33 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
         // The end is bare, so nothing rides: the point at 2 survives the inclusive bound and
         // becomes the end statement, which leaves no vibrato.
         note.keyframes = {
-            Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
+            Keyframe{
+                .offset = Fraction{1, 2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow
+            },
         };
-        CHECK(clipPayloadsToSustain(note, Fraction{2}));
+        CHECK(clipPayloadsToSustain(note, Fraction{1, 2}));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
         CHECK(note.keyframes[0].fret == 7);
         CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
     }
     SECTION("a fret stated exactly at the new end loses nothing")
     {
-        note.keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = {}}};
-        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{2}));
+        note.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .bend = {}, .vibrato = {}}};
+        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{1, 2}));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
         CHECK(note.keyframes[0].fret == 7);
     }
     SECTION("the end's writer landing on a standing vibrato sheds it, and that is a loss")
     {
         note.keyframes = {
-            Keyframe{.offset = Fraction{4}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
+            Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
         };
         // The written fret equals the standing one, so the shed vibrato is the only loss.
         CHECK(setEndStatement(note, Keyframe{.offset = {}, .fret = 7, .bend = {}, .vibrato = {}}));
         REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{4});
+        CHECK(note.keyframes[0].offset == Fraction{1});
         CHECK(note.keyframes[0].fret == 7);
         CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
     }
@@ -3609,7 +3668,7 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
 TEST_CASE(
     "The overlay reports a stated channel overwritten with a different value", "[core][chart]")
 {
-    const Keyframe standing{.offset = Fraction{1}, .fret = 9, .bend = 1.0, .vibrato = {}};
+    const Keyframe standing{.offset = Fraction{1, 4}, .fret = 9, .bend = 1.0, .vibrato = {}};
 
     Keyframe differing_fret = standing;
     CHECK(overlayKeyframe(
@@ -3674,15 +3733,15 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // Predecessors hold their tails to the margin so the hold test never interferes with what
         // each case is about.
         ChartNote source = make_note(1, 1, 9);
-        source.sustain = Fraction{1};
+        source.sustain = Fraction{1, 4};
         CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
 
         ChartNote lower_source = make_note(1, 1, 3);
-        lower_source.sustain = Fraction{1};
+        lower_source.sustain = Fraction{1, 4};
         CHECK(resolve_claim({lower_source, claim_at(2, 1, 5)}) == LegatoMotion::Hammer);
 
         ChartNote equal_source = make_note(1, 1, 5);
-        equal_source.sustain = Fraction{1};
+        equal_source.sustain = Fraction{1, 4};
         CHECK(resolve_claim({equal_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
 
         // A claim with nothing before it on its string resolves to nothing at all.
@@ -3690,7 +3749,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
         // Same-STRING: a predecessor on another string is not a predecessor.
         ChartNote other_string = make_note(1, 2, 9);
-        other_string.sustain = Fraction{1};
+        other_string.sustain = Fraction{1, 4};
         CHECK(resolve_claim({other_string, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
     }
 
@@ -3698,15 +3757,15 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
     {
         // A 3->7 glide hands over 7, justifying a pull to 5 the onset frets alone would refuse.
         ChartNote gliding_source = make_note(1, 1, 3);
-        gliding_source.sustain = Fraction{1};
-        gliding_source.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 7}};
+        gliding_source.sustain = Fraction{1, 4};
+        gliding_source.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 7}};
         CHECK(resolve_claim({gliding_source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
 
         // A scrape's travel is the PICK's position, not a finger's, so nothing waits at its end to
         // release or continue from: the note after a scrape is picked, whichever way the frets
         // fall. The hold reaches here, so the attack alone decides.
         ChartNote scrape_source = make_note(1, 1, 12);
-        scrape_source.sustain = Fraction{1};
+        scrape_source.sustain = Fraction{1, 4};
         scrape_source.attack = NoteAttack::PickSlide;
         setSlideOut(scrape_source, 7);
         CHECK(resolve_claim({scrape_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
@@ -3716,7 +3775,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
     SECTION("a pull-off can neither sound nor release a harmonic")
     {
         ChartNote source = make_note(1, 1, 9);
-        source.sustain = Fraction{1};
+        source.sustain = Fraction{1, 4};
 
         // A pull-off releases onto a plain stopped pitch ringing the full speaking length, so a
         // claim carrying a node has no pull to resolve to.
@@ -3729,7 +3788,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // harmonic — the fretting hand strikes the stop while the picking hand damps the node —
         // and the hammer clause accepts a node as something to strike.
         ChartNote lower_source = make_note(1, 1, 3);
-        lower_source.sustain = Fraction{1};
+        lower_source.sustain = Fraction{1, 4};
         ChartNote struck_harmonic = claim_at(2, 1, 9);
         struck_harmonic.harmonic_node = 21.0;
         CHECK(resolve_claim({lower_source, struck_harmonic}) == LegatoMotion::Hammer);
@@ -3737,7 +3796,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // A fret-hand harmonic predecessor is a touch, not a press: it holds nothing to hand over.
         ChartNote harmonic_source = make_note(1, 1, 0);
         harmonic_source.harmonic_node = 12.0;
-        harmonic_source.sustain = Fraction{1};
+        harmonic_source.sustain = Fraction{1, 4};
         CHECK(resolve_claim({harmonic_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
     }
 
@@ -3750,17 +3809,17 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // chained to its restrike connects in both directions.
         ChartNote dead_above = make_note(1, 1, 9);
         dead_above.dead = true;
-        dead_above.sustain = Fraction{1, 2};
+        dead_above.sustain = Fraction{1, 8};
         ChartNote close_claim = claim_at(1, 1, 5);
         close_claim.position.offset = Fraction{1, 2};
         CHECK(resolve_claim({dead_above, close_claim}) == LegatoMotion::Pull);
 
         ChartNote dead_below = make_note(1, 1, 3);
         dead_below.dead = true;
-        dead_below.sustain = Fraction{1, 2};
+        dead_below.sustain = Fraction{1, 8};
         CHECK(resolve_claim({dead_below, close_claim}) == LegatoMotion::Hammer);
 
-        // A cluck the hand left long before is a released string, dead or not — a strike a beat
+        // A cluck the hand left long before is a released string, dead or not — a strike a quarter
         // after a muted scratch is a fresh one, which is the left-hand tap's statement. The ring
         // is the rule; there is no dead-note exception in either direction.
         CHECK(resolve_claim({dead_above, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
@@ -3770,7 +3829,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
         // And a claim ON a dead note from a ringing predecessor — the muted hammer of E24.
         ChartNote source = make_note(1, 1, 3);
-        source.sustain = Fraction{1};
+        source.sustain = Fraction{1, 4};
         ChartNote dead_claim = claim_at(2, 1, 5);
         dead_claim.dead = true;
         CHECK(resolve_claim({source, dead_claim}) == LegatoMotion::Hammer);
@@ -3780,21 +3839,21 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
     {
         // Strict adjacency, and nothing else: the chart states how long the string sounds, so a
         // predecessor whose ring stops short of the onset is a released string with nothing left
-        // to connect to. An eighth-of-a-beat ring a beat back is exactly that.
+        // to connect to. A thirty-second-note ring a quarter back is exactly that.
         ChartNote source = make_note(1, 1, 9);
         CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
 
         // Reaching the onset exactly is reaching — which is the longest ring the bound allows, so
         // every justified claim in a normalized chart is this case.
-        source.sustain = Fraction{1};
+        source.sustain = Fraction{1, 4};
         CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
 
         // Across a wider gap the ring must reach all the way, not merely exist: a ring one margin
         // short does not count, which is what makes claims after a rest flatten.
         ChartNote far_source = make_note(1, 1, 9);
-        far_source.sustain = Fraction{11, 4};
+        far_source.sustain = Fraction{11, 16};
         CHECK(resolve_claim({far_source, claim_at(4, 1, 5)}) == LegatoMotion::Unjustified);
-        far_source.sustain = Fraction{3};
+        far_source.sustain = Fraction{3, 4};
         CHECK(resolve_claim({far_source, claim_at(4, 1, 5)}) == LegatoMotion::Pull);
 
         // A short gap is no exception either: a chug connects because Guitar Pro tiles durations
@@ -3803,7 +3862,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         close_claim.position.offset = Fraction{1, 2};
         CHECK(resolve_claim({make_note(1, 1, 9), close_claim}) == LegatoMotion::Unjustified);
         ChartNote chug = make_note(1, 1, 9);
-        chug.sustain = Fraction{1, 2};
+        chug.sustain = Fraction{1, 8};
         CHECK(resolve_claim({chug, close_claim}) == LegatoMotion::Pull);
     }
 
@@ -3822,7 +3881,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
         // The member that actually rings to the onset justifies it, span or no span.
         ChartNote ringing_low = low;
-        ringing_low.sustain = Fraction{1};
+        ringing_low.sustain = Fraction{1, 4};
         CHECK(resolve_claim({ringing_low, high, claim}) == LegatoMotion::Pull);
 
         // And what the span says about the DISPLAY: the strum's members are held while the shape
@@ -3850,7 +3909,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         ChartNote latent_scrape = make_note(1, 2, 0);
         latent_scrape.attack = NoteAttack::PickSlide;
         latent_scrape.dead = true;
-        latent_scrape.sustain = Fraction{1};
+        latent_scrape.sustain = Fraction{1, 4};
         setSlideOut(latent_scrape, 7);
         CHECK_FALSE(savedChartNote(latent_scrape).dead);
 
@@ -3873,11 +3932,11 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // above it runs.
         CHECK(memory_resolutions.holds[0] == Fraction{});
         CHECK(memory_resolutions.holds[2] == Fraction{});
-        // The scrape holds exactly what it draws: its one-beat gesture, spaced a margin before the
-        // head a beat later like every other drawn tail — its terminal is the statement at its
-        // ring's end, and rule 2 carries that with the drawn end. A number of its own is what says
-        // the two zeros above are the mute rather than a span that failed to cover the onset.
-        CHECK(memory_resolutions.holds[1] == Fraction{9, 10});
+        // The scrape holds exactly what it draws: its quarter-note gesture, spaced a margin before
+        // the head a quarter later like every other drawn tail — its terminal is the statement at
+        // its ring's end, and rule 2 carries that with the drawn end. A number of its own is what
+        // says the two zeros above are the mute rather than a span that failed to cover the onset.
+        CHECK(memory_resolutions.holds[1] == Fraction{9, 40});
         CHECK(memory_resolutions.holds[0] == saved_resolutions.holds[0]);
         CHECK(memory_resolutions.holds[1] == saved_resolutions.holds[1]);
         CHECK(memory_resolutions.holds[2] == saved_resolutions.holds[2]);
@@ -3901,7 +3960,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // local. Here an equal fret at the ring's end justifies nothing, and the tap resolves
         // anyway.
         ChartNote equal_source = make_note(1, 1, 5);
-        equal_source.sustain = Fraction{1};
+        equal_source.sustain = Fraction{1, 4};
         CHECK(resolve_claim({equal_source, left_tap}) == LegatoMotion::Hammer);
     }
 
@@ -3911,13 +3970,15 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // motion however justifiable a claim there would be — otherwise a plain pick after a higher
         // note would draw a pull-off mark.
         ChartNote source = make_note(1, 1, 9);
-        source.sustain = Fraction{1};
+        source.sustain = Fraction{1, 4};
         const ChartNote plain = make_note(2, 1, 5);
         CHECK(resolve_claim({source, plain}) == LegatoMotion::Unjustified);
 
         // Asked directly, the resolver answers what a claim WOULD resolve to — the question the `H`
         // toggle's plan is built from, and why it deliberately ignores the note's own attack.
-        CHECK(resolveLegato(plain, &source, tempo_map) == LegatoMotion::Pull);
+        CHECK(
+            resolveLegato(plain, LegatoPredecessor{.note = source, .onset_gap = Fraction{1, 4}}) ==
+            LegatoMotion::Pull);
     }
 
     SECTION("resolution never cascades: a broken claim still justifies the note after it")
@@ -3929,7 +3990,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // reach.
         const ChartNote released = make_note(1, 1, 9);
         ChartNote broken = claim_at(2, 1, 5);
-        broken.sustain = Fraction{1};
+        broken.sustain = Fraction{1, 4};
         const std::vector<ChartNote> notes{released, broken, claim_at(3, 1, 3)};
 
         const ChartConnections connections = chartConnections(notes, tempo_map);
@@ -3966,10 +4027,10 @@ TEST_CASE("Chart settles unjustifiable legato claims", "[core][chart]")
         return note;
     };
     // String 1 carries a justified claim (its predecessor rings exactly to the claim's onset half
-    // a beat later); string 2 carries one with nothing to connect to; and a left-hand tap sits on
-    // string 3 with no predecessor of its own.
+    // a quarter later); string 2 carries one with nothing to connect to; and a left-hand tap sits
+    // on string 3 with no predecessor of its own.
     ChartNote ringing = note_at(1, 1, 5);
-    ringing.sustain = Fraction{1, 2};
+    ringing.sustain = Fraction{1, 8};
     ChartNote justified = note_at(1, 1, 7);
     justified.position.offset = Fraction{1, 2};
     justified.attack = NoteAttack::Legato;
@@ -4019,7 +4080,7 @@ TEST_CASE("Chart settles unjustifiable legato claims", "[core][chart]")
         const auto parse_attack = [](const std::string& token) {
             return parseChartDocument(
                 R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
+                R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
                 R"( "attack": ")" +
                 token + R"(" } ] })");
         };
@@ -4098,8 +4159,8 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     // outrunning its gesture cannot be written down. Resized through the one way a ring changes
     // length, which is what carries the terminal along.
     Chart longer_ring = makeFullChart();
-    static_cast<void>(clipPayloadsToSustain(longer_ring.notes[scrape], Fraction{3, 2}));
-    CHECK(longer_ring.notes[scrape].sustain == Fraction{3, 2});
+    static_cast<void>(clipPayloadsToSustain(longer_ring.notes[scrape], Fraction{3, 8}));
+    CHECK(longer_ring.notes[scrape].sustain == Fraction{3, 8});
     CHECK(validateChartRules(longer_ring, tempo_map).has_value());
 
     // The travel is the gesture: a path leg that starts where it ends has nothing to scrape,
@@ -4122,10 +4183,10 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 12,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 4}},
         },
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
@@ -4140,23 +4201,23 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     // terminal stays exactly on the head the charter ran it to.
     CHECK(validateChartRules(terminal_on_onset, tempo_map).has_value());
     CHECK(normalizeChart(terminal_on_onset, tempo_map).empty());
-    CHECK(terminal_on_onset.notes[0].sustain == Fraction{1, 2});
+    CHECK(terminal_on_onset.notes[0].sustain == Fraction{1, 8});
     REQUIRE(terminal_on_onset.notes[0].keyframes.size() == 1);
-    CHECK(terminal_on_onset.notes[0].keyframes.front().offset == Fraction{1, 2});
+    CHECK(terminal_on_onset.notes[0].keyframes.front().offset == Fraction{1, 8});
     CHECK(endStatedFretOrNull(terminal_on_onset.notes[0]) != nullptr);
 
     // An interior stop on the head with the ring running PAST it: the truncation cuts to exact
     // adjacency and makes that stop the terminal (a fret at the ring's end is the slide-out), on
     // the head, with nothing else to report.
     Chart interior_on_onset = terminal_on_onset;
-    interior_on_onset.notes[0].sustain = Fraction{1};
-    interior_on_onset.notes[0].keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}};
+    interior_on_onset.notes[0].sustain = Fraction{1, 4};
+    interior_on_onset.notes[0].keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 4}};
     setSlideOut(interior_on_onset.notes[0], 9);
     const std::vector<ChartConversion> interior_moved =
         normalizeChart(interior_on_onset, tempo_map);
     REQUIRE(interior_moved.size() == 1);
     CHECK(interior_moved.front().repair == ChartRepair::OverlappingTail);
-    CHECK(interior_on_onset.notes[0].sustain == Fraction{1, 2});
+    CHECK(interior_on_onset.notes[0].sustain == Fraction{1, 8});
     CHECK(validateChartRules(interior_on_onset, tempo_map).has_value());
 }
 
@@ -4204,13 +4265,13 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     // A sustained note on string 2 rings from 2:1 through 2:3; a two-string strum lands at 2:2 and
-    // rings a beat, which is the span the cases below classify.
+    // rings a quarter, which is the span the cases below classify.
     chart.notes = {
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 6,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -4218,7 +4279,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .position = strum_at,
             .string = 1,
             .fret = 3,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -4226,7 +4287,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .position = strum_at,
             .string = 3,
             .fret = 8,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = 0.0,
             .keyframes = {},
         },
@@ -4247,7 +4308,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
 
     // With the ring ended before the strum, nothing is carried: the shape is the two struck
     // strings, both sound at its start, and the chord box stands.
-    chart.notes[0].sustain = Fraction{1, 2};
+    chart.notes[0].sustain = Fraction{1, 8};
     CHECK_FALSE(arrivesAsArpeggio(chart.notes, strum_at, tempo_map));
 
     // A tapped note sounding within the span turns that box into a held arpeggio: the fretting
@@ -4273,10 +4334,10 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .position = GridPosition{.measure = 2, .beat = 2, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 17,
-            .sustain = Fraction{1, 4},
+            .sustain = Fraction{1, 16},
             .attack = NoteAttack::PickSlide,
             .bend = 0.0,
-            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 3}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 16}, .fret = 3}},
         });
     CHECK(arrivesAsArpeggio(scraped_over_hold.notes, strum_at, tempo_map));
 
@@ -4298,7 +4359,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     // states its own two strings whole and stays a box. A fretting-hand ring across a start is
     // always folded IN, so the only ring that can cross one and leave the shape alone is the other
     // hand's.
-    chart.notes[0].sustain = Fraction{2};
+    chart.notes[0].sustain = Fraction{1, 2};
     Chart tapped_before = chart;
     tapped_before.notes[0].attack = NoteAttack::Tap;
     CHECK_FALSE(arrivesAsArpeggio(tapped_before.notes, strum_at, tempo_map));
@@ -4338,7 +4399,7 @@ TEST_CASE("A chart document ignores the retired held key", "[core][chart]")
     const TempoMap tempo_map = makeTempoMap();
     const auto parsed = parseChartDocument(
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/4",)"
+        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/16",)"
         R"( "attack": "tap", "held": "5" } ] })");
     REQUIRE(parsed.has_value());
     REQUIRE(parsed->notes.size() == 1);
@@ -4367,7 +4428,7 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 3;
         note.fret = 5;
-        note.sustain = Fraction{1, 2};
+        note.sustain = Fraction{1, 8};
         note.attack = NoteAttack::Tap;
         note.harmonic_node = 17.0;
         return note;
@@ -4379,7 +4440,7 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 1;
         note.fret = 7;
-        note.sustain = Fraction{1, 2};
+        note.sustain = Fraction{1, 8};
         return note;
     };
     const auto make_chart = [&](std::vector<ChartNote> notes) {
@@ -4423,7 +4484,7 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
             ChartNote natural;
             natural.position = GridPosition{.measure = 1, .beat = 1};
             natural.string = 3;
-            natural.sustain = Fraction{1, 2};
+            natural.sustain = Fraction{1, 8};
             natural.harmonic_node = node;
             Chart chart_with_capo;
             chart_with_capo.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -4468,17 +4529,17 @@ TEST_CASE("A pull-off states its stop whatever the onset's own travel", "[core][
         tap.position = GridPosition{.measure = 1, .beat = 1};
         tap.string = 1;
         tap.fret = travels_from.value_or(12);
-        tap.sustain = Fraction{1};
+        tap.sustain = Fraction{1, 4};
         tap.attack = NoteAttack::Tap;
         if (travels_from.has_value())
         {
-            tap.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 12}};
+            tap.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 12}};
         }
         ChartNote successor;
         successor.position = GridPosition{.measure = 1, .beat = 2};
         successor.string = 1;
         successor.fret = 5;
-        successor.sustain = Fraction{1};
+        successor.sustain = Fraction{1, 4};
         successor.attack = NoteAttack::Legato;
         chart.notes = {tap, successor};
         REQUIRE(validateChartRules(chart, tempo_map).has_value());
@@ -4517,13 +4578,13 @@ TEST_CASE("A slid pull-off source plants its stop", "[core][chart]")
     source.position = GridPosition{.measure = 1, .beat = 1};
     source.string = 1;
     source.fret = 5;
-    source.sustain = Fraction{1};
-    source.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 9}};
+    source.sustain = Fraction{1, 4};
+    source.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 9}};
     ChartNote successor;
     successor.position = GridPosition{.measure = 1, .beat = 2};
     successor.string = 1;
     successor.fret = 7;
-    successor.sustain = Fraction{1};
+    successor.sustain = Fraction{1, 4};
     successor.attack = NoteAttack::Legato;
     chart.notes = {source, successor};
     REQUIRE(validateChartRules(chart, tempo_map).has_value());
@@ -4552,14 +4613,14 @@ TEST_CASE("A slid tap holds its plant", "[core][chart]")
     tap.position = GridPosition{.measure = 1, .beat = 1};
     tap.string = 1;
     tap.fret = 12;
-    tap.sustain = Fraction{1};
+    tap.sustain = Fraction{1, 4};
     tap.attack = NoteAttack::Tap;
-    tap.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 16}};
+    tap.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 16}};
     ChartNote successor;
     successor.position = GridPosition{.measure = 1, .beat = 2};
     successor.string = 1;
     successor.fret = 9;
-    successor.sustain = Fraction{1};
+    successor.sustain = Fraction{1, 4};
     successor.attack = NoteAttack::Legato;
     chart.notes = {tap, successor};
     REQUIRE(validateChartRules(chart, tempo_map).has_value());
@@ -4578,7 +4639,7 @@ TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core]
     const TempoMap tempo_map = makeTempoMap();
 
     // One figure, varying only the source's attack and the destination's fret: a source at 7 on
-    // string 1, and a same-string successor claiming legato one beat later.
+    // string 1, and a same-string successor claiming legato a quarter later.
     const auto figure = [&tempo_map](const NoteAttack source_attack, const int destination_fret) {
         Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -4586,13 +4647,13 @@ TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core]
         source.position = GridPosition{.measure = 1, .beat = 1};
         source.string = 1;
         source.fret = 7;
-        source.sustain = Fraction{1};
+        source.sustain = Fraction{1, 4};
         source.attack = source_attack;
         ChartNote successor;
         successor.position = GridPosition{.measure = 1, .beat = 2};
         successor.string = 1;
         successor.fret = destination_fret;
-        successor.sustain = Fraction{1};
+        successor.sustain = Fraction{1, 4};
         successor.attack = NoteAttack::Legato;
         chart.notes = {source, successor};
         REQUIRE(validateChartRules(chart, tempo_map).has_value());

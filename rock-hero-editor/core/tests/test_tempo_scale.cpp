@@ -173,12 +173,12 @@ TEST_CASE("Scale Tempo refuses an odd reign before a later meter", "[core][scale
 
 // With no later meter nothing refuses: three measures of 4/4 halve to one and a half, so the
 // terminal lands on 2:3 and re-seats on 3:1, timed at the halved span's 1000 ms quarter. The note
-// at 3:1 keeps its 4 s on 2:1, its one-beat ring halved to half a beat.
+// at 3:1 keeps its 4 s on 2:1, its quarter-note ring halved to an eighth.
 TEST_CASE("Scale Tempo by 1/2 with no later meter re-seats the terminal", "[core][scale-tempo]")
 {
     const SongTimeline before = oneNoteTimeline(
         common::core::testing::commonTimeMap({anchor("1:1", 0), anchor("4:1", 6000)}),
-        makeNote(at("3:1"), 1, 5, Fraction{1}, {}));
+        makeNote(at("3:1"), 1, 5, Fraction{1, 4}, {}));
     requireValid(before);
     const std::expected<SongTimeline, ReaddressError> after =
         scaledTimeline(before, Fraction{1, 2});
@@ -191,7 +191,7 @@ TEST_CASE("Scale Tempo by 1/2 with no later meter re-seats the terminal", "[core
     const Chart& chart = chartOf(scaled, 0);
     REQUIRE(chart.notes.size() == 1);
     CHECK(chart.notes[0].position == at("2:1"));
-    CHECK(chart.notes[0].sustain == Fraction{1, 2});
+    CHECK(chart.notes[0].sustain == Fraction{1, 8});
     CHECK_THAT(scaled.tempo_map.secondsAt(chart.notes[0].position), WithinAbs(4.0, 1e-9));
 }
 

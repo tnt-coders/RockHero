@@ -33,19 +33,25 @@ Exact arithmetic *on* the grid lives in one header, and it is the shared authori
 projections, the editor's duration verb, the Guitar Pro import trims, the connection resolver and
 the validation gate all resolve through — so a spacing rule cannot mean two things:
 
+- `tickPlaceReached(tempo_map, from, seconds)` — THE one conversion of a stretch of seconds into a
+  length on the chart's axis: the place a signed stretch reaches from a lattice place, walked on the
+  tempo map's own time axis (a tempo change inside it is therefore exact) and rounded onto the tick
+  lattice AWAY from `from` — floored going back, ceiled going forward — so the length never falls
+  short of the duration. Going forward it is always at least one tick, because the time axis clamps
+  at the terminal anchor. Two one-line bindings read it: `minimumSustainDistance` below, and the
+  editor's `minimumSlideWindow` (`g_minimum_slide_window_seconds`, the shortest time a glide,
+  slide-out or scrape leg may take, measured forward from where the leg starts).
 - `g_minimum_sustain_distance_seconds` (its initializer is the only statement of the value), with
-  `marginBefore(tempo_map, onset)` and `minimumSustainDistanceBeats(tempo_map, onset)` — the one
-  settled gap drawn ink keeps before the next event: where a tail's ink stops, and what spans and
-  hand ramps trim to. Keyframes keep their stored instants. It is a **duration**, so both take the
-  onset being PROTECTED, walk back through the tempo map's own time axis (a tempo change inside
-  the margin is therefore exact) and floor onto the chart's tick lattice, which keeps the answer
-  from ever falling short of the duration. It must stay below the kept-sustain bound below, so
-  every tail that earns one keeps some ink; a `static_assert` says so. Every margin a scene build
-  keeps before a HEAD is read from `HeadMargins` (`chart/head_margins.h`): `chartResolutions`
-  asks the two functions once per distinct onset and carries the table, so the spans, the ink
-  ends, the drawn span extents and each note's `margin_start_seconds` read one answer per head.
-  The two functions stay the authority — the table only stops the build asking them again — and
-  a fret-hand placement, which is not a head, still asks `marginBefore` directly.
+  `minimumSustainDistance(tempo_map, onset)` — the one settled gap drawn ink keeps before the next
+  event: where a tail's ink stops, and what spans and hand ramps trim to. Keyframes keep their
+  stored instants. It is a **duration**, so it takes the place of the onset being PROTECTED and
+  reaches back from it through `tickPlaceReached`. It must stay below the kept-sustain bound below,
+  so every tail that earns one keeps some ink; a `static_assert` says so. Every margin a scene build
+  keeps before a HEAD is read from `HeadMargins` (`chart/head_margins.h`): `chartResolutions` asks
+  the function once per distinct onset and carries the table, so the spans, the ink ends, the drawn
+  span extents and each note's `margin_start_seconds` read one answer per head. The function stays
+  the authority — the table only stops the build asking it again — and a fret-hand placement, which
+  is not a head, asks `minimumSustainDistance` directly.
 - `g_minimum_kept_sustain_seconds` — the kept-sustain bound presentation rule 2 drops a short
   effect-free tail against, a **duration** for the same reason. Rule 2 reads each note's actual
   ring in seconds through the tempo map, from onset time to ring-end time, and only a ring running
@@ -68,9 +74,10 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   its string" has one answer wherever it is asked. It bounds the RING and nothing else: the span-implied
   hold `chartHolds` answers deliberately runs past it, because a re-strike stops a string without
   releasing the shape (see that function).
-- `predecessorHoldReaches(...)` — the connection hold test, and it is plain: true when the
-  predecessor's stored ring reaches the onset. Strict adjacency against the stored ring, with no
-  kept-bound assumption and no margin slack, because the stored ring is the real one.
+- `predecessorHoldReaches(sustain, onset_gap)` — the connection hold test, and it is plain: true
+  when the predecessor's stored ring reaches the onset, both in whole notes. Strict adjacency
+  against the stored ring, with no kept-bound assumption and no margin slack, because the stored
+  ring is the real one.
 - `nearestTick(numerator, denominator)` and `isOnTickLattice(tempo_map, position)` (both in
   `timeline/tick_lattice.h`, beside `isValidGridPosition`, so the tempo map can ask them) — THE one
   rounding rule onto the tick lattice (the nearest whole tick, a tie to the earlier) and the test
@@ -81,19 +88,22 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   existed (exact septuplet offsets, exact bend percentages) is refused with "chart document
   violates chart rules"; there is no migration, by the no-back-compat policy that holds until the
   first release ships.
-- `TempoMap::beatPositionAt`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
-  `snapGridPosition`, `adjacentGridPosition` — the exact `GridPosition` ↔ beat conversions, signed
-  and inverse-exact, all crossing beat, measure, and meter boundaries without floating-point
-  drift. The last two are the two questions asked of one note-value lattice (nearest line, and the
-  neighbouring line in a direction); the adjacent line is read off the lattice rather than found by
-  stepping and re-snapping, which is what keeps a step back from any line landing on the line it
-  came from in every meter.
-- `TempoMap::wholeNotePositionAt(position)`, `wholeNoteDistance`, `advanceGridPositionByWholeNotes`
-  — the same conversions on the WHOLE-NOTE axis, the one axis a meter change
-  does not bend and the axis the tick lattice is ruled on. A beat count means a different duration
-  in every meter, so a verb that carries an instant across a signature change — the move verb, and
-  the rings the insert and scrape verbs author — walks here and measures the beat count the chart
-  stores from the landed onset.
+- `snapGridPosition`, `adjacentGridPosition` — the two questions asked of one note-value lattice
+  (nearest line, and the neighbouring line in a direction), exact across beat, measure, and meter
+  boundaries. The adjacent line is read off the lattice rather than found by stepping and
+  re-snapping, which is what keeps a step back from any line landing on the line it came from in
+  every meter.
+- `TempoMap::wholeNotePositionAt(position)` and its inverse `TempoMap::gridPositionAtWholeNote`,
+  with `wholeNoteDistance` and `advanceGridPositionByWholeNotes` (a ring's end is its onset
+  advanced by its sustain) — the WHOLE-NOTE axis, the one axis a meter change does not bend, the axis the tick lattice is ruled on,
+  and the axis every stored duration is a note value on. A ring or a keyframe offset means the same
+  length on both sides of a signature change, so a whole-note place plus a duration is an exact
+  instant anywhere. A pass over a note stream computes every onset's place once
+  (`chartNotePlaces`, carried as `ChartConnections::places`) and measures gaps and ends by exact
+  addition and subtraction; the distance and advance functions are for a single question about one
+  pair. Seconds come from the same axis: `TempoMap::secondsAtWholeNote(place)` is the one route
+  every chart instant — onsets included — takes to the clock, so one instant reached two ways (a
+  ring ending on the next head) is one double, and `wholeNotePositionAtSeconds` is its inverse.
 - `terminalGridPosition(tempo_map)` — the chart's closing barline as a `GridPosition`. Every
   consumer of the chart's end needs the same answer (package read closing the last tone region,
   tone-track normalization, tone-track validation, and the editor's end-of-chart navigation and
@@ -336,8 +346,10 @@ through the content map (`readdressedPosition`), rounding onto the tick lattice
   the tick nearest, under the new map, to the instant the old map gave it. Every place rounds once,
   to within half a tick of its old time.
 
-A ring's `sustain` and a keyframe's `offset` count BEATS, which a denominator change or a scale
-re-means, so they are re-expressed as the new beat distance between the mapped ends. A later meter
+A ring's `sustain` and a keyframe's `offset` are note values — differences on the whole-note axis
+— so a meter edit, whose content map keeps every place, leaves them untouched. Scale Tempo and Keep
+Notes in Time move places, so each is re-expressed as the difference of its mapped ends,
+P(p+d) − P(p), which keeps every ring end and keyframe on the tick lattice. A later meter
 keeps its time, so a reign that is no longer a whole number of measures before it refuses the
 edit, naming the meter where it stands now; a section left mid-measure snaps to its measure's
 downbeat; a terminal left mid-measure re-seats on the next downbeat (`reseatTerminalAnchor`).
@@ -424,16 +436,15 @@ lattice, so a ring left between lines snaps back onto them. That is why a durati
 its steps in order — each carrying the note value it snapped by — instead of summing them: a step
 has no size until you know where the end sits.
 
-The `Alt`+arrow MOVE is a gesture of the same shape (`chartMoveGestureDelta`, `chart_edits.h`):
-each press carries the selection's ANCHOR onto the adjacent line from where the run has REACHED,
-and the run's delta is the sum of those distances in WHOLE NOTES — the axis a meter change does not
-bend (`advanceGridPositionByWholeNotes`, `grid_arithmetic.h`). One delta moves every selected
-object and every instant a moved note holds (its ring end, its keyframes), each measured again from
-the landed onset, so a note carried across a signature change keeps its real length and every
-landing stays on the tick lattice; a beat count carried across the change would do neither, and one
-exact step on a grid no tick divides would leave the anchor between ticks. A run that crosses a
-signature change is therefore worth a quarter-note beat per press before the boundary and two
-eighth-note beats after it, which is why the presses are kept in order rather than summed.
+The `Alt`+arrow MOVE is a gesture of the same shape (`chartMoveGestureDelta`, `chart_edits.h`): each
+press carries the selection's ANCHOR onto the adjacent line from where the run has REACHED, and the
+run's delta is the sum of those distances in WHOLE NOTES — the axis a meter change does not bend
+(`advanceGridPositionByWholeNotes`, `grid_arithmetic.h`). One delta moves every selected object; a
+moved note's ring and keyframes are note values held relative to its onset, so they ride along
+unchanged and a note carried across a signature change keeps its real length, every landing on the
+tick lattice. One exact step on a grid no tick divides would leave the anchor between ticks. A run
+that crosses a signature change is therefore worth a quarter-note beat per press before the boundary
+and two eighth-note beats after it, which is why the presses are kept in order rather than summed.
 
 *Design in flux: making the tempo map user-visible/editable shipped
 (`docs/plans/completed/tone-track-tempo-map-plan.md`), but tempo-anchor authoring is still an

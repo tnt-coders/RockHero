@@ -20,7 +20,7 @@ namespace rock_hero::common::core
 {
 
 LegatoMotion resolveLegato(
-    const ChartNote& note, const ChartNote* const predecessor, const TempoMap& tempo_map)
+    const ChartNote& note, const std::optional<LegatoPredecessor>& predecessor)
 {
     // The left-hand tap states the motion locally, so it is answered before any predecessor is
     // consulted: there is nothing for a neighbour to justify or withdraw.
@@ -34,17 +34,20 @@ LegatoMotion resolveLegato(
     // stop, and the muted cluck that follows is a hammer or pull like any other; the hold test
     // below bounds it by the same ring every note carries. Disqualifying it outright would turn
     // every imported muted cluck into a picked note.
-    if (predecessor == nullptr || isScrape(predecessor->attack) || fretHandHarmonic(*predecessor) ||
-        !predecessorHoldReaches(
-            predecessor->position, predecessor->sustain, note.position, tempo_map))
+    if (!predecessor.has_value())
+    {
+        return LegatoMotion::Unjustified;
+    }
+    const ChartNote& source = predecessor->note;
+    if (isScrape(source.attack) || fretHandHarmonic(source) ||
+        !predecessorHoldReaches(source.sustain, predecessor->onset_gap))
     {
         return LegatoMotion::Unjustified;
     }
     // Where the finger ENDS, which the arrival changes: a slide-out names a fret the hand never
     // reaches, while an arrival is a stop it glides onto and holds. This caller HOLDS the pair, so
     // it asks the relation directly rather than taking a resolved vector it has no index into.
-    const int fret_at_end =
-        fretAtRingEnd(*predecessor, arrivesIntoNextHead(*predecessor, note, tempo_map));
+    const int fret_at_end = fretAtRingEnd(source, arrivesIntoNextHead(*predecessor, note));
     if (fret_at_end > note.fret && !note.harmonic_node.has_value())
     {
         return LegatoMotion::Pull;
@@ -56,22 +59,20 @@ LegatoMotion resolveLegato(
     return LegatoMotion::Unjustified;
 }
 
-bool endsOnNextHead(
-    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map)
+bool endsOnNextHead(const LegatoPredecessor& predecessor)
 {
     // A glide finishing early states a slide-out, and a ring running past the head is bounded by
     // the same-string clamp before any pair exists, so strict equality is the whole of "one
     // instant".
-    return sustainEndPosition(tempo_map, predecessor) == successor.position;
+    return predecessor.note.sustain == predecessor.onset_gap;
 }
 
-bool arrivesIntoNextHead(
-    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map)
+bool arrivesIntoNextHead(const LegatoPredecessor& predecessor, const ChartNote& successor)
 {
     // (3) A scrape on either side, first, because it is the cheapest and disqualifies outright: a
     // scrape's travel is the pick's, its terminal is required at its end, and nothing glides into
     // its onset.
-    if (isScrape(predecessor.attack) || isScrape(successor.attack))
+    if (isScrape(predecessor.note.attack) || isScrape(successor.attack))
     {
         return false;
     }
@@ -84,14 +85,14 @@ bool arrivesIntoNextHead(
         return false;
     }
     // (1) The end must NAME A FRET, asked through the one note-local accessor.
-    const int* const stated = endStatedFretOrNull(predecessor);
+    const int* const stated = endStatedFretOrNull(predecessor.note);
     if (stated == nullptr)
     {
         return false;
     }
     // (2) EXACT ADJACENCY, asked of the clause's own function so the walk and this cannot measure
     // it two ways.
-    if (!endsOnNextHead(predecessor, successor, tempo_map))
+    if (!endsOnNextHead(predecessor))
     {
         return false;
     }
@@ -99,7 +100,7 @@ bool arrivesIntoNextHead(
     // sides, so a harmonic node and the fret beneath it can never read as the same place
     // (frettingStopAt). `ChartStop`'s defaulted `==` compares an `std::optional<double>` node, a
     // float compare made inside a standard library header, which coding-conventions names safe.
-    return frettingStopAt(predecessor, *stated) == frettingStopAt(successor, successor.fret);
+    return frettingStopAt(predecessor.note, *stated) == frettingStopAt(successor, successor.fret);
 }
 
 std::vector<std::size_t> chartPredecessors(const std::vector<ChartNote>& notes)
@@ -137,17 +138,23 @@ std::vector<std::size_t> unjustifiedLegatoClaims(
             continue;
         }
         // Exactly what chartConnections resolves for this note, on the same saved forms: only the
-        // claim and its predecessor are converted, never the whole stream.
+        // claim and its predecessor are converted, never the whole stream, and only the claim's
+        // own gap is measured — a column of every note's place would cost a pass over the whole
+        // stream at every settle event, which almost always finds nothing.
         ChartNote saved_predecessor;
-        const ChartNote* predecessor = nullptr;
+        std::optional<LegatoPredecessor> predecessor;
         if (const std::size_t predecessor_index = predecessors[index];
             predecessor_index != g_no_chart_predecessor)
         {
             saved_predecessor = savedChartNote(notes[predecessor_index]);
-            predecessor = &saved_predecessor;
+            predecessor.emplace(
+                LegatoPredecessor{
+                    .note = saved_predecessor,
+                    .onset_gap = wholeNoteDistance(
+                        tempo_map, saved_predecessor.position, notes[index].position),
+                });
         }
-        if (resolveLegato(savedChartNote(notes[index]), predecessor, tempo_map) ==
-            LegatoMotion::Unjustified)
+        if (resolveLegato(savedChartNote(notes[index]), predecessor) == LegatoMotion::Unjustified)
         {
             unjustified.push_back(index);
         }
@@ -168,6 +175,9 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     {
         connections.saved_notes.push_back(savedChartNote(note));
     }
+    // The first sub-pass of every resolution: each onset's place, once, so every gap below and
+    // every ring end and keyframe instant after it is exact arithmetic on this column.
+    connections.places = chartNotePlaces(connections.saved_notes, tempo_map);
 
     // The saved form leaves every string alone, so the relation is the same on either stream.
     connections.predecessors = chartPredecessors(connections.saved_notes);
@@ -179,20 +189,17 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     {
         const ChartNote& note = connections.saved_notes[index];
         const std::size_t predecessor_index = connections.predecessors[index];
-        const ChartNote* const predecessor = predecessor_index == g_no_chart_predecessor
-                                                 ? nullptr
-                                                 : &connections.saved_notes[predecessor_index];
+        const std::optional<LegatoPredecessor> predecessor = connections.predecessorOf(index);
         // THE SHIFT SLIDE, marked from the SUCCESSOR onto its predecessor because the relation is
         // about the pair (\ref arrivesIntoNextHead). Resolved BEFORE the claim below, which reads
         // the predecessor's fret at its ring's end and therefore this very answer — asked here once
         // and through the predicate there, one producer either way.
-        if (predecessor != nullptr)
+        if (predecessor.has_value())
         {
-            connections.arrives_into[predecessor_index] =
-                arrivesIntoNextHead(*predecessor, note, tempo_map);
+            connections.arrives_into[predecessor_index] = arrivesIntoNextHead(*predecessor, note);
             // The arrival's EXACT ADJACENCY clause on its own: what an arrival and an abutting
             // slide-out share, and all the surfaces need to know that two marks stand at one x.
-            if (endsOnNextHead(*predecessor, note, tempo_map))
+            if (endsOnNextHead(*predecessor))
             {
                 connections.end_heads[predecessor_index] = index;
             }
@@ -202,7 +209,7 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         // display code read this entry alone for the whole legatoClaimable family. The `H` toggle
         // asks resolveLegato directly for the hypothetical it needs.
         connections.legato.push_back(
-            legatoClaimed(note.attack) ? resolveLegato(note, predecessor, tempo_map)
+            legatoClaimed(note.attack) ? resolveLegato(note, predecessor)
                                        : LegatoMotion::Unjustified);
         // WHICH RINGS HAND THEIR STRING OVER, marked from the SUCCESSOR because that is where the
         // chart states it: intent is stored on the note taking the connection (\ref legatoClaimed)
@@ -215,13 +222,26 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         // Filled here rather than by the one display rule that reads it, because the same-string
         // relation this needs is exactly the one this walk establishes, and two producers of one
         // relation is how a chart comes to be described two ways.
-        if (predecessor != nullptr && legatoClaimed(note.attack))
+        if (predecessor.has_value() && legatoClaimed(note.attack))
         {
-            connections.hands_over[predecessor_index] = predecessorHoldReaches(
-                predecessor->position, predecessor->sustain, note.position, tempo_map);
+            connections.hands_over[predecessor_index] =
+                predecessorHoldReaches(predecessor->note.sustain, predecessor->onset_gap);
         }
     }
     return connections;
+}
+
+std::optional<LegatoPredecessor> ChartConnections::predecessorOf(const std::size_t index) const
+{
+    const std::size_t predecessor_index = predecessors[index];
+    if (predecessor_index == g_no_chart_predecessor)
+    {
+        return std::nullopt;
+    }
+    return LegatoPredecessor{
+        .note = saved_notes[predecessor_index],
+        .onset_gap = places[index] - places[predecessor_index],
+    };
 }
 
 std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connections)
@@ -269,6 +289,7 @@ std::vector<std::optional<int>> chartHeldStops(
     // (\ref SpanCover) — the same coverage the hold extension is measured against, so the default
     // can never sit under a span that walk says is not there.
     const SpanCover cover{shapes.shapes, tempo_map};
+    const std::vector<Fraction>& places = connections.places;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
@@ -282,7 +303,7 @@ std::vector<std::optional<int>> chartHeldStops(
             // which a node grip states as 0 by construction. Nothing where no span covers the tap,
             // or where the covering posture says nothing about THIS string.
             // Each bound to a local so the presence test and the reads are provably one object.
-            const std::optional<SpanCoverage> covering = cover.reaching(note.position);
+            const std::optional<SpanCoverage> covering = cover.reaching(places[index]);
             const std::optional<std::size_t> string_index = chartStringIndex(note);
             if (covering.has_value() && string_index.has_value())
             {
@@ -307,7 +328,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     const std::vector<ChartNote>& saved_notes = resolutions.connections.saved_notes;
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
-    resolutions.margins = HeadMargins{saved_notes, tempo_map};
+    resolutions.margins = HeadMargins{saved_notes, resolutions.connections.places, tempo_map};
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel.
     ChartShapes derived =
@@ -322,7 +343,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
     // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
     // IT: the tail law is class-blind, so nothing downstream has to re-read the class.
-    resolutions.arrivals = chartShapeArrivals(saved_notes, derived.shapes, tempo_map);
+    resolutions.arrivals = chartShapeArrivals(resolutions.connections, derived.shapes, tempo_map);
     // Where each ring's ink stops, derived here so a chart revision pays for it once and no
     // consumer can derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION:
     // the presentation rules and the tail law come out together, so there is no ordering contract

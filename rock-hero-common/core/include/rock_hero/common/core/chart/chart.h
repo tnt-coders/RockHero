@@ -516,7 +516,9 @@ the ring's END, where no leg begins, is nothing (\ref keyframeStatesNothing).
 */
 struct Keyframe
 {
-    /*! \brief Beat-fraction offset from the note onset; strictly positive, within the sustain. */
+    /*!
+    \brief Distance from the note's onset, in whole notes; strictly positive, within the sustain.
+    */
     Fraction offset{};
 
     /*!
@@ -624,7 +626,8 @@ struct ChartNote
     int fret{0};
 
     /*!
-    \brief The ACTUAL duration the string rings, in beats. Strictly positive.
+    \brief The ACTUAL duration the string rings, as a note value in whole notes (1/4 a quarter,
+    3/8 a dotted quarter, whatever the meter). Strictly positive.
 
     Guitar Pro's notated duration at import, what the editor's verbs author, and what playback will
     sound. Every surface draws this ring, but only as far as its ink end, derived once per chart
@@ -872,7 +875,7 @@ RingState::advance themselves rather than sampling this per keyframe, which woul
 once per entry to learn what one pass already knows.
 
 \param note Note whose ring is read.
-\param offset Beat-fraction offset from the note's onset.
+\param offset Whole notes from the note's onset.
 
 \return Every channel's statement in force at that instant.
 */
@@ -896,7 +899,7 @@ once per entry to learn what one pass already knows.
 leg a keyframe inserted there would divide, and the leg BEFORE a keyframe already standing there.
 
 \param note Note whose legs are read.
-\param offset Beat offset from the onset.
+\param offset Whole notes from the onset.
 \return The width of the leg the instant lies in, ignoring any keyframe at the instant itself.
 */
 [[nodiscard]] inline VibratoState vibratoBefore(
@@ -924,7 +927,7 @@ leg's width, which is what this hands it. Every creator of a mid-ring keyframe s
 record and states its own channels on top.
 
 \param note Note the keyframe is planted in.
-\param offset Beat offset from the onset, strictly inside the ring.
+\param offset Whole notes from the onset, strictly inside the ring.
 \return A keyframe stating only the leg's width.
 */
 [[nodiscard]] inline Keyframe keyframeInLeg(const ChartNote& note, const Fraction offset)
@@ -946,7 +949,7 @@ stating a channel beside an existing moment merges into it instead of writing a 
 array stays ascending.
 
 \param note Note whose keyframe is reached.
-\param offset Beat offset from the onset, strictly inside the ring or at its end.
+\param offset Whole notes from the onset, strictly inside the ring or at its end.
 \return The keyframe at that offset.
 */
 [[nodiscard]] inline Keyframe& keyframeAt(ChartNote& note, const Fraction offset)
@@ -968,7 +971,7 @@ Exact rationals, so equality is the test. A writer that must not plant asks this
 the standing keyframe through \ref keyframeAt.
 
 \param note Note whose keyframes are read.
-\param offset Beat offset from the onset.
+\param offset Whole notes from the onset.
 \return The keyframe at that offset, or null.
 */
 [[nodiscard]] inline const Keyframe* standingKeyframe(const ChartNote& note, const Fraction offset)
@@ -1023,7 +1026,7 @@ the vibrato and is kept, after an unvibrated one it is silent and swept — so n
 here; after an unvibrated leg nothing is created either, there being nothing to end.
 
 \param note Note whose vibrato ends at the instant.
-\param offset Beat offset from the onset, strictly inside the ring.
+\param offset Whole notes from the onset, strictly inside the ring.
 */
 inline void endVibratoAt(ChartNote& note, const Fraction offset)
 {
@@ -2040,7 +2043,7 @@ hand on.
 \param note Note whose ring is read.
 \param held The fretting hand's stop beside a picking-hand onset (\ref chartHeldStops), or nothing
        where none is known.
-\param offset Beat-fraction offset from the note's onset.
+\param offset Whole notes from the note's onset.
 
 \return The stop the note states at that instant; nothing only where the picking hand stops the
         string and no held stop is known. An open string answers `frettedStop(0)` — a statement
@@ -2076,7 +2079,7 @@ held stop.
 
 \param note Note whose ring is read.
 \param held The held stop beside a picking-hand onset, as \ref fretHandStopAt takes it.
-\param offset Beat-fraction offset from the note's onset.
+\param offset Whole notes from the note's onset.
 
 \return The occupied fret (\ref handFretOf), or nothing where no finger is down.
 */

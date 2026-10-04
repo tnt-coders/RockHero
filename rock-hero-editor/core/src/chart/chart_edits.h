@@ -150,7 +150,7 @@ that chart's own notes. Slide-out-ness stays such a fact only because the verb r
 would carry a point onto the ring's end (\ref planMoveSelection).
 
 \param chart The chart the candidate edits, a fixpoint of this gate.
-\param tempo_map Tempo map supplying the beat axis for the ring bounds and the lattice rules.
+\param tempo_map Tempo map supplying the meters for the ring bounds and the lattice rules.
 \param base Stream the plan is diffed against.
 \param candidate The planned stream, in slot order: a planner adds a note through its slot
        (at `lower_bound`, beside any note already there, so a duplicate meets the order rule's
@@ -179,7 +179,7 @@ same ring, and from between lines the ring is the rest of the step, as the durat
 press snaps an off-grid end onto the grid.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param note Note to place; the caller owns position/string/fret validity.
 \param grid_note_value The session's grid step as a fraction of a whole note — the grid itself,
 never the placement quantum: snap decides where things go, never how long they are, and a
@@ -201,7 +201,7 @@ struct ChartPathTail
     /*! \brief The note whose ring covers the slot. */
     ChartSlotKey note;
 
-    /*! \brief Beat offset from that note's onset; strictly positive, and within the ring. */
+    /*! \brief Whole notes from that note's onset; strictly positive, and within the ring. */
     common::core::Fraction offset;
 
     /*!
@@ -232,7 +232,7 @@ rather than scan the stream. An offset of zero is not a tail at all — that is 
 facts the note itself carries — so a slot a head stands on answers nothing here.
 
 \param notes The chart's note stream.
-\param tempo_map Tempo map supplying the beat axis the offset is measured on.
+\param tempo_map Tempo map supplying the meters the offset is measured across.
 \param position Slot position the caret sits at.
 \param string One-based string lane the caret sits on.
 
@@ -262,9 +262,9 @@ stop the pick travelling — refuses through the fixpoint, because a scrape that
 no scrape.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the shared finalize.
+\param tempo_map Tempo map supplying the meters for the shared finalize.
 \param note Slot of the note the point is stated on; a slot holding no note is refused.
-\param offset Beat offset from that note's onset.
+\param offset Whole notes from that note's onset.
 \param fret Fret the point states.
 \return The plan; Invalid when the gate refuses it.
 */
@@ -292,9 +292,9 @@ lie STRICTLY inside the ring — at its end there is nothing to divide, and the 
 adjacent (\ref planInsertNote).
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the walk and the shared finalize.
+\param tempo_map Tempo map supplying the meters for the walk and the shared finalize.
 \param note Slot of the note whose ring is cut; a slot holding no note is refused.
-\param offset Beat offset from that note's onset, strictly inside its ring.
+\param offset Whole notes from that note's onset, strictly inside its ring.
 \param fret Fret the new head is struck at.
 \return The plan; Invalid when the walk or the gate refuses it.
 */
@@ -313,7 +313,7 @@ out toward a stop the string never sounded — so a head placed after a slide-ou
 a shift slide. With no note before the slot, the open string.
 
 \param notes The chart's note stream, in chart order.
-\param tempo_map Tempo map supplying the beat axis the offsets are measured on.
+\param tempo_map Tempo map supplying the meters the offsets are measured across.
 \param slot The slot asked about.
 \return The fret in force there.
 */
@@ -340,7 +340,7 @@ keyframe whose note this same call deletes needs no separate care: the note take
 with it.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the shared finalize.
+\param tempo_map Tempo map supplying the meters for the shared finalize.
 \param note_keys Notes to delete, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition); keys with no matching note are skipped.
 \param keyframe_keys Keyframes to delete, sorted ascending, same precondition; keys naming no
@@ -391,10 +391,10 @@ struct ChartMoveDelta
     /*!
     \brief Signed exact time delta, in whole notes.
 
-    Whole notes rather than beats because the delta is applied to EVERY selected object and to
-    every instant each one holds, and a beat count means a different duration in every meter: on
-    the whole-note axis one delta keeps the selection's spacing exact across a meter change and
-    keeps each landing on the tick lattice (\ref common::core::advanceGridPositionByWholeNotes).
+    Whole notes, the axis every duration the chart stores is on: the delta is applied to EVERY
+    selected object, and one whole-note delta keeps the selection's spacing exact across a meter
+    change and keeps each landing on the tick lattice
+    (\ref common::core::advanceGridPositionByWholeNotes).
     */
     common::core::Fraction whole_notes{};
 
@@ -431,7 +431,7 @@ under half a tick — and always on the lattice.
 The anchor is the front of whichever kind the selection holds, notes first; a keyframe anchors at
 the instant it states, since that is what its step lands on a line.
 
-\param tempo_map Tempo map supplying the beat axis and the meter each step lands in.
+\param tempo_map Tempo map supplying the meter each step lands in.
 \param note_keys Notes the gesture started on, sorted ascending (the ChartSelection order).
 \param keyframe_keys Keyframes the gesture started on, sorted ascending, same precondition.
 \param steps The gesture's presses in press order, replayed in that order.
@@ -461,7 +461,7 @@ selection has to be the one the plan wrote, not the delta arithmetic the plan ma
 
 \param chart Chart the step is taken against — for a gesture, the state the run STARTED from, since
 that is what the replay is planned against.
-\param tempo_map Tempo map supplying the beat axis the bound is measured on.
+\param tempo_map Tempo map supplying the meters the bound is measured across.
 \param keyframe Key of the keyframe stepping, naming its note's slot and its current offset.
 \param whole_note_delta Signed exact whole-note delta of the whole step (\ref ChartMoveDelta).
 
@@ -475,15 +475,15 @@ that is what the replay is planned against.
 \brief Plans moving the selection one step in time and/or across strings: notes by their slot,
 keyframes by their offset.
 
-ONE beat delta, applied where each kind of selected object lives. A note's place is its slot, so it
-moves there; a keyframe's place is an offset along the ring it rides, so it moves there — the same
-step of the same lattice, which is why one planner and one undo entry serve a mixed selection
+ONE whole-note delta, applied where each kind of selected object lives. A note's place is its slot,
+so it moves there; a keyframe's place is an offset along the ring it rides, so it moves there — the
+same step of the same lattice, which is why one planner and one undo entry serve a mixed selection
 instead of two that could half-apply. The STRING delta reaches notes only: a keyframe has no string
 of its own, and the path rides the head that does.
 
 A selected note carries its own keyframes along at UNCHANGED offsets, so a keyframe whose note the
 selection also names does not step: an offset is relative to its onset, and moving both would move
-it twice. Only keyframes on notes the selection left standing take the beat delta.
+it twice. Only keyframes on notes the selection left standing take the delta.
 
 Refused (empty) when any moved note would leave the chart's string range or land on a slot an
 unmoved note occupies — validation-preserving edits only, and a HEAD's landing is never clamped
@@ -527,7 +527,7 @@ diffed against.
 
 \param chart Chart the plan is expressed against: the live chart on a gesture's first press, the
 state the gesture started from on every later one.
-\param tempo_map Tempo map supplying the beat axis.
+\param tempo_map Tempo map supplying the meter of every measure.
 \param note_keys Notes to move, sorted ascending (the ChartSelection order — lookups binary-search
 this precondition).
 \param keyframe_keys Keyframes to step along their rings, sorted ascending, same precondition; keys
@@ -593,7 +593,7 @@ graze. Whether the moved node is still legal is the finalize gate's answer, like
 here.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the shared finalize.
+\param tempo_map Tempo map supplying the meters for the shared finalize.
 \param base Snapshot of every note the retype writes through, in chart slot order.
 \param note_keys Notes whose OWN stop is addressed, sorted ascending (the ChartSelection order —
 lookups binary-search this precondition).
@@ -623,7 +623,7 @@ struct ChartSustainStep
     /*!
     \brief Note value the step snaps onto: the placement quantum at the moment of the step.
 
-    The note VALUE, never a precomputed beat amount: the planner needs the lattice to land on, and
+    The note VALUE, never a precomputed length: the planner needs the lattice to land on, and
     the local meter scales the value there (one 1/4 step is one beat in x/4 and two in x/8), so a
     ring crossing a meter change still lands on that meter's own lines. A gesture that spans a snap
     toggle or a grid change replays each step on the lattice it was made against.
@@ -711,7 +711,7 @@ Three consequences of the step's law, all intended:
   the replay runs per note from that note's own end. Members already sharing a line stay together.
 
 \param chart Chart being edited, live: the ring bounds, and the ring a floored note holds.
-\param tempo_map Tempo map supplying the beat axis and the meter each grid step lands in.
+\param tempo_map Tempo map supplying the meter each grid step lands in.
 \param base Stream the gesture started from: the pre-gesture rings, and the stream the plan is
 diffed against.
 \param keys Notes whose sustains change, sorted ascending (the ChartSelection order — lookups
@@ -856,7 +856,7 @@ slide clears the path — gesture geometry has no meaning as a pitched glide —
 nothing else.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param keys Notes whose attack changes, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
 \param attack Attack every keyed note receives.
@@ -946,7 +946,7 @@ rather than what rings, and a palm mute is refused by nothing at all. A pick sli
 mute, because its saved form records neither.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param keys Notes whose mute changes, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
 \param which Which mute the write targets.
@@ -975,7 +975,7 @@ it is here so the verb tracks that authority if it ever changes, rather than enc
 refuses this" as a second fact maintained by hand.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param keys Notes whose emphasis changes, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
 \param value Emphasis every keyed note receives.
@@ -1064,7 +1064,7 @@ press that stated no choice, takes the first candidate: the lowest partial, the 
 preselects, so the two ways of pressing `H` agree.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param keys Notes the touch is stated on, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
 \param chosen_partial Partial the charter chose, or absent for the lowest partial.
@@ -1092,7 +1092,7 @@ memory of an overridden technique is needed: the fret comes back by arithmetic, 
 normalization stripped is restored by undo.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param keys Notes the harmonic leaves, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
 \param label User-visible undo label.
@@ -1111,7 +1111,7 @@ toggle: clearing to the pick alone would leave a stop and a node standing — an
 nobody authored. The fret is untouched, because a pinch's fret was pressed all along.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param keys Notes the pinch leaves, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
 \param label User-visible undo label.
@@ -1265,7 +1265,7 @@ Join refusals, each because the handover it would author is not one the format c
 - A head carrying a harmonic node: a point states frets and channels, never a node.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the junction arithmetic and the shared
+\param tempo_map Tempo map supplying the meters for the junction arithmetic and the shared
 finalize.
 \param head_keys Notes to JOIN into their predecessors, sorted ascending (the ChartSelection order);
 keys naming no note are skipped.
@@ -1307,7 +1307,7 @@ names an INSTANT, whether a point stands there yet or not: setting plants one th
 covered slot starts a vibrato mid-ring.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param note_keys Notes whose ONSET statement changes, sorted ascending (the ChartSelection order).
 \param keyframe_keys Instants along a ring whose leg's width changes, a point standing there or
        not, sorted ascending, same precondition.
@@ -1335,7 +1335,7 @@ all it said; a key naming no point writes nothing then. This is the bend's one w
 picker's "No bend" row and `Delete` on a bend chip both plan through it.
 
 \param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param tempo_map Tempo map supplying the meters for overlap arithmetic.
 \param note_keys Notes whose onset bend changes, sorted ascending (the ChartSelection order).
 \param keyframe_keys Instants whose bend changes, sorted ascending, same precondition.
 \param semitones Amount written at every anchor; absent takes the points' statements away.

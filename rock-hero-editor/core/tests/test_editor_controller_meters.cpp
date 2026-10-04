@@ -45,7 +45,7 @@ using common::core::testing::beatAt;
     bass.id = "bass";
     common::core::Chart bass_chart = makeTestChart();
     bass_chart.notes = {
-        makeTestNote(beatAt(2, 4), 1, 3, common::core::Fraction{2}),
+        makeTestNote(beatAt(2, 4), 1, 3, common::core::Fraction{1, 2}),
         makeTestNote(
             GridPosition{.measure = 5, .beat = 3, .offset = common::core::Fraction{1, 2}}, 2, 5),
     };
@@ -99,8 +99,9 @@ struct MeterEditor : SongEditorHarness
         for (const common::core::ChartNote& note : chart.notes)
         {
             seconds.push_back(tempo_map.secondsAt(note.position));
-            seconds.push_back(
-                tempo_map.secondsAt(common::core::sustainEndPosition(tempo_map, note)));
+            seconds.push_back(tempo_map.secondsAt(
+                common::core::advanceGridPositionByWholeNotes(
+                    tempo_map, note.position, note.sustain)));
         }
         for (const common::core::FretHandPosition& placement : chart.fret_hand_positions)
         {
@@ -371,9 +372,10 @@ TEST_CASE("A meter edit moves no resolved time in either arrangement", "[core][m
     REQUIRE(bass.has_value());
     if (bass.has_value())
     {
-        // The bass ring from 2:4 ran two quarter beats to 3:2; under 3/4 it still ends there.
+        // The bass ring from 2:4 ran a half note to 3:2; under 3/4 it still ends there, its value
+        // untouched.
         REQUIRE_FALSE(bass->notes.empty());
-        CHECK(bass->notes.front().sustain == common::core::Fraction{2});
+        CHECK(bass->notes.front().sustain == common::core::Fraction{1, 2});
     }
 }
 

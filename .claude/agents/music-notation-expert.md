@@ -148,7 +148,7 @@ the posture half.
 
 | Word | What it means here | Where it lives |
 |---|---|---|
-| **ring** / **sustain** | The ACTUAL duration the string sounds, in beats — strictly positive, dead notes included. Never what a surface draws. | `ChartNote::sustain` |
+| **ring** / **sustain** | The ACTUAL duration the string sounds, a note value in whole notes — strictly positive, dead notes included. Never what a surface draws. | `ChartNote::sustain` |
 | **presented** | The readability projection of the record: what a surface draws and what scoring reads. Derived once per chart revision; never stored. | `presentedChartNotes` |
 | **tail** / **ribbon** | What a surface *draws* for a ring. Presentation words only. | `highway_tail.h`, tab layout |
 | **onset** | A note beginning to sound. Every attack produces exactly one — there is no silent attack. | `NoteAttack` |

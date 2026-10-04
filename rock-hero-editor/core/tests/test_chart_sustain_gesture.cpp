@@ -113,19 +113,19 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     REQUIRE(fixture.load());
 
     // A plain click selects just the string-1 note (containment hierarchy). The measure-2 notes
-    // start at the eighth-of-a-beat fixture ring, which ends BETWEEN grid lines, so the first grid
-    // step snaps its end onto the next line rather than adding a beat to it.
+    // start at the thirty-second-note fixture ring, which ends BETWEEN grid lines, so the first
+    // grid step snaps its end onto the next line rather than adding a quarter to it.
     click(fixture.controller, 40.0f, 220.0f);
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
 
-    // Five more quarter-note steps would reach six beats, but the measure-3 note is the next
-    // onset on this string, four beats later: growth stops exactly there.
+    // Five more quarter-note steps would reach six quarters, but the measure-3 note is the next
+    // onset on this string, four quarters later: growth stops exactly there.
     for (int index = 0; index < 5; ++index)
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{4});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
 
     // Nothing bounds the string-2 chord member, because the bound is its OWN string's next onset
     // and it has none: the measure-3 note on string 1 does not stop its ring.
@@ -134,7 +134,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{6});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{3, 2});
 
     // Shrinking stops one step short of empty: every note rings, so the step that would reach zero
     // holds the ring where it is.
@@ -143,22 +143,22 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     {
         fixture.step(-1);
     }
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
 
     // The click ENDS that gesture. The tick lattice is what this section pins, so it gets a
     // gesture of its own.
     click(fixture.controller, 40.0f, 220.0f);
     fixture.tickStep(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{961, 960});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{961, 3840});
     fixture.tickStep(-1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
 }
 
 // The gesture's headline property: a run of steps is ONE undo entry, and a run that comes back to
 // where it started leaves the notes byte-identical — because every step re-plans from the rings the
 // gesture began with rather than from the ring the last step left.
 //
-// The measure-3 note is the one this can be said of: its two-beat ring ends ON a grid line, and a
+// The measure-3 note is the one this can be said of: its half-note ring ends ON a grid line, and a
 // grid step from the lattice lands on the lattice, so the steps back retrace the steps out. From a
 // ring left between lines the first grid step snaps, and the run cannot return — by design, below.
 TEST_CASE("A sustain gesture is one undo entry and round-trips exactly", "[core][chart]")
@@ -177,7 +177,7 @@ TEST_CASE("A sustain gesture is one undo entry and round-trips exactly", "[core]
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{5, 4});
     // Three presses, one entry: the first pushed it and every later step replaced it, so the entry
     // always describes start → now.
     CHECK(fixture.undoEntryCount() == entries_before + 1);
@@ -209,13 +209,13 @@ TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][
     // The fixture chart with on-grid rings on the measure-2 onset, because this run has to return
     // exactly and only a ring ending on a grid line can (a grid step from between lines snaps).
     common::core::Chart chart = makeTestChart();
-    chart.notes[0].sustain = common::core::Fraction{1};
-    chart.notes[1].sustain = common::core::Fraction{1};
+    chart.notes[0].sustain = common::core::Fraction{1, 4};
+    chart.notes[1].sustain = common::core::Fraction{1, 4};
     const bool loaded = fixture.load(std::move(chart));
     REQUIRE(loaded);
 
-    // The double click selects the whole measure-2 onset: string 1 (bounded four beats later by its
-    // own restrike) and string 2 (bounded by nothing).
+    // The double click selects the whole measure-2 onset: string 1 (bounded four quarters later by
+    // its own restrike) and string 2 (bounded by nothing).
     doubleClick(fixture.controller, 40.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntryCount();
 
@@ -223,26 +223,26 @@ TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{4});
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{5, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
     // The step back is the one that put the bounded member there, so it rejoins its neighbour on
     // the same ring they parted from: the clamp never entered the replay.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{4});
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{4});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{1});
 
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{3});
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{3});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{3, 4});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{3, 4});
 
     for (int index = 0; index < 2; ++index)
     {
         fixture.step(-1);
     }
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{1, 4});
     // Both members are back where they started, so the whole run describes nothing and its entry
     // goes with it.
     CHECK(fixture.undoEntryCount() == entries_before);
@@ -258,23 +258,23 @@ TEST_CASE("An emptied ring holds and the steps into the floor are not recorded",
     GestureFixture fixture;
     REQUIRE(fixture.load());
 
-    // The measure-3 note is the fixture's two-beat ring, and nothing later sounds on its string.
+    // The measure-3 note is the fixture's half-note ring, and nothing later sounds on its string.
     click(fixture.controller, 80.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntryCount();
 
     fixture.step(-1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 4});
     // 2 - 2 is not a ring, so the note keeps the one it has, and the press is not part of the run.
     fixture.step(-1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 4});
     fixture.step(-1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
     // One grow is one step back: the run replays the single shrink it holds and this grow, lands
     // on the start, and leaves no entry behind.
     fixture.step(1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 2});
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
@@ -293,8 +293,8 @@ TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]
     GestureFixture fixture;
     REQUIRE(fixture.load(makeGlideChart()));
 
-    // The glide chart's one note: an eight-beat ring on string 3 with its junction four beats in,
-    // stating fret 9 and nothing else.
+    // The glide chart's one note: an two-whole-note ring on string 3 with its junction four
+    // quarters in, stating fret 9 and nothing else.
     click(fixture.controller, 40.0f, 140.0f);
     const auto one_keyframe_at = [&fixture](const common::core::Fraction offset) {
         const common::core::Chart* const chart = chartOrNull(fixture.controller);
@@ -311,26 +311,26 @@ TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]
     fixture.step(-1);
     fixture.step(-1);
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
+    CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK_FALSE(slides_out());
     // 8 - 4 lands the end ON the junction: the junction is now the slide-out, fret 9 the slide-out,
     // and the landing cost the junction nothing it had stated.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
-    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
+    CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK(slides_out());
     // A slide-out needs its own leg, so the ring holds here.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
-    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
+    CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK(slides_out());
 
     // The held press left no trace: one grow is one visible step — and the junction stays where
     // it was, a pitched stop again with the ribbon running on past it.
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
+    CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK_FALSE(slides_out());
 }
 
@@ -372,21 +372,21 @@ TEST_CASE("A ring lands on a last keyframe that also states a bend", "[core][cha
     fixture.step(-1);
     fixture.step(-1);
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(keeps_its_bend(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
+    CHECK(keeps_its_bend(common::core::Fraction{1}));
     CHECK_FALSE(slides_out());
 
     // 8 - 4 lands the end ON the junction: the junction is the slide-out and its bend the curve's
     // last value, both completing as the ring ends.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
-    CHECK(keeps_its_bend(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
+    CHECK(keeps_its_bend(common::core::Fraction{1}));
     CHECK(slides_out());
 
     // From there the ring holds: the ribbon cannot pass its own end point.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
-    CHECK(keeps_its_bend(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
+    CHECK(keeps_its_bend(common::core::Fraction{1}));
     CHECK(slides_out());
 }
 
@@ -426,26 +426,26 @@ TEST_CASE("A ring holds above a last keyframe that states vibrato", "[core][char
     fixture.step(-1);
     fixture.step(-1);
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
+    CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK_FALSE(slides_out());
     CHECK(states_vibrato());
 
     // 8 - 4 would land the end ON the junction and bare it: the ring stays one step above instead,
     // the junction keeps what it stated, and the press moved no ring so it is not recorded.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
+    CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK_FALSE(slides_out());
     CHECK(states_vibrato());
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
     CHECK(states_vibrato());
 
-    // The two held presses left no trace, so one grow is one visible step out from five beats.
+    // The two held presses left no trace, so one grow is one visible step out from five quarters.
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
-    CHECK(one_keyframe_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{3, 2});
+    CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK(states_vibrato());
 }
 
@@ -460,9 +460,9 @@ TEST_CASE("A shrink to the floor keeps mid-hold vibrato through the settle", "[c
     common::core::Chart vibrating;
     vibrating.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote held =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{2});
     held.keyframes = {common::core::Keyframe{
-        .offset = common::core::Fraction{4},
+        .offset = common::core::Fraction{1},
         .fret = 5,
         .bend = {},
         .vibrato = common::core::VibratoState::Narrow,
@@ -478,7 +478,7 @@ TEST_CASE("A shrink to the floor keeps mid-hold vibrato through the settle", "[c
     {
         fixture.step(-1);
     }
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
 
     // Clicking an empty lane leaves the note, which is the settle that sweeps silent points.
     click(fixture.controller, 40.0f, 220.0f);
@@ -491,7 +491,7 @@ TEST_CASE("A shrink to the floor keeps mid-hold vibrato through the settle", "[c
         if (swept->notes[0].keyframes.size() == 1)
         {
             const common::core::Keyframe& vibrato_point = swept->notes[0].keyframes[0];
-            CHECK(vibrato_point.offset == common::core::Fraction{4});
+            CHECK(vibrato_point.offset == common::core::Fraction{1});
             CHECK(vibrato_point.vibrato == common::core::VibratoState::Narrow);
         }
     }
@@ -513,10 +513,10 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote holding =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
-    // The fret typed four beats along the tail, and how many points the tail then carries. Either
-    // way the typed value repeats the fret in force at that instant: the onset's own where nothing
-    // else states one, an earlier junction's where the ring has already travelled.
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{2});
+    // The fret typed four quarters along the tail, and how many points the tail then carries.
+    // Either way the typed value repeats the fret in force at that instant: the onset's own where
+    // nothing else states one, an earlier junction's where the ring has already travelled.
     int typed{};
     std::size_t points{};
     SECTION("the onset's own fret")
@@ -529,7 +529,7 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
         typed = 7;
         points = 2;
         holding.keyframes = {common::core::Keyframe{
-            .offset = common::core::Fraction{2},
+            .offset = common::core::Fraction{1, 2},
             .fret = 7,
             .bend = {},
             .vibrato = {},
@@ -539,7 +539,7 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
     const bool loaded = fixture.load(std::move(chart));
     REQUIRE(loaded);
 
-    // Four beats in — 4.0s at the fixture geometry's 20 px/s — where a typed ring digit plants a
+    // Four quarters in — 4.0s at the fixture geometry's 20 px/s — where a typed ring digit plants a
     // point on the path, selected, and the duration verb then reaches the ring that point rides.
     click(fixture.controller, 80.0f, 140.0f);
     fixture.controller.onChartRingDigitTyped(typed);
@@ -547,7 +547,7 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
                chart_now->notes[0].keyframes.size() == points &&
-               chart_now->notes[0].keyframes.back().offset == common::core::Fraction{4} &&
+               chart_now->notes[0].keyframes.back().offset == common::core::Fraction{1} &&
                common::core::endStatedFretOrNull(chart_now->notes[0]) == nullptr;
     };
     // Asked with the production predicate, so the test cannot drift from the law it pins: the
@@ -561,23 +561,23 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
     fixture.step(-1);
     fixture.step(-1);
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
     CHECK(path_intact());
     CHECK(landing_refused());
 
     // 8 - 4 would land the end ON the point and bare it into a slide-out that goes nowhere: the
     // ring stays one step above instead, and the press moved no ring so it is not recorded.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
     CHECK(path_intact());
     CHECK(landing_refused());
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
     CHECK(path_intact());
 
-    // The two held presses left no trace, so one grow is one visible step out from five beats.
+    // The two held presses left no trace, so one grow is one visible step out from five quarters.
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{3, 2});
     CHECK(path_intact());
 }
 
@@ -590,16 +590,16 @@ TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote turning =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{2});
     turning.keyframes = {
         common::core::Keyframe{
-            .offset = common::core::Fraction{2},
+            .offset = common::core::Fraction{1, 2},
             .fret = 7,
             .bend = {},
             .vibrato = {},
         },
         common::core::Keyframe{
-            .offset = common::core::Fraction{4},
+            .offset = common::core::Fraction{1},
             .fret = 5,
             .bend = {},
             .vibrato = {},
@@ -623,13 +623,13 @@ TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
     fixture.step(-1);
     fixture.step(-1);
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
     CHECK_FALSE(slides_out_toward().has_value());
 
     // 8 - 4 lands the end ON the turn: the point is the slide-out now, and the slide-out from the 7
     // in force down to its 5 is a slide-out the surfaces draw.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
     const std::optional<int> landed = slides_out_toward();
     REQUIRE(landed.has_value());
     if (landed.has_value())
@@ -638,7 +638,7 @@ TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
     }
     // A slide-out needs its own leg, so the ring holds here.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
     CHECK(slides_out_toward().has_value());
 }
 
@@ -653,12 +653,12 @@ TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]"
     GestureFixture fixture;
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8})};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{2})};
     const bool loaded = fixture.load(std::move(chart));
     REQUIRE(loaded);
 
-    // Four beats into the eight-beat ring — 4.0s at the fixture geometry's 20 px/s — and the note's
-    // own fret typed there, which states nothing the path does not already say.
+    // Four quarters into the two-whole-note ring — 4.0s at the fixture geometry's 20 px/s — and the
+    // note's own fret typed there, which states nothing the path does not already say.
     click(fixture.controller, 80.0f, 140.0f);
     fixture.controller.onChartRingDigitTyped(5);
     const auto point_at = [&fixture](const common::core::Fraction offset) {
@@ -667,23 +667,23 @@ TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]"
                chart_now->notes[0].keyframes.size() == 1 &&
                chart_now->notes[0].keyframes[0].offset == offset;
     };
-    REQUIRE(point_at(common::core::Fraction{4}));
+    REQUIRE(point_at(common::core::Fraction{1}));
 
     // The duration verb reaches the ring the selected point rides, and it floors one step above it.
     for (int index = 0; index < 5; ++index)
     {
         fixture.step(-1);
     }
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(point_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
+    CHECK(point_at(common::core::Fraction{1}));
 
     // Selecting the head keeps the note in focus, so the point stands — and the floor it raises is
     // the same one, not a lower one hidden behind a slide-out the landing would have written.
     click(fixture.controller, 40.0f, 140.0f);
     fixture.step(-1);
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(point_at(common::core::Fraction{4}));
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5, 4});
+    CHECK(point_at(common::core::Fraction{1}));
 
     // Leaving the note dissolves the point, exactly as it would have with no gesture at all. With
     // nothing on the tail the floor is the onset again, so the ring shortens past where the point
@@ -699,7 +699,7 @@ TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]"
     click(fixture.controller, 40.0f, 140.0f);
     fixture.step(-1);
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{3});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{3, 4});
 }
 
 // A keyframe sits on the tail, and this is the verb that acts on the tail: with a junction selected
@@ -711,7 +711,7 @@ TEST_CASE("The duration verb reaches the ring a selected keyframe rides", "[core
     GestureFixture fixture;
     REQUIRE(fixture.load(makeGlideChart()));
 
-    // The junction's linked head, four beats into the eight-beat ring on string 3.
+    // The junction's linked head, four quarters into the two-whole-note ring on string 3.
     click(fixture.controller, 80.0f, 140.0f);
     const EditorViewState* const state = stateOrNull(fixture.view.last_state);
     REQUIRE(state != nullptr);
@@ -720,11 +720,11 @@ TEST_CASE("The duration verb reaches the ring a selected keyframe rides", "[core
     const std::size_t entries_before = fixture.undoEntryCount();
 
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{9});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{9, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
     // The step back retraces the run and retires its entry, the gesture's ordinary ending.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{8});
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{2});
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
@@ -741,18 +741,19 @@ TEST_CASE("Tick and grid steps mix inside one sustain gesture", "[core][chart]")
     const std::size_t entries_before = fixture.undoEntryCount();
 
     fixture.tickStep(1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1921, 960});
-    // Three beats exactly, not 2881/960: the grid step lands on the grid line, wherever the tick
-    // step had left the end.
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1921, 3840});
+    // Three quarters exactly, not 2881/3840: the grid step lands on the grid line, wherever the
+    // tick step had left the end.
     fixture.step(1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
     fixture.tickStep(-1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2879, 960});
-    // And back: the end sits a hair short of the line at three beats, so the line strictly before
-    // it is the two-beat one the note started on — the run describes nothing and its entry goes.
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2879, 3840});
+    // And back: the end sits a hair short of the line at three quarters, so the line strictly
+    // before it is the half-note one the note started on — the run describes nothing and its entry
+    // goes.
     fixture.step(-1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 2});
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
@@ -770,7 +771,7 @@ TEST_CASE("Undo mid-gesture restores the start and ends the gesture", "[core][ch
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{3});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{3, 4});
 
     fixture.controller.onUndoRequested();
     CHECK(fixture.ringAt(2, 1) == g_fixture_sustain);
@@ -779,7 +780,7 @@ TEST_CASE("Undo mid-gesture restores the start and ends the gesture", "[core][ch
     // the fixture's off-grid eighth — and a new entry replacing the redo branch rather than a
     // replacement of an entry the cursor has walked away from.
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 }
 
@@ -794,7 +795,7 @@ TEST_CASE("Selection, caret and other verbs end the sustain gesture", "[core][ch
     click(fixture.controller, 40.0f, 220.0f);
     fixture.step(1);
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{2});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 2});
 
     SECTION("a selection change")
     {
@@ -814,9 +815,9 @@ TEST_CASE("Selection, caret and other verbs end the sustain gesture", "[core][ch
 
     const std::size_t entries_before = fixture.undoEntryCount();
     fixture.step(-1);
-    // One grid step off two beats — a continued gesture would have replayed to one beat too, so
+    // One grid step off two quarters — a continued gesture would have replayed to a quarter too, so
     // the entry count is what separates a continued gesture from a fresh one.
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 }
 
@@ -832,13 +833,13 @@ TEST_CASE("A save ends the gesture and the next step still lands", "[core][chart
     click(fixture.controller, 40.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntryCount();
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
 
     fixture.controller.onSaveRequested();
     REQUIRE(fixture.project_services.save_call_count == 1);
 
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{2});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 2});
     // Two entries: the saved one, which stays exactly as the file has it, and this step's own.
     CHECK(fixture.undoEntryCount() == entries_before + 2);
 }
@@ -861,12 +862,12 @@ TEST_CASE("A net-zero sustain gesture leaves the document clean", "[core][chart]
     REQUIRE(fixture.atCleanState());
 
     fixture.step(1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
     CHECK_FALSE(fixture.atCleanState());
 
     fixture.step(-1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 2});
     CHECK(fixture.undoEntryCount() == entries_before);
     CHECK(fixture.atCleanState());
 }
@@ -874,8 +875,8 @@ TEST_CASE("A net-zero sustain gesture leaves the document clean", "[core][chart]
 // A scrape needs somewhere to travel, so its ring floors at the minimum gesture window instead of
 // holding — and because every step re-plans from the pre-gesture note, growing back out restores
 // the path the floor compressed away, terminal and turnarounds alike. Of the five shrinks only the
-// two that moved the ring are recorded (two beats to one, one to the floor), so two grows are the
-// whole way back.
+// two that moved the ring are recorded (two quarters to one, one to the floor), so two grows are
+// the whole way back.
 TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -894,7 +895,10 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     {
         fixture.step(-1);
     }
-    CHECK(fixture.ringAt(3, 1) == g_minimum_slide_window);
+    const common::core::TempoMap& tempo_map = fixture.controller.session().song().tempo_map;
+    const common::core::Fraction window =
+        minimumSlideWindow(tempo_map, tempo_map.wholeNotePositionAt({.measure = 3, .beat = 1}));
+    CHECK(fixture.ringAt(3, 1) == window);
     chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);
     if (chart != nullptr)
@@ -905,8 +909,8 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
         REQUIRE(slide_out != nullptr);
         if (slide_out != nullptr)
         {
-            CHECK(slid.sustain == g_minimum_slide_window);
-            CHECK(slide_out->offset == g_minimum_slide_window);
+            CHECK(slid.sustain == window);
+            CHECK(slide_out->offset == window);
         }
     }
 

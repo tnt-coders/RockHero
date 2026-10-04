@@ -110,7 +110,7 @@ struct ChartShape
     GridPosition position;
 
     /*!
-    \brief THE MUSICAL CLOSE, in beats from \ref position; always strictly positive.
+    \brief THE MUSICAL CLOSE, in whole notes from \ref position; always strictly positive.
 
     **The instant the span's statement actually ended, and nothing about how it is drawn.** Two
     arms, and the distinction is the whole field: where an EVENT closed the span — a contradiction,
@@ -156,7 +156,7 @@ struct ChartShape
     Fraction sustain{};
 
     /*!
-    \brief How far the span's own STATEMENTS reach, in beats from \ref position.
+    \brief How far the span's own STATEMENTS reach, in whole notes from \ref position.
 
     The last instant an EVENT stated this span — its final strum, or the slot whose holds opened or
     grew it — capped at the musical close, and zero on a span no event ever stated. Rule 12a's
@@ -245,7 +245,7 @@ struct ChartShape
     Display keys the opening mark's deferral on the same fact through \ref bracket_position (a
     landing states no ink; the first interior sounding fills it), and the chord name changes here
     once names exist. Published rather than inferred because no reader may substitute a test of its
-    own: `last_stated_beat` stops answering the moment an interior re-pick states the successor, so
+    own: `last_stated_place` stops answering the moment an interior re-pick states the successor, so
     that proxy is wrong in both directions. Its consumers are the census (the sanctioned instrument)
     and the tests; production display keys on \ref bracket_position. Declared here so that is read
     as deliberate rather than discovered.
@@ -351,7 +351,7 @@ it, so what the test governs is a charter's own crowded landing.
 \param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins), built
        once per revision because every drawn rule keeps the same distances; the landed span's
        emission test reads it at the closing head.
-\param tempo_map The beat axis every instant above is measured on.
+\param tempo_map The meter every span's front and boundary is addressed in.
 
 \return The spans and their posture table (\ref ChartShapes).
 */
@@ -458,13 +458,14 @@ One forward cursor over the sorted notes serves every shape. No backward look is
 here reads a posture string's most recent earlier note, which would mean walking back to the first
 note in the song whenever a posture string had none.
 
-\param notes Note stream sorted by (position, string); only positions and attacks are read.
+\param connections The resolved connections: the stored stream, sorted by (position, string), whose
+       positions and attacks are all that is read, and its places.
 \param shapes Hand-posture spans, sorted by position (\ref ChartResolutions::shapes).
-\param tempo_map Song tempo map, for the signature-exact span end.
+\param tempo_map Song tempo map supplying the meter each span's place is measured in.
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
 [[nodiscard]] std::vector<bool> chartShapeArrivals(
-    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

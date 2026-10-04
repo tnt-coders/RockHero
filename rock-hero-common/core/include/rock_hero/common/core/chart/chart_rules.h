@@ -386,9 +386,9 @@ bounds — the editor's plan gate re-judging only what an edit touched — needs
 
 \param notes Note stream sorted by (position, string).
 \param note Note whose ring is bounded.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
+\param tempo_map Tempo map supplying the meter of every measure crossed.
 
-\return The bound in beats, or nullopt when nothing later sounds on that string.
+\return The bound in whole notes, or nullopt when nothing later sounds on that string.
 */
 [[nodiscard]] std::optional<Fraction> sustainBoundOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
@@ -427,7 +427,7 @@ the bound for every target past it, and leaves it the moment the target falls ba
 \param notes Note stream sorted by (position, string).
 \param note Note whose ring is bounded; as with \ref sustainBoundOf, only its position and string
 are read, so a candidate placement asks the same question.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
+\param tempo_map Tempo map supplying the meter of every measure crossed.
 \param target The end asked for.
 
 \return `target`, or the bound where `target` would reach or pass it.
@@ -469,7 +469,7 @@ subset, in any order, leaves each note exactly as the whole-stream pass would.
 
 \param notes Note stream holding the note, sorted by (position, string).
 \param index Index of the note in `notes`.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
+\param tempo_map Tempo map supplying the meter of every measure crossed.
 
 \return The truncation, or nullopt when the ring was already within its bound.
 */
@@ -492,7 +492,7 @@ truncation LOST an authored statement, which each entry reports (\ref TailTrunca
 path names the notes it changed; a producer that only needs the invariant ignores the result.
 
 \param notes Note stream to normalize in place, sorted by (position, string).
-\param tempo_map Tempo map supplying the signature-derived beat axis.
+\param tempo_map Tempo map supplying the meter of every measure crossed.
 
 \return The truncated tails in ascending note order, each with its loss report; empty when none.
 */

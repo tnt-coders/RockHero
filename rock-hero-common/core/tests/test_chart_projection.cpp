@@ -42,7 +42,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 1,
             .fret = 1,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
             .keyframes = {},
         },
@@ -50,7 +50,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -60,7 +60,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 2,
             .fret = 5,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         },
@@ -68,11 +68,11 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 7,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .keyframes =
                 {
-                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
-                    Keyframe{.offset = Fraction{2}, .fret = 9, .bend = 0.0},
+                    Keyframe{.offset = Fraction{1, 4}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{1, 2}, .fret = 9, .bend = 0.0},
                 },
         },
         // The strum's second struck string: two members are what open a span at all.
@@ -80,7 +80,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 5,
             .fret = 8,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -94,15 +94,15 @@ namespace
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
             .fret = 5,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 8}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 8}},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
             .string = 5,
             .fret = 8,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -168,12 +168,12 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
-    // Nothing binds the pair's tails before the next onset four beats on, so both are free and
+    // Nothing binds the pair's tails before the next onset four quarters on, so both are free and
     // draw their whole rings (the first is pinned exactly in the ring-beside-ink case below).
     CHECK(state.notes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.notes[1].start_seconds == Catch::Approx(4.0 * beat));
-    // Its own eighth-of-a-beat ring is far under the kept-sustain bound, but its chord partner's
-    // whole beat runs past it, and rule 2's verdict is the GROUP's — one stroke sounds every
+    // Its own thirty-second-note ring is far under the kept-sustain bound, but its chord partner's
+    // whole quarter runs past it, and rule 2's verdict is the GROUP's — one stroke sounds every
     // string, so a lone tail beside partners that look unsounded is a picture no strum makes.
     CHECK(state.notes[1].ink_end_seconds == Catch::Approx(4.125 * beat));
 
@@ -222,29 +222,29 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(instantDrawn(shift_slider.slides[0].seconds, shift_slider.ring_end_seconds));
     // The STORED ring lands on that head, which is what the head-column rule keys on.
     CHECK(shift_slider.end_head == std::optional<std::size_t>{6});
-    // The keyframe's own stored offset — the ring's end, a whole beat in — which is the one name
+    // The keyframe's own stored offset — the ring's end, a whole quarter in — which is the one name
     // every mapping back to the chart uses.
     REQUIRE(shift_slider.keyframes.size() == 1);
-    CHECK(shift_slider.keyframes[0].offset == Fraction{1});
+    CHECK(shift_slider.keyframes[0].offset == Fraction{1, 4});
     CHECK(shift_slider.keyframes[0].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
 
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
     // strikes under string 2's still-sounding ring, so it is an arpeggio.
     //
-    // The first is THE CONTINUITY LAW's box case ([D3]): its members ring a beat and an eighth of
-    // a beat, and the first genuine stored gap ends the span at that ring's end — not the MAXIMUM
-    // of the members' rings, which would read as a whole beat of held shape, a statement the chart
-    // does not make since the hand has demonstrably let one string go. The surviving long ring
-    // outlives the span, so it draws its own whole tail and is untouched, which the note
+    // The first is THE CONTINUITY LAW's box case ([D3]): its members ring a quarter and an eighth
+    // of a quarter, and the first genuine stored gap ends the span at that ring's end — not the
+    // MAXIMUM of the members' rings, which would read as a whole quarter of held shape, a statement
+    // the chart does not make since the hand has demonstrably let one string go. The surviving long
+    // ring outlives the span, so it draws its own whole tail and is untouched, which the note
     // assertions above still pin.
     //
     // The second is TRAVEL SPLITTING under the LANDING split ([D2]): its string-4 member glides,
     // and the span COVERS that travel rather than stopping where the hand departed — a chord slide
     // keeps the fingers planted, so the continuity law itself carries the transit. What bounds this
-    // span is therefore the OTHER member, whose eighth-beat ring is the first coverage to run out.
-    // Nothing re-opens after it: the glide's arrival IS the ring's end, so no member goes on
-    // ringing past the landing for a successor to state.
+    // span is therefore the OTHER member, whose thirty-second-note ring is the first coverage to
+    // run out. Nothing re-opens after it: the glide's arrival IS the ring's end, so no member goes
+    // on ringing past the landing for a successor to state.
     //
     // Its FRONT is string 2's own onset, not the pair's (THE DATING RULE): the ring the pair
     // strikes under began at 8:0 and no preceding span covers that instant, so the statement runs
@@ -271,7 +271,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // THE DIGIT WINDOW: the window is the MARK'S OWN INSTANT, and heads later in the span never
     // suppress. String 2 is struck at the arpeggio's front, which is where this bracket draws, so
     // its own head states its 5 and the bracket prints nothing for it — while strings 4 and 5
-    // arrive half a beat LATER and therefore print in the opening bracket, because the bracket is
+    // arrive an eighth LATER and therefore print in the opening bracket, because the bracket is
     // the span's chord frame and states the whole membership where the reader meets it. The
     // box-class span above prints nothing anywhere: it draws no bracket at all, which is the empty
     // slot for a different reason entirely.
@@ -332,19 +332,19 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // Four beats of ring reaching exactly the next onset (so rule 1 crops to the margin rather
-        // than drawing it whole), with statements before the crop and one past it.
+        // Four quarters of ring reaching exactly the next onset (so rule 1 crops to the margin
+        // rather than drawing it whole), with statements before the crop and one past it.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{4},
+            .sustain = Fraction{1},
             .keyframes =
                 {
-                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
-                    Keyframe{.offset = Fraction{2}, .fret = 7},
-                    // Past the crop at 39/10, in the ending zone.
-                    Keyframe{.offset = Fraction{79, 20}, .bend = 1.0},
+                    Keyframe{.offset = Fraction{1, 4}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{1, 2}, .fret = 7},
+                    // Past the crop at 39/40, in the ending zone.
+                    Keyframe{.offset = Fraction{79, 80}, .bend = 1.0},
                 },
         },
         // The binding onset the crop measures against.
@@ -352,7 +352,7 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -364,13 +364,13 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
     REQUIRE(state.notes.size() == 2);
     const NoteViewState& ringing = state.notes[0];
 
-    // 120 BPM 4/4: a beat is half a second and the margin is 0.05 s, a tenth of a beat here, so the
-    // ink stops at 3.9 beats and the ring runs the full four.
+    // 120 BPM 4/4: a quarter is half a second and the margin is 0.05 s, a tenth of a quarter here,
+    // so the ink stops at 39/40 and the ring runs the full whole note.
     CHECK(ringing.ink_end_seconds == Catch::Approx(1.95));
     CHECK(ringing.ring_end_seconds == Catch::Approx(2.0));
 
     // The curve carries the onset point in front, which is the channel's opening value, and then
-    // every stated point — the last at its stored 3.95 beats, past the ink end.
+    // every stated point — the last at its stored 79/80, past the ink end.
     REQUIRE(ringing.bend.size() == 3);
     CHECK(ringing.bend[2].seconds == Catch::Approx(1.975));
     CHECK(ringing.bend[2].seconds > ringing.ink_end_seconds);
@@ -380,9 +380,9 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
     // editor's selection keys it by — the stop and the bend-only points alike, the one past the
     // crop included.
     REQUIRE(ringing.keyframes.size() == 3);
-    CHECK(ringing.keyframes[0].offset == Fraction{1});
-    CHECK(ringing.keyframes[1].offset == Fraction{2});
-    CHECK(ringing.keyframes[2].offset == Fraction{79, 20});
+    CHECK(ringing.keyframes[0].offset == Fraction{1, 4});
+    CHECK(ringing.keyframes[1].offset == Fraction{1, 2});
+    CHECK(ringing.keyframes[2].offset == Fraction{79, 80});
     CHECK(ringing.keyframes[2].seconds > ringing.ink_end_seconds);
 }
 
@@ -401,15 +401,15 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .keyframes =
                 {
-                    Keyframe{.offset = Fraction{1, 2}, .fret = 7},
+                    Keyframe{.offset = Fraction{1, 8}, .fret = 7},
                     // A bend-only statement between the two stops: it draws no mark of its own, so
                     // the identities must survive the fret channel being a SUBSET of the keyframes.
-                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{1, 4}, .bend = 2.0},
                     // At the ring's end, stating a fret: the slide-out.
-                    Keyframe{.offset = Fraction{2}, .fret = 9},
+                    Keyframe{.offset = Fraction{1, 2}, .fret = 9},
                 },
         },
         // A head on another string, exactly where the ring ends, so rule 1 binds on it and the ink
@@ -418,7 +418,7 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -432,7 +432,7 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
 
     // Every keyframe above, in the order the chart states them, each naming its stored offset: the
     // two fret-stating ones name their stops, the bend-only one between them its dot.
-    const std::vector<Fraction> stored_offsets = {Fraction{1, 2}, Fraction{1}, Fraction{2}};
+    const std::vector<Fraction> stored_offsets = {Fraction{1, 8}, Fraction{1, 4}, Fraction{1, 2}};
     REQUIRE(note.keyframes.size() == stored_offsets.size());
     for (std::size_t index = 0; index < stored_offsets.size(); ++index)
     {
@@ -444,7 +444,7 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
     REQUIRE(note.slides.size() == 2);
     CHECK_FALSE(note.slides[0].slide_out);
     CHECK(note.slides[1].slide_out);
-    // 120 BPM 4/4: the stop at half a beat draws a quarter second in, and the slide-out at the
+    // 120 BPM 4/4: the stop at an eighth draws a quarter second in, and the slide-out at the
     // ring's own end a second in — the ring the chart stores — while the ink stops one margin
     // (50 ms) before the head that binds.
     CHECK(note.slides[0].seconds == Catch::Approx(0.25));
@@ -562,8 +562,8 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
 {
     const TempoMap tempo_map = makeTempoMap();
     // Alone on the chart, so no binding onset crops the tail and the region ends are the channel's
-    // own. 120 BPM 4/4: the onset sits at 0.0s, a beat lasts half a second, and four beats of ring
-    // end at 2.0s.
+    // own. 120 BPM 4/4: the onset sits at 0.0s, a quarter lasts half a second, and four quarters of
+    // ring end at 2.0s.
     const auto project =
         [&tempo_map](const VibratoState onset_vibrato, std::vector<Keyframe> keyframes) {
             Chart chart;
@@ -573,7 +573,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
                     .position = GridPosition{.measure = 1, .beat = 1},
                     .string = 1,
                     .fret = 5,
-                    .sustain = Fraction{4},
+                    .sustain = Fraction{1},
                     .vibrato = onset_vibrato,
                     .bend = {},
                     .keyframes = std::move(keyframes),
@@ -601,14 +601,15 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
     SECTION("vibrato stated mid-ring begins at the statement, not at the onset")
     {
         const ChartViewState state = project(
-            VibratoState::None, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
+            VibratoState::None,
+            {Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
         CHECK(view.vibrato[0].start_seconds == Catch::Approx(1.0));
         CHECK(view.vibrato[0].end_seconds == Catch::Approx(2.0));
         // The discrimination the whole stage exists for: a region running from the onset would
-        // draw vibrato across the two beats the chart says are steady.
+        // draw vibrato across the two quarters the chart says are steady.
         CHECK(view.vibrato[0].start_seconds > view.start_seconds);
     }
 
@@ -617,7 +618,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         // The curl's keyframe begins a leg that states no width, so the vibrato stops there:
         // nothing carries across a keyframe, and ending needs no statement of its own.
         const ChartViewState state =
-            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .bend = 1.0}});
+            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 2}, .bend = 1.0}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -632,9 +633,9 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         const ChartViewState state = project(
             VibratoState::Narrow,
             {
-                Keyframe{.offset = Fraction{1}, .bend = 0.5},
-                Keyframe{.offset = Fraction{2}, .bend = 1.0, .vibrato = VibratoState::Narrow},
-                Keyframe{.offset = Fraction{3}, .bend = 0.0},
+                Keyframe{.offset = Fraction{1, 4}, .bend = 0.5},
+                Keyframe{.offset = Fraction{1, 2}, .bend = 1.0, .vibrato = VibratoState::Narrow},
+                Keyframe{.offset = Fraction{3, 4}, .bend = 0.0},
             });
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
@@ -652,7 +653,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         // whole rather than being cut in two at an instant where the vibrato does not change.
         const ChartViewState state = project(
             VibratoState::Narrow,
-            {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
+            {Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -667,7 +668,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         // The glide's stop begins a leg of its own, so vibrato on the first leg does not ride
         // through it.
         const ChartViewState state =
-            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 7}});
+            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 2}, .fret = 7}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -679,7 +680,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         // The stored form of vibrato ending mid-hold (the importer's tie): the point states no
         // channel, but it begins an unvibrated leg.
         const ChartViewState state =
-            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}}});
+            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{1, 2}}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -696,7 +697,8 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         // one phase and one envelope, whose width changes where the change is written. Two spans
         // here would taper the wave to the string line and restart its phase at the step.
         const ChartViewState state = project(
-            VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Wide}});
+            VibratoState::Narrow,
+            {Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Wide}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -714,9 +716,9 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         const ChartViewState state = project(
             VibratoState::Narrow,
             {
-                Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Wide},
-                Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
-                Keyframe{.offset = Fraction{3}},
+                Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow},
+                Keyframe{.offset = Fraction{3, 4}},
             });
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
@@ -746,8 +748,8 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
         const ChartViewState state = project(
             VibratoState::None,
             {
-                Keyframe{.offset = Fraction{1}, .bend = 2.0},
-                Keyframe{.offset = Fraction{2}, .fret = 7},
+                Keyframe{.offset = Fraction{1, 4}, .bend = 2.0},
+                Keyframe{.offset = Fraction{1, 2}, .fret = 7},
             });
         REQUIRE(state.notes.size() == 1);
         CHECK(state.notes.front().vibrato.empty());
@@ -769,17 +771,17 @@ TEST_CASE("Chart projection gives every keyframe the mark of what it states", "[
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{4},
+            .sustain = Fraction{1},
             .vibrato = VibratoState::None,
             .bend = {},
             .keyframes = {
-                Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
-                Keyframe{.offset = Fraction{1}, .fret = 7},
-                Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
-                Keyframe{.offset = Fraction{5, 2}, .bend = 2.0, .vibrato = VibratoState::Wide},
-                Keyframe{.offset = Fraction{3}, .bend = 1.0, .vibrato = VibratoState::Wide},
-                Keyframe{.offset = Fraction{13, 4}, .vibrato = VibratoState::Wide},
-                Keyframe{.offset = Fraction{7, 2}},
+                Keyframe{.offset = Fraction{1, 8}, .bend = 1.0},
+                Keyframe{.offset = Fraction{1, 4}, .fret = 7},
+                Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow},
+                Keyframe{.offset = Fraction{5, 8}, .bend = 2.0, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{3, 4}, .bend = 1.0, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{13, 16}, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{7, 8}},
             },
         },
     };
@@ -815,20 +817,20 @@ TEST_CASE("Chart projection vibrates a shift slide's arrival head, not its glide
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // The origin glides from 5 to 8, its stop ON the head struck at 8 a beat later.
+        // The origin glides from 5 to 8, its stop ON the head struck at 8 a quarter later.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 8}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 8}},
         },
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 2},
             .string = 1,
             .fret = 8,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .vibrato = VibratoState::Narrow,
             .bend = {},
             .keyframes = {},
@@ -857,22 +859,22 @@ TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // Four beats of ring ending exactly on the next onset — on ANOTHER string — trailing off
+        // Four quarters of ring ending exactly on the next onset — on ANOTHER string — trailing off
         // unpitched at its very end, so that head binds the drawn tail and the ink stops one
-        // margin before the four beats the chart states the terminal at.
+        // margin before the four quarters the chart states the terminal at.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{4},
+            .sustain = Fraction{1},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{4}, .fret = 12}},
+            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -893,7 +895,7 @@ TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[
     CHECK(glide.slides.back().slide_out);
     CHECK(glide.slides.back().fret == 12);
     REQUIRE(glide.keyframes.size() == 1);
-    CHECK(glide.keyframes.back().offset == Fraction{4});
+    CHECK(glide.keyframes.back().offset == Fraction{1});
     // The terminal stands at the ring's end, two seconds in, past the ink end one margin earlier:
     // a plain paint walks no stop, a reveal walks the terminal.
     CHECK(glide.ink_end_seconds == Catch::Approx(1.95));
@@ -942,20 +944,20 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
             .keyframes = {},
         };
     };
-    // A half-beat chug on two strings — which derives a span of its own — then the same chug alone
-    // a beat later, then a note whose ring earns a real tail. At this tempo these rings last
-    // exactly the kept-sustain bound and no longer, which leaves them tail-less; any longer and
-    // they would earn tails and stop being chugs at all.
+    // An eighth-note chug on two strings — which derives a span of its own — then the same chug
+    // alone a quarter later, then a note whose ring earns a real tail. At this tempo these rings
+    // last exactly the kept-sustain bound and no longer, which leaves them tail-less; any longer
+    // and they would earn tails and stop being chugs at all.
     chart.notes = {
-        note(1, 1, 5, Fraction{1, 2}),
-        note(1, 2, 7, Fraction{1, 2}),
-        note(2, 1, 7, Fraction{1, 2}),
-        note(3, 1, 9, Fraction{2}),
+        note(1, 1, 5, Fraction{1, 8}),
+        note(1, 2, 7, Fraction{1, 8}),
+        note(2, 1, 7, Fraction{1, 8}),
+        note(3, 1, 9, Fraction{1, 2}),
     };
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    // 120 BPM 4/4: a beat is half a second, so the derived span runs 0.0s to 0.25s (the strum's
+    // 120 BPM 4/4: a quarter is half a second, so the derived span runs 0.0s to 0.25s (the strum's
     // own ring) and the later string-1 onsets sit at 0.5s and 1.0s.
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(state.notes.size() == 4);
@@ -969,7 +971,7 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
     CHECK(state.notes[3].ink_end_seconds == Catch::Approx(2.0));
 
     // The strum's members are held while the shape is — capped at each one's own ring, which is
-    // shorter than both the span's remainder and the restrike a beat later.
+    // shorter than both the span's remainder and the restrike a quarter later.
     CHECK(state.display_hold_ends[0] == Catch::Approx(0.25));
     CHECK(state.display_hold_ends[1] == Catch::Approx(0.25));
     // A single note is not a strum, so nothing extends it: it holds exactly to its ink end.
@@ -990,7 +992,8 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
 TEST_CASE(
     "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
 {
-    // 120 BPM 4/4 throughout: a beat is half a second and the margin is 0.05 s, a tenth of a beat.
+    // 120 BPM 4/4 throughout: a quarter is half a second and the margin is 0.05 s, a tenth of a
+    // quarter.
     const auto note =
         [](const GridPosition& position, const int string, const int fret, const Fraction sustain) {
             return ChartNote{
@@ -1008,7 +1011,7 @@ TEST_CASE(
         tapped.position = position;
         tapped.string = string;
         tapped.fret = fret;
-        tapped.sustain = Fraction{1, 4};
+        tapped.sustain = Fraction{1, 16};
         tapped.attack = NoteAttack::Tap;
         return tapped;
     };
@@ -1029,15 +1032,15 @@ TEST_CASE(
         // Two strums merging into one span, closed by a lone note an eighth after the second. The
         // statement runs to that note at beat 1.5 (0.75s) and the rails stop one margin short.
         const ChartViewState state = project({
-            note(one, 1, 5, Fraction{1}),
-            note(one, 2, 7, Fraction{1}),
-            note(two, 1, 5, Fraction{1, 2}),
-            note(two, 2, 7, Fraction{1, 2}),
+            note(one, 1, 5, Fraction{1, 4}),
+            note(one, 2, 7, Fraction{1, 4}),
+            note(two, 1, 5, Fraction{1, 8}),
+            note(two, 2, 7, Fraction{1, 8}),
             note(
                 GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
                 3,
                 7,
-                Fraction{1, 2}),
+                Fraction{1, 8}),
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].start_seconds == Catch::Approx(0.0));
@@ -1050,39 +1053,39 @@ TEST_CASE(
     SECTION("the trim never retreats behind the span's last statement")
     {
         // The same figure with the closing note a SIXTY-FOURTH after the restrike: the margin
-        // alone would end the rails at 77/80 of a beat, in front of the beat-2 strum they are drawn
-        // over. The floor keeps them on that strum, at 1.0 beat — half a second.
+        // alone would end the rails at 77/80 of a quarter, in front of the beat-2 strum they are
+        // drawn over. The floor keeps them on that strum, a quarter in — half a second.
         const ChartViewState state = project({
-            note(one, 1, 5, Fraction{1}),
-            note(one, 2, 7, Fraction{1}),
-            note(two, 1, 5, Fraction{1, 16}),
-            note(two, 2, 7, Fraction{1, 16}),
+            note(one, 1, 5, Fraction{1, 4}),
+            note(one, 2, 7, Fraction{1, 4}),
+            note(two, 1, 5, Fraction{1, 64}),
+            note(two, 2, 7, Fraction{1, 64}),
             note(
                 GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 16}},
                 3,
                 7,
-                Fraction{1, 16}),
+                Fraction{1, 64}),
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
-        // The close is still the closing onset, a sixteenth of a beat past the restrike: 1.0625
-        // beats from the front, or 0.53125 s. The floor is a DISPLAY floor, so it moves the drawn
-        // extent alone and the reveal here reaches the whole 1/16 beat the trim gave back.
+        // The close is still the closing onset, a sixty-fourth past the restrike: 17/64
+        // from the front, or 0.53125 s. The floor is a DISPLAY floor, so it moves the drawn
+        // extent alone and the reveal here reaches the whole sixty-fourth the trim gave back.
         CHECK(state.shapes[0].close_seconds == Catch::Approx(0.53125));
     }
 
     SECTION("a span crowded inside the margin keeps exact adjacency")
     {
         // Nothing is left after the trim and the floor, so the statement is drawn however crowded:
-        // a sixteenth of a beat, ending exactly on the note that closed it.
+        // a sixty-fourth, ending exactly on the note that closed it.
         const ChartViewState state = project({
-            note(one, 1, 3, Fraction{1, 16}),
-            note(one, 2, 5, Fraction{1, 16}),
+            note(one, 1, 3, Fraction{1, 64}),
+            note(one, 2, 5, Fraction{1, 64}),
             note(
                 GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 16}},
                 3,
                 7,
-                Fraction{1, 16}),
+                Fraction{1, 64}),
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.03125));
@@ -1095,14 +1098,14 @@ TEST_CASE(
 
     SECTION("a span whose rings died early is not pulled back from a head it never reached")
     {
-        // The statement ends half a beat in, where its shorter member's ring gaps, and the note
-        // that closes the span stands two and a half beats further on. The distance to that head is
-        // already there, so nothing is taken off — a trim keyed on the close alone would shorten
+        // The statement ends an eighth in, where its shorter member's ring gaps, and the note
+        // that closes the span stands two and a half quarters further on. The distance to that head
+        // is already there, so nothing is taken off — a trim keyed on the close alone would shorten
         // this span by a margin it does not owe.
         const ChartViewState state = project({
-            note(one, 1, 5, Fraction{1, 2}),
-            note(one, 2, 7, Fraction{2}),
-            note(GridPosition{.measure = 1, .beat = 4}, 3, 7, Fraction{1}),
+            note(one, 1, 5, Fraction{1, 8}),
+            note(one, 2, 7, Fraction{1, 2}),
+            note(GridPosition{.measure = 1, .beat = 4}, 3, 7, Fraction{1, 4}),
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.25));
@@ -1122,9 +1125,9 @@ TEST_CASE(
         // RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN) — so the figure is one shape closed at
         // the tap.
         const ChartViewState state = project({
-            note(one, 1, 5, Fraction{2}),
-            note(one, 2, 7, Fraction{2}),
-            note(one, 3, 9, Fraction{2}),
+            note(one, 1, 5, Fraction{1, 2}),
+            note(one, 2, 7, Fraction{1, 2}),
+            note(one, 3, 9, Fraction{1, 2}),
             tap(two, 1, 3),
         });
         REQUIRE(state.shapes.size() == 1);
@@ -1148,12 +1151,12 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
         .position = GridPosition{.measure = 1, .beat = 1},
         .string = 5,
         .fret = 17,
-        .sustain = Fraction{1},
+        .sustain = Fraction{1, 4},
         .attack = NoteAttack::PickSlide,
         .keyframes = {
-            Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
-            Keyframe{.offset = Fraction{1, 2}, .fret = 3},
-            Keyframe{.offset = Fraction{1}, .fret = 9},
+            Keyframe{.offset = Fraction{1, 16}, .bend = 1.0},
+            Keyframe{.offset = Fraction{1, 8}, .fret = 3},
+            Keyframe{.offset = Fraction{1, 4}, .fret = 9},
         },
     };
     scrape.palm_mute = true;
@@ -1215,26 +1218,26 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .position = GridPosition{.measure = 4, .beat = 3},
             .string = 5,
             .fret = 5,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 12}},
         });
     chart.fret_hand_positions = {
         // Ordinary move: the margin morph.
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1},
-        // Crowded: a sixteenth of a beat after the previous arrival — closer than the margin —
+        // Crowded: a sixty-fourth after the previous arrival — closer than the margin —
         // so the morph shortens against it.
         FretHandPosition{
             .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}},
             .fret = 2,
         },
-        // Exactly on the fixture's pitched keyframe (3:1+1/2 advanced by its two-beat offset):
+        // Exactly on the fixture's pitched keyframe (3:1+1/2 advanced by its half-note offset):
         // slide-locked to the glide segment.
         FretHandPosition{
             .position = GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}},
             .fret = 6,
         },
-        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): the margin
+        // Exactly where the unpitched slide-out ends (4:3 advanced a quarter): the margin
         // morph, arriving with the slide-out, never the whole-sustain segment.
         FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9},
     };
@@ -1327,27 +1330,27 @@ TEST_CASE("Chart projection settles a placement past its glide's ink end", "[cor
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 2},
             .string = 2,
             .fret = 7,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
-        // A glide whose ring runs half a beat past its arrival, alone on the board after it: the
+        // A glide whose ring runs an eighth past its arrival, alone on the board after it: the
         // rail reaches the stop.
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 5,
             .fret = 5,
-            .sustain = Fraction{3, 2},
+            .sustain = Fraction{3, 8},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 9}},
         },
     };
     chart.fret_hand_positions = {
@@ -1362,7 +1365,7 @@ TEST_CASE("Chart projection settles a placement past its glide's ink end", "[cor
     REQUIRE(state.fret_hand_positions.size() == 3);
 
     // The cut glide: the arrival (5 beats) lies past the shift note's ink end, and the settle is
-    // exactly that overhang — inside the one-beat slide-matched ramp.
+    // exactly that overhang — inside the quarter-note slide-matched ramp.
     const NoteViewState& shift = state.notes[0];
     REQUIRE(shift.slides.size() == 1);
     REQUIRE(shift.slides.front().seconds > shift.ink_end_seconds);
@@ -1373,7 +1376,7 @@ TEST_CASE("Chart projection settles a placement past its glide's ink end", "[cor
     CHECK(cut.settle_seconds > 0.0);
     CHECK(cut.settle_seconds < cut.ramp_seconds);
 
-    // The reached glide: slide-matched over its own one-beat segment, nothing to settle.
+    // The reached glide: slide-matched over its own quarter-note segment, nothing to settle.
     const NoteViewState& reached = state.notes[2];
     REQUIRE(reached.slides.size() == 1);
     REQUIRE(instantDrawn(reached.slides.front().seconds, reached.ink_end_seconds));
@@ -1407,24 +1410,24 @@ TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core]
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 12}},
         },
         // String 2 shift-slides into its own re-picked landing at that same instant.
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 2},
             .string = 2,
             .fret = 7,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -1456,8 +1459,8 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
-    // Four beats of held fret 5, then a one-beat glide up to fret 9: the hold pins the pitch at
-    // beat 4 and the travel happens only over the beat that follows. The ring runs half a beat
+    // Four quarters of held fret 5, then a quarter-note glide up to fret 9: the hold pins the pitch
+    // at beat 4 and the travel happens only over the beat that follows. The ring runs an eighth
     // past that arrival, which is what keeps the arrival a PITCHED stop — a fret stated at the
     // ring's own end would be the slide-out instead.
     chart.notes.push_back(
@@ -1465,11 +1468,11 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 5,
             .fret = 5,
-            .sustain = Fraction{9, 2},
+            .sustain = Fraction{9, 8},
             .bend = {},
             .keyframes = {
-                Keyframe{.offset = Fraction{3}, .fret = 5},
-                Keyframe{.offset = Fraction{4}, .fret = 9},
+                Keyframe{.offset = Fraction{3, 4}, .fret = 5},
+                Keyframe{.offset = Fraction{1}, .fret = 9},
             },
         });
     // Back into the chart's note order, which every walk over a stream assumes.
@@ -1482,13 +1485,13 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 2);
 
-    // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the margin.
+    // The hold at beat 4 does NOT inherit the dotted-half held stretch; it morphs over the margin.
     CHECK(
         state.fret_hand_positions[0].ramp_seconds ==
         Catch::Approx(g_minimum_sustain_distance_seconds));
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
-    // The real glide that follows still rides its own one-beat segment, and the arrival is drawn
-    // exactly where the chart states it, so the window completes there.
+    // The real glide that follows still rides its own quarter-note segment, and the arrival is
+    // drawn exactly where the chart states it, so the window completes there.
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(8.0 * beat));
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
@@ -1558,9 +1561,9 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             return note;
         };
         const ChartViewState state = project({
-            natural(1, 4, Fraction{4}),
-            natural(2, 5, Fraction{3}),
-            natural(3, 6, Fraction{2}),
+            natural(1, 4, Fraction{1}),
+            natural(2, 5, Fraction{3, 4}),
+            natural(3, 6, Fraction{1, 2}),
         });
 
         CHECK(state.shapes.empty());
@@ -1581,12 +1584,12 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         pull.position = GridPosition{.measure = 1, .beat = 3};
         pull.string = 3;
         pull.fret = 9;
-        pull.sustain = Fraction{1};
+        pull.sustain = Fraction{1, 4};
         pull.attack = NoteAttack::Legato;
         const ChartViewState state = project(
-            {strike(1, 1, 5, Fraction{4}),
-             strike(2, 2, 7, Fraction{3}),
-             tap(2, 3, 12, Fraction{1}),
+            {strike(1, 1, 5, Fraction{1}),
+             strike(2, 2, 7, Fraction{3, 4}),
+             tap(2, 3, 12, Fraction{1, 4}),
              pull});
 
         const NoteViewState* const tapped = tap_view(state);
@@ -1614,9 +1617,9 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         pull.position = GridPosition{.measure = 1, .beat = 3};
         pull.string = 3;
         pull.fret = 9;
-        pull.sustain = Fraction{1};
+        pull.sustain = Fraction{1, 4};
         pull.attack = NoteAttack::Legato;
-        const ChartViewState derived = project({tap(2, 3, 12, Fraction{1}), pull});
+        const ChartViewState derived = project({tap(2, 3, 12, Fraction{1, 4}), pull});
         const NoteViewState* const pulled = tap_view(derived);
         REQUIRE(pulled != nullptr);
         if (pulled != nullptr)
@@ -1635,11 +1638,11 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // to run the span on over the tap — without it the span would close exactly at the tap,
         // and a tap at a span's close stands in no grip at all (\ref SpanCover is half-open).
         const ChartViewState state = project(
-            {strike(1, 1, 5, Fraction{2}),
-             strike(1, 3, 7, Fraction{1}),
-             tap(2, 3, 12, Fraction{1}),
-             strike(3, 1, 5, Fraction{2}),
-             strike(3, 3, 7, Fraction{2})});
+            {strike(1, 1, 5, Fraction{1, 2}),
+             strike(1, 3, 7, Fraction{1, 4}),
+             tap(2, 3, 12, Fraction{1, 4}),
+             strike(3, 1, 5, Fraction{1, 2}),
+             strike(3, 3, 7, Fraction{1, 2})});
 
         const auto bare_tap = std::ranges::find_if(state.notes, [](const NoteViewState& note) {
             return note.attack == NoteAttack::Tap && note.fret == 12;
@@ -1655,7 +1658,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
     SECTION("a span-less bare tap holds nothing")
     {
         // Nothing covers this tap, so it releases onto the open string, which no finger holds.
-        const ChartViewState bare = project({tap(2, 3, 12, Fraction{1})});
+        const ChartViewState bare = project({tap(2, 3, 12, Fraction{1, 4})});
         const NoteViewState* const untold = tap_view(bare);
         REQUIRE(untold != nullptr);
         if (untold != nullptr)
@@ -1698,19 +1701,19 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
     SECTION("a pull-off source AT the bracket leaves its landing stop to the bracket's satellite")
     {
-        // The opening stroke grips 5 on strings 1 and 3 for a beat. At beat two string 1 moves to
-        // 9, which closes that span there, and the source is struck in the same slot: the grip was
-        // standing on string 3's 5, so the source states that 5 beneath the 7 it sounds and the
+        // The opening stroke grips 5 on strings 1 and 3 for a quarter. At beat two string 1 moves
+        // to 9, which closes that span there, and the source is struck in the same slot: the grip
+        // was standing on string 3's 5, so the source states that 5 beneath the 7 it sounds and the
         // successor's posture holds it. The successor fronts at the frontier — the source's own
         // instant — so the source HEADS its string exactly where the bracket draws; string 2
-        // arrives a beat later, and the sequential arrival is what makes it an arpeggio.
+        // arrives a quarter later, and the sequential arrival is what makes it an arpeggio.
         const ChartViewState state = project(
-            {strike(1, 1, 5, Fraction{1}),
-             strike(1, 3, 5, Fraction{1}),
-             strike(2, 1, 9, Fraction{3}),
-             strike(2, 3, 7, Fraction{1}),
-             pull_to(3, 3, 5, Fraction{2}),
-             strike(3, 2, 7, Fraction{2})});
+            {strike(1, 1, 5, Fraction{1, 4}),
+             strike(1, 3, 5, Fraction{1, 4}),
+             strike(2, 1, 9, Fraction{3, 4}),
+             strike(2, 3, 7, Fraction{1, 4}),
+             pull_to(3, 3, 5, Fraction{1, 2}),
+             strike(3, 2, 7, Fraction{1, 2})});
 
         REQUIRE(state.shapes.size() == 2);
         const ShapeViewState& span = state.shapes[1];
@@ -1743,15 +1746,15 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
     SECTION("a pull-off source MID-span holds its plant, and the frame prints its stop")
     {
-        // The source arrives after the bracket, over a string the span put on 5 a beat earlier, so
-        // it restates that 5 and the figure stays one span. The chord frame at the front prints
+        // The source arrives after the bracket, over a string the span put on 5 a quarter earlier,
+        // so it restates that 5 and the figure stays one span. The chord frame at the front prints
         // string 3's member centred, as it prints every member that accumulates in.
         const ChartViewState state = project(
-            {strike(1, 1, 5, Fraction{4}),
-             strike(2, 2, 7, Fraction{3}),
-             strike(2, 3, 5, Fraction{1}),
-             strike(3, 3, 7, Fraction{1}),
-             pull_to(4, 3, 5, Fraction{1})});
+            {strike(1, 1, 5, Fraction{1}),
+             strike(2, 2, 7, Fraction{3, 4}),
+             strike(2, 3, 5, Fraction{1, 4}),
+             strike(3, 3, 7, Fraction{1, 4}),
+             pull_to(4, 3, 5, Fraction{1, 4})});
 
         REQUIRE(state.shapes.size() == 1);
         const ShapeViewState& span = state.shapes.front();
@@ -1774,14 +1777,14 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // At the bracket the tap's head is the OTHER hand, so the bracket's satellite is what says
         // the left hand holds a fret there. The opening stroke grips 9 on string 3; strings 1 and 2
         // move in the tap's own slot, which closes that span and founds the successor there; the
-        // pull-off onto 9 a beat later grows string 3 into it and plants the 9 under the tap.
+        // pull-off onto 9 a quarter later grows string 3 into it and plants the 9 under the tap.
         const ChartViewState state = project(
-            {strike(1, 1, 5, Fraction{1}),
-             strike(1, 3, 9, Fraction{1}),
-             strike(2, 1, 7, Fraction{3}),
-             strike(2, 2, 7, Fraction{3}),
-             tap(2, 3, 12, Fraction{1}),
-             pull_to(3, 3, 9, Fraction{1})});
+            {strike(1, 1, 5, Fraction{1, 4}),
+             strike(1, 3, 9, Fraction{1, 4}),
+             strike(2, 1, 7, Fraction{3, 4}),
+             strike(2, 2, 7, Fraction{3, 4}),
+             tap(2, 3, 12, Fraction{1, 4}),
+             pull_to(3, 3, 9, Fraction{1, 4})});
 
         REQUIRE(state.shapes.size() == 2);
         const auto fronted =
@@ -1802,10 +1805,10 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // A pull onto 0 plants the open string beneath the source, which no finger holds, so the
         // source states no held stop; the pull's own head prints the 0.
         const ChartViewState state = project(
-            {strike(1, 3, 7, Fraction{1}),
-             pull_to(2, 3, 0, Fraction{3}),
-             strike(3, 1, 5, Fraction{2}),
-             strike(4, 2, 7, Fraction{1})});
+            {strike(1, 3, 7, Fraction{1, 4}),
+             pull_to(2, 3, 0, Fraction{3, 4}),
+             strike(3, 1, 5, Fraction{1, 2}),
+             strike(4, 2, 7, Fraction{1, 4})});
 
         REQUIRE(state.shapes.size() == 1);
         const auto planted =
@@ -1827,7 +1830,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // hand touches: the fretting hand presses nothing, so there is no second stop to state and
         // the head's node is the whole of what the note says. A "0" beside it would claim a finger
         // on the nut that no hand is holding — and a natural harmonic prints none either.
-        ChartNote touched_open = tap(2, 3, 0, Fraction{1});
+        ChartNote touched_open = tap(2, 3, 0, Fraction{1, 4});
         touched_open.harmonic_node = 12.0;
         const ChartViewState state = project({touched_open});
 
@@ -1865,17 +1868,17 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
                     .position = GridPosition{.measure = 1, .beat = 1},
                     .string = 1,
                     .fret = 5,
-                    .sustain = Fraction{4},
+                    .sustain = Fraction{1},
                     .bend = {},
-                    .keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}},
+                    .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 7}},
                 },
                 ChartNote{
                     .position = GridPosition{.measure = 1, .beat = 1},
                     .string = 2,
                     .fret = 7,
-                    .sustain = Fraction{6},
+                    .sustain = Fraction{3, 2},
                     .bend = {},
-                    .keyframes = {Keyframe{.offset = Fraction{2}, .fret = 9}},
+                    .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 9}},
                 },
                 // String FOUR, leaving string three free for the tap the last section adds: that
                 // onset has to land on a string the shape never held.
@@ -1883,9 +1886,9 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
                     .position = GridPosition{.measure = 1, .beat = 1},
                     .string = 4,
                     .fret = 11,
-                    .sustain = Fraction{6},
+                    .sustain = Fraction{3, 2},
                     .bend = {},
-                    .keyframes = {Keyframe{.offset = Fraction{2}, .fret = 13}},
+                    .keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 13}},
                 },
             };
             chart->notes.insert(chart->notes.end(), extra.begin(), extra.end());
@@ -1901,7 +1904,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
                 .position = GridPosition{.measure = 2, .beat = 1},
                 .string = 1,
                 .fret = 7,
-                .sustain = Fraction{2},
+                .sustain = Fraction{1, 2},
                 .bend = {},
                 .keyframes = {},
             },
@@ -1972,7 +1975,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
                 .position = GridPosition{.measure = 1, .beat = 4},
                 .string = 3,
                 .fret = 12,
-                .sustain = Fraction{1, 2},
+                .sustain = Fraction{1, 8},
                 .bend = {},
                 .keyframes = {},
             };
@@ -1988,6 +1991,93 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         // anchor follows the fretting hand's soundings, and there are none inside.
         CHECK(state.shapes[1].arpeggio);
         CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
+    }
+}
+
+// A ring and a keyframe are note values from the onset, so where they land on the clock is read
+// across a meter change exactly as the music runs: a dotted quarter struck on the last quarter of a
+// 4/4 bar ends an eighth into the 6/8 bar after it, and a keyframe a quarter in stands on that
+// bar's downbeat. The anchors sit at odd milliseconds on both sides, so nothing here is a whole
+// number of seconds by accident.
+TEST_CASE("Ring ends and keyframes resolve across a meter change", "[core][chart]")
+{
+    const TempoMap tempo_map{
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+         TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}}},
+        {BeatAnchor{.position = GridPosition{.measure = 1, .beat = 1}, .milliseconds = 0},
+         BeatAnchor{.position = GridPosition{.measure = 2, .beat = 3}, .milliseconds = 2777},
+         BeatAnchor{.position = GridPosition{.measure = 3, .beat = 4}, .milliseconds = 5113},
+         BeatAnchor{.position = GridPosition{.measure = 6, .beat = 1}, .milliseconds = 9431}},
+    };
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 4},
+            .string = 3,
+            .fret = 5,
+            .sustain = Fraction{3, 8},
+            .bend = {},
+            .keyframes = {Keyframe{.offset = Fraction{1, 4}, .bend = 1.0}},
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.notes.size() == 1);
+    const NoteViewState& crossing = state.notes.front();
+    CHECK_THAT(
+        crossing.ring_end_seconds,
+        Catch::Matchers::WithinULP(tempo_map.secondsAt(GridPosition{.measure = 3, .beat = 2}), 0));
+    REQUIRE(crossing.keyframes.size() == 1);
+    CHECK_THAT(
+        crossing.keyframes.front().seconds,
+        Catch::Matchers::WithinULP(tempo_map.secondsAt(GridPosition{.measure = 3, .beat = 1}), 0));
+}
+
+// THE ULP CONTRACT: one instant reached two ways is one double. A triplet ring ending on its
+// successor's head, at a place no binary fraction states, resolves to exactly the head's own onset
+// time — every instant takes the one route through its whole-note place, so the two cannot differ
+// in the last bit, and a surface may compare them exactly.
+TEST_CASE("An onset and the ring ending on it are one double", "[core][chart]")
+{
+    const TempoMap tempo_map{
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
+        {BeatAnchor{.position = GridPosition{.measure = 1, .beat = 1}, .milliseconds = 0},
+         BeatAnchor{.position = GridPosition{.measure = 2, .beat = 2}, .milliseconds = 2311},
+         BeatAnchor{.position = GridPosition{.measure = 5, .beat = 1}, .milliseconds = 7919}},
+    };
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    for (int step = 0; step < 6; ++step)
+    {
+        const int third = step % 3;
+        chart.notes.push_back(
+            ChartNote{
+                .position =
+                    GridPosition{
+                        .measure = 2,
+                        .beat = 2 + (step / 3),
+                        .offset = Fraction{third, 3},
+                    },
+                .string = 1 + (step % 2),
+                .fret = 5,
+                .sustain = Fraction{1, 12},
+                .bend = {},
+                .keyframes = {},
+            });
+    }
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.notes.size() == 6);
+    for (std::size_t index = 0; index + 1 < state.notes.size(); ++index)
+    {
+        CHECK_THAT(
+            state.notes[index].ring_end_seconds,
+            Catch::Matchers::WithinULP(state.notes[index + 1].start_seconds, 0));
     }
 }
 

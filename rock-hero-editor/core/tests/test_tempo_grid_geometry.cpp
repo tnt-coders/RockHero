@@ -648,10 +648,10 @@ TEST_CASE("Nearest tempo grid position rounds odd note values onto ticks", "[cor
     const common::core::Fraction septuplet_sixteenth{1, 28};
     for (int line = 0; line < 28; ++line)
     {
-        const common::core::GridPosition exact = common::core::advanceGridPosition(
+        const common::core::GridPosition exact = common::core::advanceGridPositionByWholeNotes(
             map,
             common::core::GridPosition{.measure = 1, .beat = 1},
-            common::core::Fraction{line, 7});
+            common::core::Fraction{line, 28});
         const common::core::GridPosition lattice_line =
             common::core::snapGridPosition(map, exact, septuplet_sixteenth);
         const double line_seconds = map.secondsAt(lattice_line);

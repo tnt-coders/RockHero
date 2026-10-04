@@ -42,7 +42,7 @@ justify survives mid-burst so a neighbour edit can re-justify it — and this is
 resolved: latents are stripped (\ref savedChartNote) and unjustifiable claims leave as the plain
 picks they play as (\ref sweepUnjustifiedLegato). Stated once so the renderer, the writer's
 refusal gate, and any reader of "what will the file say" cannot disagree. That is why the tempo
-map is a parameter — the claim is only decidable on the beat axis its hold test measures.
+map is a parameter — the claim is only decidable on the whole-note axis its hold test measures.
 
 \param chart Chart in memory.
 \param tempo_map Song tempo map the chart's positions lie on.

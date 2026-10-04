@@ -27,7 +27,7 @@ using Catch::Matchers::WithinULP;
 using rock_hero::common::core::testing::anchor;
 
 // A map every margin round trip has something to cross: a 7/8 bar between two 4/4 stretches,
-// anchors at odd milliseconds on both sides of it, and a sub-beat anchor a third of a beat into
+// anchors at odd milliseconds on both sides of it, and a sub-beat anchor a third of a quarter into
 // measure 4.
 [[nodiscard]] TempoMap denseMap()
 {
@@ -51,7 +51,7 @@ using rock_hero::common::core::testing::anchor;
         .position = position,
         .string = string,
         .fret = fret,
-        .sustain = Fraction{1, 3},
+        .sustain = Fraction{1, 12},
         .attack = attack,
         .bend = {},
         .keyframes = {},
@@ -102,20 +102,20 @@ using rock_hero::common::core::testing::anchor;
 } // namespace
 
 // The table asks the authority once per head and must answer exactly what the authority answers:
-// GridPosition and Fraction are exact, so equality here is identity, and a margin read off the
-// table can never differ from one asked directly.
+// Fraction is exact, so equality here is identity, and a margin read off the table can never
+// differ from one asked directly.
 TEST_CASE("Head margins answer exactly what the margin authority answers", "[core][chart]")
 {
     const TempoMap tempo_map = denseMap();
     const std::vector<ChartNote> notes = denseNotes(tempo_map);
-    const HeadMargins margins{notes, tempo_map};
+    const HeadMargins margins{notes, chartNotePlaces(notes, tempo_map), tempo_map};
 
     REQUIRE(notes.size() > std::size_t{150});
     for (const ChartNote& note : notes)
     {
-        CHECK(margins.before(note.position) == marginBefore(tempo_map, note.position));
         CHECK(
-            margins.beats(note.position) == minimumSustainDistanceBeats(tempo_map, note.position));
+            margins.length(note.position) ==
+            minimumSustainDistance(tempo_map, tempo_map.wholeNotePositionAt(note.position)));
     }
 }
 
@@ -135,9 +135,13 @@ TEST_CASE("The scene carries each head's margin start for the board", "[core][ch
     REQUIRE(scene.notes.size() == notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
+        const Fraction start = tickPlaceReached(
+            tempo_map,
+            tempo_map.wholeNotePositionAt(notes[index].position),
+            -g_minimum_sustain_distance_seconds);
         CHECK_THAT(
             scene.notes[index].margin_start_seconds,
-            WithinULP(tempo_map.secondsAt(marginBefore(tempo_map, notes[index].position)), 0));
+            WithinULP(tempo_map.secondsAtWholeNote(start), 0));
     }
 
     const HighwayViewState board = makeHighwayViewState(scene, tempo_map, {});

@@ -2716,7 +2716,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
     {
         const common::core::NoteViewState note = bent({common::core::KeyframeViewState{
             .seconds = 5.0,
-            .offset = common::core::Fraction{3},
+            .offset = common::core::Fraction{3, 4},
             .mark = common::core::KeyframeCurveMark{},
             .bend_point = std::size_t{1},
         }});
@@ -2737,7 +2737,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
         // stands where that drawn leg crosses 3.5s, halfway between the two heights.
         const common::core::NoteViewState note = bent({common::core::KeyframeViewState{
             .seconds = 3.5,
-            .offset = common::core::Fraction{3, 2},
+            .offset = common::core::Fraction{3, 8},
             .mark = common::core::KeyframeCurveMark{},
             .bend_point = std::nullopt,
         }});
@@ -2754,7 +2754,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
     {
         const common::core::NoteViewState note = bent({common::core::KeyframeViewState{
             .seconds = 6.0,
-            .offset = common::core::Fraction{4},
+            .offset = common::core::Fraction{1},
             .mark = common::core::KeyframeRestMark{.fret = 7},
             .bend_point = std::nullopt,
         }});
@@ -3406,13 +3406,13 @@ TEST_CASE("Tab paint core keeps a ring's dots out of the head it ends on", "[ui]
     };
     const common::core::KeyframeViewState before_end{
         .seconds = 7.5,
-        .offset = common::core::Fraction{11, 2},
+        .offset = common::core::Fraction{11, 8},
         .mark = common::core::KeyframeCurveMark{},
         .bend_point = std::size_t{1},
     };
     const common::core::KeyframeViewState at_end{
         .seconds = 8.0,
-        .offset = common::core::Fraction{6},
+        .offset = common::core::Fraction{3, 2},
         .mark = common::core::KeyframeCurveMark{},
         .bend_point = std::size_t{2},
     };

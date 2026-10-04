@@ -209,14 +209,14 @@ TEST_CASE("EditorController lands an arrival on a tap's head", "[core][chart]")
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{2}),
-        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{2}),
-        makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1, 2}),
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{1, 2}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{1, 2}),
+        makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1, 8}),
     };
     chart.notes[2].attack = common::core::NoteAttack::Tap;
     RowObjectStepFixture fixture{std::move(chart)};
 
-    // The tap sits at measure 2 beat 2 (2.5s); the caret starts on its string one beat later.
+    // The tap sits at measure 2 beat 2 (2.5s); the caret starts on its string a quarter later.
     fixture.armAt(3.0);
     fixture.walkUp(2);
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);

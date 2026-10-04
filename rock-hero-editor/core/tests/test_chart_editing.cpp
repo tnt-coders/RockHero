@@ -494,7 +494,7 @@ TEST_CASE("EditorController publishes the ink and the ring in one projection", "
     REQUIRE(state->tab != nullptr);
     REQUIRE(state->tab->notes.size() == 3);
 
-    // The measure-2 pair is a chug — an eighth of a beat each — so presentation drops both tails
+    // The measure-2 pair is a chug — a thirty-second each — so presentation drops both tails
     // and the lane draws a bare head at 2.0s, while the ring the reveal draws is still stored.
     CHECK_THAT(
         state->tab->notes[0].ink_end_seconds,
@@ -502,7 +502,7 @@ TEST_CASE("EditorController publishes the ink and the ring in one projection", "
     CHECK(state->tab->notes[0].ring_end_seconds == Catch::Approx(2.0625));
 
     // A chart edit rebuilds the projection: one grid step of the sustain verb moves the clicked
-    // note's ring END onto the next grid line — the chug's eighth of a beat ends between lines, so
+    // note's ring END onto the next grid line — the chug's thirty-second ends between lines, so
     // the step snaps it to the beat at 2.5s rather than adding half a second to it — and the
     // reveal must show that immediately.
     const std::shared_ptr<const common::core::ChartViewState> before = state->tab;
@@ -534,9 +534,9 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     const std::size_t notes_before = chartOrNull(controller)->notes.size();
 
-    // The fixture pins a quarter-note grid, which is one beat at 120 BPM 4/4 — the ring every
-    // placement below must author whatever snap says.
-    constexpr common::core::Fraction grid_step_beats{1};
+    // The fixture pins a quarter-note grid — the ring every placement below must author whatever
+    // snap says.
+    constexpr common::core::Fraction a_quarter{1, 4};
 
     // x = 203 inverts to a time BETWEEN quarter lines, so the two lattices give different answers
     // and the assertions can tell which one the placement took.
@@ -563,7 +563,7 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     const common::core::Chart* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == notes_before + 1);
     CHECK(chart->notes.back().position == grid_slot);
-    CHECK(chart->notes.back().sustain == grid_step_beats);
+    CHECK(chart->notes.back().sustain == a_quarter);
 
     // Snap off: the same pixel arms on the TICK lattice — and the ring still reaches the next
     // QUARTER line, the rest of a grid step from between two lines, because a duration reads the
@@ -576,7 +576,8 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     const common::core::ChartNote& off_grid_note = chart->notes.back();
     CHECK(off_grid_note.position == tick_slot);
     CHECK(
-        common::core::sustainEndPosition(tempo_map, off_grid_note) ==
+        common::core::advanceGridPositionByWholeNotes(
+            tempo_map, off_grid_note.position, off_grid_note.sustain) ==
         adjacentTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, tick_slot, true));
 }
 

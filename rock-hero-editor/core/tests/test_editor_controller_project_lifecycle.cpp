@@ -1292,7 +1292,7 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
     FakeEditorView view;
     controller.attachView(view);
 
-    // String 1: fret 9 ringing exactly to a legato note at fret 5 four beats later, so the claim
+    // String 1: fret 9 ringing exactly to a legato note at fret 5 four quarters later, so the claim
     // resolves as a pull-off until its predecessor goes away.
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1301,7 +1301,7 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
             .position = {.measure = 1, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 9,
-            .sustain = common::core::Fraction{4},
+            .sustain = common::core::Fraction{1},
             .bend = 0.0,
             .keyframes = {},
         },

@@ -201,6 +201,34 @@ TEST_CASE("TempoMap resolves beat positions from seconds", "[core][tempo-map]")
     CHECK(tempo_map.beatPositionAtSeconds(99.0) == Catch::Approx(11.0));
 }
 
+// Verifies the whole-note axis reaches the clock and back: a place resolves to the time its grid
+// position does, a time resolves to the place it stands at, and both clamp outside the anchors.
+TEST_CASE("TempoMap resolves whole-note places to seconds and back", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 2, .meter = {.numerator = 7, .denominator = 8}},
+        },
+        std::vector{
+            anchor("1:1", 0),
+            anchor("3:1", 3750),
+        },
+    };
+
+    // A whole 4/4 bar then three eighths into the 7/8 bar: five and a half quarters, 2.75 s.
+    const Fraction place{11, 8};
+    CHECK(tempo_map.gridPositionAtWholeNote(place) == GridPosition{.measure = 2, .beat = 4});
+    CHECK(tempo_map.quarterPositionAt(GridPosition{.measure = 2, .beat = 4}) == Catch::Approx(5.5));
+    CHECK(tempo_map.secondsAtWholeNote(place) == Catch::Approx(2.75));
+    CHECK_THAT(
+        tempo_map.secondsAtWholeNote(place),
+        Catch::Matchers::WithinULP(tempo_map.secondsAt(GridPosition{.measure = 2, .beat = 4}), 0));
+    CHECK(tempo_map.wholeNotePositionAtSeconds(2.75) == Catch::Approx(11.0 / 8.0));
+    CHECK(tempo_map.wholeNotePositionAtSeconds(-1.0) == Catch::Approx(0.0));
+    CHECK(tempo_map.wholeNotePositionAtSeconds(99.0) == Catch::Approx(15.0 / 8.0));
+}
+
 // Verifies interpolation is linear in metronome time: an un-anchored denominator change keeps the
 // quarter-note tempo constant, so eighth-note beats after a 4/4 -> 7/8 change run twice as fast
 // instead of stretching to quarter-note length.

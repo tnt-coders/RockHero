@@ -283,35 +283,63 @@ public:
     [[nodiscard]] Fraction wholeNotePositionAt(GridPosition position) const noexcept;
 
     /*!
-    \brief Inverts the whole-note axis back to a global beat plus a sub-beat offset.
+    \brief Addresses a place on the whole-note axis as a grid position: the inverse of
+    \ref wholeNotePositionAt.
 
-    Positions before the song's start clamp to its first beat, the clamp the beat axis applies.
+    The one way a whole-note place becomes a `measure:beat+n/d` address, re-sliced at the meter
+    governing the place. Places before the song's start clamp to the grid origin; places past the
+    last signature change keep extending at its meter.
 
     \param whole_note_position Whole notes from measure 1 beat 1.
-    \return Zero-based global beat index and the exact fraction from that beat toward the next.
+    \return The grid position at that place.
     */
-    [[nodiscard]] std::pair<std::int64_t, Fraction> beatAtWholeNotePosition(
-        Fraction whole_note_position) const noexcept;
+    [[nodiscard]] GridPosition gridPositionAtWholeNote(Fraction whole_note_position) const noexcept;
 
     /*!
-    \brief Converts a grid position to its fractional position on the global beat axis.
+    \brief Converts a grid position to its quarter-note (metronome) position.
 
-    The whole-beat index of the position's measure and beat plus its sub-beat offset: the one
-    grid-position-to-beat path every consumer resolves through, the anchors' own interpolation
-    table included, so the 2D tab, the 3D highway, and every time query agree bit for bit.
+    THE one statement that a quarter is a quarter of a whole note: the axis every time query
+    interpolates on and the unit an audio engine pinned to quarter beats reads.
 
-    \param position Grid position to convert.
-    \return Zero-based position on the global beat axis counted from measure 1 beat 1.
+    \param position Valid grid position.
+    \return Quarter notes from measure 1 beat 1.
     */
-    [[nodiscard]] double beatPositionAt(GridPosition position) const noexcept;
+    [[nodiscard]] double quarterPositionAt(GridPosition position) const noexcept;
 
     /*!
-    \brief Resolves a grid position to absolute seconds.
+    \brief Resolves a grid position to absolute seconds: \ref secondsAtWholeNote at its place.
     \param position Grid position to resolve; its offset is the exact fraction from its beat toward
            the next beat.
     \return Interpolated second position.
     */
     [[nodiscard]] double secondsAt(GridPosition position) const noexcept;
+
+    /*!
+    \brief Resolves a place on the whole-note axis to absolute seconds.
+
+    THE route every chart instant takes to the clock — an onset, a ring's end, a keyframe — so one
+    instant reached two ways (a ring ending on the next head, say) resolves to one double. A
+    duration is added on the whole-note axis before the time query, never on the beat axis, so an
+    instant past a meter change lands where the music does. Places outside the authored anchor
+    range clamp to the first or terminal anchor's time.
+
+    \param whole_note_position Whole notes from measure 1 beat 1.
+    \return Interpolated second position.
+    */
+    [[nodiscard]] double secondsAtWholeNote(Fraction whole_note_position) const noexcept;
+
+    /*!
+    \brief Resolves an absolute second position to a place on the whole-note axis: the inverse of
+    \ref secondsAtWholeNote.
+
+    A double, because a time between two ticks names no exact place; a caller wanting a lattice
+    place rounds it (\ref tickPlaceReached). Times outside the authored anchor range clamp to the
+    first or terminal anchor's place.
+
+    \param seconds Absolute second position to resolve.
+    \return Whole notes from measure 1 beat 1.
+    */
+    [[nodiscard]] double wholeNotePositionAtSeconds(double seconds) const noexcept;
 
     /*!
     \brief Resolves a whole beat to absolute seconds; the whole-beat convenience of secondsAt.
@@ -420,15 +448,29 @@ private:
         // power-of-two denominators the package format allows.
         [[nodiscard]] double quartersPerBeat() const noexcept
         {
-            return 4.0 / meter.denominator;
+            return quarterPositionOf(Fraction{1, meter.denominator});
         }
 
         // Quarter-note position of the segment's first downbeat on the metronome timeline.
         [[nodiscard]] double startQuarterPosition() const noexcept
         {
-            return 4.0 * start_whole_note_position.toDouble();
+            return quarterPositionOf(start_whole_note_position);
         }
     };
+
+    // Quarter notes in a whole-note place: the one place the factor of four is written.
+    [[nodiscard]] static double quarterPositionOf(Fraction whole_note_position) noexcept;
+
+    // Whole notes in a quarter-note position: the inverse of quarterPositionOf, beside it so the
+    // factor is stated once in each direction.
+    [[nodiscard]] static double wholeNotePositionOf(double quarter_position) noexcept;
+
+    // Inverse-interpolates the anchor span containing a time onto the metronome axis, clamping
+    // outside the authored anchors: the step every seconds-to-place query shares.
+    [[nodiscard]] double quarterPositionAtSeconds(double seconds) const noexcept;
+
+    // Interpolates a quarter-note position to seconds through a binary search of the anchors.
+    [[nodiscard]] double secondsAtQuarterPosition(double quarter_position) const noexcept;
 
     // Rebuilds the derived lookup tables; must run whenever the authored vectors change.
     void buildDerivedIndices();

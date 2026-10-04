@@ -174,10 +174,10 @@ language.
 
 A stored fact is named for what it *is*; only presentation types are named for what is drawn. The
 canonical statement is `ChartNote::sustain`'s own comment
-(`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:489`):
+(`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:628`):
 
-> The ACTUAL duration the string rings, in beats. ... Not what any surface draws: the drawn tail is
-> derived from this once per chart revision by `presentedChartNotes`.
+> The ACTUAL duration the string rings, as a note value in whole notes. ... Every surface draws
+> this ring, but only as far as its ink end, derived once per chart revision.
 
 So "tail" and "ribbon" are drawing words and live in the presentation layer (`highway_tail.h`,
 `chart_view_state.h`, the tab layout headers); "sustain" is the record. Pitch labels are derived in
@@ -216,7 +216,7 @@ Straight from `docs/design/coding-conventions.md`; a candidate that violates one
 already killed before semantics are argued.
 
 - **`make…` / `create…`** — build a composite value from inputs (`makeToneTrackViewState`,
-  `makeMeasureGrid`). Reserve `create…` for builders that allocate, own, or have side effects
+  `makeChartViewState`). Reserve `create…` for builders that allocate, own, or have side effects
   (`createToneRackInstance`, `createFileSink`).
 - **`…For(key)`** — retrieve the value corresponding to a logical identity (`toneNameFor`). A scalar
   lookup is `…For`; assembling a whole view-state is `make…`, never `…For`.
@@ -252,7 +252,7 @@ trusting this table**, and read the owning header before citing a meaning.
 | **presented** (489) | The readability projection of the record, never the record. | `presentedChartNotes` |
 | **keyframe** (1569) | A per-channel change point inside a note's ring `{offset, fret?, bend?, vibrato?}`. Signed 2026-08-27, overturning the 2026-08-26 ruling that had picked "waypoint" over it and "stop"; the old word is retired everywhere and its document key is refused. | `Keyframe`, `ChartNote::keyframes` |
 | **position** (3073) | An ABSOLUTE timeline position in the tempo-map token grammar (`"27:3+1/2"`). | format + `GridPosition` |
-| **offset** (1019) | A note-*relative* beat fraction. Same grammar as position, different word by decision. | chart payloads |
+| **offset** (1019) | A note-*relative* duration in whole notes, written as a fraction token like a sustain; a different word from position by decision. | chart payloads |
 | **node / harmonicNode** (614) | The fractional fret position a harmonic is touched at — a position, and the assertion that the note is a harmonic. | `ChartNote::harmonic_node` |
 | **attack** (—) | How an onset is produced; one field, mutually exclusive values. | `NoteAttack` |
 | **span** (1575) | A derived statement *about the notes under it*, not a stored grouping. | chart derivations |

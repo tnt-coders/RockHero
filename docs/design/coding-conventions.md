@@ -55,7 +55,7 @@ return category alone does not decide the name.
 - **`make…` / `create…`** — build a composite value or object from its inputs. This includes
   view-state and other projection builders that assemble a render model from a domain model, such
   as `makePluginViewState(PluginChainEntry)`, `makeToneTrackViewState(...)`, and
-  `makeMeasureGrid(GpScore)`. Prefer `make…` for pure value assembly; reserve `create…` for
+  `makeChartViewState(Arrangement, TempoMap)`. Prefer `make…` for pure value assembly; reserve `create…` for
   builders that allocate, own, or have side effects (`createToneRackInstance`, `createFileSink`).
 - **`…For(key)`** — retrieve the value that corresponds to a logical *identity* or key, such as
   `toneNameFor(arrangement, ref)` or `projectGridNoteValueFor(project_id)`. Use it for lookups,

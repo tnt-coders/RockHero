@@ -124,7 +124,7 @@ constexpr float g_junction_x{80.0f};
 constexpr float g_string_3_y{140.0f};
 
 // The silent-point scenarios' own marks and frets. Both notes of the chart below start at measure 2
-// beat 1 (2.0s, x = 40), and the host's tail two beats in draws at 3.0s (x = 60).
+// beat 1 (2.0s, x = 40), and the host's tail two quarters in draws at 3.0s (x = 60).
 constexpr float g_measure_2_x{40.0f};
 constexpr float g_host_tail_x{60.0f};
 constexpr int g_victim_fret{3};
@@ -135,35 +135,35 @@ constexpr int g_host_fret{5};
 constexpr int g_retyped_fret{9};
 
 // The chart the silent-point scenarios run on. The VICTIM on string 1 takes the first edit, whose
-// undo entry everything below must leave alone. The HOST rings eight beats on string 3 sounding a
-// plain fret with no keyframes, so its whole path holds that fret — and a ring digit typed at it
-// two beats in plants a point that says nothing, the edit whose written diff is empty.
+// undo entry everything below must leave alone. The HOST rings eight quarters on string 3 sounding
+// a plain fret with no keyframes, so its whole path holds that fret — and a ring digit typed at it
+// two quarters in plants a point that says nothing, the edit whose written diff is empty.
 [[nodiscard]] common::core::Chart makeSilentPointChart()
 {
     common::core::Chart chart;
     chart.tuning.strings = common::core::testing::standardTuning();
     chart.notes = {
         makeTestNote({.measure = 2, .beat = 1}, 1, g_victim_fret),
-        makeTestNote({.measure = 2, .beat = 1}, 3, g_host_fret, common::core::Fraction{8}),
+        makeTestNote({.measure = 2, .beat = 1}, 3, g_host_fret, common::core::Fraction{2}),
     };
     return chart;
 }
 
-// THE PARKING FIGURE. A four-beat ring on string 3 whose statement at its end IS the slide-out
-// (fret 9 where the ring stops), with the string struck again four beats past it. So the slide-out
-// stands exactly ONE whole-note step from the only thing that bounds a ring's end — the next head
-// on its own string — and the scenario's first right press reaches that head. Its onset is measure
-// 2 beat 1, so at the geometry's 20 px/s the slide-out draws at 4.0s (x = 80, g_junction_x) like
-// the junction above, and the next head a whole measure further at 6.0s: far enough that a click on
-// the slide-out is nowhere near the 25px head, which is why the step is a whole note and not a
-// quarter.
+// THE PARKING FIGURE. A whole-note ring on string 3 whose statement at its end IS the slide-out
+// (fret 9 where the ring stops), with the string struck again four quarters past it. So the
+// slide-out stands exactly ONE whole-note step from the only thing that bounds a ring's end — the
+// next head on its own string — and the scenario's first right press reaches that head. Its onset
+// is measure 2 beat 1, so at the geometry's 20 px/s the slide-out draws at 4.0s (x = 80,
+// g_junction_x) like the junction above, and the next head a whole measure further at 6.0s: far
+// enough that a click on the slide-out is nowhere near the 25px head, which is why the step is a
+// whole note and not a quarter.
 [[nodiscard]] common::core::Chart makeParkedSlideOutChart()
 {
     common::core::Chart chart;
     chart.tuning.strings = common::core::testing::standardTuning();
     common::core::ChartNote glide =
-        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{4});
-    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 9}};
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{1});
+    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 9}};
     chart.notes = {std::move(glide), makeTestNote({.measure = 4, .beat = 1}, 3, 3)};
     return chart;
 }
@@ -213,7 +213,7 @@ TEST_CASE("A move gesture is one undo entry and one undo restores it", "[core][c
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
     // Redo returns the charter to where the run LEFT them, which the folded entry records once the
-    // last step has written: the moved note selected under the caret, three beats on (5.5s).
+    // last step has written: the moved note selected under the caret, three quarters on (5.5s).
     fixture.controller.onRedoRequested();
     CHECK(fixture.currentChart() == moved);
     const EditorViewState* const state = stateOrNull(fixture.view.last_state);
@@ -389,9 +389,9 @@ TEST_CASE("A keyframe move gesture re-points the selection at every step", "[cor
         REQUIRE(stepped.notes[0].keyframes.size() == 1);
         if (stepped.notes[0].keyframes.size() == 1)
         {
-            // Three one-beat steps off offset 4, which only the third press can reach: each step
-            // re-keyed the point, so the one after it still had an operand.
-            CHECK(stepped.notes[0].keyframes[0].offset == common::core::Fraction{7});
+            // Three quarter-note steps off offset 4, which only the third press can reach: each
+            // step re-keyed the point, so the one after it still had an operand.
+            CHECK(stepped.notes[0].keyframes[0].offset == common::core::Fraction{7, 4});
             CHECK(stepped.notes[0].keyframes[0].fret == 9);
         }
         // The note the point rides kept its own slot and its ring throughout.
@@ -412,7 +412,7 @@ TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing",
 {
     MoveFixture fixture;
     REQUIRE(fixture.load(makeParkedSlideOutChart()));
-    // A whole-note step, so one press spans the four beats to the head — see the figure above.
+    // A whole-note step, so one press spans the four quarters to the head — see the figure above.
     fixture.controller.onGridNoteValueChangeRequested(common::core::Fraction{1});
 
     // The slide-out stands at the ring's END, which no landing addresses: the click arms the caret
@@ -437,11 +437,11 @@ TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing",
     REQUIRE(parked.notes.size() == 2);
     if (parked.notes.size() == 2)
     {
-        CHECK(parked.notes[0].sustain == common::core::Fraction{8});
+        CHECK(parked.notes[0].sustain == common::core::Fraction{2});
         REQUIRE(parked.notes[0].keyframes.size() == 1);
         if (parked.notes[0].keyframes.size() == 1)
         {
-            CHECK(parked.notes[0].keyframes[0].offset == common::core::Fraction{8});
+            CHECK(parked.notes[0].keyframes[0].offset == common::core::Fraction{2});
             CHECK(parked.notes[0].keyframes[0].fret == 9);
         }
     }
@@ -504,13 +504,13 @@ TEST_CASE("A silent point edit hands the next move gesture no record", "[core][c
     // state, with no entry of its own.
     click(fixture.controller, g_host_tail_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(g_host_fret);
-    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{2}, g_host_fret));
+    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{1, 2}, g_host_fret));
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
     // The first press steps the point and writes nothing; the second is where a stale record
     // strikes, because it is the first press that could CONTINUE a run.
     fixture.step(ChartStepDirection::Right);
-    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{3}, g_host_fret));
+    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{3, 4}, g_host_fret));
     CHECK(fixture.currentChart().notes.size() == 1);
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
@@ -518,7 +518,7 @@ TEST_CASE("A silent point edit hands the next move gesture no record", "[core][c
     const common::core::Chart moved = fixture.currentChart();
     // The deleted note did not come back, and the entry that deleted it is still on top.
     REQUIRE(moved.notes.size() == 1);
-    CHECK(hasPoint(moved, common::core::Fraction{4}, g_host_fret));
+    CHECK(hasPoint(moved, common::core::Fraction{1}, g_host_fret));
     CHECK(fixture.undoEntryCount() == entries_before + 1);
     CHECK(fixture.undoTopLabel() == "Delete Note");
 
@@ -546,7 +546,7 @@ TEST_CASE("A silent point edit leaves an earlier retype intact", "[core][chart]"
 
     click(fixture.controller, g_host_tail_x, g_string_3_y);
     fixture.controller.onChartRingDigitTyped(g_host_fret);
-    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{2}, g_host_fret));
+    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{1, 2}, g_host_fret));
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
     fixture.step(ChartStepDirection::Right);
@@ -582,7 +582,7 @@ TEST_CASE("A sustain burst after a silent point edit keeps the earlier entry", "
     fixture.controller.onChartSustainAdjustRequested(1);
     const common::core::Chart grown = fixture.currentChart();
     REQUIRE(grown.notes.size() == 1);
-    CHECK(grown.notes[0].sustain == common::core::Fraction{10});
+    CHECK(grown.notes[0].sustain == common::core::Fraction{5, 2});
     CHECK(fixture.undoEntryCount() == entries_before + 2);
 
     // The burst's own entry undoes the ring alone, and the delete is still a step of its own
@@ -590,7 +590,7 @@ TEST_CASE("A sustain burst after a silent point edit keeps the earlier entry", "
     fixture.controller.onUndoRequested();
     const common::core::Chart shrunk = fixture.currentChart();
     REQUIRE(shrunk.notes.size() == 1);
-    CHECK(shrunk.notes[0].sustain == common::core::Fraction{8});
+    CHECK(shrunk.notes[0].sustain == common::core::Fraction{2});
     CHECK(fixture.undoEntryCount() == entries_before + 2);
 
     fixture.controller.onUndoRequested();

@@ -33,7 +33,7 @@ int baseScoreForChord(const ScoringRuleset& ruleset, int member_note_count) noex
 
 // Pro-rated credit rounds to the nearest point so partial holds bank deterministic integers.
 int sustainScoreForHold(
-    const ScoringRuleset& ruleset, common::core::Fraction sustain_beats,
+    const ScoringRuleset& ruleset, common::core::Fraction sustain_whole_notes,
     double held_fraction) noexcept
 {
     // A NaN fraction would sail through std::clamp (both comparisons false) into lround, whose
@@ -45,8 +45,8 @@ int sustainScoreForHold(
     }
     // The clamp keeps tracker noise (a held fraction slightly past 1) from minting extra score.
     const double clamped_fraction = std::clamp(held_fraction, 0.0, 1.0);
-    const double credit = static_cast<double>(ruleset.sustain_score_per_beat) *
-                          sustain_beats.toDouble() * clamped_fraction;
+    const double credit = static_cast<double>(ruleset.sustain_score_per_whole_note) *
+                          sustain_whole_notes.toDouble() * clamped_fraction;
     return static_cast<int>(std::lround(credit));
 }
 

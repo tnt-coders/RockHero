@@ -73,7 +73,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 1,
             .fret = 1,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
             .keyframes = {},
         },
@@ -81,7 +81,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -91,7 +91,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 2,
             .fret = 5,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         },
@@ -99,11 +99,11 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 7,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .keyframes =
                 {
-                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
-                    Keyframe{.offset = Fraction{2}, .fret = 9},
+                    Keyframe{.offset = Fraction{1, 4}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{1, 2}, .fret = 9},
                 },
         },
         // The strum's second struck string: two members are what open a span at all.
@@ -111,7 +111,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 5,
             .fret = 8,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -120,7 +120,7 @@ namespace
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 3,
             .fret = 3,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .harmonic_node = 3.2,
             .bend = {},
             .keyframes = {},
@@ -162,19 +162,19 @@ namespace
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 6,
             .fret = 17,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .attack = NoteAttack::PickSlide,
             .bend = {},
             .keyframes =
-                {Keyframe{.offset = Fraction{1, 2}, .fret = 5},
-                 Keyframe{.offset = Fraction{1}, .fret = 12}},
+                {Keyframe{.offset = Fraction{1, 8}, .fret = 5},
+                 Keyframe{.offset = Fraction{1, 4}, .fret = 12}},
         },
         // Simultaneous chord at 2:1 covering the whole span's posture: reads as a chord box.
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 1,
             .fret = 4,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
             .keyframes = {},
         },
@@ -182,7 +182,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 6,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -190,7 +190,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 3,
             .fret = 6,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -199,7 +199,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 2},
             .string = 4,
             .fret = 7,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .palm_mute = true,
             .bend = {},
             .keyframes = {},
@@ -208,7 +208,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 3},
             .string = 5,
             .fret = 9,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .tremolo = true,
             .bend = {},
             .keyframes = {},
@@ -217,7 +217,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 4},
             .string = 5,
             .fret = 9,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .vibrato = VibratoState::Narrow,
             .bend = {},
             .keyframes = {},
@@ -226,7 +226,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 4,
             .fret = 12,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .emphasis = NoteEmphasis::Accent,
             .bend = {},
             .keyframes = {},
@@ -239,12 +239,12 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 2},
             .string = 3,
             .fret = 7,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .emphasis = NoteEmphasis::Ghost,
             .keyframes =
                 {
-                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
-                    Keyframe{.offset = Fraction{2}, .fret = 9},
+                    Keyframe{.offset = Fraction{1, 4}, .bend = 2.0},
+                    Keyframe{.offset = Fraction{1, 2}, .fret = 9},
                 },
         },
         // Both mutes on one note: the palm is down AND this string is deadened. Two independent
@@ -254,7 +254,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 3},
             .string = 6,
             .fret = 5,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .palm_mute = true,
             .dead = true,
             .bend = {},
@@ -266,7 +266,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 4},
             .string = 5,
             .fret = 0,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .harmonic_node = 7.02,
             .bend = {},
             .keyframes = {},
@@ -278,7 +278,7 @@ namespace
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 4,
             .fret = 5,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .bend = {},
             .keyframes = {},
         },
@@ -286,7 +286,7 @@ namespace
             .position = GridPosition{.measure = 4, .beat = 2},
             .string = 4,
             .fret = 7,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .attack = NoteAttack::Legato,
             .bend = {},
             .keyframes = {},
@@ -295,7 +295,7 @@ namespace
             .position = GridPosition{.measure = 4, .beat = 3},
             .string = 4,
             .fret = 5,
-            .sustain = Fraction{1},
+            .sustain = Fraction{1, 4},
             .attack = NoteAttack::Legato,
             .bend = {},
             .keyframes = {},
@@ -306,7 +306,7 @@ namespace
             .position = GridPosition{.measure = 4, .beat = 4},
             .string = 2,
             .fret = 5,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         },
@@ -315,7 +315,7 @@ namespace
             .position = GridPosition{.measure = 5, .beat = 1},
             .string = 3,
             .fret = 7,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = {},
             .keyframes = {},
         },
@@ -323,7 +323,7 @@ namespace
             .position = GridPosition{.measure = 5, .beat = 1},
             .string = 4,
             .fret = 7,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = {},
             .keyframes = {},
         },
@@ -335,11 +335,11 @@ namespace
     return chart;
 }
 
-// One note of the strike-pop fixtures, a beat long unless the case shortens it so that no ring
+// One note of the strike-pop fixtures, a quarter long unless the case shortens it so that no ring
 // overlaps the next strike, with the keyframes the case gives it.
 [[nodiscard]] ChartNote popNote(
     const GridPosition position, const int string, const int fret, const NoteAttack attack,
-    std::vector<Keyframe> keyframes, const Fraction sustain = Fraction{1})
+    std::vector<Keyframe> keyframes, const Fraction sustain = Fraction{1, 4})
 {
     return ChartNote{
         .position = position,
@@ -413,8 +413,8 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.chart.notes[0].ring_end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.chart.notes[1].start_seconds == Catch::Approx(4.0 * beat));
-    // Rule 2's verdict is the GROUP's: its chord partner's whole-beat ring runs longer than the
-    // kept-sustain bound, so this member draws its own eighth-of-a-beat tail rather than none.
+    // Rule 2's verdict is the GROUP's: its chord partner's quarter-note ring runs longer than the
+    // kept-sustain bound, so this member draws its own thirty-second-note tail rather than none.
     CHECK(state.chart.notes[1].ink_end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.chart.notes[3];
@@ -555,6 +555,7 @@ TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][cha
          testing::anchor("9:1", 17509)},
     };
     const auto note = [](const GridPosition& position,
+                         const Fraction ring,
                          const int string,
                          const int fret,
                          const NoteAttack attack) {
@@ -562,7 +563,7 @@ TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][cha
             .position = position,
             .string = string,
             .fret = fret,
-            .sustain = Fraction{1, 4},
+            .sustain = ring,
             .attack = attack,
             .bend = {},
             .keyframes = {},
@@ -573,19 +574,24 @@ TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][cha
     for (int measure = 1; measure <= 8; ++measure)
     {
         const int beats = measure == 3 ? 7 : 4;
+        // Every ring a quarter of its beat, so each one reaches the next link of the chain: a
+        // sixteenth in 4/4 and a thirty-second in the 7/8 bar.
+        const Fraction ring = measure == 3 ? Fraction{1, 32} : Fraction{1, 16};
         for (int beat = 1; beat <= beats; ++beat)
         {
             const GridPosition onset{.measure = measure, .beat = beat};
-            chart.notes.push_back(note(onset, 1, 3, NoteAttack::Pick));
-            chart.notes.push_back(note(onset, 2, 5, NoteAttack::Pick));
-            chart.notes.push_back(note(onset, 4, 5, NoteAttack::Pick));
+            chart.notes.push_back(note(onset, ring, 1, 3, NoteAttack::Pick));
+            chart.notes.push_back(note(onset, ring, 2, 5, NoteAttack::Pick));
+            chart.notes.push_back(note(onset, ring, 4, 5, NoteAttack::Pick));
             chart.notes.push_back(note(
                 GridPosition{.measure = measure, .beat = beat, .offset = Fraction{1, 4}},
+                ring,
                 4,
                 7,
                 NoteAttack::Legato));
             chart.notes.push_back(note(
                 GridPosition{.measure = measure, .beat = beat, .offset = Fraction{1, 2}},
+                ring,
                 4,
                 5,
                 NoteAttack::Legato));
@@ -680,7 +686,7 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
                 .position = GridPosition{.measure = measure, .beat = 1},
                 .string = 1,
                 .fret = 5,
-                .sustain = Fraction{1, 8},
+                .sustain = Fraction{1, 32},
                 .bend = {},
                 .keyframes = {},
             });
@@ -841,9 +847,9 @@ TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
 }
 
 // The projection RESOLVES the hold rule into seconds rather than restating it: the rule's own case
-// matrix is pinned in beats beside chartHolds, and what matters here is that the resolution lands
-// on the right second and that the result feeds the visible range. One derivation, so a defect
-// cannot hide in a second copy.
+// matrix is pinned in note values beside chartHolds, and what matters here is that the resolution
+// lands on the right second and that the result feeds the visible range. One derivation, so a
+// defect cannot hide in a second copy.
 TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -854,10 +860,10 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .position = position,
             .string = string,
             .fret = 5,
-            // Half a beat, which at this tempo lasts exactly the kept-sustain bound and no longer,
+            // An eighth, which at this tempo lasts exactly the kept-sustain bound and no longer,
             // so rule 2 drops it. The pair presents no tail, and the span rule is what answers how
             // long the hand stays down.
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = {},
             .keyframes = {},
         };
@@ -869,7 +875,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     // the HAND does, so it runs to that close while the pair itself presents no tail at all: the
     // hold outlasting the drawn tail is the whole reason the board reads a field of its own.
     //
-    // The late pair sits where its half-beat rings still reach the closing onset. Any earlier and
+    // The late pair sits where its eighth-note rings still reach the closing onset. Any earlier and
     // the pair's statement would end at its own rings before that onset, leaving the closing arm of
     // this case testing nothing.
     const GridPosition early{.measure = 2, .beat = 1};
@@ -883,7 +889,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 4}},
             .string = 3,
             .fret = 7,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -896,7 +902,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
     REQUIRE(state.chart.notes.size() == 5);
     // Struck at 2.0 seconds and presenting no tail, so the heads stay pinned for what the strings
-    // actually ring: half a beat, which the span outlasts.
+    // actually ring: an eighth, which the span outlasts.
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.display_hold_ends[0] == Catch::Approx(2.25));
     CHECK(state.chart.display_hold_ends[1] == Catch::Approx(2.25));
@@ -953,16 +959,16 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // A four-beat ring on string 2 carrying into the strum two beats later: the carry joins that
-    // shape's posture, which is what makes the span arrive as an ARPEGGIO rather than a box. The
-    // string-4 ring beside it is the discriminator — it outlives the span by a beat, so it is the
-    // one member the law may not take.
+    // A whole-note ring on string 2 carrying into the strum two quarters later: the carry joins
+    // that shape's posture, which is what makes the span arrive as an ARPEGGIO rather than a box.
+    // The string-4 ring beside it is the discriminator — it outlives the span by a quarter, so it
+    // is the one member the law may not take.
     chart.notes = {
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 2,
             .fret = 7,
-            .sustain = Fraction{4},
+            .sustain = Fraction{1},
             .bend = {},
             .keyframes = {},
         },
@@ -970,7 +976,7 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
             .position = GridPosition{.measure = 1, .beat = 2},
             .string = 4,
             .fret = 3,
-            .sustain = Fraction{4},
+            .sustain = Fraction{1},
             .bend = {},
             .keyframes = {},
         },
@@ -978,7 +984,7 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         },
@@ -986,7 +992,7 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 3,
             .fret = 9,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         },
@@ -1002,12 +1008,12 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     // The carry runs from the span's front to its close, so the span accounts for the whole of it
     // and the board RESTS the ribbon. The verdict empties no tail: the ink end stays the
     // rules-1-to-3 end rather than collapsing onto the onset. The carry passes both strum heads
-    // and nothing binds it after, so its four beats run from 0.0 s to 2.0 s at this map's 120 BPM.
+    // and nothing binds it after, so its whole note runs from 0.0 s to 2.0 s at this map's 120 BPM.
     CHECK(state.chart.notes[0].rested);
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(2.0));
     // The strum's own rings die at that same close, so they go with it: a span that accounts for a
     // member's whole ring rests it whether or not anything sounds inside. Rested, not shortened —
-    // struck at 1.0 s with nothing after them, both present their notated two beats out to 2.0 s.
+    // struck at 1.0 s with nothing after them, both present their notated half notes out to 2.0 s.
     CHECK(state.chart.notes[2].rested);
     CHECK(state.chart.notes[3].rested);
     CHECK(state.chart.notes[2].ink_end_seconds == Catch::Approx(2.0));
@@ -1033,8 +1039,8 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     }
 
     // And the reveal reads the same note: rule 1 binds none of these rings, so each ink end IS the
-    // ring end the reveal draws to — the carry's stored four beats — and the verdict is the whole
-    // of what differs between a plain paint and a reveal here.
+    // ring end the reveal draws to — the carry's stored four quarters — and the verdict is the
+    // whole of what differs between a plain paint and a reveal here.
     CHECK_THAT(
         state.chart.notes[0].ring_end_seconds,
         Catch::Matchers::WithinULP(state.chart.notes[0].ink_end_seconds, 0));
@@ -1052,7 +1058,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // Half-beat chugs, struck a half beat apart: at this tempo that ring lasts exactly the
+    // Eighth-note chugs, struck an eighth apart: at this tempo that ring lasts exactly the
     // kept-sustain bound and no longer, so they present no tail at all and the span is what
     // answers how long the hand stays down.
     const auto chug = [](int string, int fret, GridPosition position) {
@@ -1060,7 +1066,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
             .position = position,
             .string = string,
             .fret = fret,
-            .sustain = Fraction{1, 2},
+            .sustain = Fraction{1, 8},
             .bend = {},
             .keyframes = {},
         };
@@ -1076,7 +1082,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = string,
             .fret = fret,
-            .sustain = Fraction{2},
+            .sustain = Fraction{1, 2},
             .bend = {},
             .keyframes = {},
         };
@@ -1112,7 +1118,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     CHECK(state.chart.shapes[0].drawn_end_seconds == Catch::Approx(0.75));
 
     // The chain's end is the LAST box's, not the first's: 120 BPM 4/4 puts the third strum at
-    // 0.5 s and its half-beat ring closes the span at 0.75 s, and every member of the chain
+    // 0.5 s and its eighth-note ring closes the span at 0.75 s, and every member of the chain
     // resolves to that same one end. The value that would drop the shape mid-chain is 0.25 s —
     // the first strum's own ring, which stops exactly where the second box begins.
     REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
@@ -1142,7 +1148,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // things: the chain's members were emptied by RULE 2 before the law could look at them, so they
     // carry no verdict at all, while this chord's tail was judged and left standing. The hold and
     // the ribbon happen to agree here — a RESTED member holds its own stored ring — so the board
-    // pins these heads for the whole two beats, while the chain's are held by the span rule
+    // pins these heads for the whole two quarters, while the chain's are held by the span rule
     // instead.
     CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
     CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
@@ -1627,12 +1633,12 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
         .position = GridPosition{.measure = 1, .beat = 1},
         .string = 5,
         .fret = 17,
-        .sustain = Fraction{1},
+        .sustain = Fraction{1, 4},
         .attack = NoteAttack::PickSlide,
         .keyframes = {
-            Keyframe{.offset = Fraction{1, 4}, .bend = 1.0},
-            Keyframe{.offset = Fraction{1, 2}, .fret = 3},
-            Keyframe{.offset = Fraction{1}, .fret = 9},
+            Keyframe{.offset = Fraction{1, 16}, .bend = 1.0},
+            Keyframe{.offset = Fraction{1, 8}, .fret = 3},
+            Keyframe{.offset = Fraction{1, 4}, .fret = 9},
         },
     };
     scrape.palm_mute = true;
@@ -1678,7 +1684,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(path[2].low_line == Catch::Approx(8.0));
     CHECK(path[2].high_line == Catch::Approx(9.0));
     // Each arrival carries its stop's family so the light sweeps with the rail's own ease — the
-    // turnaround pitched, the terminal released — each over its own half-beat leg (0.25 s at 120
+    // turnaround pitched, the terminal released — each over its own eighth-note leg (0.25 s at 120
     // BPM); the onset arrival ramps over its light rise, which the grid origin clamps to nothing.
     CHECK_FALSE(path[0].unpitched_ramp);
     CHECK_FALSE(path[1].unpitched_ramp);
@@ -1819,21 +1825,21 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // Four beats ringing to the next onset on another string, trailing off unpitched at the
+        // Four quarters ringing to the next onset on another string, trailing off unpitched at the
         // very end: that head binds the tail, so the ink stops one margin before the terminal.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = Fraction{4},
+            .sustain = Fraction{1},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{4}, .fret = 12}},
+            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -1842,7 +1848,7 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 3,
             .fret = 6,
-            .sustain = Fraction{1, 8},
+            .sustain = Fraction{1, 32},
             .bend = {},
             .keyframes = {},
         },
@@ -1885,7 +1891,10 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     // arrival. The zone begins exactly where the gliding note's ink stops.
     const HighwayHandArrival& slide_out = state.fret_hand.track[1];
     REQUIRE(slide_out.unpitched_ramp);
-    const double crop_seconds = tempo_map.secondsAt(marginBefore(tempo_map, slide_out_arrival));
+    const double crop_seconds = tempo_map.secondsAtWholeNote(tickPlaceReached(
+        tempo_map,
+        tempo_map.wholeNotePositionAt(slide_out_arrival),
+        -g_minimum_sustain_distance_seconds));
     CHECK(slide_out.settle_seconds == Catch::Approx(slide_out.seconds - crop_seconds));
     CHECK(slide_out.settle_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
     REQUIRE_FALSE(state.chart.notes.empty());
@@ -1994,8 +2003,8 @@ namespace
 {
 
 // The board of a chart with nothing but the notes a floor-light case needs and no placements: the
-// default map is 4/4 at 120 BPM, so a beat is half a second, a measure two, and the arrival margin
-// an eighth.
+// default map is 4/4 at 120 BPM, so a quarter is half a second, a measure two, and the arrival
+// margin an eighth.
 [[nodiscard]] HighwayViewState lightBoard(std::vector<ChartNote> notes, const TempoMap& tempo_map)
 {
     Chart chart;
@@ -2041,7 +2050,8 @@ namespace
 // begins.
 [[nodiscard]] double marginStartSeconds(const TempoMap& tempo_map, const GridPosition position)
 {
-    return tempo_map.secondsAt(marginBefore(tempo_map, position));
+    return tempo_map.secondsAtWholeNote(tickPlaceReached(
+        tempo_map, tempo_map.wholeNotePositionAt(position), -g_minimum_sustain_distance_seconds));
 }
 
 // THE SPAN NEVER OPENS A LIGHT: every lit stretch of the fretting hand starts at the onset of a
@@ -2063,12 +2073,12 @@ void checkEveryStretchOpensOnANote(const HighwayViewState& state)
 
 // An open string is evidence by rule: it is drawn as a bar spanning the window, so a dark window
 // under it would read as a floating bar. Its light rises over the arrival margin before the note —
-// the same marginBefore the hand's own morph is led by — and releases at the drawn end.
+// the same margin the hand's own morph is led by — and releases at the drawn end.
 TEST_CASE("Fret-hand light lights a lone open note with a margin rise", "[core][highway][light]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     const GridPosition onset{.measure = 2, .beat = 1};
-    const HighwayViewState state = lightBoard({lightNote(onset, 1, 0, Fraction{1})}, tempo_map);
+    const HighwayViewState state = lightBoard({lightNote(onset, 1, 0, Fraction{1, 4})}, tempo_map);
 
     REQUIRE(state.chart.notes.size() == 1);
     const NoteViewState& open = state.chart.notes.front();
@@ -2089,7 +2099,7 @@ TEST_CASE("Fret-hand light ignores a bare tap and lights a planted one", "[core]
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     const ChartNote tap =
-        lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 12, Fraction{1}, NoteAttack::Tap);
+        lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 12, Fraction{1, 4}, NoteAttack::Tap);
 
     const HighwayViewState bare = lightBoard({tap}, tempo_map);
     CHECK(bare.fret_hand.lit.empty());
@@ -2097,7 +2107,7 @@ TEST_CASE("Fret-hand light ignores a bare tap and lights a planted one", "[core]
     CHECK(bare.pick_hand.lit.size() == 1);
 
     const ChartNote pull =
-        lightNote(GridPosition{.measure = 2, .beat = 2}, 1, 5, Fraction{1}, NoteAttack::Legato);
+        lightNote(GridPosition{.measure = 2, .beat = 2}, 1, 5, Fraction{1, 4}, NoteAttack::Legato);
     const HighwayViewState planted = lightBoard({tap, pull}, tempo_map);
     REQUIRE(planted.chart.notes.size() == 2);
     REQUIRE_FALSE(planted.fret_hand.lit.empty());
@@ -2111,19 +2121,20 @@ TEST_CASE("Fret-hand light ignores a bare tap and lights a planted one", "[core]
 TEST_CASE("Fret-hand light reads the fretting hand's techniques only", "[core][highway][light]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
-    ChartNote scrape =
-        lightNote(GridPosition{.measure = 2, .beat = 1}, 5, 17, Fraction{1}, NoteAttack::PickSlide);
-    scrape.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9}};
+    ChartNote scrape = lightNote(
+        GridPosition{.measure = 2, .beat = 1}, 5, 17, Fraction{1, 4}, NoteAttack::PickSlide);
+    scrape.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 9}};
     const HighwayViewState scraped = lightBoard({scrape}, tempo_map);
     CHECK(scraped.fret_hand.lit.empty());
     CHECK_FALSE(scraped.pick_hand.lit.empty());
 
     // A left tap and, two measures later, a natural harmonic on a between-fret node: two lights,
     // each opened by its own note.
-    ChartNote harmonic = lightNote(GridPosition{.measure = 4, .beat = 1}, 3, 3, Fraction{1, 8});
+    ChartNote harmonic = lightNote(GridPosition{.measure = 4, .beat = 1}, 3, 3, Fraction{1, 32});
     harmonic.harmonic_node = 3.2;
     const HighwayViewState state = lightBoard(
-        {lightNote(GridPosition{.measure = 2, .beat = 1}, 4, 7, Fraction{1}, NoteAttack::LeftTap),
+        {lightNote(
+             GridPosition{.measure = 2, .beat = 1}, 4, 7, Fraction{1, 4}, NoteAttack::LeftTap),
          harmonic},
         tempo_map);
     REQUIRE(state.chart.notes.size() == 2);
@@ -2195,14 +2206,14 @@ TEST_CASE("Fret-hand light is never opened by a carry-opened span", "[core][high
 {
     const auto glide = [](const int string, const int fret, const Fraction sustain) {
         ChartNote note = lightNote(GridPosition{.measure = 1, .beat = 1}, string, fret, sustain);
-        note.keyframes = {Keyframe{.offset = Fraction{2}, .fret = fret + 2}};
+        note.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = fret + 2}};
         return note;
     };
     const HighwayViewState state = lightBoard(
-        {glide(1, 5, Fraction{4}),
-         glide(2, 7, Fraction{6}),
-         glide(4, 11, Fraction{6}),
-         lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 7, Fraction{2})},
+        {glide(1, 5, Fraction{1}),
+         glide(2, 7, Fraction{3, 2}),
+         glide(4, 11, Fraction{3, 2}),
+         lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 7, Fraction{1, 2})},
         makeHighwayTempoMap());
 
     // The departing grip and the landing's successor, which starts at the landing (1.0 s) where
@@ -2227,7 +2238,7 @@ TEST_CASE(
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     const auto chord_note = [](const int measure, const int string) {
-        return lightNote(GridPosition{.measure = measure, .beat = 1}, string, 5, Fraction{1});
+        return lightNote(GridPosition{.measure = measure, .beat = 1}, string, 5, Fraction{1, 4});
     };
     const HighwayViewState state = lightBoard(
         {chord_note(1, 1), chord_note(1, 2), chord_note(3, 1), chord_note(3, 2)}, tempo_map);
@@ -3043,27 +3054,27 @@ TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][h
 TEST_CASE("Highway strike pops land on their strips, in their note's hand", "[core][highway]")
 {
     const HighwayViewState board = popBoard({
-        // A fretted slide from 5 to 7: its strike, and its landing half a beat later.
+        // A fretted slide from 5 to 7: its strike, and its landing an eighth later.
         popNote(
             GridPosition{.measure = 1, .beat = 1},
             3,
             5,
             NoteAttack::Pick,
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 7}}),
-        // A bend on fret 8: its strike, and its arrival half a beat later on the same fret.
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 7}}),
+        // A bend on fret 8: its strike, and its arrival an eighth later on the same fret.
         popNote(
             GridPosition{.measure = 1, .beat = 3},
             2,
             8,
             NoteAttack::Pick,
-            {Keyframe{.offset = Fraction{1, 2}, .bend = 1.0}}),
+            {Keyframe{.offset = Fraction{1, 8}, .bend = 1.0}}),
         // A tapped glide from 12 to 14.
         popNote(
             GridPosition{.measure = 2, .beat = 1},
             1,
             12,
             NoteAttack::Tap,
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 14}}),
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 14}}),
         // A tapped chord.
         popNote(GridPosition{.measure = 2, .beat = 3}, 1, 12, NoteAttack::Tap, {}),
         popNote(GridPosition{.measure = 2, .beat = 3}, 2, 14, NoteAttack::Tap, {}),
@@ -3093,8 +3104,8 @@ TEST_CASE("Highway strike pops land on their strips, in their note's hand", "[co
 // other whatever their chords' frets.
 TEST_CASE("Highway strike pops clamp against the next pop on the same strips", "[core][highway]")
 {
-    // Singles an eighth of a beat long, so no ring is still held at the next strike.
-    const Fraction short_ring{1, 8};
+    // Thirty-second-note singles, so no ring is still held at the next strike.
+    const Fraction short_ring{1, 32};
     const HighwayViewState board = popBoard({
         // Fret 5 at 0.0, fret 9 at 0.125 on another fret, fret 5 again at 0.1875.
         popNote(GridPosition{.measure = 1, .beat = 1}, 3, 5, NoteAttack::Pick, {}, short_ring),
@@ -3118,14 +3129,14 @@ TEST_CASE("Highway strike pops clamp against the next pop on the same strips", "
             3,
             5,
             NoteAttack::Pick,
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 7}}),
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 7}}),
         popNote(
             GridPosition{.measure = 1, .beat = 3},
             4,
             6,
             NoteAttack::Pick,
-            {Keyframe{.offset = Fraction{1, 2}, .fret = 7}}),
-        // Two strummed chords a half beat apart on different frets.
+            {Keyframe{.offset = Fraction{1, 8}, .fret = 7}}),
+        // Two strummed chords an eighth apart on different frets.
         popNote(GridPosition{.measure = 2, .beat = 1}, 3, 5, NoteAttack::Pick, {}),
         popNote(GridPosition{.measure = 2, .beat = 1}, 4, 5, NoteAttack::Pick, {}),
         popNote(
