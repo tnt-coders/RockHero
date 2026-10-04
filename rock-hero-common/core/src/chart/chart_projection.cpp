@@ -40,11 +40,10 @@ namespace
 // THREE FACTS, and each answers a case the others cannot:
 //
 //   the CLOSING HEAD (\ref ChartShape::closing_onset_place) is what the distance is kept from, and
-//   it is
-//   not the close: a span whose rings died a full margin early ends where they died and is not
-//   pulled back from a head it never reached. Absent where there is no head at all — a span whose
-//   statement simply ran out, and a close at a slot of held fingers, which sounds nothing to keep a
-//   distance from and is exactly what keeps a landing successor tiled onto its predecessor;
+//   it is not the close: a span whose rings died a full margin early ends where they died and is
+//   not pulled back from a head it never reached. Absent where there is no head at all — a span
+//   whose statement simply ran out, and a close at a slot of held fingers, which sounds nothing to
+//   keep a distance from and is exactly what keeps a landing successor tiled onto its predecessor;
 //
 //   the LAST STATEMENT (\ref ChartShape::stated_extent) floors the trim, because furniture may not
 //   retreat behind the strum it is drawn over. In a fast enough passage the closing onset crowds

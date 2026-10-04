@@ -10,7 +10,6 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
@@ -131,6 +130,7 @@ ChartPresentation chartPresentation(
     const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
+    const std::vector<Fraction>& places = connections.places;
     ChartPresentation presentation;
     presentation.ink_end.reserve(notes.size());
     presentation.rested_from.reserve(notes.size());
@@ -138,7 +138,7 @@ ChartPresentation chartPresentation(
     while (group_begin < notes.size())
     {
         std::size_t group_end = group_begin + 1;
-        while (group_end < notes.size() && notes[group_end].position == notes[group_begin].position)
+        while (group_end < notes.size() && places[group_end] == places[group_begin])
         {
             ++group_end;
         }
@@ -150,7 +150,7 @@ ChartPresentation chartPresentation(
                 inkEndOf(connections, index, group_end, margins, deliberate_hold);
             presentation.ink_end.push_back(drawsNoDeadTail(notes[index]) ? Fraction{} : ink_end);
             group_earned = group_earned || deliberate_hold ||
-                           earnsTail(notes[index], connections.places[index], tempo_map);
+                           earnsTail(notes[index], places[index], tempo_map);
         }
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
@@ -199,6 +199,7 @@ std::vector<Fraction> chartHolds(
     const std::vector<ChartShape>& shapes)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
+    const std::vector<Fraction>& places = connections.places;
 
     std::vector<Fraction> held;
     held.reserve(notes.size());
@@ -222,9 +223,8 @@ std::vector<Fraction> chartHolds(
     const SpanCover cover{shapes};
     for (std::size_t index = 0; index < notes.size();)
     {
-        const GridPosition onset = notes[index].position;
         std::size_t group_end = index;
-        while (group_end < notes.size() && notes[group_end].position == onset)
+        while (group_end < notes.size() && places[group_end] == places[index])
         {
             ++group_end;
         }
@@ -233,10 +233,10 @@ std::vector<Fraction> chartHolds(
         // member exactly as a strummed one is, and in a DERIVED chart a lone tail-less note a span
         // covers past was necessarily renewed — an un-renewed death breaks the grip, so the span
         // could not reach past it at all.
-        const std::optional<SpanCoverage> covering = cover.reaching(connections.places[index]);
+        const std::optional<SpanCoverage> covering = cover.reaching(places[index]);
         if (covering.has_value())
         {
-            const Fraction span_hold = covering->end - connections.places[index];
+            const Fraction span_hold = covering->end - places[index];
             for (std::size_t member = index; member < group_end; ++member)
             {
                 const ChartNote& note = notes[member];

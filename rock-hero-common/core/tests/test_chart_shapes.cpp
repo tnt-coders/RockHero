@@ -2098,7 +2098,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
         // The control, one ring apart: the same glide across the same signature change, with the
         // landing left to breathe: each ring runs a half note, a quarter past the 4/4 downbeat. It
-        // re-opens, and the successor's own position is resolved on the changed axis.
+        // re-opens, and the successor fronts at the landing's own place, inside the 6/8 bar.
         const std::vector<ChartNote> breathing_glide = streamOf({
             travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{1, 2}), {{Fraction{77, 320}, 8}}),
             travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{1, 2}), {{Fraction{77, 320}, 10}}),

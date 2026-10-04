@@ -20,7 +20,6 @@ rather than in the files that ask.
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
 namespace rock_hero::common::core

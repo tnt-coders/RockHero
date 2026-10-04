@@ -12,7 +12,6 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -125,11 +124,10 @@ struct ChartShape
 
     RULE 12A'S MARGIN IS NOT IN HERE. It is a DISPLAY rule, applied once where the view state is
     built (\ref makeChartViewState) from \ref closing_onset_place and \ref stated_extent beside
-    this.
-    Storing it instead would put display spacing inside every seam: a growth split would close the
-    predecessor one display margin before the successor's own start, leaving spans that abut
-    musically a margin apart in the data, which every reader of a figure's seams would then have to
-    merge back across.
+    this. Storing it instead would put display spacing inside every seam: a growth split would
+    close the predecessor one display margin before the successor's own start, leaving spans that
+    abut musically a margin apart in the data, which every reader of a figure's seams would then
+    have to merge back across.
 
     THE POSTURE TRUTH CRITERION, which this field is what enforces: **no span claims a stop the hand
     abandoned while it ran.** A span's posture is a per-span set that only ever GROWS (growth IS

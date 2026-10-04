@@ -9,7 +9,6 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
 
@@ -1104,8 +1103,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             std::vector<bool> restated(string_count, false);
             std::size_t parts = 0;
             for (std::size_t ahead = onset_end;
-                 ahead < saved_notes.size() &&
-                 saved_notes[ahead].position == saved_notes[onset_end].position;
+                 ahead < saved_notes.size() && onset_place[ahead] == onset_place[onset_end];
                  ++ahead)
             {
                 const ChartNote& member = saved_notes[ahead];
