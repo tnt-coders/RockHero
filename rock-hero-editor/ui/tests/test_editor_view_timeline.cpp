@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -65,6 +66,12 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         last_tempo_insert_position = position;
     }
 
+    void onTimeSignatureInsertPromptRequested(
+        const core::InsertTimeSignatureTarget& target) override
+    {
+        last_signature_insert = target;
+    }
+
     void onSelectionRestateRequested() override
     {
         restate_count += 1;
@@ -94,6 +101,9 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     // Position the tempo menu last asked an anchor for, and how often a restate was asked for.
     std::optional<common::core::GridPosition> last_tempo_insert_position{};
     int restate_count{0};
+
+    // Insert the signature menu last asked a time signature for.
+    std::optional<core::InsertTimeSignatureTarget> last_signature_insert{};
 
     // Direction last reported through onSelectionMoveRequested().
     std::optional<bool> last_move_later{};
@@ -145,6 +155,74 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         },
     };
     return std::make_shared<const common::core::ChartViewState>(std::move(chart));
+}
+
+// Builds three 60 BPM measures, 4/4 then 3/4 from measure 2, ending on the terminal at 4:1 (10 s):
+// measure 2's downbeat is at 4 s and measure 3's at 7 s.
+[[nodiscard]] common::core::TempoMap makeMeterChangeTempoMap()
+{
+    return common::core::TempoMap{
+        std::vector{
+            common::core::TimeSignatureChange{
+                .measure = 1,
+                .meter = {.numerator = 4, .denominator = 4},
+            },
+            common::core::TimeSignatureChange{
+                .measure = 2,
+                .meter = {.numerator = 3, .denominator = 4},
+            },
+        },
+        std::vector{anchor("1:1", 0), anchor("4:1", 10000)},
+    };
+}
+
+// Lays a ruler over the meter-change map across 401 px, 40 px per second: the signature chips
+// stand at x = 0 (measure 1) and x = 160 (measure 2), and measure 3's downbeat at x = 280.
+void showMeterChangeMap(TimelineRuler& ruler)
+{
+    constexpr common::core::TimeRange window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{10.0},
+    };
+    const common::core::TempoMap tempo_map = makeMeterChangeTempoMap();
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+}
+
+// The rows of a plain popup menu in order: each row's text and whether it is enabled.
+[[nodiscard]] std::vector<std::pair<std::string, bool>> menuRows(const juce::PopupMenu& menu)
+{
+    std::vector<std::pair<std::string, bool>> rows;
+    juce::PopupMenu::MenuItemIterator iterator{menu};
+    while (iterator.next())
+    {
+        const juce::PopupMenu::Item& item = iterator.getItem();
+        rows.emplace_back(item.text.toStdString(), item.isEnabled);
+    }
+    return rows;
+}
+
+// Whether any pixel of a region differs between two snapshots of one component.
+[[nodiscard]] bool regionDiffers(
+    const juce::Image& before, const juce::Image& after, const juce::Rectangle<int> region)
+{
+    for (int x = region.getX(); x < region.getRight(); ++x)
+    {
+        for (int y = region.getY(); y < region.getBottom(); ++y)
+        {
+            if (before.getPixelAt(x, y) != after.getPixelAt(x, y))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // Returns a y coordinate that lands on the 1px-on row of the timeline grid dot pattern.
@@ -503,6 +581,72 @@ TEST_CASE("TimelineRuler glows a refused tempo chip", "[ui][timeline-ruler]")
 
     ruler.flashTempoAnchorRefusal(common::core::GridPosition{.measure = 1, .beat = 1});
     CHECK(probe().getRed() > plain.getRed());
+}
+
+// The signature menu offers the rows that apply where it opens: Add on a measure whose downbeat
+// carries no time signature, Set and Delete over a chip. Every row is disabled while the marker
+// plane is closed, and building the menu selects nothing.
+TEST_CASE("TimelineRuler signature menu offers the rows that apply", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TimelineRuler ruler;
+    RecordingRulerListener listener;
+    showMeterChangeMap(ruler);
+    ruler.setListener(listener);
+    ruler.setMarkerEditsEnabled(true);
+
+    using Rows = std::vector<std::pair<std::string, bool>>;
+    const Rows on_chip{{"Set Time Signature...", true}, {"Delete Time Signature", true}};
+    // The measure-2 chip, and the measure-1 chip: the downbeat each stands on already carries one.
+    CHECK(menuRows(ruler.signatureMenuAt({164.0f, 35.0f})) == on_chip);
+    CHECK(menuRows(ruler.signatureMenuAt({4.0f, 35.0f})) == on_chip);
+    // Inside measure 3 (7.5 s), off every chip: only the insert.
+    CHECK(menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature", true}});
+    CHECK_FALSE(listener.last_selected_signature_measure.has_value());
+
+    ruler.setMarkerEditsEnabled(false);
+    CHECK(
+        menuRows(ruler.signatureMenuAt({164.0f, 35.0f})) ==
+        Rows{{"Set Time Signature...", false}, {"Delete Time Signature", false}});
+    CHECK(menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature", false}});
+}
+
+// A double-click on a signature chip asks for the selection's restate, the core's meter prompt, as
+// the section and tempo chips do; with the marker plane closed it opens nothing.
+TEST_CASE("TimelineRuler signature chip double-click restates", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TimelineRuler ruler;
+    RecordingRulerListener listener;
+    showMeterChangeMap(ruler);
+    ruler.setListener(listener);
+    ruler.setMarkerEditsEnabled(true);
+
+    ruler.mouseDown(makeMouseDownEvent(ruler, 164.0f, 35.0f));
+    CHECK(listener.last_selected_signature_measure == std::optional{2});
+    ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 164.0f, 35.0f));
+    CHECK(listener.restate_count == 1);
+
+    ruler.setMarkerEditsEnabled(false);
+    ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 164.0f, 35.0f));
+    CHECK(listener.restate_count == 1);
+}
+
+// The renumber flash lights the measure numbers from the named measure on and leaves the ones
+// before it as they were. The probes compare a snapshot with itself before the flash, so they
+// hold on every platform's glyph rasterizer: each covers a number's text, clear of its tick.
+TEST_CASE("TimelineRuler flashes the renumbered measure numbers", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TimelineRuler ruler;
+    showMeterChangeMap(ruler);
+    const juce::Image before = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    ruler.flashRenumberedMeasures(2);
+    const juce::Image after = ruler.createComponentSnapshot(ruler.getLocalBounds());
+    CHECK_FALSE(regionDiffers(before, after, juce::Rectangle<int>{2, 45, 16, 11}));
+    CHECK(regionDiffers(before, after, juce::Rectangle<int>{162, 45, 16, 11}));
+    CHECK(regionDiffers(before, after, juce::Rectangle<int>{282, 45, 16, 11}));
 }
 
 // A press on a tempo chip selects it, as a click does, and arms its drag: each event past JUCE's

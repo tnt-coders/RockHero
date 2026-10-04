@@ -1,7 +1,7 @@
 #include "tab/tab_view.h"
 
 #include "shared/editor_theme.h"
-#include "shared/refusal_flash.h"
+#include "shared/flash_pulse.h"
 #include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
@@ -141,7 +141,7 @@ void TabView::flashRefusal(core::ChartRefusalFlash flash)
 // Rationale lives on the declaration in tab_view.h.
 void TabView::stepRefusalFlash()
 {
-    if (retireFinishedRefusal(m_refusal))
+    if (retireFinishedFlash(m_refusal))
     {
         repaint();
     }
@@ -700,7 +700,7 @@ void TabView::paint(juce::Graphics& g)
     // The elements a refused edit turned down, glowed below once the caret is drawn.
     if (m_refusal.has_value())
     {
-        for (const std::size_t index : m_refusal->refused.notes)
+        for (const std::size_t index : m_refusal->subject.notes)
         {
             if (std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
             {
@@ -708,7 +708,7 @@ void TabView::paint(juce::Graphics& g)
             }
         }
         for_each_drawn_keyframe(
-            m_refusal->refused.keyframes,
+            m_refusal->subject.keyframes,
             [&](const common::core::NoteViewState& note,
                 const common::core::KeyframeViewState& keyframe,
                 const common::ui::TabKeyframeLayout& layout) {

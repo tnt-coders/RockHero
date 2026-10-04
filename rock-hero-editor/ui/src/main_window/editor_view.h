@@ -167,6 +167,9 @@ public:
     /*! \copydoc core::IEditorView::flashTempoAnchorRefusal */
     void flashTempoAnchorRefusal(common::core::GridPosition position) override;
 
+    /*! \copydoc core::IEditorView::flashRenumberedMeasures */
+    void flashRenumberedMeasures(int from_measure) override;
+
     /*! \copydoc core::IEditorView::revealTimelineStart */
     void revealTimelineStart() override;
 
@@ -500,6 +503,10 @@ private:
     // TimelineRuler::Listener implementation.
     void onTempoAnchorInsertRequested(common::core::GridPosition position) override;
 
+    // TimelineRuler::Listener implementation.
+    void onTimeSignatureInsertPromptRequested(
+        const core::InsertTimeSignatureTarget& target) override;
+
     // TimelineRuler::Listener implementation; also Enter's perform.
     void onSelectionRestateRequested() override;
 
@@ -514,6 +521,16 @@ private:
 
     // Opens the tempo prompt the core's published tempo verb names.
     void setTempo(const core::SetTempoTarget& target);
+
+    // Opens the meter prompt for the restate the core's published meter verb names.
+    void setTimeSignature(const core::SetTimeSignatureTarget& target);
+
+    // Opens the meter prompt for the insert the core's published meter chord names.
+    void addTimeSignature(const core::InsertTimeSignatureTarget& target);
+
+    // The one meter prompt behind both: a title, then the meter typed for a measure's downbeat,
+    // handed back raw for the core to parse.
+    void promptTimeSignature(const juce::String& title, int measure, const std::string& meter_text);
 
     // ToneTrackView::Listener implementation.
     void onToneRegionSelected(std::string region_id) override;

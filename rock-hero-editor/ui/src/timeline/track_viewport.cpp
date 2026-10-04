@@ -447,6 +447,12 @@ void TrackViewport::flashTempoAnchorRefusal(const common::core::GridPosition pos
     m_timeline_ruler.flashTempoAnchorRefusal(position);
 }
 
+// Forwards a landed time-signature edit to the ruler, which draws the measure numbers.
+void TrackViewport::flashRenumberedMeasures(const int from_measure)
+{
+    m_timeline_ruler.flashRenumberedMeasures(from_measure);
+}
+
 // Forwards the core's published marker-plane availability to the pinned ruler.
 void TrackViewport::setMarkerEditsEnabled(const bool marker_edits_enabled)
 {

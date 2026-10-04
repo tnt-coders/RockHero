@@ -135,6 +135,12 @@ public:
         tempo_anchor_refusal_flashes.push_back(position);
     }
 
+    // Records each renumber flash, in request order.
+    void flashRenumberedMeasures(int from_measure) override
+    {
+        renumber_flashes.push_back(from_measure);
+    }
+
     // Counts each request to scroll the timeline start into view.
     void revealTimelineStart() override
     {
@@ -214,6 +220,7 @@ public:
     std::vector<ChartBendPicker> shown_bend_pickers{};
     std::vector<ChartRefusalFlash> refusal_flashes{};
     std::vector<common::core::GridPosition> tempo_anchor_refusal_flashes{};
+    std::vector<int> renumber_flashes{};
     int timeline_start_reveal_count{0};
 
     // Durable state that was current when each one-shot error was shown.

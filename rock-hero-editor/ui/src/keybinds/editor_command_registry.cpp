@@ -22,8 +22,7 @@ namespace
 
 // Each marker kind's letter, declared once: `Ctrl`+letter AUTHORS that kind at the cursor and
 // `Ctrl+Shift`+letter SELECTS it (jumps focus onto its row), so the pair is composed from the one
-// letter below and cannot drift. The time-signature (/) author chord is reserved but not
-// registered; only its jump is.
+// letter below and cannot drift.
 constexpr int g_section_key = 'm';
 constexpr int g_tempo_key = 'b';
 constexpr int g_time_signature_key = '/';
@@ -203,6 +202,16 @@ constexpr int g_add_lane_key = 'a';
             .name = "Add or Set Tempo Anchor",
             .category = "Tempo",
             .default_keypresses = {markerAuthorChord(g_tempo_key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::InsertTimeSignature,
+            // Ctrl+/, the meter's key on the marker plane: the time signature on the cursor's
+            // downbeat is restated through the meter prompt, a free downbeat takes a new one
+            // through the same prompt.
+            .name = "Add or Set Time Signature",
+            .category = "Time Signature",
+            .default_keypresses = {markerAuthorChord(g_time_signature_key)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -665,8 +674,9 @@ bool editorCommandActsOnSelection(const EditorCommandSpec& spec)
     }
     // Navigation is absent on purpose: the walk and the jumps SELECT, and selecting never moves
     // the view; the keys that move a position (steps, Tab) are followed through the moved position
-    // itself. The section, tempo, tone-change and hand author chords are absent too: they act at
-    // the cursor, which is in view already, and the first three can complete in a prompt.
+    // itself. The section, tempo, time-signature, tone-change and hand author chords are absent
+    // too: they act at the cursor, which is in view already, and all but the hand's can complete
+    // in a prompt.
     static constexpr std::array<std::string_view, 4> g_selection_categories{
         "Selection",
         "Authoring",

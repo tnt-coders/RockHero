@@ -1471,6 +1471,12 @@ void EditorView::flashTempoAnchorRefusal(const common::core::GridPosition positi
     m_track_viewport->flashTempoAnchorRefusal(position);
 }
 
+// A landed meter edit flashes on the ruler, the surface that draws the measure numbers.
+void EditorView::flashRenumberedMeasures(const int from_measure)
+{
+    m_track_viewport->flashRenumberedMeasures(from_measure);
+}
+
 // Stop's return to the start brings the start into sight on the timeline that scrolls.
 void EditorView::revealTimelineStart()
 {
@@ -1770,6 +1776,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::InsertSongSection:
         case EditorCommandId::InsertTempoAnchor:
+        case EditorCommandId::InsertTimeSignature:
         case EditorCommandId::InsertFretHandPosition:
         case EditorCommandId::RestateSelection:
         case EditorCommandId::RenameSelection:
@@ -2154,6 +2161,22 @@ bool EditorView::performCommand(const InvocationInfo& info)
             )
             {
                 m_controller.onTempoAnchorInsertRequested(insert->position);
+            }
+            return true;
+        }
+        case EditorCommandId::InsertTimeSignature:
+        {
+            if (const auto* const set_meter =
+                    std::get_if<core::SetTimeSignatureTarget>(&m_state.time_signature_chord_target))
+            {
+                setTimeSignature(*set_meter);
+            }
+            else if (
+                const auto* const insert = std::get_if<core::InsertTimeSignatureTarget>(
+                    &m_state.time_signature_chord_target)
+            )
+            {
+                addTimeSignature(*insert);
             }
             return true;
         }
@@ -3729,6 +3752,36 @@ void EditorView::setTempo(const core::SetTempoTarget& target)
         });
 }
 
+// The meter prompt behind the meter chord's restate, Enter, a chip double-click and the ruler
+// menu's Set Time Signature, titled as the restate's undo entry is.
+void EditorView::setTimeSignature(const core::SetTimeSignatureTarget& target)
+{
+    promptTimeSignature("Set Time Signature", target.measure, target.meter_text);
+}
+
+// The meter prompt behind the meter chord's insert and the ruler menu's Add Time Signature, titled
+// as the insert's undo entry is.
+void EditorView::addTimeSignature(const core::InsertTimeSignatureTarget& target)
+{
+    promptTimeSignature("Add Time Signature", target.measure, target.meter_text);
+}
+
+// One text field, opened on the meter the core published with the verb, so "7/8" is typed whole.
+// The text goes back raw with the measure the verb named: the core parses it and refuses bad text.
+void EditorView::promptTimeSignature(
+    const juce::String& title, const int measure, const std::string& meter_text)
+{
+    showThemedTextPrompt(
+        this,
+        title,
+        "Time signature (e.g. 7/8)",
+        juce::String{meter_text},
+        "Set",
+        [this, measure](const juce::String& text) {
+            m_controller.onTimeSignatureSetRequested(measure, text.toStdString());
+        });
+}
+
 // Opens whatever the core's published restate verb names — Enter's verb, which the ruler also asks
 // for after selecting a chip — so the view dispatches on no marker kind of its own.
 void EditorView::onSelectionRestateRequested()
@@ -3740,6 +3793,12 @@ void EditorView::onSelectionRestateRequested()
     else if (const auto* const tempo = std::get_if<core::SetTempoTarget>(&m_state.restate_target))
     {
         setTempo(*tempo);
+    }
+    else if (
+        const auto* const meter = std::get_if<core::SetTimeSignatureTarget>(&m_state.restate_target)
+    )
+    {
+        setTimeSignature(*meter);
     }
     else if (
         const auto* const region = std::get_if<core::RetoneRegionTarget>(&m_state.restate_target)
@@ -3762,6 +3821,13 @@ void EditorView::onSelectionRestateRequested()
 void EditorView::onTempoAnchorInsertRequested(const common::core::GridPosition position)
 {
     m_controller.onTempoAnchorInsertRequested(position);
+}
+
+// The ruler menu's meter insert, the one the core's meter rule names at the measure the menu was
+// opened over, so it opens exactly as the meter chord's insert does.
+void EditorView::onTimeSignatureInsertPromptRequested(const core::InsertTimeSignatureTarget& target)
+{
+    addTimeSignature(target);
 }
 
 // The ruler menu's Delete mirrors the Delete key: both act on the editor-wide selection, which the

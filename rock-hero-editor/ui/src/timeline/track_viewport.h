@@ -363,6 +363,13 @@ public:
     void flashTempoAnchorRefusal(common::core::GridPosition position);
 
     /*!
+    \brief Forwards a landed time-signature edit to the pinned ruler, which flashes the measure
+    numbers it renumbered.
+    \param from_measure The first renumbered measure, the first whose number lights.
+    */
+    void flashRenumberedMeasures(int from_measure);
+
+    /*!
     \brief Forwards the core's published marker-plane availability to the pinned ruler.
     \param marker_edits_enabled Published \ref core::EditorViewState::marker_edits_enabled.
     */

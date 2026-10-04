@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "shared/refusal_flash.h"
+#include "shared/flash_pulse.h"
 
 #include <cstddef>
 #include <functional>
@@ -469,7 +469,7 @@ private:
 
     // The refusal flash while it runs: every refused element it has joined, and its pulse. Its
     // indices address m_tab, so a new projection drops it.
-    std::optional<RefusalFlash<core::ChartRefusalFlash>> m_refusal{};
+    std::optional<PulsedFlash<core::ChartRefusalFlash>> m_refusal{};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

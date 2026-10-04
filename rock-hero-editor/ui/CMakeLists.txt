@@ -63,12 +63,12 @@ target_sources(
             src/shared/audio_level_meter.h
             src/shared/editor_theme.cpp
             src/shared/editor_theme.h
+            src/shared/flash_pulse.cpp
+            src/shared/flash_pulse.h
             src/shared/mode_toggle_button.cpp
             src/shared/mode_toggle_button.h
             src/shared/notice_plate.cpp
             src/shared/notice_plate.h
-            src/shared/refusal_flash.cpp
-            src/shared/refusal_flash.h
             src/shared/themed_message_box.cpp
             src/shared/themed_message_box.h
             src/shared/text_metrics.cpp

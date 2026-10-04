@@ -117,6 +117,21 @@ public:
     virtual void flashTempoAnchorRefusal(common::core::GridPosition position) = 0;
 
     /*!
+    \brief Asks the view to flash the measure numbers a landed time-signature edit renumbered:
+    every number from the first renumbered measure on lights in the accent once and fades back.
+
+    A one-shot effect like the refusal flashes: the ruler re-derives the new numbers from the map
+    on its own, and only the flash says which of them a meter edit just changed (plan 65,
+    decision 5). Asked by a landed time-signature verb that moved a downbeat, never by one that
+    moved none (4/4 restated as 8/8) and never by its undo or redo. With no view attached the
+    flash is dropped.
+
+    \param from_measure The first measure whose downbeat the edit moved; it numbers the same
+    measure before and after the edit, since nothing before it changes.
+    */
+    virtual void flashRenumberedMeasures(int from_measure) = 0;
+
+    /*!
     \brief Asks the view to scroll the timeline start into view, after Stop returned there.
 
     A one-shot effect of the Stop action rather than view state: a cursor already at the start

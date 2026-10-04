@@ -100,6 +100,7 @@ target_sources(
             src/timeline/tempo_map_snapshot.cpp
             src/timeline/tempo_map_snapshot.h
             src/timeline/tempo_span_text.cpp
+            src/timeline/time_signature_target.cpp
             src/timeline/time_signature_text.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/transport_readout_text.cpp

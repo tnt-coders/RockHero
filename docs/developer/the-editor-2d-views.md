@@ -103,8 +103,19 @@ Tempo Anchor, Set Tempo... and Delete Tempo Anchor. The two moves — and only t
 the refusal flash on the chip and a log line, and inserting, deleting and typing a tempo stay
 available. Its toggle is the toolbar button right of the grid selector (`ModeToggleButton`,
 `ui/src/shared/mode_toggle_button.h`) and the ticked "Tempo Lock" row under "Grid & Zoom" in the
-chart menu, one command (`ToggleTempoLock`) behind both. The time-signature chip carries no verbs yet:
-it is selectable so the keyboard's vertical walk can stand on it. The walk is not the only
+chart menu, one command (`ToggleTempoLock`) behind both. The time-signature chip carries the meter
+verbs (plan 65): `Enter` and a double-click open the meter prompt ("Set Time Signature", one field
+typed as "7/8") through the core's published restate verb, `Delete` removes the change, `Alt+←/→`
+moves it one measure, and a right-click on the signature row opens the rows that apply there — Add
+Time Signature on a measure whose downbeat carries none (`TimelineRuler::signatureMenuAt`), Set
+Time Signature... and Delete Time Signature over a chip — disabled while the marker plane is
+closed, like the section and tempo menus. A landed meter edit keeps every object's time and
+renumbers the measures after it, so the core asks the ruler to light the measure numbers once,
+from the first measure whose downbeat moved (`firstRenumberedMeasure` in `meter_edits.h`;
+`IEditorView::flashRenumberedMeasures`, drawn by `TimelineRuler::flashRenumberedMeasures`). A
+restate that moves no downbeat (4/4 to 8/8) and an undo do not flash. What a meter verb does at a
+measure — restate, insert or nothing — is one core rule, `timeSignatureTargetAt`, read by both
+`Ctrl+/` and the signature menu's Add row. The walk is not the only
 keyboard route onto a chip row: each kind's
 `Ctrl+Shift`+letter jump (`Ctrl+Shift+M`, `Ctrl+Shift+B`, `Ctrl+Shift+/`, built 2026-09-15) lands
 straight on that row through the walk's own landing, and is silent where the row holds nothing. A
@@ -241,8 +252,9 @@ per-note verb that applied to the rest (`reportChartPlanRefusal` / `reportChartR
 the next head, is not a refusal and flashes nothing. The ruler flashes too: a tempo-anchor move the
 Tempo Lock refuses glows the anchor's chip (`IEditorView::flashTempoAnchorRefusal`, drawn by
 `TimelineRuler::flashTempoAnchorRefusal`). Both surfaces run one pulse and one glow
-(`RefusalPulse` and `paintRefusalGlow` in `ui/src/shared/refusal_flash.h`). The design record is
-`docs/plans/in-progress/refusal-flash.md`.
+(`FlashPulse` on `g_refusal_flash_train`, and `paintRefusalGlow`, in `ui/src/shared/flash_pulse.h`);
+the ruler's renumber flash runs on the same `FlashPulse` with a train of its own. The design record
+is `docs/plans/in-progress/refusal-flash.md`.
 
 **The SPLIT (`Shift+L`) and the CUT (a bare digit or `Insert` inside a ring) divide a ring by ONE
 walk**, `splitNoteIntoProducts` — the split at a selected point, the cut at the caret with a

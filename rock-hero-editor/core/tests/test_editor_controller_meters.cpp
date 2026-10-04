@@ -406,6 +406,44 @@ TEST_CASE("A meter edit's undo and redo restore the whole song", "[core][meters]
     CHECK(editor.state().selected_time_signature_measure == std::optional{3});
 }
 
+// A landed meter verb asks the view to flash the measure numbers it renumbered (decision 5): from
+// the first measure whose downbeat moved. 2/4 from measure 5 shortens measure 5, so measure 6 is
+// the first renumbered; each step of a move, and the delete, renumber from the measure after the
+// shorter one. A refusal, a no-change and an undo flash nothing.
+TEST_CASE("A landed meter verb flashes the renumbered measures", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.set(5, "2/4");
+    CHECK(editor.view.renumber_flashes == std::vector{6});
+
+    editor.press(ChartStepDirection::Left, 2);
+    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 4});
+
+    editor.controller.onSelectionDeleteRequested();
+    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 4, 4});
+
+    editor.set(4, "x/8");
+    editor.set(4, "4/4");
+    editor.controller.onTimeSignatureSelected(1);
+    editor.controller.onSelectionDeleteRequested();
+    editor.controller.onUndoRequested();
+    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 4, 4});
+}
+
+// A restate that keeps every measure's length moves no downbeat, so it lands and renumbers nothing:
+// 3/4 restated as 6/8 is three quarter notes a measure either way.
+TEST_CASE("A meter restate that moves no downbeat flashes nothing", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.set(3, "3/4");
+    REQUIRE(editor.view.renumber_flashes == std::vector{4});
+
+    editor.set(3, "6/8");
+    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(3, 6, 8)});
+    CHECK(editor.undoTopLabel() == "Set Time Signature");
+    CHECK(editor.view.renumber_flashes == std::vector{4});
+}
+
 // A meter edit keeps every object's time in both arrangements, the non-current one included, while
 // the measures after it renumber: 3/4 from measure 3 turns the Chorus at 6:1 into 7:1.
 TEST_CASE("A meter edit moves no resolved time in either arrangement", "[core][meters]")

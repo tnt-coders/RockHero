@@ -133,11 +133,11 @@ enum class EditorCommandId : std::uint16_t
     \brief Restate the selected marker (`Enter`).
 
     The marker plane's chords author at the cursor; this is the SELECTION's own verb: a section's
-    name through the rename prompt, a tempo anchor's span tempo through the tempo prompt, a tone
-    region's tone through the picker, the "+" row's parameter picker. The core publishes the verb
-    (`EditorViewState::restate_target`), so the view dispatches on no kind of its own. A separate
-    command rather than a second chord on any marker chord, because Enter must never ADD a marker:
-    with nothing selected this press is inert.
+    name through the rename prompt, a tempo anchor's span tempo through the tempo prompt, a time
+    signature's meter through the meter prompt, a tone region's tone through the picker, the "+"
+    row's parameter picker. The core publishes the verb (`EditorViewState::restate_target`), so the
+    view dispatches on no kind of its own. A separate command rather than a second chord on any
+    marker chord, because Enter must never ADD a marker: with nothing selected this press is inert.
     */
     RestateSelection = 0x1404,
 
@@ -177,6 +177,19 @@ enum class EditorCommandId : std::uint16_t
     song, and at or past the terminal anchor, which opens no span.
     */
     InsertTempoAnchor = 0x1407,
+
+    /*!
+    \brief Insert a time signature at the cursor's measure, or restate the one starting there
+    (`Ctrl+/`).
+
+    Shares the section's marker grammar, read at the MEASURE the cursor is in — a time signature
+    only ever starts on a downbeat: the meter standing on that downbeat is restated and a free
+    downbeat takes a new one, both through the meter prompt ("7/8"), opened on the meter governing
+    the measure. A second press after an insert therefore restates what the first made. The core
+    publishes the verb (`EditorViewState::time_signature_chord_target`); the press is inert while
+    the transport plays, with no song, and at or past the terminal anchor's measure.
+    */
+    InsertTimeSignature = 0x1408,
 
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,

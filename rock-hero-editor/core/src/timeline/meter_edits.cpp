@@ -2,8 +2,10 @@
 
 #include "timeline/tempo_map_edits.h"
 
+#include <algorithm>
 #include <cassert>
 #include <format>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -96,6 +98,24 @@ common::core::GridPosition readdressedPosition(
         to.wholeNotePositionAt(readdressed) == whole_note &&
         "re-addressing keeps the whole-note position exactly");
     return readdressed;
+}
+
+// One address query per measure on each side, once per command: a song's measures, not its notes.
+std::optional<int> firstRenumberedMeasure(
+    const common::core::TempoMap& before, const common::core::TempoMap& after)
+{
+    const int last = std::max(
+        common::core::terminalGridPosition(before).measure,
+        common::core::terminalGridPosition(after).measure);
+    for (int measure = 1; measure <= last; ++measure)
+    {
+        const common::core::GridPosition downbeat = common::core::measureDownbeat(measure);
+        if (before.wholeNotePositionAt(downbeat) != after.wholeNotePositionAt(downbeat))
+        {
+            return measure;
+        }
+    }
+    return std::nullopt;
 }
 
 std::expected<common::core::SongTimeline, MeterEditError> readdressUnderMeters(

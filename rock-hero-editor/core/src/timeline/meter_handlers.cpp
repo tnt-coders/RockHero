@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <span>
 #include <string>
@@ -100,14 +101,31 @@ constexpr std::string_view g_move_time_signature_label{"Move Time Signature"};
     return SongTimelineSnapshot{.timeline = std::move(*readdressed)};
 }
 
+// Shows which measure numbers a meter verb changed (decision 5): the ruler re-derives them from the
+// map, and the flash lights them from the first measure whose downbeat moved. Asked after every
+// meter commit, landed or not: a refused or unchanged commit leaves the map as it was, and a
+// restate that keeps every measure's length moves no downbeat, so neither flashes.
+void flashRenumberedMeasures(
+    IEditorView* const view, const common::core::TempoMap& before,
+    const common::core::TempoMap& after)
+{
+    if (view == nullptr)
+    {
+        return;
+    }
+    if (const std::optional<int> first = firstRenumberedMeasure(before, after); first.has_value())
+    {
+        view->flashRenumberedMeasures(*first);
+    }
+}
+
 } // namespace
 
 // The meter chord authors at the cursor and never reads the selection: the measure the cursor is
-// IN, read at the tick, since a meter only ever starts on a downbeat. A meter starting there is
-// restated, which is what makes the double press work: the first inserts and selects, and the
-// commit keeps the cursor on its time, so the second finds that meter on the same downbeat. Where
-// none stands and a marker may start, the verb is an insert opened on the meter governing the
-// measure now; at or past the terminal it is nothing.
+// IN, read at the tick, since a meter only ever starts on a downbeat. What it does there is the one
+// rule timeSignatureTargetAt states; a meter starting there is restated, which is what makes the
+// double press work: the first inserts and selects, and the commit keeps the cursor on its time, so
+// the second finds that meter on the same downbeat.
 TimeSignatureChordTarget EditorController::Impl::timeSignatureChordTarget() const
 {
     const std::optional<common::core::GridPosition> position =
@@ -116,25 +134,7 @@ TimeSignatureChordTarget EditorController::Impl::timeSignatureChordTarget() cons
     {
         return {};
     }
-    const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    const common::core::GridPosition downbeat = common::core::measureDownbeat(*position);
-    const int measure = downbeat.measure;
-    if (const std::optional<std::size_t> standing = markerIndex(MarkerRow::TimeSignature, downbeat);
-        standing.has_value())
-    {
-        return SetTimeSignatureTarget{
-            .measure = measure,
-            .meter_text = timeSignatureText(tempo_map.timeSignatures()[*standing].meter),
-        };
-    }
-    if (!common::core::markerCanStartAt(downbeat, tempo_map))
-    {
-        return {};
-    }
-    return InsertTimeSignatureTarget{
-        .measure = measure,
-        .meter_text = timeSignatureText(tempo_map.timeSignatureAt(measure).meter),
-    };
+    return timeSignatureTargetAt(session().song().tempo_map, position->measure);
 }
 
 // A selection naming a time signature that is gone answers nothing.
@@ -183,7 +183,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
     const std::string_view label =
         standing.has_value() ? g_set_time_signature_label : g_add_time_signature_label;
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
-    const common::core::TempoMap& tempo_map = before.timeline.tempo_map;
+    const common::core::TempoMap tempo_map = before.timeline.tempo_map;
     std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
     if (standing.has_value())
     {
@@ -213,6 +213,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
         std::string{label},
         MarkerRow::TimeSignature,
         downbeat);
+    flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
 // Deletes the selected time signature (the Delete-key dispatch for the meter alternative): the
@@ -234,7 +235,8 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
         return;
     }
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
-    std::vector<PlacedMeter> meters = placedMetersOf(before.timeline.tempo_map);
+    const common::core::TempoMap tempo_map = before.timeline.tempo_map;
+    std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
     meters.erase(std::next(meters.begin(), static_cast<std::ptrdiff_t>(*standing)));
     std::optional<SongTimelineSnapshot> after =
         readdressedSnapshot(before.timeline, meters, g_delete_time_signature_label);
@@ -248,6 +250,7 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
         std::string{g_delete_time_signature_label},
         MarkerRow::TimeSignature,
         std::nullopt);
+    flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
 // Moves the selected time signature one measure (65-Q2): its measure number steps by one in the new
@@ -280,7 +283,8 @@ void EditorController::Impl::moveSelectedTimeSignature(
     // Placed on the whole-note axis, where every other meter and the terminal keep their place, so
     // the neighbour and end refusals are plain comparisons there.
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
-    std::vector<PlacedMeter> meters = placedMetersOf(before.timeline.tempo_map);
+    const common::core::TempoMap tempo_map = before.timeline.tempo_map;
+    std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
     const common::core::Fraction step = meters[index - 1].meter.measureWholeNotes();
     const common::core::Fraction place =
         later ? meters[index].whole_note + step : meters[index].whole_note - step;
@@ -319,6 +323,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
     {
         followMovedMarker(common::core::measureDownbeat(target));
     }
+    flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
 } // namespace rock_hero::editor::core

@@ -24,6 +24,7 @@
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
 #include <rock_hero/editor/core/timeline/section_view_state.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <rock_hero/editor/core/tone_designer/tone_designer_view_state.h>
@@ -511,62 +512,6 @@ The tempo twin of \ref SectionChordTarget: derived from the cursor read at the p
 the transport plays, with no song, or at or past the terminal anchor, which opens no span.
 */
 using TempoChordTarget = std::variant<std::monostate, SetTempoTarget, InsertTempoAnchorTarget>;
-
-/*!
-\brief The verb that restates the time signature standing at a measure: the meter prompt, opened
-on the meter the chip prints.
-
-Published as the time-signature chord's or the restate verb's answer
-(\ref EditorViewState::time_signature_chord_target, \ref EditorViewState::restate_target); the
-prompt's typed text goes back through `IEditorController::onTimeSignatureSetRequested`.
-*/
-struct SetTimeSignatureTarget
-{
-    /*! \brief Measure the time signature starts. */
-    int measure{1};
-
-    /*! \brief The meter as its chip prints it ("7/8"), the prompt's starting text. */
-    std::string meter_text{};
-
-    /*!
-    \brief Compares two targets field by field.
-    \return True when both name the same time signature under the same printed meter.
-    */
-    bool operator==(const SetTimeSignatureTarget&) const = default;
-};
-
-/*!
-\brief The verb that inserts a time signature at a measure downbeat the core has already found
-free and able to carry one: the meter prompt, opened on the meter governing that measure now.
-
-The typed text goes back through the same `IEditorController::onTimeSignatureSetRequested` the
-restate uses, since both put a meter at a measure's downbeat.
-*/
-struct InsertTimeSignatureTarget
-{
-    /*! \brief Measure whose downbeat the new time signature will start. */
-    int measure{1};
-
-    /*! \brief The meter governing that measure now, the prompt's starting text. */
-    std::string meter_text{};
-
-    /*!
-    \brief Compares two targets field by field.
-    \return True when both name the same measure under the same printed meter.
-    */
-    bool operator==(const InsertTimeSignatureTarget&) const = default;
-};
-
-/*!
-\brief What `Ctrl+/` would do right now: restate the time signature standing on the downbeat of the
-measure the cursor is in, insert one there, or nothing.
-
-The meter twin of \ref TempoChordTarget, derived from the cursor read at the tick and never from
-the selection. Nothing while the transport plays, with no song, or where the measure's downbeat is
-the terminal anchor's or past it.
-*/
-using TimeSignatureChordTarget =
-    std::variant<std::monostate, SetTimeSignatureTarget, InsertTimeSignatureTarget>;
 
 /*!
 \brief The verb that repoints a tone region at another tone: the region, and the tone it sounds

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "shared/refusal_flash.h"
+#include "shared/flash_pulse.h"
 
 #include <compare>
 #include <cstddef>
@@ -18,6 +18,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -151,8 +152,22 @@ public:
         virtual void onTempoAnchorInsertRequested(common::core::GridPosition position) = 0;
 
         /*!
-        \brief Called when a chip double-click, the section menu's Rename or the tempo menu's Set
-        Tempo asks to restate the chip the ruler has just selected.
+        \brief Called when the signature row's menu asks to add a time signature at the clicked
+        measure.
+
+        The listener owns the prompt: a time signature needs its meter typed, and the ruler must
+        not raise one.
+
+        \param target The insert the core's meter rule (\ref core::timeSignatureTargetAt) names
+        at the measure the menu was opened over; the menu offers the row only where it names one.
+        */
+        virtual void onTimeSignatureInsertPromptRequested(
+            const core::InsertTimeSignatureTarget& target) = 0;
+
+        /*!
+        \brief Called when a chip double-click, the section menu's Rename, the tempo menu's Set
+        Tempo or the signature menu's Set Time Signature asks to restate the chip the ruler has
+        just selected.
 
         The listener opens whatever the core publishes as the selection's restate verb, so the
         ruler decides nothing about what the prompt is.
@@ -237,7 +252,8 @@ public:
     The core's availability answer as published in \ref core::EditorViewState::marker_edits_enabled;
     the ruler derives nothing of its own from it and never reads the transport to decide it. While
     false a chip click falls through to cursor placement and seeks like any other ruler column, a
-    chip double-click opens no prompt, and every row of the section and tempo menus is disabled.
+    chip double-click opens no prompt, and every row of the section, tempo and signature menus is
+    disabled.
 
     \param marker_edits_enabled Published marker-plane availability.
     */
@@ -316,6 +332,17 @@ public:
     void flashTempoAnchorRefusal(common::core::GridPosition position);
 
     /*!
+    \brief Flashes the measure numbers a time-signature edit renumbered: every number from a
+    measure on lights in the accent once and fades back.
+
+    The numbers are the ones the ruler already derives from the map, so the flash only picks which
+    of them light, by measure, at paint time. A flash arriving while one runs replaces it.
+
+    \param from_measure The first renumbered measure, the first whose number lights.
+    */
+    void flashRenumberedMeasures(int from_measure);
+
+    /*!
     \brief Paints the measure-number row and the grid header's ticks and chip rows.
     \param g Graphics context used for drawing.
     */
@@ -342,7 +369,7 @@ public:
     void mouseUp(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Asks for the selection's restate on a double-clicked section or tempo chip.
+    \brief Asks for the selection's restate on a double-clicked section, tempo or signature chip.
     \param event JUCE mouse event relative to this ruler.
     */
     void mouseDoubleClick(const juce::MouseEvent& event) override;
@@ -374,6 +401,19 @@ public:
     [[nodiscard]] std::optional<common::core::GridPosition> tempoInsertPositionAt(
         juce::Point<float> click) const;
 
+    /*!
+    \brief The signature row's menu for a right-click at a point, with the rows that apply there.
+
+    "Add Time Signature" where the click's measure has no time signature on its downbeat and may
+    start one; "Set Time Signature..." and "Delete Time Signature" over a chip. Every row is
+    disabled while the marker plane is closed (\ref setMarkerEditsEnabled). Building the menu
+    selects nothing; the right-click selects the chip before it shows the menu.
+
+    \param click Point in this ruler's coordinates.
+    \return The menu, as the right-click there would show it.
+    */
+    [[nodiscard]] juce::PopupMenu signatureMenuAt(juce::Point<float> click) const;
+
 private:
     // A ruler text label already resolved to a non-overlapping draw position.
     struct RulerLabel
@@ -381,6 +421,14 @@ private:
         int x{0};
         juce::String text{};
         int width{0};
+    };
+
+    // One placed measure number, with the measure it numbers so the renumber flash can pick the
+    // numbers it lights without re-reading the text.
+    struct MeasureLabel
+    {
+        RulerLabel label{};
+        int measure{0};
     };
 
     // One drawn chip: its placed label plus the index of the marker it stands for in the row's
@@ -458,11 +506,9 @@ private:
     void drawChipLeaders(
         juce::Graphics& g, const std::vector<int>& anchor_xs, int row_y, juce::Colour color);
 
-    // Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
-    // band. The font must match the one the row's widths were measured with.
-    void drawLabelRow(
-        juce::Graphics& g, const std::vector<RulerLabel>& labels, const juce::Font& font, int y,
-        int height);
+    // Draws the cached measure-number row, the numbers the renumber flash lights in its accent
+    // blend and the rest in the plain ruler ink.
+    void drawMeasureLabels(juce::Graphics& g);
 
     // Draws one chip's rounded fill, outlined when it stands for the selected marker, and leaves
     // the text color set; returns the chip's bounds for the text the row draws into it.
@@ -478,8 +524,9 @@ private:
     // glow around the refused anchor's chip while its flash runs.
     void drawTempoChips(juce::Graphics& g);
 
-    // Retires the tempo refusal flash once its pulses have run, and repaints while it runs.
-    void stepRefusalFlash();
+    // Retires the tempo refusal flash and the renumber flash once their pulses have run, and
+    // repaints what each lights while it runs.
+    void stepFlashes();
 
     // Resolves a point to the chip under it in one row, or null when the point misses them all.
     [[nodiscard]] static const RulerChip* chipAt(
@@ -493,6 +540,20 @@ private:
     // Opens the tempo row's menu: the insert at the clicked slot always, plus the chip's Set Tempo
     // and Delete when the click landed on one.
     void showTempoContextMenu(const RulerChip* chip, juce::Point<float> click);
+
+    // Opens the signature row's menu (signatureMenuAt), selecting the chip the click landed on
+    // first.
+    void showSignatureContextMenu(const RulerChip* chip, juce::Point<float> click);
+
+    // The insert the signature menu's "Add Time Signature" opens for a right-click at a point: the
+    // core's meter rule read at the measure the click is in, when that rule names an insert; empty
+    // otherwise, or when the geometry cannot map the click.
+    [[nodiscard]] std::optional<core::InsertTimeSignatureTarget> signatureInsertTargetAt(
+        juce::Point<float> click) const;
+
+    // The signature menu's rows: Add when the click offers an insert, Set and Delete over a chip,
+    // each enabled only while the marker plane is open.
+    [[nodiscard]] juce::PopupMenu signatureMenu(bool offers_insert, bool over_chip) const;
 
     // The click's grid position read at a quantum: the placement quantum for the tempo insert, the
     // tick for the section insert, which floors it to its measure; empty when the geometry cannot
@@ -530,7 +591,7 @@ private:
     bool m_cursor_paused{false};
 
     // The core's published marker-plane availability: the one gate on the chip clicks, the
-    // chip double-click and the section and tempo menus' rows. Never derived here.
+    // chip double-click and the section, tempo and signature menus' rows. Never derived here.
     bool m_marker_edits_enabled{false};
 
     // Callback invoked when the user clicks the ruler to place the transport cursor.
@@ -557,7 +618,7 @@ private:
     // because text-width measurement (GlyphArrangement layout) is comparatively expensive and would
     // otherwise run for every visible measure column on every repaint, including narrow cursor-only
     // repaints driven at vblank cadence or triggered by a single click.
-    std::vector<RulerLabel> m_measure_labels{};
+    std::vector<MeasureLabel> m_measure_labels{};
 
     // Song-section names, pushed by the owning view whenever the song's sections change;
     // positions resolve via localXForSeconds when the chip row rebuilds.
@@ -580,11 +641,15 @@ private:
 
     // The tempo refusal flash while it runs: every refused anchor it has joined, named by position
     // because a chip row rebuild reassigns chips, and its pulse.
-    std::optional<RefusalFlash<std::vector<common::core::GridPosition>>> m_tempo_refusal{};
+    std::optional<PulsedFlash<std::vector<common::core::GridPosition>>> m_tempo_refusal{};
 
-    // Steps the refusal flash each display frame. Last, so every member the step reads is
-    // constructed before the attachment can fire and destroyed after it.
-    juce::VBlankAttachment m_frame_vblank{this, [this] { stepRefusalFlash(); }};
+    // The renumber flash while it runs: the first renumbered measure, the first whose number
+    // lights, and its pulse.
+    std::optional<PulsedFlash<int>> m_renumber_flash{};
+
+    // Steps the flashes each display frame. Last, so every member the step reads is constructed
+    // before the attachment can fire and destroyed after it.
+    juce::VBlankAttachment m_frame_vblank{this, [this] { stepFlashes(); }};
 };
 
 } // namespace rock_hero::editor::ui

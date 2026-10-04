@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -63,6 +64,22 @@ ways, so nothing rounds.
 [[nodiscard]] common::core::GridPosition readdressedPosition(
     const common::core::TempoMap& from, const common::core::TempoMap& to,
     common::core::GridPosition position);
+
+/*!
+\brief The first measure a meter edit renumbered: the first whose downbeat stands at another
+whole-note place after the edit than before it.
+
+A meter edit keeps every object on the whole-note axis, so a measure whose downbeat moved there now
+numbers other music, and so does every measure after it. A restate that keeps every measure's
+length (4/4 to 8/8) moves no downbeat and renumbers nothing. Measures are compared up to the later
+of the two terminals.
+
+\param before Map before the edit.
+\param after Map after it.
+\return The first renumbered measure, or empty when no downbeat moved.
+*/
+[[nodiscard]] std::optional<int> firstRenumberedMeasure(
+    const common::core::TempoMap& before, const common::core::TempoMap& after);
 
 /*! \brief Stable reasons a meter edit refuses. */
 enum class MeterEditErrorCode : std::uint8_t

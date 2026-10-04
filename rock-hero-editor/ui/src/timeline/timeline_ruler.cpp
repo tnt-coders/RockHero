@@ -9,15 +9,18 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
+#include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <span>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -50,6 +53,16 @@ constexpr float g_chip_corner_radius{2.0f};
 // line, sized to read at a glance — the 1px alignment line alone is too easy to miss.
 constexpr float g_cursor_flag_half_width{5.0f};
 constexpr float g_cursor_flag_height{7.0f};
+
+// The renumber flash: the measure numbers a time-signature edit renumbered light in the accent once
+// and fade back, a single pulse held a little longer than a refusal's two so a whole run of
+// numbers reads as one change.
+constexpr FlashTrain g_renumber_flash_train{.pulses = 1.0, .seconds = 0.8};
+
+// The signature menu's row ids, shared by the menu and the dispatch of its result.
+constexpr int g_add_signature_item{1};
+constexpr int g_set_signature_item{2};
+constexpr int g_delete_signature_item{3};
 
 // Shared ruler text face. Cached label widths are measured with the same face they are drawn
 // with, so measurement and drawing must both go through these helpers.
@@ -168,6 +181,13 @@ private:
 [[nodiscard]] bool chipRowContains(const int row_y, const juce::Point<int> point) noexcept
 {
     return point.y >= row_y && point.y < row_y + g_chip_height;
+}
+
+// The measure-number row's band across a ruler of the given width: what the renumber flash
+// repaints.
+[[nodiscard]] juce::Rectangle<int> measureRowBounds(const int width) noexcept
+{
+    return juce::Rectangle<int>{0, g_measure_row_y, width, g_label_row_height};
 }
 
 } // namespace
@@ -295,9 +315,7 @@ void TimelineRuler::paint(juce::Graphics& g)
     drawChipLeaders(g, m_signature_row.leader_xs, g_signature_row_y, editorTheme().signature_chip);
 
     drawBeatTicks(g);
-
-    g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
-    drawLabelRow(g, m_measure_labels, rulerFont(), g_measure_row_y, g_label_row_height);
+    drawMeasureLabels(g);
 
     drawChipRow(g, m_section_row.chips, editorTheme().section_chip, g_section_row_y);
     drawTempoChips(g);
@@ -348,11 +366,11 @@ void TimelineRuler::setMarkerEditsEnabled(const bool marker_edits_enabled)
 // that a seek would otherwise trigger. While the marker plane is CLOSED there is no selection to
 // make, so a chip column behaves like every other ruler column and seeks — swallowing the press
 // would make the chips dead zones on a surface whose whole job is placing the cursor. A right-click
-// on the tempo row opens the tempo menu, and anywhere else the section menu, since the ruler is the
-// sections' only surface. Each listener call returns at once: it republishes the rows the chip
-// lives in, so nothing may be read through it afterwards. A press on a tempo chip also arms the
-// chip's drag (mouseDrag), with everything it needs read off the map BEFORE the select republishes
-// it.
+// on the tempo row opens the tempo menu, on the signature row the signature menu, and anywhere else
+// the section menu, since the ruler is the sections' only surface. Each listener call returns at
+// once: it republishes the rows the chip lives in, so nothing may be read through it afterwards. A
+// press on a tempo chip also arms the chip's drag (mouseDrag), with everything it needs read off
+// the map BEFORE the select republishes it.
 void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 {
     m_tempo_chip_drag.reset();
@@ -373,6 +391,12 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         if (chipRowContains(g_tempo_row_y, point))
         {
             showTempoContextMenu(chipAt(m_tempo_row.chips, g_tempo_row_y, point), event.position);
+            return;
+        }
+        if (chipRowContains(g_signature_row_y, point))
+        {
+            showSignatureContextMenu(
+                chipAt(m_signature_row.chips, g_signature_row_y, point), event.position);
             return;
         }
         showSectionContextMenu(section_chip, event.position);
@@ -460,11 +484,12 @@ void TimelineRuler::mouseUp(const juce::MouseEvent& /*event*/)
     m_tempo_chip_drag.reset();
 }
 
-// Opens the prompt for a double-clicked section or tempo chip — the selection's restate verb, the
-// same shortcut the tone strip's regions carry. The first click of the double already selected the
-// chip, so the core publishes the prompt for what is outlined (a section's rename, a tempo span's
-// tempo) and the ruler decides nothing about it. Nothing opens while the marker plane is closed: a
-// prompt is a stronger promise than the menu row it mirrors, and that row is disabled there.
+// Opens the prompt for a double-clicked section, tempo or signature chip — the selection's restate
+// verb, the same shortcut the tone strip's regions carry. The first click of the double already
+// selected the chip, so the core publishes the prompt for what is outlined (a section's rename, a
+// tempo span's tempo, a time signature's meter) and the ruler decides nothing about it. Nothing
+// opens while the marker plane is closed: a prompt is a stronger promise than the menu row it
+// mirrors, and that row is disabled there.
 void TimelineRuler::mouseDoubleClick(const juce::MouseEvent& event)
 {
     if (!m_project_loaded || m_listener == nullptr || !m_marker_edits_enabled)
@@ -473,7 +498,8 @@ void TimelineRuler::mouseDoubleClick(const juce::MouseEvent& event)
     }
     const juce::Point<int> point = event.getPosition();
     if (chipAt(m_section_row.chips, g_section_row_y, point) != nullptr ||
-        chipAt(m_tempo_row.chips, g_tempo_row_y, point) != nullptr)
+        chipAt(m_tempo_row.chips, g_tempo_row_y, point) != nullptr ||
+        chipAt(m_signature_row.chips, g_signature_row_y, point) != nullptr)
     {
         m_listener->onSelectionRestateRequested();
     }
@@ -639,6 +665,87 @@ void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Poin
         });
 }
 
+// A time signature only ever starts on a downbeat, so the click is read at the tick, never rounded
+// into the next measure, and names the measure it is IN, as the meter chord reads the cursor; what
+// a meter verb does there is the core's one rule, timeSignatureTargetAt. Only its insert is Add's.
+std::optional<core::InsertTimeSignatureTarget> TimelineRuler::signatureInsertTargetAt(
+    const juce::Point<float> click) const
+{
+    const std::optional<common::core::GridPosition> clicked =
+        clickedGridPosition(click, common::core::g_tick_quantum_note_value);
+    if (!clicked.has_value())
+    {
+        return std::nullopt;
+    }
+    core::TimeSignatureChordTarget target =
+        core::timeSignatureTargetAt(m_tempo_map, clicked->measure);
+    if (auto* const insert = std::get_if<core::InsertTimeSignatureTarget>(&target))
+    {
+        return std::move(*insert);
+    }
+    return std::nullopt;
+}
+
+// The tempo menu's shape and policy over the signature row: Add where a time signature may start
+// at the click, Set and Delete over a chip. Set is the selection's restate verb, Delete the Delete
+// key's.
+juce::PopupMenu TimelineRuler::signatureMenu(const bool offers_insert, const bool over_chip) const
+{
+    juce::PopupMenu menu;
+    if (offers_insert)
+    {
+        menu.addItem(g_add_signature_item, "Add Time Signature", m_marker_edits_enabled, false);
+    }
+    if (over_chip)
+    {
+        menu.addItem(g_set_signature_item, "Set Time Signature...", m_marker_edits_enabled, false);
+        menu.addItem(
+            g_delete_signature_item, "Delete Time Signature", m_marker_edits_enabled, false);
+    }
+    return menu;
+}
+
+juce::PopupMenu TimelineRuler::signatureMenuAt(const juce::Point<float> click) const
+{
+    return signatureMenu(
+        signatureInsertTargetAt(click).has_value(),
+        chipAt(m_signature_row.chips, g_signature_row_y, click.roundToInt()) != nullptr);
+}
+
+// Builds the menu before selecting the chip, for the reason showSectionContextMenu states: the
+// selection republishes the chip row the pointer points into.
+void TimelineRuler::showSignatureContextMenu(const RulerChip* chip, const juce::Point<float> click)
+{
+    if (m_listener == nullptr)
+    {
+        return;
+    }
+
+    std::optional<core::InsertTimeSignatureTarget> insert = signatureInsertTargetAt(click);
+    juce::PopupMenu menu = signatureMenu(insert.has_value(), chip != nullptr);
+    if (chip != nullptr)
+    {
+        m_listener->onTimeSignatureSelected(
+            m_tempo_map.timeSignatures()[chip->source_index].measure);
+    }
+    menu.showMenuAsync(
+        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
+        [this, owned_insert = std::move(insert)](int result) {
+            if (result == g_add_signature_item && owned_insert.has_value())
+            {
+                m_listener->onTimeSignatureInsertPromptRequested(*owned_insert);
+            }
+            else if (result == g_set_signature_item)
+            {
+                m_listener->onSelectionRestateRequested();
+            }
+            else if (result == g_delete_signature_item)
+            {
+                m_listener->onSelectionDeleteRequested();
+            }
+        });
+}
+
 // Stores the song's section names for the section chip row. The names cache a pinned,
 // overlap-suppressed chip row, so a changed list rebuilds ruler geometry; an unchanged list
 // returns early because every controller state push repeats it.
@@ -681,11 +788,26 @@ void TimelineRuler::flashTempoAnchorRefusal(const common::core::GridPosition pos
 }
 
 // Rationale lives on the declaration in timeline_ruler.h.
-void TimelineRuler::stepRefusalFlash()
+void TimelineRuler::flashRenumberedMeasures(const int from_measure)
 {
-    if (retireFinishedRefusal(m_tempo_refusal))
+    m_renumber_flash = PulsedFlash<int>{
+        .subject = from_measure,
+        .pulse = FlashPulse{g_renumber_flash_train},
+    };
+    repaint(measureRowBounds(getWidth()));
+}
+
+// Rationale lives on the declaration in timeline_ruler.h. The renumber flash lights only the
+// measure-number row, so only that band repaints while it runs.
+void TimelineRuler::stepFlashes()
+{
+    if (retireFinishedFlash(m_tempo_refusal))
     {
         repaint();
+    }
+    if (retireFinishedFlash(m_renumber_flash))
+    {
+        repaint(measureRowBounds(getWidth()));
     }
 }
 
@@ -760,7 +882,11 @@ void TimelineRuler::refreshRulerGeometry()
         if (const std::optional<int> label_x = measure_row.reserve(anchor_x, measure_width))
         {
             m_measure_labels.push_back(
-                RulerLabel{.x = *label_x, .text = measure_text, .width = measure_width});
+                MeasureLabel{
+                    .label =
+                        RulerLabel{.x = *label_x, .text = measure_text, .width = measure_width},
+                    .measure = measure,
+                });
         }
     };
 
@@ -1035,16 +1161,33 @@ void TimelineRuler::drawChipLeaders(
     g.fillRectList(dots);
 }
 
-// Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
-// band, using the same font the row's widths were measured with.
-void TimelineRuler::drawLabelRow(
-    juce::Graphics& g, const std::vector<RulerLabel>& labels, const juce::Font& font, int y,
-    int height)
+// Draws the cached measure-number row in the font its widths were measured with. The renumber
+// flash's blend of the plain ink toward the accent is worked out once per paint, so a running
+// flash costs one color switch per number and allocates nothing.
+void TimelineRuler::drawMeasureLabels(juce::Graphics& g)
 {
-    g.setFont(font);
-    for (const RulerLabel& label : labels)
+    const juce::Colour plain = g_timeline_ruler_text_color.withAlpha(0.82f);
+    // Read once ahead of the loop, so the loop never reaches into the optional flash; with none
+    // running, no measure is lit.
+    int lit_from = std::numeric_limits<int>::max();
+    juce::Colour lit = plain;
+    if (m_renumber_flash.has_value())
     {
-        g.drawText(label.text, label.x, y, label.width, height, juce::Justification::centredLeft);
+        lit_from = m_renumber_flash->subject;
+        lit = plain.interpolatedWith(editorTheme().accent, m_renumber_flash->pulse.level());
+    }
+    g.setFont(rulerFont());
+    for (const MeasureLabel& measure_label : m_measure_labels)
+    {
+        const RulerLabel& label = measure_label.label;
+        g.setColour(measure_label.measure >= lit_from ? lit : plain);
+        g.drawText(
+            label.text,
+            label.x,
+            g_measure_row_y,
+            label.width,
+            g_label_row_height,
+            juce::Justification::centredLeft);
     }
 }
 
@@ -1099,7 +1242,7 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
     float refusal_level{0.0f};
     if (m_tempo_refusal.has_value())
     {
-        refused_anchors = m_tempo_refusal->refused;
+        refused_anchors = m_tempo_refusal->subject;
         refusal_level = m_tempo_refusal->pulse.level();
     }
     for (const RulerChip& chip : m_tempo_row.chips)
