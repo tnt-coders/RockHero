@@ -652,8 +652,10 @@ const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id)
 
 bool editorCommandActsOnSelection(const EditorCommandSpec& spec)
 {
-    // Esc dismisses; a dismissal must never scroll.
-    if (spec.id == EditorCommandId::CancelDismiss)
+    // Esc dismisses; a dismissal must never scroll. Delete destroys what it acted on, so it is
+    // undo's case rather than a verb's: the core asks for its result to be kept in sight through
+    // the published focus count, and a marker's Delete, which only selects, asks for nothing.
+    if (spec.id == EditorCommandId::CancelDismiss || spec.id == EditorCommandId::SelectionDelete)
     {
         return false;
     }

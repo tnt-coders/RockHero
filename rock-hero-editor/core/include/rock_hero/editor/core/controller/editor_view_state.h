@@ -1109,25 +1109,27 @@ struct EditorViewState
     The earliest selected note or keyframe, the selected automation point, or the selected
     marker's start — the chip, whichever way the cursor stands to it — and, with nothing selected,
     the armed caret's slot, where typing acts. After a verb that acts on the selection, the view
-    leaves the window alone while this member is fully on screen and centres it otherwise; a verb
-    that destroyed the selection centres where it stood.
-    Selecting alone never moves the view. Nothing while passive with no caret, while the transport
-    plays, or with no arrangement.
+    leaves the window alone while this member is fully on screen and centres it otherwise, and
+    after an edit that bumps \ref focus_count it centres it when it is off screen. Selecting alone
+    never moves the view. Nothing while passive with no caret, while the transport plays, or with
+    no arrangement.
     */
     std::optional<double> selection_start_seconds{};
 
     /*!
-    \brief How many undo or redo transitions have brought their change into focus.
+    \brief How many edits have asked the view to keep their result in sight.
 
-    Undo and redo select what they changed and move the keyboard position onto it; a change of
-    this count tells the view one just did, and the view centres \ref selection_start_seconds when
-    that is not fully on screen. Judged after the transition rather than before it like a
-    selection verb, because where the change lands is the whole question — and published rather
-    than inferred from the command, because a transition that loads a plugin completes later and
-    one off the timeline focuses nothing. Counted, not flagged, so two transitions in a row each
-    register.
+    An undo or redo selects what it changed and moves the keyboard position onto it; a `Delete` of
+    notes or of an automation point leaves the caret on the emptied slot, or the point's durable
+    selection, where it struck. Each bumps this count, and on a change the view centres
+    \ref selection_start_seconds when that is not on screen. Judged after the edit rather than
+    before it like a selection verb, because what the edit left is the whole question — and
+    published rather than inferred from the command, because a transition that loads a plugin
+    completes later, one off the timeline focuses nothing, and a marker's `Delete` (which only
+    selects the marker before it, as a chip click would) asks for nothing. Counted, not flagged,
+    so two edits in a row each register.
     */
-    std::uint64_t transition_focus_count{0};
+    std::uint64_t focus_count{0};
 
     /*!
     \brief What the section chord (`Ctrl+M`) would do at the cursor right now.

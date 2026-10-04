@@ -59,7 +59,8 @@ chords. Everything else is plumbing that keeps focus in the right place:
   `EditorView::perform` is the one funnel for chords, menu items and presses forwarded from the 3D
   preview; for a command `editorCommandActsOnSelection` classifies (read off the registry
   category: the selection, authoring, value-entry and marker verbs; not navigation, file, history,
-  view, transport, grid or menu commands, nor the section and tone-change author chords) it reads,
+  view, transport, grid or menu commands, nor the section and tone-change author chords, nor
+  Delete, which rule 4 keeps in sight because it destroys what it acted on) it reads,
   BEFORE the command runs, the selection's first member
   (`EditorViewState::selection_start_seconds` — the earliest selected note or point, the selected
   marker's start, else the armed caret) and whether that was fully on screen: it asks the surface
@@ -70,19 +71,23 @@ chords. Everything else is plumbing that keeps focus in the right place:
   `TrackViewport::isSelectionVisible`. A selection that was on screen is left alone, even when the
   verb moved it: `Alt+←` pushing a chip off the edge is followed by rule 1's measure fit of the
   cursor that went with it. One that was not is centred (`TrackViewport::centerOnTime`) where the
-  verb left it, or where it stood when the verb destroyed it, so Delete centres the deleted place.
-  (3) *Selecting never scrolls*: a chip click, a click on an existing note
+  verb left it. (3) *Selecting never scrolls*: a chip click, a click on an existing note
   and a walk onto the marker that already holds the cursor publish no moved position and act on
   nothing; a walk whose column rule seeks the cursor into a far-off marker is a move, and rule 1
-  follows it. (4) *Undo and redo keep their change in sight.* A transition selects what it changed
-  and moves the keyboard position onto it ("Undo is never blind" in \ref guide_undo), and the
-  controller counts each one that did (`EditorViewState::transition_focus_count`); when the count
-  changes, `EditorView::setState` centres `selection_start_seconds` if it is not fully on screen.
-  Judged AFTER the transition, unlike rule 2, because where the change landed is the whole question
-  — and keyed on the published count rather than on the command, because a transition that loads a
-  plugin completes later and one off the timeline focuses nothing. Zoom (`applyZoomAroundCursor`)
-  pivots on the cursor in place while it is on screen and centres on it first when it is not, for
-  keys and wheel alike. A new registry category must be classified in
+  follows it. (4) *An edit that asks keeps its result in sight.* An undo or redo selects what it
+  changed and moves the keyboard position onto it ("Undo is never blind" in \ref guide_undo); a
+  Delete of notes leaves the caret on the emptied slot, and one of an automation point leaves the
+  point's durable selection naming its place. The controller counts each edit that asks
+  (`EditorViewState::focus_count`); when the count changes, `EditorView::setState` centres
+  `selection_start_seconds` if it is not on screen. A marker's Delete never asks: it only selects
+  the marker before it on its row, as a chip click does, so by rule 3 the view stays — even when
+  that chip is pinned off screen or nothing is left — and so does a marquee's Delete, which leaves
+  nothing selected and no caret. Judged AFTER the edit, unlike rule 2, because what the edit left is
+  the whole question — and keyed on the published count rather than on the command, because a
+  transition that loads a plugin completes later, one off the timeline focuses nothing, and the
+  ruler's context-menu Delete never passes through `EditorView::perform`. Zoom
+  (`applyZoomAroundCursor`) pivots on the cursor in place while it is on screen and centres on it
+  first when it is not, for keys and wheel alike. A new registry category must be classified in
   `editorCommandActsOnSelection`.
 
 - **`MainWindow::keyPressed`** (`ui/src/main_window/main_window.cpp`) is where a press becomes a

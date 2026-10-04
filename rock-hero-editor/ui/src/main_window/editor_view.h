@@ -274,7 +274,8 @@ public:
     here, so this is the one place the rule for a verb on a selection lives: the selection's first
     member (\ref core::EditorViewState::selection_start_seconds) is left alone when it was fully on
     screen as the verb ran and centred otherwise. A moved position is followed by \ref setState
-    instead, and selecting alone never moves the view.
+    instead, and selecting alone never moves the view. `Delete` is kept in sight after it lands
+    instead, as undo is (\ref core::EditorViewState::focus_count).
 
     \param info Invocation details carrying the command id.
     \return True when the command id is a registered editor command.

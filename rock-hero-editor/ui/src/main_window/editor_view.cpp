@@ -850,12 +850,13 @@ void EditorView::setState(const core::EditorViewState& state)
     presentTopLevelWindowsFromState();
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_busy_overlay.setBusyState(m_state.busy);
-    // An undo or redo that brought its change into focus keeps it in sight: centred when it landed
-    // off screen. Judged here, once every surface holds the new state, so the glyph asked about is
-    // the one the change left — never the selection the command found.
+    // An edit that asked for focus — an undo or redo that brought its change into focus, a Delete
+    // of notes or a point — keeps what it left in sight: centred when it landed off screen. Judged
+    // here, once every surface holds the new state, so the glyph asked about is the one the edit
+    // left — never the selection the command found.
     const std::optional<double>& focus_start = m_state.selection_start_seconds;
-    if (m_state.transition_focus_count != previous_state.transition_focus_count &&
-        focus_start.has_value() && !selectionGlyphVisible(*focus_start))
+    if (m_state.focus_count != previous_state.focus_count && focus_start.has_value() &&
+        !selectionGlyphVisible(*focus_start))
     {
         m_track_viewport->centerOnTime(*focus_start);
     }
@@ -1835,15 +1836,18 @@ bool EditorView::perform(const InvocationInfo& info)
     // and whether that was fully on screen, are both read before the command. A selection that was
     // in view is left alone — even when the verb moves it and the cursor with it, so a marker
     // pushed off the edge is followed by the measure fit, not centred — and one that was not is
-    // centred where the verb left it, or where it stood when the verb destroyed it (Delete).
+    // centred where the verb left it. Delete is not one of these verbs: it destroys what it acted
+    // on, so the core asks for its result to be kept in sight after it lands (focus_count).
     const std::optional<double> selection_before = m_state.selection_start_seconds;
     const bool visible_before =
         !selection_before.has_value() || selectionGlyphVisible(*selection_before);
     const bool handled = performCommand(info);
+    const std::optional<double>& selection_after = m_state.selection_start_seconds;
     if (const EditorCommandSpec* const spec = findEditorCommandSpec(info.commandID);
-        spec != nullptr && editorCommandActsOnSelection(*spec) && !visible_before)
+        spec != nullptr && editorCommandActsOnSelection(*spec) && !visible_before &&
+        selection_after.has_value())
     {
-        m_track_viewport->centerOnTime(m_state.selection_start_seconds.value_or(*selection_before));
+        m_track_viewport->centerOnTime(*selection_after);
     }
     return handled;
 }

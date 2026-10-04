@@ -3,6 +3,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <compare>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
@@ -771,6 +772,15 @@ TEST_CASE(
             common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
         });
     editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 1));
+    const auto published = [&editor]() -> const EditorViewState& {
+        REQUIRE(editor.view.last_state.has_value());
+        if (!editor.view.last_state.has_value())
+        {
+            throw std::logic_error("editor pushed no view state");
+        }
+        return *editor.view.last_state;
+    };
+    const std::uint64_t focused = published().focus_count;
 
     // The unified Delete intent dispatches on the selection's kind and removes exactly the
     // selected point as one undoable points edit.
@@ -779,6 +789,10 @@ TEST_CASE(
     REQUIRE(editor.model().front().points.size() == 1);
     CHECK(editor.model().front().points.front().position == pointAt(1, 1));
     CHECK_FALSE(editor.automation().selected_point.has_value());
+    // The delete asks the view to keep what it left in sight: the durable selection still names
+    // the deleted point's place, which is what the view centres when it is off screen.
+    CHECK(published().focus_count == focused + 1);
+    CHECK(published().selection_start_seconds == std::optional{2.0});
 
     // The durable selection stays put through the delete, so undoing the removal lights the
     // restored point back up instead of leaving it unselected.

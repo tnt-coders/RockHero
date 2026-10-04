@@ -2256,6 +2256,12 @@ void EditorController::Impl::deleteChartSelection()
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
 // whatever kind it holds. This is dispatch on the variant's alternative, not a precedence ladder:
 // two live selections are unrepresentable, so there is nothing to disambiguate.
+//
+// Delete destroys what it acted on, so like an undo it asks the view to keep what it LEFT in sight
+// (focus_count): the caret on the emptied slot, or the point's durable selection. A marker's Delete
+// asks for nothing — it only selects the marker before it, as a chip click would, and selecting
+// never moves the view. The ask is published by a trailing push of its own, because the delete's
+// own push came before it and a refused delete pushes nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelection&)
 {
     // Copied for the same aliasing reason as the move dispatch: the delete replays a points
@@ -2264,24 +2270,28 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
     {
         const AutomationPointSelection selected = *point;
         deleteSelectedAutomationPoint(selected);
-        return;
     }
-    if (!chartSelection().empty())
+    else if (!chartSelection().empty())
     {
         deleteChartSelection();
+    }
+    else
+    {
+        deleteSelectedMarker();
         return;
     }
-    deleteSelectedMarker();
+    ++m_focus_count;
+    updateView();
 }
 
 // Deletes the selected MARKER, whatever its row, and then selects the one before it on that row,
 // so a run of deletes walks back along the row instead of dropping the keyboard off it. It is
 // selected as a chip click selects it, seeking nothing: the cursor and the view stay where the
 // charter was working, however far back that marker stands, and the ruler pins an off-screen chip
-// at the left edge. Where the deleted marker was the row's first, nothing is left selected. A
-// note's delete is not this rule: it leaves the caret on the emptied slot, which is the entry
-// plane's own continuation. A row with no delete verb (the time signature) deletes nothing, and the
-// selection stays.
+// at the left edge. Where the deleted marker was the row's first, nothing is left selected, and the
+// view stays all the same. A note's delete is not this rule: it leaves the caret on the emptied
+// slot, which is the entry plane's own continuation. A row with no delete verb (the time signature)
+// deletes nothing, and the selection stays.
 void EditorController::Impl::deleteSelectedMarker()
 {
     const std::optional<SelectedMarker> marker = selectedMarker();

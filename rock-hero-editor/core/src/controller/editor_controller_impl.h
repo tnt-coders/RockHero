@@ -1050,9 +1050,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the signal chain.
     EditorUndoHistory m_undo_history;
 
-    // Undo/redo transitions that brought their change into focus, published so the view can keep
-    // each one in sight (EditorViewState::transition_focus_count).
-    std::uint64_t m_transition_focus_count{0};
+    // Edits that asked the view to keep their result in sight — undo/redo transitions that focused
+    // their change, and a Delete of notes or an automation point — published so the view can keep
+    // each one in sight (EditorViewState::focus_count).
+    std::uint64_t m_focus_count{0};
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     common::audio::ToneOutput m_tone_output{};

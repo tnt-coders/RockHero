@@ -623,14 +623,14 @@ TEST_CASE("EditorController brings an undone chart change into focus", "[core][c
     click(controller, 120.0f, 220.0f);
     REQUIRE(caret_seconds().has_value());
     REQUIRE(caret_seconds().value_or(note_seconds) > note_seconds + 1.0);
-    const std::uint64_t focused_before = state->transition_focus_count;
+    const std::uint64_t focused_before = state->focus_count;
 
     controller.onUndoRequested();
     REQUIRE(chartOrNull(controller)->notes.size() == notes);
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
     REQUIRE(caret_seconds().has_value());
     CHECK(caret_seconds().value_or(-1.0) == Catch::Approx(note_seconds));
-    CHECK(state->transition_focus_count == focused_before + 1);
+    CHECK(state->focus_count == focused_before + 1);
 
     // The redo takes the note away again: nothing left to select, the caret on its emptied slot.
     controller.onRedoRequested();
@@ -638,7 +638,7 @@ TEST_CASE("EditorController brings an undone chart change into focus", "[core][c
     CHECK(state->chart_edit.selected_notes.empty());
     REQUIRE(caret_seconds().has_value());
     CHECK(caret_seconds().value_or(-1.0) == Catch::Approx(note_seconds));
-    CHECK(state->transition_focus_count == focused_before + 2);
+    CHECK(state->focus_count == focused_before + 2);
 }
 
 // Several notes cannot all sit under one caret, so a transition writing several back selects them
@@ -677,7 +677,7 @@ TEST_CASE("EditorController focuses a chord an undo restores with the cursor", "
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0, 1});
     CHECK_FALSE(state->chart_edit.caret.has_value());
     CHECK(transport.position().seconds == Catch::Approx(chord_seconds));
-    const std::uint64_t focused = state->transition_focus_count;
+    const std::uint64_t focused = state->focus_count;
 
     controller.onToneOutputChanged(
         common::audio::ToneOutput{
@@ -685,7 +685,57 @@ TEST_CASE("EditorController focuses a chord an undo restores with the cursor", "
         });
     controller.onUndoRequested();
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0, 1});
-    CHECK(state->transition_focus_count == focused);
+    CHECK(state->focus_count == focused);
+}
+
+// Delete destroys what it acted on, so like an undo it asks the view to keep what it LEFT in sight
+// (focus_count): a note deleted under the caret leaves the caret on the emptied slot, which is what
+// the view centres when it is off screen. A marquee's delete leaves no caret and nothing selected,
+// so there is nothing left to show and the view stays.
+TEST_CASE("EditorController asks the view to keep a chart delete in sight", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+
+    SECTION("under the caret")
+    {
+        click(controller, 40.0f, 220.0f);
+        REQUIRE(state->selection_start_seconds.has_value());
+        const std::optional<double> note_seconds = state->selection_start_seconds;
+        const std::uint64_t focused = state->focus_count;
+        controller.onSelectionDeleteRequested();
+        CHECK(state->chart_edit.selected_notes.empty());
+        CHECK(state->chart_edit.caret.has_value());
+        CHECK(state->focus_count == focused + 1);
+        CHECK(state->selection_start_seconds == note_seconds);
+    }
+
+    SECTION("boxed by a marquee")
+    {
+        controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+        controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+        controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+        REQUIRE(state->chart_edit.selected_notes.size() == 2);
+        const std::uint64_t focused = state->focus_count;
+        controller.onSelectionDeleteRequested();
+        CHECK(state->chart_edit.selected_notes.empty());
+        CHECK(state->focus_count == focused + 1);
+        CHECK_FALSE(state->selection_start_seconds.has_value());
+    }
 }
 
 } // namespace rock_hero::editor::core

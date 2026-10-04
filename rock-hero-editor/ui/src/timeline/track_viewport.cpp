@@ -1021,6 +1021,15 @@ void TrackViewport::centerOnTime(const double seconds)
         static_cast<double>(*x) - static_cast<double>(m_viewport.getViewWidth()) / 2.0);
 }
 
+int TrackViewport::settledViewPositionX() const noexcept
+{
+    if (m_window_shift.has_value())
+    {
+        return reachableViewportLeft(static_cast<int>(std::round(m_window_shift->target_left)));
+    }
+    return m_viewport.getViewPositionX();
+}
+
 // The selected ruler chip, if the ruler placed one, in this component's coordinates.
 std::optional<juce::Rectangle<int>> TrackViewport::selectedRulerChipBounds() const
 {
@@ -1037,9 +1046,13 @@ std::optional<juce::Rectangle<int>> TrackViewport::selectedRulerChipBounds() con
 // actually changes.
 void TrackViewport::setViewportLeft(int requested_x)
 {
+    m_viewport.setViewPosition(reachableViewportLeft(requested_x), m_viewport.getViewPositionY());
+}
+
+int TrackViewport::reachableViewportLeft(const int requested_x) const noexcept
+{
     const int max_x = std::max(0, m_content.getWidth() - m_viewport.getViewWidth());
-    const int next_x = std::clamp(requested_x, 0, max_x);
-    m_viewport.setViewPosition(next_x, m_viewport.getViewPositionY());
+    return std::clamp(requested_x, 0, max_x);
 }
 
 // Pushes the current scroll and content geometry into the pinned ruler. Callers must follow

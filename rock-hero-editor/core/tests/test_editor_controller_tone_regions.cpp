@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstdint>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
@@ -677,6 +678,30 @@ TEST_CASE(
     REQUIRE(editor.regions().size() == 1);
     CHECK(editor.selectedRegionId() == g_region_a);
     CHECK_THAT(editor.transport.position().seconds, Catch::Matchers::WithinAbs(3.5, 1.0e-9));
+}
+
+// Delete on the FIRST region leaves nothing selected and the cursor where it stood, and asks the
+// view to keep nothing in sight (focus_count), so the view does not centre on the deleted region
+// at the song's opening.
+TEST_CASE(
+    "Deleting the first tone region leaves the cursor and the view where they were",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.5});
+    editor.controller.onToneRegionSelected(g_region_a);
+    const auto focus_count = [&editor]() -> std::uint64_t {
+        const EditorViewState* const state = stateOrNull(editor.view.last_state);
+        REQUIRE(state != nullptr);
+        return state != nullptr ? state->focus_count : 0;
+    };
+    const std::uint64_t focused = focus_count();
+
+    editor.controller.onSelectionDeleteRequested();
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.selectedRegionId().empty());
+    CHECK_THAT(editor.transport.position().seconds, Catch::Matchers::WithinAbs(3.5, 1.0e-9));
+    CHECK(focus_count() == focused);
 }
 
 // Deleting the first region hands its span to the next one, which takes over the song's opening

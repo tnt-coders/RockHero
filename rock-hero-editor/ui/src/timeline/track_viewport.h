@@ -320,6 +320,16 @@ public:
     void centerOnTime(double seconds);
 
     /*!
+    \brief Where the window settles: an in-flight glide's target left edge, else the current one.
+
+    The glides advance only at render cadence, so this is what a test without a display reads to
+    learn whether, and where, a command moved the window.
+
+    \return The viewport's left edge in content pixels once any glide has finished.
+    */
+    [[nodiscard]] int settledViewPositionX() const noexcept;
+
+    /*!
     \brief The selected ruler chip's bounds in this component's coordinates, when the ruler
     placed one.
     \return The chip's bounds, or empty while no chip is selected or the selected one is
@@ -512,6 +522,9 @@ private:
     // and grid updates happen through the viewport's visible-area callback when the position
     // actually changes.
     void setViewportLeft(int requested_x);
+
+    // The left edge the viewport can actually take for a requested one: inside the content.
+    [[nodiscard]] int reachableViewportLeft(int requested_x) const noexcept;
 
     // Pushes the current scroll and content geometry into the pinned ruler. Callers must follow
     // with a grid refresh so the ruler receives lines matching the new view.

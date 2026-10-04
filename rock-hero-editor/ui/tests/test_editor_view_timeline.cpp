@@ -1317,6 +1317,55 @@ TEST_CASE("EditorView wheel zoom centers an offscreen cursor", "[ui][editor-view
         Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
 }
 
+// Delete is kept in sight AFTER it lands, as undo is, and only when the core asks (focus_count). A
+// marker's Delete asks for nothing (user ruling 2026-10-03): the walk back along a row leaves the
+// previous chip pinned off screen, and the last delete of the walk used to centre on the song's
+// start. A Delete that asks — notes under the caret — still brings what it left into view.
+TEST_CASE("EditorView keeps a Delete in sight only when the core asks", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    view.setBounds(0, 0, 1280, 800);
+    auto state = makeLoadedEditorState(20.0);
+    // The selection's first member at the song's opening, the place the walk's last chip stands.
+    state.selection_start_seconds = 1.0;
+    state.selection_present = true;
+    view.setState(state);
+
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    viewport.setViewPosition(2800, 0);
+    REQUIRE(
+        canvasXForTime(track_viewport, track_content, 1.0) <
+        static_cast<float>(viewport.getViewPositionX()));
+
+    // The command itself judges nothing, though what it acts on stands off screen.
+    const juce::ApplicationCommandTarget::InvocationInfo info{toJuceCommandId(
+        EditorCommandId::SelectionDelete)};
+    CHECK(view.perform(info));
+    CHECK(track_viewport.settledViewPositionX() == 2800);
+
+    SECTION("a marker's Delete, which leaves nothing selected and asks for nothing")
+    {
+        state.selection_start_seconds.reset();
+        state.selection_present = false;
+        view.setState(state);
+        CHECK(track_viewport.settledViewPositionX() == 2800);
+    }
+
+    SECTION("a Delete that asks, leaving the caret on the emptied slot")
+    {
+        ++state.focus_count;
+        view.setState(state);
+        CHECK(track_viewport.settledViewPositionX() == 0);
+    }
+}
+
 // Verifies Ctrl composes NOTHING on a timeline seek: the grid-snap mode is the only thing that
 // moves the placement quantum, so a Ctrl-click lands exactly where the same plain click does.
 TEST_CASE("EditorView Ctrl-click seeks the same slot as a plain click", "[ui][editor-view]")

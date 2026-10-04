@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -990,6 +991,64 @@ TEST_CASE(
         CHECK(editor.transport.position().seconds == Catch::Approx(measure_12));
         CHECK(measure_12 > 20.0);
     }
+}
+
+// Delete on a row's FIRST marker leaves nothing selected and the keyboard where it stood, and no
+// marker Delete asks the view to keep anything in sight (focus_count): it only selects, as a chip
+// click does, so the view does not centre on the deleted chip at the song's opening. The tempo
+// row's first anchor refuses the delete, so its selection, and the view, simply stay. The ruler
+// menu's Delete is this same intent. The tone row's case lives with the tone-region tests.
+TEST_CASE(
+    "Deleting a row's first marker leaves the cursor and the view where they were",
+    "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.parkAtMeasure(12);
+    const auto keyboard_seconds = [&editor]() -> std::optional<double> {
+        const std::optional<KeyboardPositionViewState>& position = editor.state().keyboard_position;
+        return position.has_value() ? std::optional{position->seconds} : std::nullopt;
+    };
+    const std::optional<double> parked = keyboard_seconds();
+    REQUIRE(parked.has_value());
+    const std::uint64_t focused = editor.state().focus_count;
+
+    const auto delete_marker = [&editor, focused]() {
+        editor.controller.onSelectionDeleteRequested();
+        CHECK(editor.transport.position().seconds == Catch::Approx(22.0));
+        CHECK(editor.state().focus_count == focused);
+    };
+
+    SECTION("a section")
+    {
+        editor.controller.onSongSectionSelected(downbeat(3));
+        delete_marker();
+        CHECK_FALSE(editor.selectedSectionIndex().has_value());
+        CHECK_FALSE(editor.state().selection_start_seconds.has_value());
+    }
+
+    SECTION("a fret-hand position")
+    {
+        editor.controller.onFretHandPositionSelected(0);
+        delete_marker();
+        CHECK_FALSE(editor.selectedHandIndex().has_value());
+        CHECK_FALSE(editor.state().selection_start_seconds.has_value());
+    }
+
+    SECTION("a section with one before it")
+    {
+        editor.controller.onSongSectionSelected(downbeat(7));
+        delete_marker();
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+    }
+
+    SECTION("the tempo row's first anchor, which refuses")
+    {
+        editor.controller.onTempoAnchorSelected(downbeat(1));
+        delete_marker();
+        CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(1)});
+    }
+
+    CHECK(keyboard_seconds() == parked);
 }
 
 // Alt+arrows step the selected placement one placement-quantum line, keep it selected, and bring

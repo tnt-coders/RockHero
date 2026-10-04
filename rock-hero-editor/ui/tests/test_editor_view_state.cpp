@@ -980,7 +980,8 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
 
 // The selection-centring rule follows the shortcuts-dialog categories — the verbs that act on the
 // selection or at the caret, not navigation (selecting never scrolls; a moved position is followed
-// on its own), and not the file, history, view, grid, menu or author-chord commands.
+// on its own), and not the file, history, view, grid, menu or author-chord commands, nor Delete,
+// which destroys what it acted on and is kept in sight after it lands, as undo is.
 TEST_CASE("Command registry classifies which commands act on the selection", "[ui][editor-view]")
 {
     const auto acts = [](const EditorCommandId id) {
@@ -988,7 +989,6 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
         REQUIRE(spec != nullptr);
         return editorCommandActsOnSelection(*spec);
     };
-    CHECK(acts(EditorCommandId::SelectionDelete));
     CHECK(acts(EditorCommandId::SelectionMoveLeft));
     CHECK(acts(EditorCommandId::TypeDigit1));
     CHECK(acts(EditorCommandId::ChartLegatoToggle));
@@ -1008,6 +1008,7 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK_FALSE(acts(EditorCommandId::ImportTone));
     CHECK_FALSE(acts(EditorCommandId::OpenFileMenu));
     CHECK_FALSE(acts(EditorCommandId::CancelDismiss));
+    CHECK_FALSE(acts(EditorCommandId::SelectionDelete));
 }
 
 } // namespace rock_hero::editor::ui

@@ -1947,7 +1947,7 @@ void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
             }
         },
         focus);
-    ++m_transition_focus_count;
+    ++m_focus_count;
 }
 
 // The chart projection resolves thousands of positions to seconds, so it is memoized per displayed
@@ -2627,7 +2627,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             state.selection_start_seconds = state.tempo_map.secondsAt(*start);
         }
     }
-    state.transition_focus_count = m_transition_focus_count;
+    state.focus_count = m_focus_count;
     // Where a marker verb would land, from the one authority that decides it, so no surface needs
     // a marker rule of its own: the raw position the tone chord compares against region starts,
     // and the measure downbeat the section chord snaps to.
