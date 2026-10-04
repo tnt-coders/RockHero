@@ -43,10 +43,20 @@ positions and seconds only; the chart carries positions plus these two durations
   are renamed or deleted (Phase 0 / Phase 2).
 - **Old packages are converted ONCE by a throwaway sweep** that is never committed. No version
   bump: `formatVersion` stays `1`, and no legacy reading path is left in the code.
-- **The two beat-referenced constants become their 4/4 equivalents**, so 4/4 songs are identical
-  and every meter gets the same musical length:
-  - `g_minimum_slide_window` becomes 1/32 of a whole note;
-  - `sustain_score_per_beat{25}` becomes `sustain_score_per_whole_note{100}`.
+- **A threshold's unit follows what it protects** (ruled 2026-10-04, revising the first answer of
+  "4/4 equivalents" for one of the two). A limit on what a player can see or play is in SECONDS:
+  `g_minimum_kept_sustain_seconds` 0.25, `g_minimum_sustain_distance_seconds` 0.05, and now the slide
+  window. A musical quantity is a note value: stored durations, `g_pick_slide_default_sustain_whole_note`,
+  and the sustain score.
+  - `g_minimum_slide_window` (the shortest span a glide, slide-out or scrape leg may take) becomes
+    a seconds minimum. Like `marginBefore`, it is converted to a lattice length at the place it
+    applies and rounded UP onto the tick lattice so the stored offset stays valid. Its value is set
+    from the corpus in Phase 1, near today's length at typical tempos (≈ 50–60 ms), and the import
+    census records what moved.
+  - `sustain_score_per_beat{25}` becomes `sustain_score_per_whole_note{100}`, which is 25 per
+    quarter note in every meter. It stays musical, because it rewards held music rather than
+    elapsed time: per-second scoring would pay a slow song more for the same note. This matches the
+    per-beat sustain scoring of the baseline game feel.
 - **The external custom-song converter is brought fully current**: every spelling RockHero refuses
   today, plus the new unit. This is a working-tree change only and is never committed.
 
@@ -121,7 +131,27 @@ misread silently, so none may be left in between.
   above and fixes the stale `slideOut` row; `musical-time.md`; `the-editor-2d-views.md`; and the
   agent briefs that say "in beats".
 
-### Phase 2 — delete the beat duration axis
+**Structural correction (simplicity guidance, 2026-10-04):** Phases 2 and 3 fold INTO Phase 1.
+- **The importer and the census have to flip in Phase 1.** The importer hands its notes to shared
+  predicates mid-build (`arrivesIntoNextHead`, the scoop, the slide window) while its own
+  `ringEndOf` adds a beat place to `sustain`, so no exit point lets one unit hand over to the other.
+- **Phase 1's FIRST edit deletes the beat-duration functions and renames every beat-axis field**,
+  so the compiler lists every reader. The key names stay, so a mixed-unit sum is otherwise
+  invisible to it.
+
+The target shape:
+- **Passes reason in whole-note PLACES:** one `chartNotePlaces` column, computed once per pass as
+  the first sub-pass of the chart resolutions. A duration is a place difference, never a per-pair
+  `wholeNoteDistance`.
+- **`TempoMap`** gains `gridPositionAtWholeNote`, `secondsAtWholeNote` and
+  `wholeNotePositionAtSeconds`, plus one quarter-position query. Every chart instant, onsets
+  included, resolves its seconds through `secondsAtWholeNote`.
+- **`marginBefore` generalizes into one seconds→lattice function,** `tickPlaceReached`, which
+  rounds away from its origin. The head margin and the slide window are one-line bindings of it.
+- The full brief is in the session scratchpad, `whole-note-durations-design-brief.md`. Its
+  no-trace checklist is the plan's final sweep.
+
+### Phase 2 — delete the beat duration axis (folded into Phase 1)
 
 - **Delete:** `advanceGridPosition` and `beatDistance` (each internal use moves to its whole-note
   twin), `tailRevealLeadBeats`, and their tests.
