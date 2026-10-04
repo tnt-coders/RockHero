@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -58,11 +59,6 @@ constexpr float g_cursor_flag_height{7.0f};
 // and fade back, a single pulse held a little longer than a refusal's two so a whole run of
 // numbers reads as one change.
 constexpr FlashTrain g_renumber_flash_train{.pulses = 1.0, .seconds = 0.8};
-
-// The signature menu's row ids, shared by the menu and the dispatch of its result.
-constexpr int g_add_signature_item{1};
-constexpr int g_set_signature_item{2};
-constexpr int g_delete_signature_item{3};
 
 // Shared ruler text face. Cached label widths are measured with the same face they are drawn
 // with, so measurement and drawing must both go through these helpers.
@@ -552,117 +548,116 @@ std::optional<common::core::GridPosition> TimelineRuler::tempoInsertPositionAt(
     return clickedGridPosition(click, m_placement_quantum);
 }
 
-// Opens the ruler's section menu. The add verb is offered wherever the click resolves to a grid
-// position, because it is the one that needs discovering, and it inserts at the CLICK's measure:
-// a pointer menu inserts where you pointed, and the marker-rule form is the keyboard chord's. The
-// rest act on the chip the click landed on, which the menu selects first so the verbs and the
-// outline agree about their subject; Rename is the selection's restate verb, as a double-click is.
-void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<float> click)
+// Every row of a ruler menu is a marker verb — a section's rename included, unlike a tone
+// DOCUMENT's — so every row is disabled while the marker plane is closed rather than left to click
+// and do nothing, and enabled otherwise, the core refusing what it must. The flag is the core's own
+// availability answer as published; the ruler adds no second gate of its own. Rows are numbered by
+// position, so no row's id is ever stated beside its action.
+juce::PopupMenu TimelineRuler::markerMenu(const std::vector<MarkerMenuRow>& rows) const
+{
+    juce::PopupMenu menu;
+    int item_id = 0;
+    for (const MarkerMenuRow& row : rows)
+    {
+        menu.addItem(++item_id, row.text, m_marker_edits_enabled, false);
+    }
+    return menu;
+}
+
+// The rows are built first, reading everything they need off the chip, and only then is the chip
+// selected: the selection runs a full controller dispatch that republishes the row the chip lives
+// in, so reading through the chip afterwards is a use-after-free that usually looks like it works,
+// because the rebuilt vector reuses the same buffer. Selecting before the menu shows keeps the
+// verbs and the outline agreeing about their subject.
+void TimelineRuler::showMarkerMenu(
+    std::vector<MarkerMenuRow> rows, const std::function<void()>& select_chip)
 {
     if (m_listener == nullptr)
     {
         return;
     }
-
-    const std::optional<common::core::GridPosition> insert_position =
-        clickedGridPosition(click, common::core::g_tick_quantum_note_value);
-
-    // Read the chip's section BEFORE selecting it. The selection runs a full controller dispatch
-    // that republishes the section list, and setSectionLabels rebuilds the chip row the pointer
-    // points into — so reading through `chip` after this call is a use-after-free that usually
-    // looks like it works, because the rebuilt vector reuses the same buffer.
-    const bool over_chip = chip != nullptr;
-    if (over_chip)
+    juce::PopupMenu menu = markerMenu(rows);
+    if (select_chip)
     {
-        m_listener->onSongSectionSelected(m_section_source[chip->source_index].position);
-    }
-
-    // Every row here is a marker verb — a section's rename included, unlike a tone DOCUMENT's — so
-    // all five are disabled while the marker plane is closed rather than left to click and do
-    // nothing, and enabled otherwise, the core refusing what it must. The flag is the core's own
-    // availability answer as published; the ruler adds no second gate of its own.
-    juce::PopupMenu menu;
-    if (insert_position.has_value())
-    {
-        menu.addItem(1, "Insert Section Here", m_marker_edits_enabled, false);
-    }
-    if (over_chip)
-    {
-        menu.addItem(2, "Rename", m_marker_edits_enabled, false);
-        menu.addItem(3, "Move a Measure Earlier", m_marker_edits_enabled, false);
-        menu.addItem(4, "Move a Measure Later", m_marker_edits_enabled, false);
-        menu.addItem(5, "Delete", m_marker_edits_enabled, false);
+        select_chip();
     }
     menu.showMenuAsync(
         // Force a cancel result if the ruler is deleted while the menu is open, so the callback
         // never reaches a dangling listener (JUCE reports result 0 for a deleted watch target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, insert_position](int result) {
-            if (result == 1 && insert_position.has_value())
+        [owned_rows = std::move(rows)](const int result) {
+            if (result > 0 && static_cast<std::size_t>(result) <= owned_rows.size())
             {
-                m_listener->onSongSectionInsertPromptRequested(*insert_position);
-            }
-            else if (result == 2)
-            {
-                m_listener->onSelectionRestateRequested();
-            }
-            else if (result == 3 || result == 4)
-            {
-                m_listener->onSelectionMoveRequested(result == 4);
-            }
-            else if (result == 5)
-            {
-                m_listener->onSelectionDeleteRequested();
+                owned_rows[static_cast<std::size_t>(result) - 1].action();
             }
         });
 }
 
+// Opens the ruler's section menu. The add verb is offered wherever the click resolves to a grid
+// position, because it is the one that needs discovering, and it inserts at the CLICK's measure:
+// a pointer menu inserts where you pointed, and the marker-rule form is the keyboard chord's. The
+// rest act on the chip the click landed on, which the menu selects; Rename is the selection's
+// restate verb, as a double-click is.
+void TimelineRuler::showSectionContextMenu(const RulerChip* chip, const juce::Point<float> click)
+{
+    std::vector<MarkerMenuRow> rows;
+    if (const std::optional<common::core::GridPosition> insert_position =
+            clickedGridPosition(click, common::core::g_tick_quantum_note_value);
+        insert_position.has_value())
+    {
+        rows.push_back(
+            {.text = "Insert Section Here", .action = [this, inserted = *insert_position] {
+                 m_listener->onSongSectionInsertPromptRequested(inserted);
+             }});
+    }
+    std::function<void()> select_chip;
+    if (chip != nullptr)
+    {
+        rows.push_back(
+            {.text = "Rename", .action = [this] { m_listener->onSelectionRestateRequested(); }});
+        rows.push_back({.text = "Move a Measure Earlier", .action = [this] {
+                            m_listener->onSelectionMoveRequested(false);
+                        }});
+        rows.push_back({.text = "Move a Measure Later", .action = [this] {
+                            m_listener->onSelectionMoveRequested(true);
+                        }});
+        rows.push_back(
+            {.text = "Delete", .action = [this] { m_listener->onSelectionDeleteRequested(); }});
+        select_chip = [this, selected = m_section_source[chip->source_index].position] {
+            m_listener->onSongSectionSelected(selected);
+        };
+    }
+    showMarkerMenu(std::move(rows), select_chip);
+}
+
 // Opens the tempo row's menu, the section menu's shape and policy: the insert at the clicked slot,
-// plus Set Tempo and Delete on the chip the click landed on, which the menu selects first. Set
-// Tempo is the selection's restate verb, Delete the Delete key's.
+// plus Set Tempo and Delete on the chip the click landed on, which the menu selects. Set Tempo is
+// the selection's restate verb, Delete the Delete key's.
 void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Point<float> click)
 {
-    if (m_listener == nullptr)
+    std::vector<MarkerMenuRow> rows;
+    if (const std::optional<common::core::GridPosition> insert_position =
+            tempoInsertPositionAt(click);
+        insert_position.has_value())
     {
-        return;
+        rows.push_back({.text = "Add Tempo Anchor", .action = [this, inserted = *insert_position] {
+                            m_listener->onTempoAnchorInsertRequested(inserted);
+                        }});
     }
-
-    const std::optional<common::core::GridPosition> insert_position = tempoInsertPositionAt(click);
-
-    // Selected only after everything is read off the row, for the reason showSectionContextMenu
-    // states: the selection republishes the chip row the pointer points into.
-    const bool over_chip = chip != nullptr;
-    if (over_chip)
+    std::function<void()> select_chip;
+    if (chip != nullptr)
     {
-        m_listener->onTempoAnchorSelected(m_tempo_map.anchors()[chip->source_index].position);
+        rows.push_back({.text = "Set Tempo...", .action = [this] {
+                            m_listener->onSelectionRestateRequested();
+                        }});
+        rows.push_back({.text = "Delete Tempo Anchor", .action = [this] {
+                            m_listener->onSelectionDeleteRequested();
+                        }});
+        select_chip = [this, selected = m_tempo_map.anchors()[chip->source_index].position] {
+            m_listener->onTempoAnchorSelected(selected);
+        };
     }
-
-    juce::PopupMenu menu;
-    if (insert_position.has_value())
-    {
-        menu.addItem(1, "Add Tempo Anchor", m_marker_edits_enabled, false);
-    }
-    if (over_chip)
-    {
-        menu.addItem(2, "Set Tempo...", m_marker_edits_enabled, false);
-        menu.addItem(3, "Delete Tempo Anchor", m_marker_edits_enabled, false);
-    }
-    menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, insert_position](int result) {
-            if (result == 1 && insert_position.has_value())
-            {
-                m_listener->onTempoAnchorInsertRequested(*insert_position);
-            }
-            else if (result == 2)
-            {
-                m_listener->onSelectionRestateRequested();
-            }
-            else if (result == 3)
-            {
-                m_listener->onSelectionDeleteRequested();
-            }
-        });
+    showMarkerMenu(std::move(rows), select_chip);
 }
 
 // A time signature only ever starts on a downbeat, so the click is read at the tick, never rounded
@@ -689,61 +684,47 @@ std::optional<core::InsertTimeSignatureTarget> TimelineRuler::signatureInsertTar
 // The tempo menu's shape and policy over the signature row: Add where a time signature may start
 // at the click, Set and Delete over a chip. Set is the selection's restate verb, Delete the Delete
 // key's.
-juce::PopupMenu TimelineRuler::signatureMenu(const bool offers_insert, const bool over_chip) const
+std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::signatureRows(
+    const juce::Point<float> click, const bool over_chip) const
 {
-    juce::PopupMenu menu;
-    if (offers_insert)
+    std::vector<MarkerMenuRow> rows;
+    if (std::optional<core::InsertTimeSignatureTarget> insert = signatureInsertTargetAt(click);
+        insert.has_value())
     {
-        menu.addItem(g_add_signature_item, "Add Time Signature", m_marker_edits_enabled, false);
+        rows.push_back(
+            {.text = "Add Time Signature", .action = [this, inserted = std::move(*insert)] {
+                 m_listener->onTimeSignatureInsertPromptRequested(inserted);
+             }});
     }
     if (over_chip)
     {
-        menu.addItem(g_set_signature_item, "Set Time Signature...", m_marker_edits_enabled, false);
-        menu.addItem(
-            g_delete_signature_item, "Delete Time Signature", m_marker_edits_enabled, false);
+        rows.push_back({.text = "Set Time Signature...", .action = [this] {
+                            m_listener->onSelectionRestateRequested();
+                        }});
+        rows.push_back({.text = "Delete Time Signature", .action = [this] {
+                            m_listener->onSelectionDeleteRequested();
+                        }});
     }
-    return menu;
+    return rows;
 }
 
 juce::PopupMenu TimelineRuler::signatureMenuAt(const juce::Point<float> click) const
 {
-    return signatureMenu(
-        signatureInsertTargetAt(click).has_value(),
-        chipAt(m_signature_row.chips, g_signature_row_y, click.roundToInt()) != nullptr);
+    return markerMenu(signatureRows(
+        click, chipAt(m_signature_row.chips, g_signature_row_y, click.roundToInt()) != nullptr));
 }
 
-// Builds the menu before selecting the chip, for the reason showSectionContextMenu states: the
-// selection republishes the chip row the pointer points into.
+// The signature row's menu, selecting the chip the click landed on.
 void TimelineRuler::showSignatureContextMenu(const RulerChip* chip, const juce::Point<float> click)
 {
-    if (m_listener == nullptr)
-    {
-        return;
-    }
-
-    std::optional<core::InsertTimeSignatureTarget> insert = signatureInsertTargetAt(click);
-    juce::PopupMenu menu = signatureMenu(insert.has_value(), chip != nullptr);
+    std::function<void()> select_chip;
     if (chip != nullptr)
     {
-        m_listener->onTimeSignatureSelected(
-            m_tempo_map.timeSignatures()[chip->source_index].measure);
+        select_chip = [this, selected = m_tempo_map.timeSignatures()[chip->source_index].measure] {
+            m_listener->onTimeSignatureSelected(selected);
+        };
     }
-    menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, owned_insert = std::move(insert)](int result) {
-            if (result == g_add_signature_item && owned_insert.has_value())
-            {
-                m_listener->onTimeSignatureInsertPromptRequested(*owned_insert);
-            }
-            else if (result == g_set_signature_item)
-            {
-                m_listener->onSelectionRestateRequested();
-            }
-            else if (result == g_delete_signature_item)
-            {
-                m_listener->onSelectionDeleteRequested();
-            }
-        });
+    showMarkerMenu(signatureRows(click, chip != nullptr), select_chip);
 }
 
 // Stores the song's section names for the section chip row. The names cache a pinned,

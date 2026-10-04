@@ -532,6 +532,22 @@ private:
     [[nodiscard]] static const RulerChip* chipAt(
         const std::vector<RulerChip>& chips, int row_y, juce::Point<int> point);
 
+    // One row of a ruler marker menu: its text and the verb choosing it runs.
+    struct MarkerMenuRow
+    {
+        juce::String text;
+        std::function<void()> action;
+    };
+
+    // The menu over rows, numbered by position, every row enabled only while the marker plane is
+    // open.
+    [[nodiscard]] juce::PopupMenu markerMenu(const std::vector<MarkerMenuRow>& rows) const;
+
+    // The one policy every ruler menu shows by: the rows built (reading the chip) before
+    // select_chip, when set, selects the chip the click landed on; then the menu opens and runs
+    // the chosen row's action.
+    void showMarkerMenu(std::vector<MarkerMenuRow> rows, const std::function<void()>& select_chip);
+
     // Opens the ruler's section menu: the add verb always, plus the section chip's rename, move
     // and delete when the click landed on one. The menu is the discoverable face of chords that
     // would otherwise only be reachable by keyboard.
@@ -541,8 +557,7 @@ private:
     // and Delete when the click landed on one.
     void showTempoContextMenu(const RulerChip* chip, juce::Point<float> click);
 
-    // Opens the signature row's menu (signatureMenuAt), selecting the chip the click landed on
-    // first.
+    // Opens the signature row's menu (signatureMenuAt), selecting the chip the click landed on.
     void showSignatureContextMenu(const RulerChip* chip, juce::Point<float> click);
 
     // The insert the signature menu's "Add Time Signature" opens for a right-click at a point: the
@@ -551,9 +566,10 @@ private:
     [[nodiscard]] std::optional<core::InsertTimeSignatureTarget> signatureInsertTargetAt(
         juce::Point<float> click) const;
 
-    // The signature menu's rows: Add when the click offers an insert, Set and Delete over a chip,
-    // each enabled only while the marker plane is open.
-    [[nodiscard]] juce::PopupMenu signatureMenu(bool offers_insert, bool over_chip) const;
+    // The signature menu's rows for a click: Add when it offers an insert, Set and Delete over a
+    // chip.
+    [[nodiscard]] std::vector<MarkerMenuRow> signatureRows(
+        juce::Point<float> click, bool over_chip) const;
 
     // The click's grid position read at a quantum: the placement quantum for the tempo insert, the
     // tick for the section insert, which floors it to its measure; empty when the geometry cannot
