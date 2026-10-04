@@ -7,7 +7,6 @@
 #include <limits>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_hit_glow.h>
 #include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
@@ -534,8 +533,8 @@ std::vector<HighwayLitStretch> makeFretHandLight(
 }
 
 HighwayViewState makeHighwayViewState(
-    ChartViewState scene, const Arrangement& arrangement, const TempoMap& tempo_map,
-    const std::vector<SongSection>& sections, HighwayDisplayOptions options)
+    ChartViewState scene, const TempoMap& tempo_map, const std::vector<SongSection>& sections,
+    HighwayDisplayOptions options)
 {
     HighwayViewState state;
     state.options = options;
@@ -558,25 +557,21 @@ HighwayViewState makeHighwayViewState(
     // The chart scene is the one shared projection, built by the caller; everything below derives
     // board-only structure from it.
     state.chart = std::move(scene);
-    if (!arrangement.chart.has_value())
+    // A scene of no strings is the scene of no chart (\ref ChartViewState::stringCount).
+    if (state.chart.stringCount() == 0)
     {
         return state;
     }
-    const Chart& chart = *arrangement.chart;
     const std::vector<NoteViewState>& notes = state.chart.notes;
-    assert(notes.size() == chart.notes.size() && "the scene is the arrangement's own");
 
     // Per-note margin rise: whichever hand a note lights, its light rises over the fret-hand
-    // placements' own arrival margin (marginBefore) before the onset. One loop feeds both hands'
-    // producers. The scene's notes pair one-to-one with the chart's, and a note's position
-    // survives the saved-form transform, so the grid position comes straight from the chart.
+    // placements' own arrival margin before the onset, which the scene carries per note. One loop
+    // feeds both hands' producers.
     std::vector<double> margin_rise_seconds;
     margin_rise_seconds.reserve(notes.size());
-    for (std::size_t index = 0; index < notes.size(); ++index)
+    for (const NoteViewState& note : notes)
     {
-        margin_rise_seconds.push_back(
-            notes[index].start_seconds -
-            tempo_map.secondsAt(marginBefore(tempo_map, chart.notes[index].position)));
+        margin_rise_seconds.push_back(note.start_seconds - note.margin_start_seconds);
     }
     // Onset groups and their repeat classification, derived here once per chart revision. The
     // rules look backward through the whole note stream, so the renderer's visible window could

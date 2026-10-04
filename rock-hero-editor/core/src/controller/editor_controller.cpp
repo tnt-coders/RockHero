@@ -1985,7 +1985,6 @@ void EditorController::Impl::refreshChartProjections() const
         m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
             common::core::makeHighwayViewState(
                 *m_tab_view_state,
-                *arrangement,
                 tempo_map,
                 session().song().sections,
                 common::core::HighwayDisplayOptions{

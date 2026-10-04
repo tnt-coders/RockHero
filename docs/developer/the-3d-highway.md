@@ -40,7 +40,6 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    ```cpp
    ChartViewState scene = makeChartViewState(arrangement, tempo_map);
    HighwayViewState makeHighwayViewState(ChartViewState scene,
-                                         const Arrangement& arrangement,
                                          const TempoMap& tempo_map,
                                          const std::vector<SongSection>& sections,
                                          HighwayDisplayOptions options);

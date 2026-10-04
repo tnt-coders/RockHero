@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -129,12 +130,14 @@ The rules, in order:
 
 \param connections The saved stream and the same-string relations the law reads
                    (\ref chartConnections).
+\param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins): rule
+               1's crop reads it at the binding onset.
 \param tempo_map Tempo map supplying the meter at each note and the exact beat axis.
 
 \return Per stored note, in the same order: the ink end and the law's verdict.
 */
 [[nodiscard]] ChartPresentation chartPresentation(
-    const ChartConnections& connections, const TempoMap& tempo_map);
+    const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map);
 
 /*!
 \brief Resolves each note's HELD length: how long the player keeps the string down.

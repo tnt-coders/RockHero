@@ -8,7 +8,9 @@
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
@@ -24,11 +26,10 @@ namespace
 // duration, so a tempo change between the two would otherwise measure it at the wrong rate. A ring
 // that ends at or before the crop is free and keeps its whole length.
 [[nodiscard]] Fraction croppedInkEnd(
-    const ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
+    const ChartNote& note, const Fraction gap, const GridPosition& binding_onset,
+    const HeadMargins& margins)
 {
-    const Fraction margin =
-        minimumSustainDistanceBeats(tempo_map, advanceGridPosition(tempo_map, note.position, gap));
-    return std::min(note.sustain, std::max(gap - margin, Fraction{}));
+    return std::min(note.sustain, std::max(gap - margins.beats(binding_onset), Fraction{}));
 }
 
 // Rule 1 for one note: the binding onset is the first later onset the ring does not run STRICTLY
@@ -39,7 +40,7 @@ namespace
 // `deliberate_hold`, which rule 2 reads as a statement without switching the crop off.
 [[nodiscard]] Fraction inkEndOf(
     const std::vector<ChartNote>& notes, const std::size_t index, const std::size_t group_end,
-    const TempoMap& tempo_map, bool& deliberate_hold)
+    const HeadMargins& margins, const TempoMap& tempo_map, bool& deliberate_hold)
 {
     const ChartNote& note = notes[index];
     deliberate_hold = false;
@@ -48,7 +49,7 @@ namespace
         const Fraction gap = beatDistance(tempo_map, note.position, notes[ahead].position);
         if (!(gap < note.sustain))
         {
-            return croppedInkEnd(note, gap, tempo_map);
+            return croppedInkEnd(note, gap, notes[ahead].position, margins);
         }
         deliberate_hold = true;
     }
@@ -124,7 +125,8 @@ namespace
 // 1 and 3 are per member and need no order; THE TAIL LAW (rule 4) reads each member's final ink end
 // and only ever MARKS what the first three left standing. THE CURTAIN IS UNIVERSAL: a chart with
 // no furniture at all rests exactly the same tails as one full of it.
-ChartPresentation chartPresentation(const ChartConnections& connections, const TempoMap& tempo_map)
+ChartPresentation chartPresentation(
+    const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     ChartPresentation presentation;
@@ -142,7 +144,8 @@ ChartPresentation chartPresentation(const ChartConnections& connections, const T
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
             bool deliberate_hold = false;
-            const Fraction ink_end = inkEndOf(notes, index, group_end, tempo_map, deliberate_hold);
+            const Fraction ink_end =
+                inkEndOf(notes, index, group_end, margins, tempo_map, deliberate_hold);
             presentation.ink_end.push_back(drawsNoDeadTail(notes[index]) ? Fraction{} : ink_end);
             group_earned = group_earned || deliberate_hold || earnsTail(notes[index], tempo_map);
         }

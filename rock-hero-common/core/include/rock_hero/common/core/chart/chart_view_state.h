@@ -424,6 +424,16 @@ struct NoteViewState
     double start_seconds{0.0};
 
     /*!
+    \brief The instant one minimum sustain distance before the onset, floored onto the tick
+    lattice: where a hand's approach to this head begins.
+
+    \ref marginBefore at the onset, read from the revision's \ref HeadMargins and resolved onto the
+    clock here because tempo is not on the board's read surface: both hands' lights rise over the
+    stretch from this instant to \ref start_seconds.
+    */
+    double margin_start_seconds{0.0};
+
+    /*!
     \brief Absolute end of the STORED ring: the instant the string stops sounding.
 
     Strictly later than the onset for every note (the positive-sustain invariant). The furthest a
@@ -604,6 +614,7 @@ struct NoteViewState
     friend bool operator==(const NoteViewState& lhs, const NoteViewState& rhs)
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.margin_start_seconds <=> rhs.margin_start_seconds) &&
                std::is_eq(lhs.ring_end_seconds <=> rhs.ring_end_seconds) &&
                std::is_eq(lhs.ink_end_seconds <=> rhs.ink_end_seconds) &&
                lhs.rested == rhs.rested && lhs.string == rhs.string && lhs.fret == rhs.fret &&

@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -3124,9 +3125,11 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
 
     // The other half of the same rule, so the pair is stated in one place: the ring survives the
     // press and NOTHING draws it (E25 as rule 4 of the presentation).
+    const common::core::ChartConnections connections =
+        common::core::chartConnections(chart.notes, tempo_map);
     const std::vector<common::core::Fraction> ink_end =
         common::core::chartPresentation(
-            common::core::chartConnections(chart.notes, tempo_map), tempo_map)
+            connections, common::core::HeadMargins{connections.saved_notes, tempo_map}, tempo_map)
             .ink_end;
     REQUIRE(ink_end.size() == chart.notes.size());
     CHECK(ink_end[held] == common::core::Fraction{});

@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -333,6 +334,15 @@ struct ChartResolutions
 {
     /*! \brief The saved stream and the connections it justifies (\ref chartConnections). */
     ChartConnections connections;
+
+    /*!
+    \brief Where the minimum sustain distance begins before each head of the saved stream.
+
+    Derived first, because the spans, the ink ends and the drawn extents all keep that distance,
+    and carried for the readers past this pass: the drawn span extent and each note's
+    \ref NoteViewState::margin_start_seconds.
+    */
+    HeadMargins margins;
 
     /*!
     \brief Where each note's ink stops, as a note-relative offset: \ref ChartPresentation::ink_end,

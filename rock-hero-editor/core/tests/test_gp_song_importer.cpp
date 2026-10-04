@@ -25,6 +25,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -236,8 +237,12 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 [[nodiscard]] std::vector<Fraction> inkEndsOf(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
+    const common::core::ChartConnections connections =
+        common::core::chartConnections(chart.notes, tempo_map);
     return common::core::chartPresentation(
-               common::core::chartConnections(chart.notes, tempo_map), tempo_map)
+               connections,
+               common::core::HeadMargins{connections.saved_notes, tempo_map},
+               tempo_map)
         .ink_end;
 }
 

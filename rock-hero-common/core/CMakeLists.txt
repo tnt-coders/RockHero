@@ -14,6 +14,7 @@ target_sources(
             src/chart/chart_shapes.cpp
             src/chart/chart_tokens.cpp
             src/chart/grid_arithmetic.cpp
+            src/chart/head_margins.cpp
             # Private header: the one span-coverage walk the presentation rules and the held-stop
             # default all measure against, shared so it cannot be spelled twice.
             src/chart/span_cover.h

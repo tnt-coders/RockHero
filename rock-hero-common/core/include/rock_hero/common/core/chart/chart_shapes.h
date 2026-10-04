@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -347,12 +348,15 @@ it, so what the test governs is a charter's own crowded landing.
        to happen. The hold-under table it reads (\ref chartPlantedStops, never read bare: every
        site asks \ref gripStatement) is a derivation OF the connections, so it is asked here rather
        than handed in and no caller can pass a table built from another revision.
+\param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins), built
+       once per revision because every drawn rule keeps the same distances; the landed span's
+       emission test reads it at the closing head.
 \param tempo_map The beat axis every instant above is measured on.
 
 \return The spans and their posture table (\ref ChartShapes).
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
-    const ChartConnections& connections, const TempoMap& tempo_map);
+    const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map);
 
 /*!
 \brief The grip a pull-off source states beneath the fret it sounds, where it states one.

@@ -28,6 +28,7 @@ add_executable(
     test_difficulty.cpp
     test_fraction.cpp
     test_grid_arithmetic.cpp
+    test_head_margins.cpp
     test_highway_camera.cpp
     test_highway_hit_glow.cpp
     test_highway_light.cpp

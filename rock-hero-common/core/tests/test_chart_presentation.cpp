@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -106,6 +107,15 @@ using rock_hero::common::core::testing::anchor;
     return note;
 }
 
+// Presentation over a stream's connections, with the head margins built from the same saved stream
+// as chartResolutions builds them.
+[[nodiscard]] ChartPresentation presentationOf(
+    const ChartConnections& connections, const TempoMap& tempo_map)
+{
+    return chartPresentation(
+        connections, HeadMargins{connections.saved_notes, tempo_map}, tempo_map);
+}
+
 // A whole figure's picture, DERIVED the way every reader gets it: the spans the notes imply, the
 // class those spans arrive as, and the presentation rules — the tail law included — over the saved
 // stream, which is exactly what \ref chartResolutions runs. `ink_end` is therefore where both
@@ -123,10 +133,11 @@ struct SpanFigure
 [[nodiscard]] SpanFigure spanFigure(const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
-    const ChartShapes derived = deriveChartShapes(connections, tempo_map);
+    const HeadMargins margins{connections.saved_notes, tempo_map};
+    const ChartShapes derived = deriveChartShapes(connections, margins, tempo_map);
     SpanFigure figure;
     figure.arrivals = chartShapeArrivals(saved, derived.shapes, tempo_map);
-    ChartPresentation presentation = chartPresentation(connections, tempo_map);
+    ChartPresentation presentation = chartPresentation(connections, margins, tempo_map);
     figure.ink_end = std::move(presentation.ink_end);
     figure.hidden.clear();
     for (const std::optional<Fraction>& rested : presentation.rested_from)
@@ -143,7 +154,7 @@ struct SpanFigure
 [[nodiscard]] std::vector<Fraction> inkEndsOf(
     const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
-    return chartPresentation(chartConnections(saved, tempo_map), tempo_map).ink_end;
+    return presentationOf(chartConnections(saved, tempo_map), tempo_map).ink_end;
 }
 
 // The ink end of a note standing entirely alone. No later onset binds it, so rule 1 crops nothing:
@@ -163,7 +174,7 @@ struct SpanFigure
     const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
     const ChartPresentation presentation =
-        chartPresentation(chartConnections(saved, tempo_map), tempo_map);
+        presentationOf(chartConnections(saved, tempo_map), tempo_map);
     std::vector<bool> rests;
     rests.reserve(presentation.rested_from.size());
     for (const std::optional<Fraction>& rested : presentation.rested_from)
@@ -177,7 +188,7 @@ struct SpanFigure
 [[nodiscard]] std::vector<std::optional<Fraction>> restedOffsetsOf(
     const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
-    return chartPresentation(chartConnections(saved, tempo_map), tempo_map).rested_from;
+    return presentationOf(chartConnections(saved, tempo_map), tempo_map).rested_from;
 }
 
 // The holds a stated span implies, asked the way \ref chartResolutions asks them: the drawn
@@ -189,7 +200,7 @@ struct SpanFigure
     const TempoMap& tempo_map)
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
-    const ChartPresentation presentation = chartPresentation(connections, tempo_map);
+    const ChartPresentation presentation = presentationOf(connections, tempo_map);
     return chartHolds(presentation, connections, shapes, tempo_map);
 }
 

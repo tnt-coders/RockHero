@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -262,9 +263,13 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
     const std::vector<ChartNote>& saved_notes = resolutions.connections.saved_notes;
+    // The margin before every head, asked once here because the spans, the ink ends and the drawn
+    // extents all keep it, each of them several times per head.
+    resolutions.margins = HeadMargins{saved_notes, tempo_map};
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel.
-    ChartShapes derived = deriveChartShapes(resolutions.connections, tempo_map);
+    ChartShapes derived =
+        deriveChartShapes(resolutions.connections, resolutions.margins, tempo_map);
     // THE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
     // DEFAULT held stop is the grip the covering span holds, so it reads the postures just derived.
     // It therefore runs AFTER the derivation and feeds nothing that runs before it. Handed the
@@ -282,7 +287,8 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // between two rules (\ref chartPresentation). The spans do not go in at all — the curtain is
     // universal — but the connections go in whole, because the law reads the same-string relation
     // this walk established: the handover a figure cannot state.
-    ChartPresentation presentation = chartPresentation(resolutions.connections, tempo_map);
+    ChartPresentation presentation =
+        chartPresentation(resolutions.connections, resolutions.margins, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     // The holds read the drawn lengths AND the law's verdict, which is what makes the two

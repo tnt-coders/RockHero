@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
@@ -121,7 +122,9 @@ using rock_hero::common::core::testing::anchor;
 // whose held stop is DERIVED from a pull-off derives here exactly as it does in the app.
 [[nodiscard]] ChartShapes deriveWith(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
-    return deriveChartShapes(chartConnections(notes, tempo_map), tempo_map);
+    const ChartConnections connections = chartConnections(notes, tempo_map);
+    return deriveChartShapes(
+        connections, HeadMargins{connections.saved_notes, tempo_map}, tempo_map);
 }
 
 // The derivation as every reader gets it: from the saved stream alone.
@@ -3277,8 +3280,11 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         // The long tail draws VISIBLY past the box: the span closes at the shortest member while
         // the drawn ring of the long one runs on.
         const TempoMap tempo_map = makeTempoMap();
+        const ChartConnections connections = chartConnections(notes, tempo_map);
         const std::vector<Fraction> ink_end =
-            chartPresentation(chartConnections(notes, tempo_map), tempo_map).ink_end;
+            chartPresentation(
+                connections, HeadMargins{connections.saved_notes, tempo_map}, tempo_map)
+                .ink_end;
         CHECK(derived.shapes[1].sustain < ink_end[indexAt(notes, 2, 1, 1)]);
     }
 

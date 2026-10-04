@@ -1472,6 +1472,8 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
                 Keyframe{.offset = Fraction{4}, .fret = 9},
             },
         });
+    // Back into the chart's note order, which every walk over a stream assumes.
+    std::ranges::sort(chart.notes, chartNoteOrderLess);
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 4}, .fret = 5},
         FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 9},

@@ -151,6 +151,26 @@ Rulings of 2026-10-02 (user, after the simplicity review):
     pointer live and the whole drag is one undo entry.
 14. **Deferred**: the tap-tempo readout and onset snapping are out of the first releasable editor.
 
+## Ruled follow-ups (user, 2026-10-03; to be planned after the projection-cost fix)
+
+Fixing a song whose grid is wrong underneath correctly timed notes (a tempo tabbed at half speed,
+a wrong grid under a non-click performance) is common, and "the grid is truth" alone cannot do it.
+Three tools, sharing Phase 6's whole-song re-addressing and its one-entry whole-song undo:
+
+- **Scale Tempo** (Edit menu "Scale Tempo...", and the tempo row's right-click menu): every grid
+  address in the song (anchors, notes, rings, keyframes, hand markers, sections, tone changes,
+  automation points) scaled by a factor on the whole-note axis while every TIME stays put; x2
+  doubles every span's tempo and the measure count (a meter change at old bar m lands on new bar
+  2m-1); /2 and free factors (3/2) round to the tick lattice. A range-scoped form is later.
+- **Keep Notes in Time** (toolbar toggle, OFF by default, session state): while on, a tempo edit
+  keeps every object's time and re-addresses its grid position, instead of moving it with the beat.
+  Applies to tempo edits only (a meter edit already keeps time under Q1 = A). The workflow for a
+  non-click song: turn it on, sync anchors to the audio, turn it off.
+- **Tempo lock** (toolbar toggle, ON by default for every song each session, never saved): locked,
+  anchors cannot be MOVED in time (chip drag, `Alt+←/→`); adding one, deleting one, typing a tempo
+  and Scale Tempo stay available. A blocked move is refused visibly. This replaces the deleted
+  2026-07-09 grid lock, whose fault was blocking every tempo edit by default.
+
 ## Open questions
 
 - **Q1 — Time-signature content policy.** PROVISIONALLY A (user, 2026-09-19): hold the global

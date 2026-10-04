@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
@@ -327,7 +328,8 @@ bool foundsSpan(const std::size_t stated_together, const std::size_t sounding_to
            sounding_together >= g_accumulation_member_minimum;
 }
 
-ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMap& tempo_map)
+ChartShapes deriveChartShapes(
+    const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& saved_notes = connections.saved_notes;
     // Both stop tables are derivations of the connections themselves, so they are asked here rather
@@ -518,8 +520,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         if (open->landing_opened && !open->last_stated_beat.has_value() && close_beat.has_value())
         {
             const Fraction tenure = end - open->front_beat;
-            const Fraction quantum =
-                head.has_value() ? minimumSustainDistanceBeats(tempo_map, *head) : Fraction{};
+            const Fraction quantum = head.has_value() ? margins.beats(*head) : Fraction{};
             if (!(quantum < tenure))
             {
                 open.reset();

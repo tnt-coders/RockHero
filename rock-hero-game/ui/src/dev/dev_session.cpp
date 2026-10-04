@@ -248,7 +248,6 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         // invert flag realizes it until a per-player setting exists.
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
             common::core::makeChartViewState(*chosen, song.tempo_map),
-            *chosen,
             song.tempo_map,
             song.sections,
             common::core::HighwayDisplayOptions{.mirrored = m_lefty, .invert_string_order = true});

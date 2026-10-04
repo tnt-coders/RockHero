@@ -40,7 +40,12 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   onset being PROTECTED, walk back through the tempo map's own time axis (a tempo change inside
   the margin is therefore exact) and floor onto the chart's tick lattice, which keeps the answer
   from ever falling short of the duration. It must stay below the kept-sustain bound below, so
-  every tail that earns one keeps some ink; a `static_assert` says so.
+  every tail that earns one keeps some ink; a `static_assert` says so. Every margin a scene build
+  keeps before a HEAD is read from `HeadMargins` (`chart/head_margins.h`): `chartResolutions`
+  asks the two functions once per distinct onset and carries the table, so the spans, the ink
+  ends, the drawn span extents and each note's `margin_start_seconds` read one answer per head.
+  The two functions stay the authority — the table only stops the build asking them again — and
+  a fret-hand placement, which is not a head, still asks `marginBefore` directly.
 - `g_minimum_kept_sustain_seconds` — the kept-sustain bound presentation rule 2 drops a short
   effect-free tail against, a **duration** for the same reason. Rule 2 reads each note's actual
   ring in seconds through the tempo map, from onset time to ring-end time, and only a ring running
@@ -115,7 +120,7 @@ other. `chartShapeArrivals` reads the stream only for the attacks it still deriv
 onsets inside a span — and takes the rest off the spans, where `deriveChartShapes` recorded it
 against the stored rings. E25, by contrast, takes a dead note's tail off what a surface **draws**.
 
-- `chartPresentation(connections, tempo_map)` — per saved note, the ink end and the tail law's
+- `chartPresentation(connections, margins, tempo_map)` — per saved note, the ink end and the tail law's
   verdict, through four ordered rules: crop to the margin before the binding onset — the first
   sounding onset the ring does not run strictly *past*, so a ring ending exactly on one still binds
   and crops there — floored onto the tick lattice and never before the onset; drop short
@@ -123,7 +128,7 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   sliding; and last the tail law below, which reads no spans and so takes none. In the ending zone
   keyframes stay stored and are neither drawn nor judged, and the leg crossing the crop is drawn on
   its true path and stops there.
-- `deriveChartShapes(connections, tempo_map)` — the hand-posture spans and the
+- `deriveChartShapes(connections, margins, tempo_map)` — the hand-posture spans and the
   posture table the notes imply. The chart stores none: a span is a statement about the notes under
   it, so deriving it is the only way it can never disagree with them. **A span is GRIP TENURE — the
   statement "the hand holds this grip, from here to here"** (the grip-tenure law); everything else

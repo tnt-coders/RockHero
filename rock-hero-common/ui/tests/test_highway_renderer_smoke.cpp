@@ -474,7 +474,6 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         const common::core::Arrangement families_arrangement = makeFamiliesArrangement();
         const common::core::HighwayViewState families = makeHighwayViewState(
             makeChartViewState(families_arrangement, tempo_map),
-            families_arrangement,
             tempo_map,
             makeSmokeSections(),
             {});
@@ -532,7 +531,6 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         const common::core::Arrangement swap_arrangement = makeSwapArrangement();
         renderer->setViewState(makeHighwayViewState(
             makeChartViewState(swap_arrangement, tempo_map),
-            swap_arrangement,
             tempo_map,
             makeSmokeSections(),
             common::core::HighwayDisplayOptions{
@@ -544,7 +542,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // state the editor preview holds when its song has no arrangement loaded.
         const common::core::Arrangement empty_arrangement{};
         const common::core::HighwayViewState empty = makeHighwayViewState(
-            makeChartViewState(empty_arrangement, tempo_map), empty_arrangement, tempo_map, {}, {});
+            makeChartViewState(empty_arrangement, tempo_map), tempo_map, {}, {});
         CHECK(empty.chart.notes.empty());
         CHECK(empty.beats.empty());
         renderer->setViewState(empty);
@@ -554,7 +552,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // measures so the drawn window is saturated with accented tremolo tails throughout.
         const common::core::Arrangement dense_arrangement = makeDenseAccentArrangement();
         const common::core::HighwayViewState dense = makeHighwayViewState(
-            makeChartViewState(dense_arrangement, tempo_map), dense_arrangement, tempo_map, {}, {});
+            makeChartViewState(dense_arrangement, tempo_map), tempo_map, {}, {});
         CHECK(dense.chart.notes.size() > std::size_t{100});
         // It is also the no-placements frame: with no track the fretting hand's light stands at
         // the reference nut window, lit by the open strings' evidence.

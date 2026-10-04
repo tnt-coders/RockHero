@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <utility>
 #include <vector>
@@ -54,7 +55,8 @@ namespace
 //   because a close leaving it no room is what deletes it in the walk ([D2] edge (b)).
 //
 // The extent is therefore positive exactly where the musical close is, and never past it.
-[[nodiscard]] Fraction drawnShapeExtent(const ChartShape& shape, const TempoMap& tempo_map)
+[[nodiscard]] Fraction drawnShapeExtent(
+    const ChartShape& shape, const HeadMargins& margins, const TempoMap& tempo_map)
 {
     // Bound to a local so the presence test and every read below are provably the same object.
     const std::optional<GridPosition>& closing = shape.closing_onset;
@@ -64,8 +66,7 @@ namespace
         // The margin at the CLOSING ONSET: it is that head's spacing that is being kept, and a
         // tempo change between the span's front and its close would otherwise measure it at the
         // wrong rate.
-        limit = beatDistance(tempo_map, shape.position, *closing) -
-                minimumSustainDistanceBeats(tempo_map, *closing);
+        limit = beatDistance(tempo_map, shape.position, *closing) - margins.beats(*closing);
     }
     return drawnHoldExtent(shape.sustain, limit, shape.stated_extent);
 }
@@ -313,7 +314,8 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 // what the walk stored, published verbatim so the editor's reveal has the truth to
                 // reach for and no surface has to undo the trim to get it.
                 .drawn_end_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    start_beat + drawnShapeExtent(shape, tempo_map).toDouble()),
+                    start_beat +
+                    drawnShapeExtent(shape, resolutions.margins, tempo_map).toDouble()),
                 .close_seconds =
                     tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
                 // A strummed chord is a box; sequential arrival, or a posture string ringing
@@ -338,6 +340,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         const double onset_beat = tempo_map.beatPositionAt(note.position);
         NoteViewState view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
+        view.margin_start_seconds = tempo_map.secondsAt(resolutions.margins.before(note.position));
         view.ring_end_seconds =
             tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble());
         // Resolved through the same expression as the ring end so a free tail's two ends are one

@@ -6,7 +6,6 @@
 #pragma once
 
 #include <rock_hero/common/core/highway/highway_view_state.h>
-#include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <span>
@@ -100,9 +99,8 @@ share the result immutably: the camera and every drawer are pure functions of th
 plus per-frame time.
 
 \param scene The arrangement's chart scene, `makeChartViewState(arrangement, tempo_map)`; moved
-       into the returned state.
-\param arrangement The arrangement the scene was built from: its chart's note positions place each
-       note's margin rise, and an absent chart yields no board structure beyond the sections.
+       into the returned state. Each note's margin rise is read off it, and the scene of an absent
+       chart yields no board structure beyond the sections.
 \param tempo_map Tempo map resolving musical positions to seconds.
 \param sections Song-structure section markers, resolved into the state's section list even when
        the arrangement has no chart.
@@ -112,7 +110,7 @@ plus per-frame time.
 \return Seconds-resolved highway content for rendering.
 */
 [[nodiscard]] HighwayViewState makeHighwayViewState(
-    ChartViewState scene, const Arrangement& arrangement, const TempoMap& tempo_map,
-    const std::vector<SongSection>& sections, HighwayDisplayOptions options);
+    ChartViewState scene, const TempoMap& tempo_map, const std::vector<SongSection>& sections,
+    HighwayDisplayOptions options);
 
 } // namespace rock_hero::common::core
