@@ -1163,6 +1163,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     const auto add_note = [&notes](double start, int fret, NoteAttack attack = NoteAttack::Pick) {
         NoteViewState note;
         note.start_seconds = start;
+        note.margin_start_seconds = start;
         note.ring_end_seconds = start;
         note.ink_end_seconds = start;
         note.fret = fret;
@@ -1181,8 +1182,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     add_note(3.000000000001, 17, NoteAttack::Tap);
     add_note(4.0, 9, NoteAttack::LeftTap); // The FRETTING hand's tap: no entry.
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
+    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes);
     REQUIRE(onsets.size() == 3);
     CHECK(
         onsets[0] == HighwayTapOnsetViewState{
@@ -1212,7 +1212,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     // The same groups light the picking hand: one arrival per onset on its one track (the release
     // a picosecond past the chord's onset is the onset's own instant, so it adds no arrival), and
     // one light per strike.
-    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(notes.size(), 0.0));
+    const HighwayHandLight light = makePickHandLight(notes);
     const auto settled = [](const double seconds, const double low, const double high) {
         return HighwayHandArrival{
             .seconds = seconds,
@@ -1248,6 +1248,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
 {
     NoteViewState tap;
     tap.start_seconds = 1.0;
+    tap.margin_start_seconds = 1.0;
     tap.ring_end_seconds = 1.0;
     tap.ink_end_seconds = 1.0;
     tap.string = 3;
@@ -1255,8 +1256,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     tap.attack = NoteAttack::Tap;
     tap.harmonic_node = 12.0;
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets({tap}, std::vector<double>(1, 0.0));
+    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets({tap});
     REQUIRE(onsets.size() == 1);
     CHECK(onsets.front().count == 1);
     CHECK(onsets.front().fret_low == 12);
@@ -1264,7 +1264,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     // The track arrival reads the same sounding place through the light's own interpolation, so
     // it has to agree exactly (compared through the ordering query, which the project uses for an
     // exact floating compare that -Wfloat-equal accepts): the node's fret spans lines 11 to 12.
-    const HighwayHandLight light = makePickHandLight({tap}, std::vector<double>(1, 0.0));
+    const HighwayHandLight light = makePickHandLight({tap});
     REQUIRE_FALSE(light.track.empty());
     CHECK(std::is_eq(light.track.front().low_line <=> 11.0));
     CHECK(std::is_eq(light.track.front().high_line <=> 12.0));
@@ -1272,8 +1272,8 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     // An ordinary open string with no node has nowhere to light, so it stays dark.
     NoteViewState open_tap = tap;
     open_tap.harmonic_node.reset();
-    CHECK(makeHighwayTapOnsets({open_tap}, std::vector<double>(1, 0.0)).empty());
-    const HighwayHandLight dark = makePickHandLight({open_tap}, std::vector<double>(1, 0.0));
+    CHECK(makeHighwayTapOnsets({open_tap}).empty());
+    const HighwayHandLight dark = makePickHandLight({open_tap});
     CHECK(dark.track.empty());
     CHECK(dark.lit.empty());
 }
@@ -1288,6 +1288,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // Held tap: sounding from 1.0 to 2.0 at fret 12, no glide.
     NoteViewState held;
     held.start_seconds = 1.0;
+    held.margin_start_seconds = 1.0;
     held.ring_end_seconds = 2.0;
     held.ink_end_seconds = 2.0;
     held.fret = 12;
@@ -1297,6 +1298,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // Tapped slide: fret 12 at 3.0 gliding to fret 15 at 4.0 (the sustain end).
     NoteViewState sliding;
     sliding.start_seconds = 3.0;
+    sliding.margin_start_seconds = 3.0;
     sliding.ring_end_seconds = 4.0;
     sliding.ink_end_seconds = 4.0;
     sliding.fret = 12;
@@ -1308,6 +1310,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // is already releasing pressure, so the light must not follow it.
     NoteViewState trailing;
     trailing.start_seconds = 5.0;
+    trailing.margin_start_seconds = 5.0;
     trailing.ring_end_seconds = 6.5;
     trailing.ink_end_seconds = 6.5;
     trailing.fret = 10;
@@ -1318,7 +1321,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     };
     notes.push_back(trailing);
 
-    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(notes.size(), 0.0));
+    const HighwayHandLight light = makePickHandLight(notes);
 
     // The three onsets' paths concatenated on the one track, two arrivals each. Each later
     // arrival ramps over the leg from the arrival before it; an onset ramps over its light rise,
@@ -1389,8 +1392,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // The STRIKE's hold end is the notes' true ring, not the light's release: a tapped chord's
     // rails run as long as the fretting hand's boxes hold, so the slide-out's strike holds to its
     // ring end although its light has already let go at the last pitched keyframe.
-    const std::vector<HighwayTapOnsetViewState> strikes =
-        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
+    const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(notes);
     REQUIRE(strikes.size() == 3);
     CHECK(std::is_eq(strikes[0].release_seconds <=> held.ring_end_seconds));
     CHECK(std::is_eq(strikes[1].release_seconds <=> sliding.ring_end_seconds));
@@ -1405,6 +1407,7 @@ TEST_CASE("Highway tapped chord holds to its ring end with no drawn tail", "[cor
     const auto tap = [](const int string, const int fret, const double ring_end) {
         NoteViewState note;
         note.start_seconds = 1.0;
+        note.margin_start_seconds = 1.0;
         note.ring_end_seconds = ring_end;
         note.ink_end_seconds = 1.0;
         note.string = string;
@@ -1413,13 +1416,12 @@ TEST_CASE("Highway tapped chord holds to its ring end with no drawn tail", "[cor
         return note;
     };
     const std::vector<HighwayTapOnsetViewState> strikes =
-        makeHighwayTapOnsets({tap(1, 12, 1.25), tap(2, 14, 1.5)}, std::vector<double>(2, 0.0));
+        makeHighwayTapOnsets({tap(1, 12, 1.25), tap(2, 14, 1.5)});
     REQUIRE(strikes.size() == 1);
     CHECK(tappedChord(strikes.front()));
     CHECK(std::is_eq(strikes.front().release_seconds <=> 1.5));
     // The light still pulses per strike from the drawn end, which is the onset here.
-    const HighwayHandLight light =
-        makePickHandLight({tap(1, 12, 1.25), tap(2, 14, 1.5)}, std::vector<double>(2, 0.0));
+    const HighwayHandLight light = makePickHandLight({tap(1, 12, 1.25), tap(2, 14, 1.5)});
     REQUIRE(light.lit.size() == 1);
     CHECK(std::is_eq(light.lit.front().release_seconds <=> 1.0));
 }
@@ -1434,6 +1436,7 @@ TEST_CASE("Highway tapped chord keeps a margin before the head that closes it", 
         [](const int string, const int fret, const double start, const double ring_end) {
             NoteViewState note;
             note.start_seconds = start;
+            note.margin_start_seconds = start - 0.125;
             note.ring_end_seconds = ring_end;
             note.ink_end_seconds = start;
             note.string = string;
@@ -1445,8 +1448,7 @@ TEST_CASE("Highway tapped chord keeps a margin before the head that closes it", 
     const std::vector<NoteViewState> abutting{
         tap(1, 12, 1.0, 2.0), tap(2, 14, 1.0, 2.0), tap(1, 12, 2.0, 3.0), tap(2, 14, 2.0, 3.0)
     };
-    const std::vector<double> margins(abutting.size(), 0.125);
-    const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(abutting, margins);
+    const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(abutting);
     REQUIRE(strikes.size() == 2);
     CHECK(std::is_eq(strikes[0].release_seconds <=> 1.875));
     // Nothing stands at the second chord's close: it holds to its ring end.
@@ -1456,8 +1458,7 @@ TEST_CASE("Highway tapped chord keeps a margin before the head that closes it", 
     const std::vector<NoteViewState> crowded{
         tap(1, 12, 1.0, 1.0625), tap(2, 14, 1.0, 1.0625), tap(1, 12, 1.0625, 2.0)
     };
-    const std::vector<HighwayTapOnsetViewState> tight =
-        makeHighwayTapOnsets(crowded, std::vector<double>(crowded.size(), 0.125));
+    const std::vector<HighwayTapOnsetViewState> tight = makeHighwayTapOnsets(crowded);
     REQUIRE(tight.size() == 2);
     CHECK(std::is_eq(tight[0].release_seconds <=> 1.0625));
 }
@@ -1469,6 +1470,7 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
 {
     NoteViewState trailing;
     trailing.start_seconds = 1.0;
+    trailing.margin_start_seconds = 1.0;
     trailing.ring_end_seconds = 2.5;
     trailing.ink_end_seconds = 2.5;
     trailing.fret = 10;
@@ -1480,7 +1482,7 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     };
     REQUIRE(instantDrawn(trailing.slides.back().seconds, trailing.ink_end_seconds));
 
-    const HighwayHandLight drawn = makePickHandLight({trailing}, std::vector<double>(1, 0.0));
+    const HighwayHandLight drawn = makePickHandLight({trailing});
     REQUIRE(drawn.lit.size() == 1);
     CHECK(drawn.lit.front().release_seconds == Catch::Approx(2.0));
     // The path ends at that last pitched keyframe: the slide-out adds nothing.
@@ -1492,7 +1494,7 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     NoteViewState cut = trailing;
     cut.ink_end_seconds = 2.25;
     REQUIRE_FALSE(instantDrawn(cut.slides.back().seconds, cut.ink_end_seconds));
-    const HighwayHandLight undrawn = makePickHandLight({cut}, std::vector<double>(1, 0.0));
+    const HighwayHandLight undrawn = makePickHandLight({cut});
     REQUIRE(undrawn.lit.size() == 1);
     CHECK(undrawn.lit.front().release_seconds == Catch::Approx(cut.ink_end_seconds));
     REQUIRE(undrawn.track.size() == 4);
@@ -1514,6 +1516,7 @@ TEST_CASE("Highway tap light follows a pitched glide the ink end cuts", "[core][
     // Fret 12 at 1.0 gliding to 15 at 2.0 and on to 17 at 2.5, the ink cut at 1.8 by a later head.
     NoteViewState tap;
     tap.start_seconds = 1.0;
+    tap.margin_start_seconds = 1.0;
     tap.ring_end_seconds = 2.5;
     tap.ink_end_seconds = 1.8;
     tap.fret = 12;
@@ -1524,7 +1527,7 @@ TEST_CASE("Highway tap light follows a pitched glide the ink end cuts", "[core][
     };
     REQUIRE_FALSE(instantDrawn(tap.slides.front().seconds, tap.ink_end_seconds));
 
-    const HighwayHandLight light = makePickHandLight({tap}, std::vector<double>(1, 0.0));
+    const HighwayHandLight light = makePickHandLight({tap});
     REQUIRE(light.lit.size() == 1);
     CHECK(light.lit.front().release_seconds == Catch::Approx(tap.ink_end_seconds));
     const std::vector<HighwayHandArrival>& path = light.track;
@@ -1553,6 +1556,7 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     // Two taps at 3.0: fret 12 gliding to 15 at 4.0, and fret 14 gliding to 18 at 5.0.
     NoteViewState low;
     low.start_seconds = 3.0;
+    low.margin_start_seconds = 3.0;
     low.ring_end_seconds = 4.0;
     low.ink_end_seconds = 4.0;
     low.fret = 12;
@@ -1560,6 +1564,7 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     low.slides = {SlideStopViewState{.seconds = 4.0, .fret = 15}};
     NoteViewState high;
     high.start_seconds = 3.0;
+    high.margin_start_seconds = 3.0;
     high.ring_end_seconds = 5.0;
     high.ink_end_seconds = 5.0;
     high.string = 1;
@@ -1567,7 +1572,7 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     high.attack = NoteAttack::Tap;
     high.slides = {SlideStopViewState{.seconds = 5.0, .fret = 18}};
 
-    const HighwayHandLight light = makePickHandLight({low, high}, std::vector<double>(2, 0.0));
+    const HighwayHandLight light = makePickHandLight({low, high});
     REQUIRE(light.lit.size() == 1);
     CHECK(light.lit.front().release_seconds == Catch::Approx(5.0));
     const std::vector<HighwayHandArrival>& path = light.track;
@@ -1590,23 +1595,23 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
 TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "[core][highway]")
 {
     std::vector<NoteViewState> notes;
-    const auto add_tap = [&notes](double start, double end, int fret) {
+    const auto add_tap = [&notes](double start, double end, int fret, double rise) {
         NoteViewState note;
         note.start_seconds = start;
+        note.margin_start_seconds = start - rise;
         note.ring_end_seconds = end;
         note.ink_end_seconds = end;
         note.fret = fret;
         note.attack = NoteAttack::Tap;
         notes.push_back(std::move(note));
     };
-    add_tap(1.0, 1.0, 12); // Roomy: keeps its full margin rise.
-    add_tap(1.0, 1.0, 15); // Chord mate with a wider margin: the onset takes it.
-    add_tap(1.2, 1.2, 14); // Crowded: only 0.2s of room after the previous release.
-    add_tap(3.0, 3.5, 12); // Held tap whose release bounds the next rise.
-    add_tap(3.6, 3.6, 15); // Rise clamps to 0.1s — the gap after the hold, not the onset gap.
+    add_tap(1.0, 1.0, 12, 0.2);  // Roomy: keeps its full margin rise.
+    add_tap(1.0, 1.0, 15, 0.25); // Chord mate with a wider margin: the onset takes it.
+    add_tap(1.2, 1.2, 14, 0.25); // Crowded: only 0.2s of room after the previous release.
+    add_tap(3.0, 3.5, 12, 0.25); // Held tap whose release bounds the next rise.
+    add_tap(3.6, 3.6, 15, 0.25); // Rise clamps to 0.1s — the gap after the hold, not the onset gap.
 
-    const std::vector<double> rises{0.2, 0.25, 0.25, 0.25, 0.25};
-    const HighwayHandLight light = makePickHandLight(notes, rises);
+    const HighwayHandLight light = makePickHandLight(notes);
     REQUIRE(light.lit.size() == 4);
     CHECK(light.lit[0].rise_seconds == Catch::Approx(0.25));
     CHECK(light.lit[1].rise_seconds == Catch::Approx(0.2));
@@ -1708,6 +1713,7 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     // the ink cut at 1.4 — between the turnaround and the terminal.
     NoteViewState scrape;
     scrape.start_seconds = 1.0;
+    scrape.margin_start_seconds = 1.0;
     scrape.ring_end_seconds = 1.5;
     scrape.ink_end_seconds = 1.4;
     scrape.fret = 17;
@@ -1719,7 +1725,7 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     REQUIRE(instantDrawn(scrape.slides[0].seconds, scrape.ink_end_seconds));
     REQUIRE_FALSE(instantDrawn(scrape.slides[1].seconds, scrape.ink_end_seconds));
 
-    const HighwayHandLight light = makePickHandLight({scrape}, std::vector<double>(1, 0.0));
+    const HighwayHandLight light = makePickHandLight({scrape});
     REQUIRE(light.lit.size() == 1);
     const std::vector<HighwayHandArrival>& path = light.track;
     REQUIRE(path.size() == 3);
@@ -1762,6 +1768,7 @@ TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core]
     // Down from fret 12 to 3, up to 10, then the terminal down toward 2, a quarter second a leg.
     NoteViewState scrape;
     scrape.start_seconds = 1.0;
+    scrape.margin_start_seconds = 1.0;
     scrape.ring_end_seconds = 1.75;
     scrape.ink_end_seconds = 1.75;
     scrape.fret = 12;
@@ -1772,7 +1779,7 @@ TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core]
         SlideStopViewState{.seconds = 1.75, .fret = 2, .slide_out = true},
     };
 
-    const HighwayHandLight light = makePickHandLight({scrape}, std::vector<double>(1, 0.0));
+    const HighwayHandLight light = makePickHandLight({scrape});
     const std::vector<HighwayHandArrival>& path = light.track;
     REQUIRE(path.size() == 4);
 
@@ -1968,6 +1975,7 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
 {
     NoteViewState note;
     note.start_seconds = 1.0;
+    note.margin_start_seconds = 1.0;
     note.ring_end_seconds = 2.0;
     note.ink_end_seconds = 2.0;
     note.string = 1;
@@ -1977,7 +1985,7 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
     note.slides = {SlideStopViewState{.seconds = 2.0, .fret = 9}};
 
     const std::vector<NoteViewState> notes{note};
-    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(1, 0.0));
+    const HighwayHandLight light = makePickHandLight(notes);
 
     REQUIRE_FALSE(light.track.empty());
     // The node's fret spans lines node - 1 to node.
@@ -2018,11 +2026,13 @@ namespace
     };
 }
 
-// A sustainless tap for the picking hand's cases, released where it starts.
+// A sustainless tap for the picking hand's cases, released where it starts and rising over an
+// eighth of a second before it.
 [[nodiscard]] NoteViewState tapAt(const double start, const int string, const int fret)
 {
     NoteViewState note;
     note.start_seconds = start;
+    note.margin_start_seconds = start - 0.125;
     note.ring_end_seconds = start;
     note.ink_end_seconds = start;
     note.string = string;
@@ -2135,6 +2145,7 @@ TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][high
 {
     NoteViewState trailing;
     trailing.start_seconds = 1.0;
+    trailing.margin_start_seconds = 0.875;
     trailing.ring_end_seconds = 2.5;
     trailing.ink_end_seconds = 2.5;
     trailing.fret = 10;
@@ -2146,9 +2157,8 @@ TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][high
     REQUIRE(instantDrawn(trailing.slides.back().seconds, trailing.ink_end_seconds));
     ChartViewState scene;
     scene.notes = {trailing};
-    const std::vector<double> rise{0.125};
     CHECK(
-        makeFretHandLight(scene, rise) ==
+        makeFretHandLight(scene) ==
         std::vector<HighwayLitStretch>{
             HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.125},
         });
@@ -2156,7 +2166,7 @@ TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][high
     scene.notes.front().ink_end_seconds = 2.25;
     REQUIRE_FALSE(instantDrawn(scene.notes.front().slides.back().seconds, 2.25));
     CHECK(
-        makeFretHandLight(scene, rise) ==
+        makeFretHandLight(scene) ==
         std::vector<HighwayLitStretch>{
             HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.25, .rise_seconds = 0.125},
         });
@@ -2169,9 +2179,13 @@ TEST_CASE("Fret-hand light holds through a span over emptied tails", "[core][hig
 {
     ChartViewState scene;
     scene.notes = {chordNote(1.0, 1, 5), chordNote(1.0, 2, 7)};
+    for (NoteViewState& note : scene.notes)
+    {
+        note.margin_start_seconds = 0.875;
+    }
     scene.shapes = {chordShape(1.0, 3.0, {{1, 5}, {2, 7}})};
     CHECK(
-        makeFretHandLight(scene, std::vector<double>{0.125, 0.125}) ==
+        makeFretHandLight(scene) ==
         std::vector<HighwayLitStretch>{
             HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 3.0, .rise_seconds = 0.125},
         });
@@ -2257,7 +2271,7 @@ TEST_CASE("Pick-hand light lights each strike of a dense run on its own", "[core
         tapAt(1.0 + (2.0 * step), 1, 12),
         tapAt(1.0 + (3.0 * step), 1, 15),
     };
-    const HighwayHandLight light = makePickHandLight(run, std::vector<double>(run.size(), 0.125));
+    const HighwayHandLight light = makePickHandLight(run);
     CHECK(light.track.size() == run.size());
     REQUIRE(light.lit.size() == run.size());
     for (std::size_t index = 0; index < run.size(); ++index)
@@ -2270,8 +2284,7 @@ TEST_CASE("Pick-hand light lights each strike of a dense run on its own", "[core
     held.ring_end_seconds = 2.0;
     held.ink_end_seconds = 2.0;
     const std::vector<NoteViewState> overlapping{held, tapAt(1.5, 2, 14)};
-    const HighwayHandLight one =
-        makePickHandLight(overlapping, std::vector<double>(overlapping.size(), 0.125));
+    const HighwayHandLight one = makePickHandLight(overlapping);
     CHECK(
         one.lit ==
         std::vector<HighwayLitStretch>{
@@ -2292,7 +2305,7 @@ TEST_CASE("Pick-hand track leaves an earlier strike at the next onset", "[core][
     gliding.slides = {SlideStopViewState{.seconds = 2.0, .fret = 15}};
     const std::vector<NoteViewState> notes{gliding, tapAt(1.5, 2, 17)};
 
-    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(2, 0.125));
+    const HighwayHandLight light = makePickHandLight(notes);
     REQUIRE(light.track.size() == 2);
     CHECK(light.track[0].seconds == Catch::Approx(1.0));
     CHECK(light.track[0].low_line == Catch::Approx(11.0));

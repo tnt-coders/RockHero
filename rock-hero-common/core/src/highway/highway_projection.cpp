@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -432,10 +431,8 @@ void clampStrikePops(
 } // namespace
 
 // Rationale lives on the declaration in highway_projection.h.
-std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
-    const std::vector<NoteViewState>& notes, const std::span<const double> margin_rise)
+std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(const std::vector<NoteViewState>& notes)
 {
-    assert(margin_rise.size() == notes.size() && "one margin per note");
     std::vector<HighwayTapOnsetViewState> onsets;
     forEachTapGroup(
         notes, [&](const HighwayTapOnsetViewState& struck, std::span<const std::size_t>) {
@@ -451,8 +448,8 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
             if (closing != notes.end() &&
                 std::abs(closing->start_seconds - strike.release_seconds) < g_onset_match_epsilon)
             {
-                const auto head = static_cast<std::size_t>(std::distance(notes.begin(), closing));
-                limit = closing->start_seconds - margin_rise[head] - strike.start_seconds;
+                limit =
+                    closing->start_seconds - closing->marginRiseSeconds() - strike.start_seconds;
             }
             strike.release_seconds =
                 strike.start_seconds +
@@ -463,10 +460,8 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
 }
 
 // Rationale lives on the declaration in highway_projection.h.
-HighwayHandLight makePickHandLight(
-    const std::vector<NoteViewState>& notes, const std::span<const double> margin_rise)
+HighwayHandLight makePickHandLight(const std::vector<NoteViewState>& notes)
 {
-    assert(margin_rise.size() == notes.size() && "one margin rise per note");
     HighwayHandLight light;
     // One lit-stretch item per tapped member, all starting at its group's onset.
     std::vector<HighwayLitStretch> items;
@@ -479,7 +474,7 @@ HighwayHandLight makePickHandLight(
                     HighwayLitStretch{
                         .start_seconds = strike.start_seconds,
                         .release_seconds = noteReleaseAt(notes[member]),
-                        .rise_seconds = margin_rise[member],
+                        .rise_seconds = notes[member].marginRiseSeconds(),
                     });
             }
             // The hand has moved on: an earlier group's arrivals at or after this onset — the tail
@@ -496,15 +491,12 @@ HighwayHandLight makePickHandLight(
 }
 
 // Rationale lives on the declaration in highway_projection.h.
-std::vector<HighwayLitStretch> makeFretHandLight(
-    const ChartViewState& scene, const std::span<const double> margin_rise)
+std::vector<HighwayLitStretch> makeFretHandLight(const ChartViewState& scene)
 {
-    assert(margin_rise.size() == scene.notes.size() && "one margin rise per note");
     std::vector<HighwayLitStretch> items;
     items.reserve(scene.notes.size() + scene.shapes.size());
-    for (std::size_t index = 0; index < scene.notes.size(); ++index)
+    for (const NoteViewState& note : scene.notes)
     {
-        const NoteViewState& note = scene.notes[index];
         // A bare right-hand onset says nothing about the fretting hand; one with a held stop —
         // always a pressed finger — is that hand holding it.
         if (rightHandOnset(note.attack) && !note.held_fret.has_value())
@@ -515,7 +507,7 @@ std::vector<HighwayLitStretch> makeFretHandLight(
             HighwayLitStretch{
                 .start_seconds = note.start_seconds,
                 .release_seconds = noteReleaseAt(note),
-                .rise_seconds = margin_rise[index],
+                .rise_seconds = note.marginRiseSeconds(),
             });
     }
     // A span never OPENS a light: it starts at a note's onset, which carries the rise, or tiles
@@ -564,15 +556,6 @@ HighwayViewState makeHighwayViewState(
     }
     const std::vector<NoteViewState>& notes = state.chart.notes;
 
-    // Per-note margin rise: whichever hand a note lights, its light rises over the fret-hand
-    // placements' own arrival margin before the onset, which the scene carries per note. One loop
-    // feeds both hands' producers.
-    std::vector<double> margin_rise_seconds;
-    margin_rise_seconds.reserve(notes.size());
-    for (const NoteViewState& note : notes)
-    {
-        margin_rise_seconds.push_back(note.start_seconds - note.margin_start_seconds);
-    }
     // Onset groups and their repeat classification, derived here once per chart revision. The
     // rules look backward through the whole note stream, so the renderer's visible window could
     // neither afford them per frame nor even see everything they depend on.
@@ -582,13 +565,13 @@ HighwayViewState makeHighwayViewState(
 
     // Both hands' lights, their pops and the tap onsets derive purely from the resolved scene; the
     // fretting hand's pops read the groups above for which clusters wear a box.
-    state.tap_onsets = makeHighwayTapOnsets(notes, margin_rise_seconds);
-    state.pick_hand = makePickHandLight(notes, margin_rise_seconds);
+    state.tap_onsets = makeHighwayTapOnsets(notes);
+    state.pick_hand = makePickHandLight(notes);
     state.pick_hand.pops = makePickHandPops(
         notes, state.tap_onsets, g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds);
     state.fret_hand = HighwayHandLight{
         .track = makeHighwayFretHand(state.chart),
-        .lit = makeFretHandLight(state.chart, margin_rise_seconds),
+        .lit = makeFretHandLight(state.chart),
         .pops = makeFretHandPops(
             notes,
             state.chord_groups,

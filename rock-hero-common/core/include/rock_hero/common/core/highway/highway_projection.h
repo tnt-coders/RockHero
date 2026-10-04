@@ -8,7 +8,6 @@
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <span>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -27,14 +26,12 @@ recorded at the grouping walk in `highway_projection.cpp`). A sounding place at 
 skipped, and one past the last fret is held at the board's edge by \ref highwayDrawnStop, so a
 malformed chart cannot place a strike off the board at either end.
 
-\param notes Seconds-resolved notes sorted by start time.
-\param margin_rise Per-note margin in seconds, sized and ordered like \p notes: the arrival margin
-       before each note (\ref marginBefore), which a strike's hold keeps before the head that
-       closes it (\ref drawnHoldExtent).
+\param notes Seconds-resolved notes sorted by start time. A strike's hold keeps the margin rise of
+       the head that closes it (\ref NoteViewState::marginRiseSeconds, \ref drawnHoldExtent).
 \return Tap onsets in ascending time order.
 */
 [[nodiscard]] std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
-    const std::vector<NoteViewState>& notes, std::span<const double> margin_rise);
+    const std::vector<NoteViewState>& notes);
 
 /*!
 \brief Derives the picking hand's light from the same onset groups \ref makeHighwayTapOnsets
@@ -58,13 +55,11 @@ member's margin rise — through the same merge the fretting hand's evidence tak
 each strike is its own light, the dip between strikes mirroring the finger lifting, and only
 strikes that overlap merge.
 
-\param notes Seconds-resolved notes sorted by start time.
-\param margin_rise Per-note margin rise in seconds, sized and ordered like \p notes: the arrival
-       margin before the note (\ref marginBefore).
+\param notes Seconds-resolved notes sorted by start time, each carrying its margin rise
+       (\ref NoteViewState::marginRiseSeconds).
 \return The picking hand's light.
 */
-[[nodiscard]] HighwayHandLight makePickHandLight(
-    const std::vector<NoteViewState>& notes, std::span<const double> margin_rise);
+[[nodiscard]] HighwayHandLight makePickHandLight(const std::vector<NoteViewState>& notes);
 
 /*!
 \brief Derives when the fretting hand's light is lit: wherever the chart proves the hand holds
@@ -80,12 +75,11 @@ with no rise of its own, because a span never OPENS a light — it starts at a n
 carries the rise, or tiles onto its predecessor. The evidence merges under the one rest tolerance
 (\ref mergeLitEvidence, \ref g_hand_rest_seconds).
 
-\param scene The chart scene whose notes and spans are the evidence.
-\param margin_rise Per-note margin rise in seconds, sized and ordered like the scene's notes.
+\param scene The chart scene whose notes and spans are the evidence; each note carries its margin
+       rise (\ref NoteViewState::marginRiseSeconds).
 \return The lit stretches: disjoint and ascending.
 */
-[[nodiscard]] std::vector<HighwayLitStretch> makeFretHandLight(
-    const ChartViewState& scene, std::span<const double> margin_rise);
+[[nodiscard]] std::vector<HighwayLitStretch> makeFretHandLight(const ChartViewState& scene);
 
 /*!
 \brief Composes highway view content: the shared chart scene plus the board's own structure.

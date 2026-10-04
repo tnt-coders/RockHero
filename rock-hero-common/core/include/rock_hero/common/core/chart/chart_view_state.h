@@ -606,6 +606,16 @@ struct NoteViewState
     std::optional<std::size_t> end_head{};
 
     /*!
+    \brief How long before the onset a hand's approach to this head begins: the stretch from
+    \ref margin_start_seconds to \ref start_seconds, over which both hands' lights rise.
+    \return The rise in seconds.
+    */
+    [[nodiscard]] double marginRiseSeconds() const noexcept
+    {
+        return start_seconds - margin_start_seconds;
+    }
+
+    /*!
     \brief Compares two note view states by their stored fields.
     \param lhs Left-hand note.
     \param rhs Right-hand note.
