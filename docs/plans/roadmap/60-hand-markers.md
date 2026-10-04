@@ -10,6 +10,13 @@ asked for ran on 2026-10-02 and ruled every item of §9; item 1's condition (rul
 re-measured) was discharged 2026-10-03, so Phase 1 is open with nothing in front of it. FHPs and
 span markers are part of minimum required editing, not a post-editor pass.
 
+**RE-VERIFIED 2026-10-04 against `9b2e069c`; PHASE 1 IS READY, with no open question in front of
+it.** A readiness audit that day re-checked every anchor of §6 and every phase scope against the
+code, found four importer FHP passes the plan never named, and put twelve Phase 1 questions to the
+user, who ruled all twelve the same day (§9, "Phase 1 build rulings — RULED 2026-10-04"). §6 and
+the phase scopes carry the corrections; the gates still open for later phases are listed at the
+end of §9.
+
 What has landed since the merge, and what this revision folds in:
 
 - **Phase 0 is DONE** and the **hand-marker stopgap is BUILT and merged** (2026-09-26, with the
@@ -23,13 +30,15 @@ What has landed since the merge, and what this revision folds in:
   (`chart_shapes.cpp`, built). Every "claim" in the design records predates this.
 - **The algorithm is 13 rules**, not 11: rule 12 (plants are coverage, RULED 2026-09-18) and rule
   13 (the behind-the-nut bend, RULED 2026-09-28) joined after the harness measured the first
-  eleven; neither is measured yet.
+  eleven. ~~Neither is measured yet.~~ SUPERSEDED 2026-10-03: both re-measured (`rules12_13.py`),
+  88.09% exact for the 13 rules against 88.03% for the first eleven (§9 item 1).
 
 The design records this plan executes, in the order a new reader should take them:
 
 - `docs/plans/in-progress/fhp-derivation-algorithm.md` — the measured algorithm (rules 1–11
-  measured, 12–13 ruled), the tension resolutions, the tap-corrected evaluation regime, the
-  profiles verdict, and the fingering / template / manual specification model. Source of truth
+  measured, 12–13 ruled and re-measured 2026-10-03), the tension resolutions, the
+  tap-corrected evaluation regime, the profiles verdict, and the fingering / template / manual
+  specification model. Source of truth
   for Phases 1, 2 and the fingering half of Phase 5. Its "three record kinds" residue is
   superseded by §9 item 4 of this plan.
 - `docs/plans/in-progress/hand-marker-stopgap.md` — what is built: the record, the derived width,
@@ -87,10 +96,11 @@ What the one object IS in each layer:
 ## 3. Goal
 
 Replace the FHP generator with the corpus-measured **13-rule figure-segmented floor tracker**
-(88.03% exact agreement with 4,555 professionally reviewed arrangements vs ~70% for the shipped
-walk over the first eleven rules; coverage 100% after the tap correction; churn at the authored
-rate); make the position stream **derived at read** from the notes plus the authored opinion
-layer — the hand marker with its optional direct window statement, and (Phase 5) its template
+(88.09% exact agreement with 4,555 professionally reviewed arrangements, against 88.03% for the
+first eleven rules and ~70% for the shipped walk; coverage 100% after the tap correction; churn at
+the authored rate); make the position stream **derived at read** from the notes plus the
+authored opinion layer — the hand marker with its optional direct window statement, and (Phase 5)
+its template
 reference; land the rest of the **hand marker** as the forced statement boundary both derivations
 honour — the derived events as the row's objects, rail selection, the authored tell, the signed
 boundary gestures; land **span-free zones**, **grip templates** in the song-scoped dictionary with
@@ -131,7 +141,9 @@ without them in view.
    `ChartResolutions::held_stops`, whose DEFAULT tier is read out of the derived postures — a
    position derivation reading it would read spans, and Phase 6 would then close a cycle. The
    stopgap's width fold reads `held_stops` today (`chart_fret_hand.h`, `deriveHeldFretRanges`),
-   which is legal only while spans do not yet read positions; Phase 1 replaces that fold.
+   which is legal only while spans do not yet read positions. ~~Phase 1 replaces that fold.~~
+   SUPERSEDED 2026-10-04 (§9 Q10): the fold stays through Phase 1 and goes in Phase 2; still
+   legal, since spans read no positions until Phase 6.
 3. **The zero-authored-input invariant** (user, 2026-09-05). Positions must derive sanely from a
    fresh import with NO manually authored records, and cleanly with NO fingering information
    anywhere — imports may carry none, so fingerless is the PRIMARY mode, not a degraded one. The
@@ -139,8 +151,9 @@ without them in view.
    AUTHORITATIVE when present — a stated fret pins its run's floor outright, a stated end fret
    pins its top, and a statement incompatible with the standing window forces a re-derivation at
    its position like any other boundary. Every rule has a fingerless form that stands alone —
-   rule 7's floor default IS that form (correct alone 88.8% of the time corpus-wide). The 88.03%
-   corpus score was measured with zero authored inputs, exactly the fresh-import scenario. No
+   rule 7's floor default IS that form (correct alone 88.8% of the time corpus-wide). The 88.09%
+   corpus score of the 13 rules (88.03% for the first eleven) was measured with zero authored
+   inputs, exactly the fresh-import scenario. No
    phase may add a rule that REQUIRES an authored statement to function.
 4. **Statements are inputs, never output patches.** A marker bounds and pins the run it heads; a
    stated fret pins the floor; a stated end pins the top; every note edit re-derives coherently
@@ -161,56 +174,101 @@ without them in view.
    per gesture, retire-on-no-change) and every marker verb through the `commitMarkerModel` funnel
    (build on a copy, refuse whole, publish once — `marker_model_commit.h`, built).
 
-## 6. Current-state inventory (verified 2026-10-02 against `master`)
+## 6. Current-state inventory (verified 2026-10-04 against `9b2e069c`)
 
-- **The generator** `generateFretHandPositions`
-  (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:2327`) is still the phrase-aware walk: greedy minimal shift + section / 0.8 s-rest re-anchoring
-  (`g_fhp_phrase_rest_seconds`, `:2229`) + the pinned-finger window union + the held-hull slide
-  reshape. Import-only, called once at `:3821`; its result is stored in the chart and drifts from
-  the notes on every later edit. Plant-blind (rule 12 unmet).
-- **The stored record** is `FretHandPosition {position, fret, end_fret?}` (`chart.h:2261`),
-  under the key `fhps` (`chart_document.cpp:685`, `file-formats.md`). Width is DERIVED once per
-  projection (`deriveFretHandWidths`, `chart_fret_hand.h`, read at `chart_projection.cpp:511`)
-  unless `end_fret` states the window's top; `FhpViewState {seconds, fret, width, end_authored,
-  ramp…}` is the chip (`chart_view_state.h:937`). The validator refuses equal positions, an end
-  below the fret, and an off-grid position, and normalizes the window onto the board
-  (`chart_rules.cpp:174-220`); the reader does not re-check order (the stopgap's Phase 0
-  deviation: the validator runs on every load and nothing searches the stream in between).
-- **The hand marker kind is built** (`fret_hand_handlers.cpp`): `MarkerRow::Hand`
-  (`editor_controller_impl.h:1401`), `FretHandPositionSelection {position}`
+First written 2026-10-02; every bullet below was re-verified 2026-10-04 by the readiness audit,
+its anchors corrected, and the importer passes it had missed added.
+
+- **The generator — verified 2026-10-04.** `generateFretHandPositions`
+  (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:2200`) is still the phrase-aware walk:
+  greedy minimal shift + section / 0.8 s-rest re-anchoring (`g_fhp_phrase_rest_seconds`, `:2102`;
+  the section places arrive as `phrase_boundary_places`, collected at `:3897-3918`) + the
+  pinned-finger window union (`anchorsFretHand`, `:2106`) + the held-hull slide reshape
+  (`heldHullAtSlideKeyframe`, `:2118`). It is handed the built notes AND the slide
+  `ChartConnections` (`:2201`) and the capo, and is called once, at `:3675`, on the NATURAL stream
+  — before the let-ring figure law, the same-string clamp, lattice rounding and `normalizeChart`.
+  The first-entry retime (the first placement moved back to the chart's first note) lives INSIDE
+  the generator (`:2467-2476`). Import-only; its result is stored in the chart and drifts from the
+  notes on every later edit. Plant-blind (rule 12 unmet).
+- **The importer's four further FHP passes — MISSING from the 2026-10-02 inventory, verified
+  2026-10-04.** The stored stream is not the generator's output alone:
+  - `resolveSlideIns` (`:2590`, run at `:3677`) READS the placements to choose a scoop's start fret
+    and fabricates dip and restore placements (lifecycle rule 16);
+  - `resolveSlideOutExits` (`:2736`, run at `:3799`) fabricates exit and restore placements that
+    ride every unpitched slide-out (lifecycle rule 9, "the window rides the rail");
+  - `roundOntoTickLattice` (`:2901`) re-addresses the placements onto the tick lattice and drops a
+    collided one (`:2945-2957`);
+  - `dropRestatedPlacements` (`:2968`, run at `:3835`) drops a placement that restates its
+    predecessor.
+  Both slide passes read the windows through `fretWindowsOf` (`:2532`), which calls
+  `deriveFretHandWidths`. None of the 13 rules produces the exit ride or the dips.
+- **The stored record — verified 2026-10-04.** `FretHandPosition {position, fret, end_fret?}`
+  (`chart/chart.h:2214`), under the key `fhps` (read at `chart_document.cpp:689`, written at
+  `:778`; `file-formats.md`). Width is DERIVED once per projection (`deriveFretHandWidths`,
+  `chart_fret_hand.h`, read at `chart_projection.cpp:498`) unless `end_fret` states the window's
+  top; `FhpViewState {seconds, fret, width, end_authored, ramp…}` is the chip
+  (`chart_view_state.h:958`). The validator `validateFretHandPositions` (`chart_rules.cpp:202-250`)
+  refuses equal positions (the strictly-ascending check at `:246`), an end below the fret, and an
+  off-grid position, and normalizes the window onto the board (`normalizeFretHandPosition`,
+  `:641`); the reader does not re-check order (the stopgap's Phase 0 deviation: the validator runs
+  on every load and nothing searches the stream in between). The placements are also re-addressed
+  by the timeline transform (`timeline_readdress.cpp:217`), by the same content map as the notes.
+- **The hand marker kind is built — verified 2026-10-04** (`fret_hand_handlers.cpp`):
+  `MarkerRow::Hand` (`editor_controller_impl.h:1512`), `FretHandPositionSelection {position}`
   (`editor_selection.h`), `InsertFretHandPosition` `0x1406` and `CaretJumpHandRow` `0x1516`
-  (`editor_command_id.h`), `Ctrl+H` insert-or-restate at the cursor (the insert defaults the fret
-  to the lowest stop its stretch holds, `defaultedPlacement`), `Delete`, `Alt+←/→` by one
-  placement quantum (`steppedNudgePosition`), bare digits typing the START fret, `Alt`+digit the
-  END fret, `Alt+Delete` clearing it, every verb through `commitMarkerModel` over a
+  (`rock-hero-editor/ui/src/keybinds/editor_command_id.h`; `0x1517` free), `Ctrl+H`
+  insert-or-restate at the cursor (`handChordTarget`; the insert defaults the fret to the lowest
+  stop its stretch holds, `defaultedPlacement`), `Delete`, `Alt+←/→` by one placement quantum
+  (`steppedNudgePosition`), bare digits typing the START fret, `Alt`+digit the END fret,
+  `Alt+Delete` clearing it (`ClearFretHandEnd`), every verb through `commitMarkerModel` over a
   `FretHandPositionsSnapshot`. One bound for every marker kind, `markerCanStartAt`
-  (`chart_rules.cpp:121`). A chip click selects the placement and seeks nothing
-  (`tab_view.cpp:406-418`); the pinned chip is an ordinary selectable chip whose column is the
-  pin's (`:423`); the selected chip is outlined, pinned or scrolling
-  (`ChartEditViewState::selected_fret_hand_position`, `editor_view_state.h:893`). Acting on an
-  off-screen marker selection reveals it (keyboard-focus-rows step 4d, built and sighted).
-- **Spans** are derived at read (`chart_shapes.cpp`), store nothing, never overlap, leave gaps;
-  the three-member accumulation minimum is a signed constant; THE TAP'S FLOOR is built (`:947`).
-  The held stop is derived by `chartHeldStops` (plant, else the covering grip's stop; an open
-  string holds nothing) and lives in `ChartResolutions::held_stops` (`chart_legato.h:332`), read
-  OUT of the postures. `NoteAttack::None`, the `N` verb, the stored `held` field and the
-  span-claim machinery are all gone. Spans are not selectable: `chartSpanRevealed`
-  (`chart_reveal.h:115`) has three grounds — lane reveal, a selected member note, the caret —
-  and no selected-span ground; no rail geometry is exported (`tabShapeRailBounds` does not exist).
-- **No template, dictionary, zone or fingering storage exists anywhere.** The GP parser reads no
-  fingering and no chord diagrams (`gp_score.h`), so nothing could write a finger today.
-- **Measurement.** The ground-truth dataset (16 shards, 4,555 arrangements) lives in local
-  scratch outside every repo, per the corpus firewall; no C++ reads it. The Python harness
-  (`final.py`, `combined.py` and the dataset's consistency sweeps) is committed in the importer
-  repo under `custom-song-importer/tools/fhp-harness/` since 2026-10-02 and finds the dataset
-  through `ROCKHERO_FHP_DATASET_DIR`; run from there it reproduces the 88.03% headline (verified
-  the same day). The GP corpus census (`test_corpus_census.cpp`, hidden
-  `[.local-corpus]`, `ROCKHERO_GP_CORPUS_DIR`) carries the travel-aware pinned-finger counter,
-  the hand-coupling gate counters and the unfretted-arrival counters; three fret-hand-window rows
-  have drifted below their pins since 2026-09-24 (`watch-items.md`). The sighted offender
-  worklist and watch entries J and K are the falsification ground truth.
-- **Sections start only on measure downbeats** by validator (`song_section_rules.cpp:54`), so a
-  section start is always a bar line.
+  (`chart_rules.cpp:150`). A chip click selects the placement and seeks nothing (the hit test is
+  `TabView::fretHandChipAt`, `tab_view.cpp:356-383`); the pinned chip is an ordinary selectable
+  chip whose column is the pin's (`:340-347`); the selected chip is outlined, pinned or scrolling
+  (`ChartEditViewState::selected_fret_hand_position`, an `optional<size_t>` index,
+  `editor_view_state.h:944`). Acting on an off-screen marker selection reveals it
+  (keyboard-focus-rows step 4d, built and sighted). The controller caches only the scene
+  (`editor_controller.cpp:2027`), never a `ChartResolutions`; the row's holder is
+  `markerHolderIndex(starts, position)` (`editor_controller_impl.h:1527`).
+- **Spans — verified 2026-10-04.** Derived at read (`chart_shapes.cpp`), store nothing, never
+  overlap, leave gaps; the three-member accumulation minimum is a signed constant; THE TAP'S FLOOR
+  is built (`:935`). The held stop is derived by `chartHeldStops` (plant, else the covering grip's
+  stop; an open string holds nothing) and lives in `ChartResolutions::held_stops`
+  (`chart_legato.h:402`), read OUT of the postures. `NoteAttack::None`, the `N` verb, the stored
+  `held` field and the span-claim machinery (`sweepInertClaimedStops`, `InertHeldStop`,
+  `claim_shapes`) are all gone. Spans are not selectable: `chartSpanRevealed`
+  (`rock-hero-editor/core/include/rock_hero/editor/core/chart/chart_reveal.h:115`) has three
+  grounds — lane reveal, a selected member note, the caret — and no selected-span ground; no rail
+  geometry is exported (`tabShapeRailBounds` does not exist).
+- **Whole-note places are THE axis — not in the 2026-10-02 inventory, verified 2026-10-04.** Since
+  `987b62cf` / `f5769734` every per-revision pass reasons in whole-note `Fraction` places:
+  `ChartConnections::places` (via `chartNotePlaces`), `ChartShape::place` and
+  `ChartShape::bracket_place` (`std::optional<Fraction>`, `chart_shapes.h:284`). `FretWindow` and
+  `chartPlantedStops` exist.
+- **No template, dictionary, zone or fingering storage exists anywhere — verified
+  2026-10-04.** The GP parser reads no fingering and no chord diagrams
+  (`rock-hero-editor/core/src/project/gp_score.h`), so nothing could write a finger today.
+- **Measurement — verified 2026-10-04.** The ground-truth dataset (16 shards, 4,555
+  arrangements) lives in local scratch outside every repo, per the corpus firewall; no C++ reads
+  it. The Python harness (`final.py`, `combined.py`, `rules12_13.py` and the dataset's consistency
+  sweeps) is committed in the importer repo under `custom-song-importer/tools/fhp-harness/`
+  (`950d071`, `774b8f3`) and finds the dataset through `ROCKHERO_FHP_DATASET_DIR` (`_dataset.py`;
+  the variable is set at user scope, so a shell started before it was set does not see it).
+  `final.py` prints 88.03%, the 11-rule figure; the 13-rule headline is 88.09%, from
+  `rules12_13.py` — in a configuration that breaks at bars AND at sections and phrase-iterations
+  (`bars + sects`), which the port will not have (§9 Q1). The GP corpus census
+  (`test_corpus_census.cpp`, hidden `[.local-corpus]`, `ROCKHERO_GP_CORPUS_DIR`) carries the
+  travel-aware pinned-finger counter, the hand-coupling gate counters (`spans_crossed_by_fhp_shift`,
+  `fhp_shifts_inside_spans`) and the unfretted-arrival counters, and reads the width fold
+  (`:2316`); three fret-hand-window rows have drifted below their pins since 2026-09-24
+  (`watch-items.md:583`). The sighted offender worklist and watch entries J and K are the
+  falsification ground truth.
+- **The external converter — not in the 2026-10-02 inventory, verified 2026-10-04.** Since
+  `a26cc16`, `custom-song-converter.py`'s `build_fhps` (`:1614-1653`) writes `endFret` wherever the
+  source width is not 4; it no longer writes `width`.
+- **Sections start only on measure downbeats — verified 2026-10-04** by validator
+  (`song_section_rules.cpp:42-51`), so a section start is always a bar line; `readdressTimeline`
+  also snaps every section back onto its measure downbeat.
 
 ## 7. Phases
 
@@ -225,45 +283,93 @@ built (the stopgap's Phase 0 deviation: it was the order rule stated twice). 60-
 the funnel refusing a marker at an occupied front, is built too (`handChordTarget` restates
 instead of inserting; a move onto a held start is refused at the commit).
 
-### Phase 1 — the derivation core (gated on 60-Q1; needs nothing else)
+### Phase 1 — the derivation core (gated on 60-Q1; needs nothing else) — READY 2026-10-04
 
-**What it is.** One pure function in `rock-hero-common/core`, beside the width fold it replaces
-(`chart_fret_hand.h`): `deriveFretHandPositions(notes, plants, markers, tempo_map)` → the
-derived hand events, each a `GridPosition` front with a `FretWindow` (the type exists:
-`chart.h`). Inputs are exactly the one-arrow inputs: the note stream, the plants column
-(`chartPlantedStops` — rule 12), the authored markers (forced boundaries; a stated `fret` pins
-the floor, a stated `end_fret` the top — §9 item 4), and the tempo map for bar lines (rule 3).
-**No sections input**: a section start is a downbeat by validator, so the bar-line trigger
-subsumes it; this also answers the former Q1 agenda question about unlabelled sections and
-retires Q2's `section_breaks` parameter (§9 items 1 and 2).
+Phase 1 is EXACTLY the measured zero-input 13-rule algorithm (§9 Q9): no marker input, no format
+change, no row change. Every rule's open point is settled by the 2026-10-04 rulings (§9, Q1–Q12);
+the builder reads them as part of this scope.
+
+**What it is.** One pure function in `rock-hero-common/core`, beside the width fold
+(`chart_fret_hand.h`), which it does NOT replace in this phase (Q10).
+~~`deriveFretHandPositions(notes, plants, markers, tempo_map)` → the derived hand events, each a
+`GridPosition` front with a `FretWindow`~~ — SUPERSEDED 2026-10-04 (§9 Q7, Q8, Q9 in their
+amended, user-signed final forms): the ONLY input is the `ChartConnections` the resolutions already
+build (the saved notes, their whole-note places and predecessors), which carries the `TempoMap`;
+of the tuning only the capo is read (rule 9's clamp needs it: frets are stored absolute, source
+fret + capo, lifecycle rule 21). It returns the derived hand events, each a whole-note `Fraction`
+front (the axis `ChartShape::place` already uses, which the events sit beside in Phase 2) with a
+`FretWindow` (the type exists: `chart.h`). There is no `plants` parameter: plants derive inside
+from the same connections (`chartPlantedStops` — rule 12). It never reads seconds: rule 4 (the
+rest break) is off, and the bar test is "the measure number changed between consecutive groups"
+(`position.measure`; `advanceGridPositionByWholeNotes(...).measure` for a keyframe demand). Rule
+9's clamp is the ONE `fittedWindowFret(fret, width, capo)` beside `firstPlayableFret`, shared with
+`normalizeFretHandPosition` (Q7). Places are precomputed in the connections, so the derivation
+re-addresses nothing. **No markers input in this
+phase** (Q9): no production caller has markers to pass until Phase 2 (the import authors none),
+and their semantics are ruled at Phase 2. **No sections input**: a section start is a downbeat by
+validator, so the bar-line trigger subsumes it; this also answers the former Q1 agenda question
+about unlabelled sections and retires Q2's `section_breaks` parameter (§9 items 1 and 2).
 
 **Why `common/core` and not the importer.** The game projects charts through the same
 `makeChartViewState`; once the stream derives at read (Phase 2) both products must derive it in
-one place, and the importer's call site (`gp_chart_builder.cpp:3821`) is just the first caller. In
-this phase the importer still calls it to AUTHOR the stored stream — every derived event stored as
-a marker with its fret — so Phase 1 lands and is measured with no format change.
+one place, and the importer is just the first caller. In this phase the importer still calls it to
+AUTHOR the stored stream — every derived event stored as a placement with its fret — so Phase 1
+lands and is measured with no format change. **The call site moves to the END of the import**
+(Q11), on the normalized chart — after the let-ring figure law, the same-string clamp, lattice
+rounding and `normalizeChart` — so the stream Phase 1 stores equals what Phase 2 derives at read
+(rule 6 reads rings, which those passes change). ~~The importer's call site
+(`gp_chart_builder.cpp:3821`)~~ (today `:3675`, on the natural stream) goes. The importer's
+other FHP passes, per Q11: `resolveSlideIns` asks a NATURAL-stream derivation for its approach
+delta (it chooses the scoop's start fret before the rings are final, so it cannot wait for the
+end-of-import call); the exit-ride and dip fabrication (`resolveSlideOutExits`, the dips of
+`resolveSlideIns`) STAY in Phase 1, flagged in the code as pending Phase 2's ruling; the lattice
+rounding and `dropRestatedPlacements` keep acting on whatever is stored.
 
 **What it deletes.** The walk's body: the minimal-shift drag core, the boundary/rest re-anchor
-machinery and `g_fhp_phrase_rest_seconds`, the pinned-finger union (rule 6's suppression subsumes
-it), the held-hull slide reshape (slide keyframes become ordinary coverage events at their
-destinations). `deriveHeldFretRanges` / `deriveFretHandWidths` fold into the derivation's rule 8
-(the window IS the run hull from the pinned or derived floor), and `defaultedPlacement`'s stop
-fold goes with them in Phase 2 (an inserted bare marker gets the derived floor for free). Net
-code deletion. The-project-lifecycle rules 5–9 (`docs/developer/the-project-lifecycle.md:293-334`)
-are rewritten to the three-sentence charter law of the design record.
+machinery and `g_fhp_phrase_rest_seconds`, the `phrase_boundary_places` parameter and its
+collection (`:3897-3918`), the pinned-finger union (rule 6's suppression subsumes it), the
+held-hull slide reshape and `heldHullAtSlideKeyframe` (slide keyframes become ordinary coverage
+events at their destinations), `anchorsFretHand` (or reuse it as rule 1's predicate), and the
+first-entry retime (`:2467-2476`), which rule 10 retires with no special case: the window before
+the first front is the reader's lookup question (§9 Q6, final form).
+~~`deriveHeldFretRanges` / `deriveFretHandWidths` fold into the
+derivation's rule 8 (the window IS the run hull from the pinned or derived floor), and
+`defaultedPlacement`'s stop fold goes with them in Phase 2~~ — SUPERSEDED 2026-10-04 (Q10): with no
+format change the fold still has readers — the projection (`chart_projection.cpp:498`),
+`fretWindowsOf`, the census (`:2316`), `defaultedPlacement` and `test_gp_song_importer.cpp:309` —
+so the import stores frets only and the projection's width stays the stopgap's through Phase 1.
+The derivation computes rule 8's width internally, and the scorer reads THAT width, never the
+fold; in Phase 1 the width is therefore derived twice and the two disagree — an acknowledged
+yield (§9 Q10). The fold goes in Phase 2 with `defaultedPlacement`'s stop fold (law 2 allows
+the wait). Net code
+deletion. The-project-lifecycle rules 5–9 (`docs/developer/the-project-lifecycle.md:297-374`)
+are rewritten to the three-sentence charter law of the design record — except rule 9's exit ride
+and rule 16's dips, which describe the passes that stay flagged until Phase 2.
 
 **Acceptance.** (a) DONE 2026-10-03: rules 12 and 13 re-measured in the Python harness
 (`rules12_13.py`) before the port — rule 12 +0.06 exact and every plant covered, rule 13 without
 a corpus population (§9 item 1). The port must implement rule 12 in the measured form: the plant
-is a demand from the source's onset, including a tapped source. (b) The C++ port scored
-against the same dataset through a hidden-tag test (`[.local-fhp-dataset]`, path from
-`ROCKHERO_FHP_DATASET_DIR`, the variable the Python harness already reads, exactly the census
-rig's pattern)
-reporting coverage and exact agreement — §9 item 3; without it nothing proves the port is the
-measured algorithm. (c) Forced-relink test run; the census re-run with the three drifted
+is a demand from the source's onset, including a tapped source (§9 Q2 states the final form: a
+one-note demand at the source's onset widening every group up to the destination's onset).
+(b) The C++ port scored against the same dataset through a hidden-tag test
+(`[.local-fhp-dataset]`, path from `ROCKHERO_FHP_DATASET_DIR`, the variable the Python harness
+already reads, exactly the census rig's pattern) reporting coverage and exact agreement — §9 item
+3; without it nothing proves the port is the measured algorithm. The scorer reads the songs
+through the custom-song converter and RockHero's production chart reader, with NO hand-written
+C++ adapter, and depends on the converter's pitched-slide fix (§9, decisions of 2026-10-04).
+**Pass bar (Q12):** exact agreement within ±0.05 pt of the Python reference RE-RUN on bar-line
+breaks only and with every other input choice the port makes (§9 Q1), with the intermediate counts
+printed — fretted notes scored, groups, plants (against the corpus's 34,405), emissions — so any
+gap can be attributed. The scorer reads the derivation's internal rule-8 width (Q10) and skips
+notes before the first anchor exactly as the harness's `score` does; before the port is scored,
+the Python reference measures rule 10's cross-bar share (Q6).
+(c) Forced-relink test run; the census re-run with the three drifted
 fret-hand-window rows and the pinned-window count re-pinned (expect the pinned count to collapse
-toward the corpus's ~2-per-400k residue); the offender worklist re-measured; user sightings of the
-worst prior offenders. (d) The seam-vs-shift agreement measure PRODUCED here for Phase 6.
+toward the corpus's ~2-per-400k residue), plus the named row Q3 adds (rule 6's rings under GP's
+dense durations); the offender worklist re-measured; user sightings of the worst prior offenders.
+(d) The seam-vs-shift agreement measure PRODUCED here for Phase 6, as Q12 defines it: from the
+census counters `spans_crossed_by_fhp_shift` and `fhp_shifts_inside_spans`, over the emitted
+shifts not carried by a slide. Phase 6's threshold on it stays the user's.
 **Must land before Phase 6** — building the coupling against the old walk would clip wrongly
 everywhere.
 
@@ -272,25 +378,67 @@ everywhere.
 The marker's `fret` becomes OPTIONAL; the record is then `{position, fret?, endFret?}` — a forced
 statement boundary carrying an optional direct window statement — under the key 60-H2 settles
 (§9 item 6; one format change, not two). The derived events live INSIDE `ChartResolutions`
-(`chart_legato.h:332`) as one more vector beside `shapes` and `held_stops`, derived by the one
+(`chart_legato.h:402`) as one more vector beside `shapes` and `held_stops`, derived by the one
 resolutions pass, which gains the markers as an input beside the notes (`chartResolutions(notes,
-markers, tempo_map)` — about fifteen callers, most of them tests). No second cache: the keyboard
-plan's `ChartResolutions` name already IS this bundle, and the row, the lane and the highway all
-read it through the projection. The importer stops storing a stream: it authors nothing (the
+markers, tempo_map)` — ~~about fifteen callers, most of them tests~~ 28 call sites, verified
+2026-10-04: 26 in tests and 2 in production, `chart_projection.cpp:180` and
+`fret_hand_handlers.cpp:73`). It also needs the TUNING (the capo, Phase 1's rule 9), so the pass
+takes the `Chart` or gains an overload — the Phase 2 builder's call. Inside the pass the
+derivation runs AFTER `chartConnections` and BEFORE `deriveChartShapes`: law 2 and Phase 6 need
+that order, and it is available, since `chartPlantedStops` reads only the connections. No
+second cache: the keyboard plan's `ChartResolutions` name already IS this bundle, and the row,
+the lane and the highway all read it through the projection. The importer stops storing a
+stream: it authors nothing (the
 zero-authored-input invariant is the import), so `fhps` on a fresh import is empty and every
 position is derived. `FhpViewState` keeps its shape; `end_authored` generalizes to "stated"
 (fret, end, or both) so the chip prints a statement apart from a derived window.
 
-What this deletes: the importer's placement authoring and its first-entry retime;
-`defaultedPlacement` and the stop fold behind it; the width fold (Phase 1). What it adds: the
-optional fret in the record, reader and writer; the resolutions input. Nothing user-facing is
-lost — the stopgap's verbs keep working unchanged, their source changes: `Ctrl+H` inserts a bare
-marker (a boundary; the derivation supplies the floor), the digit pins the floor, `Alt`+digit the
-top, `Alt+Delete` clears the top, `Delete` the marker. The sighting reels stop authoring `fhps`.
-**Converter note:** `custom-song-importer/tools/custom-song-converter.py` (outside this repo)
-still writes the dropped `width` key on every placement (`:1202-1210`) and must stop; after this
-phase it should write a marker only where the source's anchor is a deliberate statement, or
-nothing.
+What this deletes: the importer's placement authoring (the end-of-import call Phase 1 placed,
+`dropRestatedPlacements`, and the lattice rounding's placement half); ~~and its first-entry
+retime~~ (SUPERSEDED 2026-10-04: rule 10 retires the retime in Phase 1, §9 Q6);
+`defaultedPlacement` and the stop fold behind it; the width fold, `deriveFretHandWidths` /
+`deriveHeldFretRanges`, which Phase 1 kept (§9 Q10) — its readers (the projection,
+`fretWindowsOf`, the census, `test_gp_song_importer.cpp:309`) move to the derived events. What it
+adds: the optional fret in the record, reader and writer; the resolutions input. Nothing
+user-facing is lost — the stopgap's verbs keep working unchanged, their source changes: `Ctrl+H`
+inserts a bare marker (a boundary; the derivation supplies the floor), the digit pins the floor,
+`Alt`+digit the top, `Alt+Delete` clears the top, `Delete` the marker. The sighting reels stop
+authoring `fhps`.
+
+**The marker semantics this phase rules first** (deferred from Phase 1 by §9 Q9; the open list
+is at the end of §9): whether a marker that changes nothing is still a row event (rule 11 drops
+an event whose window does not change, against §2 and law 7); the scope of a stated fret — the
+run it heads, as the design record says, or until the next marker, as the stopgap behaves today;
+where a bare marker over silence fronts; whether `endFret` without `fret` is legal. **Visible
+change to expect:** today a placement governs its whole stretch until the next one, and
+still-sounding rings from before it widen the window; under the 13 rules a stated fret pins only
+the run it heads (if so ruled), and rule 8 never widens for held notes.
+
+**The exit ride and the dips** (lifecycle rules 9 and 16; Phase 1 keeps them, flagged, §9 Q11)
+cannot be stored once the importer authors nothing, and no rule of the 13 produces them. This
+phase RULES their home: drop them, or move them into the projection as `FhpViewState` ramps — the
+same tier as the camera lead. Whichever way, `resolveSlideOutExits`' placement fabrication and
+the dip/restore half of `resolveSlideIns` leave the importer here.
+
+**The `hand` rename's touch list** (§9 item 6) includes, beyond the reader, writer and
+`chart.h`: the timeline re-addressing (`timeline_readdress.cpp:217`), the
+`FretHandPositionsSnapshot`, and the census.
+
+**Sighting:** rule 3 reads bar lines, so from this phase a time-signature edit MOVES THE DERIVED
+POSITIONS while the notes keep their places. That is correct; it is in the sighting brief (§8).
+
+**Converter note** — ~~`custom-song-importer/tools/custom-song-converter.py` (outside this repo)
+still writes the dropped `width` key on every placement (`:1202-1210`) and must stop~~ STALE,
+SUPERSEDED 2026-10-04: since `a26cc16` the converter no longer writes `width`; its `build_fhps`
+(`:1614-1653`) writes `endFret` wherever the source width is not 4. After this phase that makes
+every wide source anchor an AUTHORED statement (§2), which it is not. The converter must stop
+writing `fhps`, or write only deliberate statements.
+
+**Cross-plan (plan 64).** Once the derivation lives in the resolutions bundle it is part of every
+per-revision re-derivation. Plan 64's segment-per-silence idea (its F2, "segments or checkpoints")
+assumes a derivation that keeps no memory across a cut, and the 13-rule walk CARRIES the standing
+window across silence (rules 5 and 6), so the FHP pass is not segmentable as-is. A cross-plan
+note, not a blocker: plan 64's §10 records it against its Phase 0-f.
 
 Not here: the free-note finger (no writer exists — the GP parser reads none — so law 8 forbids
 the field until Phase 5's import wiring) and the open-stretch window statement as a separate
@@ -306,7 +454,11 @@ grid-quantum move, fret entry, the end fret, the reveal of an acted-on selection
    and `markerSelectionAt` read `ChartResolutions`' events instead of the stored stream, so a
    fresh import with no markers still has a row. Identity stays the front position
    (`FretHandPositionSelection {position}` survives; its name is re-asked under H2). Pinned events
-   are the ones a marker stands at.
+   are the ones a marker stands at. **How the events reach the controller (verified 2026-10-04):**
+   `markerStarts` returns `GridPosition`s while the events' fronts are whole-note `Fraction`
+   places, and the controller holds no `ChartResolutions` — it caches only the scene
+   (`editor_controller.cpp:2027`). Either the scene carries the event fronts or the controller
+   keeps the resolutions; this phase decides which, by the one-authority test.
 2. **The authored tell** (law 7): a mark on the chip (or the event) where a marker stands;
    absence is the derived tell. Strength is the sighting's call.
 3. **Rail selection and the span's selected ground**: a click on a span's rails selects its hand
@@ -330,8 +482,9 @@ grid-quantum move, fret entry, the end fret, the reveal of an acted-on selection
    at a contradiction or the founding minimum with the loud refusal style, one undo entry per
    gesture through `commitChartGestureStep`. `Delete` on a DERIVED span waits for Phase 4's zone.
 5. **Riding the seam**: publish the OPENING SLOT on `ChartShape` (Q-D) so the strike-less census
-   row is exact — NEEDS VERIFICATION whether `bracket_position` / `landing_opened`
-   (`chart_shapes.h`) already answer it.
+   row is exact — NEEDS VERIFICATION whether ~~`bracket_position`~~ `bracket_place` (renamed;
+   `std::optional<Fraction>`, `chart_shapes.h:284`, verified 2026-10-04) / `landing_opened` (still
+   present) already answer it; `bracket_place` probably does.
 6. **"Drop markers that state nothing"** (§9 item 5): a verb over the current format that
    removes every marker whose removal leaves the derived hand events AND the spans unchanged —
    deriving with and without it is the test, so the verb lives beside the derivation, never in a
@@ -355,7 +508,8 @@ reel's measure 3) was CLAIM-founded, and claims are gone, so it is most likely m
 on the regenerated reel (`span-marker-redesign.md`, "THE SIGHTING FIXTURE NEEDS REBUILDING": the
 reel's `"attack": "none"` record no longer reads and claims cannot replace it). The ≥3 minimum is
 already signed; what lands is the census re-sign of the accumulation checklist's section G and
-the FHP counter rows left unsigned for this bundle.
+the FHP counter rows left unsigned for this bundle. (Verified 2026-10-04: nothing here has been
+renamed, and the span record's "sweep STILL OPEN" is moot — the sweep is deleted.)
 
 ### Phase 5 — templates, dictionary, editor and fingering coupling (gated on 60-Q3, 60-Q5)
 
@@ -390,8 +544,13 @@ camera framing and the census counters only.
 ### Phase 6 — the let-ring hand coupling (closes the sequence; gated on the census measure)
 
 Derived spans clip at any emitted position shift not carried by a slide. Readiness gate: the
-census seam-vs-shift agreement measure produced by Phase 1's acceptance; rule 6 concentrates the
-clips where a hand demonstrably moved, which is what makes the coupling honest. Structural
+census seam-vs-shift agreement measure produced by Phase 1's acceptance — defined 2026-10-04
+(§9 Q12) from `spans_crossed_by_fhp_shift` and `fhp_shifts_inside_spans` over the emitted shifts
+not carried by a slide; its pass THRESHOLD is the user's, OPEN until this phase. Also OPEN and
+owed before this phase (§9 Q3, 2026-10-04): rule 6 pins on the STORED sustain, which includes the
+let-ring extension, while this phase clips rings — the two must be reconciled by a ruling. Rule 6
+concentrates the clips where a hand demonstrably moved, which is what makes the coupling honest.
+Structural
 precondition (law 2): by this phase the position derivation reads plants, never `held_stops`,
 or the coupling closes a cycle. The watch item on same-voice drones under co-struck melodies
 (rescoped 2026-09-01) is re-read here.
@@ -408,9 +567,11 @@ objects are today the stored placements and, from Phase 3, the derived **hand ev
 from `ChartResolutions`, some of them pinned by authored markers. Identity is by front position.
 Because every event carries a window and windows tile the song (the first owns the lead-in), the
 row always has a holder once any event exists — the "gap" of the former span row applies only to
-the SHAPE half, never to the row: `markerHolderAt(MarkerRow, GridPosition)` returns nothing only
-for an empty stream, as for tempo and meter. The shape half keeps the half-open rule: an event's
-SHAPE holds a position only while position < its musical close, so an abutting successor owns its
+the SHAPE half, never to the row: the holder function — ~~`markerHolderAt(MarkerRow,
+GridPosition)`~~ really `markerHolderIndex(starts, position)` (`editor_controller_impl.h:1527`,
+verified 2026-10-04) — finds nothing only for an empty stream, as for tempo and meter. The shape
+half keeps the half-open rule: an event's SHAPE holds a position only while position < its
+musical close, so an abutting successor owns its
 seam; the position half holds until the next event.
 
 **The selection kind.** `FretHandPositionSelection {position}` beside the tempo and
@@ -459,7 +620,9 @@ local census row for it.
 **Sighting brief** (Phase 3): a GP import with dense position changes and short-gap chord charts,
 with NO markers; Tab across derived fronts; the authored tell beside a derived chip; a span
 ending near the cursor; a landing successor abutting its predecessor; clicking rails; the marker
-move's refusal flash at a duplicate front; the outline and rail-highlight strength.
+move's refusal flash at a duplicate front; the outline and rail-highlight strength. From Phase 2
+on (added 2026-10-04): a time-signature edit MOVES THE DERIVED POSITIONS while the notes keep
+their places — rule 3 reads bar lines, so this is correct, but it is sighted, never assumed.
 
 ## 9. Decision gate G60-RULINGS — RULED 2026-10-02
 
@@ -557,6 +720,122 @@ ruling; the full evidence lives in the design records.
 12. **Phase 5's purge-on-save and the invalidation rule's confirming word.** **RULED: deferred
     to the Phase 5 session with item 10.**
 
+### Phase 1 build rulings — RULED 2026-10-04
+
+The 2026-10-04 readiness audit (against `22ce8fae`; the plan re-verified against `9b2e069c`) found
+twelve points of the 13 rules a builder could not settle from the record and the code. The user
+ruled all twelve the same day: Q1–Q8 and Q10 signed as the audit recommended; Q9, Q11 and Q12
+ruled as stated below. **AMENDED 2026-10-04 (user-signed the same day):** a fretting-hand review
+and a simplicity review refined Q1–Q8 and Q10, and the user signed the amendments. The forms below
+are FINAL and SUPERSEDE the audit's recommended wording, which survives only in the audit; where
+an amendment reverses a point of the audit form, the reversed point is named. They are numbered
+Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q items above.
+
+**Two further decisions (user, 2026-10-04) shape the scorer:**
+
+- **The scorer reads the test songs through the custom-song converter and RockHero's production
+  chart reader** — no hand-written C++ adapter. It measures the port on exactly the charts the
+  product would read; every input choice below is the converter's and the reader's, and the Python
+  reference re-run adopts the same choices. (Supersedes the audit form's scorer-adapter clauses in
+  Q2 and Q8: the converter, not the scorer, rings pull-off sources, places notes on the tick
+  lattice and floors a zero sustain.)
+- **The converter's pitched-slide bug is being fixed now, and the scorer depends on the fix.** A
+  pitched `slideTo` used to be written as an END keyframe, which RockHero reads as an unpitched
+  slide-out unless it arrives on the next head; the converter now holds the destination INSIDE the
+  ring.
+
+1. **Q1 — the reference re-run.** The 88.09% run breaks at bars AND at sections and
+   phrase-iterations (`rules12_13.py`: `bars + sects`); the port breaks at bar lines only (item
+   1a: a section always starts on a downbeat, `song_section_rules.cpp:42-51`). **FINAL:** the
+   port's reference is `rules12_13.py` RE-RUN with `bars` alone AND with every other input choice
+   the port makes — the option-B source demand (Q2), slid sources planted (Q2), legato sources rung
+   as the converter rings them, and the slide-out exclusion (Q3, Q5). The ±0.05 check (Q12) then
+   compares the same inputs. Item 2's ±0.02 suggests the figure sits near 88.07–88.11%.
+2. **Q2 — a plant.** **FINAL:** a plant (`chartPlantedStops`, the source law 2 names) is a
+   ONE-NOTE DEMAND at its source's onset that WIDENS EVERY GROUP up to its destination's onset.
+   "Pressed frets only" is not a plant rule: it is rule 1, through the existing `pressedFret`
+   (`chart.h:2070`), applied to every demand alike. Slid sources are planted. The scorer prints
+   the plant population against the corpus's 34,405. (Audit form superseded: its "[source onset,
+   destination onset], plus a source-onset demand where the source has no group" stated one rule
+   as two.)
+3. **Q3 — a plain ring (rule 6).** **FINAL:** a plain ring is a note with `fret > 0`, not
+   `rightHandOnset`, not dead. It PINS from its LAST PITCHED STOP to the end of its pitched ring,
+   where a slide-out's start ends it — so a slide-then-hold pins at its destination, while bends
+   and vibrato keep pinning. Natural harmonics (fret 0) fail `fret > 0` on their own; pinch
+   harmonics (pressed) DO pin, as they did in the 88.09% run. The length is the STORED `sustain`,
+   never `ink_end` (presentation). GP durations are dense where the dataset's are sparse, so the
+   re-measure the design record owes is a NAMED census row (Phase 1 acceptance (c)). (Audit form
+   superseded: its "no `harmonic_node`" and "no keyframe fret statement" exclusions are gone.)
+   **Owed before Phase 6:** the stored sustain includes the let-ring extension, which conflicts
+   with Phase 6's ring clipping; that must be ruled before Phase 6 (in the open gates below).
+4. **Q4 — "unforced" (rules 5 and 6).** **FINAL:** a run is unforced exactly when its hull lies
+   inside the standing window — two `FretWindow::covers` calls (`chart.h:2200`), on the hull's
+   lowest and highest fret. "No wider than the standing window" follows from "inside" and is not a
+   second test. Everything else is forced.
+5. **Q5 — keyframe demands (rule 2).** **FINAL, with no special clauses:** every pitched keyframe
+   fret statement is a one-note demand at its own place. Scrapes are excluded by rule 1
+   (`rightHandOnset`), slide-outs by `slideOutKeyframe` (`chart.h:1211`), exactly as
+   `statedStopFrom` (`chart_shapes.cpp`) excludes them. Arrivals merge into a group by INSTANT
+   (`endsOnNextHead`, `chart_legato.h:118`, is exact equality). Groups count STRUCK fretted notes;
+   demands only widen the hull, so a demand never makes a chord.
+6. **Q6 — rule 10 is ONE rule.** **FINAL:** a run's front is the first onset after the LATEST of:
+   the previous run's last onset, the end of its last plain ring (Q3), and the boundary that broke
+   the run. The window BEFORE the first front is the reader's lookup question, which retires the
+   importer's first-entry retime with no special case. The audit form's "tap-only" means "an onset
+   with no demand", since rule 12 makes a tapped pull-off source a demand. Rule 10 is UNMEASURED:
+   the Python reference must first measure its cross-bar share (the bar stop cuts open-string
+   pickups). The scorer DOES count tapped notes, so the audit's "the scorer is unaffected" was
+   wrong (superseded).
+7. **Q7 — ONE clamp.** **FINAL:** one function, `fittedWindowFret(fret, width, capo)`, beside
+   `firstPlayableFret` (`chart_rules.h:111`) — `max(firstPlayableFret(capo), min(fret, g_max_fret
+   − width + 1))`, spelled with the named constants, never literals. The derivation passes the
+   run's width; `normalizeFretHandPosition` and the old walk's copy (`gp_chart_builder.cpp:2445`,
+   `:2563`) pass `g_min_fret_hand_width`. (Audit form superseded: its "two clamps with two jobs"
+   was the rule stated twice.)
+8. **Q8 — axis and inputs.** **FINAL:** fronts are whole-note `Fraction` places, as with
+   `ChartShape`; the ONLY input is `ChartConnections`, which carries the `TempoMap`, and only the
+   capo is read from the tuning; there is no `plants` parameter (plants derive inside). The
+   derivation never reads seconds. The bar test is "the measure number changed between
+   consecutive groups", read from `position.measure`, and from
+   `advanceGridPositionByWholeNotes(...).measure` (`grid_arithmetic.h:216`) for a keyframe demand.
+   The scorer skips notes before the first generated or authored anchor exactly as the harness's
+   `score` does.
+9. **Q9 — markers in Phase 1. RULED: markers wait for Phase 2.** Phase 1 is exactly the measured
+   zero-input 13-rule algorithm: no marker input. No production caller has markers before Phase 2,
+   and their semantics are Phase 2's to rule: whether an event a marker stands at survives rule
+   11's dedup (a marker must stay selectable as an event, §2, law 7); whether a stated fret pins
+   "the run it heads" (the design record) or "until the next marker" (the stopgap today); where a
+   bare marker over silence fronts.
+10. **Q10 — the width fold stays until Phase 2.** **FINAL:** `deriveFretHandWidths` and
+    `deriveHeldFretRanges` stay until Phase 2 (their readers are listed in Phase 1's deletes); the
+    import stores frets only. The derivation computes rule 8's width INTERNALLY, and the SCORER
+    reads that internal width, never the fold. In Phase 1 the width is therefore derived twice —
+    internally and by the projection's fold — and the two DISAGREE: an acknowledged yield, which
+    Phase 2 removes by deleting the fold.
+11. **Q11 — the importer's FHP passes. RULED:** for Phase 1 the derivation is called at the END
+    of the import, on the normalized chart, so Phase 1's stored stream equals what Phase 2 derives
+    at read. `resolveSlideIns` asks a NATURAL-stream derivation for its approach delta. The
+    fabricated exit-ride (`resolveSlideOutExits`) and dip placements stay in Phase 1, flagged;
+    **Phase 2 rules** whether to drop them or move them into the projection's `FhpViewState`
+    ramps (the camera lead's tier).
+12. **Q12 — pass criteria. RULED:** acceptance (b) passes when the port's exact agreement is
+    within ±0.05 pt of the Python reference re-run on bar-line breaks only, with the port's input
+    choices (Q1), and the scorer prints the intermediate counts — fretted notes scored, groups,
+    plants, emissions — so any gap can be attributed. **Seam-vs-shift agreement is defined now**:
+    from the census counters `spans_crossed_by_fhp_shift` and `fhp_shifts_inside_spans`, over the
+    emitted shifts not carried by a slide. Phase 6's threshold on it stays the user's.
+
+### Gates still OPEN, per phase (as of 2026-10-04)
+
+| Phase | Ruled | Still OPEN |
+|---|---|---|
+| 1 | 60-Q1 (item 1, condition discharged 2026-10-03), items 2 and 3, Q1–Q12 above | Nothing. READY |
+| 2 | 60-Q4 (item 5), items 4, 6 and 7 | The selection kind's spelling (the naming expert, item 6). The marker semantics Q9 deferred: whether a marker that changes nothing is still a row event (rule 11 against §2 and law 7); the scope of a stated fret (the run it heads, or until the next marker); where a bare marker over silence fronts; whether `endFret` without `fret` is legal. The fate of the exit ride and the scoop dips (Q11: drop, or `FhpViewState` ramps). Whether any hand-placed package exists that needs the conversion script (item 5) |
+| 3 | Items 8 and 9 | The END gesture (OPEN by design: build it, or let the members' tail keys serve). The tell and outline strength (a sighting). Q-D, which `bracket_place` probably answers. How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate |
+| 4 | none named | The zone record's kind: one kind with polarity, or two. The settlement edge (re-verify on a regenerated reel; likely moot). The background triplet (a sighting) |
+| 5 | 60-Q5 (item 11) RULED NO, reopenable there | 60-Q3, the fingering model, and the GP parser's fingering scope (item 10); purge-on-save and the invalidation rule's confirming word (item 12) — all DEFERRED to the Phase 5 session |
+| 6 | The measure's DEFINITION (Q12) | The pass threshold on seam-vs-shift agreement (the user's). The let-ring extension inside the stored sustain, which rule 6 pins on and this phase clips (§9 Q3), ruled before this phase. The drone watch item, re-read here |
+
 ### The hand rulings (RULED 2026-09-15; kept as the record of what was decided)
 
 - **60-H1 — one object.** §2.
@@ -586,7 +865,8 @@ ruling; the full evidence lives in the design records.
 
 ## 10. Sequencing
 
-Revise the plan (done 2026-10-02) → G60 → Phase 1 → Phase 2 → Phase 3 remainder → Phase 4 →
+Revise the plan (done 2026-10-02; re-verified 2026-10-04) → G60 (ruled 2026-10-02) → the Phase 1
+build rulings (ruled 2026-10-04) → Phase 1 → Phase 2 → Phase 3 remainder → Phase 4 →
 Phase 6 → Phase 5. The three-beat ruling (user, 2026-09-05) holds: the derivation must stand alone
 under the zero-authored-input invariant and is the coupling's prerequisite while needing nothing
 from the marker work; the one object and its row land together; zones gate the settlement;
@@ -604,7 +884,8 @@ Build + tests green with the relink forced; the dataset scorer's coverage and ex
 numbers recorded beside the harness's; census re-run with the position counters re-signed (fold
 the three drifted rows and the stale-baseline re-sign into this pass); the offender worklist
 walked with the user until the pins column is explained (FIXED-CLASS / OPINION / SIGHTED per
-file); the seam-vs-shift agreement measure produced (Phase 1) and consumed (Phase 6); the
+file); the seam-vs-shift agreement measure (defined §9 Q12) produced (Phase 1) and consumed
+(Phase 6); the
 sighting gates of Phases 3, 4 and 5 recorded; CI blind-spot reading pass over every touched hunk
 (new variant alternatives → designated initializers, `-Wswitch-enum` on `MarkerRow`, optional
 access in tests, the `-Wmissing-designated-field-initializers` sweep when `FretHandPosition`
@@ -612,8 +893,9 @@ gains an optional `fret`).
 
 ## 12. Docs to change as phases land
 
-- **`docs/developer/the-project-lifecycle.md`** rules 5–9: rewritten to the charter law in
-  Phase 1 (the 0.8 s rest and the minimal-shift wording go with the walk).
+- **`docs/developer/the-project-lifecycle.md`** rules 5–9 (`:297-374`): rewritten to the charter
+  law in Phase 1 (the 0.8 s rest and the minimal-shift wording go with the walk); rule 9's exit
+  ride and rule 16's dips stay, flagged, until Phase 2 rules their home (§9 Q11).
 - **`docs/plans/in-progress/fhp-derivation-algorithm.md`**: its status line and "three record
   kinds" residue after G60; moves to `completed/` when Phase 2 lands.
 - **`docs/plans/in-progress/hand-marker-stopgap.md`**: completed work — move to `completed/`.
@@ -632,5 +914,6 @@ gains an optional `fret`).
 - **`marker-verb-grammar.md`**: the new-kind checklist ran once for the hand marker (done).
 - **`docs/design/`**: none expected — the one-arrow order and the derived-over-authored rule are
   already recorded; confirm with the user before any rule changes.
-- **`docs/tracking/backlog.md`**: the stale "ruler shape-label band" comments in
-  `tab_paint_core.cpp`.
+- ~~**`docs/tracking/backlog.md`**: the stale "ruler shape-label band" comments in
+  `tab_paint_core.cpp`.~~ SUPERSEDED 2026-10-04: the comments are gone from `tab_paint_core.cpp`
+  and the backlog carries no such entry; nothing to change.

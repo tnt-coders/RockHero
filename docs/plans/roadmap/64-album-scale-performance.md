@@ -268,6 +268,9 @@ lazy-by-value fallback the user signs).
   Note Lock drag commits on release) answers 64-Q5.
 - **Plan 60** (hand markers): the FHP tracker is not in scope, but if Phase 0-f shows the shapes
   walk's hand state is not dead at a silence cut, that is a hand-model finding for plan 60.
+  Once plan 60's Phase 2 moves the FHP derivation into `ChartResolutions`, it is per-revision
+  work too, and the 13-rule walk carries the standing window across silence (its rules 5 and 6),
+  so that pass is not segmentable at a silence cut as-is (plan 60, Phase 2's cross-plan note).
 - **Plan 40** (chart editing) owns the undo history whose cap Phase 7 re-units.
 - **Plan 10** (format versioning): Phase 3 changes no byte of the format.
 - **Plan 25 / 44** (highway, preview): Phase 1 moves the display options out of
