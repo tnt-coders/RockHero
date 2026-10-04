@@ -1040,16 +1040,30 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
 // widest name any tuning could state, which is why it belongs here — on the changes that move it —
 // rather than on the paint path.
 //
-// The pinned chip follows, because every fact that resizes the panel (the bounds, the projection,
-// the lane count) either moves the chip or decides whether there is one at all.
+// The measurement is memoized on its inputs (m_legend_inputs): a new projection of the same lane
+// asks it again and finds nothing changed. The pinned chip follows every time, because the bounds,
+// the projection and the lane count each either move the chip or decide whether there is one.
 void TabView::refreshLegendColumn()
 {
     // Bound to a local so the presence test and the reads are provably one object.
     const std::optional<DrawableLane> lane = laneMetrics();
-    m_legend_column =
-        lane.has_value()
-            ? common::ui::tabStringLegendBounds(lane->metrics, lane->tab.open_strings, 0)
-            : juce::Rectangle<int>{};
+    std::optional<LegendInputs> inputs;
+    if (lane.has_value())
+    {
+        inputs = LegendInputs{
+            .bounds = lane->metrics.bounds,
+            .displayed_count = lane->metrics.displayed_count,
+            .names = !lane->tab.open_strings.empty(),
+        };
+    }
+    if (inputs != m_legend_inputs)
+    {
+        m_legend_inputs = inputs;
+        m_legend_column =
+            lane.has_value()
+                ? common::ui::tabStringLegendBounds(lane->metrics, lane->tab.open_strings, 0)
+                : juce::Rectangle<int>{};
+    }
     refreshPinnedFhp(lane);
 }
 

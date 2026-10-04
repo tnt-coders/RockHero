@@ -129,6 +129,15 @@ same phase: a Note Lock φ is exactly the identity before the first anchor the e
 changes (and after the last, for a move or delete), so the re-address can skip those slices —
 the same "derive only the changed range" decision 1 states for the projections.
 
+The fixed publish constant, measured 2026-10-04 (relwithdebinfo, same machine, 201-run medians,
+a temporary probe): `EditorView::setState` with a fresh projection cost ≈ 2.9 ms flat in n, and
+nearly all of it was `TabView::setState` (2.64 ms at 766 notes on an 8-string lane, 1920 × 237).
+Of that, 2.57 ms was the string legend's width (`tabStringLegendBounds` →
+`widestNoteNameWidth`, 210 glyph layouts), re-measured on every new projection though it depends
+only on the lane's bounds, its lane count and whether the tuning names anything; building the
+lane metrics was 0.03 ms. With the column memoized on exactly those inputs
+(`TabView::refreshLegendColumn`), a fresh projection costs 0.06 ms in `TabView::setState`.
+
 Track B (2,164 → 25,968 notes, 147 → 1,753 anchors, 48 → 576 keyframed notes) agrees and shows
 the caret step's second variable: 2.4 → 21 → 144 → **328 ms**. Anchors moved nothing measurable
 (every tempo lookup is a binary search). GP import census: 25.3 µs/note end to end over 113

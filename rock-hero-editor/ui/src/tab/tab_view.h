@@ -363,9 +363,9 @@ private:
     // nothing to draw with. The one derivation every geometry question here goes through.
     [[nodiscard]] std::optional<DrawableLane> laneMetrics() const;
 
-    // Re-derives the cached legend column from the facts that size it: the bounds, the chart's
-    // string names, and the lane count. Called from every setter that can change one of them, and
-    // it re-derives the pinned chip too, since a change to any of those moves that as well.
+    // Re-derives the cached legend column when a fact that sizes it changed — the bounds, the lane
+    // count, whether the tuning names anything — and the pinned chip every time, since a new
+    // projection can move that alone. Called from every setter that can change one of them.
     void refreshLegendColumn();
 
     // Re-derives which fret-hand placement GOVERNS the window's left edge and the chip it draws
@@ -497,6 +497,20 @@ private:
     // measure every string name on every vblank of a playback follow, for a column whose size
     // none of that changes. Refreshed from the facts that DO size it (refreshLegendColumn).
     juce::Rectangle<int> m_legend_column{};
+
+    // Everything common::ui::tabStringLegendBounds reads: the lane's bounds and lane count (its
+    // font and margins derive from them) and whether the tuning names anything. The width costs
+    // 210 glyph layouts, so m_legend_column is re-measured only when these change, never for a
+    // projection that leaves them alone; absent while no lane draws.
+    struct LegendInputs
+    {
+        juce::Rectangle<int> bounds;
+        int displayed_count{};
+        bool names{};
+
+        friend bool operator==(const LegendInputs& lhs, const LegendInputs& rhs) = default;
+    };
+    std::optional<LegendInputs> m_legend_inputs{};
 
     // The fret-hand placement governing the window's left edge, which the panel states as its
     // current-state column: an FHP is a region-scoped value exactly like a tempo, so the one in
