@@ -727,7 +727,7 @@ std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::signatureRows(
         insert.has_value())
     {
         rows.push_back(
-            {.text = core::markerVerbLabel(core::MarkerVerb::AddTimeSignature),
+            {.text = core::markerVerbPromptRow(core::MarkerVerb::AddTimeSignature),
              .action = [this, inserted = std::move(*insert)] {
                  m_listener->onTimeSignatureInsertPromptRequested(inserted);
              }});

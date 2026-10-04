@@ -618,14 +618,16 @@ TEST_CASE("TimelineRuler signature menu offers the rows that apply", "[ui][timel
     CHECK(menuRows(ruler.signatureMenuAt({164.0f, 35.0f})) == on_chip);
     CHECK(menuRows(ruler.signatureMenuAt({4.0f, 35.0f})) == on_chip);
     // Inside measure 3 (7.5 s), off every chip: only the insert.
-    CHECK(menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature", true}});
+    CHECK(
+        menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature...", true}});
     CHECK_FALSE(listener.last_selected_signature_measure.has_value());
 
     ruler.setMarkerEditsEnabled(false);
     CHECK(
         menuRows(ruler.signatureMenuAt({164.0f, 35.0f})) ==
         Rows{{"Set Time Signature...", false}, {"Delete Time Signature", false}});
-    CHECK(menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature", false}});
+    CHECK(
+        menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature...", false}});
 }
 
 // The tempo menu offers the rows that apply where it opens: Add at the clicked slot, Set and Delete

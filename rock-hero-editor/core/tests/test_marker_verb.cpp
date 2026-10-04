@@ -34,6 +34,7 @@ TEST_CASE("Every marker verb's label is pinned", "[core][marker-verb]")
 TEST_CASE("A prompt row is its verb's label and an ellipsis", "[core][marker-verb]")
 {
     CHECK(markerVerbPromptRow(MarkerVerb::SetTempo) == "Set Tempo...");
+    CHECK(markerVerbPromptRow(MarkerVerb::AddTimeSignature) == "Add Time Signature...");
     CHECK(markerVerbPromptRow(MarkerVerb::SetTimeSignature) == "Set Time Signature...");
     CHECK(markerVerbPromptRow(MarkerVerb::ScaleTempo) == "Scale Tempo...");
 }
