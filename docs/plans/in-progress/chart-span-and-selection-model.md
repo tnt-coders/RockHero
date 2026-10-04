@@ -55,9 +55,10 @@ selection), and `editing-interaction-model.md`, and this document dissolves into
 
 - Creating a stack (placing a note onto an existing onset) implies the posture and the span in the
   same undo entry as the note insertion.
-- Default span extent floor: 1 beat, for tail-less strikes — clamped at creation to §10's
-  minimum-sustain-distance limit (`min(1 beat, next outside onset − margin)`) so auto-creation
-  never mints an extent the duration verb could not have authored.
+- **Superseded** (spans are derived from the notes, §2, so nothing mints an extent): the default
+  span extent floor for tail-less strikes — a quarter note in the 4/4 the rule was written for,
+  clamped at creation to §10's minimum-sustain-distance limit (`min(quarter, next outside onset −
+  margin)`) so auto-creation never minted an extent the duration verb could not have authored.
 - Shrinking a span below a following strike splits the span: the remainder becomes a new span
   with the same posture (rendering as a fresh full chord box, not a repeat). Growing a span
   into an adjacent same-posture span re-merges them. Split and merge are symmetric.

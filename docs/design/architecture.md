@@ -341,6 +341,12 @@ are derived from the notes wherever they are read, because a span is a statement
 under it.
 Synthesized-instrument storage remains deferred until a feature needs it.
 
+The chart stores two kinds of musical quantity. Positions (a note's onset, a fret-hand position)
+are bar addresses in the grid-token grammar (`"m:b+n/d"`, `n/d` a fraction of the beat).
+Durations — a note's `sustain` and each keyframe's `offset` from its onset — are note values in
+whole notes (`1/4` a quarter, `3/8` a dotted quarter), whatever the meter, so a meter edit
+re-addresses positions and leaves every duration untouched.
+
 `Song` is the persistence root. The editor session projects the song's arrangements into a
 headless `Session` and displays one arrangement at a time. Native song package loading validates
 archive structure, safe asset paths, and required arrangement audio references. Before a parsed song

@@ -408,12 +408,15 @@ onset a ring does not pass), so a manufactured "deliberate hold" can no longer d
 uncut through later heads. What survives is rule 2's EARNING only: `chartPresentation` still
 asks whether the stored ring passes the next onset to decide whether a group's tails draw at
 all, and the importer's `resolveSlideIns` / slide-out synthesis can **extend** a stored ring,
-floored at `g_minimum_slide_window`. If that extension is what carries the ring past the onset,
-importer-fabricated geometry earns a short chug group tails the source never notated — a cosmetic
-residual, bounded by the trim.
+floored at the slide window (`minimumSlideWindow`, `g_minimum_slide_window_seconds`). If that
+extension is what carries the ring past the onset, importer-fabricated geometry earns a short chug
+group tails the source never notated — a cosmetic residual, bounded by the trim.
 
-Accepted for now because it needs sub-1/8-beat spacing (64ths) to reach, and no corpus case has been
-seen. The fix is not local: it means threading the source's pre-resolution notated ring through to
+Accepted for now because it needs onsets closer than the slide window's 0.05 s to reach (64ths at
+120 BPM; a 32nd only from 150 BPM up), and no corpus case has been seen. (Re-verified 2026-10-04:
+`resolveSlideIns` still raises a short scoop's `sustain` to the window; before `987b62cf` that floor
+was an eighth of a beat.)
+The fix is not local: it means threading the source's pre-resolution notated ring through to
 the hold check, which touches the slide, arpeggio-arrival and FHP paths that all read that ring.
 Found 2026-08-06 while narrowing the trim's payload floor; deliberately left alone in that change.
 Re-aimed 2026-08-22 when the tail rules moved to the read side (stage A2): the item survives the
@@ -498,7 +501,8 @@ baseline."
 
 WHAT THE VOICE SCOPING ALREADY FIXED, so the item no longer covers it: a drone written in its OWN
 VOICE under a melody in another now SURVIVES — the melody's contradictions are statements about
-its own line and cut nothing of the drone's (48 rings across 3 files, +226.0 beats, measured).
+its own line and cut nothing of the drone's (48 rings across 3 files, +226.0 beats of ring,
+measured when sustains still counted beats).
 What remains is exactly the SAME-VOICE case: a drone co-struck into the melody's own line, where
 the melody's fret changes are seams in the drone's own voice and nothing distinguishes them.
 Still a REASONED DEFECT, never sighted: nothing in this population has ever been seen wrong on

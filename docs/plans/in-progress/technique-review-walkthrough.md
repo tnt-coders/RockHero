@@ -447,7 +447,8 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   surfaces and each renderer maps them to lanes per frame through `displayedStringCount` /
   `displayedLane`, the same two functions; (2) the placement ramps moved into the shared producer
   (`FhpViewState::ramp_seconds`), because when the hand starts moving is a chart fact, and the one
-  margin rule both it and the tap light rise read is `marginBefore` in grid arithmetic. `linked` is
+  margin rule both it and the tap light rise read is `marginBefore` in grid arithmetic (since
+  `987b62cf`, `minimumSustainDistance`, measured by `tickPlaceReached`). `linked` is
   the read `linkedKeyframe(note, keyframe)`; the shape posture list is one `strings` on both
   surfaces; the per-note agreement test became "the highway composes the chart projection
   unchanged". The review's item 9 rode along, and RULED 2026-09-17 it is TWO claims, not one:

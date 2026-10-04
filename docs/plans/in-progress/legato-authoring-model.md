@@ -268,7 +268,7 @@ idiom.
 
 **And the derived hold is bounded like a stored one (2026-08-11, review fix F2).** Unifying the two
 surfaces first shipped it uncapped, which made the lane draw a ribbon to the span's end whatever sat
-in between: a sustainless chord under a four-beat span with the same string restruck at beats 2 and 3
+in between: a sustainless chord under a whole-note span with the same string restruck at beats 2 and 3
 drew string 1's tail through both later heads and out the far side — teeth and vibrato sine included —
 a picture 40-Q2-B guarantees no *stored* sustain can produce (`normalizeSustainOverlaps` truncates at
 the next same-string onset). The hold authority imposes that same bound on the derived hold, in the

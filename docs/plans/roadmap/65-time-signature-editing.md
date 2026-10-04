@@ -73,12 +73,14 @@ import.
 - **Re-reading under another meter list is pure already**: the `TempoMap` constructor does not
   validate (`tempo_map.cpp:70-77`) and every address query reads only the signature segments, so
   `TempoMap{new_signatures, old.anchors()}` answers `wholeNotePositionAt` /
-  `beatAtWholeNotePosition` under the new list (never ask it for seconds).
+  `gridPositionAtWholeNote` under the new list (never ask it for seconds). (Until `987b62cf` the
+  second query was `beatAtWholeNotePosition`.)
   `advanceGridPositionByWholeNotes(map, GridPosition{}, w)` is the whole-note → token inverse.
   `reseatTerminalAnchor` does NOT exist yet.
-- **Durations are beat counts, not positions**: `ChartNote::sustain` (`chart.h:643`) and
-  `Keyframe::offset` (`chart.h:520`) count beats, and a beat is one denominator note, so a
-  denominator change re-means them. They are re-EXPRESSED, never re-addressed (Phase 1).
+- **Durations are note values, not positions**: `ChartNote::sustain` and `Keyframe::offset` are
+  whole-note fractions since `987b62cf` (plan `whole-note-durations.md`), so a meter edit leaves
+  them untouched. (Before that they counted beats, a denominator change re-meant them, and Phase 1
+  re-expressed them.)
 - **Sections must stand on a downbeat** (`song_section_rules.cpp:49-62`); tone regions, FHPs and
   automation points have no downbeat rule.
 - **Already live**: the meter chip row and its selection (`TimeSignatureSelection`,
@@ -189,9 +191,11 @@ a simplicity review before its commit, and verifies with a build and the touched
     milliseconds untouched), note onsets, FHP positions (`FretHandPosition::position`), tone region
     starts and tone automation points. All of these apply to EVERY arrangement, not just the
     current one.
-  - *Re-expressed* (a beat count, a duration): `ChartNote::sustain` and `Keyframe::offset` become
-    the new map's beat distance from the re-addressed onset to the re-addressed end or keyframe
-    position. A ring and a keyframe that cross a denominator change get a test each.
+  - *Untouched durations* (a note value): `ChartNote::sustain` and `Keyframe::offset` are
+    whole-note fractions from the onset, and a meter edit keeps every whole-note position, so they
+    stay as stored. A ring and a keyframe that cross a denominator change get a test each. (As
+    built in `e69c2f2f` they were beat counts, re-expressed as the new map's beat distance; the
+    whole-note flip, `987b62cf`, removed that step.)
   - *Snapped* (Q4): a section that is no longer a downbeat goes to its measure's downbeat, and two
     sections snapping onto one downbeat refuse the edit.
   - *Re-seated*: the terminal, re-addressed like any anchor, moves to the first downbeat AT OR

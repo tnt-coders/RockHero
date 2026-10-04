@@ -427,9 +427,10 @@ and has no instances on that material.
    - The reversibility claim rests on a primitive that has to be an involution, and the fault it
      once had was older than the gesture: an `adjacentTempoGridPosition` that stepped one grid step
      and re-snapped to the NEAREST line skipped a measure's last line whenever it sat exactly half
-     a step before the next downbeat (a 1/4 grid in 7/8: back two beats from the downbeat lands
+     a step before the next downbeat (a 1/4 grid in 7/8: back a quarter from the downbeat lands
      halfway between beats 5 and 7, and the tie-to-earlier rule picks 5), so a grow-then-shrink
-     took a six-beat ring to four. The caret step and the lane nudge shared it. The adjacent line
+     took a dotted-half ring to a half note.
+     The caret step and the lane nudge shared it. The adjacent line
      is read off the lattice directly (`common::core::adjacentGridPosition`, beside
      `snapGridPosition` on one lattice helper), the editor primitive delegates to it, and the walk
      is an involution on every meter — pinned in both suites by walking the lattice forward and

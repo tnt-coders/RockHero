@@ -23,7 +23,8 @@ the other.
   the trimmed end through `clipPayloadsToSustain` → `setEndStatement` (`chart_rules.cpp`), with a
   halfway fallback where the margin would crowd it (`lastStatementClearance`), an interior floor
   (`lastInteriorStatementEnd`) and a vibrato window past a statement that leaves the string
-  vibrating (`statementsEnd`, `g_minimum_slide_window`). The presented sustain is therefore shorter
+  vibrating (`statementsEnd`, `g_minimum_slide_window`, today `g_minimum_slide_window_seconds`).
+  The presented sustain is therefore shorter
   than the stored ring, and the editor carries TWO whole projections to show both
   (`ChartNoteForm::Actual`, `tab_actual` in `editor_controller.cpp`), with `keyframeIdentities`
   mapping drawn keyframes back to stored ones. Both surfaces draw the presented note, so the end
@@ -40,7 +41,9 @@ the other.
   window, a quarter of the note capped at the margin and floored at `g_minimum_slide_window`
   (an eighth of a beat), is now the floor at every tempo below 150 BPM, where 50 ms is under the
   eighth — the cap decides only above it), floored onto the tick lattice through
-  `marginBefore`. Its readers today: rule 1's trim, the span drawn ends (`drawnShapeExtent`), the
+  `marginBefore`. (History: since `987b62cf` the scoop window is the slide window alone, a 0.05 s
+  minimum, and the margin is `minimumSustainDistance`, measured by `tickPlaceReached`.)
+  Its readers today: rule 1's trim, the span drawn ends (`drawnShapeExtent`), the
   fret-hand window's margin morph (`chart_projection.cpp`), the landed-span tenure in shape
   derivation (`chart_shapes.cpp`), the highway's tap light-rise (`highway_projection.cpp`), and the
   Guitar Pro importer's slide-in scoop cap, which sizes STORED keyframes from it
@@ -65,7 +68,8 @@ the other.
 ### The display: keyframes at their true instant, ink cropped
 
 **THE ENDING ZONE.** Where a head binds a tail, the zone is the half-open stretch `(crop, head]`:
-the crop is `marginBefore(head)`, floored onto the tick lattice as today, clamped to no earlier
+the crop is the head less `minimumSustainDistance` (`marginBefore(head)` until `987b62cf`),
+floored onto the tick lattice as today, clamped to no earlier
 than the ring's own onset. The crop itself is outside the zone (a keyframe standing exactly on it
 is inked) and the head is inside it (an end statement standing exactly on the head — a bend
 written to 100%, a slide-out onto the next strike — is a zone keyframe). A tail is BOUND when its

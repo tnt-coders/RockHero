@@ -667,7 +667,8 @@ whole amendment, not a note stacked on top of them.
 6. **Sequential entry is safe by construction, and meets the covered case only past the grid.** The
    slot after a grid-step ring IS that ring's end, where a digit is the next note; a ring
    deliberately lengthened past its grid step makes the following slot a covered one, where a digit
-   is a point instead. Guitar Pro users never meet this, its durations being per beat.
+   is a point instead. Guitar Pro users never meet this, its durations being per Guitar Pro beat
+   (a rhythmic event, not a meter beat).
 7. **PLANNED, not shipped:** a technique letter on a COVERED slot would state its own channel at the
    caret exactly as the digit states the position channel — `V` a vibrato keyframe, `B` a bend point
    once the bend plan lands. Recorded in the keymap matrix's entry section; neither is built.

@@ -103,8 +103,10 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
      placed anchors (a whole-note position plus milliseconds).
    - It also takes a content map φ from old whole-note position to new whole-note position.
    - It derives measure numbers for both meters and anchors, maps every content slice through φ
-     (rounding to the tick lattice through `nearestTick` only where φ is not exact), re-expresses
-     rings and keyframe offsets from their mapped ends, snaps sections, and re-seats the terminal.
+     (rounding to the tick lattice through `nearestTick` only where φ is not exact), sets each ring
+     and keyframe offset to the whole-note distance between its mapped onset and mapped end (so
+     identity leaves it untouched, since `987b62cf` made them note values), snaps sections, and
+     re-seats the terminal.
    - Its three drivers:
      - *meter edit*: φ = identity, with the anchors placed where they stood;
      - *Scale Tempo* by f: φ(w) = f·w, with meters and anchors placed at f·w and milliseconds

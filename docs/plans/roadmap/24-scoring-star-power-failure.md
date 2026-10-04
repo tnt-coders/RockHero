@@ -119,8 +119,9 @@ Verified with `rg`/reads against the tree:
 - **Chart model** (`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h`): the full
   technique surface this plan must score — `NoteAttack` {Pick, Hammer, Pull, Tap, Pop, Slap},
   `NoteMute` {None, Palm, Full}, a `Pinch` attack with an optional `harmonic_node` (a node IS the harmonic; renamed 2026-08-08)
-  position, `vibrato`/`tremolo`/`accent` flags, `BendPoint` curves (beat-fraction offset +
-  semitones), `SlideKeyframe`s (offset, fret, unpitched), `Fraction` sustains, `ChordTemplate` /
+  position, `vibrato`/`tremolo`/`accent` flags, `BendPoint` curves (onset-relative offset +
+  semitones; offsets and sustains are whole-note fractions since `987b62cf`, beats before),
+  `SlideKeyframe`s (offset, fret, unpitched), `Fraction` sustains, `ChordTemplate` /
   `ChartShape` posture spans, `FretHandPosition`, `ChartSection`, and `ChartTuning` (string
   pitches, capo, `cent_offset`). Positions are exact rational `GridPosition` tokens, never
   seconds.
@@ -324,8 +325,9 @@ including the sustain trajectory tolerance, the overstrum flag + strength gate, 
 evidence threshold), timing-window math (expected note time from tempo map + calibration
 offsets per docs/plans/roadmap/13-audio-device-settings-and-calibration.md's contract), the GH
 ladder (1x/2x/3x/4x at streaks 0/10/20/30; star power doubles to 8x), base scoring (50/note;
-chords = sum of member notes, so a 2-note chord banks 100 and a 3-note chord 150; sustains 25
-per beat pro-rated by held fraction), star thresholds on score/max-base-score ratio counted
+chords = sum of member notes, so a 2-note chord banks 100 and a 3-note chord 150; sustains 100
+per whole note — 25 a quarter in every meter, 25 per beat until `987b62cf` — pro-rated by held
+fraction), star thresholds on score/max-base-score ratio counted
 0–5 (v1 defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6, 1★ ≥ 0.2, 0★ below 0.2 — tunable by
 ruleset version; a failed/incomplete run is 0★ by override). Star-system provenance under the
 WoR baseline: the 4★ = 2.0 / 5★ = 2.8 ratios are the documented GH-era values community-assumed

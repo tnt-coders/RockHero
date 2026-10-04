@@ -153,7 +153,8 @@ std::vector<HighwayLitStretch> mergeLitEvidence(std::vector<HighwayLitStretch>, 
 least the tolerance. Phase 1 keeps them public for the tap producer and their own spec tests.
 
 Kept, one renamed: `memberReleaseAt` → `noteReleaseAt` (a note's release, not a chord member's;
-file-local in `highway_projection.cpp`, where both producers live); `marginBefore`;
+file-local in `highway_projection.cpp`, where both producers live); `marginBefore` (since
+`987b62cf`, `minimumSustainDistance`);
 `highwayHandWindowAt`; `highwayHandWindowLineCoverage`.
 
 ### 2.3 The two producers (`highway_projection.cpp`) — the only place the hands differ

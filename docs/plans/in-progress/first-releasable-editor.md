@@ -230,7 +230,7 @@ clean"). The G9 bundle (tasks #261–#264), item by item:
   `2d-bend-waypoint-redesign.md`), and the per-string bend segment display in 3D
   (`docs/plans/completed/fret-hit-light-effect.md`, open decision 4).
 - **Carried, not blocking bends**: keyframe bundle items (1) the trim floor's value (the floor is
-  gone with the ring-ends plan; `g_minimum_slide_window` lives in the editor's
+  gone with the ring-ends plan; `g_minimum_slide_window_seconds` lives in the editor's
   `pick_slide_defaults.h`), (2) the coincident-onset vibrato overwrite and (3) the importer's
   vibrato-anchor wording — 2 and 3 may be overtaken by per-leg vibrato (`cfe83edc` / `21f96ed2`);
   re-verify before ruling. All three stay listed as open sign-offs in

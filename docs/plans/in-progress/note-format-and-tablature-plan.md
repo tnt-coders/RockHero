@@ -1,12 +1,15 @@
 # Note Format and 2D Tablature Plan
 
-> **The format snippets below are a 2026-07-06 snapshot and have since drifted twice. The live
-> reference is `docs/developer/file-formats.md`.** Two deliberate in-place changes are not reflected
-> here: the harmonic collapse (2026-08-08) replaced `"harmonic": "natural" | "pinch"` with a single
-> `harmonicNode` number plus `"attack": "pinch"`, and the legato ruling (2026-08-11) replaced the
-> `"hammer"` / `"pull"` attack tokens with `"legato"` — the authored claim, whose direction is read
-> back by `resolveLegato` and never stored — and `"leftTap"`. The reasoning each rule below records is
-> unchanged; only the spellings moved.
+> **The format snippets below are a 2026-07-06 snapshot and have since drifted three times. The
+> live reference is `docs/developer/file-formats.md`.** Three deliberate in-place changes are not
+> reflected here: the harmonic collapse (2026-08-08) replaced `"harmonic": "natural" | "pinch"`
+> with a single `harmonicNode` number plus `"attack": "pinch"`; the legato ruling (2026-08-11)
+> replaced the `"hammer"` / `"pull"` attack tokens with `"legato"` — the authored claim, whose
+> direction is read back by `resolveLegato` and never stored — and `"leftTap"`; and the whole-note
+> flip (2026-10-04, `987b62cf`) changed the UNIT of `sustain` and every payload `offset` from beats
+> to whole notes: in the 4/4 example below `"sustain": "2"` is today `"1/2"`. Positions are
+> unchanged. Apart from that unit, the reasoning each rule below records is unchanged; only the
+> spellings moved.
 
 Status: IMPLEMENTED 2026-07-06. The format (slice 1), the read-only tab lane (slice 2), and the
 full technique/chord/FHP rendering (slice 3) all shipped: chart domain model and document IO in
@@ -204,14 +207,17 @@ The chart is an arrangement-owned sidecar, like `toneDocument`: the arrangement 
 `song.json` gains `"chart": "charts/<uuid>.chart.json"`, keeping thousands of note lines out of
 the song document. Everything below lives in that chart file. Design rules that keep it clean:
 
-- **Every fact is stated once.** Durations are beat-fraction tokens, never end positions (moving
-  a note touches one field). Intra-note payloads (bends, slides) use *note-relative* beat
-  offsets, so moving a note never rewrites its payloads. Techniques appear only when present.
+- **Every fact is stated once.** Durations are fraction tokens, never end positions (moving
+  a note touches one field). Intra-note payloads (bends, slides) use *note-relative*
+  offsets, so moving a note never rewrites its payloads. (Both counted beats when this was
+  written; since 2026-10-04 both are whole-note fractions, so a meter change re-means neither.)
+  Techniques appear only when present.
 - **Positions reuse the tempo-map token grammar and its key.** `"position"` names an absolute
   timeline position everywhere, exactly like tempo anchors (which may stand between beats too,
   since 2026-10-03): `"27:3"` is a whole beat, `"27:3+1/2"` an exact rational sub-beat.
   Note-relative payload offsets are deliberately named `"offset"` instead — same fraction grammar,
-  different meaning, different word. Beat-fraction durations are bare fraction tokens (`"3/2"`).
+  different meaning, different word. Durations are bare fraction tokens (`"3/8"`, a dotted
+  quarter).
 - **Notes say what sounds; shapes say what the hand holds; templates are reusable postures.**
   Every `notes` entry is one string sounding — there is no note-versus-chord sum type. A strummed
   chord is simultaneous notes at one position. A `shapes` span `{position, sustain, chord}` marks
@@ -227,6 +233,9 @@ the song document. Everything below lives in that chart file. Design rules that 
   separate: `harmonic` (tap harmonics are real) and `mute` (palm-muted slap is real).
 - **Curve payloads are two-column pairs.** `[offset, value]`, like coordinates — self-evident
   and dense where entries are many.
+
+HISTORICAL (2026-07-06 format; see the banner at the top): every `sustain` and `offset` here counts
+beats of 4/4, and several spellings are retired.
 
 ```json
 {
@@ -362,8 +371,9 @@ What each piece encodes, and the edge cases it covers:
   the "real chart demands it" bar. The field becomes bool-or-spans with one canonical spelling
   per state: omitted = none; `"vibrato": true` = the whole sustain (unchanged — this stays the
   spelling for the common case, and stays legal on zero-sustain notes as an onset mark);
-  `"vibrato": [{ "offset": "3/2" }]` = starts 1.5 beats in and runs to the sustain end (omitted
-  `"until"` means to-end); `"vibrato": [{ "offset": "0", "until": "3/2" }]` = starts with vibrato
+  `"vibrato": [{ "offset": "3/8" }]` = starts a dotted quarter in and runs to the sustain end
+  (omitted `"until"` means to-end); `"vibrato": [{ "offset": "0", "until": "3/8" }]` = starts
+  with vibrato
   and settles; multiple spans encode on-off-on pulses. Canonical-uniqueness rules mirror the
   position grammar's proper-fraction rule: spans require sustain > 0; offsets ≥ 0, strictly
   ascending, < sustain; every span except the last carries `"until"`; `"until"` exceeds its own

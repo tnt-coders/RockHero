@@ -33,7 +33,8 @@ never to the song, and every change is pinned bit-identical to today's derived s
 - No timers, event coalescing, debouncing or frame skipping that hide a cost instead of removing
   it; no caches keyed on fewer than all of their inputs; no work skipped behind a policy flag
   — in particular no rebuild skipped by consumer presence (the highway only while the preview is
-  open), no memo of `marginBefore` keyed on the map or on spans, and no lazy re-timing of a scene
+  open), no memo of the head margin (`minimumSustainDistance`, `marginBefore` before
+  `987b62cf`) keyed on the map or on spans, and no lazy re-timing of a scene
   whose drawn laws are stated in seconds (the rulings of the 2026-10-02 projection-cost design,
   which stand here).
 - No change to the audio thread or the playback clock. Nothing in this plan touches the audio

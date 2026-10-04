@@ -15,7 +15,9 @@ common/core (`chart/grid_arithmetic.h`: `advanceGridPosition` with origin clamp,
 `beatDistance` as its exact inverse, `sustainEndPosition`, and `snapGridPosition` reproducing
 the editor timeline grid's semantics — measure-anchored whole-note-fraction note values,
 downbeats always lines, ties to the earlier line; note-value validity policy stays with
-callers). Tests cover signature-change carries, tuplet round-trips, the 7/8-with-1/4-grid
+callers; the beat-axis pair and `sustainEndPosition` were deleted in `987b62cf`, which moved
+every duration onto the whole-note axis: `advanceGridPositionByWholeNotes` / `wholeNoteDistance`).
+Tests cover signature-change carries, tuplet round-trips, the 7/8-with-1/4-grid
 next-downbeat path, and tie stability. **Phase 2 complete 2026-07-16**: saves serialize the
 in-memory chart through `writeChartDocument` (dangling refs still refused; stale comments in
 arrangement.h / rock_song_package_write.cpp updated); `Session::currentChart()` added as the
@@ -337,7 +339,8 @@ format-side decisions) and the design docs — a fresh session needs no other co
    arrive together or sequentially (note-format plan, "Format Direction" and "Deliberately
    absent").
 5. **Technique fields are optional with defaults; positions are exact rationals** extending the
-   tempo-map token grammar; durations are beat fractions; payload offsets are note-relative.
+   tempo-map token grammar; durations are whole-note fractions (beat fractions until `987b62cf`,
+   plan `whole-note-durations.md`); payload offsets are note-relative.
 6. **Vibrato spans** are decided format work: bool-or-spans with canonical-uniqueness rules,
    landing with the next format touch (note-format plan, "Mid-sustain vibrato spans"); tremolo
    stays whole-note (re-picking = new onsets).
@@ -421,10 +424,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 1 — Grid-position arithmetic in common/core
 
-- **Scope**: pure functions beside the chart rules: advance a `GridPosition` by a beat Fraction
-  (carrying across beats/measures via the tempo map's signature data, the same axis
-  `tab_projection.cpp` already uses through `globalBeatIndex`), distance between two positions in
-  beats, sustain endpoint of a note, and snap-to-grid for a note-value Fraction. These are needed
+- **Scope** (as built 2026-07-16; since `987b62cf` the advance and distance are on the whole-note
+  axis and the sustain endpoint is deleted): pure functions beside the chart rules: advance a
+  `GridPosition` by a beat Fraction (carrying across beats/measures via the tempo map's signature
+  data, the same axis `tab_projection.cpp` already uses through `globalBeatIndex`), distance
+  between two positions in beats, sustain endpoint of a note, and snap-to-grid for a note-value
+  Fraction. These are needed
   by the L-merge command, the overlap policy, marquee hit ranges, and 42's overlap rule — both
   products' code, so common-first per constraint (a).
 - **Files**: new `rock-hero-common/core/include/rock_hero/common/core/chart/` (or `timeline/`)

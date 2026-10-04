@@ -1,6 +1,9 @@
 # Whole-Note Durations
 
-**Status:** Approved by the user 2026-10-04, in progress. A note's ring (`sustain`) and a
+**Status:** Approved by the user 2026-10-04, in progress. DONE: Phase 0 (`99e4e7e5`), the sweep
+(converted packages verified exact under the new reader), and Phase 1 with Phases 2 and 3 folded
+in (`987b62cf`). Phase 4 (this prose pass) is in the working tree. REMAINING: the `ChartShape`
+places commit and Phase 5, the converter. A note's ring (`sustain`) and a
 keyframe's distance from its onset (`offset`) change from BEAT counts to WHOLE-NOTE fractions, in
 memory and in the chart document together. The change must be COMPLETE: no reader, writer, name,
 comment, test or document keeps the beat meaning. Every phase passes a simplicity-expert review

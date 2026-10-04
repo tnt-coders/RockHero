@@ -62,16 +62,20 @@ editor-core handlers into `Session::currentChart()` with revision-keyed projecti
 Verified against code 2026-07-16, branch work-in-progress:
 
 - **Chart content streams** (rock-hero-common/core/include/rock_hero/common/core/chart/chart.h):
-  exactly four — `notes` (ChartNote: position, string, fret, sustain-in-beats, attack/mute/
+  exactly four — `notes` (ChartNote: position, string, fret, sustain, attack/mute/
   harmonic/touch/vibrato/tremolo/accent, bend curve, slide keyframes), `shapes` (ChartShape:
-  position, sustain-in-beats, index into the template table — one mechanism for chords, held
+  position, sustain, index into the template table — one mechanism for chords, held
   shapes, and arpeggios), `templates` (ChordTemplate: name, per-string frets/fingers, referenced
   by index), and `fret_hand_positions` (FretHandPosition: position, fret, width — a step
-  function: "where the hand sits from this point on"). Tuning is chart-level, not ranged.
-- **Grid arithmetic exists** (plan 40 Phase 1, complete): `advanceGridPosition`, `beatDistance`
-  (exact inverse pair on the global-beat axis, signature-aware), `sustainEndPosition`,
-  `snapGridPosition` in rock-hero-common/core/.../chart/grid_arithmetic.h — the position math a
-  rebase-and-relay clipboard needs is already landed and tested.
+  function: "where the hand sits from this point on"). Tuning is chart-level, not ranged. (Both
+  sustains counted beats when this was written; since `987b62cf`, plan
+  `whole-note-durations.md`, every stored duration is a whole-note fraction.)
+- **Grid arithmetic exists** (plan 40 Phase 1, complete): `advanceGridPositionByWholeNotes`,
+  `wholeNoteDistance` (exact inverse pair on the whole-note axis, signature-aware),
+  `TempoMap::gridPositionAtWholeNote`, `snapGridPosition` in
+  rock-hero-common/core/.../chart/grid_arithmetic.h — the position math a rebase-and-relay
+  clipboard needs is already landed and tested. (Written 2026-07-16 against the beat-axis pair
+  `advanceGridPosition` / `beatDistance` and `sustainEndPosition`, all deleted in `987b62cf`.)
 - **Mutable-chart pipeline exists** (plan 40 Phase 2, complete): `Session::currentChart()` with
   `chartRevision()` bump-on-acquisition, write-on-save, revision-keyed tab projection cache.
 - **Selection model does not exist yet**: plan 40 Phase 3 (note selection/caret/marquee) and
@@ -98,9 +102,10 @@ Verified against code 2026-07-16, branch work-in-progress:
   (Q6).
 - **Time signatures**: `GridPosition` beats are signature-denominator units (a "beat" in 7/8 is
   an eighth note); tempo is quarter-note-referenced and metronome-linear; the grid is
-  note-value-authoritative via the measure walker. `ChartNote::sustain` and
-  `ChartShape::sustain` are Fractions **in beats**. This is why cross-signature paste is not
-  trivially "subtract and add positions" — see Q2.
+  note-value-authoritative via the measure walker. `ChartNote::sustain` and `Keyframe::offset`
+  are whole-note fractions (since `987b62cf`; they counted beats when this plan was written, which
+  was half of why cross-signature paste was not trivially "subtract and add positions"). Only
+  positions still need the signature walk — see Q2.
 - Related answered decisions this plan must stay consistent with: **40-Q2** (same-string sustain
   overlap on edit → auto-truncate inside the same undo entry), **40-Q3** (interaction grammar:
   glyph click selects, empty click seeks, empty drag marquees, Alt = insert quasimode), **65-Q1**,
@@ -184,6 +189,13 @@ recommendations below take effect without an explicit answer.
 
 2. **52-Q2 — Clipboard position basis (the time-signature question).** How are offsets and
    durations stored so paste works when source and destination signatures differ?
+   - **Largely dissolved 2026-10-04 by `987b62cf`.** Stored durations are now note values (whole
+     notes) and the beat-duration axis (`beatDistance` / `advanceGridPosition`) is deleted, so (A)
+     has no axis left to stand on and (B) is the format's own basis: sustains and keyframe offsets
+     copy verbatim, and only each event's offset from the range start needs the two walks
+     (`wholeNotePositionAt` on capture, `gridPositionAtWholeNote` on apply). The text below is the
+     question as posed under beat-count durations; what remains open is only the paste-time
+     notice.
    - (A) **Beat-distance** on the global-beat axis (`beatDistance`/`advanceGridPosition`
      directly). Cheap and exact; consistent with 65-Q1's stance for TS edits. But beats are
      denominator units: a 4/4 riff (quarter-note beats) pasted into a 7/8 section becomes
