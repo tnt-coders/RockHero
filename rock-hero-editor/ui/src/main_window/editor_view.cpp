@@ -281,6 +281,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::RenameSongSection:
             case core::EditorActionId::InsertTempoAnchor:
             case core::EditorActionId::SetTempoSpanBpm:
+            case core::EditorActionId::MoveTempoAnchor:
             case core::EditorActionId::SelectTempoAnchor:
             case core::EditorActionId::SelectTimeSignature:
             case core::EditorActionId::SelectFretHandPosition:
@@ -375,6 +376,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::RenameSongSection:
         case core::EditorActionId::InsertTempoAnchor:
         case core::EditorActionId::SetTempoSpanBpm:
+        case core::EditorActionId::MoveTempoAnchor:
         case core::EditorActionId::SelectTempoAnchor:
         case core::EditorActionId::SelectTimeSignature:
         case core::EditorActionId::SelectFretHandPosition:
@@ -3603,6 +3605,13 @@ void EditorView::onSongSectionSelected(std::optional<common::core::GridPosition>
 void EditorView::onTempoAnchorSelected(const common::core::GridPosition position)
 {
     m_controller.onTempoAnchorSelected(position);
+}
+
+// Forwards one event of a tempo-chip drag; the core moves the anchor or refuses the event.
+void EditorView::onTempoAnchorMoveRequested(
+    const common::core::GridPosition position, const std::int64_t milliseconds)
+{
+    m_controller.onTempoAnchorMoveRequested(position, milliseconds);
 }
 
 // Forwards a time-signature-chip click; like a section chip, it selects and seeks nothing.

@@ -53,6 +53,9 @@ override. Everything else is Part B.
    press — see \ref guide_keyboard.
 7. **Commit once.** Release applies the plan and pushes exactly one undo entry
    (`applyChartEditPlan`, or the surface's one full-list intent). Preview phases push nothing.
+   The one exception is a marker drag that IS a held run (the tempo chip): each pointer event
+   commits through `commitMarkerMove`, which widens one undo entry from the run's origin, so every
+   surface follows the real model with no second preview state.
    Wheel-tick verbs coalesce via the input-coalescing window instead (\ref guide_patterns).
 8. **View forwarding.** The JUCE component forwards the raw event with painted geometry
    attached (`tab_view.cpp`, `tone_automation_lanes_view.cpp` mouse handlers) — it makes no

@@ -287,8 +287,8 @@ TEST_CASE("EditorController walks up from the strings onto the ruler rows", "[co
     CHECK_FALSE(editor.caretString().has_value());
     CHECK(editor.state().selected_time_signature_measure == std::optional{5});
     CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
-    // A tempo or signature chip carries no Delete, so it is not a deletable selection.
-    CHECK_FALSE(editor.state().selection_present);
+    // A chip is a selection whether or not its kind has a Delete; the core declines what it lacks.
+    CHECK(editor.state().selection_present);
     // The keyboard stands at the paused cursor (measure 6, 10.0s); what a verb acts on is the
     // selected chip, the signature change at measure 5 (8.0s) that holds that measure.
     const std::optional<KeyboardPositionViewState>& position = editor.state().keyboard_position;

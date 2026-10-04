@@ -364,7 +364,9 @@ Building one means:
 Three touchpoints no compiler reports, each missed once:
 
 - **`selection_present`** (`editor_controller.cpp`): count the kind's published selection, or
-  `Delete` stays unclaimed while it is selected.
+  `Delete` never reaches the core while it is selected. The flag counts every selection kind and
+  leaves which kinds HAVE a delete to the core's dispatch (2026-10-03, after the tempo chip's
+  `Delete` was silently eaten by a list that still said it had none).
 - **The chart lane's discovery menu** (`showChartDiscoveryMenu`, `editor_view.cpp`): add the kind's
   jump to its navigate submenu, or the chord is undiscoverable there.
 - **The `marker_edits_enabled` surface gate** (`editor_view.cpp`, beside the other marker-row

@@ -1245,10 +1245,10 @@ struct EditorViewState
     \brief True when the one editor-wide selection resolves to something published.
 
     Derived from the published per-surface states (selected chart notes or keyframes, a fret-hand
-    position, a section, a tone region, a resolved automation point, or a time-selection span), so a
-    stale selection reads as absent exactly as it renders. Tempo and time-signature chips have no
-    Delete, so they do not count. The view's Delete guard reads this single flag instead of
-    re-deriving the union — an idle Delete keeps propagating to other key consumers.
+    position, a section, a tempo or time-signature chip, a tone region, a resolved automation point,
+    or a time-selection span), so a stale selection reads as absent exactly as it renders. Every
+    kind counts whether or not it has a Delete; the core's dispatch declines the ones without. The
+    view's Delete guard reads this single flag instead of re-deriving the union.
     */
     bool selection_present{false};
 

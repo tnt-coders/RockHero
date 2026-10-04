@@ -41,6 +41,14 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         last_selected_tempo_anchor = position;
     }
 
+    void onTempoAnchorMoveRequested(
+        common::core::GridPosition position, std::int64_t milliseconds) override
+    {
+        last_moved_tempo_anchor = position;
+        last_moved_tempo_milliseconds = milliseconds;
+        move_count += 1;
+    }
+
     void onTimeSignatureSelected(int measure) override
     {
         last_selected_signature_measure = measure;
@@ -93,6 +101,11 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     // Anchor beat and measure last reported by a tempo or time-signature chip click.
     std::optional<common::core::GridPosition> last_selected_tempo_anchor{};
     std::optional<int> last_selected_signature_measure{};
+
+    // Anchor and time a tempo-chip drag last asked for, and how many drag events asked.
+    std::optional<common::core::GridPosition> last_moved_tempo_anchor{};
+    std::optional<std::int64_t> last_moved_tempo_milliseconds{};
+    int move_count{0};
 };
 
 // Builds a one-measure 4/4 map for viewport-grid rendering checks.
@@ -453,6 +466,88 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
     ruler.setSelectedTempoMapChips(fourth_beat, std::nullopt);
     ruler.mouseDown(makeMouseDownEvent(ruler, 33.0f, 21.0f));
     CHECK(listener.last_selected_tempo_anchor == std::optional{fourth_beat});
+}
+
+// A press on a tempo chip selects it, as a click does, and arms its drag: each event past JUCE's
+// drag threshold asks for the anchor's press time plus the pointer's travel, grab-point relative,
+// so the chip never jumps to the pointer. Inside the threshold the press stays a click, and the
+// double-click still restates.
+TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    // 401 px over 4 s is 100 px per second, so the 1:3 anchor at 2 s stands at x = 200.
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
+    };
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    constexpr common::core::GridPosition third_beat{.measure = 1, .beat = 3};
+
+    TimelineRuler ruler;
+    RecordingRulerListener listener;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setListener(listener);
+    ruler.setMarkerEditsEnabled(true);
+    int placement_count = 0;
+    ruler.setCursorPlacementCallback(
+        [&placement_count](common::core::TimePosition) { placement_count += 1; });
+
+    SECTION("a drag past the threshold moves the anchor by the pointer's travel")
+    {
+        ruler.mouseDown(makeMouseDownEvent(ruler, 204.0f, 21.0f));
+        CHECK(listener.last_selected_tempo_anchor == std::optional{third_beat});
+
+        // 24 px right of the press is 0.24 s later, rounded once to whole milliseconds.
+        ruler.mouseDrag(testing::makeMouseDragEvent(ruler, 228.0f, 21.0f, 204.0f, 21.0f));
+        CHECK(listener.move_count == 1);
+        CHECK(listener.last_moved_tempo_anchor == std::optional{third_beat});
+        CHECK(listener.last_moved_tempo_milliseconds == std::optional<std::int64_t>{2240});
+
+        // Off the chip row and left of the press: still the press time plus the travel.
+        ruler.mouseDrag(testing::makeMouseDragEvent(ruler, 184.0f, 60.0f, 204.0f, 21.0f));
+        CHECK(listener.move_count == 2);
+        CHECK(listener.last_moved_tempo_milliseconds == std::optional<std::int64_t>{1800});
+
+        // The release ends the drag; nothing moves afterwards.
+        ruler.mouseUp(makeMouseDownEvent(ruler, 184.0f, 60.0f));
+        ruler.mouseDrag(testing::makeMouseDragEvent(ruler, 250.0f, 21.0f, 204.0f, 21.0f));
+        CHECK(listener.move_count == 2);
+        CHECK(placement_count == 0);
+    }
+    SECTION("a press released inside the threshold is a click")
+    {
+        ruler.mouseDown(makeMouseDownEvent(ruler, 204.0f, 21.0f));
+        ruler.mouseDrag(makeMouseDownEvent(ruler, 205.0f, 21.0f));
+        ruler.mouseUp(makeMouseDownEvent(ruler, 205.0f, 21.0f));
+        CHECK(listener.last_selected_tempo_anchor == std::optional{third_beat});
+        CHECK(listener.move_count == 0);
+
+        ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 204.0f, 21.0f));
+        CHECK(listener.restate_count == 1);
+        CHECK(listener.move_count == 0);
+        CHECK(placement_count == 0);
+    }
+    SECTION("with the marker plane closed the press seeks and arms nothing")
+    {
+        ruler.setMarkerEditsEnabled(false);
+        ruler.mouseDown(makeMouseDownEvent(ruler, 204.0f, 21.0f));
+        ruler.mouseDrag(testing::makeMouseDragEvent(ruler, 228.0f, 21.0f, 204.0f, 21.0f));
+        CHECK(placement_count == 1);
+        CHECK(listener.move_count == 0);
+        CHECK_FALSE(listener.last_selected_tempo_anchor.has_value());
+    }
 }
 
 // Verifies the measure-number row pins the active measure to the left edge while scrolled,
@@ -1384,6 +1479,47 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     {
         CHECK(last_seek_position->seconds == Catch::Approx(1.0));
     }
+}
+
+// The view forwards a tempo-chip drag to the core's move intent: the press selects the chip, and a
+// drag half a second's width to the right asks for the anchor half a second later.
+TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    view.setBounds(0, 0, 1600, 1000);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = common::core::TempoMap{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
+    };
+    state.marker_edits_enabled = true;
+    view.setState(state);
+
+    auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    // Unscrolled, so the pinned ruler's local column is the canvas column below it.
+    REQUIRE(
+        findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll").getViewPositionX() ==
+        0);
+    const float press_x = canvasXForTime(track_viewport, track_content, 2.0) + 4.0f;
+    const float drag_x = canvasXForTime(track_viewport, track_content, 2.5) + 4.0f;
+
+    constexpr common::core::GridPosition third_beat{.measure = 1, .beat = 3};
+    timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, press_x, 21.0f));
+    CHECK(controller.last_selected_tempo_anchor == std::optional{third_beat});
+    timeline_ruler.mouseDrag(
+        testing::makeMouseDragEvent(timeline_ruler, drag_x, 21.0f, press_x, 21.0f));
+    CHECK(controller.last_moved_tempo_anchor_position == std::optional{third_beat});
+    CHECK(controller.last_moved_tempo_anchor_milliseconds == std::optional<std::int64_t>{2500});
+    CHECK(controller.timeline_seek_count == 0);
 }
 
 // Verifies the track grid, overlay snapping, and ruler snapping all use the state note value.

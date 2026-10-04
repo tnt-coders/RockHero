@@ -483,6 +483,10 @@ private:
     void onTempoAnchorSelected(common::core::GridPosition position) override;
 
     // TimelineRuler::Listener implementation.
+    void onTempoAnchorMoveRequested(
+        common::core::GridPosition position, std::int64_t milliseconds) override;
+
+    // TimelineRuler::Listener implementation.
     void onTimeSignatureSelected(int measure) override;
 
     // TimelineRuler::Listener implementation.

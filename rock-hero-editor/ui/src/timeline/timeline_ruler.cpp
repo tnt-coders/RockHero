@@ -346,9 +346,12 @@ void TimelineRuler::setMarkerEditsEnabled(const bool marker_edits_enabled)
 // would make the chips dead zones on a surface whose whole job is placing the cursor. A right-click
 // on the tempo row opens the tempo menu, and anywhere else the section menu, since the ruler is the
 // sections' only surface. Each listener call returns at once: it republishes the rows the chip
-// lives in, so nothing may be read through it afterwards.
+// lives in, so nothing may be read through it afterwards. A press on a tempo chip also arms the
+// chip's drag (mouseDrag), with everything it needs read off the map BEFORE the select republishes
+// it.
 void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 {
+    m_tempo_chip_drag.reset();
     if (!m_project_loaded || m_content_width <= 0)
     {
         return;
@@ -385,7 +388,19 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         }
         if (const RulerChip* const chip = chipAt(m_tempo_row.chips, g_tempo_row_y, point))
         {
-            m_listener->onTempoAnchorSelected(m_tempo_map.anchors()[chip->source_index].position);
+            const common::core::BeatAnchor& anchor = m_tempo_map.anchors()[chip->source_index];
+            const common::core::GridPosition position = anchor.position;
+            if (const std::optional<common::core::TimePosition> pressed =
+                    timeAtLocalX(event.position.x);
+                pressed.has_value())
+            {
+                m_tempo_chip_drag = TempoChipDrag{
+                    .position = position,
+                    .origin_milliseconds = anchor.milliseconds,
+                    .press_seconds = pressed->seconds,
+                };
+            }
+            m_listener->onTempoAnchorSelected(position);
             return;
         }
         if (const RulerChip* const chip = chipAt(m_signature_row.chips, g_signature_row_y, point))
@@ -407,6 +422,38 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     {
         m_cursor_placement_callback(*position);
     }
+}
+
+// A tempo-chip drag is the pointer form of Alt+arrows: every event past JUCE's drag threshold asks
+// the listener to move the anchor to its press time plus the pointer's travel in content time,
+// rounded once, never snapped — the anchor defines the grid, so no grid line can be its step. The
+// core moves the model itself, so the chip, the grid and every chart surface follow live, and it
+// alone decides what to refuse: a refused event leaves the anchor at its last legal time while the
+// drag goes on.
+void TimelineRuler::mouseDrag(const juce::MouseEvent& event)
+{
+    if (m_listener == nullptr || !event.mouseWasDraggedSinceMouseDown() ||
+        !m_tempo_chip_drag.has_value())
+    {
+        return;
+    }
+    const TempoChipDrag drag = *m_tempo_chip_drag;
+    const std::optional<common::core::TimePosition> pointer = timeAtLocalX(event.position.x);
+    if (!pointer.has_value())
+    {
+        return;
+    }
+    m_listener->onTempoAnchorMoveRequested(
+        drag.position,
+        drag.origin_milliseconds +
+            common::core::nearestAnchorMilliseconds(pointer->seconds - drag.press_seconds));
+}
+
+// The release only disarms: each accepted event already landed in the model and the drag's one
+// undo entry, exactly as a released Alt+arrow leaves its run standing.
+void TimelineRuler::mouseUp(const juce::MouseEvent& /*event*/)
+{
+    m_tempo_chip_drag.reset();
 }
 
 // Opens the prompt for a double-clicked section or tempo chip — the selection's restate verb, the
@@ -459,8 +506,7 @@ const TimelineRuler::RulerChip* TimelineRuler::chipAt(
 std::optional<common::core::GridPosition> TimelineRuler::clickedGridPosition(
     const juce::Point<float> click, const common::core::Fraction quantum) const
 {
-    const std::optional<common::core::TimePosition> clicked = core::timelinePositionForX(
-        static_cast<float>(m_view_x) + click.x, m_timeline_range, m_content_width);
+    const std::optional<common::core::TimePosition> clicked = timeAtLocalX(click.x);
     if (!clicked.has_value())
     {
         return std::nullopt;
@@ -622,6 +668,15 @@ void TimelineRuler::setSelectedTempoMapChips(
     repaint();
 }
 
+// The ruler is pinned over scrolling content, so its local x reaches the content through the
+// scroll offset.
+std::optional<common::core::TimePosition> TimelineRuler::timeAtLocalX(
+    const float local_x) const noexcept
+{
+    return core::timelinePositionForX(
+        static_cast<float>(m_view_x) + local_x, m_timeline_range, m_content_width);
+}
+
 // Maps an absolute timeline second to this pinned ruler's local x coordinate.
 std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexcept
 {
@@ -659,8 +714,7 @@ void TimelineRuler::refreshRulerGeometry()
     // The pinned chip values and the pinned measure number need a musical frame of reference,
     // so they stay hidden until the first downbeat (the first anchor) reaches or passes the
     // visible left edge; the shared gate keeps every pinned row pinning in lockstep.
-    const auto view_left_time =
-        core::timelinePositionForX(static_cast<float>(m_view_x), m_timeline_range, m_content_width);
+    const std::optional<common::core::TimePosition> view_left_time = timeAtLocalX(0.0f);
     const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
     const bool pinnable = view_left_time.has_value() && !anchors.empty() &&
                           view_left_time->seconds >= anchors.front().seconds();

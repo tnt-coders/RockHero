@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -680,6 +681,22 @@ public:
     \param text Tempo as typed, in quarter notes per minute.
     */
     virtual void onTempoSpanBpmRequested(common::core::GridPosition position, std::string text) = 0;
+
+    /*!
+    \brief Handles one event of a tempo-chip drag: move the anchor at a grid position to a time.
+
+    The pointer form of `Alt+←/→`, in free time, ending in the same move tail: every event of one
+    drag continues one held run, so the whole drag is ONE undo entry, and a drag that ends where it
+    began leaves none. The model itself moves, so every surface follows live. The anchor moves only
+    while it is the selection, which the press on its chip made it; a time onto or past a
+    neighbour, or below zero for the first anchor, is refused and the anchor stays at its last
+    legal time. Inert while playing, like every marker edit.
+
+    \param position Grid position of the dragged anchor.
+    \param milliseconds Time asked for, in whole milliseconds.
+    */
+    virtual void onTempoAnchorMoveRequested(
+        common::core::GridPosition position, std::int64_t milliseconds) = 0;
 
     /*!
     \brief Handles a deliberate selection of a tone region on the tone track (a click).

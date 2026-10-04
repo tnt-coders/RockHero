@@ -147,7 +147,8 @@ Rulings of 2026-10-02 (user, after the simplicity review):
     of the audio; the ripple then extends it to the first downbeat at or past the latest
     arrangement's audio end, at the last span's tempo.
 13. **Mouse drag is the primary method for users** and is in scope (Phase 4), built after the
-    keyboard sighting. It uses the move transform and commits once on release.
+    keyboard sighting. It is a held run through the same move as `Alt+←/→`: the anchor follows the
+    pointer live and the whole drag is one undo entry.
 14. **Deferred**: the tap-tempo readout and onset snapping are out of the first releasable editor.
 
 ## Open questions
@@ -252,7 +253,9 @@ legal time. There is no drag cancel (user, 2026-10-03): `Esc` keeps its one mean
 selection, and `Ctrl+Z` undoes the drag. Measure the per-event commit at pointer rate on
 relwithdebinfo before shipping. Settle by sighting whether the selected anchor's line over the
 waveform needs emphasis (the track draws every beat line, but a sub-beat anchor stands on none).
-Sighting: drag an anchor onto a transient at two zooms; undo is one step.
+Sighting: drag an anchor onto a transient at two zooms; undo is one step; on the largest local
+import the chip tracks the pointer. A `Ctrl+Z` with the button still held undoes the run, and the
+next pointer event starts a new one, exactly as `Alt+→`, `Ctrl+Z`, `Alt+→` does on the keyboard.
 
 ### Deferred — tap-tempo readout (out of the first releasable editor)
 

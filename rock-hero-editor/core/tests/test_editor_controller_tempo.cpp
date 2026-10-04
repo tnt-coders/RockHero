@@ -393,6 +393,21 @@ TEST_CASE("Deleting a tempo anchor round-trips through undo", "[core][tempo]")
     CHECK(editor.tempoMap() == original);
 }
 
+// The view's Delete guard reads the published selection_present flag, so a selected tempo chip
+// must count there or the key never reaches the delete.
+TEST_CASE("A selected tempo chip publishes a selection the Delete key reaches", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    editor.controller.onTempoAnchorSelected(beatAt(1, 1));
+    CHECK(editor.state().selection_present);
+
+    editor.controller.onTempoAnchorSelected(beatAt(3, 1));
+    REQUIRE(editor.state().selection_present);
+    editor.controller.onSelectionDeleteRequested();
+    CHECK_FALSE(editor.anchorMilliseconds(beatAt(3, 1)).has_value());
+}
+
 // One press is one on-screen pixel at the zoom the view reported, and a step onto a neighbour is
 // refused rather than clamped. The cursor rides the anchor.
 TEST_CASE("A tempo anchor moves one pixel at the reported zoom", "[core][tempo]")
@@ -672,6 +687,118 @@ TEST_CASE("A walked-back anchor run re-mirrors the starting map", "[core][tempo]
     {
         CHECK(*editor.audio.last_mirrored_tempo_map == inserted);
     }
+}
+
+// A tempo-chip drag is a held run: every event moves the model live, the whole drag is ONE entry
+// however far it wanders, and one Ctrl+Z puts the anchor back where the press found it.
+TEST_CASE("A tempo-chip drag is one undo entry", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4100});
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4300);
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4200);
+    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4200});
+    CHECK_THAT(editor.transport.position().seconds, WithinAbs(4.2, 1e-9));
+    CHECK(editor.undoEntryCount() == entries + 1);
+    CHECK(editor.undoTopLabel() == "Move Tempo Anchor");
+    CHECK(editor.selectedAnchorPosition() == std::optional{beatAt(3, 1)});
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.tempoMap() == inserted);
+}
+
+// A refused event changes nothing — the anchor stays at its last legal time — and the drag goes on:
+// a later legal event still lands in the same entry.
+TEST_CASE("A refused tempo-chip drag event holds the last legal time", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(5, 1));
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 5000);
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 8000);
+    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{5000});
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 9000);
+    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{5000});
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 6000);
+    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{6000});
+    CHECK(editor.anchorMilliseconds(beatAt(5, 1)) == std::optional<std::int64_t>{8000});
+    CHECK(editor.undoEntryCount() == entries + 1);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.tempoMap() == inserted);
+
+    // The first anchor may not go below zero.
+    editor.controller.onTempoAnchorSelected(beatAt(1, 1));
+    editor.controller.onTempoAnchorMoveRequested(beatAt(1, 1), -1);
+    CHECK(editor.anchorMilliseconds(beatAt(1, 1)) == std::optional<std::int64_t>{0});
+}
+
+// A drag that ends where it began leaves no Ctrl+Z that changes nothing.
+TEST_CASE("A tempo-chip drag back to its origin leaves no entry", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 3900);
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4000);
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.undoEntryCount() == entries);
+    CHECK(editor.undoTopLabel() == "Add Tempo Anchor");
+}
+
+// A sub-beat anchor drags as itself, never as the on-beat anchor of its beat, which bounds it.
+TEST_CASE("A sub-beat tempo anchor drags as itself", "[core][tempo]")
+{
+    TempoEditor editor{makeSubBeatTempoSong()};
+    const GridPosition sub_beat = subBeatPosition();
+    editor.controller.onTempoAnchorSelected(sub_beat);
+
+    editor.controller.onTempoAnchorMoveRequested(sub_beat, 2300);
+    CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2300});
+    editor.controller.onTempoAnchorMoveRequested(sub_beat, 2000);
+    CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2300});
+    CHECK(editor.anchorMilliseconds(beatAt(2, 1)) == std::optional<std::int64_t>{2000});
+}
+
+// The drag moves only the SELECTED anchor, the one its press selected: once the anchor stops being
+// the selection (Esc released it), the rest of the drag moves nothing, and while the transport
+// plays nothing moves at all, as for every marker edit.
+TEST_CASE("A tempo-chip drag moves only the selected anchor while paused", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+
+    SECTION("a released selection")
+    {
+        editor.controller.onChartEscapePressed();
+        REQUIRE_FALSE(editor.selectedAnchorPosition().has_value());
+        editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    }
+    SECTION("another anchor selected")
+    {
+        editor.controller.onTempoAnchorSelected(beatAt(1, 1));
+        editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    }
+    SECTION("a playing transport")
+    {
+        editor.transport.current_state.playing = true;
+        editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    }
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.undoEntryCount() == entries);
 }
 
 // The grid is truth: a typed tempo moves the cursor in time with the map, so it keeps its musical

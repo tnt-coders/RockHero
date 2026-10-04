@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -440,6 +441,14 @@ public:
     {
         last_tempo_span_bpm_position = position;
         last_tempo_span_bpm_text = std::move(text);
+    }
+
+    /*! \copydoc IEditorController::onTempoAnchorMoveRequested */
+    void onTempoAnchorMoveRequested(
+        common::core::GridPosition position, std::int64_t milliseconds) override
+    {
+        last_moved_tempo_anchor_position = position;
+        last_moved_tempo_anchor_milliseconds = milliseconds;
     }
 
     /*! \copydoc IEditorController::onToneRegionSelected */
@@ -972,6 +981,12 @@ public:
 
     /*! \brief Last tempo text reported through onTempoSpanBpmRequested(). */
     std::string last_tempo_span_bpm_text{};
+
+    /*! \brief Last anchor position reported through onTempoAnchorMoveRequested(). */
+    std::optional<common::core::GridPosition> last_moved_tempo_anchor_position{};
+
+    /*! \brief Last time reported through onTempoAnchorMoveRequested(). */
+    std::optional<std::int64_t> last_moved_tempo_anchor_milliseconds{};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

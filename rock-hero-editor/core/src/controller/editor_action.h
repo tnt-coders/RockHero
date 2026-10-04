@@ -975,6 +975,22 @@ struct EditorAction
         double quarter_bpm{};
     };
 
+    /*!
+    \brief Move the tempo anchor at a grid position to a time: one event of a tempo-chip drag.
+
+    The pointer form of `Alt+←/→`, ending in the same move tail, so a whole drag is one held run
+    and one undo entry. It moves the anchor only while it is the selection, which the press on its
+    chip made it: a drag whose anchor stopped being selected moves nothing.
+    */
+    struct MoveTempoAnchor
+    {
+        /*! \brief Grid position of the anchor; a move never changes it. */
+        common::core::GridPosition position{};
+
+        /*! \brief Time asked for, in whole milliseconds; onto a neighbour or below zero refuses. */
+        std::int64_t milliseconds{};
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, ExportSong>;
 
@@ -1003,7 +1019,7 @@ struct EditorAction
         DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
         ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
-        RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm,
+        RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
         SelectTimeSignature, SelectFretHandPosition, AuthorFretHandPositionAtCursor,
         ClearFretHandEnd, StepToRowObject, JumpToFocusRow>;
 };

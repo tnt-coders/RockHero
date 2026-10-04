@@ -227,6 +227,28 @@ void EditorController::Impl::moveSelectedTempoAnchor(
             (direction == ChartStepDirection::Left ? -step : step));
 }
 
+void EditorController::Impl::onTempoAnchorMoveRequested(
+    const common::core::GridPosition position, const std::int64_t milliseconds)
+{
+    runAction(EditorAction::MoveTempoAnchor{.position = position, .milliseconds = milliseconds});
+}
+
+// One event of a tempo-chip drag, the pointer form of Alt+arrows: the press selected the anchor, so
+// each event is one more press of a held run on it and the whole drag is one undo entry. The move
+// is asked only of the SELECTED anchor, which is what proves the run is this drag's: selecting here
+// instead would let an event after Esc released the anchor quietly grab it again and open a second
+// entry.
+void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnchor& action)
+{
+    const TempoAnchorSelection dragged{.position = action.position};
+    if (const auto* const anchor = std::get_if<TempoAnchorSelection>(&m_selection);
+        anchor == nullptr || *anchor != dragged)
+    {
+        return;
+    }
+    moveSelectedTempoAnchorTo(dragged, action.milliseconds);
+}
+
 // The one tail every tempo-anchor move ends in, whatever drives it. A move never changes the
 // anchor's position, so the selection it lands is the one it started from, and a held run of moves
 // is one undo entry.

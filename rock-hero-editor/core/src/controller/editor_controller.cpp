@@ -362,6 +362,10 @@ namespace
         {
             return "SetTempoSpanBpm";
         }
+        case EditorAction::Id::MoveTempoAnchor:
+        {
+            return "MoveTempoAnchor";
+        }
     }
 
     return "Unknown";
@@ -1004,6 +1008,12 @@ void EditorController::onTempoSpanBpmRequested(
     const common::core::GridPosition position, std::string text)
 {
     m_impl->onTempoSpanBpmRequested(position, text);
+}
+
+void EditorController::onTempoAnchorMoveRequested(
+    const common::core::GridPosition position, const std::int64_t milliseconds)
+{
+    m_impl->onTempoAnchorMoveRequested(position, milliseconds);
 }
 
 void EditorController::onToneRegionSelected(std::string region_id)
@@ -2965,13 +2975,15 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
 
     // Derived from the PUBLISHED per-surface states plus the time span, not the raw variant: a
-    // stale selection (one whose object vanished) publishes nothing, and Delete must keep
-    // propagating then. A tempo or time-signature chip is left out on purpose: neither has a
-    // Delete, so counting it would swallow the key for a verb that does nothing.
+    // stale selection (one whose object vanished) publishes nothing, so it reads as absent exactly
+    // as it renders. Every kind counts, whether or not it has a Delete: which kinds Delete acts on
+    // is the core's dispatch to answer, and a kind without one declines it there.
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
         state.chart_edit.selected_fret_hand_position.has_value() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
+        state.selected_tempo_anchor.has_value() ||
+        state.selected_time_signature_measure.has_value() ||
         std::ranges::any_of(
             state.sections, [](const SongSectionViewState& section) { return section.selected; }) ||
         std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {

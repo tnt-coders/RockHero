@@ -87,16 +87,19 @@ and every chip paints above every leader. A 1px divider along the bottom edge
 separates the ruler from the rows scrolling under it.
 
 Every chip is an object the one editor-wide selection can hold, so every row raises intents through
-`TimelineRuler::Listener` (the tone strip's shape, for the tone strip's reason — seven distinct
-intents, two of them prompts the ruler must not own). A click on any chip reports a selection; the
+`TimelineRuler::Listener` (the tone strip's shape, for the tone strip's reason: the prompts and
+verbs are the core's, never the ruler's own). A click on any chip reports a selection; the
 **section** row, the one chip row that is also an editing surface, adds a double-click rename prompt
 and the right-click section menu. The chip double-click is the pointer form of the rename; the
 keyboard forms are `Enter` and `Ctrl+R` on a selected chip, plus the section's own chord `Ctrl+M`,
 which reads the CURSOR and never the selection: a section standing on the downbeat of the measure
 the cursor is in is renamed, otherwise one is inserted there (2026-09-14; `F2` is gone as of
-2026-09-12). The tempo and
-time-signature chips carry no verbs yet: they are selectable so the keyboard's vertical walk can
-stand on them. The walk is not the only keyboard route onto a chip row: each kind's
+2026-09-12). The tempo chip carries the tempo verbs (plan 41): `Enter` and a double-click open
+the BPM prompt through the core's published restate verb, `Alt+←/→` and a drag move its time
+freely (a drag is one held run, one undo entry), and a right-click on the tempo row opens Add
+Tempo Anchor, Set Tempo... and Delete Tempo Anchor. The time-signature chip carries no verbs yet:
+it is selectable so the keyboard's vertical walk can stand on it. The walk is not the only
+keyboard route onto a chip row: each kind's
 `Ctrl+Shift`+letter jump (`Ctrl+Shift+M`, `Ctrl+Shift+B`, `Ctrl+Shift+/`, built 2026-09-15) lands
 straight on that row through the walk's own landing, and is silent where the row holds nothing. A
 chip click deliberately does **not** seek, unlike every other click on the ruler: a chip is an
@@ -485,8 +488,9 @@ forgotten. The touchpoints:
 3. The verb dispatches: `onSelectionDeleteRequested` and `onSelectionMoveRequested` — a missing
    arm means Delete/moves silently no-op on the new kind.
 4. An Esc-ladder rung (\ref guide_keyboard).
-5. The `selection_present` derivation in `deriveViewState()` — the view's Delete/Esc guards
-   read this one flag.
+5. The `selection_present` derivation in `deriveViewState()` — the view's `Delete` and
+   `Alt+Delete` handlers read this one flag; it counts every selection kind, and the core's
+   dispatch decides which kinds have a delete.
 6. **The lifecycle rules** — the subtlest step. Each kind declares what clears it: on play, on
    seek, on cursor move, on project load/close/arrangement switch (the per-kind split is
    documented at the top of `editor_selection.h` and in `clearCursorCoupledSelection`, which names

@@ -586,6 +586,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // places every arrangement in time, so they reach the session's map directly.
     void onTempoAnchorInsertRequested(common::core::GridPosition position);
     void onTempoSpanBpmRequested(common::core::GridPosition position, const std::string& text);
+    void onTempoAnchorMoveRequested(common::core::GridPosition position, std::int64_t milliseconds);
     // What the tempo chord would do at the cursor right now (the published verb; see the
     // definition for the rule it derives).
     [[nodiscard]] TempoChordTarget tempoChordTarget() const;
@@ -724,6 +725,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::InsertTempoAnchor& action);
     void performActionImpl(const EditorAction::SetTempoSpanBpm& action);
+    void performActionImpl(const EditorAction::MoveTempoAnchor& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
     void performActionImpl(const EditorAction::SetToneAutomationPoints& action);

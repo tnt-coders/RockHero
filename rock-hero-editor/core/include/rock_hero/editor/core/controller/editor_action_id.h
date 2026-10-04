@@ -217,6 +217,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Type the tempo of the span the anchor at a beat opens, rippling later anchors. */
     SetTempoSpanBpm,
 
+    /*! \brief Move the selected tempo anchor to a time: one event of a tempo-chip drag. */
+    MoveTempoAnchor,
+
     /*! \brief Select a time-signature chip on the ruler (the change it marks). */
     SelectTimeSignature,
 

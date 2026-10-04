@@ -7,6 +7,7 @@
 
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
@@ -108,6 +109,21 @@ public:
         \param position Grid position the clicked chip's anchor pins.
         */
         virtual void onTempoAnchorSelected(common::core::GridPosition position) = 0;
+
+        /*!
+        \brief Called for each pointer event of a drag that began on a tempo chip, once it has
+        passed JUCE's drag threshold.
+
+        Grab-point relative, so the chip keeps its distance from the pointer instead of jumping to
+        it, and measured in the content's time so a scroll during the drag does not move the anchor.
+        The ruler only reports; whether the anchor moves is the listener's answer.
+
+        \param position Grid position the dragged chip's anchor pins.
+        \param milliseconds Time the anchor is asked to move to: its time at the press plus the
+        time the pointer has travelled since, rounded once to whole milliseconds.
+        */
+        virtual void onTempoAnchorMoveRequested(
+            common::core::GridPosition position, std::int64_t milliseconds) = 0;
 
         /*!
         \brief Called when the user clicks a time-signature chip.
@@ -299,6 +315,19 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
 
     /*!
+    \brief Asks the listener to move the pressed tempo chip's anchor once the drag passes JUCE's
+    drag threshold, so a click stays a click.
+    \param event JUCE mouse event relative to this ruler.
+    */
+    void mouseDrag(const juce::MouseEvent& event) override;
+
+    /*!
+    \brief Ends a tempo-chip drag; the anchor stands wherever its last accepted move left it.
+    \param event JUCE mouse event relative to this ruler.
+    */
+    void mouseUp(const juce::MouseEvent& event) override;
+
+    /*!
     \brief Asks for the selection's restate on a double-clicked section or tempo chip.
     \param event JUCE mouse event relative to this ruler.
     */
@@ -355,6 +384,17 @@ private:
         bool pinned{false};
     };
 
+    // What a press on a tempo chip arms for a drag, read off the published map at the press: the
+    // anchor it moves, the time the anchor held then, and the content time under the pointer then.
+    // Each drag event asks for the press time plus how far the pointer has travelled in content
+    // time, so the anchor keeps its distance from the pointer and a scroll mid-drag moves nothing.
+    struct TempoChipDrag
+    {
+        common::core::GridPosition position{};
+        std::int64_t origin_milliseconds{0};
+        double press_seconds{0.0};
+    };
+
     // One chip row's cached geometry: the placed chips, and the visible marker columns its dotted
     // leaders drop from, which include markers whose chips were suppressed.
     struct ChipRow
@@ -365,6 +405,11 @@ private:
 
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
+
+    // Maps this pinned ruler's local x coordinate to the content time under it, at the current
+    // scroll offset; empty when the geometry cannot map it.
+    [[nodiscard]] std::optional<common::core::TimePosition> timeAtLocalX(
+        float local_x) const noexcept;
 
     // Rebuilds the cached tick and label geometry from the stored grid lines, timeline geometry,
     // and tempo map. Kept out of paint() so cursor-only repaints, which happen at vblank cadence,
@@ -476,6 +521,9 @@ private:
     // Listener for the chips' intents; null until the owning view wires one, which keeps the ruler
     // usable as plain chrome in the layout tests that construct it alone.
     Listener* m_listener{nullptr};
+
+    // The tempo-chip drag the current press armed, from the press on a chip to the release.
+    std::optional<TempoChipDrag> m_tempo_chip_drag{};
 
     // Tempo-grid lines for the current visible span, pushed by the owning view so the ruler and
     // the track content share one tempo-map scan. Stored in content coordinates; ticks subtract
