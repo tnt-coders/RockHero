@@ -108,14 +108,13 @@ TEST_CASE("Head margins answer exactly what the margin authority answers", "[cor
 {
     const TempoMap tempo_map = denseMap();
     const std::vector<ChartNote> notes = denseNotes(tempo_map);
-    const HeadMargins margins{notes, chartNotePlaces(notes, tempo_map), tempo_map};
+    const std::vector<Fraction> places = chartNotePlaces(notes, tempo_map);
+    const HeadMargins margins{places, tempo_map};
 
     REQUIRE(notes.size() > std::size_t{150});
-    for (const ChartNote& note : notes)
+    for (const Fraction place : places)
     {
-        CHECK(
-            margins.length(note.position) ==
-            minimumSustainDistance(tempo_map, tempo_map.wholeNotePositionAt(note.position)));
+        CHECK(margins.length(place) == minimumSustainDistance(tempo_map, place));
     }
 }
 

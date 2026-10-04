@@ -932,7 +932,7 @@ struct ShapeViewState
     on exactly this optional. That is the ORDINARY disposition of a landing successor rather than a
     corner of one.
 
-    Taken from the derivation's \ref ChartShape::bracket_position rather than re-scanned: the walk
+    Taken from the derivation's \ref ChartShape::bracket_place rather than re-scanned: the walk
     is what knows which slots a statement covers, and a re-scan would ask that grouping question a
     second time against an extent the closing trim has already shortened.
     */

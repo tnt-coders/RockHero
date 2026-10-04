@@ -240,9 +240,7 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     const common::core::ChartConnections connections =
         common::core::chartConnections(chart.notes, tempo_map);
     return common::core::chartPresentation(
-               connections,
-               common::core::HeadMargins{connections.saved_notes, connections.places, tempo_map},
-               tempo_map)
+               connections, common::core::HeadMargins{connections.places, tempo_map}, tempo_map)
         .ink_end;
 }
 
@@ -1112,7 +1110,7 @@ TEST_CASE(
     // a single strum of it is (no arpeggio).
     const common::core::ChartShapes derived = spansOf(chart, song->tempo_map);
     REQUIRE(derived.shapes.size() == 2);
-    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes[0].place == common::core::Fraction{});
     CHECK(derived.shapes[0].sustain == Fraction{1, 2});
     REQUIRE(derived.shapes[0].posture < derived.postures.size());
     CHECK(
@@ -1124,7 +1122,7 @@ TEST_CASE(
     // The landed shape tiles onto that landing exactly, with no gap and no overlap — founded by
     // the beat-3 chord's own strike rather than opened by the landing, because the glides complete
     // at that very instant and a landing hands over only where the ring runs strictly past it.
-    CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+    CHECK(derived.shapes[1].place == common::core::Fraction{1, 2});
     CHECK(derived.shapes[1].sustain == Fraction{1, 4});
     CHECK_FALSE(derived.shapes[1].landing_opened);
     REQUIRE(derived.shapes[1].posture < derived.postures.size());
@@ -1209,7 +1207,7 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     // also where the eighth strum's own ring ends — the musical close, with rule 12a's margin taken
     // off it at the projection and not here.
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().place == common::core::Fraction{});
     CHECK(derived.shapes.front().sustain == Fraction{3, 8});
     CHECK(derived.shapes.front().posture == 0);
 
@@ -1777,10 +1775,8 @@ TEST_CASE(
         CHECK(chart.notes[2].harmonic_node == std::optional{12.0});
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].place == common::core::Fraction{});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{common::core::Fraction{1, 2}});
         CHECK(std::ranges::none_of(derived.postures, [](const common::core::ChartPosture& posture) {
             return std::ranges::any_of(
                 posture.stops, [](const std::optional<common::core::ChartStop>& stop) {
@@ -3542,8 +3538,8 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         // the earliest member onset no preceding span covers, which for a roll is the first
         // string to speak — so the bracket opens with the gesture rather than at whichever
         // arrival reached the threshold.
-        CHECK(span.position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(span.bracket_position == std::optional<GridPosition>{span.position});
+        CHECK(span.place == common::core::Fraction{});
+        CHECK(span.bracket_place == std::optional{span.place});
         // Nothing here asserts a founding classification, because under the grip-tenure law there
         // is none to read: the model stores no founding verdict. Accumulation is a RULE rather than
         // a stored verdict — sound alone opens a span at three or more overlapping members — and
@@ -3554,7 +3550,7 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         // bracket runs the RING (a half note), not the stagger (an eighth), because the hold IS the
         // ring.
         CHECK(span.sustain == Fraction{1, 2});
-        const Fraction span_start = built->tempo_map.wholeNotePositionAt(span.position);
+        const Fraction span_start = span.place;
         for (const common::core::ChartNote& note : chart.notes)
         {
             const Fraction onset = built->tempo_map.wholeNotePositionAt(note.position);
@@ -3808,9 +3804,7 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
                 common::core::frettedStop(7),
                 common::core::frettedStop(7)
             });
-        CHECK(
-            resolutions.shapes.front().position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+        CHECK(resolutions.shapes.front().place == common::core::Fraction{3, 8});
     }
 
     SECTION("a partial slider value shifts by the rounded fraction of the written span")
@@ -6014,7 +6008,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         // and the covered span arrives as a held arpeggio.
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == common::core::Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         CHECK(shapeArrivalsOf(chart, built->tempo_map)[0]);
     }
@@ -7649,7 +7643,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         // staircase this section exists to refuse, and three of another shape is what a per-mark
         // bound makes when each member quits under its own cap.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == common::core::Fraction{});
         // THE TEXTURE'S CLOSE, which the grip-tenure law's member-quit arm decides: the bracket
         // ends where its shortest member's audible life does, and under the figure's one end every
         // member's life ends at the same instant — beat four, where the unmarked fret-3 beat

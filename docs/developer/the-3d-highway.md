@@ -440,7 +440,7 @@ the glow reads clusters that have already crossed the hit line — exactly the o
 silent about.
 
 **An arpeggio span's mark draws at `ShapeViewState::bracket_seconds`, not at its start.** The
-derivation publishes that anchor per span (`ChartShape::bracket_position`) rather than leaving each
+derivation publishes that anchor per span (`ChartShape::bracket_place`) rather than leaving each
 surface to re-scan for it: a span an EVENT states carries its own FRONT, since that is the
 statement's own extent and the rails run from it — for an ACCUMULATION that front is where its
 earliest uncovered member's statement began, its onset or the landing a glide brought it to, so the

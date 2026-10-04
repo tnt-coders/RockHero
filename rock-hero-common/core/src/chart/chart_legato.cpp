@@ -280,7 +280,7 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
 }
 
 std::vector<std::optional<int>> chartHeldStops(
-    const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map)
+    const ChartConnections& connections, const ChartShapes& shapes)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<std::optional<int>> planted = chartPlantedStops(connections);
@@ -288,7 +288,7 @@ std::vector<std::optional<int>> chartHeldStops(
     // WHICH span covers an instant, from the one authority every span-scoped rule asks
     // (\ref SpanCover) — the same coverage the hold extension is measured against, so the default
     // can never sit under a span that walk says is not there.
-    const SpanCover cover{shapes.shapes, tempo_map};
+    const SpanCover cover{shapes.shapes};
     const std::vector<Fraction>& places = connections.places;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
@@ -325,25 +325,23 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
 {
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
-    const std::vector<ChartNote>& saved_notes = resolutions.connections.saved_notes;
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
-    resolutions.margins = HeadMargins{saved_notes, resolutions.connections.places, tempo_map};
+    resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel.
-    ChartShapes derived =
-        deriveChartShapes(resolutions.connections, resolutions.margins, tempo_map);
+    ChartShapes derived = deriveChartShapes(resolutions.connections, resolutions.margins);
     // THE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
     // DEFAULT held stop is the grip the covering span holds, so it reads the postures just derived.
     // It therefore runs AFTER the derivation and feeds nothing that runs before it. Handed the
     // whole derivation rather than its two vectors apart, because `shapes` indexes `postures` and
     // passing them separately is a mismatch waiting to happen.
-    resolutions.held_stops = chartHeldStops(resolutions.connections, derived, tempo_map);
+    resolutions.held_stops = chartHeldStops(resolutions.connections, derived);
     // The CLASS every span arrives as, answered once for the revision because both surfaces draw
     // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
     // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
     // IT: the tail law is class-blind, so nothing downstream has to re-read the class.
-    resolutions.arrivals = chartShapeArrivals(resolutions.connections, derived.shapes, tempo_map);
+    resolutions.arrivals = chartShapeArrivals(resolutions.connections, derived.shapes);
     // Where each ring's ink stops, derived here so a chart revision pays for it once and no
     // consumer can derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION:
     // the presentation rules and the tail law come out together, so there is no ordering contract
@@ -357,8 +355,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // The holds read the drawn lengths AND the law's verdict, which is what makes the two
     // complementary by construction: presentation only RESTS a member's ribbon, and the hold
     // hands a resting member its own stored ring.
-    resolutions.holds =
-        chartHolds(presentation, resolutions.connections, resolutions.shapes, tempo_map);
+    resolutions.holds = chartHolds(presentation, resolutions.connections, resolutions.shapes);
     resolutions.ink_end = std::move(presentation.ink_end);
     resolutions.rested_from = std::move(presentation.rested_from);
     return resolutions;

@@ -3169,9 +3169,7 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
         common::core::chartConnections(chart.notes, tempo_map);
     const std::vector<common::core::Fraction> ink_end =
         common::core::chartPresentation(
-            connections,
-            common::core::HeadMargins{connections.saved_notes, connections.places, tempo_map},
-            tempo_map)
+            connections, common::core::HeadMargins{connections.places, tempo_map}, tempo_map)
             .ink_end;
     REQUIRE(ink_end.size() == chart.notes.size());
     CHECK(ink_end[held] == common::core::Fraction{});

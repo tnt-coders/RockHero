@@ -123,10 +123,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] ChartShapes deriveWith(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
     const ChartConnections connections = chartConnections(notes, tempo_map);
-    return deriveChartShapes(
-        connections,
-        HeadMargins{connections.saved_notes, connections.places, tempo_map},
-        tempo_map);
+    return deriveChartShapes(connections, HeadMargins{connections.places, tempo_map});
 }
 
 // The derivation as every reader gets it: from the saved stream alone.
@@ -142,7 +139,7 @@ using rock_hero::common::core::testing::anchor;
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartShapes derived = deriveWith(notes, tempo_map);
-    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes, tempo_map);
+    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes);
 }
 
 // THE CHORD BOXES the 3D display derives for a stream, end to end: the walk's own spans through the
@@ -208,7 +205,7 @@ void derivesLike(const std::vector<ChartNote>& notes, const std::vector<ChartNot
     REQUIRE(derived.shapes.size() == expected.shapes.size());
     for (std::size_t index = 0; index < derived.shapes.size(); ++index)
     {
-        CHECK(derived.shapes[index].position == expected.shapes[index].position);
+        CHECK(derived.shapes[index].place == expected.shapes[index].place);
         CHECK(derived.shapes[index].sustain == expected.shapes[index].sustain);
         CHECK(derived.shapes[index].sounds_in_parts == expected.shapes[index].sounds_in_parts);
         CHECK(derivedStops(derived, index) == derivedStops(expected, index));
@@ -300,11 +297,9 @@ TEST_CASE("Chart shape derivation merges repeated strums of one posture", "[core
     // reach lands exactly there, so both arms of the close agree. The drawn extent is a
     // sixteenth shorter and \ref makeChartViewState is where that happens.
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().place == Fraction{});
     CHECK(derived.shapes.front().sustain == Fraction{3, 8});
-    CHECK(
-        derived.shapes.front().closing_onset ==
-        GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+    CHECK(derived.shapes.front().closing_onset_place == Fraction{3, 8});
     CHECK(derived.shapes.front().posture == 0);
 }
 
@@ -372,7 +367,7 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         };
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().place == Fraction{});
         CHECK(derived.shapes.front().sustain == Fraction{1, 8});
     }
 
@@ -409,9 +404,9 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         };
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 8});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
         CHECK(derived.shapes[1].sustain == Fraction{1, 8});
         // Still one posture: the frets never changed, only how long each statement about them
         // stayed in force.
@@ -435,7 +430,7 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         };
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{5, 16});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
@@ -460,7 +455,7 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         CHECK_FALSE(derived.postures[derived.shapes[1].posture].stops[2].has_value());
@@ -476,7 +471,7 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
             noteAt(3, Fraction{}, 2, 5, Fraction{1, 2}),
         }));
         REQUIRE(discriminating.shapes.size() == 2);
-        CHECK(discriminating.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(discriminating.shapes[1].place == Fraction{1, 2});
         CHECK(discriminating.shapes[1].sustain == Fraction{1, 2});
     }
 }
@@ -506,7 +501,7 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().place == Fraction{});
         CHECK(derived.shapes.front().sustain == Fraction{1});
     }
 
@@ -585,7 +580,7 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
         }
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().place == Fraction{});
         CHECK(derived.shapes.front().sustain == Fraction{3});
         CHECK(derived.shapes.front().sounds_in_parts);
         // The posture is the chord's, unmoved: the tapping hand's fret 14 states nothing about it,
@@ -628,7 +623,7 @@ TEST_CASE("A tap's ring never makes a dead string a member", "[core][chart]")
     // struck member and one carried ring between them — two, short of the accumulation minimum —
     // so it founds nothing, exactly as any two notes under a tap found nothing.
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().place == Fraction{});
     CHECK(derived.shapes.front().sustain == Fraction{1, 4});
     CHECK(derivedStops(derived, 0)[0] == std::optional{frettedStop(5)});
     CHECK(derivedStops(derived, 0)[1] == std::optional{frettedStop(7)});
@@ -668,7 +663,7 @@ TEST_CASE("Chart shape derivation chains a statement through a tap on a member",
     });
     const ChartShapes derived = deriveFrom(notes);
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().place == Fraction{});
     CHECK(derived.shapes.front().sustain == Fraction{1, 4});
     REQUIRE(derived.postures.size() == 1);
     CHECK(derived.postures.front().stops[0] == std::optional{frettedStop(5)});
@@ -696,7 +691,7 @@ TEST_CASE("Chart shape derivation rides a span through an articulation change", 
     // The posture table deduplicates by frets alone: the technique is no part of a posture.
     REQUIRE(derived.postures.size() == 1);
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().place == Fraction{});
     CHECK(derived.shapes.front().sustain == Fraction{3, 8});
     CHECK(derived.shapes.front().posture == 0);
     // Both strums sounded the shape WHOLE, so the class is untouched too (corollary 4): this is a
@@ -729,7 +724,7 @@ TEST_CASE("Chart shape derivation holds one span across a dead chug run", "[core
 
     REQUIRE(derived.postures.size() == 1);
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().place == Fraction{});
     // Strike into strike the whole way, through the last chug's own ring: beat 1 to beat 5.
     CHECK(derived.shapes.front().sustain == Fraction{1});
     CHECK_FALSE(derived.shapes.front().sounds_in_parts);
@@ -786,7 +781,7 @@ TEST_CASE(
     CHECK_FALSE(normalizeChart(chart, tempo_map).empty());
     const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
     REQUIRE(resolutions.shapes.size() == 1);
-    CHECK(resolutions.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(resolutions.shapes.front().place == Fraction{});
     CHECK(resolutions.shapes.front().sustain == Fraction{1, 2});
 }
 
@@ -813,7 +808,7 @@ TEST_CASE("Chart shape derivation folds a ringing string into the posture", "[co
     // span, and the ringing string's own onset is that. Nothing precedes it, so the FRONT is beat
     // one and the strum arrives inside the statement rather than opening it — not beat two, which
     // is merely the slot the walk NOTICES the shape at.
-    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().place == Fraction{});
 }
 
 // Tap-only onsets are transparent to the grouping: they neither form a posture nor close a held
@@ -836,7 +831,7 @@ TEST_CASE("Chart shape derivation rings a span through tap-only onsets", "[core]
     {
         const ChartShapes derived = deriveFrom(chord_with_taps(Fraction{1, 2}));
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().place == Fraction{});
         // The taps neither close nor trim it: the span runs the chord's whole ring.
         CHECK(derived.shapes.front().sustain == Fraction{1, 2});
     }
@@ -900,7 +895,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         const ChartShapes derived = deriveFrom(chord_then_repick(Fraction{1, 2}));
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes.front().sustain == Fraction{1, 2});
-        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().place == Fraction{});
         CHECK(derived.shapes.front().sounds_in_parts);
     }
 
@@ -932,7 +927,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{1, 2}));
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 8});
     }
 
@@ -953,7 +948,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes[1].dead = true;
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().place == Fraction{});
         // By the absorption rule the strum the re-pick picks into does not stand alone, so it
         // states no boundary and the one span runs through. The discrimination this section exists
         // for holds either way — a drawn-ring witness sees nothing ringing and would close at
@@ -1003,7 +998,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes[2].fret = 9;
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         // Every one of the chord's still-ringing strings is a member beside the new stop.
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
@@ -1058,7 +1053,7 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         const std::vector<ChartNote> notes = strum_then_partial(Fraction{1, 2});
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 1);
@@ -1113,9 +1108,7 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes.front().sustain == Fraction{5, 16});
         CHECK(derived.shapes.front().stated_extent == Fraction{1, 4});
-        CHECK(
-            derived.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
+        CHECK(derived.shapes[1].place == Fraction{5, 16});
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 2);
         CHECK(arpeggio.front());
@@ -1289,7 +1282,7 @@ TEST_CASE("A tap's plant reaches the spans through the pull-off that states it",
         const std::vector<ChartNote> stream = figure(5, 5);
         const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
         CHECK(derivedStops(derived, 1)[0] == std::optional{frettedStop(5)});
         CHECK(derivedStops(derived, 1)[1] == std::optional{frettedStop(9)});
         CHECK(derivedStops(derived, 1)[2] == std::optional{frettedStop(9)});
@@ -1354,12 +1347,12 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         // The successor sits at the landing, which is no note slot at all — the one span in the
         // model that opens where nothing is struck and nothing is claimed. It opens exactly where
         // its predecessor closes, which is what TILING means here.
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
 
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
@@ -1403,9 +1396,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
     }
 
@@ -1423,7 +1416,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& landed =
@@ -1462,11 +1455,11 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // The departing grip covers its own glide, ending exactly at the landing it never gets to
         // state.
         CHECK(derived.shapes[0].sustain == Fraction{19, 40});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 4});
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 2);
@@ -1481,9 +1474,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         });
         const ChartShapes landed = deriveFrom(breathing);
         REQUIRE(landed.shapes.size() == 2);
-        CHECK(
-            landed.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{9, 10}});
+        CHECK(landed.shapes[1].place == Fraction{19, 40});
         CHECK(landed.shapes[1].sustain == Fraction{11, 40});
     }
 
@@ -1513,9 +1504,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // is exactly one quantum, which the STRICT test drops, so it is never emitted. That is what
         // the absence of any landing-opened span below states.
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{19, 40});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 4});
         CHECK(std::ranges::none_of(derived.shapes, [](const ChartShape& shape) {
             return shape.landing_opened;
@@ -1558,9 +1549,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         }));
         // The departing grip covers its whole transit, ending ON the chord it slides into: the
         // store says the hand arrives there, so the span says so too.
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         everySpanIsPositive(derived);
     }
 
@@ -1585,9 +1576,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].sustain == Fraction{19, 40});
         // ONE successor, opened at the landing and carried through the restrike's own ring.
-        CHECK(
-            derived.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{9, 10}});
+        CHECK(derived.shapes[1].place == Fraction{19, 40});
         CHECK(derived.shapes[1].sustain == Fraction{11, 40});
         CHECK(derived.shapes[1].landing_opened);
         // BOX CLASS END TO END: a chord sliding into chords is not an
@@ -1674,7 +1663,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 
         REQUIRE(derived.shapes.size() == 2);
         // The departing grip, struck whole and covering its own transit to the earliest landing.
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& departing =
@@ -1684,7 +1673,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         CHECK(departing[2] == std::optional{frettedStop(9)});
 
         // The landed PAIR, and nothing of the finger still travelling.
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].landing_opened);
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& landed =
@@ -1731,9 +1720,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 
         REQUIRE(derived.shapes.size() == 3);
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 4});
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[2].place == Fraction{1});
         CHECK(derived.shapes[2].sustain == Fraction{1, 4});
     }
 
@@ -1758,11 +1747,11 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         REQUIRE(derived.shapes.size() == 3);
         // Three statements, TILING end to end ([D2]): each covers its own hold and the
         // glide out of it, and the next opens exactly where the last closes.
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[2].place == Fraction{3, 4});
         CHECK(derived.shapes[2].sustain == Fraction{1, 2});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& middle =
@@ -1793,7 +1782,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // One travel, so one covered transit: the departing grip runs to the only landing there
         // is, and the transit fret at a quarter gets no span of its own.
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& landed =
             derived.postures[derived.shapes[1].posture].stops;
@@ -1875,7 +1864,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         // THE PARTIAL-SLIDE READING, ring-refined: the statement is divided only where a held
         // member's ring ends while a co-struck glide is still in flight. Here the open strings ring
@@ -1884,7 +1873,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // stands: the span RIDES both restrikes per member and splits only at the landing.
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         CHECK_FALSE(arpeggiosFrom(notes)[0]);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         everySpanIsPositive(derived);
 
         // The control, and the one statement a travelling span cannot absorb: a restrike naming
@@ -1927,7 +1916,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // re-pick instead would give a bracket of seven sixteenths, with the re-picked note left
         // inside no span at all.
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1});
         CHECK(derived.shapes[1].sustain != Fraction{7, 16});
         CHECK(derived.shapes[1].sounds_in_parts);
@@ -1945,7 +1934,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         });
         const ChartShapes fresh = deriveFrom(restruck);
         REQUIRE(fresh.shapes.size() == 2);
-        CHECK(fresh.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(fresh.shapes[1].place == Fraction{1, 2});
         CHECK(fresh.shapes[1].landing_opened);
         everySpanIsPositive(fresh);
     }
@@ -2020,7 +2009,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // how many spans exist, so a bound that only guarded the indexing below would let another
         // span appear unnoticed.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         everySpanIsPositive(derived);
 
@@ -2036,7 +2025,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
                 {{Fraction{1, 4}, 7}, {Fraction{1, 2}, 9}}),
         }));
         REQUIRE(uninterrupted.shapes.size() == 2);
-        CHECK(uninterrupted.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(uninterrupted.shapes[1].place == Fraction{1, 2});
         CHECK(uninterrupted.shapes[1].landing_opened);
         REQUIRE(uninterrupted.shapes[1].posture < uninterrupted.postures.size());
         const std::vector<std::optional<ChartStop>>& landed =
@@ -2058,8 +2047,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const ChartShapes derived = deriveFrom(streamOf(landing_on_a_chord));
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
         everySpanIsPositive(derived);
 
@@ -2070,7 +2059,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         landing_early.push_back(inMeasure(2, noteAt(1, Fraction{}, 6, 3, Fraction{1, 2})));
         const ChartShapes breathing = deriveWith(streamOf(landing_early), makeTempoMap());
         REQUIRE(breathing.shapes.size() == 3);
-        CHECK(breathing.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(breathing.shapes[1].place == Fraction{1, 2});
         everySpanIsPositive(breathing);
     }
 
@@ -2102,9 +2091,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         const ChartShapes derived = deriveWith(glide_into_chord, meter_change);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 5});
+        CHECK(derived.shapes[0].place == Fraction{1, 2});
         CHECK(derived.shapes[0].sustain == Fraction{77, 320});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[1].place == Fraction{3, 4});
         everySpanIsPositive(derived);
 
         // The control, one ring apart: the same glide across the same signature change, with the
@@ -2117,9 +2106,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         });
         const ChartShapes landed = deriveWith(breathing_glide, meter_change);
         REQUIRE(landed.shapes.size() == 2);
-        CHECK(
-            landed.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 6, .offset = Fraction{37, 40}});
+        CHECK(landed.shapes[1].place == Fraction{237, 320});
         CHECK(landed.shapes[1].sustain == Fraction{83, 320});
         everySpanIsPositive(landed);
     }
@@ -2149,11 +2136,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         });
         const ChartShapes dropped = deriveWith(glide_into_the_fast_bar, into_a_fast_bar);
         REQUIRE(dropped.shapes.size() == 2);
-        CHECK(dropped.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(dropped.shapes[0].place == Fraction{});
         CHECK(dropped.shapes[0].sustain == Fraction{1});
-        CHECK(
-            dropped.shapes[1].position ==
-            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 4}});
+        CHECK(dropped.shapes[1].place == Fraction{17, 16});
         CHECK(std::ranges::none_of(dropped.shapes, [](const ChartShape& shape) {
             return shape.landing_opened;
         }));
@@ -2230,7 +2215,7 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
         REQUIRE(derived.shapes.size() == 2);
         CHECK_FALSE(derived.shapes[0].landing_opened);
         CHECK(derived.shapes[1].landing_opened);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& carried =
             derived.postures[derived.shapes[1].posture].stops;
@@ -2341,7 +2326,7 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         // The carry states no stop in the posture...
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& frets =
@@ -2370,7 +2355,7 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& held =
@@ -2427,18 +2412,14 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
 // where its predecessor closes. Every figure below is one of those shapes.
 TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
 {
-    const TempoMap tempo_map = makeTempoMap();
-    const auto tile = [&tempo_map](const std::vector<ChartNote>& notes) {
+    const auto tile = [](const std::vector<ChartNote>& notes) {
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() >= 2);
         for (std::size_t index = 1; index < derived.shapes.size(); ++index)
         {
             const ChartShape& earlier = derived.shapes[index - 1];
             const ChartShape& later = derived.shapes[index];
-            const Fraction earlier_end =
-                tempo_map.wholeNotePositionAt(earlier.position) + earlier.sustain;
-            const Fraction later_start = tempo_map.wholeNotePositionAt(later.position);
-            CHECK(!(later_start < earlier_end));
+            CHECK(!(later.place < earlier.place + earlier.sustain));
         }
     };
 
@@ -2496,9 +2477,7 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         REQUIRE(derived.shapes.size() == 1);
         // The strum states the shape, so the mark belongs at the strum — not at the restrike
         // inside, which states nothing the span did not already say.
-        CHECK(
-            derived.shapes.front().bracket_position ==
-            std::optional{GridPosition{.measure = 1, .beat = 1}});
+        CHECK(derived.shapes.front().bracket_place == std::optional{Fraction{}});
     }
 
     SECTION("a landing successor defers to its first interior sounding")
@@ -2517,11 +2496,11 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         const ChartShape& successor = derived.shapes[1];
         CHECK(successor.landing_opened);
         // The landing itself states nothing, so the mark waits for the re-pick.
-        CHECK(successor.bracket_position == std::optional{GridPosition{.measure = 1, .beat = 3}});
-        REQUIRE(successor.bracket_position.has_value());
-        if (successor.bracket_position.has_value())
+        CHECK(successor.bracket_place == std::optional{Fraction{1, 2}});
+        REQUIRE(successor.bracket_place.has_value());
+        if (successor.bracket_place.has_value())
         {
-            CHECK(successor.position != *successor.bracket_position);
+            CHECK(successor.place != *successor.bracket_place);
         }
     }
 
@@ -2536,7 +2515,7 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[1].landing_opened);
-        CHECK_FALSE(derived.shapes[1].bracket_position.has_value());
+        CHECK_FALSE(derived.shapes[1].bracket_place.has_value());
     }
 
     SECTION("an accumulation dated to a glide's landing draws its mark at the landing")
@@ -2553,9 +2532,9 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        const GridPosition landing{.measure = 1, .beat = 2, .offset = Fraction{1, 2}};
-        CHECK(derived.shapes.front().position == landing);
-        CHECK(derived.shapes.front().bracket_position == std::optional{landing});
+        const Fraction landing{3, 8};
+        CHECK(derived.shapes.front().place == landing);
+        CHECK(derived.shapes.front().bracket_place == std::optional{landing});
         everySpanIsPositive(derived);
     }
 }
@@ -2581,7 +2560,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // Every ring ends together at beat five, so the statement runs the whole figure and the
         // posture is the whole grip — the four stops the hand built up.
         CHECK(derived.shapes[0].sustain == Fraction{1});
@@ -2593,7 +2572,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(arpeggiosFrom(notes).front());
         // The rails run from the front, so the mark does too, and no digit stack stands there for
         // members whose own heads are still to arrive.
-        CHECK(derived.shapes[0].bracket_position == std::optional{derived.shapes[0].position});
+        CHECK(derived.shapes[0].bracket_place == std::optional{derived.shapes[0].place});
         everySpanIsPositive(derived);
     }
 
@@ -2613,7 +2592,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes stated = deriveFrom(strum);
         REQUIRE(stated.shapes.size() == 1);
-        CHECK(stated.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(stated.shapes[0].place == Fraction{});
         CHECK(memberCount(stated, 0) == 3);
         CHECK(stated.shapes[0].sustain == Fraction{1});
 
@@ -2626,7 +2605,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes absorbed = deriveFrom(built_up);
         REQUIRE(absorbed.shapes.size() == 1);
-        CHECK(absorbed.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(absorbed.shapes[0].place == Fraction{});
         CHECK(memberCount(absorbed, 0) == 3);
         CHECK(absorbed.shapes[0].sustain == Fraction{1});
     }
@@ -2645,15 +2624,13 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // The split is the CLOSE: the accumulation ends at the contradicting onset. What the
         // contradicting slot then states is one struck string, since the rings crossing it belong
         // to the span it just broke — A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN — so the
         // opening law finds one member there and opens nothing.
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 2}});
         everySpanIsPositive(derived);
     }
 
@@ -2674,7 +2651,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
         CHECK(memberCount(derived, 0) == 4);
         // ONE cause remains for this field, and a death is not it (the census keys landing-born
@@ -2728,7 +2705,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // there and the span runs on rather than quitting. Without it fret 5 would leave the
         // posture, which is what the posture assertion catches.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
         CHECK(derived.shapes[0].sounds_in_parts);
         CHECK_FALSE(derived.shapes[0].landing_opened);
@@ -2757,7 +2734,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         CHECK(memberCount(derived, 0) == 3);
         everySpanIsPositive(derived);
@@ -2780,9 +2757,9 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(memberCount(derived, 1) == 2);
         CHECK_FALSE(derived.shapes[1].landing_opened);
         everySpanIsPositive(derived);
@@ -2818,7 +2795,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes unioned = deriveFrom(overlapping);
         REQUIRE(unioned.shapes.size() == 1);
-        CHECK(unioned.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(unioned.shapes[0].place == Fraction{});
         CHECK(memberCount(unioned, 0) == 4);
         everySpanIsPositive(unioned);
 
@@ -2835,7 +2812,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         REQUIRE(broken.shapes.size() == 2);
         CHECK(broken.shapes[0].sustain == Fraction{1, 4});
         CHECK(memberCount(broken, 0) == 2);
-        CHECK(broken.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(broken.shapes[1].place == Fraction{1, 4});
         CHECK(memberCount(broken, 1) == 2);
         everySpanIsPositive(broken);
     }
@@ -2856,8 +2833,8 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         // No overlap, which is the whole promise: the first span's end is at or before the
         // second's start.
         CHECK(derived.shapes[0].sustain <= Fraction{1, 2});
@@ -2889,11 +2866,9 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{3, 8});
-        CHECK(
-            derived.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[1].place == Fraction{3, 8});
         everySpanIsPositive(derived);
     }
 
@@ -2939,7 +2914,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // All three members are open strings, so the minimum is reached by open members alone —
         // nothing fretted is doing the founding here.
         CHECK(memberCount(derived, 0) == 3);
@@ -2960,7 +2935,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{3, 2});
         CHECK(memberCount(derived, 0) == 4);
     }
@@ -2991,10 +2966,8 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // reads as three re-headed one-note brackets, and the corpus grows a chain of them under
         // every melody over a let-ring drone whose rings run to the end of the phrase.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 2}});
         CHECK(memberCount(derived, 0) == 3);
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
@@ -3021,7 +2994,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // FOUNDING FOLLOWS COMPOSITION: the stab struck two of the three stops the
         // span holds, so the slot did not state the shape WHOLE — the drone arrived a quarter
         // earlier and the span dates from THERE. A simultaneous strike founds a STATEMENT only
@@ -3036,7 +3009,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // says it whole. The drone sounding under it is a tail: a bracket states the onsets inside
         // its span and nothing else, so the posture is the two-string grip alone and the stab,
         // struck in unison, is a box.
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[1].place == Fraction{3, 4});
         CHECK(memberCount(derived, 1) == 2);
         CHECK_FALSE(derivedStops(derived, 1)[5].has_value());
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
@@ -3064,7 +3037,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // strike a measure later are that span's members and nobody else's, and the lone strike
         // they cross states one stop and founds nothing.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         CHECK(memberCount(derived, 0) == 3);
         everySpanIsPositive(derived);
@@ -3111,10 +3084,10 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         // stands after it — the bracket ends where the arpeggio ends, which is the rule's whole
         // point: it is no longer an arpeggio.
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[0].sounds_in_parts);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[1].place == Fraction{1});
         CHECK(derived.shapes[1].sustain == Fraction{1, 4});
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
         everySpanIsPositive(derived);
@@ -3142,10 +3115,10 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         // One bracket over the whole running figure, and the closing strum — which nothing
         // follows, so it DOES stand alone — founding its own chord span.
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK(derived.shapes[0].sounds_in_parts);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 3, .beat = 1});
+        CHECK(derived.shapes[1].place == Fraction{2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 4});
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
         everySpanIsPositive(derived);
@@ -3180,12 +3153,12 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         // The superset strum's own span, running through the absorbed chug and over the partial
         // that absorbed it, to the last renewed ring.
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{3, 4});
         CHECK(derived.shapes[1].sounds_in_parts);
         everySpanIsPositive(derived);
@@ -3202,7 +3175,7 @@ TEST_CASE("A unison restatement of the whole grip founds a chord span", "[core][
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{5, 4});
         everySpanIsPositive(derived);
     }
@@ -3256,7 +3229,7 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
 
         // ONE span, flowing from the texture's own front through the stroke to the rings' end.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].place == Fraction{1, 2});
         CHECK(derived.shapes[0].sustain == Fraction{9, 8});
         CHECK(derived.shapes[0].sounds_in_parts);
         REQUIRE(arpeggiosFrom(notes).size() == 1);
@@ -3290,10 +3263,10 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[0].sounds_in_parts);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[1].place == Fraction{1});
         CHECK(derived.shapes[1].sustain == Fraction{1, 8});
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
         everySpanIsPositive(derived);
@@ -3303,10 +3276,7 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         const TempoMap tempo_map = makeTempoMap();
         const ChartConnections connections = chartConnections(notes, tempo_map);
         const std::vector<Fraction> ink_end =
-            chartPresentation(
-                connections,
-                HeadMargins{connections.saved_notes, connections.places, tempo_map},
-                tempo_map)
+            chartPresentation(connections, HeadMargins{connections.places, tempo_map}, tempo_map)
                 .ink_end;
         CHECK(derived.shapes[1].sustain < ink_end[indexAt(notes, 2, 1, 1)]);
     }
@@ -3333,7 +3303,7 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         everySpanIsPositive(derived);
@@ -3368,16 +3338,14 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 3);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].place == Fraction{1, 2});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         CHECK(derived.shapes[0].sounds_in_parts);
         // The stroke's own box span, one slot wide: it stood alone, so it states a chord.
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[1].place == Fraction{3, 4});
         CHECK(derived.shapes[1].sustain == Fraction{1, 8});
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
-        CHECK(
-            derived.shapes[2].position ==
-            GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[2].place == Fraction{7, 8});
         CHECK(derived.shapes[2].sustain == Fraction{1, 4});
         everySpanIsPositive(derived);
     }
@@ -3404,16 +3372,14 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 3);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].place == Fraction{1, 2});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         CHECK(derived.shapes[0].sounds_in_parts);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[1].place == Fraction{3, 4});
         CHECK(derived.shapes[1].sustain == Fraction{1, 8});
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
         // The seam: the contradicting slot closes one span and opens the next at the same instant.
-        CHECK(
-            derived.shapes[2].position ==
-            GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[2].place == Fraction{7, 8});
         everySpanIsPositive(derived);
     }
 }
@@ -3441,7 +3407,7 @@ TEST_CASE("A tap over a held chord stop carries the span through it", "[core][ch
     const ChartShapes derived = deriveFrom(notes);
 
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes[0].place == Fraction{});
     CHECK(derived.shapes[0].sounds_in_parts);
     const std::vector<bool> arpeggio = arpeggiosFrom(notes);
     REQUIRE(arpeggio.size() == 1);
@@ -3467,7 +3433,7 @@ TEST_CASE("A tap at or below the standing grip's stop splits the span", "[core][
     const auto span_runs = [](const std::vector<ChartNote>& notes, const Fraction extent) {
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == extent);
     };
 
@@ -3554,17 +3520,15 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
     const ChartShapes derived = deriveFrom(notes);
 
     REQUIRE(derived.shapes.size() == 3);
-    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes[0].place == Fraction{});
     CHECK(derived.shapes[0].sustain == Fraction{1, 2});
     CHECK_FALSE(derived.shapes[0].sounds_in_parts);
-    CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+    CHECK(derived.shapes[1].place == Fraction{1, 2});
     // The parts figure runs to the travellers' ARRIVAL, where the new grip is established (rule
     // 10) — a margin before the restrike, which then restates the whole grip and founds nothing.
     CHECK(derived.shapes[1].sustain == Fraction{5, 16});
     CHECK(derived.shapes[1].sounds_in_parts);
-    CHECK(
-        derived.shapes[2].position ==
-        GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 4}});
+    CHECK(derived.shapes[2].place == Fraction{13, 16});
     CHECK_FALSE(derived.shapes[2].sounds_in_parts);
 
     const std::vector<bool> arpeggio = arpeggiosFrom(notes);
@@ -3591,7 +3555,7 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
     });
     const ChartShapes whole = deriveFrom(shifted);
     REQUIRE(!whole.shapes.empty());
-    CHECK(whole.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(whole.shapes[0].place == Fraction{});
     CHECK_FALSE(whole.shapes[0].sounds_in_parts);
     CHECK_FALSE(arpeggiosFrom(shifted)[0]);
     everySpanIsPositive(whole);
@@ -3628,11 +3592,11 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
         // STRUCK IN), so nothing opens over them, and neither does the restatement a measure
         // later.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         // Two quarters: the close falls at the tap's own onset. It publishes no head, because the
         // fretting hand strikes nothing there.
-        CHECK_FALSE(derived.shapes[0].closing_onset.has_value());
+        CHECK_FALSE(derived.shapes[0].closing_onset_place.has_value());
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         // It prints the grip its own members struck, never the fret the contradiction takes.
         CHECK(
@@ -3667,7 +3631,7 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
 
         // One span, stated whole by the chord that opens it.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].place == Fraction{1, 2});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[0] == std::optional{frettedStop(8)});
@@ -3690,7 +3654,7 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
         // The first section's picture: the accumulation closes at the tap all the same, and the
         // strike a measure later stands alone over rings that belong to the span the tap closed.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         everySpanIsPositive(derived);
     }
@@ -3749,7 +3713,7 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
         // coverage frontier. Unclamped the front would back-date to beat 2 and the bracket would
         // claim the 6 while string one still sounds 7.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[0].place == Fraction{3, 4});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[0] == std::optional{frettedStop(6)});
@@ -3770,7 +3734,7 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
         const ChartShapes derived = deriveFrom(figure(7));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         everySpanIsPositive(derived);
     }
 }
@@ -3806,7 +3770,7 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
             deriveFrom(figure(ornament, pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1, 8})));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // The whole figure is one statement: the reach runs to the last ring and NOT past it
         // (the law extends no span beyond its sounding evidence).
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
@@ -3836,7 +3800,7 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
             const ChartShapes derived = deriveFrom(notes);
 
             REQUIRE(derived.shapes.size() == 1);
-            CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+            CHECK(derived.shapes[0].place == Fraction{});
             // Through the ornament's release, where the restruck 6 stops ringing.
             CHECK(derived.shapes[0].sustain == Fraction{1, 2});
             CHECK(
@@ -3894,9 +3858,7 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].position ==
-            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].place == Fraction{1, 8});
         CHECK(derived.shapes[0].sustain == Fraction{5, 8});
         everySpanIsPositive(derived);
     }
@@ -3932,7 +3894,7 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
             pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1, 4}),
         }));
         REQUIRE(open_scaffold.shapes.size() == 1);
-        CHECK(open_scaffold.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(open_scaffold.shapes[0].place == Fraction{});
         CHECK(open_scaffold.shapes[0].sustain == Fraction{5, 8});
         everySpanIsPositive(open_scaffold);
 
@@ -3946,7 +3908,7 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // Two and a half quarters to the break: the source restates the 7 the span already holds
         // and carries it, so the span runs to the RELEASE'S own onset and not to the source's.
         CHECK(derived.shapes[0].sustain == Fraction{5, 8});
@@ -3967,7 +3929,7 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // The ornament states the grip it plants, so the frame never flickers to 7.
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[3] == std::optional{frettedStop(5)});
@@ -4014,14 +3976,12 @@ TEST_CASE(
         // at the release that begins it.
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 8});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         CHECK(derivedStops(derived, 0)[1] == std::optional{frettedStop(3)});
         CHECK(derivedStops(derived, 0)[4] == std::optional{frettedStop(3)});
-        CHECK(
-            derived.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[1].place == Fraction{1, 8});
         // String 2's ring belongs to the box that struck it (A RING BELONGS ONLY TO THE SPAN IT
         // WAS STRUCK IN), so the parts figure is the three open strings alone and its statement
         // runs out where THEY stop ringing (the continuity law); nothing here renews them.
@@ -4057,7 +4017,7 @@ TEST_CASE(
 
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() >= 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         CHECK(derived.shapes[0].sustain == Fraction{1, 8});
         everySpanIsPositive(derived);
@@ -4121,10 +4081,10 @@ TEST_CASE(
         // across the 9 to a finger nothing had put on the 7 yet.
         const ChartShapes derived = deriveFrom(streamOf(dyad(true)));
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(9)});
         CHECK(derivedStops(derived, 0)[3] == std::optional{frettedStop(9)});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
         CHECK(derivedStops(derived, 1)[2] == std::optional{frettedStop(7)});
         CHECK(derivedStops(derived, 1)[3] == std::optional{frettedStop(7)});
         const std::vector<bool> classes = arpeggiosFrom(streamOf(dyad(true)));
@@ -4184,7 +4144,7 @@ TEST_CASE(
         // the ring and wearing a 7 nobody struck there.
         const ChartShapes derived = deriveFrom(lone_ring(Fraction{1, 4}, true));
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[0].place == Fraction{1, 4});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(5)});
         CHECK(derivedStops(derived, 0)[3] == std::optional{frettedStop(9)});
@@ -4285,7 +4245,7 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
             deriveFrom(over_its_landing(noteAt(2, Fraction{}, 3, 5, Fraction{1, 4})));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
         CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(3)});
         everySpanIsPositive(derived);
@@ -4303,11 +4263,9 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
         // ONLY TO THE SPAN IT WAS STRUCK IN), so nothing founds at it — nor at the release that
         // puts the 3 back, which stands just as alone.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 2}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 4}});
         CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(3)});
         everySpanIsPositive(derived);
     }
@@ -4336,10 +4294,10 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derivedStops(derived, 0)[3] == std::optional{frettedStop(5)});
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         // A quarter from beat 1 at 4/4: the release's own onset.
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
-        CHECK(derived.shapes[0].closing_onset == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[0].closing_onset_place == Fraction{1, 4});
         everySpanIsPositive(derived);
     };
 
@@ -4419,10 +4377,8 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
         // The texture, closed by the node chord's own onset: node 12 struck over the open strings
         // the grip holds is a contradiction on strings the span names, and no plant bridges a
         // node.
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 2, .beat = 2}});
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{5, 4}});
         // Neither node chord founds a span — three co-struck naturals are no own stops, and the
         // rings sounding under them belong to the span they closed — so the next span is the
         // open-chord figure at 3:1, founded exactly as it is with no harmonics before it: the
@@ -4430,7 +4386,7 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
         // at. Its release therefore begins a statement of its own an eighth later, so the tail
         // figure is the box its stroke says and the parts span the release founds — the same two
         // spans the figure derives when the pull-off is a plain restrike.
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 3, .beat = 1});
+        CHECK(derived.shapes[1].place == Fraction{2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 8});
         const std::vector<std::optional<ChartStop>>& stroke = derivedStops(derived, 1);
         CHECK(stroke[1] == std::optional{frettedStop(3)});
@@ -4439,9 +4395,7 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
         // posture, so the stroke's box is the stroke alone.
         CHECK_FALSE(stroke[2].has_value());
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
-        CHECK(
-            derived.shapes[2].position ==
-            GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[2].place == Fraction{17, 8});
         // The stroke's own fretted 3 belongs to the stroke's box, so the parts span the release
         // fronts is the open strings alone and runs for as long as THEY ring.
         CHECK(derived.shapes[2].sustain == Fraction{1, 2});
@@ -4469,9 +4423,7 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 2}});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[2] == std::optional{frettedStop(5)});
@@ -4494,9 +4446,7 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 2}});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
@@ -4539,7 +4489,7 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{1});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         const std::vector<std::optional<ChartStop>>& twelves = derivedStops(derived, 0);
         CHECK(twelves[3] == std::optional{frettedStop(12)});
@@ -4568,10 +4518,10 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
 
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(control.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].position == control.shapes[0].position);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].place == control.shapes[0].place);
         CHECK(derived.shapes[0].sustain == control.shapes[0].sustain);
-        CHECK(derived.shapes[0].closing_onset == control.shapes[0].closing_onset);
+        CHECK(derived.shapes[0].closing_onset_place == control.shapes[0].closing_onset_place);
         CHECK(derivedStops(derived, 0) == derivedStops(control, 0));
         CHECK_FALSE(derivedStops(derived, 0)[5].has_value());
         noPostureHoldsANaturalNode(derived);
@@ -4633,11 +4583,9 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
         const ChartShapes derived = deriveFrom(figure(Fraction{1, 2}));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[0].place == Fraction{1, 4});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 4}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{3, 4}});
         const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 0);
         CHECK(grip[1] == std::optional{frettedStop(3)});
         CHECK(grip[2] == std::optional{frettedStop(2)});
@@ -4655,7 +4603,7 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
         const ChartShapes derived = deriveFrom(figure(Fraction{1, 4}));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[0].place == Fraction{1, 4});
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
         const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 0);
         CHECK(grip[1] == std::optional{frettedStop(3)});
@@ -4674,9 +4622,7 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
         derivesLike(figure(Fraction{3, 4}), figure(Fraction{1, 2}));
         const ChartShapes derived = deriveFrom(figure(Fraction{3, 4}));
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 4}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{3, 4}});
     }
 
     SECTION("THE OPEN-RING ANALOG: an open string dying under the span is as hand-free")
@@ -4699,11 +4645,9 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
         }));
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
-        CHECK(
-            derived.shapes[1].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 4}});
+        CHECK(derived.shapes[1].closing_onset_place == std::optional{Fraction{3, 4}});
         const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 1);
         CHECK(grip[1] == std::optional{frettedStop(3)});
         CHECK(grip[2] == std::optional{frettedStop(2)});
@@ -4740,7 +4684,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
             noteAt(3, Fraction{}, 4, 2, Fraction{1, 2}),
         }));
         REQUIRE(open_first.shapes.size() == 1);
-        CHECK(open_first.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(open_first.shapes[0].place == Fraction{});
         CHECK(memberCount(open_first, 0) == 3);
         CHECK(derivedStops(open_first, 0)[5] == std::optional{frettedStop(0)});
 
@@ -4750,7 +4694,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
             noteAt(3, Fraction{}, 4, 2, Fraction{1, 2}),
         }));
         REQUIRE(fretted.shapes.size() == 1);
-        CHECK(fretted.shapes[0].position == open_first.shapes[0].position);
+        CHECK(fretted.shapes[0].place == open_first.shapes[0].place);
         CHECK(fretted.shapes[0].sustain == open_first.shapes[0].sustain);
         everySpanIsPositive(open_first);
     }
@@ -4772,11 +4716,9 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         }));
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 2}});
+        CHECK(derived.shapes[1].place == Fraction{3, 4});
         CHECK(memberCount(derived, 1) == 2);
         CHECK(derivedStops(derived, 1)[0] == std::optional{frettedStop(8)});
         CHECK(derivedStops(derived, 1)[5] == std::optional{frettedStop(0)});
@@ -4813,7 +4755,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
 
         const ChartShapes derived = deriveFrom(figure(true, Fraction{7, 8}));
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sounds_in_parts);
         CHECK(memberCount(derived, 1) == 3);
         CHECK_FALSE(derivedStops(derived, 1)[5].has_value());
@@ -4834,9 +4776,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         // is nothing: it states one stop, and every ring it states it over belongs to the span it
         // just broke.
         REQUIRE(replaced.shapes.size() == 2);
-        CHECK(
-            replaced.shapes[1].closing_onset ==
-            std::optional{GridPosition{.measure = 2, .beat = 1}});
+        CHECK(replaced.shapes[1].closing_onset_place == std::optional{Fraction{1}});
         everySpanIsPositive(replaced);
 
         // The chord over the drone: struck whole at beat three while the drone rings on from the
@@ -4883,9 +4823,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
             harmonicAt(3, Fraction{}, 5, 12.0, Fraction{1, 2}),
         }));
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 2}});
         noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
@@ -4901,7 +4839,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
             noteAt(1, Fraction{}, 6, 0, Fraction{1}),
         }));
         REQUIRE(over_drone.shapes.size() == 1);
-        CHECK(over_drone.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(over_drone.shapes[0].place == Fraction{});
         everySpanIsPositive(over_drone);
 
         const ChartShapes over_fretted = deriveFrom(streamOf({
@@ -4909,7 +4847,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
             noteAt(1, Fraction{}, 6, 7, Fraction{1}),
         }));
         REQUIRE(over_fretted.shapes.size() == 2);
-        CHECK(over_fretted.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(over_fretted.shapes[1].place == Fraction{1, 2});
         everySpanIsPositive(over_fretted);
 
         // Two fretted members slide over the struck open drone: the landing hands the two slid
@@ -4922,12 +4860,12 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
             noteAt(1, Fraction{}, 6, 0, Fraction{1}),
         }));
         REQUIRE(landed.shapes.size() == 2);
-        CHECK(landed.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(landed.shapes[1].place == Fraction{1, 2});
         CHECK(landed.shapes[1].landing_opened);
         CHECK(memberCount(landed, 1) == 2);
         CHECK(derivedStops(landed, 1)[0] == std::optional{frettedStop(7)});
         CHECK_FALSE(derivedStops(landed, 1)[5].has_value());
-        CHECK_FALSE(landed.shapes[1].bracket_position.has_value());
+        CHECK_FALSE(landed.shapes[1].bracket_place.has_value());
         CHECK_FALSE(landed.shapes[1].sounds_in_parts);
         everySpanIsPositive(landed);
     }
@@ -4955,9 +4893,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         const ChartShapes natural =
             deriveFrom(figure(harmonicAt(1, Fraction{}, 6, 12.0, Fraction{1})));
         REQUIRE(natural.shapes.size() == 1);
-        CHECK(
-            natural.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 2}});
+        CHECK(natural.shapes[0].closing_onset_place == std::optional{Fraction{1, 4}});
         CHECK_FALSE(derivedStops(natural, 0)[5].has_value());
         noPostureHoldsANaturalNode(natural);
 
@@ -4965,7 +4901,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         artificial.harmonic_node = 15.0;
         const ChartShapes pressed = deriveFrom(figure(artificial));
         REQUIRE(pressed.shapes.size() == 1);
-        CHECK(pressed.shapes[0].closing_onset == natural.shapes[0].closing_onset);
+        CHECK(pressed.shapes[0].closing_onset_place == natural.shapes[0].closing_onset_place);
         CHECK(pressed.shapes[0].sustain == natural.shapes[0].sustain);
         CHECK(derivedStops(pressed, 0)[5] == std::optional{frettedStop(3)});
         everySpanIsPositive(natural);
@@ -4995,11 +4931,9 @@ TEST_CASE("Fretted rings under a moving line found nothing after their span", "[
         }));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(
-            derived.shapes[0].closing_onset ==
-            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 2}});
         CHECK(memberCount(derived, 0) == 3);
         const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 0);
         CHECK(grip[5] == std::optional{frettedStop(3)});
@@ -5026,9 +4960,9 @@ TEST_CASE("Fretted rings under a moving line found nothing after their span", "[
         }));
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
         CHECK(memberCount(derived, 1) == 3);
         const std::vector<std::optional<ChartStop>>& refounded = derivedStops(derived, 1);
@@ -5052,7 +4986,7 @@ TEST_CASE("Fretted rings under a moving line found nothing after their span", "[
         }));
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
         CHECK(memberCount(derived, 1) == 2);
         CHECK_FALSE(derivedStops(derived, 1)[3].has_value());
         CHECK_FALSE(derived.shapes[1].sounds_in_parts);
@@ -5105,9 +5039,7 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
         const ChartShapes derived = deriveFrom(figure(Fraction{1, 4}, 5));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].position ==
-            GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].place == Fraction{5, 8});
         CHECK(derived.shapes[0].sustain == Fraction{5, 8});
         everySpanIsPositive(derived);
     }
@@ -5121,9 +5053,7 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
         const ChartShapes derived = deriveFrom(figure(Fraction{3, 8}, std::nullopt));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].position ==
-            GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].place == Fraction{5, 8});
         CHECK(derived.shapes[0].sustain == Fraction{3, 8});
         everySpanIsPositive(derived);
     }
@@ -5137,7 +5067,7 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
         const ChartShapes derived = deriveFrom(figure(Fraction{1, 8}, 5));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[0].place == Fraction{3, 4});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
         everySpanIsPositive(derived);
     }
@@ -5151,9 +5081,7 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
         const ChartShapes derived = deriveFrom(figure(Fraction{1, 4}, 7));
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].position ==
-            GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].place == Fraction{7, 8});
         CHECK(derived.shapes[0].sustain == Fraction{3, 8});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
@@ -5183,7 +5111,7 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
         notes[0].palm_mute = true;
         return streamOf(std::move(notes));
     };
-    const GridPosition stroke{.measure = 1, .beat = 3, .offset = Fraction{1, 2}};
+    const Fraction stroke{5, 8};
 
     SECTION("the stab's ring dies exactly into the stroke")
     {
@@ -5191,7 +5119,7 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == stroke);
+        CHECK(derived.shapes[0].place == stroke);
         CHECK(memberCount(derived, 0) == 3);
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         CHECK_FALSE(arpeggiosFrom(notes).front());
@@ -5215,7 +5143,7 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
         const ChartShapes derived = deriveFrom(stream);
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == stroke);
+        CHECK(derived.shapes[0].place == stroke);
         CHECK_FALSE(arpeggiosFrom(stream).front());
         everySpanIsPositive(derived);
     }
@@ -5234,7 +5162,7 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[0].place == Fraction{1, 2});
         CHECK(derived.shapes[0].sounds_in_parts);
         CHECK(arpeggiosFrom(notes).front());
         everySpanIsPositive(derived);
@@ -5266,7 +5194,7 @@ TEST_CASE("A slid string dates its span from the landing, not its onset", "[core
     // at the note's onset there would be two — a quarter-long span fronted at measure 1 beat 1
     // printing the 7 over the glide's departure and transit, then the landing successor.
     REQUIRE(derived.shapes.size() == 1);
-    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(derived.shapes[0].place == Fraction{1, 4});
     CHECK(derived.shapes[0].sustain == Fraction{5, 4});
     REQUIRE(derived.shapes[0].posture < derived.postures.size());
     CHECK(derived.postures[derived.shapes[0].posture].stops[0] == std::optional{frettedStop(7)});
@@ -5311,9 +5239,7 @@ TEST_CASE("A span cannot date across a foreign ring that died before its strike"
         // f0's death. Without the floor it would front at measure 2 beat 1 and the bracket would
         // print 7 on a string audibly ringing 0 for another sixteenth.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(
-            derived.shapes[0].position ==
-            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[0].place == Fraction{9, 8});
         CHECK(derived.shapes[0].sustain == Fraction{5, 8});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& frets =
@@ -5339,11 +5265,9 @@ TEST_CASE("A span cannot date across a foreign ring that died before its strike"
         // earliest member onset past the f5's death — never at the frontier the predecessor's close
         // left at measure 2 beat 1.
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 4});
+        CHECK(derived.shapes[0].place == Fraction{3, 4});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
-        CHECK(
-            derived.shapes[1].position ==
-            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 2}});
+        CHECK(derived.shapes[1].place == Fraction{9, 8});
         CHECK(derived.shapes[1].sustain == Fraction{5, 8});
         everySpanIsPositive(derived);
     }
@@ -5389,7 +5313,7 @@ TEST_CASE("A bare tap's held stop defaults to the grip the covering span holds",
     // stating 5, 7 and 7 on strings 1 to 3 and nothing on string 5.
     REQUIRE(resolutions.shapes.size() == 1);
     const ChartShape& span = resolutions.shapes.front();
-    CHECK(span.position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(span.place == Fraction{});
     CHECK(span.sustain == Fraction{1});
     const std::vector<std::optional<ChartStop>>& frets = resolutions.postures[span.posture].stops;
     CHECK(frets[2] == std::optional{frettedStop(7)});

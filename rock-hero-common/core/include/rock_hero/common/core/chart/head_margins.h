@@ -5,9 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
@@ -15,7 +13,7 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief The minimum sustain distance before each distinct head position, derived once per revision
+\brief The minimum sustain distance before each distinct head place, derived once per revision
 by the one authority (\ref minimumSustainDistance) and read by every rule that keeps that distance.
 
 Every margin a scene build keeps is kept before a HEAD — the onset that binds a ring
@@ -23,7 +21,7 @@ Every margin a scene build keeps is kept before a HEAD — the onset that binds 
 the onset a hand's light rises toward (\ref NoteViewState::margin_start_seconds) — so the question
 has one answer per distinct onset, and chords share it. The table only stops a build asking that
 question again: each entry is the authority's own answer, so a margin read here and one asked
-directly cannot differ. Keyed by position because the closing head of a span is known by position.
+directly cannot differ. Keyed by whole-note place, the coordinate every reader already holds.
 
 A fret-hand placement is not a head, so its ramp asks the authority directly; a lookup that fell
 back to computing would be two paths to one answer.
@@ -39,33 +37,31 @@ public:
     /*!
     \brief Asks the authority once per distinct onset of a note stream.
 
-    \param notes Note stream sorted by position; every onset in it becomes a head.
-    \param places Each note's whole-note place (\ref chartNotePlaces), index-parallel to `notes`.
+    \param places Every note's whole-note place (\ref chartNotePlaces), ascending; each distinct
+           place is a head.
     \param tempo_map Song tempo map supplying the time axis.
     */
-    HeadMargins(
-        const std::vector<ChartNote>& notes, const std::vector<Fraction>& places,
-        const TempoMap& tempo_map);
+    HeadMargins(const std::vector<Fraction>& places, const TempoMap& tempo_map);
 
     /*!
     \brief The margin before a head: \ref minimumSustainDistance at that head.
 
-    \param head An onset of the stream the table was built from; asking anything else is a
-           precondition violation.
+    \param head The place of an onset of the stream the table was built from; asking anything
+           else is a precondition violation.
     \return The margin in whole notes.
     */
-    [[nodiscard]] Fraction length(const GridPosition& head) const;
+    [[nodiscard]] Fraction length(Fraction head) const;
 
 private:
     // One distinct onset and the margin kept before it.
     struct Entry
     {
-        GridPosition head;
+        Fraction head;
         Fraction length;
     };
 
     // The entry for a head the table holds.
-    [[nodiscard]] const Entry& entryAt(const GridPosition& head) const;
+    [[nodiscard]] const Entry& entryAt(Fraction head) const;
 
     // Ascending and distinct by head.
     std::vector<Entry> m_entries;

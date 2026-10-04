@@ -86,17 +86,16 @@ public:
     /*!
     \brief Builds the prefix table over one revision's spans.
 
-    \param shapes Spans sorted by position.
-    \param tempo_map Song tempo map supplying the meter each span's place is measured in.
+    \param shapes Spans sorted by place.
     */
-    SpanCover(const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
+    explicit SpanCover(const std::vector<ChartShape>& shapes)
     {
         m_starts.reserve(shapes.size());
         m_best.reserve(shapes.size());
         std::optional<SpanCoverage> best;
         for (std::size_t span = 0; span < shapes.size(); ++span)
         {
-            const Fraction start = tempo_map.wholeNotePositionAt(shapes[span].position);
+            const Fraction start = shapes[span].place;
             const Fraction span_end = start + shapes[span].sustain;
             if (!best.has_value() || best->end < span_end)
             {

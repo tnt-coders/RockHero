@@ -166,7 +166,7 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   travel's successor, whose members are rings struck under the statement BEFORE it, and only that,
   because a landing is not a SOUNDING: nothing is struck at one, so a successor is classified by the
   ordinary triggers found inside it and a chord sliding into chords is a box at both ends, joined by
-  its members' sliding tails; and `bracket_position`, the instant that span's one opening mark draws
+  its members' sliding tails; and `bracket_place`, the instant that span's one opening mark draws
   at. That last one carries the span's own FRONT wherever an EVENT states it — a strum, an authored
   hold, and an accumulation's earliest uncovered member — carries the first interior sounding of the
   fretting hand where a LANDING opened it instead, and carries nothing at all where such a span

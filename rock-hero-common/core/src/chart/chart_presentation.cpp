@@ -26,7 +26,7 @@ namespace
 // duration, so a tempo change between the two would otherwise measure it at the wrong rate. A ring
 // that ends at or before the crop is free and keeps its whole length.
 [[nodiscard]] Fraction croppedInkEnd(
-    const ChartNote& note, const Fraction gap, const GridPosition& binding_onset,
+    const ChartNote& note, const Fraction gap, const Fraction binding_onset,
     const HeadMargins& margins)
 {
     return std::min(note.sustain, std::max(gap - margins.length(binding_onset), Fraction{}));
@@ -51,7 +51,7 @@ namespace
         const Fraction gap = places[ahead] - places[index];
         if (!(gap < note.sustain))
         {
-            return croppedInkEnd(note, gap, notes[ahead].position, margins);
+            return croppedInkEnd(note, gap, places[ahead], margins);
         }
         deliberate_hold = true;
     }
@@ -196,7 +196,7 @@ bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const Fract
 // the tail it draws.
 std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const ChartConnections& connections,
-    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
+    const std::vector<ChartShape>& shapes)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
 
@@ -219,7 +219,7 @@ std::vector<Fraction> chartHolds(
     }
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
-    const SpanCover cover{shapes, tempo_map};
+    const SpanCover cover{shapes};
     for (std::size_t index = 0; index < notes.size();)
     {
         const GridPosition onset = notes[index].position;

@@ -167,13 +167,12 @@ the shape (\ref deriveChartShapes bounds a span by its members' ring chains).
 \param connections The resolved connections (\ref chartConnections): its `saved_notes` supply the
                    stored ring a covered resting or handed-over member holds, and its `hands_over`
                    marks the members whose pin ends at that ring.
-\param shapes Hand-posture spans sorted by position.
-\param tempo_map Tempo map supplying the meter each span's place is measured in.
+\param shapes Hand-posture spans sorted by place.
 
 \return Per-note held length in whole notes, sized like the inputs.
 */
 [[nodiscard]] std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const ChartConnections& connections,
-    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map);
+    const std::vector<ChartShape>& shapes);
 
 } // namespace rock_hero::common::core

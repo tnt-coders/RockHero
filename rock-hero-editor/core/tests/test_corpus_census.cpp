@@ -751,7 +751,7 @@ struct StreamIndex
     std::vector<Fraction> slot_place;
     std::vector<std::size_t> slot_first;
     std::vector<std::size_t> slot_last;
-    std::map<GridPosition, std::size_t> slot_of;
+    std::map<Fraction, std::size_t> slot_of;
 
     // Onsets per string. Every question this column answers is a question about sound — where a
     // ring's next same-string onset lands, and which note last sounded a string — so it holds
@@ -771,11 +771,11 @@ struct StreamIndex
     }
     for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
-        const GridPosition& position = notes[note_index].position;
-        if (index.slot_place.empty() || index.slot_of.find(position) == index.slot_of.end())
+        const Fraction place = index.onset[note_index];
+        if (index.slot_place.empty() || index.slot_of.find(place) == index.slot_of.end())
         {
-            index.slot_of.emplace(position, index.slot_place.size());
-            index.slot_place.push_back(index.onset[note_index]);
+            index.slot_of.emplace(place, index.slot_place.size());
+            index.slot_place.push_back(place);
             index.slot_first.push_back(note_index);
             index.slot_last.push_back(note_index + 1);
         }
@@ -963,7 +963,7 @@ void countDerivation(
     {
         if (shape.landing_opened)
         {
-            successor_starts.insert(tempo_map.wholeNotePositionAt(shape.position));
+            successor_starts.insert(shape.place);
         }
     }
 
@@ -988,7 +988,7 @@ void countDerivation(
                                  ? 1
                                  : 0;
 
-        const Fraction start = tempo_map.wholeNotePositionAt(shape.position);
+        const Fraction start = shape.place;
         const Fraction end = start + shape.sustain;
 
         // THE DATING RULE: the ruled promise is that no span starts inside the one before it.
@@ -1050,7 +1050,7 @@ void countDerivation(
         // articulation each sounding member states — the identity a re-pick has to repeat.
         std::vector<std::size_t> struck_at_start;
         std::set<int> sounded_strings;
-        const auto opening = index.slot_of.find(shape.position);
+        const auto opening = index.slot_of.find(shape.place);
         const bool successor = shape.landing_opened;
         if (successor)
         {

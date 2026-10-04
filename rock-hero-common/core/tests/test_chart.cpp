@@ -206,8 +206,7 @@ constexpr Fraction g_fixture_ring{1, 32};
     const std::vector<ChartNote>& notes, const GridPosition& position, const TempoMap& tempo_map)
 {
     const ChartResolutions resolved = chartResolutions(notes, tempo_map);
-    const std::vector<bool> arrivals =
-        chartShapeArrivals(resolved.connections, resolved.shapes, tempo_map);
+    const std::vector<bool> arrivals = chartShapeArrivals(resolved.connections, resolved.shapes);
     REQUIRE(arrivals.size() == resolved.shapes.size());
     // The span COVERING the slot, not the one starting exactly on it. THE DATING RULE puts a span's
     // FRONT at its earliest uncovered member onset, so a strum that picks around a still-ringing
@@ -218,7 +217,7 @@ constexpr Fraction g_fixture_ring{1, 32};
     for (std::size_t index = 0; index < resolved.shapes.size(); ++index)
     {
         const ChartShape& shape = resolved.shapes[index];
-        const Fraction start = tempo_map.wholeNotePositionAt(shape.position);
+        const Fraction start = shape.place;
         const Fraction at = tempo_map.wholeNotePositionAt(position);
         if (!(at < start) && (at < start + shape.sustain || at == start))
         {
@@ -3888,7 +3887,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // is, capped at each one's own ring.
         const ChartResolutions resolutions = chartResolutions({low, high, claim}, tempo_map);
         REQUIRE(resolutions.shapes.size() == 1);
-        CHECK(resolutions.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(resolutions.shapes.front().place == Fraction{});
         REQUIRE(resolutions.holds.size() == 3);
         CHECK(resolutions.holds[0] == g_fixture_ring);
         CHECK(resolutions.holds[1] == g_fixture_ring);
@@ -4304,7 +4303,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     // rather than a trigger.
     const ChartResolutions resolved = chartResolutions(chart.notes, tempo_map);
     REQUIRE(resolved.shapes.size() == 1);
-    CHECK(resolved.shapes.front().position == GridPosition{.measure = 2, .beat = 1});
+    CHECK(resolved.shapes.front().place == Fraction{1});
 
     // With the ring ended before the strum, nothing is carried: the shape is the two struck
     // strings, both sound at its start, and the chord box stands.

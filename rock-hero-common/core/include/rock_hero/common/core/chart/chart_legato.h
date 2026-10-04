@@ -374,13 +374,12 @@ edit that reflows the spans re-derives every default.
 
 \param connections The resolved connections the spans were derived from.
 \param shapes The spans and postures derived from them (\ref deriveChartShapes).
-\param tempo_map Song tempo map supplying the meter each span's place is measured in.
 
 \return Per note, the fret the fretting hand presses under it, or nothing where no finger is down
         beneath it; index-parallel to `connections.saved_notes`.
 */
 [[nodiscard]] std::vector<std::optional<int>> chartHeldStops(
-    const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map);
+    const ChartConnections& connections, const ChartShapes& shapes);
 
 /*!
 \brief Everything a chart revision derives per note, resolved once for every consumer.

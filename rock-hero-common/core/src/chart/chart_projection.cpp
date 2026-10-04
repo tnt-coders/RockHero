@@ -39,7 +39,8 @@ namespace
 //
 // THREE FACTS, and each answers a case the others cannot:
 //
-//   the CLOSING HEAD (\ref ChartShape::closing_onset) is what the distance is kept from, and it is
+//   the CLOSING HEAD (\ref ChartShape::closing_onset_place) is what the distance is kept from, and
+//   it is
 //   not the close: a span whose rings died a full margin early ends where they died and is not
 //   pulled back from a head it never reached. Absent where there is no head at all — a span whose
 //   statement simply ran out, and a close at a slot of held fingers, which sounds nothing to keep a
@@ -55,19 +56,17 @@ namespace
 //   because a close leaving it no room is what deletes it in the walk ([D2] edge (b)).
 //
 // The extent is therefore positive exactly where the musical close is, and never past it.
-[[nodiscard]] Fraction drawnShapeExtent(
-    const ChartShape& shape, const Fraction place, const HeadMargins& margins,
-    const TempoMap& tempo_map)
+[[nodiscard]] Fraction drawnShapeExtent(const ChartShape& shape, const HeadMargins& margins)
 {
     // Bound to a local so the presence test and every read below are provably the same object.
-    const std::optional<GridPosition>& closing = shape.closing_onset;
+    const std::optional<Fraction>& closing = shape.closing_onset_place;
     std::optional<Fraction> limit;
     if (closing.has_value())
     {
         // The margin at the CLOSING ONSET: it is that head's spacing that is being kept, and a
         // tempo change between the span's front and its close would otherwise measure it at the
         // wrong rate.
-        limit = tempo_map.wholeNotePositionAt(*closing) - place - margins.length(*closing);
+        limit = *closing - shape.place - margins.length(*closing);
     }
     return drawnHoldExtent(shape.sustain, limit, shape.stated_extent);
 }
@@ -219,24 +218,26 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // fretted head over a node grip printing the same digit does not — a number stated twice
     // beside itself is the only thing suppression exists to prevent, and two different places are
     // not one number.
-    const auto digit_slot = [&notes](
-                                const GridPosition& at,
+    const std::vector<Fraction>& places = resolutions.connections.places;
+    const auto digit_slot = [&notes, &places](
+                                const Fraction at,
                                 const int string,
                                 const ChartStop& stop) -> std::optional<StopMarkSlot> {
         // The ONE head this string can carry here: the stream is sorted by (position, string) and
         // refuses duplicate onsets (\ref ChartErrorCode::UnsortedOrDuplicateNotes), so the first
         // match is the only match and there is never a second answer to reconcile with it.
-        for (auto head =
-                 std::ranges::lower_bound(notes, at, std::ranges::less{}, &ChartNote::position);
-             head != notes.end() && head->position == at;
-             ++head)
+        for (auto index = static_cast<std::size_t>(
+                 std::distance(places.begin(), std::ranges::lower_bound(places, at)));
+             index < notes.size() && places[index] == at;
+             ++index)
         {
-            if (head->string != string)
+            const ChartNote& head = notes[index];
+            if (head.string != string)
             {
                 continue;
             }
             const ChartStop printed =
-                soundingStopAt(head->harmonic_node, head->attack, head->fret, head->fret);
+                soundingStopAt(head.harmonic_node, head.attack, head.fret, head.fret);
             if (printed == stop)
             {
                 return std::nullopt;
@@ -249,9 +250,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
-        const Fraction place = tempo_map.wholeNotePositionAt(shape.position);
+        const Fraction place = shape.place;
         // WHERE the span's one opening mark draws, TAKEN FROM THE WALK ([D2]; published as \ref
-        // ChartShape::bracket_position). Every span an EVENT states carries its own FRONT; a
+        // ChartShape::bracket_place). Every span an EVENT states carries its own FRONT; a
         // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
         // interior SOUNDING instead, because nothing at all is stated at a boundary; one that never
         // sounds interiorly carries nothing and draws no mark.
@@ -268,8 +269,8 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         // is one answer to ask.
         //
         // Bound once so the presence test and every read below are provably the same object.
-        const std::optional<GridPosition> bracket =
-            arrivals[shape_index] ? shape.bracket_position : std::optional<GridPosition>{};
+        const std::optional<Fraction> bracket =
+            arrivals[shape_index] ? shape.bracket_place : std::optional<Fraction>{};
 
         std::vector<ShapeStringViewState> strings;
         if (shape.posture < resolutions.postures.size())
@@ -311,15 +312,16 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 // what the walk stored, published verbatim so the editor's reveal has the truth to
                 // reach for and no surface has to undo the trim to get it.
                 .drawn_end_seconds = tempo_map.secondsAtWholeNote(
-                    place + drawnShapeExtent(shape, place, resolutions.margins, tempo_map)),
+                    place + drawnShapeExtent(shape, resolutions.margins)),
                 .close_seconds = tempo_map.secondsAtWholeNote(place + shape.sustain),
                 // A strummed chord is a box; sequential arrival, or a posture string ringing
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],
                 .strings = std::move(strings),
-                .bracket_seconds = bracket.has_value()
-                                       ? std::optional<double>{tempo_map.secondsAt(*bracket)}
-                                       : std::nullopt,
+                .bracket_seconds =
+                    bracket.has_value()
+                        ? std::optional<double>{tempo_map.secondsAtWholeNote(*bracket)}
+                        : std::nullopt,
             });
     }
 
@@ -327,7 +329,6 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // place, then the time query. One instant reached two ways (a ring ending on the next head, a
     // free tail's ink end on its ring end) is then one exact place and so one double, which is what
     // lets a surface compare them exactly.
-    const std::vector<Fraction>& places = resolutions.connections.places;
     state.notes.reserve(notes.size());
     state.display_hold_ends.reserve(notes.size());
     for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
@@ -337,7 +338,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         NoteViewState view;
         view.start_seconds = tempo_map.secondsAtWholeNote(place);
         view.margin_start_seconds =
-            tempo_map.secondsAtWholeNote(place - resolutions.margins.length(note.position));
+            tempo_map.secondsAtWholeNote(place - resolutions.margins.length(place));
         view.ring_end_seconds = tempo_map.secondsAtWholeNote(place + note.sustain);
         const Fraction& ink_end = resolutions.ink_end[note_index];
         view.ink_end_seconds = ink_end.numerator > 0 ? tempo_map.secondsAtWholeNote(place + ink_end)

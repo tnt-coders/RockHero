@@ -252,7 +252,6 @@ struct StringHand
 // at emit that only the walk's own passage through the slots can know.
 struct OpenSpan
 {
-    GridPosition position;
     Fraction front_place{};
 
     // The sounded grip: the stop this span states per string, empty where it states none. Growth
@@ -261,11 +260,11 @@ struct OpenSpan
     // grip, never what shrinks it.
     std::vector<std::optional<ChartStop>> stops;
 
-    // Where this span's opening mark draws, published to \ref ChartShape::bracket_position. Every
+    // Where this span's opening mark draws, published to \ref ChartShape::bracket_place. Every
     // span an event states seeds it with its front, where its first member's statement began — a
     // strike or a glide's landing alike; a landing successor seeds nothing and the first sounding
     // inside it fills the slot (rule 12 of the law's display section).
-    std::optional<GridPosition> bracket_position{};
+    std::optional<Fraction> bracket_place{};
 
     // The last instant an EVENT stated this span's shape; empty only on a landing successor
     // nothing has stated yet. Published as \ref ChartShape::stated_extent (the display trim's
@@ -287,7 +286,6 @@ struct OpenSpan
 // verdicts are functions of it and the pre-instant hand table.
 struct SlotReading
 {
-    GridPosition position;
     Fraction place{};
 
     // Fretting-hand strikes: the stop each states at its own onset (a channel is never mid-travel
@@ -328,8 +326,7 @@ bool foundsSpan(const std::size_t stated_together, const std::size_t sounding_to
            sounding_together >= g_accumulation_member_minimum;
 }
 
-ChartShapes deriveChartShapes(
-    const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map)
+ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMargins& margins)
 {
     const std::vector<ChartNote>& saved_notes = connections.saved_notes;
     // Both stop tables are derivations of the connections themselves, so they are asked here rather
@@ -490,8 +487,8 @@ ChartShapes deriveChartShapes(
     // the statement ran out, whichever is earlier). Rule 6's tenure drop lives here, before
     // anything is pushed, which is what lets publication ride the push.
     const auto emit = [&](const std::optional<Fraction> close_place,
-                          const std::optional<GridPosition>
-                              closing_onset) {
+                          const std::optional<Fraction>
+                              closing_onset_place) {
         if (!open.has_value())
         {
             return;
@@ -501,8 +498,8 @@ ChartShapes deriveChartShapes(
         // The head belongs to the close only where the EVENT actually cut a live statement. A
         // statement that had already run out — the reach strictly before the event's onset — was
         // reach-closed, and its rails owe no distance to a head that arrived after it ended.
-        const std::optional<GridPosition> head =
-            close_place.has_value() && !(reach < *close_place) ? closing_onset : std::nullopt;
+        const std::optional<Fraction> head =
+            close_place.has_value() && !(reach < *close_place) ? closing_onset_place : std::nullopt;
         // RULE 6's emit test for the one onset-less span: a landing span is emitted if an event
         // ever stated it, or its tenure STRICTLY EXCEEDS the distinguishability quantum kept before
         // the closing head — the chord name never flickers for a sliver. A close with no sounding
@@ -533,16 +530,16 @@ ChartShapes deriveChartShapes(
         }
         derived.shapes.push_back(
             ChartShape{
-                .position = open->position,
+                .place = open->front_place,
                 .sustain = end - open->front_place,
                 .stated_extent =
                     std::min(open->last_stated_place.value_or(open->front_place), end) -
                     open->front_place,
-                .closing_onset = head,
+                .closing_onset_place = head,
                 .posture = entry->second,
                 .sounds_in_parts = open->struck_in_parts,
                 .landing_opened = open->landing_opened,
-                .bracket_position = open->bracket_position,
+                .bracket_place = open->bracket_place,
             });
         covered = std::max(covered, end);
         open.reset();
@@ -564,8 +561,6 @@ ChartShapes deriveChartShapes(
             {
                 return;
             }
-            // The boundary's grid position, addressed from the place the walk knows exactly.
-            const GridPosition boundary_position = tempo_map.gridPositionAtWholeNote(boundary);
             // Is this boundary a LANDING — does some member's travel arrive exactly here? A
             // boundary no travel arrives at is a death, and rule 7 says a death hands nothing
             // on: the survivors ring out as plain tails.
@@ -634,10 +629,9 @@ ChartShapes deriveChartShapes(
             }
             emit(boundary, std::nullopt);
             OpenSpan successor{
-                .position = boundary_position,
                 .front_place = boundary,
                 .stops = std::move(landed),
-                .bracket_position = std::nullopt,
+                .bracket_place = std::nullopt,
                 .last_stated_place = std::nullopt,
                 .struck_in_parts = false,
                 .landing_opened = true,
@@ -662,7 +656,6 @@ ChartShapes deriveChartShapes(
     {
         // ---- 1. READ THE SLOT (pure; nothing span-shaped is touched yet) --------------------
         SlotReading slot{
-            .position = saved_notes[index].position,
             .place = onset_place[index],
             .strikes = std::vector<std::optional<ChartStop>>(string_count),
             .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
@@ -671,7 +664,7 @@ ChartShapes deriveChartShapes(
             .struck = 0,
         };
         std::size_t onset_end = index;
-        while (onset_end < saved_notes.size() && saved_notes[onset_end].position == slot.position)
+        while (onset_end < saved_notes.size() && onset_place[onset_end] == slot.place)
         {
             const ChartNote& member = saved_notes[onset_end];
             const std::optional<std::size_t> string_index = chartStringIndex(member);
@@ -1273,9 +1266,9 @@ ChartShapes deriveChartShapes(
                     (!member_travelling &&
                      (!(stroke_says_whole(open->stops) && chord_statement_stands) ||
                       partial_slide));
-                if (!open->bracket_position.has_value())
+                if (!open->bracket_place.has_value())
                 {
-                    open->bracket_position = slot.position;
+                    open->bracket_place = slot.place;
                 }
             }
         }
@@ -1285,9 +1278,7 @@ ChartShapes deriveChartShapes(
             // carries a sounding head only where the FRETTING hand strikes here: the display trim
             // keeps its distance from a head that states the new grip, and a slot of held fingers
             // or bare taps states none.
-            emit(
-                slot.place,
-                slot.struck > 0 ? std::optional<GridPosition>{slot.position} : std::nullopt);
+            emit(slot.place, slot.struck > 0 ? std::optional<Fraction>{slot.place} : std::nullopt);
 
             // THE SLOT OPEN (rules 4 and 5, one disjunction): the slot's own stated members, plus
             // the rings still sounding strictly past this instant on strings it does not state —
@@ -1438,17 +1429,13 @@ ChartShapes deriveChartShapes(
                         front_place = std::min(front_place, stated_since);
                     }
                 }
-                // The front's grid position, addressed from its place exactly as a landing's
-                // boundary is.
-                const GridPosition front = tempo_map.gridPositionAtWholeNote(front_place);
                 // The opening mark draws at the front: the chord frame states the grip where its
                 // first member's statement began, and a glide's landing begins one exactly as a
                 // strike does, so a front dated to a landing takes the mark there too.
                 open = OpenSpan{
-                    .position = front,
                     .front_place = front_place,
                     .stops = std::move(stops),
-                    .bracket_position = front,
+                    .bracket_place = front_place,
                     .last_stated_place = slot.place,
                     .struck_in_parts = false,
                     .landing_opened = false,
@@ -1511,8 +1498,7 @@ ChartShapes deriveChartShapes(
 }
 
 std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map)
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<Fraction>& places = connections.places;
@@ -1521,7 +1507,7 @@ std::vector<bool> chartShapeArrivals(
     std::size_t next_note = 0;
     for (const ChartShape& shape : shapes)
     {
-        while (next_note < notes.size() && notes[next_note].position < shape.position)
+        while (next_note < notes.size() && places[next_note] < shape.place)
         {
             ++next_note;
         }
@@ -1533,7 +1519,7 @@ std::vector<bool> chartShapeArrivals(
         // The one trigger still derived here, because it is a question about the span's extent:
         // the other hand sounding while the fretting hand held the shape. The musical close
         // bounds the window (rule 9); display's margin has nothing to say about it.
-        const Fraction span_end = tempo_map.wholeNotePositionAt(shape.position) + shape.sustain;
+        const Fraction span_end = shape.place + shape.sustain;
         bool held_under_right_hand = false;
         for (std::size_t scan = next_note; scan < notes.size() && places[scan] < span_end; ++scan)
         {

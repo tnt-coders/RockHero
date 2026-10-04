@@ -110,10 +110,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] ChartPresentation presentationOf(
     const ChartConnections& connections, const TempoMap& tempo_map)
 {
-    return chartPresentation(
-        connections,
-        HeadMargins{connections.saved_notes, connections.places, tempo_map},
-        tempo_map);
+    return chartPresentation(connections, HeadMargins{connections.places, tempo_map}, tempo_map);
 }
 
 // A whole figure's picture, DERIVED the way every reader gets it: the spans the notes imply, the
@@ -133,10 +130,10 @@ struct SpanFigure
 [[nodiscard]] SpanFigure spanFigure(const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
-    const HeadMargins margins{connections.saved_notes, connections.places, tempo_map};
-    const ChartShapes derived = deriveChartShapes(connections, margins, tempo_map);
+    const HeadMargins margins{connections.places, tempo_map};
+    const ChartShapes derived = deriveChartShapes(connections, margins);
     SpanFigure figure;
-    figure.arrivals = chartShapeArrivals(connections, derived.shapes, tempo_map);
+    figure.arrivals = chartShapeArrivals(connections, derived.shapes);
     ChartPresentation presentation = chartPresentation(connections, margins, tempo_map);
     figure.ink_end = std::move(presentation.ink_end);
     figure.hidden.clear();
@@ -201,7 +198,7 @@ struct SpanFigure
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
     const ChartPresentation presentation = presentationOf(connections, tempo_map);
-    return chartHolds(presentation, connections, shapes, tempo_map);
+    return chartHolds(presentation, connections, shapes);
 }
 
 } // namespace
@@ -971,7 +968,7 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
     // The span ends a sixteenth into the third strum, so every strum's hold is its own distance
     // to that one end.
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{9, 16}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{9, 16}},
     };
 
     const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
@@ -1000,7 +997,7 @@ TEST_CASE("Inked tails and dead groups hold what they show", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
     };
 
     SECTION("a resting spill holds its own stored ring past the reach")
@@ -1071,7 +1068,7 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
     };
     // A tap on its own string, ringing the same effect-free eighth every chug member here does,
     // so nothing below can turn on a length instead of on the hand that made the onset.
@@ -1136,7 +1133,7 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
     };
 
     SECTION("a dead string inside a live chug keeps its own end")
@@ -1213,8 +1210,8 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
         // Span A covers global beats 0 through 8.25; span B starts later (beat 4) and ends at 5,
         // long before the chord at measure 3 beat 1 (global beat 8).
         const std::vector<ChartShape> shapes = {
-            ChartShape{.position = at(1, 1), .sustain = Fraction{33, 16}},
-            ChartShape{.position = at(2, 1), .sustain = Fraction{1, 4}},
+            ChartShape{.place = Fraction{}, .sustain = Fraction{33, 16}},
+            ChartShape{.place = Fraction{1}, .sustain = Fraction{1, 4}},
         };
         const std::vector<ChartNote> saved = {
             note(at(3, 1), 1, Fraction{1, 8}),
@@ -1240,8 +1237,8 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
     {
         // One span over measure 1, another over measure 4; measure 5 is past both.
         const std::vector<ChartShape> shapes = {
-            ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
-            ChartShape{.position = at(4, 1), .sustain = Fraction{1, 2}},
+            ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
+            ChartShape{.place = Fraction{3}, .sustain = Fraction{1, 2}},
         };
         const std::vector<ChartNote> saved = {
             note(at(4, 1), 1, Fraction{1, 8}),
@@ -1298,7 +1295,7 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
             note(at(3, 1), 3, Fraction{1, 4}, 9),
         };
         const std::vector<ChartShape> shapes = {
-            ChartShape{.position = at(3, 1), .sustain = Fraction{1}},
+            ChartShape{.place = Fraction{2}, .sustain = Fraction{1}},
         };
 
         const std::vector<bool> hidden = hiddenOf(saved, map);
@@ -1770,7 +1767,7 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
     };
     // A lone whole-note ring dying at the span's close, with the statement that closes it standing
     // on the next downbeat: rule 1 binds the ribbon a margin short of that head, so the stored
@@ -1813,7 +1810,7 @@ TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
     };
 
     // The base grip is str5 fret6, struck once and held under the span. On str4 the hand reaches
@@ -1864,7 +1861,7 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{5, 8}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{5, 8}},
     };
     // String 2 rings two quarters from the stroke; string 5's source rings an eighth and hands
     // over to the open string, which rings on beneath the opens that follow.
@@ -1990,7 +1987,7 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
         const std::vector<Fraction> bare = inkEndsOf(saved, map);
 
         REQUIRE(figure.shapes.size() == 1);
-        CHECK(figure.shapes[0].position == at(1, 1));
+        CHECK(figure.shapes[0].place == Fraction{});
         CHECK(figure.shapes[0].sustain == Fraction{3, 4});
         REQUIRE(figure.ink_end.size() == 6);
         REQUIRE(bare.size() == 6);
@@ -2041,7 +2038,7 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
         const std::vector<Fraction> bare = inkEndsOf(saved, map);
 
         REQUIRE(figure.shapes.size() == 1);
-        CHECK(figure.shapes[0].position == at(1, 1));
+        CHECK(figure.shapes[0].place == Fraction{});
         CHECK(figure.shapes[0].sustain == Fraction{1});
         REQUIRE(figure.ink_end.size() == 3);
         CHECK(figure.hidden[0]);
@@ -2079,7 +2076,7 @@ TEST_CASE("A founding strum grows in place and the whole figure goes ribbonless"
 
     // ONE span, fronted on the strum and reaching the close every ring shares.
     REQUIRE(figure.shapes.size() == 1);
-    CHECK(figure.shapes[0].position == at(1, 1));
+    CHECK(figure.shapes[0].place == Fraction{});
     CHECK(figure.shapes[0].sustain == Fraction{1});
     // It arrives ARPEGGIO on its own account: it SOUNDS IN PARTS, the plucks stating it after its
     // front.
@@ -2123,7 +2120,7 @@ TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
         note(at(1, 4), 4, Fraction{1, 4}, 5),
     };
     const std::vector<ChartShape> shapes = {
-        ChartShape{.position = at(1, 1), .sustain = Fraction{1}},
+        ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
     };
 
     const std::vector<Fraction> shown = inkEndsOf(saved, map);

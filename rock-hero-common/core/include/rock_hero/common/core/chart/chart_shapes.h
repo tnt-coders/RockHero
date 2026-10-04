@@ -106,11 +106,14 @@ struct ChartShape
     founding member and BOUNDS it, while one crossing in from covered ground is a tail that joins
     nothing. Landings and death survivors are covered by construction, which is why a successor
     starts exactly where its predecessor ended.
+
+    A place on the whole-note axis, because every reader measures from it: a span's close, its
+    statements' reach and the instants it covers are all this place plus a whole-note distance.
     */
-    GridPosition position;
+    Fraction place{};
 
     /*!
-    \brief THE MUSICAL CLOSE, in whole notes from \ref position; always strictly positive.
+    \brief THE MUSICAL CLOSE, in whole notes from \ref place; always strictly positive.
 
     **The instant the span's statement actually ended, and nothing about how it is drawn.** Two
     arms, and the distinction is the whole field: where an EVENT closed the span — a contradiction,
@@ -121,7 +124,8 @@ struct ChartShape
     silence, so the close is the EARLIER of the two.
 
     RULE 12A'S MARGIN IS NOT IN HERE. It is a DISPLAY rule, applied once where the view state is
-    built (\ref makeChartViewState) from \ref closing_onset and \ref stated_extent beside this.
+    built (\ref makeChartViewState) from \ref closing_onset_place and \ref stated_extent beside
+    this.
     Storing it instead would put display spacing inside every seam: a growth split would close the
     predecessor one display margin before the successor's own start, leaving spans that abut
     musically a margin apart in the data, which every reader of a figure's seams would then have to
@@ -156,7 +160,7 @@ struct ChartShape
     Fraction sustain{};
 
     /*!
-    \brief How far the span's own STATEMENTS reach, in whole notes from \ref position.
+    \brief How far the span's own STATEMENTS reach, in whole notes from \ref place.
 
     The last instant an EVENT stated this span — its final strum, or the slot whose holds opened or
     grew it — capped at the musical close, and zero on a span no event ever stated. Rule 12a's
@@ -173,7 +177,7 @@ struct ChartShape
     Fraction stated_extent{};
 
     /*!
-    \brief The SOUNDING onset that closed this span, where one did.
+    \brief The place of the SOUNDING onset that closed this span, where one did.
 
     The head rule 12a's display trim keeps its distance from, and the whole of what the trim needs
     beyond the close itself: it sits AT the close where the closing event is what ended the span,
@@ -186,7 +190,7 @@ struct ChartShape
     shape being replaced ends exactly where the new one starts, which is also what keeps a landing
     successor tiled onto its predecessor.
     */
-    std::optional<GridPosition> closing_onset{};
+    std::optional<Fraction> closing_onset_place{};
 
     /*! \brief Index into the posture table derived alongside (\ref ChartShapes::postures). */
     std::size_t posture{0};
@@ -242,21 +246,21 @@ struct ChartShape
     its start except the previous statement ending and the landed grip standing: mere ring-out opens
     NOTHING, so this field has exactly one cause and is named for it.
 
-    Display keys the opening mark's deferral on the same fact through \ref bracket_position (a
+    Display keys the opening mark's deferral on the same fact through \ref bracket_place (a
     landing states no ink; the first interior sounding fills it), and the chord name changes here
     once names exist. Published rather than inferred because no reader may substitute a test of its
     own: `last_stated_place` stops answering the moment an interior re-pick states the successor, so
     that proxy is wrong in both directions. Its consumers are the census (the sanctioned instrument)
-    and the tests; production display keys on \ref bracket_position. Declared here so that is read
+    and the tests; production display keys on \ref bracket_place. Declared here so that is read
     as deliberate rather than discovered.
     */
     bool landing_opened{false};
 
     /*!
-    \brief Where this span's one OPENING MARK draws; absent where it draws none ([D2]).
+    \brief The place this span's one OPENING MARK draws at; absent where it draws none ([D2]).
 
     Every span an EVENT states — a strum, an authored hold — carries its own FRONT here (\ref
-    position), because that is the statement's own extent and the rails run from it. An ACCUMULATION
+    place), because that is the statement's own extent and the rails run from it. An ACCUMULATION
     is no exception and needs no clause: its front is where its earliest uncovered member's
     statement began — that member's onset, or the landing a glide brought it to — so the bracket
     starts there and the later members' heads arrive under it. A LANDING SUCCESSOR carries its
@@ -279,7 +283,7 @@ struct ChartShape
     grouping question asked a second time, against an extent the closing trim has already
     shortened.
     */
-    std::optional<GridPosition> bracket_position{};
+    std::optional<Fraction> bracket_place{};
 
     /*!
     \brief Compares two spans by their stored fields.
@@ -293,7 +297,7 @@ struct ChartShape
 /*! \brief The spans a note stream implies, with the posture table those spans index. */
 struct ChartShapes
 {
-    /*! \brief Hand-posture spans, sorted by position. */
+    /*! \brief Hand-posture spans, sorted by place. */
     std::vector<ChartShape> shapes;
 
     /*! \brief The postures the spans index, in first-appearance order and deduplicated. */
@@ -351,12 +355,11 @@ it, so what the test governs is a charter's own crowded landing.
 \param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins), built
        once per revision because every drawn rule keeps the same distances; the landed span's
        emission test reads it at the closing head.
-\param tempo_map The meter every span's front and boundary is addressed in.
 
 \return The spans and their posture table (\ref ChartShapes).
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
-    const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map);
+    const ChartConnections& connections, const HeadMargins& margins);
 
 /*!
 \brief The grip a pull-off source states beneath the fret it sounds, where it states one.
@@ -460,12 +463,10 @@ note in the song whenever a posture string had none.
 
 \param connections The resolved connections: the stored stream, sorted by (position, string), whose
        positions and attacks are all that is read, and its places.
-\param shapes Hand-posture spans, sorted by position (\ref ChartResolutions::shapes).
-\param tempo_map Song tempo map supplying the meter each span's place is measured in.
+\param shapes Hand-posture spans, sorted by place (\ref ChartResolutions::shapes).
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
 [[nodiscard]] std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map);
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes);
 
 } // namespace rock_hero::common::core

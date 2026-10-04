@@ -851,7 +851,7 @@ neighbours.
     empty the moment an interior re-pick states the successor.
 
     **The anchor ITSELF is published too, and it is one field with one write rule**
-    (`ChartShape::bracket_position`). Every span an EVENT states — a strum — carries its own
+    (`ChartShape::bracket_place`). Every span an EVENT states — a strum — carries its own
     **FRONT** there, because that is
     the statement's own extent and the rails run from it; an ACCUMULATION is no exception and needs
     no clause, its front being the earliest uncovered member's onset (rule 10's dating rule), so
@@ -1015,9 +1015,9 @@ neighbours.
     before the head that closed the span — the same rule sustains follow, so consecutive shapes keep
     the same visible gap as everything else instead of butting exactly. Three published facts feed
     it, and each answers a case
-    the others cannot: the **closing head** (`ChartShape::closing_onset`), which is not the close —
-    a span whose rings died a full margin early ends where they died and is not pulled back from a
-    head it never reached, and a close at a slot of HELD FINGERS publishes no head at all, so the
+    the others cannot: the **closing head** (`ChartShape::closing_onset_place`), which is not the
+    close — a span whose rings died a full margin early ends where they died and is not pulled
+    back from a head it never reached, and a close at a slot of HELD FINGERS publishes no head at all, so the
     replaced shape ends exactly where its successor starts; the **last statement**
     (`ChartShape::stated_extent`), which floors the trim, because rails may not retreat behind the
     strum they are drawn over and in a fast enough passage the closing onset crowds inside the
