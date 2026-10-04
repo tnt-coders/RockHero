@@ -89,18 +89,20 @@ carries the rise, or tiles onto its predecessor. The evidence merges under the o
     const ChartViewState& scene, std::span<const double> margin_rise);
 
 /*!
-\brief Resolves an arrangement to highway view content: the shared chart scene plus the board's
-own structure.
+\brief Composes highway view content: the shared chart scene plus the board's own structure.
 
-The chart scene comes from \ref makeChartViewState, the one projection both surfaces share, so the
-board and the tab lane read identical seconds for identical inputs by construction. On top of it
-this derives what only the board draws: section labels, both hands' lights, the tap onsets, the
-onset groups and their repeat classification, the beat grid, and the camera framing zones. Build
-once per chart load and share the result immutably: the camera and every drawer are pure functions
-of the returned state plus per-frame time.
+The scene is taken, never built: the caller builds it once with \ref makeChartViewState, the one
+projection both surfaces share, and the board carries that very value, so the board and the tab
+lane cannot read different seconds for one chart revision. On top of it this derives what only the
+board draws: section labels, both hands' lights, the tap onsets, the onset groups and their repeat
+classification, the beat grid, and the camera framing zones. Build once per chart revision and
+share the result immutably: the camera and every drawer are pure functions of the returned state
+plus per-frame time.
 
-\param arrangement Arrangement whose loaded chart is projected; an absent chart yields an empty
-       scene.
+\param scene The arrangement's chart scene, `makeChartViewState(arrangement, tempo_map)`; moved
+       into the returned state.
+\param arrangement The arrangement the scene was built from: its chart's note positions place each
+       note's margin rise, and an absent chart yields no board structure beyond the sections.
 \param tempo_map Tempo map resolving musical positions to seconds.
 \param sections Song-structure section markers, resolved into the state's section list even when
        the arrangement has no chart.
@@ -110,7 +112,7 @@ of the returned state plus per-frame time.
 \return Seconds-resolved highway content for rendering.
 */
 [[nodiscard]] HighwayViewState makeHighwayViewState(
-    const Arrangement& arrangement, const TempoMap& tempo_map,
+    ChartViewState scene, const Arrangement& arrangement, const TempoMap& tempo_map,
     const std::vector<SongSection>& sections, HighwayDisplayOptions options);
 
 } // namespace rock_hero::common::core

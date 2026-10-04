@@ -19,6 +19,7 @@
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
@@ -350,7 +351,9 @@ namespace
     chart.notes = std::move(notes);
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
-    return makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {});
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    return makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map), arrangement, tempo_map, {}, {});
 }
 
 // A pop's release after THE POP CLAMP, for a partner `spacing` seconds later on the same strips.
@@ -381,7 +384,11 @@ TEST_CASE("Highway projection carries the tuning's capo", "[core][highway]")
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.tuning.capo = 2;
     arrangement.chart = std::move(chart);
-    CHECK(makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {}).chart.capo == 2);
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    CHECK(
+        makeHighwayViewState(
+            makeChartViewState(arrangement, tempo_map), arrangement, tempo_map, {}, {})
+            .chart.capo == 2);
 }
 
 // Absolute anchors for the board's resolution: onsets, sustain ends, and intra-note payload
@@ -389,8 +396,13 @@ TEST_CASE("Highway projection carries the tuning's capo", "[core][highway]")
 TEST_CASE("Highway projection resolves chart positions to seconds", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
-    const HighwayViewState state =
-        makeHighwayViewState(makeArrangementWithChart(), tempo_map, makeHighwaySections(), {});
+    const Arrangement arrangement = makeArrangementWithChart();
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map),
+        arrangement,
+        tempo_map,
+        makeHighwaySections(),
+        {});
 
     CHECK(state.chart.stringCount() == 6);
     REQUIRE(state.chart.notes.size() == 6);
@@ -481,7 +493,7 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     // A display minimum wider than the chart, to prove the scene is never padded in the projection:
     // the renderer maps chart strings onto displayed lanes per frame.
     const HighwayViewState board = makeHighwayViewState(
-        arrangement, tempo_map, {}, HighwayDisplayOptions{.minimum_string_count = 8});
+        scene, arrangement, tempo_map, {}, HighwayDisplayOptions{.minimum_string_count = 8});
 
     CHECK(board.chart == scene);
     CHECK(board.options.minimum_string_count == 8);
@@ -529,6 +541,78 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     CHECK(board.tap_onsets.size() == 1);
 }
 
+// The board carries the scene it is handed, never a rebuilt one: over a dense chart — a chord and a
+// hammer/pull chain on every beat — under a map with a 7/8 bar, anchors at odd milliseconds and a
+// sub-beat anchor, the scene inside the highway state equals the scene the caller built.
+TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][chart]")
+{
+    const TempoMap tempo_map{
+        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+         TimeSignatureChange{.measure = 3, .numerator = 7, .denominator = 8},
+         TimeSignatureChange{.measure = 4, .numerator = 4, .denominator = 4}},
+        {testing::anchor("1:1", 0),
+         testing::anchor("2:3", 3013),
+         testing::anchor("3:4+1/2", 5763),
+         testing::anchor("6:1", 11517),
+         testing::anchor("9:1", 17509)},
+    };
+    const auto note = [](const GridPosition& position,
+                         const int string,
+                         const int fret,
+                         const NoteAttack attack) {
+        return ChartNote{
+            .position = position,
+            .string = string,
+            .fret = fret,
+            .sustain = Fraction{1, 4},
+            .attack = attack,
+            .bend = {},
+            .keyframes = {},
+        };
+    };
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    for (int measure = 1; measure <= 8; ++measure)
+    {
+        const int beats = measure == 3 ? 7 : 4;
+        for (int beat = 1; beat <= beats; ++beat)
+        {
+            const GridPosition onset{.measure = measure, .beat = beat};
+            chart.notes.push_back(note(onset, 1, 3, NoteAttack::Pick));
+            chart.notes.push_back(note(onset, 2, 5, NoteAttack::Pick));
+            chart.notes.push_back(note(onset, 4, 5, NoteAttack::Pick));
+            chart.notes.push_back(note(
+                GridPosition{.measure = measure, .beat = beat, .offset = Fraction{1, 4}},
+                4,
+                7,
+                NoteAttack::Legato));
+            chart.notes.push_back(note(
+                GridPosition{.measure = measure, .beat = beat, .offset = Fraction{1, 2}},
+                4,
+                5,
+                NoteAttack::Legato));
+        }
+    }
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 3},
+        FretHandPosition{.position = GridPosition{.measure = 5, .beat = 1}, .fret = 3},
+    };
+    REQUIRE(validateChartRules(chart, tempo_map).has_value());
+
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+    const ChartViewState scene = makeChartViewState(arrangement, tempo_map);
+    const HighwayViewState board =
+        makeHighwayViewState(scene, arrangement, tempo_map, makeHighwaySections(), {});
+
+    // Non-vacuity: a scene of every note, its spans and its placements, so the equality below
+    // compares the whole picture rather than two empty ones.
+    REQUIRE(scene.notes.size() == 5 * (7 * 4 + 7));
+    CHECK_FALSE(scene.shapes.empty());
+    CHECK(scene.fret_hand_positions.size() == 2);
+    CHECK(board.chart == scene);
+}
+
 // The displayed-string minimum (the editor's "show at least N strings") is a lane-mapping question
 // both surfaces answer per frame through the same two functions; the padding lanes sit below the
 // chart's strings, so a chart string lands `extra_lanes` higher than its unpadded lane.
@@ -548,8 +632,9 @@ TEST_CASE("Displayed lanes pad below the chart's strings", "[core][highway][tab]
 TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
-    const HighwayViewState state =
-        makeHighwayViewState(makeArrangementWithChart(), tempo_map, {}, {});
+    const Arrangement arrangement = makeArrangementWithChart();
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map), arrangement, tempo_map, {}, {});
 
     const auto expected_count = static_cast<std::size_t>(tempo_map.terminalGlobalBeatIndex()) + 1;
     REQUIRE(state.beats.size() == expected_count);
@@ -577,8 +662,13 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
     // "verse" section starts at measure 2. Expect the empty intro zone, the section cut (also
     // the empty-to-notes transition) at 2.0 s, the two-measure split at 6.0 s, the
     // notes-to-empty transition at 8.0 s, and the whole empty tail merged into that zone.
-    const HighwayViewState state =
-        makeHighwayViewState(makeArrangementWithChart(), tempo_map, makeHighwaySections(), {});
+    const Arrangement arrangement = makeArrangementWithChart();
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map),
+        arrangement,
+        tempo_map,
+        makeHighwaySections(),
+        {});
     REQUIRE(state.camera_zone_starts.size() == 4);
     CHECK(state.camera_zone_starts[0] == Catch::Approx(0.0));
     CHECK(state.camera_zone_starts[1] == Catch::Approx(2.0));
@@ -604,7 +694,8 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
                 .keyframes = {},
             });
     }
-    const HighwayViewState dense_state = makeHighwayViewState(dense, tempo_map, {}, {});
+    const HighwayViewState dense_state =
+        makeHighwayViewState(makeChartViewState(dense, tempo_map), dense, tempo_map, {}, {});
     REQUIRE(dense_state.camera_zone_starts.size() == 4);
     CHECK(dense_state.camera_zone_starts[0] == Catch::Approx(0.0));
     CHECK(dense_state.camera_zone_starts[1] == Catch::Approx(4.0));
@@ -619,8 +710,13 @@ TEST_CASE("Highway projection is empty without a chart", "[core][highway]")
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart.reset();
 
-    const HighwayViewState state =
-        makeHighwayViewState(arrangement, makeHighwayTempoMap(), makeHighwaySections(), {});
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map),
+        arrangement,
+        tempo_map,
+        makeHighwaySections(),
+        {});
     CHECK(state.chart.stringCount() == 0);
     CHECK(state.chart.notes.empty());
     CHECK(state.chart.shapes.empty());
@@ -810,8 +906,8 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
 
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
-    const HighwayViewState state =
-        makeHighwayViewState(arrangement, map, {}, HighwayDisplayOptions{});
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, map), arrangement, map, {}, HighwayDisplayOptions{});
 
     REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
     REQUIRE(state.chart.notes.size() == 5);
@@ -914,7 +1010,8 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    const HighwayViewState state = makeHighwayViewState(arrangement, map, {}, {});
+    const HighwayViewState state =
+        makeHighwayViewState(makeChartViewState(arrangement, map), arrangement, map, {}, {});
 
     REQUIRE(state.chart.shapes.size() == 1);
     CHECK(state.chart.shapes[0].arpeggio);
@@ -1014,8 +1111,8 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
 
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
-    const HighwayViewState state =
-        makeHighwayViewState(arrangement, map, {}, HighwayDisplayOptions{});
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, map), arrangement, map, {}, HighwayDisplayOptions{});
 
     REQUIRE(state.chart.notes.size() == 8);
     REQUIRE(state.chord_groups.size() == 4);
@@ -1565,7 +1662,9 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    const HighwayViewState state = makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {});
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map), arrangement, tempo_map, {}, {});
     REQUIRE(state.chart.notes.size() == 1);
     const NoteViewState& view = state.chart.notes.front();
     CHECK(view.attack == NoteAttack::PickSlide);
@@ -1771,7 +1870,8 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    const HighwayViewState state = makeHighwayViewState(arrangement, tempo_map, {}, {});
+    const HighwayViewState state = makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map), arrangement, tempo_map, {}, {});
     REQUIRE(state.chart.fret_hand_positions.size() == 3);
     REQUIRE(state.fret_hand.track.size() == 3);
 
@@ -1905,16 +2005,18 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
 namespace
 {
 
-// A chart with nothing but the notes a floor-light case needs and no placements: the default map
-// is 4/4 at 120 BPM, so a beat is half a second, a measure two, and the arrival margin an eighth.
-[[nodiscard]] Arrangement makeLightArrangement(std::vector<ChartNote> notes)
+// The board of a chart with nothing but the notes a floor-light case needs and no placements: the
+// default map is 4/4 at 120 BPM, so a beat is half a second, a measure two, and the arrival margin
+// an eighth.
+[[nodiscard]] HighwayViewState lightBoard(std::vector<ChartNote> notes, const TempoMap& tempo_map)
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = std::move(notes);
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
-    return arrangement;
+    return makeHighwayViewState(
+        makeChartViewState(arrangement, tempo_map), arrangement, tempo_map, {}, {});
 }
 
 // One note of a floor-light case, the fields such a case varies named and the rest at rest.
@@ -1977,8 +2079,7 @@ TEST_CASE("Fret-hand light lights a lone open note with a margin rise", "[core][
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     const GridPosition onset{.measure = 2, .beat = 1};
-    const HighwayViewState state = makeHighwayViewState(
-        makeLightArrangement({lightNote(onset, 1, 0, Fraction{1})}), tempo_map, {}, {});
+    const HighwayViewState state = lightBoard({lightNote(onset, 1, 0, Fraction{1})}, tempo_map);
 
     REQUIRE(state.chart.notes.size() == 1);
     const NoteViewState& open = state.chart.notes.front();
@@ -2001,16 +2102,14 @@ TEST_CASE("Fret-hand light ignores a bare tap and lights a planted one", "[core]
     const ChartNote tap =
         lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 12, Fraction{1}, NoteAttack::Tap);
 
-    const HighwayViewState bare =
-        makeHighwayViewState(makeLightArrangement({tap}), tempo_map, {}, {});
+    const HighwayViewState bare = lightBoard({tap}, tempo_map);
     CHECK(bare.fret_hand.lit.empty());
     CHECK(bare.tap_onsets.size() == 1);
     CHECK(bare.pick_hand.lit.size() == 1);
 
     const ChartNote pull =
         lightNote(GridPosition{.measure = 2, .beat = 2}, 1, 5, Fraction{1}, NoteAttack::Legato);
-    const HighwayViewState planted =
-        makeHighwayViewState(makeLightArrangement({tap, pull}), tempo_map, {}, {});
+    const HighwayViewState planted = lightBoard({tap, pull}, tempo_map);
     REQUIRE(planted.chart.notes.size() == 2);
     REQUIRE_FALSE(planted.fret_hand.lit.empty());
     CHECK(
@@ -2026,8 +2125,7 @@ TEST_CASE("Fret-hand light reads the fretting hand's techniques only", "[core][h
     ChartNote scrape =
         lightNote(GridPosition{.measure = 2, .beat = 1}, 5, 17, Fraction{1}, NoteAttack::PickSlide);
     scrape.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9}};
-    const HighwayViewState scraped =
-        makeHighwayViewState(makeLightArrangement({scrape}), tempo_map, {}, {});
+    const HighwayViewState scraped = lightBoard({scrape}, tempo_map);
     CHECK(scraped.fret_hand.lit.empty());
     CHECK_FALSE(scraped.pick_hand.lit.empty());
 
@@ -2035,14 +2133,10 @@ TEST_CASE("Fret-hand light reads the fretting hand's techniques only", "[core][h
     // each opened by its own note.
     ChartNote harmonic = lightNote(GridPosition{.measure = 4, .beat = 1}, 3, 3, Fraction{1, 8});
     harmonic.harmonic_node = 3.2;
-    const HighwayViewState state = makeHighwayViewState(
-        makeLightArrangement(
-            {lightNote(
-                 GridPosition{.measure = 2, .beat = 1}, 4, 7, Fraction{1}, NoteAttack::LeftTap),
-             harmonic}),
-        tempo_map,
-        {},
-        {});
+    const HighwayViewState state = lightBoard(
+        {lightNote(GridPosition{.measure = 2, .beat = 1}, 4, 7, Fraction{1}, NoteAttack::LeftTap),
+         harmonic},
+        tempo_map);
     REQUIRE(state.chart.notes.size() == 2);
     REQUIRE(state.fret_hand.lit.size() == 2);
     CHECK(
@@ -2111,15 +2205,12 @@ TEST_CASE("Fret-hand light is never opened by a carry-opened span", "[core][high
         note.keyframes = {Keyframe{.offset = Fraction{2}, .fret = fret + 2}};
         return note;
     };
-    const HighwayViewState state = makeHighwayViewState(
-        makeLightArrangement(
-            {glide(1, 5, Fraction{4}),
-             glide(2, 7, Fraction{6}),
-             glide(4, 11, Fraction{6}),
-             lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 7, Fraction{2})}),
-        makeHighwayTempoMap(),
-        {},
-        {});
+    const HighwayViewState state = lightBoard(
+        {glide(1, 5, Fraction{4}),
+         glide(2, 7, Fraction{6}),
+         glide(4, 11, Fraction{6}),
+         lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 7, Fraction{2})},
+        makeHighwayTempoMap());
 
     // The departing grip and the landing's successor, which starts at the landing (1.0 s) where
     // no note is struck.
@@ -2145,12 +2236,8 @@ TEST_CASE(
     const auto chord_note = [](const int measure, const int string) {
         return lightNote(GridPosition{.measure = measure, .beat = 1}, string, 5, Fraction{1});
     };
-    const HighwayViewState state = makeHighwayViewState(
-        makeLightArrangement(
-            {chord_note(1, 1), chord_note(1, 2), chord_note(3, 1), chord_note(3, 2)}),
-        tempo_map,
-        {},
-        {});
+    const HighwayViewState state = lightBoard(
+        {chord_note(1, 1), chord_note(1, 2), chord_note(3, 1), chord_note(3, 2)}, tempo_map);
 
     REQUIRE(state.chart.notes.size() == 4);
     REQUIRE(state.chart.shapes.size() == 2);

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <expected>
 #include <print>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -246,6 +247,7 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         // Lowest-pitched string on top is the 3D notation's default; the shared projection's
         // invert flag realizes it until a per-player setting exists.
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
+            common::core::makeChartViewState(*chosen, song.tempo_map),
             *chosen,
             song.tempo_map,
             song.sections,

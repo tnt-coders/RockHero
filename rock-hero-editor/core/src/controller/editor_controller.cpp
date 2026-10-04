@@ -1977,12 +1977,14 @@ void EditorController::Impl::refreshChartProjections() const
     }
     // The highway state carries the display options the renderer applies per frame (the
     // displayed-string minimum among them — the scene itself is never padded), so it is
-    // republished on an arrangement change OR a minimum change. Lowest-pitched string on top is
-    // the 3D default.
+    // republished on an arrangement change OR a minimum change. It composes the scene built above
+    // rather than building its own, so both surfaces publish one build. Lowest-pitched string on
+    // top is the 3D default.
     if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
     {
         m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
             common::core::makeHighwayViewState(
+                *m_tab_view_state,
                 *arrangement,
                 tempo_map,
                 session().song().sections,

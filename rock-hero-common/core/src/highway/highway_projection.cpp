@@ -534,7 +534,7 @@ std::vector<HighwayLitStretch> makeFretHandLight(
 }
 
 HighwayViewState makeHighwayViewState(
-    const Arrangement& arrangement, const TempoMap& tempo_map,
+    ChartViewState scene, const Arrangement& arrangement, const TempoMap& tempo_map,
     const std::vector<SongSection>& sections, HighwayDisplayOptions options)
 {
     HighwayViewState state;
@@ -555,15 +555,16 @@ HighwayViewState makeHighwayViewState(
             });
     }
 
-    // The chart scene is the one shared projection; everything below derives board-only
-    // structure from it.
-    state.chart = makeChartViewState(arrangement, tempo_map);
+    // The chart scene is the one shared projection, built by the caller; everything below derives
+    // board-only structure from it.
+    state.chart = std::move(scene);
     if (!arrangement.chart.has_value())
     {
         return state;
     }
     const Chart& chart = *arrangement.chart;
     const std::vector<NoteViewState>& notes = state.chart.notes;
+    assert(notes.size() == chart.notes.size() && "the scene is the arrangement's own");
 
     // Per-note margin rise: whichever hand a note lights, its light rises over the fret-hand
     // placements' own arrival margin (marginBefore) before the onset. One loop feeds both hands'

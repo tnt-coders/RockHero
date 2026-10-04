@@ -32,11 +32,15 @@ flowchart TB
 Each layer has one job, and the boundaries are the reason the sharing works:
 
 1. **Projection** (`rock-hero-common/core`, `highway/highway_projection.h`) — headless. It
-   resolves every musical position through the tempo map into absolute seconds, once per chart
-   load:
+   composes the chart scene rather than building one: the caller resolves every musical position
+   through the tempo map into absolute seconds with `makeChartViewState` (`chart_projection.h`),
+   once per chart or tempo revision, and that one scene is shared by the 2D tab view and the
+   highway. The highway adds only what the board draws on top of it:
 
    ```cpp
-   HighwayViewState makeHighwayViewState(const Arrangement& arrangement,
+   ChartViewState scene = makeChartViewState(arrangement, tempo_map);
+   HighwayViewState makeHighwayViewState(ChartViewState scene,
+                                         const Arrangement& arrangement,
                                          const TempoMap& tempo_map,
                                          const std::vector<SongSection>& sections,
                                          HighwayDisplayOptions options);
