@@ -1,5 +1,7 @@
 #include "timeline/tick_lattice.h"
 
+#include <cmath>
+#include <cstdint>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -7,6 +9,12 @@
 
 namespace rock_hero::common::core
 {
+
+// Round half down is the ceiling of x - 1/2, the rational form's own identity.
+std::int64_t nearestTick(const double exact_ticks) noexcept
+{
+    return static_cast<std::int64_t>(std::ceil(exact_ticks - 0.5));
+}
 
 // A reduced fraction of a whole note is a whole number of ticks exactly when its denominator
 // divides the tick's.

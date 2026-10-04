@@ -56,6 +56,18 @@ and rounding from the song's start agree, every downbeat being a whole tick.
 }
 
 /*!
+\brief The same rounding rule onto the tick lattice for a tick count read as a double.
+
+A producer whose source states a position as a decimal (a Guitar Pro sync point's fraction of a
+bar) has no exact rational to hand the rational form, so it asks this one: the nearest whole tick,
+a tie going to the earlier tick, exactly as \ref nearestTick(std::int64_t, std::int64_t) rounds.
+
+\param exact_ticks Tick count to round; finite and within the range of a 64-bit integer.
+\return The nearest whole tick.
+*/
+[[nodiscard]] std::int64_t nearestTick(double exact_ticks) noexcept;
+
+/*!
 \brief Reports whether a position lies on the timeline's tick lattice.
 
 The lattice is every multiple of \ref g_tick_quantum_note_value on the whole-note axis

@@ -225,50 +225,6 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
            std::to_string(octave);
 }
 
-// Seconds per beat of one measure at a quarter-note BPM: a /8 measure's beat is half a quarter.
-[[nodiscard]] double secondsPerBeat(double quarter_bpm, int denominator)
-{
-    return (60.0 / quarter_bpm) * (4.0 / static_cast<double>(denominator));
-}
-
-// A sync point placed on a beat at its unrounded audio time, before the map stores it.
-struct SyncAnchor
-{
-    // One-based measure of the beat.
-    int measure{1};
-
-    // One-based beat within the measure.
-    int beat{1};
-
-    // Audio time of the beat, not yet rounded to a whole millisecond.
-    double seconds{0.0};
-};
-
-// Snaps anchor times to the whole milliseconds a tempo map stores. Guitar Pro's frame offsets
-// divided by 44100 almost never land on a whole millisecond, so each time is rounded once, and any
-// anchor that would collide with or regress past its predecessor is nudged one millisecond later
-// to keep the map strictly ordered.
-[[nodiscard]] std::vector<common::core::BeatAnchor> snapAnchorsToMilliseconds(
-    const std::vector<SyncAnchor>& anchors)
-{
-    std::vector<common::core::BeatAnchor> snapped;
-    snapped.reserve(anchors.size());
-    for (const SyncAnchor& anchor : anchors)
-    {
-        std::int64_t milliseconds = common::core::nearestAnchorMilliseconds(anchor.seconds);
-        if (!snapped.empty() && milliseconds <= snapped.back().milliseconds)
-        {
-            milliseconds = snapped.back().milliseconds + 1;
-        }
-        snapped.push_back(
-            common::core::BeatAnchor{
-                .position = {.measure = anchor.measure, .beat = anchor.beat, .offset = {}},
-                .milliseconds = milliseconds,
-            });
-    }
-    return snapped;
-}
-
 // Builds the warp-anchor tempo map from the score's sync points, extending a downbeat terminal
 // anchor past the final bar so every note position lies inside the map. Unusable sync points are
 // dropped with a conversion note, so the build itself cannot fail.
@@ -291,85 +247,93 @@ struct SyncAnchor
         }
     }
 
-    std::vector<SyncAnchor> anchors;
+    // The grid without its timing: the whole-note axis every sync point is placed on and every
+    // extrapolation is measured along, which is the tempo map's own rather than a copy of it.
+    const common::core::TempoMap grid_only{signatures, {}};
+    const int total_measures = static_cast<int>(grid.beats_per_measure.size());
+    const GridPosition origin{.measure = 1, .beat = 1, .offset = {}};
+    const GridPosition terminal{.measure = total_measures + 1, .beat = 1, .offset = {}};
+
+    std::vector<common::core::BeatAnchor> anchors;
     double last_tempo = score.base_tempo_quarter_bpm;
+    int dropped_syncs = 0;
     for (const GpSyncPoint& sync : score.sync_points)
     {
-        const int measure_count = static_cast<int>(grid.beats_per_measure.size());
-        if (sync.bar < 0 || sync.bar >= measure_count)
+        // A sync point names a fraction of one of the score's bars; anything else points outside
+        // the score. Asked as a positive range test so a NaN fraction fails it too.
+        const bool fraction_inside_bar = sync.bar_fraction >= 0.0 && sync.bar_fraction <= 1.0;
+        if (sync.bar < 0 || sync.bar >= total_measures || !fraction_inside_bar)
         {
-            continue;
-        }
-        const int beats_in_bar = grid.beats_per_measure[static_cast<std::size_t>(sync.bar)];
-        const double beat_position = sync.bar_fraction * beats_in_bar;
-        const auto whole_beat = static_cast<int>(std::lround(beat_position));
-        if (std::abs(beat_position - whole_beat) > 1e-3)
-        {
-            notes.emplace_back("dropped an off-beat audio sync point");
+            ++dropped_syncs;
             continue;
         }
 
-        int measure = sync.bar + 1;
-        int beat = whole_beat + 1;
-        if (beat > beats_in_bar)
-        {
-            // A rollover from the last bar's end lands on the terminal downbeat, which is a
-            // legal anchor position: it pins the song's end to the audio exactly.
-            measure += 1;
-            beat = 1;
-        }
+        // The whole tick nearest the stated fraction, walked from the bar's downbeat: a sync
+        // within half a tick of a beat lands on it, and the end of a bar carries onto the next
+        // downbeat (the terminal one after the last bar, which pins the song's end exactly).
+        const auto bar_index = static_cast<std::size_t>(sync.bar);
+        const double ticks_in_bar = static_cast<double>(grid.beats_per_measure[bar_index]) *
+                                    common::core::g_tick_quantum_denominator /
+                                    grid.denominator[bar_index];
+        const auto ticks =
+            static_cast<int>(common::core::nearestTick(sync.bar_fraction * ticks_in_bar));
+        const GridPosition position = common::core::advanceGridPositionByWholeNotes(
+            grid_only,
+            GridPosition{.measure = sync.bar + 1, .beat = 1, .offset = {}},
+            Fraction{ticks, common::core::g_tick_quantum_denominator});
+        const std::int64_t milliseconds = common::core::nearestAnchorMilliseconds(sync.seconds);
 
-        // Anchors must advance strictly in both grid position and audio time; sync points that
-        // regress on either axis would corrupt the map, so they are dropped.
+        // Anchors must advance strictly in both grid position and stored time. A sync point that
+        // regresses on either axis would corrupt the map, and one within a millisecond of its
+        // predecessor is noise below the stored unit, so either is dropped.
         if (!anchors.empty() &&
-            (anchors.back().seconds >= sync.seconds || anchors.back().measure > measure ||
-             (anchors.back().measure == measure && anchors.back().beat >= beat)))
+            (position <= anchors.back().position || milliseconds <= anchors.back().milliseconds))
         {
+            ++dropped_syncs;
             continue;
         }
-        anchors.push_back(SyncAnchor{.measure = measure, .beat = beat, .seconds = sync.seconds});
+        anchors.push_back(
+            common::core::BeatAnchor{.position = position, .milliseconds = milliseconds});
         if (sync.modified_tempo > 0.0)
         {
             last_tempo = sync.modified_tempo;
         }
     }
 
+    if (dropped_syncs > 0)
+    {
+        notes.push_back(
+            "dropped " + std::to_string(dropped_syncs) +
+            " audio sync points outside the score or not after the previous one");
+    }
+
     if (anchors.empty())
     {
-        anchors.push_back(SyncAnchor{.measure = 1, .beat = 1, .seconds = 0.0});
+        anchors.push_back(common::core::BeatAnchor{.position = origin, .milliseconds = 0});
         notes.emplace_back("score has no audio sync points; timing uses the base tempo");
     }
 
-    if (anchors.front().measure != 1 || anchors.front().beat != 1)
+    if (anchors.front().position != origin)
     {
-        // Back-extrapolate the missing lead-in at the first known tempo, clamped at zero so
-        // the map never starts before the audio. Whole measures and the first anchor's partial
-        // measure subtract separately because the anchor may sit on the terminal downbeat,
-        // one past the last real measure.
-        const SyncAnchor& first = anchors.front();
-        double seconds = first.seconds;
+        // Back-extrapolate the missing lead-in at the first known tempo, clamped at zero so the
+        // map never starts before the audio.
+        const common::core::BeatAnchor& first = anchors.front();
         const double first_tempo = score.sync_points.empty()
                                        ? score.base_tempo_quarter_bpm
                                        : std::max(1.0, score.sync_points.front().modified_tempo);
-        for (int measure = 1; measure < first.measure; ++measure)
+        const double lead_in_quarters =
+            4.0 * grid_only.wholeNotePositionAt(first.position).toDouble();
+        std::int64_t milliseconds = common::core::nearestAnchorMilliseconds(
+            first.seconds() - (lead_in_quarters * 60.0 / first_tempo));
+        if (milliseconds < 0)
         {
-            const auto measure_index = static_cast<std::size_t>(measure - 1);
-            seconds -= grid.beats_per_measure[measure_index] *
-                       secondsPerBeat(first_tempo, grid.denominator[measure_index]);
-        }
-        if (first.beat > 1)
-        {
-            const auto first_index = static_cast<std::size_t>(first.measure - 1);
-            seconds -=
-                (first.beat - 1) * secondsPerBeat(first_tempo, grid.denominator[first_index]);
-        }
-        if (seconds < 0.0)
-        {
-            seconds = 0.0;
+            milliseconds = 0;
             notes.emplace_back("score starts before the audio; the lead-in was clamped");
         }
-        anchors.insert(anchors.begin(), SyncAnchor{.measure = 1, .beat = 1, .seconds = seconds});
-        if (anchors.size() > 1 && anchors[1].seconds <= anchors[0].seconds)
+        anchors.insert(
+            anchors.begin(),
+            common::core::BeatAnchor{.position = origin, .milliseconds = milliseconds});
+        if (anchors[1].milliseconds <= anchors[0].milliseconds)
         {
             anchors.erase(anchors.begin() + 1);
         }
@@ -377,31 +341,27 @@ struct SyncAnchor
 
     // Terminal anchor on the downbeat after the final bar, extrapolated at the last tempo. A
     // final sync point can land exactly there (a rollover from the last bar's end); it already
-    // pins the song's end to the audio, so no extrapolated anchor is added on top of it. A terminal
-    // closer to its predecessor than a millisecond is held a millisecond after it by the snap.
-    const int total_measures = static_cast<int>(grid.beats_per_measure.size());
-    const int last_sync_measure = anchors.back().measure;
-    const int last_sync_beat = anchors.back().beat;
-    const double last_sync_seconds = anchors.back().seconds;
-    if (last_sync_measure != total_measures + 1)
+    // pins the song's end to the audio, so no extrapolated anchor is added on top of it. A
+    // terminal less than a millisecond past its predecessor is held a millisecond after it, since
+    // the terminal, unlike a sync point, cannot be dropped.
+    const common::core::BeatAnchor last = anchors.back();
+    if (last.position != terminal)
     {
-        double terminal_seconds = last_sync_seconds;
-        for (int measure = last_sync_measure; measure <= total_measures; ++measure)
-        {
-            const auto measure_index = static_cast<std::size_t>(measure - 1);
-            const int beats = measure == last_sync_measure
-                                  ? grid.beats_per_measure[measure_index] - (last_sync_beat - 1)
-                                  : grid.beats_per_measure[measure_index];
-            terminal_seconds +=
-                beats * secondsPerBeat(std::max(1.0, last_tempo), grid.denominator[measure_index]);
-        }
+        const double terminal_quarters = 4.0 * (grid_only.wholeNotePositionAt(terminal) -
+                                                grid_only.wholeNotePositionAt(last.position))
+                                                   .toDouble();
+        const std::int64_t milliseconds = std::max(
+            last.milliseconds + 1,
+            common::core::nearestAnchorMilliseconds(
+                last.seconds() + (terminal_quarters * 60.0 / std::max(1.0, last_tempo))));
         anchors.push_back(
-            SyncAnchor{.measure = total_measures + 1, .beat = 1, .seconds = terminal_seconds});
+            common::core::BeatAnchor{.position = terminal, .milliseconds = milliseconds});
     }
 
     // Warn when audio sync points leave most of the song to constant-tempo extrapolation: those
     // bars start aligned but drift from any recording that is not metronomically steady, which is
     // a source-data limitation the import cannot recover (the sync points simply are not there).
+    const int last_sync_measure = last.position.measure;
     if (!score.sync_points.empty() && (total_measures - last_sync_measure) * 4 > total_measures)
     {
         notes.emplace_back(
@@ -410,7 +370,7 @@ struct SyncAnchor
             "; later timing is extrapolated at the last tempo and may drift from the recording");
     }
 
-    return common::core::TempoMap{std::move(signatures), snapAnchorsToMilliseconds(anchors)};
+    return common::core::TempoMap{std::move(signatures), std::move(anchors)};
 }
 
 // Converts a Guitar Pro percent (one decimal at most) into an exact rational of one.

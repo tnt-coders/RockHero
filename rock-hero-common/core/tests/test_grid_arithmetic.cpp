@@ -399,6 +399,21 @@ TEST_CASE("The tick rounding rule takes the nearest tick and the earlier on a ti
     CHECK(nearestTick(-5, 2) == -3); // -2.5 ties to the earlier, which is further below zero
 }
 
+// A tick count read as a double rounds by the same rule, so a decimal source (an imported sync
+// point's fraction of a bar) lands on the tick an exact rational of the same value would.
+TEST_CASE("The tick rounding rule is the same for a tick count read as a double", "[core][chart]")
+{
+    CHECK(nearestTick(2.5) == 2);   // the tie: the earlier tick, not away from zero
+    CHECK(nearestTick(-2.5) == -3); // the earlier tick below zero too
+    CHECK(nearestTick(548.5714) == 549);
+    CHECK(nearestTick(1151.9999) == 1152);
+    for (const std::int64_t numerator : {-7, -5, 0, 5, 7, 12, 13, 1097})
+    {
+        const double exact_ticks = static_cast<double>(numerator) / 2.0;
+        CHECK(nearestTick(exact_ticks) == nearestTick(numerator, 2));
+    }
+}
+
 // A position is on the lattice when its offset is a whole number of ticks at its own meter: a
 // quarter-note beat holds 960 ticks and an eighth-note beat 480.
 TEST_CASE("A position lies on the tick lattice when its offset is whole ticks", "[core][chart]")

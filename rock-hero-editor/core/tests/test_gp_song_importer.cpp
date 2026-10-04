@@ -27,6 +27,8 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 #include <system_error>
@@ -6973,6 +6975,132 @@ TEST_CASE("Guitar Pro import snaps tempo anchors to the millisecond grid", "[cor
     CHECK(song->tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.002));
 
     std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// A sync point between two beats is the score's own statement of where that bar position sits in
+// the audio, so the import keeps it as an anchor at its tick rather than dropping or flooring it.
+TEST_CASE("Guitar Pro build keeps an off-beat sync point at its tick", "[core][gp-import]")
+{
+    // 0.3 of a 4/4 bar is 1.2 beats past the downbeat: beat two plus a fifth.
+    const GpScore score = makeLinearScore(
+        4,
+        {
+            GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0},
+            GpSyncPoint{.bar = 1, .bar_fraction = 0.3, .seconds = 2.75, .modified_tempo = 120.0},
+            GpSyncPoint{.bar = 2, .bar_fraction = 0.0, .seconds = 4.0, .modified_tempo = 120.0},
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::TempoMap& tempo_map = built->tempo_map;
+    REQUIRE(common::core::validateTempoMapRules(tempo_map).has_value());
+    REQUIRE(tempo_map.anchors().size() == 4);
+    const GridPosition off_beat{.measure = 2, .beat = 2, .offset = Fraction{1, 5}};
+    CHECK(tempo_map.anchors()[1].position == off_beat);
+    CHECK(tempo_map.anchors()[1].milliseconds == 2750);
+    CHECK(tempo_map.secondsAt(off_beat) == Catch::Approx(2.75));
+    CHECK_FALSE(anyNoteContains(built->notes, "off-beat"));
+}
+
+// A fraction no tick divides lands on the nearest tick, so the anchor is a position the chart can
+// state: a seventh of a 4/4 bar is 548.57 ticks, kept as 549.
+TEST_CASE("Guitar Pro build places a sync point on the nearest tick", "[core][gp-import]")
+{
+    const GpScore score = makeLinearScore(
+        3,
+        {
+            GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0},
+            GpSyncPoint{
+                .bar = 1, .bar_fraction = 1.0 / 7.0, .seconds = 2.3, .modified_tempo = 120.0
+            },
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::TempoMap& tempo_map = built->tempo_map;
+    REQUIRE(common::core::validateTempoMapRules(tempo_map).has_value());
+    REQUIRE(tempo_map.anchors().size() == 3);
+    const GridPosition& placed = tempo_map.anchors()[1].position;
+    CHECK(common::core::isOnTickLattice(tempo_map, placed));
+    CHECK(placed == GridPosition{.measure = 2, .beat = 1, .offset = Fraction{549, 960}});
+}
+
+// A score whose sync points start after the first downbeat back-extrapolates the `1:1` anchor at
+// the first tempo along the whole-note axis, so a /8 bar in the lead-in counts as half its beats
+// in quarters; the terminal lands on the downbeat past the final bar, extrapolated at the last
+// tempo from the last sync point.
+TEST_CASE("Guitar Pro build extrapolates the lead-in and the terminal", "[core][gp-import]")
+{
+    GpScore score = makeLinearScore(
+        4,
+        {
+            GpSyncPoint{.bar = 2, .bar_fraction = 0.0, .seconds = 5.0, .modified_tempo = 120.0},
+            GpSyncPoint{.bar = 3, .bar_fraction = 0.8, .seconds = 7.0, .modified_tempo = 60.0},
+        });
+    score.master_bars[1].numerator = 6;
+    score.master_bars[1].denominator = 8;
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::TempoMap& tempo_map = built->tempo_map;
+    REQUIRE(common::core::validateTempoMapRules(tempo_map).has_value());
+    REQUIRE(tempo_map.anchors().size() == 4);
+
+    // Four quarters of 4/4 plus three of 6/8 at 120 BPM: 3.5 seconds before the 5.0 sync.
+    CHECK(tempo_map.anchors()[0].position == GridPosition{.measure = 1, .beat = 1, .offset = {}});
+    CHECK(tempo_map.anchors()[0].milliseconds == 1500);
+    CHECK(tempo_map.anchors()[1].milliseconds == 5000);
+
+    // 0.8 of the last bar is beat four plus a fifth; the 0.8 quarter left at 60 BPM is 0.8 s.
+    CHECK(
+        tempo_map.anchors()[2].position ==
+        GridPosition{.measure = 4, .beat = 4, .offset = Fraction{1, 5}});
+    CHECK(tempo_map.anchors()[3].position == GridPosition{.measure = 5, .beat = 1, .offset = {}});
+    CHECK(tempo_map.anchors()[3].milliseconds == 7800);
+}
+
+// A lead-in longer than the audio before the first sync point clamps the `1:1` anchor to zero.
+TEST_CASE("Guitar Pro build clamps a lead-in that starts before the audio", "[core][gp-import]")
+{
+    const GpScore score = makeLinearScore(
+        3,
+        {
+            GpSyncPoint{.bar = 1, .bar_fraction = 0.0, .seconds = 1.0, .modified_tempo = 120.0},
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::TempoMap& tempo_map = built->tempo_map;
+    REQUIRE(common::core::validateTempoMapRules(tempo_map).has_value());
+    REQUIRE(tempo_map.anchors().size() == 3);
+    CHECK(tempo_map.anchors()[0].milliseconds == 0);
+    CHECK(tempo_map.anchors()[1].milliseconds == 1000);
+    CHECK(anyNoteContains(built->notes, "the lead-in was clamped"));
+}
+
+// Two sync points closer than the stored millisecond round onto one time; the later is noise
+// below the unit, so the first is kept and the later dropped.
+TEST_CASE(
+    "Guitar Pro build keeps the first of two sync points within a millisecond", "[core][gp-import]")
+{
+    const GpScore score = makeLinearScore(
+        3,
+        {
+            GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0},
+            GpSyncPoint{.bar = 1, .bar_fraction = 0.0, .seconds = 2.0001, .modified_tempo = 120.0},
+            GpSyncPoint{
+                .bar = 1, .bar_fraction = 0.001, .seconds = 2.0004, .modified_tempo = 120.0
+            },
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::TempoMap& tempo_map = built->tempo_map;
+    REQUIRE(common::core::validateTempoMapRules(tempo_map).has_value());
+    REQUIRE(tempo_map.anchors().size() == 3);
+    CHECK(tempo_map.anchors()[1].position == GridPosition{.measure = 2, .beat = 1, .offset = {}});
+    CHECK(tempo_map.anchors()[1].milliseconds == 2000);
+    CHECK(anyNoteContains(built->notes, "dropped 1 audio sync points"));
 }
 
 // A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
