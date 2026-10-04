@@ -62,6 +62,21 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    refused selection plus the log line, `docs/plans/in-progress/refusal-flash.md`), never a status
    line or toast.
 
+4. **The two toggles' icons and tooltips (user, 2026-10-04).** Material Symbols Outlined style,
+   weight 400, in `rock-hero-editor/ui/resources/` beside the transport icons: Tempo Lock is
+   Material's `lock_clock` (on) / a custom `lock_clock_open` (off); Keep Notes in Time is a custom
+   `lock_note` (on) / `lock_note_open` (off) — filled glyph when on, outlined with the open
+   shackle when off. The on state is a 1 px `accent` ring with 3 px corners and no fill, the
+   editor's selection mark; disabled is the whole button at 0.4 alpha; a small `DrawableButton`
+   subclass paints it. The four final SVGs are in `docs/plans/roadmap/66-assets/`, already in the
+   shipped icons' form; Phase 1 moves the `lock_clock` pair into `resources/` and its
+   binary-data list, Phase 3 the `lock_note` pair, and the folder is deleted with the second move.
+   Tooltips, verbatim:
+   - "Tempo Lock: while on, tempo anchors can't be dragged or nudged. Adding, deleting and typing
+     tempos still work."
+   - "Keep Notes in Time: while on, tempo edits leave notes where they sound in the audio and move
+     the grid under them."
+
 ## Open questions (build-session)
 
 - **Q1 — what a Keep-Notes-in-Time drag shows before release.** Content must not appear to move
