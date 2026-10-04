@@ -260,9 +260,12 @@ never written. A fret-stating point inside an OPEN STRING's tail is refused by c
 
 **A refused key flashes what it refused.** Where a key does nothing and the screen would not say
 why, the elements it turned down glow in the theme's red, pulsing twice, and
-the reason goes to the log: the whole selection for a refused plan, and only the named notes for a
+the reason goes to the log beside the subject it refused: what a refused plan was planned over (the
+selection, or the operand a modifying key took from the caret), and only the named notes for a
 per-note verb that applied to the rest (`reportChartPlanRefusal` / `reportChartRefusedNotes` in
-`chart_handlers.cpp`, drawn by `TabView::flashRefusal`). A visible bound, such as a move stopping at
+`chart_handlers.cpp`, drawn by `TabView::flashRefusal`). Every chart refusal, a refused fret entry's
+included, leaves the one record `logChartRefusal` writes, `Refused chart edit subject=… detail=…`,
+so a reason only ever says WHY and the subject always says WHAT. A visible bound, such as a move stopping at
 the next head, is not a refusal and flashes nothing. The ruler flashes too: a tempo-anchor move the
 Tempo Lock refuses glows the anchor's chip (`IEditorView::flashTempoAnchorRefusal`, drawn by
 `TimelineRuler::flashTempoAnchorRefusal`). Both surfaces run one pulse and one glow

@@ -33,6 +33,23 @@ accepted in any equivalent spelling.
 [[nodiscard]] std::string formatGridPositionToken(const GridPosition& position);
 
 /*!
+\brief Formats a place on a string, `"<position> string <n>"`, the one spelling every message
+       naming a note's slot uses.
+\param position Position on the grid.
+\param string One-based string, counted from the lowest-pitched string.
+\return The place's text, its position in the canonical token spelling.
+*/
+[[nodiscard]] std::string formatChartPlaceToken(const GridPosition& position, int string);
+
+/*!
+\brief Formats a fret-hand placement, `"hand position <position>"`, the one spelling every message
+       naming a placement uses.
+\param position The placement's position on the grid.
+\return The placement's text, its position in the canonical token spelling.
+*/
+[[nodiscard]] std::string formatHandPositionToken(const GridPosition& position);
+
+/*!
 \brief Parses a beat-fraction token: `"<n>"` for whole beats or `"<n>/<d>"` for fractions.
 \param text Token text.
 \return Parsed non-negative fraction, or nullopt when the token is malformed.

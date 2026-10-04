@@ -30,14 +30,12 @@ the user picks which way the two surfaces reconcile.
 
 ## Raised while wording the Tempo Lock refusal (2026-10-04)
 
-- **A chart refusal's log line names its subject once, in the shared log helper.** Marker and
-  section rule refusals already name the item (`song_section_rules.cpp:59-79` print the position);
-  most `ChartPlanInvalid` reasons do not (`chart_edits.cpp`: "the move would leave the neck or the
-  grid", "a scrape has no junction to split"). The flash marks the refused item on screen, but the
-  log is what a bug report carries. Add the subject — the selection or slot the verb acted on —
-  where the chart refusal is logged, once, so every reason keeps saying WHY and the line always
-  says WHAT; never by rewriting each reason string. User, 2026-10-04: do it right after tonight's
-  tempo and meter work if that finishes without needing them.
+- **The logger's only output is a file, so the test log capture works around it.**
+  `rock-hero-editor/core/tests/log_capture.cpp` carries a unique-directory loop, `atexit`
+  ordering, a rotation override and byte-offset reads only because `Logger` is a one-shot process
+  singleton writing a file. An in-memory test sink in `Logger::Config` (common/core) would delete
+  all of it while `test_logger.cpp` keeps testing the file. Check first whether Quill makes a
+  second sink cheap. Raised by the refusal-log simplicity review (2026-10-04).
 - **A refused drag logs one identical line per pointer event.** The Tempo Lock refusal, the
   out-of-range tempo drag refusal (`tempo_handlers.cpp:~311`) and held-key refusals all log per
   event, which is correct: the core sees no gesture boundary and the answer can change mid-drag (a

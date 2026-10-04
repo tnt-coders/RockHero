@@ -1,22 +1,19 @@
+#include "log_capture.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
-#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
-#include <system_error>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -789,33 +786,16 @@ TEST_CASE(
 }
 
 // Each refused gesture leaves the marker refusal record under the move's own label, naming the
-// gesture and the anchor. The logging backend starts once per process, so both gestures share
-// this one case.
+// gesture and the anchor.
 TEST_CASE("The tempo lock logs each refused gesture", "[core][tempo][tempo-lock]")
 {
-    const std::filesystem::path log_directory =
-        std::filesystem::temp_directory_path() / "rock-hero-tempo-lock-log-test";
-    std::error_code error;
-    std::filesystem::remove_all(log_directory, error);
-    const std::filesystem::path log_file = log_directory / "editor.log";
-    common::core::Logger::Config config;
-    config.log_file = log_file;
-    REQUIRE(common::core::Logger::init(config).has_value());
+    const testing::LogCapture capture;
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    editor.pressAlt(ChartStepDirection::Right);
+    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
 
-    {
-        TempoEditor editor;
-        editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
-        editor.pressAlt(ChartStepDirection::Right);
-        editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
-    }
-    common::core::Logger::shutdown();
-
-    std::ifstream stream{log_file};
-    REQUIRE(stream.is_open());
-    const std::string contents{
-        std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}
-    };
-    stream.close();
+    const std::string contents = capture.text();
     CHECK(
         contents.find(
             R"(Rejected marker edit label="Move Tempo Anchor" )"
@@ -826,8 +806,6 @@ TEST_CASE("The tempo lock logs each refused gesture", "[core][tempo][tempo-lock]
             R"(Rejected marker edit label="Move Tempo Anchor" )"
             R"(detail="Tempo Lock is on: dragging the tempo anchor at 3:1 is blocked")") !=
         std::string::npos);
-
-    std::filesystem::remove_all(log_directory, error);
 }
 
 } // namespace rock_hero::editor::core

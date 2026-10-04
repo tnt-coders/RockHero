@@ -355,8 +355,7 @@ std::vector<ChartConversion> flattenLegatoClaims(
         conversions.push_back(
             ChartConversion{
                 .repair = ChartRepair::UnjustifiedLegato,
-                .where = formatGridPositionToken(note.position) + " string " +
-                         std::to_string(note.string),
+                .where = formatChartPlaceToken(note.position, note.string),
             });
     }
     return conversions;

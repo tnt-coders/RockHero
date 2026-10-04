@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <format>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -71,6 +72,51 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
                                                             : ChartCaretFace::Mark;
 }
 
+// A slot as a refusal record names it, in the one spelling of a place on a string.
+[[nodiscard]] std::string chartSlotText(const ChartSlotKey& slot)
+{
+    return common::core::formatChartPlaceToken(slot.position, slot.string);
+}
+
+// A keyframe as a refusal record names it: its offset along the note it rides.
+[[nodiscard]] std::string chartKeyframeText(const ChartKeyframeKey& key)
+{
+    return std::format(
+        "keyframe +{} of {}",
+        common::core::formatBeatFractionToken(key.offset),
+        chartSlotText(key.note));
+}
+
+// The SUBJECT of a chart refusal record: what was refused, beside the planner's reason for it. One
+// object is named outright; several by their count and their first and last in the selection's
+// own order (notes, then keyframes), which keeps a marquee's line short and still says where it
+// reached.
+[[nodiscard]] std::string chartSubjectText(
+    const std::span<const ChartSlotKey> notes, const std::span<const ChartKeyframeKey> keyframes)
+{
+    const std::size_t count = notes.size() + keyframes.size();
+    if (count == 0)
+    {
+        return "nothing";
+    }
+    const std::string first =
+        notes.empty() ? chartKeyframeText(keyframes.front()) : chartSlotText(notes.front());
+    if (count == 1)
+    {
+        return first;
+    }
+    const std::string last =
+        keyframes.empty() ? chartSlotText(notes.back()) : chartKeyframeText(keyframes.back());
+    return std::format("{} objects: {} .. {}", count, first, last);
+}
+
+// THE chart refusal record, the one line every refused chart edit leaves: the subject names WHAT,
+// so a reason only ever has to say WHY.
+void logChartRefusal(const std::string_view subject, const std::string_view detail)
+{
+    RH_LOG_WARNING("editor.chart", "Refused chart edit subject={:?} detail={:?}", subject, detail);
+}
+
 } // namespace
 
 // The memoized projection of the current chart, refreshed on read: pointer events resolve against
@@ -105,19 +151,16 @@ void EditorController::Impl::flashChartElements(
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
-void EditorController::Impl::reportChartPlanRefusal(const ChartPlanRefusal& refusal)
+void EditorController::Impl::reportChartPlanRefusal(
+    const ChartPlanRefusal& refusal, const ChartSelection& subject)
 {
     const auto* const invalid = std::get_if<ChartPlanInvalid>(&refusal);
     if (invalid == nullptr)
     {
         return;
     }
-    RH_LOG_WARNING(
-        "editor.chart",
-        "Refused chart edit selected={} detail={:?}",
-        chartSelection().keys().size(),
-        invalid->reason);
-    flashChartElements(chartSelection().notes(), chartSelection().keyframes());
+    logChartRefusal(chartSubjectText(subject.notes(), subject.keyframes()), invalid->reason);
+    flashChartElements(subject.notes(), subject.keyframes());
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h. The refused notes arrive in the
@@ -133,12 +176,7 @@ void EditorController::Impl::reportChartRefusedNotes(
     notes.reserve(refused.size());
     for (const ChartRefusedNote& note : refused)
     {
-        RH_LOG_WARNING(
-            "editor.chart",
-            "Refused note position={} string={} detail={:?}",
-            common::core::formatGridPositionToken(note.note.position),
-            note.note.string,
-            note.reason);
+        logChartRefusal(chartSlotText(note.note), note.reason);
         notes.push_back(note.note);
     }
     flashChartElements(notes, {});
@@ -898,31 +936,39 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
 // Rationale lives on the declaration in editor_controller_impl.h. The notes are reported after the
 // apply, so the flash is addressed in the projection the apply published.
 bool EditorController::Impl::applyChartEditPlan(
-    ChartSelectionPlan planned, std::optional<std::vector<ChartSelectionKey>> select_exactly)
+    ChartSelectionPlan planned, const ChartSelection& subject,
+    std::optional<std::vector<ChartSelectionKey>> select_exactly)
 {
-    const bool applied = applyChartEditPlan(std::move(planned.plan), std::move(select_exactly));
+    const bool applied =
+        applyChartEditPlan(std::move(planned.plan), subject, std::move(select_exactly));
     reportChartRefusedNotes(planned.refused);
     return applied;
 }
 
-// Applies a planned chart-note change through the session's mutable chart (bumping the revision
-// so every projection rebuilds) and records it as one undo entry. Takes the planners' own return
-// shape, and is where a refused plan is reported: a caller that wants to distinguish NoChange from
-// Invalid for its own behavior still branches before handing the plan over.
+// Takes the planners' own return shape, and is where a refused plan is reported, against the
+// subject the caller planned it over: a caller that wants to distinguish NoChange from Invalid for
+// its own behavior still branches before handing the plan over.
 bool EditorController::Impl::applyChartEditPlan(
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan,
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
     std::optional<std::vector<ChartSelectionKey>> select_exactly)
 {
     if (!plan.has_value())
     {
-        reportChartPlanRefusal(plan.error());
+        reportChartPlanRefusal(plan.error(), subject);
         return false;
     }
+    return applyChartEditPlan(std::move(*plan), std::move(select_exactly));
+}
 
+// Applies a planned chart-note change through the session's mutable chart (bumping the revision
+// so every projection rebuilds) and records it as one undo entry.
+bool EditorController::Impl::applyChartEditPlan(
+    ChartEditPlan plan, std::optional<std::vector<ChartSelectionKey>> select_exactly)
+{
     // Where the charter stands before anything moves, which is exactly where undo returns them.
     std::optional<ChartEditFocus> before = chartEditFocusOf(chartSelection().keys());
     const std::optional<std::expected<void, EditorUndoFailureCode>> applied = m_session.writeChart(
-        [&plan](common::core::Chart& chart) { return applyChartChange(chart, *plan); });
+        [&plan](common::core::Chart& chart) { return applyChartChange(chart, plan); });
     if (!applied.has_value())
     {
         return false;
@@ -931,7 +977,7 @@ bool EditorController::Impl::applyChartEditPlan(
     {
         // The plan was computed against this exact chart, so a precondition failure means a
         // logic error rather than user input; surface it instead of silently dropping the edit.
-        reportError("Could not apply chart edit: " + plan->label);
+        reportError("Could not apply chart edit: " + plan.label);
         return false;
     }
 
@@ -963,12 +1009,12 @@ bool EditorController::Impl::applyChartEditPlan(
             [&next_selection, &in_side, &plan](const std::vector<ChartSlotKey>& selected) {
                 for (const ChartSlotKey& key : selected)
                 {
-                    if (!in_side(plan->removed, key))
+                    if (!in_side(plan.removed, key))
                     {
                         next_selection.emplace_back(ChartNoteKey{.slot = key});
                     }
                 }
-                for (const common::core::ChartNote& note : plan->inserted)
+                for (const common::core::ChartNote& note : plan.inserted)
                 {
                     const ChartSlotKey key = chartSlotKeyOf(note);
                     // A note rewritten IN PLACE that the user had not selected is something
@@ -979,7 +1025,7 @@ bool EditorController::Impl::applyChartEditPlan(
                     // selection is exactly what sits under the caret) and would silently widen
                     // the next keystroke's scope. A note inserted at a NEW key is the edit's own
                     // product (a moved or created object) and follows.
-                    if (in_side(plan->removed, key) && !std::ranges::binary_search(selected, key))
+                    if (in_side(plan.removed, key) && !std::ranges::binary_search(selected, key))
                     {
                         continue;
                     }
@@ -993,7 +1039,7 @@ bool EditorController::Impl::applyChartEditPlan(
         // new one.
         for (const ChartKeyframeKey& keyframe : chartSelection().keyframes())
         {
-            if (!in_side(plan->removed, keyframe.note) || in_side(plan->inserted, keyframe.note))
+            if (!in_side(plan.removed, keyframe.note) || in_side(plan.inserted, keyframe.note))
             {
                 next_selection.emplace_back(keyframe);
             }
@@ -1016,13 +1062,13 @@ bool EditorController::Impl::applyChartEditPlan(
     // push resets the history, which is the same reason.) The accepted consequence: a run whose
     // early steps write nothing and whose later step writes does not coalesce across that boundary,
     // which is correct — the early steps are authoring state no entry may hold.
-    ChartEditPlan written = writtenChartPlan(*plan);
+    ChartEditPlan written = writtenChartPlan(plan);
     std::optional<ChartEditFocus> after = chartEditFocusOf(chartSelection().keys());
     if (!written.empty() &&
         pushUndoEntry(std::make_unique<ChartEdit>(std::move(written), before, after)))
     {
         m_chart_notes_top = ChartNotesTopEntry{
-            .plan = std::move(*plan),
+            .plan = std::move(plan),
             .history_position = m_undo_history.snapshot().position,
             .before = std::move(before),
             .after = std::move(after),
@@ -2259,12 +2305,14 @@ void EditorController::Impl::deleteChartSelection()
                     chartSelection().keyframes(),
                     std::nullopt,
                     "Remove Bend"),
+                chartSelection(),
                 chartSelection().keys()));
             return;
         case ChartCaretFace::Mark:
             static_cast<void>(applyChartEditPlan(
                 planDeleteSelection(
                     chart, tempo_map, chartSelection().notes(), chartSelection().keyframes()),
+                chartSelection(),
                 chartSelection().keys()));
             return;
     }
@@ -2562,11 +2610,7 @@ void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
     {
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&entry.plan.error()))
         {
-            RH_LOG_WARNING(
-                "editor.chart",
-                "Refused fret entry value={} detail={:?}",
-                entry.value,
-                invalid->reason);
+            logChartRefusal(chartFretEntrySubject(entry), invalid->reason);
         }
     }
     if (entry.refused() || chartFretValueExtendable(entry.value))
@@ -2903,6 +2947,30 @@ std::optional<ChartSlotKey> EditorController::Impl::chartFretEntryCreationSlot(
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
+std::string EditorController::Impl::chartFretEntrySubject(const ChartFretEntry& entry) const
+{
+    const std::string target = std::visit(
+        common::core::Overloaded{
+            [](const ChartFretEntry::InsertAt& insert) { return chartSlotText(insert.slot); },
+            [this](const ChartFretEntry::Cut& cut) {
+                return chartSlotText(chartRingSiteSlot(cut.note, cut.offset));
+            },
+            [](const ChartFretEntry::CreateKeyframe& create) {
+                return chartKeyframeText(
+                    ChartKeyframeKey{.note = create.note, .offset = create.offset});
+            },
+            [](const ChartFretEntry::Retype& retype) {
+                return chartSubjectText(retype.keys, retype.keyframe_keys);
+            },
+            [](const ChartFretEntry::RetypeHandFret& hand) {
+                return common::core::formatHandPositionToken(hand.position);
+            },
+        },
+        entry.target);
+    return std::format("fret {} on {}", entry.value, target);
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
 //
 // Settled in this keystroke rather than armed: the value arrives WHOLE, so there is no digit left
 // to widen it and no provisional value to show — which is also why a refusal shows no red box
@@ -3016,13 +3084,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 
     const std::vector<ChartSlotKey>& note_keys = chartSelection().notes();
     const std::vector<ChartKeyframeKey>& keyframe_keys = chartSelection().keyframes();
-    static_cast<void>(applyChartEditPlan(planRetypeFrets(
-        *arrangement->chart,
-        session().song().tempo_map,
-        chartNotesForKeys(notesTouchedBy(note_keys, keyframe_keys)),
-        note_keys,
-        keyframe_keys,
-        ChartFretShift{.delta = direction > 0 ? 1 : -1})));
+    static_cast<void>(applyChartEditPlan(
+        planRetypeFrets(
+            *arrangement->chart,
+            session().song().tempo_map,
+            chartNotesForKeys(notesTouchedBy(note_keys, keyframe_keys)),
+            note_keys,
+            keyframe_keys,
+            ChartFretShift{.delta = direction > 0 ? 1 : -1}),
+        chartSelection()));
 }
 
 // Grows or shrinks the selection's rings by one step — moving each ring's END onto the adjacent
@@ -3208,7 +3278,7 @@ bool EditorController::Impl::commitChartGestureStep(
     }
     if (burst == nullptr || retired)
     {
-        if (!applyChartEditPlan(std::move(plan), select_exactly))
+        if (!applyChartEditPlan(std::move(*plan), select_exactly))
         {
             return false;
         }
@@ -3719,6 +3789,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartBend&
             anchors.keyframes(),
             action.semitones,
             label),
+        anchors,
         anchors.keys()));
 }
 
@@ -3768,6 +3839,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
     const std::string label = all_carry ? "Remove " + std::string{law.noun} : std::string{law.noun};
     if (applyChartEditPlan(
             law.plan(*arrangement->chart, session().song().tempo_map, operand, !all_carry, label),
+            operand,
             operand.keys()))
     {
         m_chart_verb_window = ChartVerbWindow{
@@ -3805,7 +3877,7 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
     // nothing left to claim means clear.
     if (planned.plan.has_value() || std::holds_alternative<ChartPlanInvalid>(planned.plan.error()))
     {
-        if (applyChartEditPlan(std::move(planned), operand.keys()))
+        if (applyChartEditPlan(std::move(planned), operand, operand.keys()))
         {
             arm_window();
         }
@@ -3830,6 +3902,7 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
                     legato_keys,
                     common::core::NoteAttack::Pick,
                     "Remove Legato"),
+                operand,
                 operand.keys()))
         {
             arm_window();
@@ -3865,7 +3938,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJu
         chartSelection().keyframes());
     if (!toggled.has_value())
     {
-        reportChartPlanRefusal(toggled.error());
+        reportChartPlanRefusal(toggled.error(), chartSelection());
         return;
     }
     // The planner's own selection, never the apply's default follow: only the walk that made them

@@ -512,13 +512,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::core::Fraction placementQuantum() const noexcept;
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
+    // A plan the caller already holds as valid, which therefore names no subject.
     bool applyChartEditPlan(
-        std::expected<ChartEditPlan, ChartPlanRefusal> plan,
+        ChartEditPlan plan,
+        std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+    // A planner's answer, which may be a refusal: `subject` is what the verb planned over — the
+    // selection, or the operand a modifying key took from the caret — and is what a refusal names
+    // in the log and flashes.
+    bool applyChartEditPlan(
+        std::expected<ChartEditPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
     // The same apply for a per-note verb's outcome, whose notes refused one by one are reported
     // whether or not the rest applied.
     bool applyChartEditPlan(
-        ChartSelectionPlan planned,
+        ChartSelectionPlan planned, const ChartSelection& subject,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
     // Makes `keys` the chart selection, keeping only what the chart holds (chartHoldsKey): where
     // every chart edit lands its selection once the chart is written.
@@ -978,11 +985,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void reportNotice(const std::string& title, const std::string& message);
     void requestChartHarmonicNodePicker(ChartHarmonicNodePicker picker);
     void requestChartBendPicker(ChartBendPicker picker);
-    // THE REFUSAL REPORT: each reason goes to the log and the refused elements flash red. A whole
-    // plan refused flashes the selection; a NoChange is an honest no-op and reports nothing.
-    // Per-note refusals flash only the notes named. Called after any apply, because the flash is
-    // addressed in the projection the view is showing.
-    void reportChartPlanRefusal(const ChartPlanRefusal& refusal);
+    // THE REFUSAL REPORT: each reason goes to the log beside the subject it refused, and the
+    // refused elements flash red. A whole plan refused names and flashes its subject — what the
+    // verb planned over; a NoChange is an honest no-op and reports nothing. Per-note refusals name
+    // and flash only the notes refused. Called after any apply, because the flash is addressed in
+    // the projection the view is showing.
+    void reportChartPlanRefusal(const ChartPlanRefusal& refusal, const ChartSelection& subject);
     void reportChartRefusedNotes(std::span<const ChartRefusedNote> refused);
     // The flash's one path: keys to the lane's projection indices, through the two authorities
     // resolvedChartEdit reads the selection by.
@@ -1321,6 +1329,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // a retype, whose box rides what it retypes.
     [[nodiscard]] std::optional<ChartSlotKey> chartFretEntryCreationSlot(
         const decltype(ChartFretEntry::target)& target) const;
+    // A refused entry's subject in the chart refusal record: the value typed and what it was typed
+    // on — the slot of an insert or a cut, the point a ring digit would plant, the objects a retype
+    // addresses, or the hand position whose fret it retypes.
+    [[nodiscard]] std::string chartFretEntrySubject(const ChartFretEntry& entry) const;
     // The slot an offset along a ring lands on — the inverse of the `beatDistance` that measured
     // it, so a site named as (note, offset) can name its own slot for the selection it plants and
     // the box it draws without either re-deriving it.

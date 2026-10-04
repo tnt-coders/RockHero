@@ -70,6 +70,16 @@ std::string formatGridPositionToken(const GridPosition& position)
     return text;
 }
 
+std::string formatChartPlaceToken(const GridPosition& position, const int string)
+{
+    return formatGridPositionToken(position) + " string " + std::to_string(string);
+}
+
+std::string formatHandPositionToken(const GridPosition& position)
+{
+    return "hand position " + formatGridPositionToken(position);
+}
+
 std::optional<Fraction> parseBeatFractionToken(const std::string& text)
 {
     const std::size_t slash = text.find('/');

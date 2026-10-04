@@ -128,7 +128,8 @@ Gaps this plan fills (verified absent):
 - Tests: `rock-hero-common/core/tests/test_chart.cpp` covers the structural rules; the test
   target is `rock_hero_common_core_tests`
   (`rock-hero-common/core/tests/CMakeLists.txt`). Grid-token formatting for messages already
-  exists (`formatGridPositionToken`, reused by `positionText` in `chart_rules.cpp`).
+  exists (`formatGridPositionToken`, with `formatChartPlaceToken` and `formatHandPositionToken`
+  in `chart_tokens.h`).
 - Corpus: 39 converted source-format packages with linked charts under the local
   `Rock Hero Stuff/Chart References` folder (outside the repo), with `_conversion_report.json`
   statistics (docs/plans/in-progress/note-format-and-tablature-plan.md, "Corpus validation").

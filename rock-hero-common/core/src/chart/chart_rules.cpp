@@ -25,11 +25,6 @@ namespace
 // guitar strings pitch down a whole octave via -1200 cents (a common charting practice).
 constexpr double g_max_cent_offset{1200.0};
 
-[[nodiscard]] std::string positionText(const GridPosition& position)
-{
-    return formatGridPositionToken(position);
-}
-
 // True when consecutive neck positions along a scrape's path — start, turnarounds, and the exit
 // when present (the slide-out keyframe, last in the same list) — all strictly differ. Only the
 // POSITION channel is a neck position; a keyframe carrying nothing but a latent bend or vibrato
@@ -179,7 +174,7 @@ std::expected<void, ChartError> validateFretHandPositions(
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
                 .message = "fret-hand position is off the grid or past the song at " +
-                           positionText(fhp.position),
+                           formatGridPositionToken(fhp.position),
             }};
         }
         // An authored end below the index finger is a window reaching nowhere, and no fit can say
@@ -188,8 +183,8 @@ std::expected<void, ChartError> validateFretHandPositions(
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
-                .message =
-                    "fret-hand window ends below its index finger at " + positionText(fhp.position),
+                .message = "fret-hand window ends below its index finger at " +
+                           formatGridPositionToken(fhp.position),
             }};
         }
         FretHandPosition normal = fhp;
@@ -199,7 +194,7 @@ std::expected<void, ChartError> validateFretHandPositions(
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
                 .message = std::string{chartRepairText(repairs.front())} + " at " +
-                           positionText(fhp.position),
+                           formatGridPositionToken(fhp.position),
             }};
         }
         // Strictly ascending: two placements at one instant would leave "where the hand is" with
@@ -209,7 +204,7 @@ std::expected<void, ChartError> validateFretHandPositions(
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
                 .message = "fret-hand positions must be strictly ascending at " +
-                           positionText(fhp.position),
+                           formatGridPositionToken(fhp.position),
             }};
         }
         previous_fhp = &fhp;
@@ -667,7 +662,7 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     {
         record(
             normalizeChartNote(note, chart.tuning),
-            positionText(note.position) + " string " + std::to_string(note.string));
+            formatChartPlaceToken(note.position, note.string));
         // THE KEYFRAME COMMIT LAW's load half: a point that says nothing the path does not
         // already say is never written, so one that arrives is junk and goes
         // (keyframeSaysNothingNew). Here and not in the per-note normalizer, deliberately: the
@@ -678,8 +673,7 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         if (stripSilentKeyframes(note))
         {
             record(
-                {ChartRepair::SilentKeyframe},
-                positionText(note.position) + " string " + std::to_string(note.string));
+                {ChartRepair::SilentKeyframe}, formatChartPlaceToken(note.position, note.string));
         }
     }
     // The one rule a note cannot obey alone: a re-strike stops the ring. It runs here rather than
@@ -692,14 +686,14 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         conversions.push_back(
             ChartConversion{
                 .repair = ChartRepair::OverlappingTail,
-                .where = positionText(note.position) + " string " + std::to_string(note.string),
+                .where = formatChartPlaceToken(note.position, note.string),
             });
     }
     for (FretHandPosition& position : chart.fret_hand_positions)
     {
         record(
             normalizeFretHandPosition(position, chart.tuning),
-            "hand position " + positionText(position.position));
+            formatHandPositionToken(position.position));
     }
     // The relational settle runs LAST, against the stream as it will actually stand: a trimmed
     // tail may have been the hold a neighbour's legato claim depended on.
@@ -731,7 +725,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "note is out of range at " + positionText(note.position),
+            .message = "note is out of range at " + formatGridPositionToken(note.position),
         }};
     }
     // The ring. Every struck string rings for SOME length — a dead note's damped stroke included —
@@ -744,7 +738,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "note sustain must be positive at " + positionText(note.position) +
+            .message = "note sustain must be positive at " +
+                       formatGridPositionToken(note.position) +
                        "; this chart predates the note duration model and must be re-imported",
         }};
     }
@@ -754,7 +749,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "note ring must end on the tick lattice at " + positionText(note.position),
+            .message = "note ring must end on the tick lattice at " +
+                       formatGridPositionToken(note.position),
         }};
     }
     // A legal node is stated as what it IS, in positive form: a node takes part in the posture
@@ -765,7 +761,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "harmonic node position is out of range at " + positionText(note.position),
+            .message = "harmonic node position is out of range at " +
+                       formatGridPositionToken(note.position),
         }};
     }
     // A node lies on the speaking length, so it cannot sit at or behind the physical stop —
@@ -777,7 +774,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "harmonic node must lie beyond the stop at " + positionText(note.position),
+            .message = "harmonic node must lie beyond the stop at " +
+                       formatGridPositionToken(note.position),
         }};
     }
     // A fret-hand harmonic's node carries the fretting finger, so it must lie on the neck; the
@@ -789,8 +787,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message =
-                "fret-hand harmonic node must lie on the neck at " + positionText(note.position),
+            .message = "fret-hand harmonic node must lie on the neck at " +
+                       formatGridPositionToken(note.position),
         }};
     }
     // A pinch is picking while damping a node, so a pinch without one is missing data rather
@@ -800,7 +798,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "pinch harmonic must carry its node at " + positionText(note.position),
+            .message =
+                "pinch harmonic must carry its node at " + formatGridPositionToken(note.position),
         }};
     }
     // The capo is the string's floor: 0 means the capo'd open string, and the frets it covers
@@ -811,7 +810,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "fret must be 0 or above the capo at " + positionText(note.position),
+            .message =
+                "fret must be 0 or above the capo at " + formatGridPositionToken(note.position),
         }};
     }
     // A finger cannot lower a stopped string's pitch, so a negative push is a data error rather
@@ -821,7 +821,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNotePayload,
-            .message = "bend amount must not be negative at " + positionText(note.position),
+            .message =
+                "bend amount must not be negative at " + formatGridPositionToken(note.position),
         }};
     }
     // Payload geometry no repair can express: a statement outside the sustain or out of order is
@@ -841,7 +842,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
                 .message = "keyframe offsets must ascend within the sustain at " +
-                           positionText(note.position),
+                           formatGridPositionToken(note.position),
             }};
         }
         previous_offset = keyframe.offset;
@@ -850,8 +851,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
-                .message =
-                    "keyframe must lie on the tick lattice at " + positionText(note.position),
+                .message = "keyframe must lie on the tick lattice at " +
+                           formatGridPositionToken(note.position),
             }};
         }
         // Bound to locals so each optional check and its access are provably the same object.
@@ -860,7 +861,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
-                .message = "keyframe fret must not be negative at " + positionText(note.position),
+                .message = "keyframe fret must not be negative at " +
+                           formatGridPositionToken(note.position),
             }};
         }
         const std::optional<double>& bend = keyframe.bend;
@@ -868,7 +870,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
-                .message = "bend amount must not be negative at " + positionText(note.position),
+                .message =
+                    "bend amount must not be negative at " + formatGridPositionToken(note.position),
             }};
         }
     }
@@ -884,7 +887,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidPickSlide,
             .message = "pick-slide note must not carry pitched techniques at " +
-                       positionText(note.position),
+                       formatGridPositionToken(note.position),
         }};
     }
     // The scrape's own gesture: the required unpitched terminal, exactly at the sustain (nothing
@@ -898,7 +901,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidPickSlide,
-                .message = "pick slide must end in a slide-out at " + positionText(note.position),
+                .message = "pick slide must end in a slide-out at " +
+                           formatGridPositionToken(note.position),
             }};
         }
     }
@@ -911,7 +915,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
             .message = std::string{chartRepairText(repairs.front())} + " at " +
-                       positionText(note.position),
+                       formatGridPositionToken(note.position),
         }};
     }
     return std::expected<void, ChartError>{};
@@ -925,7 +929,7 @@ std::expected<void, ChartError> validateChartNotePair(
         return std::unexpected{ChartError{
             .code = ChartErrorCode::UnsortedOrDuplicateNotes,
             .message = "notes must be sorted by position and string with unique onsets at " +
-                       positionText(note.position),
+                       formatGridPositionToken(note.position),
         }};
     }
     return std::expected<void, ChartError>{};

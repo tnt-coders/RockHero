@@ -19,6 +19,7 @@ target_link_libraries(
 # Keep controller, settings, and package workflow coverage in the headless core test target.
 add_executable(
     rock_hero_editor_core_tests
+    log_capture.cpp
     test_audio_device_settings_controller.cpp
     test_audio_device_status_text.cpp
     test_busy_operation_workflow.cpp
@@ -36,6 +37,7 @@ add_executable(
     test_chart_keyframe_editing.cpp
     test_chart_edits.cpp
     test_chart_plan_gate.cpp
+    test_chart_refusal_log.cpp
     test_chart_hit_testing.cpp
     test_chart_navigation.cpp
     test_chart_reveal.cpp
