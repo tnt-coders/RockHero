@@ -24,7 +24,6 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
-#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
@@ -110,13 +109,6 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
     return std::format("{} objects: {} .. {}", count, first, last);
 }
 
-// THE chart refusal record, the one line every refused chart edit leaves: the subject names WHAT,
-// so a reason only ever has to say WHY.
-void logChartRefusal(const std::string_view subject, const std::string_view detail)
-{
-    RH_LOG_WARNING("editor.chart", "Refused chart edit subject={:?} detail={:?}", subject, detail);
-}
-
 } // namespace
 
 // The memoized projection of the current chart, refreshed on read: pointer events resolve against
@@ -159,7 +151,8 @@ void EditorController::Impl::reportChartPlanRefusal(
     {
         return;
     }
-    logChartRefusal(chartSubjectText(subject.notes(), subject.keyframes()), invalid->reason);
+    m_refusal_log.chartEdit(
+        chartSubjectText(subject.notes(), subject.keyframes()), invalid->reason);
     flashChartElements(subject.notes(), subject.keyframes());
 }
 
@@ -176,7 +169,7 @@ void EditorController::Impl::reportChartRefusedNotes(
     notes.reserve(refused.size());
     for (const ChartRefusedNote& note : refused)
     {
-        logChartRefusal(chartSlotText(note.note), note.reason);
+        m_refusal_log.chartEdit(chartSlotText(note.note), note.reason);
         notes.push_back(note.note);
     }
     flashChartElements(notes, {});
@@ -2614,7 +2607,7 @@ void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
     {
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&entry.plan.error()))
         {
-            logChartRefusal(chartFretEntrySubject(entry), invalid->reason);
+            m_refusal_log.chartEdit(chartFretEntrySubject(entry), invalid->reason);
         }
     }
     if (entry.refused() || chartFretValueExtendable(entry.value))

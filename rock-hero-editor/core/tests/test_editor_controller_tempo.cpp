@@ -18,6 +18,7 @@
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -118,6 +119,35 @@ struct TempoEditor : SongEditorHarness
                                 : std::vector<common::core::FretHandPosition>{};
     }
 };
+
+// The marker refusal records in a captured log, in order, each as the text after its category.
+[[nodiscard]] std::vector<std::string> markerRefusalLines(const std::string& log)
+{
+    constexpr std::string_view category = "editor.marker: ";
+    std::vector<std::string> lines;
+    std::size_t start = 0;
+    while (start < log.size())
+    {
+        const std::size_t end = std::min(log.find('\n', start), log.size());
+        const std::string_view line = std::string_view{log}.substr(start, end - start);
+        if (const std::size_t at = line.find(category); at != std::string_view::npos)
+        {
+            std::string_view text = line.substr(at + category.size());
+            if (text.ends_with('\r'))
+            {
+                text.remove_suffix(1);
+            }
+            lines.emplace_back(text);
+        }
+        start = end + 1;
+    }
+    return lines;
+}
+
+// The record every Tempo Lock refusal of a drag on 3:1 leaves.
+constexpr std::string_view g_locked_drag_refusal =
+    R"(Rejected marker edit label="Move Tempo Anchor" )"
+    R"(detail="Tempo Lock is on: dragging the tempo anchor at 3:1 is blocked")";
 
 } // namespace
 
@@ -928,6 +958,50 @@ TEST_CASE("The tempo lock logs each refused gesture", "[core][tempo][tempo-lock]
             R"(Rejected marker edit label="Move Tempo Anchor" )"
             R"(detail="Tempo Lock is on: dragging the tempo anchor at 3:1 is blocked")") !=
         std::string::npos);
+}
+
+// A refused drag repeats one record per event. The run's first record is written at once and
+// unchanged; the repeats are only counted, and the run's count line goes out before the different
+// record that ends it. That record, a lone refusal, gains no count line when the controller goes.
+TEST_CASE("Identical consecutive refusals log one line and its count", "[core][tempo][tempo-lock]")
+{
+    const testing::LogCapture capture;
+    {
+        TempoEditor editor;
+        editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+        for (std::int64_t milliseconds = 4100; milliseconds < 4500; milliseconds += 100)
+        {
+            editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), milliseconds);
+        }
+        editor.pressAlt(ChartStepDirection::Right);
+    }
+
+    const std::string dragged{g_locked_drag_refusal};
+    CHECK(
+        markerRefusalLines(capture.text()) ==
+        std::vector<std::string>{
+            dragged,
+            dragged + " repeats=3",
+            R"(Rejected marker edit label="Move Tempo Anchor" )"
+            R"(detail="Tempo Lock is on: nudging the tempo anchor at 3:1 is blocked")",
+        });
+}
+
+// A run still open when the controller goes writes its count then, so no count is lost on exit.
+TEST_CASE("A refusal run's count is written when the controller goes", "[core][tempo][tempo-lock]")
+{
+    const testing::LogCapture capture;
+    {
+        TempoEditor editor;
+        editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+        editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+        editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4200);
+    }
+
+    const std::string dragged{g_locked_drag_refusal};
+    CHECK(
+        markerRefusalLines(capture.text()) ==
+        std::vector<std::string>{dragged, dragged + " repeats=1"});
 }
 
 } // namespace rock_hero::editor::core

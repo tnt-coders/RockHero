@@ -15,25 +15,15 @@ member template needs its body where every marker handler translation unit can s
 #include <expected>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <variant>
 
 namespace rock_hero::editor::core
 {
-
-// Logs a refused marker edit: THE refusal record every marker verb leaves, whether the funnel below
-// refused the produced model or a verb refused before it had a model to hand over, so the format
-// lives once.
-inline void logMarkerRefusal(const std::string_view label, const std::string_view detail)
-{
-    RH_LOG_WARNING("editor.marker", "Rejected marker edit label={:?} detail={:?}", label, detail);
-}
 
 // The funnel's front half: the produced model normalized, then validated, then compared with the
 // one it would replace. Stated once so the commit and a pending entry's red box cannot disagree
@@ -74,7 +64,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
     {
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&judged.error()))
         {
-            logMarkerRefusal(label, invalid->reason);
+            m_refusal_log.markerEdit(label, invalid->reason);
             return MarkerCommit::Refused;
         }
         return MarkerCommit::Unchanged;
@@ -82,7 +72,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
 
     if (!judged->applyTo(m_session))
     {
-        logMarkerRefusal(label, "no model to apply onto");
+        m_refusal_log.markerEdit(label, "no model to apply onto");
         return MarkerCommit::Refused;
     }
 
@@ -132,7 +122,7 @@ bool EditorController::Impl::commitMarkerMove(
     {
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&judged.error()))
         {
-            logMarkerRefusal(label, invalid->reason);
+            m_refusal_log.markerEdit(label, invalid->reason);
             m_marker_move_origin = std::move(held);
             return false;
         }
@@ -142,7 +132,7 @@ bool EditorController::Impl::commitMarkerMove(
     const Snapshot* const landing = judged.has_value() ? &*judged : origin;
     if (!landing->applyTo(m_session))
     {
-        logMarkerRefusal(label, "no model to apply onto");
+        m_refusal_log.markerEdit(label, "no model to apply onto");
         m_marker_move_origin = std::move(held);
         return false;
     }

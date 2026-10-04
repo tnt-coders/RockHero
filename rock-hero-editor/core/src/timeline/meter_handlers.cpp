@@ -1,6 +1,7 @@
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_model_commit.h"
 #include "shared/ratio_text.h"
+#include "shared/refusal_log.h"
 #include "timeline/meter_edits.h"
 #include "timeline/song_timeline_snapshot.h"
 
@@ -58,13 +59,13 @@ constexpr std::string_view g_move_time_signature_label{"Move Time Signature"};
 // once the transform's refusal is logged under the verb's label.
 [[nodiscard]] std::optional<SongTimelineSnapshot> readdressedSnapshot(
     const common::core::SongTimeline& timeline, const std::span<const PlacedMeter> meters,
-    const std::string_view label)
+    const std::string_view label, RefusalLog& refusal_log)
 {
     std::expected<common::core::SongTimeline, ReaddressError> readdressed =
         readdressUnderMeters(timeline, meters);
     if (!readdressed.has_value())
     {
-        logMarkerRefusal(label, readdressed.error().message);
+        refusal_log.markerEdit(label, readdressed.error().message);
         return std::nullopt;
     }
     return SongTimelineSnapshot{.timeline = std::move(*readdressed)};
@@ -135,7 +136,7 @@ void EditorController::Impl::onTimeSignatureSetRequested(const int measure, cons
     const std::optional<common::core::TimeSignature> meter = parseTimeSignatureText(text);
     if (!meter.has_value())
     {
-        logMarkerRefusal(g_set_time_signature_label, "not a time signature: " + text);
+        m_refusal_log.markerEdit(g_set_time_signature_label, "not a time signature: " + text);
         return;
     }
     runAction(EditorAction::SetTimeSignature{.measure = measure, .meter = *meter});
@@ -162,7 +163,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
     {
         if (!common::core::markerCanStartAt(downbeat, tempo_map))
         {
-            logMarkerRefusal(label, "a time signature cannot start at or past the end of the song");
+            m_refusal_log.markerEdit(
+                label, "a time signature cannot start at or past the end of the song");
             return;
         }
         const common::core::Fraction place = tempo_map.wholeNotePositionAt(downbeat);
@@ -171,7 +173,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
                 meters, [&place](const PlacedMeter& placed) { return placed.whole_note >= place; }),
             PlacedMeter{.whole_note = place, .meter = action.meter});
     }
-    std::optional<SongTimelineSnapshot> after = readdressedSnapshot(before.timeline, meters, label);
+    std::optional<SongTimelineSnapshot> after =
+        readdressedSnapshot(before.timeline, meters, label, m_refusal_log);
     if (!after.has_value())
     {
         return;
@@ -193,7 +196,7 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
 {
     if (selection.measure == 1)
     {
-        logMarkerRefusal(
+        m_refusal_log.markerEdit(
             g_delete_time_signature_label, "the time signature at measure 1 cannot be deleted");
         return;
     }
@@ -209,7 +212,7 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
     meters.erase(std::next(meters.begin(), static_cast<std::ptrdiff_t>(*standing)));
     std::optional<SongTimelineSnapshot> after =
-        readdressedSnapshot(before.timeline, meters, g_delete_time_signature_label);
+        readdressedSnapshot(before.timeline, meters, g_delete_time_signature_label, m_refusal_log);
     if (!after.has_value())
     {
         return;
@@ -236,7 +239,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
 {
     if (selection.measure == 1)
     {
-        logMarkerRefusal(
+        m_refusal_log.markerEdit(
             g_move_time_signature_label, "the time signature at measure 1 cannot move");
         return;
     }
@@ -262,7 +265,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
     if (place <= meters[index - 1].whole_note ||
         (index + 1 < meters.size() && place >= meters[index + 1].whole_note))
     {
-        logMarkerRefusal(
+        m_refusal_log.markerEdit(
             g_move_time_signature_label, "a time signature cannot step onto or past its neighbour");
         return;
     }
@@ -272,7 +275,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
     if (place >=
         base.tempo_map.wholeNotePositionAt(common::core::terminalGridPosition(base.tempo_map)))
     {
-        logMarkerRefusal(
+        m_refusal_log.markerEdit(
             g_move_time_signature_label,
             "a time signature cannot step to or past the end of the song");
         return;
@@ -280,7 +283,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
     meters[index].whole_note = place;
 
     std::optional<SongTimelineSnapshot> moved =
-        readdressedSnapshot(base, meters, g_move_time_signature_label);
+        readdressedSnapshot(base, meters, g_move_time_signature_label, m_refusal_log);
     if (!moved.has_value())
     {
         return;

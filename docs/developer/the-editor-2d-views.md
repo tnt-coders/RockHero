@@ -278,9 +278,12 @@ the reason goes to the log beside the subject it refused: what a refused plan wa
 selection, or the operand a modifying key took from the caret), and only the named notes for a
 per-note verb that applied to the rest (`reportChartPlanRefusal` / `reportChartRefusedNotes` in
 `chart_handlers.cpp`, drawn by `TabView::flashRefusal`). Every chart refusal, a refused fret entry's
-included, leaves the one record `logChartRefusal` writes, `Refused chart edit subject=… detail=…`,
-so a reason only ever says WHY and the subject always says WHAT. A visible bound, such as a move stopping at
-the next head, is not a refusal and flashes nothing. The ruler flashes too: a tempo-anchor move the
+included, leaves the one record `RefusalLog::chartEdit` writes,
+`Refused chart edit subject=… detail=…`, so a reason only ever says WHY and the subject always says
+WHAT. A held key or a drag refuses once per event, so `RefusalLog` (`shared/refusal_log.h`, the one
+writer of chart and marker refusals) writes a run of identical records once and counts the rest:
+the run's count line, the record again with `repeats=N` appended, goes out when a different record
+ends the run or the controller goes. A visible bound, such as a move stopping at the next head, is not a refusal and flashes nothing. The ruler flashes too: a tempo-anchor move the
 Tempo Lock refuses glows the anchor's chip (`IEditorView::flashTempoAnchorRefusal`, drawn by
 `TimelineRuler::flashTempoAnchorRefusal`). Both surfaces run one pulse and one glow
 (`FlashPulse` on `g_refusal_flash_train`, and `paintRefusalGlow`, in `ui/src/shared/flash_pulse.h`);

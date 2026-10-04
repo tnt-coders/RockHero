@@ -116,7 +116,7 @@ void EditorController::Impl::commitTempoEdit(
         TempoMapEditResult edited = edit(base_of(before).tempo_map);
         if (!edited.has_value())
         {
-            logMarkerRefusal(verb, edited.error().message);
+            m_refusal_log.markerEdit(verb, edited.error().message);
             return;
         }
         const common::core::TempoMap tempo_map = std::move(*edited);
@@ -129,7 +129,7 @@ void EditorController::Impl::commitTempoEdit(
     TempoMapEditResult edited = edit(base.tempo_map);
     if (!edited.has_value())
     {
-        logMarkerRefusal(verb, edited.error().message);
+        m_refusal_log.markerEdit(verb, edited.error().message);
         return;
     }
     const common::core::TempoMap tempo_map = std::move(*edited);
@@ -137,7 +137,7 @@ void EditorController::Impl::commitTempoEdit(
         timeKeptTimeline(base, tempo_map);
     if (!readdressed.has_value())
     {
-        logMarkerRefusal(verb, readdressed.error().message);
+        m_refusal_log.markerEdit(verb, readdressed.error().message);
         return;
     }
     const ContentMap content = timeKeptPlaces(base.tempo_map, tempo_map);
@@ -206,7 +206,7 @@ void EditorController::Impl::onTempoSpanBpmRequested(
     const std::optional<double> quarter_bpm = common::core::parseFiniteDecimal(text);
     if (!quarter_bpm.has_value())
     {
-        logMarkerRefusal(g_set_tempo_label, "not a number: " + text);
+        m_refusal_log.markerEdit(g_set_tempo_label, "not a number: " + text);
         return;
     }
     runAction(
@@ -227,7 +227,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAn
     TempoMapEditResult inserted = insertTempoAnchor(before.tempo_map, action.position);
     if (!inserted.has_value())
     {
-        logMarkerRefusal(label, inserted.error().message);
+        m_refusal_log.markerEdit(label, inserted.error().message);
         return;
     }
     commitGridModel(
@@ -271,7 +271,7 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
     const std::expected<common::core::Fraction, std::string> factor = parseScaleFactor(text);
     if (!factor.has_value())
     {
-        logMarkerRefusal(g_scale_tempo_label, factor.error());
+        m_refusal_log.markerEdit(g_scale_tempo_label, factor.error());
         return;
     }
     runAction(EditorAction::ScaleTempo{.factor = *factor});
@@ -287,7 +287,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         scaledTimeline(before.timeline, action.factor);
     if (!scaled.has_value())
     {
-        logMarkerRefusal(g_scale_tempo_label, scaled.error().message);
+        m_refusal_log.markerEdit(g_scale_tempo_label, scaled.error().message);
         return;
     }
     commitGridModel(
@@ -355,7 +355,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
             moveTempoAnchor(session().song().tempo_map, action.position, action.milliseconds);
         !moved.has_value())
     {
-        logMarkerRefusal(g_move_tempo_anchor_label, moved.error().message);
+        m_refusal_log.markerEdit(g_move_tempo_anchor_label, moved.error().message);
         return;
     }
     m_held_tempo_anchor_milliseconds = action.milliseconds;
@@ -452,7 +452,7 @@ bool EditorController::Impl::refuseLockedTempoAnchorMove(
     {
         return false;
     }
-    logMarkerRefusal(
+    m_refusal_log.markerEdit(
         g_move_tempo_anchor_label,
         "Tempo Lock is on: " + std::string{gesture} + " the tempo anchor at " +
             common::core::formatGridPositionToken(selection.position) + " is blocked");

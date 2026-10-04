@@ -24,6 +24,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "editor_undo_history.h"
 #include "input_calibration/input_calibration_projection.h"
 #include "project/project_io.h"
+#include "shared/refusal_log.h"
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
 #include "timeline/song_sections_snapshot.h"
@@ -1105,6 +1106,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Project-level undo history for every recorded edit: chart, markers, tones, automation, and
     // the signal chain.
     EditorUndoHistory m_undo_history;
+
+    // The one writer of refused marker and chart edits, merging a run of identical records.
+    RefusalLog m_refusal_log;
 
     // Edits that asked the view to keep their result in sight — undo/redo transitions that focused
     // their change, and a Delete of notes or an automation point — published so the view can keep

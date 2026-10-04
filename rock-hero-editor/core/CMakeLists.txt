@@ -73,6 +73,8 @@ target_sources(
             src/shared/editor_controller_logging.h
             src/shared/ratio_text.cpp
             src/shared/ratio_text.h
+            src/shared/refusal_log.cpp
+            src/shared/refusal_log.h
             src/signal_chain/plugin_catalog_workflow.cpp
             src/signal_chain/plugin_catalog_workflow.h
             src/signal_chain/plugin_display_type.cpp

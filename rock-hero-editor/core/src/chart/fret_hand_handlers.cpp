@@ -202,7 +202,7 @@ void EditorController::Impl::moveSelectedFretHandPosition(
         steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
     if (target == selection.position)
     {
-        logMarkerRefusal(label, "fret-hand position would leave the chart");
+        m_refusal_log.markerEdit(label, "fret-hand position would leave the chart");
         return;
     }
 

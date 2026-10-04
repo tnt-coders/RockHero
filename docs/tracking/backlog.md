@@ -36,13 +36,6 @@ the user picks which way the two surfaces reconcile.
   singleton writing a file. An in-memory test sink in `Logger::Config` (common/core) would delete
   all of it while `test_logger.cpp` keeps testing the file. Check first whether Quill makes a
   second sink cheap. Raised by the refusal-log simplicity review (2026-10-04).
-- **A refused drag logs one identical line per pointer event.** The Tempo Lock refusal, the
-  out-of-range tempo drag refusal (`tempo_handlers.cpp:~311`) and held-key refusals all log per
-  event, which is correct: the core sees no gesture boundary and the answer can change mid-drag (a
-  bound key can unlock). The flood belongs to the one logger: `logMarkerRefusal`
-  (`marker_model_commit.h:29`) merges identical consecutive records (one line plus a repeat
-  count), rather than any caller tracking gestures. Raised by the Tempo Lock simplicity review.
-
 - **A marker verb's label is restated by its ruler row, its prompt title and its undo entry.**
   "Add Tempo Anchor", "Delete Tempo Anchor", "Set Time Signature..." in the ruler's rows repeat the
   core's undo labels (`tempo_handlers.cpp`, `meter_handlers.cpp`), and the prompt titles in
