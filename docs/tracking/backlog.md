@@ -1298,11 +1298,12 @@ against the tree on the date above.
   slash, so the plain shrink also lost stroke weight). Drawing the fraction ourselves is still open
   (user, 2026-09-27): only that version looked worse. A redraw worth trying tucks the digits under
   the slash and keeps their stroke weight at the figures', which is what that one lacked.
-- **The view half of undo focus has no test.** `EditorView::setState` centres
-  `selection_start_seconds` when `transition_focus_count` changes and the selection is off screen,
-  but the window glide it starts is animated with no test hook, so no UI test asserts where the
-  window lands; the sibling "verb on a selection" rule in `EditorView::perform` is untested the same
-  way. Both want one glide hook (or a synchronous test path) and a test each.
+- **The viewport glide reads the clock directly.** `TrackViewport`'s window glide
+  (`track_viewport.cpp:~894`) calls `juce::Time::getMillisecondCounterHiRes`, against "time is a
+  dependency", so a test cannot run the glide; the view tests read where it will land through the
+  `settledViewPositionX()` query instead (2026-10-03, with the `focus_count` rework that made
+  Delete undo's case). Inject the clock and the test can drive the glide and read
+  `getViewPositionX()`, and that query can go.
 
 ## Found in the simplicity review of the chip faces (2026-09-28)
 
