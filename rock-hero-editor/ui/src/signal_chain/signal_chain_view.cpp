@@ -353,10 +353,10 @@ SignalChainView::SignalChainView(Listener& listener)
     m_output_pan_knob.setRange(
         common::audio::minimumPanPosition(), common::audio::maximumPanPosition(), 0.01);
     m_output_pan_knob.setDoubleClickReturnValue(true, 0.0);
-    // No room for a text box in the fader's lane: the value shows in the drag popup and the
-    // tooltip, both through the one shared pan format.
+    // No room for a text box in the fader's lane: the value shows in a popup on hover and while
+    // dragging, and in the tooltip, all through the one shared pan format.
     m_output_pan_knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    m_output_pan_knob.setPopupDisplayEnabled(true, false, this);
+    m_output_pan_knob.setPopupDisplayEnabled(true, true, this);
     m_output_pan_knob.textFromValueFunction = [](double position) {
         return juce::String{common::audio::formatPan(common::audio::Pan{position})};
     };

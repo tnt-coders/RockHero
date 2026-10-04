@@ -219,7 +219,7 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
     CHECK(std::is_eq(output_slider.getDoubleClickReturnValue() <=> common::audio::defaultGainDb()));
 
     // The pan knob shares the fader's enabled flag and has no text box; its value lives in the
-    // drag popup and the tooltip, both in the one shared format.
+    // hover/drag popup and the tooltip, both in the one shared format.
     auto& pan_knob = findRequiredDescendant<juce::Slider>(view, "output_pan_knob");
     CHECK_FALSE(pan_knob.isEnabled());
     CHECK(pan_knob.getSliderStyle() == juce::Slider::RotaryHorizontalVerticalDrag);

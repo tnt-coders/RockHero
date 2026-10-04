@@ -10,8 +10,8 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
 
 - **UI** (`rock-hero-editor/ui/src/signal_chain/`): `SignalChainPanel` is a thin host whose only
   member is `SignalChainView` — the real renderer, owning the meters, the Output fader and the pan
-  knob above it (one `OutputStageLookAndFeel` draws both; the knob's value shows in its drag popup
-  and tooltip through `formatPan`), the tone-file button strip, and a scrolling strip of
+  knob above it (one `OutputStageLookAndFeel` draws both; the knob's value shows in its hover and
+  drag popup and tooltip through `formatPan`), the tone-file button strip, and a scrolling strip of
   `PluginTileView` (one per plugin) and `InsertSlotView` (one per fixed visual block, the "+" cells
   and drop targets). Everything the user does becomes a `SignalChainView::Listener` intent —
   including the deliberate split of `onToneOutputPreviewChanged` (drag) vs `onToneOutputChanged`
