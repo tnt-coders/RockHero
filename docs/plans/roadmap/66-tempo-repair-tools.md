@@ -71,6 +71,14 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    subclass paints it. The four final SVGs are in `docs/plans/roadmap/66-assets/`, already in the
    shipped icons' form; Phase 1 moves the `lock_clock` pair into `resources/` and its
    binary-data list, Phase 3 the `lock_note` pair, and the folder is deleted with the second move.
+   **Placement (UI review, 2026-10-04):** right of the Grid selector as one pair, Tempo Lock
+   first: `[Arrangement ▾]·8·[Grid ▾]·8·[TL]·4·[KN] … [▶ ■ readout] … [meter]`. The pair is a
+   grid/tempo editing mode beside the grid control it shapes, apart from the playback group; the
+   toggles get a "Grid & Zoom" menu row each beside Grid Snap, not instead of the button (a
+   default-ON latched mode needs an on-screen indicator). The pair adds 76 px; at the 1280 px
+   minimum the transport stays centred. Sighting falsifiers: at 1280 and 1200 px the pair groups
+   with Grid, not with play, nothing overlaps, and the ON ring does not read as a box like the Grid
+   combo's same-geometry outline.
    Tooltips, verbatim:
    - "Tempo Lock: while on, tempo anchors can't be dragged or nudged. Adding, deleting and typing
      tempos still work."

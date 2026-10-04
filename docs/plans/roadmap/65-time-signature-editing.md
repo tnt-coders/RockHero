@@ -1,13 +1,13 @@
 # Plan 65 — Time-Signature Editing
 
-**Status:** Not started. Split out of plan 41 on 2026-10-03, where it was Phase 6 (written
-2026-07-06, last revised there 2026-10-02; git history keeps that text). **Sequenced after plan 60**
-(`docs/plans/roadmap/60-hand-markers.md`), by the user's direction of 2026-10-03: time-signature
-editing "is one of the most important things ... But it may come after our span marker work unless
-it is quite simple". It is not quite simple — a whole-song re-addressing transform held by a
-property suite — so it waits for plan 60. Runs on provisional 65-Q1 = A (asked as 41-Q1, user
-2026-09-19); gate **G65-TS** (named G41-TS until 2026-10-03) closes at this plan's sighting.
-Re-verify *Current state* against the code before building.
+**Status:** Ready; building. Split out of plan 41 on 2026-10-03, where it was Phase 6 (written
+2026-07-06, last revised there 2026-10-02; git history keeps that text). First sequenced after plan
+60; on 2026-10-04 the user moved it forward ("IF time signature edit is clear enough to implement
+I would like you to proceed"). A readiness audit the same day (against `master @ 0ec22b40`)
+re-verified *Current state*, completed the slice inventory, and raised two questions the user
+ruled (Q3, Q4 below); every other gap it found is folded into the text. Runs on provisional
+65-Q1 = A (asked as 41-Q1, user 2026-09-19); gate **G65-TS** (named G41-TS until 2026-10-03) closes
+at this plan's sighting.
 
 ## Goal
 
@@ -61,7 +61,20 @@ import.
   curves and the host tempo mirror whenever the session's map differs from the last one pushed. A
   meter edit changes the map, so it inherits the refresh with no engine work.
 - **Snapshot**: `TempoMapSnapshot` (`rock-hero-editor/core/src/timeline/tempo_map_snapshot.h`)
-  captures the map alone, which is right for anchor edits and wrong for a meter edit.
+  captures the map alone, which is right for anchor edits and wrong for a meter edit. No
+  whole-song memento exists, and `Session` has no write path for a NON-current arrangement
+  (`writeChart` and the `current*` accessors reach only the loaded one, `session.h:69-157`).
+- **Re-reading under another meter list is pure already**: the `TempoMap` constructor does not
+  validate (`tempo_map.cpp:70-77`) and every address query reads only the signature segments, so
+  `TempoMap{new_signatures, old.anchors()}` answers `wholeNotePositionAt` /
+  `beatAtWholeNotePosition` under the new list (never ask it for seconds).
+  `advanceGridPositionByWholeNotes(map, GridPosition{}, w)` is the whole-note → token inverse.
+  `reseatTerminalAnchor` does NOT exist yet.
+- **Durations are beat counts, not positions**: `ChartNote::sustain` (`chart.h:643`) and
+  `Keyframe::offset` (`chart.h:520`) count beats, and a beat is one denominator note, so a
+  denominator change re-means them. They are re-EXPRESSED, never re-addressed (Phase 1).
+- **Sections must stand on a downbeat** (`song_section_rules.cpp:49-62`); tone regions, FHPs and
+  automation points have no downbeat rule.
 - **Already live**: the meter chip row and its selection (`TimeSignatureSelection`,
   `MarkerRow`), the `↑/↓` walk and `Tab` over it, and the `Ctrl+Shift+/` jump (`0x1513`).
   `Delete`, `Enter` and `Alt+←/→` on a meter chip are inert, silently.
@@ -83,7 +96,7 @@ Carried from plan 41 (they stand):
 3. **One meter edit is one undo entry**, restored from a whole-song snapshot: coherent full-state
    restore over granular replay (constraint (f)).
 4. **The re-address happens on the whole-note axis** (2026-09-23), which a denominator change
-   does not bend, with any residue rounded through `nearestTick`.
+   does not bend. The 2026-10-04 audit showed that no residue arises (Phase 1, "Exact").
 5. **Renumbering is shown, not silent**: the renumbered range flashes once after the edit; the
    ruler's labels derive from the map, so nothing else renumbers by hand.
 6. **Validity reports through plan 42's rule set**, never a plan-local validator, if any residual
@@ -97,14 +110,49 @@ Carried from plan 41 (they stand):
   (keep literal `m:b` tokens; content shifts in time, destructive clamping) or C (forbid meter
   edits once content exists), replace Phase 1's transform with that policy and re-derive its
   tests; the verbs and UI survive every outcome.
-- **Q2 — the meter's `Alt+←/→`. RULED 2026-10-03 (user): yes, by one measure.** The marker grammar moves a selected marker by its kind's step;
-  the 2026-07-06 text named only set and remove. Build-session question: move by one measure
-  (recommended — a remove at the old downbeat plus an insert at the new, through the same
-  transform), or leave the move inert.
+- **Q2 — the meter's `Alt+←/→`. RULED 2026-10-03 (user): yes, by one measure.** The step is the
+  entry's `measure` ±1 in the signature list (measures before it are unaffected by it, so m±1 is
+  well defined in the result), then re-addressed through Phase 1 like any other meter edit.
+  Refused: the measure-1 meter; a step onto or past the neighbouring change; a step to or past
+  the terminal. A held run coalesces through `commitMarkerMove` from the run's origin.
+- **Q3 — later meters. RULED 2026-10-04 (user): they keep their TIME.** An edit at measure m
+  changes the length of every measure until the next change; that next change keeps its
+  whole-note position (so its time) and takes whatever measure number that is under the new list.
+  When the edited reign is not a whole number of new measures (16 beats re-metered to 3/4), the
+  later change would land mid-measure, which no partial measure can express: the edit is
+  REFUSED, logged naming the next meter. With no later change the reign runs to the terminal,
+  which re-seats (Phase 1), so the edit is never refused for this reason.
+- **Q4 — a section left mid-measure. RULED 2026-10-04 (user): snap to its bar's downbeat.** A
+  section whose preserved time is no longer a downbeat moves back to the downbeat of the measure
+  it now falls in (a section is navigation and moves no sound); the edit is refused only when two
+  sections snap onto one downbeat. This is the one slice that does not keep its time, so the
+  round-trip property exempts a snapped section.
+- **Build-session answers taken from the audit's recommendations (2026-10-04):**
+  - *Measure 1:* a meter always stands there, so `Ctrl+/` in measure 1 always restates; Delete on
+    it and `Alt+←` onto or from it are refused and logged, as the first tempo anchor's delete is.
+  - *Redundant meters:* the snapshot's `normalize()` drops a change equal to its predecessor (the
+    `coalesceToneRegions` law), so inserting the prevailing meter is `Unchanged` and records
+    nothing.
+  - *The prompt:* one text field ("7/8") parsed in the core, as the BPM text is; the rules refuse
+    a bad denominator; the chord's target is nothing while playing, with no song, or when the
+    cursor's measure downbeat fails `markerCanStartAt`.
+  - *The cursor:* `selectMarker` dissolves the caret by re-reading its OLD token under the NEW
+    map, which is different music. The verb mirrors `commitTempoMap` with time as truth instead:
+    read the cursor place, commit, select the landed meter, move the cursor to the re-addressed
+    place.
+  - *The persisted caret:* closing WITHOUT saving after a meter edit persists a new-grid caret
+    token against the old-grid package. Accepted (the restore lands on a valid slot or demotes);
+    `i_editor_settings.h:50-53`'s "cannot go stale" claim is corrected and a watch item recorded.
+  - *Undo memory:* the whole-song snapshot is built as decided and sized per plan 64 Phase 7. If
+    it breaks the byte budget, the smaller exact shape is an entry of `{before map, after map}`
+    replaying the pure transform each way, with the snapped sections and re-seated terminal
+    restored from it. Raise that to the user then, not before.
 
 ## Dependencies
 
-- **After plan 60** (sequencing, not a code dependency).
+- **Plan 60** (sequencing only, lifted 2026-10-04): it is not finished, and its fingering and
+  template records may add position- or slot-keyed data. Re-run the `rg "GridPosition|Fraction"`
+  sweep at build time; whatever plan 60 adds later must join the transform and its per-slice test.
 - **Plan 41** Phases 1–4 (built): the rules, the funnel's tempo-derived refresh, the marker-run
   coalescing.
 - **Plan 66** builds on Phase 1's transform and Phase 2's snapshot, after or with this plan.
@@ -120,49 +168,76 @@ a simplicity review before its commit, and verifies with a build and the touched
 
 ### Phase 1 — The re-addressing transform
 
+- **The model: meters keep time (Q3), so a meter edit is stated on the whole-note axis.** Each
+  change in the edited list is placed at a whole-note position: the edited entry where the verb
+  puts it (the old downbeat of its measure, or that ± one measure for `Alt+←/→`), every other
+  entry where it already stands. The new list's measure numbers are DERIVED by walking those
+  positions in order, and a position that is not a downbeat of the list before it refuses the
+  edit (Q3's refusal). One rule produces the new list; no verb restates it.
 - **Scope.** A pure transform in `rock-hero-editor/core/src/timeline/` (beside plan 41's
-  `tempo_map_edits`) taking the song's position-bearing state and an old and a new signature list,
-  and mapping every position to its whole-note position under the old list, then re-addressing it
-  under the new one. Every position-bearing slice, without exception:
-  - the tempo map's anchors (sub-beat since 2026-10-03; their milliseconds untouched);
-  - every position-bearing stream of every arrangement's chart: notes and their rings, keyframes,
-    hand markers (FHPs) and spans, and whatever plan 60 adds by the time this is built;
-  - song sections; every arrangement's tone regions and tone automation points;
-  - the editor's own positions: the armed chart caret's grid address, in-session and in its
-    persisted `caret:` marker token; plan 47's loop-selection `GridPosition` pair; the marker
-    selections (`TempoAnchorSelection`'s position, `TimeSignatureSelection`'s measure, a
-    `SongSectionSelection`'s position); and `ChartCursor::column`, which the author-at-cursor
-    grammar makes a marker-verb input (2026-07-18 audit: without these the caret and loop land on
-    different music after a signature edit while everything else holds its time).
-  The transform is time-preserving: every item resolves to the same seconds before and after,
-  to within half a tick. The old terminal downbeat may stop being a downbeat under the new
-  bucketing; a pure `reseatTerminalAnchor` beside plan 41's transforms re-seats it on the next
-  downbeat at or past content, deterministically.
-- **The tick lattice (2026-09-23).** Every stored position must be a whole number of ticks
-  (1/3840 of a whole note), and validation refuses one that is not. A global-beat position "plus
-  fraction" re-read under a larger denominator is not: an odd tick of a quarter-note beat is half
-  a tick of an eighth-note one. Hence the whole-note axis and `nearestTick` (decision 4), and the
-  time-preservation invariant holds to within half a tick rather than exactly. A denominator the
-  lattice cannot hold (512 and up) is already refused by the package validator.
-- **Tests.** Property tests over randomized maps and content: a round trip A→B→A restores every
-  token exactly; resolved seconds identical within half a tick (anchor milliseconds untouched);
-  every result passes the tempo-map and chart rules; terminal re-seat cases; one test per
-  position-bearing slice above, so a slice dropped from the transform fails by name.
+  `tempo_map_edits`). It takes the song's timeline state and the new list, maps every position to
+  its whole-note position under the old map, and re-addresses it under a scratch
+  `TempoMap{new_list, old.anchors()}` that is asked only address questions. The audit's inventory,
+  each slice with the treatment its storage needs:
+  - *Re-addressed* (a token in, a token out at the same whole-note position): tempo anchors (their
+    milliseconds untouched), note onsets, FHP positions (`FretHandPosition::position`), tone region
+    starts and tone automation points. All of these apply to EVERY arrangement, not just the
+    current one.
+  - *Re-expressed* (a beat count, a duration): `ChartNote::sustain` and `Keyframe::offset` become
+    the new map's beat distance from the re-addressed onset to the re-addressed end or keyframe
+    position. A ring and a keyframe that cross a denominator change get a test each.
+  - *Snapped* (Q4): a section that is no longer a downbeat goes to its measure's downbeat, and two
+    sections snapping onto one downbeat refuse the edit.
+  - *Re-seated*: the terminal, re-addressed like any anchor, moves to the first downbeat AT OR
+    AFTER its position when it is not one. Its time comes from the last real anchor at that span's
+    quarter tempo, rounded to whole milliseconds once, as `terminalCovering` does. This new pure
+    `reseatTerminalAnchor` sits beside plan 41's transforms.
+  - *Untouched* (stored in seconds): anchor milliseconds, the audio asset offset and duration, and
+    the persisted passive cursor.
+  - *Editor state.* Every landed meter verb selects the meter (checklist step 6), which replaces
+    the whole `EditorSelection` and dissolves the caret, and undo's focus does the same. So no
+    selection slice is re-addressed: only the cursor's place is carried (decision on the cursor,
+    *Open questions*). Pending gesture state (fret entry, ghosts, drags, a move run's origin) is
+    settled or ended before any verb runs, as it is for every action.
+  Spans and every view state are derived, not slices.
+- **Exact, not approximate.** Every position keeps its whole-note value exactly (`Fraction`
+  equality): admissible downbeats are whole ticks, so `nearestTick` has nothing to round. Seconds
+  agree within a float epsilon (the quarter-axis decomposition differs). The tick-lattice rule
+  (2026-09-23) holds automatically on the whole-note axis. A denominator the lattice cannot hold
+  (512 and up) is already refused by the rules.
+- **Tests.** Property tests over randomized maps and content:
+  - resolved whole-note positions are exactly equal and seconds equal within epsilon, for every
+    slice except a snapped section and a re-seated terminal;
+  - an A→B→A round trip restores every token exactly, with the same two exemptions;
+  - every result passes the tempo-map, section and chart rules;
+  - Q3's refusal (a reign that does not divide) and its no-later-meter pass;
+  - Q4's snap and its collision refusal;
+  - terminal re-seat cases;
+  - one test per slice, so a slice dropped from the transform fails by name.
 
 ### Phase 2 — Snapshot, verbs, chord
 
-- **A whole-song snapshot** through `commitMarkerModel`: the tempo map plus every slice Phase 1
-  re-addresses, captured once per edit and restored field-equal on undo. Size and capture cost
-  are measured against plan 64's findings before this phase ships; if the snapshot's memory over
-  a long undo history is a problem there, that is a finding to raise, not a reason to fall back to
-  granular replay.
-- **The verbs**: insert, restate (numerator, denominator) and delete a meter, refusing what the
-  rules refuse, each re-addressing through Phase 1 and committing ONCE. Checklist steps 1–8: a
-  published `Ctrl+/` chord target (nothing / restate-with-prompt / insert), a restate arm, a
-  meter arm in `Delete` (and in `MoveSelection` if Q2 lands as recommended), the letter declared
-  once, the keymap and developer-guide rows.
-- **The cursor keeps its place** with no seek: the edit preserves time, so the paused cursor's
-  seconds still name the same music, and the caret's grid address re-addresses in Phase 1.
+- **A whole-song snapshot** through `commitMarkerModel` captures the tempo map, the sections and,
+  for every arrangement keyed by id, its chart, tone track and tone automation. It is captured
+  once per edit and restored field-equal on undo. It captures nothing a meter verb cannot change
+  (metadata, tones catalog, audio), so an undo cannot clobber those. Its `applyTo` needs ONE new
+  song-level `Session` mutation in common/core's `session.h`, replacing those slices together and
+  advancing the revision once; today no write path reaches a non-current arrangement. Size and
+  capture cost are measured against plan 64's findings before this phase ships (see the
+  undo-memory answer above).
+- **The verbs**: insert, restate (numerator, denominator), delete and move (Q2) a meter. Each
+  refuses what the rules refuse, re-addresses through Phase 1 and commits ONCE. Checklist steps
+  1–8:
+  - a published `Ctrl+/` chord target (nothing / restate-with-prompt / insert);
+  - a restate arm;
+  - meter arms in `Delete` and `MoveSelection`;
+  - a new author command registered with `markerAuthorChord(g_time_signature_key)`;
+  - the keymap and developer-guide rows.
+  
+  The audit maps each step to its files (session scratchpad `plan65-readiness.md` §5; re-derive
+  it if lost).
+- **The cursor keeps its time**: read its place before the commit, select the landed meter, then
+  move the cursor to the re-addressed place (the cursor answer above).
 - **Tests** (controller suites): each verb and refusal; `Ctrl+/` twice prompts; undo and redo
   restore the whole song field-equal AND re-derive the automation curves and host tempo; a meter
   edit on a populated multi-arrangement song moves no resolved time.
