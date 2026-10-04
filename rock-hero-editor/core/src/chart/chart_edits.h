@@ -176,10 +176,13 @@ struct ChartPathTail
 Every ringing note has a path — its onset, whatever keyframes it states, and its terminal — so every
 tail is an authoring surface for points, a plain note's included.
 
-At most one note can answer: the slot space holds one note per (position, string) and a ring may
-reach the next onset on its own string exactly but never past it, so the covering ring is unique.
-An offset of zero is not a tail at all — that is the onset, whose facts the note itself carries —
-so a slot a head stands on answers nothing here.
+At most one note can answer, and it is the string's LAST onset strictly before the slot: the
+same-string clamp (\ref common::core::sustainBoundOf, applied on load and by every finalized plan
+through \ref common::core::normalizeSustainOverlaps) lets a ring reach the next onset on its own
+string exactly but never past it, so every earlier note on the string has stopped by the time the
+later one starts. That is what lets the lookup binary-search the slot and walk back to one note
+rather than scan the stream. An offset of zero is not a tail at all — that is the onset, whose
+facts the note itself carries — so a slot a head stands on answers nothing here.
 
 \param notes The chart's note stream.
 \param tempo_map Tempo map supplying the beat axis the offset is measured on.

@@ -713,6 +713,27 @@ TEST_CASE("chartPathTailAt says when the offset is the ring's end", "[core][char
     }
 }
 
+// The abutting seam: where the next head on the string stands exactly at the ring's end, the slot
+// holds two objects, and the tail is still the ring that ENDS there — the head's own onset is no
+// tail. The lookup searches from the slot back, so the head standing AT the instant must not hide
+// the ring before it.
+TEST_CASE("chartPathTailAt reports the ring ending on an abutting head", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 3));
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const std::optional<ChartPathTail> end =
+        chartPathTailAt(chart.notes, tempo_map, {.measure = 3, .beat = 1}, 1);
+    REQUIRE(end.has_value());
+    if (end.has_value())
+    {
+        CHECK(end->note == keyAt(glideOnset(), 1));
+        CHECK(end->offset == common::core::Fraction{4});
+        CHECK(end->at_ring_end);
+    }
+}
+
 // The create verb states one point and lets the gate judge it; the plan carries the whole note it
 // rewrote, so undo restores the path exactly.
 TEST_CASE("planInsertKeyframe states a point along the path", "[core][chart]")

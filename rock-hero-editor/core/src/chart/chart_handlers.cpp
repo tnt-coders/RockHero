@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <ranges>
@@ -29,6 +30,7 @@
 #include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -499,66 +501,71 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
     return std::nullopt;
 }
 
-// Whether the note at this slot is IN FOCUS for the keyframe commit law: the charter's attention is
-// on it — it is selected, the caret stands somewhere inside its ring, or it carries a selected
-// point. The last arm is the one the caret cannot answer, because a multi-selection of points
-// dissolves the caret: a point under scrutiny keeps its note in focus exactly as the caret on it
-// would.
+// The notes IN FOCUS for the keyframe commit law: the charter's attention is on them — selected,
+// the caret standing somewhere inside the ring, or carrying a selected point. The last arm is the
+// one the caret cannot answer, because a multi-selection of points dissolves the caret: a point
+// under scrutiny keeps its note in focus exactly as the caret on it would.
 //
 // Attention, which is the reveal's grounds minus the modifier (chartPresence): what a silent
 // point may outlive is the charter still working on the note, never what is drawn. Spelled again
 // here, in grid space, because it is asked mid-edit against the live chart, before the projection
 // the reveal reads is rebuilt. It differs from the drawn focus at one seam on purpose: a caret on
 // the head a ring ends on still attends that ring, so an end statement typed there survives.
-bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
+//
+// Built once per settle as a set rather than asked per note, so the settle costs one merge of the
+// selection and one ring lookup however many keyframed notes the chart holds. A slot naming no
+// note is harmless here: the dissolve only asks about the chart's own notes.
+std::vector<ChartSlotKey> EditorController::Impl::chartNotesInFocus() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
-        return false;
+        return {};
     }
-    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
-    const auto slot_of = [](const common::core::ChartNote& candidate) {
-        return chartSlotKeyOf(candidate);
+    // Both selection kinds are sorted unique in slot order, and a keyframe key orders by its
+    // note's slot first, so one merge unions them; a note carrying several selected points
+    // repeats, which the unique drops.
+    std::vector<ChartSlotKey> focus;
+    std::ranges::set_union(
+        chartSelection().notes(),
+        chartSelection().keyframes() | std::views::transform(&ChartKeyframeKey::note),
+        std::back_inserter(focus));
+    const auto repeated = std::ranges::unique(focus);
+    focus.erase(repeated.begin(), repeated.end());
+    const auto attend = [&focus](const ChartSlotKey& slot) {
+        const auto at = std::ranges::lower_bound(focus, slot);
+        if (at == focus.end() || *at != slot)
+        {
+            focus.insert(at, slot);
+        }
     };
-    if (!std::ranges::binary_search(notes, slot, {}, slot_of))
-    {
-        return false;
-    }
-    if (chartSelection().contains(ChartSelectionKey{ChartNoteKey{.slot = slot}}))
-    {
-        return true;
-    }
     if (const ChartCaret* const caret = armedChartCaret();
         caret != nullptr && !caret->lane.has_value())
     {
         // The caret's own slot first, since a ring's tail excludes the onset it starts at
         // (chartPathTailAt); the tail arm then covers the rest of the ring, its end included.
-        if (ChartSlotKey{.position = caret->position, .string = caret->string} == slot)
+        attend(ChartSlotKey{.position = caret->position, .string = caret->string});
+        if (const std::optional<ChartPathTail> tail = chartPathTailAt(
+                arrangement->chart->notes,
+                session().song().tempo_map,
+                caret->position,
+                caret->string);
+            tail.has_value())
         {
-            return true;
-        }
-        const std::optional<ChartPathTail> tail =
-            chartPathTailAt(notes, session().song().tempo_map, caret->position, caret->string);
-        if (tail.has_value() && tail->note == slot)
-        {
-            return true;
+            attend(tail->note);
         }
     }
-    return std::ranges::any_of(chartSelection().keyframes(), [&slot](const ChartKeyframeKey& key) {
-        return key.note == slot;
-    });
+    return focus;
 }
 
 // THE KEYFRAME COMMIT LAW's in-memory half. A point that says nothing the path does not already
 // say is authoring state: the editor holds it while the charter is still on its note — a slide's
-// start planted before its landing exists — and no longer. Every note `keeps` refuses loses its
+// start planted before its landing exists — and no longer. Every note outside `focus` loses its
 // silent points here with NO history entry, because no entry ever held them (writtenChartPlan): the
 // chart simply returns to the state the history already describes. That is also why the burst
 // record retires when anything goes — its plan named the points, and a plan the live chart no
 // longer matches would fail the next fold or continuation.
-bool EditorController::Impl::dissolveSilentKeyframes(
-    const std::function<bool(const ChartSlotKey&)>& keeps)
+bool EditorController::Impl::dissolveSilentKeyframes(const std::span<const ChartSlotKey> focus)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() ||
@@ -572,7 +579,8 @@ bool EditorController::Impl::dissolveSilentKeyframes(
     const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        if (notes[index].keyframes.empty() || keeps(chartSlotKeyOf(notes[index])))
+        if (notes[index].keyframes.empty() ||
+            std::ranges::binary_search(focus, chartSlotKeyOf(notes[index])))
         {
             continue;
         }
@@ -3949,8 +3957,7 @@ bool EditorController::Impl::settleChart()
     // a point planted before an unrelated edit on its note still go when the note leaves focus.
     // Focus is the note's, not the point's: a slide is authored as two points on one tail, and the
     // start says nothing until the landing exists.
-    static_cast<void>(dissolveSilentKeyframes(
-        [this](const ChartSlotKey& slot) { return chartNoteInFocus(slot); }));
+    static_cast<void>(dissolveSilentKeyframes(chartNotesInFocus()));
     return settled;
 }
 

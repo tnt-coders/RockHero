@@ -946,7 +946,7 @@ Three grounds, and what each is for:
   is on that head, and only that note reveals. The peek speaks only while nothing is selected: a
   caret armed on a head or a keyframe has that object as the selection, and at a shared instant only
   the selection can say whether the caret holds the head or the previous ring's end keyframe. The keyframe commit law's own attention
-  (`chartNoteInFocus`) still counts the caret there on the ring, so an end statement typed at the
+  (`chartNotesInFocus`) still counts the caret there on the ring, so an end statement typed at the
   seam is kept. Deterministic and keyed on the edit position alone — no timer, nothing latched,
   and the peek selects nothing — so the caret leaving is the whole of what hides it again.
 

@@ -39,7 +39,7 @@ end by the tolerance, toward the verdict the rule names. The span's selection ar
 IN by the same tolerance for the mirror reason (\ref chartSpanRevealed).
 
 The seam exception is display only. The keyframe commit law's own attention (the controller's
-chartNoteInFocus) still counts a caret at the seam on the ring ending there, so an end statement
+chartNotesInFocus) still counts a caret at the seam on the ring ending there, so an end statement
 typed there is not dissolved as silent before the caret moves on.
 
 Spelled here because two layers ask it, the lane that paints and the controller that hit-tests,

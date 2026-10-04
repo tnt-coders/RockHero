@@ -8,6 +8,7 @@
 #include <compare>
 #include <cstddef>
 #include <iterator>
+#include <ranges>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -625,25 +626,29 @@ std::optional<ChartPathTail> chartPathTailAt(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     const common::core::GridPosition position, const int string)
 {
-    for (const common::core::ChartNote& note : notes)
+    // Only the string's last onset strictly before the slot can cover it (see the header), so the
+    // search starts at the slot and walks back to that one note.
+    const auto first_at_or_after = std::ranges::lower_bound(
+        notes, position, std::ranges::less{}, &common::core::ChartNote::position);
+    const auto earlier =
+        std::ranges::subrange(notes.begin(), first_at_or_after) | std::views::reverse;
+    const auto covering = std::ranges::find(earlier, string, &common::core::ChartNote::string);
+    if (covering == earlier.end())
     {
-        if (note.string != string)
-        {
-            continue;
-        }
-        const common::core::Fraction offset =
-            common::core::beatDistance(tempo_map, note.position, position);
-        if (!(common::core::Fraction{0} < offset) || note.sustain < offset)
-        {
-            continue;
-        }
-        return ChartPathTail{
-            .note = chartSlotKeyOf(note),
-            .offset = offset,
-            .at_ring_end = !(offset < note.sustain),
-        };
+        return std::nullopt;
     }
-    return std::nullopt;
+    const common::core::ChartNote& note = *covering;
+    const common::core::Fraction offset =
+        common::core::beatDistance(tempo_map, note.position, position);
+    if (!(common::core::Fraction{0} < offset) || note.sustain < offset)
+    {
+        return std::nullopt;
+    }
+    return ChartPathTail{
+        .note = chartSlotKeyOf(note),
+        .offset = offset,
+        .at_ring_end = !(offset < note.sustain),
+    };
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(

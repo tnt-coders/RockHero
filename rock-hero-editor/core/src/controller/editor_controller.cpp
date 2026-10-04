@@ -1801,7 +1801,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
     // WRITTEN chart (writtenChartPlan): a silent keyframe is authoring state no entry holds, so it
     // goes before either direction replays — undo discards what was never committed, exactly as
     // it discards an armed pending entry.
-    static_cast<void>(dissolveSilentKeyframes([](const ChartSlotKey&) { return false; }));
+    static_cast<void>(dissolveSilentKeyframes({}));
     m_chart_notes_top.reset();
     m_marker_move_origin.reset();
     disarmChartVerbWindow();
@@ -1813,7 +1813,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
 // Begins the next redo transition and dispatches it synchronously or behind the loading fence.
 void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
 {
-    static_cast<void>(dissolveSilentKeyframes([](const ChartSlotKey&) { return false; }));
+    static_cast<void>(dissolveSilentKeyframes({}));
     m_chart_notes_top.reset();
     m_marker_move_origin.reset();
     disarmChartVerbWindow();

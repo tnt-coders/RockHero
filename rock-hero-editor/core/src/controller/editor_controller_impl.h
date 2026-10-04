@@ -399,12 +399,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // history cursor allows and pushing its own entry otherwise. Deliberately DEFERS at a mid-stack
     // resting point, so a redo branch reached by undo survives.
     bool settleChartClaims();
-    // Whether the note at this slot is in focus for the keyframe commit law: selected, the caret
-    // standing inside its ring, or carrying a selected point.
-    [[nodiscard]] bool chartNoteInFocus(const ChartSlotKey& slot) const;
-    // Strips the silent keyframes of every note `keeps` refuses, with no history entry (none ever
-    // held them): the commit law's in-memory half. True when any point went.
-    bool dissolveSilentKeyframes(const std::function<bool(const ChartSlotKey&)>& keeps);
+    // The slots of the notes in focus for the keyframe commit law, sorted and unique: selected,
+    // the caret standing inside its ring, or carrying a selected point.
+    [[nodiscard]] std::vector<ChartSlotKey> chartNotesInFocus() const;
+    // Strips the silent keyframes of every note whose slot `focus` (sorted) does not hold, with no
+    // history entry (none ever held them): the commit law's in-memory half. True when any point
+    // went.
+    bool dissolveSilentKeyframes(std::span<const ChartSlotKey> focus);
     [[nodiscard]] const common::core::ChartViewState* currentTabProjection() const;
     // Rebuilds the memoized tab and highway projections when the displayed arrangement or the
     // chart revision moved on, and clears them while no arrangement is displayed.

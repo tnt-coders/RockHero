@@ -116,7 +116,7 @@ Key sites: `refreshChartProjections`
 `Session::chartRevision()` alone; the scene passes `chart_legato.cpp`, `chart_shapes.cpp`,
 `chart_presentation.cpp`, `chart_projection.cpp`; the board `highway_projection.cpp`; the plan
 path `chart_edits.cpp` (`finalizePlan`); the settle path `chart_handlers.cpp`
-(`dissolveSilentKeyframes` → `chartNoteInFocus` → `chartPathTailAt`); the reader
+(`dissolveSilentKeyframes` → `chartNotesInFocus` → `chartPathTailAt`); the reader
 `chart_document.cpp:599-730`; the engine resync `tempo_handlers.cpp` → `tone_automation_rebuild.cpp`
 → `tone_automation_curve.cpp`, `tempo_mirror.cpp`.
 
