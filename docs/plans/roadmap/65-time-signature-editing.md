@@ -97,7 +97,7 @@ Carried from plan 41 (they stand):
   (keep literal `m:b` tokens; content shifts in time, destructive clamping) or C (forbid meter
   edits once content exists), replace Phase 1's transform with that policy and re-derive its
   tests; the verbs and UI survive every outcome.
-- **Q2 — the meter's `Alt+←/→`.** The marker grammar moves a selected marker by its kind's step;
+- **Q2 — the meter's `Alt+←/→`. RULED 2026-10-03 (user): yes, by one measure.** The marker grammar moves a selected marker by its kind's step;
   the 2026-07-06 text named only set and remove. Build-session question: move by one measure
   (recommended — a remove at the old downbeat plus an insert at the new, through the same
   transform), or leave the move inert.
