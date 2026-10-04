@@ -101,9 +101,11 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
        held;
      - *Keep Notes in Time*: anchors placed by the tempo verb's result, meters where they stood
        in measure terms, and φ(w) = the new map's whole-note position at the old map's time of w.
-   - Every driver holds TIME, so the cursor is carried by its seconds. `SongTimelineSnapshot`'s
-     `carryCursor` becomes "the same seconds under the new map", which drops the meter-specific
-     re-address.
+   - The cursor is carried as one more slice, through the transform's own mapping (φ, the
+     lattice, the address under the new map). That is the path content takes, so the cursor stays
+     on the note it sat on. Carrying it by seconds was built and reverted (Scale Tempo review,
+     2026-10-04): the terminal re-seat re-rounds the last span's milliseconds, so a seconds-held
+     cursor near the end could land a tick off its note.
 6. **Q2 resolved by plan 65's ruling** (65-Q3: meters keep their time and an indivisible reign
    refuses). Scale Tempo places every meter at f·w, so a reign of k measures becomes f·k measures.
    When that is not whole before a later meter, the factor is refused, naming the meter. A

@@ -45,6 +45,13 @@ the user picks which way the two surfaces reconcile.
   (`marker_model_commit.h:29`) merges identical consecutive records (one line plus a repeat
   count), rather than any caller tracking gestures. Raised by the Tempo Lock simplicity review.
 
+- **A marker verb's label is restated by its ruler row, its prompt title and its undo entry.**
+  "Add Tempo Anchor", "Delete Tempo Anchor", "Set Time Signature..." in the ruler's rows repeat the
+  core's undo labels (`tempo_handlers.cpp`, `meter_handlers.cpp`), and the prompt titles in
+  `editor_view.cpp` repeat them again. One table of verb labels in the core that the row, the
+  prompt and the undo entry all read. Raised by the Scale Tempo simplicity review (2026-10-04),
+  which fixed the one row that runs a registered command.
+
 ## Found by the tempo-editing reviews (plan 41, 2026-10-02)
 
 - **`chartEditFocusOf` reads `ChartCursor::column` without its tolerance check**
