@@ -101,8 +101,8 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
         {
             first_signature->startBeatNumber = tracktion::BeatPosition::fromBeats(
                 downbeatQuarterPosition(tempo_map, signatures.front().measure));
-            first_signature->numerator = signatures.front().numerator;
-            first_signature->denominator = signatures.front().denominator;
+            first_signature->numerator = signatures.front().meter.numerator;
+            first_signature->denominator = signatures.front().meter.denominator;
         }
         for (std::size_t index = 1; index < signatures.size(); ++index)
         {
@@ -111,8 +111,8 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
                     downbeatQuarterPosition(tempo_map, signatures[index].measure)));
             if (inserted != nullptr)
             {
-                inserted->numerator = signatures[index].numerator;
-                inserted->denominator = signatures[index].denominator;
+                inserted->numerator = signatures[index].meter.numerator;
+                inserted->denominator = signatures[index].meter.denominator;
             }
         }
     }

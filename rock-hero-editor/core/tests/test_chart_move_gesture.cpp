@@ -242,8 +242,12 @@ TEST_CASE("A move gesture steps at each press's own meter", "[core][chart]")
     // boundary and 2 beats after it.
     common::core::TempoMap map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
+            common::core::TimeSignatureChange{
+                .measure = 3, .meter = {.numerator = 6, .denominator = 8}
+            },
         },
         std::vector{
             anchor("1:1", 0),

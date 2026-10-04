@@ -151,8 +151,8 @@ constexpr int g_zip_compression_level = 9;
 [[nodiscard]] std::string formatTimeSignatureLine(const TimeSignatureChange& signature)
 {
     return R"({ "measure": )" + std::to_string(signature.measure) + R"(, "numerator": )" +
-           std::to_string(signature.numerator) + R"(, "denominator": )" +
-           std::to_string(signature.denominator) + " }";
+           std::to_string(signature.meter.numerator) + R"(, "denominator": )" +
+           std::to_string(signature.meter.denominator) + " }";
 }
 
 // Renders one beat anchor as a compact object line, addressing it with its grid token and pinning

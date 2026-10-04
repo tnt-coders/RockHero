@@ -144,8 +144,8 @@ public:
             return false;
         }
 
-        const common::core::TimeSignatureChange previous_signature =
-            m_tempo_map.timeSignatureAt(m_measure - 1);
+        const common::core::TimeSignature previous_signature =
+            m_tempo_map.timeSignatureAt(m_measure - 1).meter;
         moveToMeasure(
             m_measure - 1, m_measure_beat_index - std::max(1, previous_signature.numerator));
         m_offset_units = lastLineOffsetUnits();
@@ -234,7 +234,7 @@ private:
         m_measure = measure;
         m_measure_beat_index = measure_beat_index;
         m_offset_units = 0;
-        m_signature = m_tempo_map.timeSignatureAt(measure);
+        m_signature = m_tempo_map.timeSignatureAt(measure).meter;
         // A malformed map's non-positive signature terms clamp to one so the walk always
         // progresses; misplacing that map's lines is acceptable, a zero step hanging the scan is
         // not.
@@ -295,7 +295,7 @@ private:
     std::int64_t m_terminal_units;
 
     // Signature active for the current measure.
-    common::core::TimeSignatureChange m_signature{};
+    common::core::TimeSignature m_signature{};
 
     // One-based measure the walker currently addresses.
     int m_measure{1};

@@ -28,7 +28,9 @@ using rock_hero::common::core::testing::anchor;
 {
     return common::core::TempoMap{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -468,8 +470,12 @@ TEST_CASE("Visible tempo grid keeps note values constant across meters", "[core]
     // one quarter note per second: seven quarters over seven seconds, terminal at measure 3.
     const common::core::TempoMap map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
+            common::core::TimeSignatureChange{
+                .measure = 2, .meter = {.numerator = 6, .denominator = 8}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -518,7 +524,9 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
     // so a song-uniform quarter-note walk from zero would miss measure 2's downbeat at 3.5s.
     const common::core::TempoMap map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 7, .denominator = 8},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 7, .denominator = 8}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -675,9 +683,15 @@ TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo
     // 4/4, then 6/8, then 7/8; the tempo halves at measure 3.
     const common::core::TempoMap map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8},
-            common::core::TimeSignatureChange{.measure = 3, .numerator = 7, .denominator = 8},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
+            common::core::TimeSignatureChange{
+                .measure = 2, .meter = {.numerator = 6, .denominator = 8}
+            },
+            common::core::TimeSignatureChange{
+                .measure = 3, .meter = {.numerator = 7, .denominator = 8}
+            },
         },
         std::vector{
             anchor("1:1", 0),

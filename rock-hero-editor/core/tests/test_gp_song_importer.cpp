@@ -1494,7 +1494,7 @@ namespace
     score.base_tempo_quarter_bpm = 120.0;
     score.master_bars.assign(
         static_cast<std::size_t>(bar_count),
-        GpMasterBar{.numerator = 4, .denominator = 4, .section = {}});
+        GpMasterBar{.meter = {.numerator = 4, .denominator = 4}, .section = {}});
     score.sync_points = syncs;
     GpTrack track;
     track.name = "Guitar";
@@ -3002,8 +3002,10 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
         // above: the next onset this voice states is bar three's downbeat, two whole bars away, so
         // the anchor asks for far more than the cap gives.
         GpScore score = makeLinearScore(3, syncs);
-        score.master_bars[1] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
-        score.master_bars[2] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
+        score.master_bars[1] =
+            GpMasterBar{.meter = {.numerator = 6, .denominator = 8}, .section = {}};
+        score.master_bars[2] =
+            GpMasterBar{.meter = {.numerator = 6, .denominator = 8}, .section = {}};
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {
@@ -7042,8 +7044,8 @@ TEST_CASE("Guitar Pro build extrapolates the lead-in and the terminal", "[core][
             GpSyncPoint{.bar = 2, .bar_fraction = 0.0, .seconds = 5.0, .modified_tempo = 120.0},
             GpSyncPoint{.bar = 3, .bar_fraction = 0.8, .seconds = 7.0, .modified_tempo = 60.0},
         });
-    score.master_bars[1].numerator = 6;
-    score.master_bars[1].denominator = 8;
+    score.master_bars[1].meter.numerator = 6;
+    score.master_bars[1].meter.denominator = 8;
 
     const auto built = buildGpSong(score);
     REQUIRE(built.has_value());
@@ -8670,8 +8672,10 @@ TEST_CASE(
         // its horizon, which is not past it. A horizon measured with the ARRIVING bar's shorter
         // 6/8 length expires on global beat six instead and seams here.
         GpScore score = makeLinearScore(3, syncs);
-        score.master_bars[1] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
-        score.master_bars[2] = GpMasterBar{.numerator = 6, .denominator = 8, .section = {}};
+        score.master_bars[1] =
+            GpMasterBar{.meter = {.numerator = 6, .denominator = 8}, .section = {}};
+        score.master_bars[2] =
+            GpMasterBar{.meter = {.numerator = 6, .denominator = 8}, .section = {}};
         score.tracks[0].bars.push_back(
             GpBar{
                 .voices = {

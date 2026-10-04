@@ -87,10 +87,9 @@ struct NoteEvent
 // other per-measure fact the master bars state that the beat walk needs.
 struct MeasureGrid
 {
-    std::vector<int> beats_per_measure;      // numerator per measure, index 0 = measure 1
-    std::vector<int> denominator;            // denominator per measure
-    std::vector<int> first_global_beat;      // global beat index of each measure's downbeat
-    std::vector<Fraction> first_whole;       // each measure's downbeat in whole notes
+    std::vector<common::core::TimeSignature> meter; // meter per measure, index 0 = measure 1
+    std::vector<int> first_global_beat;             // global beat index of each measure's downbeat
+    std::vector<Fraction> first_whole;              // each measure's downbeat in whole notes
     std::vector<GpTripletFeel> triplet_feel; // the feel each measure plays its written pairs with
 };
 
@@ -101,13 +100,12 @@ struct MeasureGrid
     Fraction whole;
     for (const GpMasterBar& bar : score.master_bars)
     {
-        grid.beats_per_measure.push_back(bar.numerator);
-        grid.denominator.push_back(bar.denominator);
+        grid.meter.push_back(bar.meter);
         grid.first_global_beat.push_back(global_beat);
         grid.first_whole.push_back(whole);
         grid.triplet_feel.push_back(bar.triplet_feel);
-        global_beat += bar.numerator;
-        whole = whole + Fraction{bar.numerator, bar.denominator};
+        global_beat += bar.meter.numerator;
+        whole = whole + bar.meter.measureWholeNotes();
     }
     return grid;
 }
@@ -125,7 +123,7 @@ struct MeasureGrid
             ? 0
             : static_cast<std::size_t>(std::distance(grid.first_whole.begin(), after)) - 1;
     return Fraction{grid.first_global_beat[measure]} +
-           ((whole - grid.first_whole[measure]) * Fraction{grid.denominator[measure]});
+           ((whole - grid.first_whole[measure]) * Fraction{grid.meter[measure].denominator});
 }
 
 // The measure a global-beat position falls in, clamped into the grid like every other lookup.
@@ -144,7 +142,7 @@ struct MeasureGrid
 // grid has measures clamps onto the last one.
 [[nodiscard]] std::size_t measureIndexForBar(const MeasureGrid& grid, const std::size_t bar_index)
 {
-    return std::min(bar_index, grid.beats_per_measure.size() - 1);
+    return std::min(bar_index, grid.meter.size() - 1);
 }
 
 // The inverse of \ref globalBeatAtWhole, for the one consumer that measures a METRIC length from
@@ -155,7 +153,7 @@ struct MeasureGrid
 {
     const std::size_t measure = measureIndexAtGlobalBeat(grid, global);
     return grid.first_whole[measure] + ((global - Fraction{grid.first_global_beat[measure]}) *
-                                        Fraction{1, grid.denominator[measure]});
+                                        Fraction{1, grid.meter[measure].denominator});
 }
 
 // THE AUDIBILITY HORIZON: how far a struck note can still be asked to ring — one ORIGIN-BAR
@@ -171,7 +169,7 @@ struct MeasureGrid
 [[nodiscard]] Fraction audibilityHorizonFrom(const MeasureGrid& grid, const Fraction beat)
 {
     const std::size_t measure = measureIndexAtGlobalBeat(grid, beat);
-    const Fraction bar_whole{grid.beats_per_measure[measure], grid.denominator[measure]};
+    const Fraction bar_whole = grid.meter[measure].measureWholeNotes();
     return globalBeatAtWhole(grid, wholeAtGlobalBeat(grid, beat) + bar_whole);
 }
 
@@ -232,17 +230,14 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
     const GpScore& score, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     std::vector<common::core::TimeSignatureChange> signatures;
-    for (std::size_t measure = 0; measure < grid.beats_per_measure.size(); ++measure)
+    for (std::size_t measure = 0; measure < grid.meter.size(); ++measure)
     {
-        if (measure == 0 ||
-            grid.beats_per_measure[measure] != grid.beats_per_measure[measure - 1] ||
-            grid.denominator[measure] != grid.denominator[measure - 1])
+        if (measure == 0 || grid.meter[measure] != grid.meter[measure - 1])
         {
             signatures.push_back(
                 common::core::TimeSignatureChange{
                     .measure = static_cast<int>(measure) + 1,
-                    .numerator = grid.beats_per_measure[measure],
-                    .denominator = grid.denominator[measure],
+                    .meter = grid.meter[measure],
                 });
         }
     }
@@ -250,7 +245,7 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
     // The grid without its timing: the whole-note axis every sync point is placed on and every
     // extrapolation is measured along, which is the tempo map's own rather than a copy of it.
     const common::core::TempoMap grid_only{signatures, {}};
-    const int total_measures = static_cast<int>(grid.beats_per_measure.size());
+    const int total_measures = static_cast<int>(grid.meter.size());
     const GridPosition origin{.measure = 1, .beat = 1, .offset = {}};
     const GridPosition terminal{.measure = total_measures + 1, .beat = 1, .offset = {}};
 
@@ -272,9 +267,9 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
         // within half a tick of a beat lands on it, and the end of a bar carries onto the next
         // downbeat (the terminal one after the last bar, which pins the song's end exactly).
         const auto bar_index = static_cast<std::size_t>(sync.bar);
-        const double ticks_in_bar = static_cast<double>(grid.beats_per_measure[bar_index]) *
-                                    common::core::g_tick_quantum_denominator /
-                                    grid.denominator[bar_index];
+        const double ticks_in_bar = (grid.meter[bar_index].measureWholeNotes() *
+                                     Fraction{common::core::g_tick_quantum_denominator})
+                                        .toDouble();
         const auto ticks =
             static_cast<int>(common::core::nearestTick(sync.bar_fraction * ticks_in_bar));
         const GridPosition position = common::core::advanceGridPositionByWholeNotes(
@@ -626,13 +621,12 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
 // past the end of the song to put a hand on.
 [[nodiscard]] bool withinGrid(const MeasureGrid& grid, const GridPosition& position)
 {
-    if (position.measure < 1 ||
-        static_cast<std::size_t>(position.measure) > grid.beats_per_measure.size())
+    if (position.measure < 1 || static_cast<std::size_t>(position.measure) > grid.meter.size())
     {
         return false;
     }
     const auto measure_index = static_cast<std::size_t>(position.measure - 1);
-    return position.beat >= 1 && position.beat <= grid.beats_per_measure[measure_index] &&
+    return position.beat >= 1 && position.beat <= grid.meter[measure_index].numerator &&
            position.offset.numerator >= 0 && position.offset < Fraction{1};
 }
 
@@ -969,7 +963,7 @@ constexpr Fraction g_trill_step_whole{1, 16};
         const GridPosition onset = gridPositionForGlobalBeat(grid, event.global_beat);
         const Fraction step =
             g_trill_step_whole *
-            Fraction{grid.denominator[static_cast<std::size_t>(onset.measure - 1)]};
+            Fraction{grid.meter[static_cast<std::size_t>(onset.measure - 1)].denominator};
         const Fraction count_fraction =
             event.duration_beats * Fraction{step.denominator, step.numerator};
         const auto count = static_cast<int>(count_fraction.numerator / count_fraction.denominator);
@@ -1353,8 +1347,8 @@ enum class RollSpread : std::uint8_t
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
         const std::size_t measure_index = measureIndexForBar(grid, bar_index);
-        const int beats_in_bar = grid.beats_per_measure[measure_index];
-        const int denominator = grid.denominator[measure_index];
+        const int beats_in_bar = grid.meter[measure_index].numerator;
+        const int denominator = grid.meter[measure_index].denominator;
         // A thirty-second note in this measure's meter, on the signature-beat axis.
         const Fraction full_lead{denominator, 32};
 

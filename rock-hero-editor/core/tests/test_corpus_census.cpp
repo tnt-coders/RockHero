@@ -197,12 +197,12 @@ struct MeasureTable
     Fraction whole{};
     for (const GpMasterBar& bar : score.master_bars)
     {
-        table.numerator.push_back(bar.numerator);
-        table.denominator.push_back(bar.denominator);
+        table.numerator.push_back(bar.meter.numerator);
+        table.denominator.push_back(bar.meter.denominator);
         table.first_beat.push_back(beats);
         table.start_whole.push_back(whole);
-        beats = beats + Fraction{bar.numerator};
-        whole = whole + Fraction{bar.numerator, bar.denominator};
+        beats = beats + Fraction{bar.meter.numerator};
+        whole = whole + bar.meter.measureWholeNotes();
     }
     return table;
 }

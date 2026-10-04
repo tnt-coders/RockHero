@@ -18,7 +18,9 @@ using rock_hero::common::core::testing::anchor;
 {
     return common::core::TempoMap{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -72,7 +74,9 @@ TEST_CASE("Beat position text lands on measure starts", "[core][readout]")
     // through anchor-span interpolation and the inverse picks up rounding error.
     const common::core::TempoMap map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),

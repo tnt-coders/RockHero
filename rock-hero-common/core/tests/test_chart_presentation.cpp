@@ -45,8 +45,8 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap meterChangeMap()
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-         TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+         TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}}},
         {anchor("1:1", 0), anchor("8:1", 23000)},
     };
 }
@@ -56,7 +56,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap fourFourMapAt(const double quarter_note_bpm)
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
         {anchor("1:1", 0),
          anchor("5:1", nearestAnchorMilliseconds(16.0 * 60.0 / quarter_note_bpm))},
     };
@@ -793,7 +793,7 @@ TEST_CASE("Rule 2 earns a tail only for a ring past the kept-sustain bound", "[c
         // together, past the bound, where the 200 ms its onset's rate alone would give it falls
         // short. The ring is read end to end, not at its onset's rate.
         const TempoMap map{
-            {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
             {anchor("1:1", 0), anchor("3:1", 3200), anchor("5:1", 11200)},
         };
         CHECK(loneTail(note(at(2, 4, Fraction{3, 4}), 1, Fraction{1, 2}), map) == Fraction{1, 2});
@@ -825,7 +825,7 @@ TEST_CASE("Rule 2 earns a tail only for a ring past the kept-sustain bound", "[c
         // Four 12/8 measures in 24 s: each eighth-note beat lasts half a second, twice the bound,
         // so one beat earns its tail here where the same written eighth at 150 BPM in 4/4 drops.
         const TempoMap map{
-            {TimeSignatureChange{.measure = 1, .numerator = 12, .denominator = 8}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 12, .denominator = 8}}},
             {anchor("1:1", 0), anchor("5:1", 24000)},
         };
         CHECK(loneTail(note(at(1, 1), 1, Fraction{1}), map) == Fraction{1});

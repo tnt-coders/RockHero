@@ -21,6 +21,15 @@ constexpr int g_default_beats_per_measure = 4;
     return std::max(1, measure);
 }
 
+// Clamps both terms of a meter to at least one, so a malformed map's segments still advance.
+[[nodiscard]] TimeSignature clampedMeter(const TimeSignature meter) noexcept
+{
+    return TimeSignature{
+        .numerator = std::max(1, meter.numerator),
+        .denominator = std::max(1, meter.denominator),
+    };
+}
+
 // Keeps negative global indices pinned to the first beat of the song.
 [[nodiscard]] std::int64_t normalizedGlobalBeatIndex(std::int64_t global_beat_index) noexcept
 {
@@ -48,8 +57,7 @@ TempoMap::TempoMap()
     : m_time_signatures{
           TimeSignatureChange{
               .measure = 1,
-              .numerator = g_default_beats_per_measure,
-              .denominator = 4,
+              .meter = {.numerator = g_default_beats_per_measure, .denominator = 4},
           },
       }
     , m_anchors{
@@ -93,9 +101,8 @@ void TempoMap::buildDerivedIndices()
     m_segments.push_back(
         SignatureSegment{
             .start_measure = 1,
-            .beats_per_measure = std::max(1, first_signature.numerator),
+            .meter = clampedMeter(first_signature.meter),
             .start_beat_index = 0,
-            .denominator = std::max(1, first_signature.denominator),
             .start_whole_note_position = {},
         });
 
@@ -107,22 +114,16 @@ void TempoMap::buildDerivedIndices()
         // binary searches; the later-listed signature still wins from that point on, so a bad map
         // can only misplace beats, never crash.
         const int start_measure = std::max(signature.measure, previous.start_measure);
-        const std::int64_t start_beat_index =
-            previous.start_beat_index +
-            static_cast<std::int64_t>(start_measure - previous.start_measure) *
-                previous.beats_per_measure;
+        const int measures = start_measure - previous.start_measure;
         m_segments.push_back(
             SignatureSegment{
                 .start_measure = start_measure,
-                .beats_per_measure = std::max(1, signature.numerator),
-                .start_beat_index = start_beat_index,
-                .denominator = std::max(1, signature.denominator),
+                .meter = clampedMeter(signature.meter),
+                .start_beat_index = previous.start_beat_index +
+                                    static_cast<std::int64_t>(measures) * previous.meter.numerator,
                 .start_whole_note_position =
                     previous.start_whole_note_position +
-                    Fraction{
-                        static_cast<int>(start_beat_index - previous.start_beat_index),
-                        previous.denominator
-                    },
+                    previous.meter.measureWholeNotes() * Fraction{measures},
             });
     }
 
@@ -245,9 +246,7 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
         return static_cast<double>(milliseconds_at(quarter_count)) >= cover_until_milliseconds;
     };
     const auto measure_quarters = [this](const int at_measure) {
-        const TimeSignatureChange signature = timeSignatureAt(at_measure);
-        return static_cast<double>(signature.numerator) * 4.0 /
-               static_cast<double>(signature.denominator);
+        return 4.0 * segmentForMeasure(at_measure).meter.measureWholeNotes().toDouble();
     };
 
     // The walk starts at the first downbeat at or after the terminal: the terminal itself on a
@@ -331,7 +330,7 @@ TimeSignatureChange TempoMap::timeSignatureAt(int measure) const noexcept
 // Returns the active numerator because note beat addresses are counted in denominator beats.
 int TempoMap::beatsPerMeasureAt(int measure) const noexcept
 {
-    return std::max(1, timeSignatureAt(measure).numerator);
+    return std::max(1, timeSignatureAt(measure).meter.numerator);
 }
 
 // Finds the signature whose reign contains the absolute time via the derived segments' downbeat
@@ -426,7 +425,7 @@ std::int64_t TempoMap::globalBeatIndex(int measure, int beat) const noexcept
     const SignatureSegment& segment = segmentForMeasure(target_measure);
     return segment.start_beat_index +
            static_cast<std::int64_t>(target_measure - segment.start_measure) *
-               segment.beats_per_measure +
+               segment.meter.numerator +
            static_cast<std::int64_t>(std::max(1, beat) - 1);
 }
 
@@ -437,8 +436,8 @@ std::pair<int, int> TempoMap::beatAtGlobalIndex(std::int64_t global_beat_index) 
     const SignatureSegment& segment = segmentForBeatIndex(target);
     const std::int64_t beats_into_segment = target - segment.start_beat_index;
     return {
-        segment.start_measure + static_cast<int>(beats_into_segment / segment.beats_per_measure),
-        static_cast<int>(beats_into_segment % segment.beats_per_measure) + 1,
+        segment.start_measure + static_cast<int>(beats_into_segment / segment.meter.numerator),
+        static_cast<int>(beats_into_segment % segment.meter.numerator) + 1,
     };
 }
 
@@ -451,7 +450,7 @@ Fraction TempoMap::wholeNotePositionAt(const GridPosition position) const noexce
     const Fraction beats_into_segment =
         Fraction{static_cast<int>(target - segment.start_beat_index)} + position.offset;
     return segment.start_whole_note_position +
-           beats_into_segment * Fraction{1, segment.denominator};
+           beats_into_segment * Fraction{1, segment.meter.denominator};
 }
 
 // Inverts the whole-note axis inside the owning segment: the whole notes past its downbeat, in that
@@ -463,7 +462,7 @@ std::pair<std::int64_t, Fraction> TempoMap::beatAtWholeNotePosition(
     const Fraction target = std::max(whole_note_position, Fraction{});
     const SignatureSegment& segment = segmentForWholeNotePosition(target);
     const Fraction beats_into_segment =
-        (target - segment.start_whole_note_position) * Fraction{segment.denominator};
+        (target - segment.start_whole_note_position) * Fraction{segment.meter.denominator};
     const int whole_beats = beats_into_segment.numerator / beats_into_segment.denominator;
     return {
         segment.start_beat_index + whole_beats,

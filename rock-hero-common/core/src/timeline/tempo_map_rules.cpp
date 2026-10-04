@@ -49,8 +49,8 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
     int previous_measure = 0;
     for (const TimeSignatureChange& signature : time_signatures)
     {
-        if (signature.measure <= previous_measure || signature.numerator <= 0 ||
-            !isRepresentableDenominator(signature.denominator))
+        if (signature.measure <= previous_measure || signature.meter.numerator <= 0 ||
+            !isRepresentableDenominator(signature.meter.denominator))
         {
             return refuse(
                 TempoMapErrorCode::InvalidTimeSignature,

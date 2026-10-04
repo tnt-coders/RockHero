@@ -376,7 +376,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             const double lead_beat = std::max(
                 0.0,
                 onset_beat - tailRevealLeadBeats(
-                                 tempo_map.timeSignatureAt(note.position.measure).denominator)
+                                 tempo_map.timeSignatureAt(note.position.measure).meter.denominator)
                                  .toDouble());
             view.reveal_lead_seconds =
                 view.start_seconds - tempo_map.secondsAtGlobalBeatPosition(lead_beat);

@@ -47,6 +47,7 @@ using common::core::GridPosition;
 using common::core::Keyframe;
 using common::core::SongSection;
 using common::core::TempoMap;
+using common::core::TimeSignature;
 using common::core::TimeSignatureChange;
 using common::core::ToneAutomationPoint;
 using common::core::ToneParameterAutomation;
@@ -72,8 +73,7 @@ constexpr double g_reseated_time_tolerance_seconds = 0.5e-3 + g_time_tolerance_s
 {
     return PlacedMeter{
         .whole_note = whole_note,
-        .numerator = numerator,
-        .denominator = denominator,
+        .meter = {.numerator = numerator, .denominator = denominator},
     };
 }
 
@@ -151,8 +151,8 @@ void requireValid(const SongTimeline& timeline)
 {
     return TempoMap{
         {
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
         },
         {
             anchor("1:1", 0),
@@ -282,15 +282,9 @@ private:
     std::mt19937 m_engine;
 };
 
-struct Meter
-{
-    int numerator{4};
-    int denominator{4};
-};
-
 // Each length in two spellings, so a respelling exists, and small measures, so a random
 // restatement often divides a reign.
-constexpr std::array<Meter, 12> g_meters{{
+constexpr std::array<TimeSignature, 12> g_meters{{
     {.numerator = 4, .denominator = 4},
     {.numerator = 3, .denominator = 4},
     {.numerator = 7, .denominator = 8},
@@ -305,20 +299,22 @@ constexpr std::array<Meter, 12> g_meters{{
     {.numerator = 1, .denominator = 4},
 }};
 
-[[nodiscard]] Meter randomMeter(Dice& dice)
+[[nodiscard]] TimeSignature randomMeter(Dice& dice)
 {
     return g_meters.at(
         static_cast<std::size_t>(dice.roll(0, static_cast<int>(g_meters.size()) - 1)));
 }
 
 // The same measure length in a different denominator, which always divides the reign it replaces.
-[[nodiscard]] Meter respelled(Meter meter)
+[[nodiscard]] TimeSignature respelled(TimeSignature meter)
 {
     if (meter.denominator <= 32)
     {
-        return Meter{.numerator = meter.numerator * 2, .denominator = meter.denominator * 2};
+        return TimeSignature{
+            .numerator = meter.numerator * 2, .denominator = meter.denominator * 2
+        };
     }
-    return Meter{.numerator = meter.numerator / 2, .denominator = meter.denominator / 2};
+    return TimeSignature{.numerator = meter.numerator / 2, .denominator = meter.denominator / 2};
 }
 
 // Lattice grids content is rolled on: straight, triplet, quintuplet and the bare tick.
@@ -368,13 +364,7 @@ constexpr std::array<int, 6> g_grids{16, 12, 24, 32, 20, 3840};
     const int changes = dice.roll(0, 4);
     for (int index = 0; index <= changes; ++index)
     {
-        const Meter meter = randomMeter(dice);
-        signatures.push_back(
-            TimeSignatureChange{
-                .measure = measure,
-                .numerator = meter.numerator,
-                .denominator = meter.denominator,
-            });
+        signatures.push_back(TimeSignatureChange{.measure = measure, .meter = randomMeter(dice)});
         measure += dice.roll(1, 5);
     }
     const int terminal_measure = measure + dice.roll(0, 3);
@@ -579,11 +569,8 @@ constexpr std::array<int, 6> g_grids{16, 12, 24, 32, 20, 3840};
     {
         case 0:
         {
-            PlacedMeter& meter = meters[pick()];
-            const Meter spelling =
-                respelled(Meter{.numerator = meter.numerator, .denominator = meter.denominator});
-            meter.numerator = spelling.numerator;
-            meter.denominator = spelling.denominator;
+            PlacedMeter& respelt = meters[pick()];
+            respelt.meter = respelled(respelt.meter);
             break;
         }
         case 1:
@@ -591,12 +578,9 @@ constexpr std::array<int, 6> g_grids{16, 12, 24, 32, 20, 3840};
             const int terminal_measure = common::core::terminalGridPosition(tempo_map).measure;
             const int measure = dice.roll(1, terminal_measure - 1);
             const TimeSignatureChange prevailing = tempo_map.timeSignatureAt(measure);
-            const Meter spelling = respelled(
-                Meter{.numerator = prevailing.numerator, .denominator = prevailing.denominator});
             const PlacedMeter inserted{
                 .whole_note = tempo_map.wholeNotePositionAt(downbeat(measure)),
-                .numerator = spelling.numerator,
-                .denominator = spelling.denominator,
+                .meter = respelled(prevailing.meter),
             };
             const auto place = std::ranges::find_if(meters, [&inserted](const PlacedMeter& held) {
                 return held.whole_note >= inserted.whole_note;
@@ -613,17 +597,12 @@ constexpr std::array<int, 6> g_grids{16, 12, 24, 32, 20, 3840};
         }
         case 2:
         {
-            const Meter meter = randomMeter(dice);
-            meters.back().numerator = meter.numerator;
-            meters.back().denominator = meter.denominator;
+            meters.back().meter = randomMeter(dice);
             break;
         }
         case 3:
         {
-            const Meter meter = randomMeter(dice);
-            PlacedMeter& restated = meters[pick()];
-            restated.numerator = meter.numerator;
-            restated.denominator = meter.denominator;
+            meters[pick()].meter = randomMeter(dice);
             break;
         }
         default:
@@ -658,10 +637,10 @@ struct EditFootprint
     const TempoMap& old_map, const GridPosition& old_onset, const GridPosition& old_end,
     const TempoMap& new_map, const GridPosition& new_onset, const GridPosition& new_end)
 {
-    return old_map.timeSignatureAt(old_onset.measure).denominator !=
-               old_map.timeSignatureAt(old_end.measure).denominator ||
-           new_map.timeSignatureAt(new_onset.measure).denominator !=
-               new_map.timeSignatureAt(new_end.measure).denominator;
+    return old_map.timeSignatureAt(old_onset.measure).meter.denominator !=
+               old_map.timeSignatureAt(old_end.measure).meter.denominator ||
+           new_map.timeSignatureAt(new_onset.measure).meter.denominator !=
+               new_map.timeSignatureAt(new_end.measure).meter.denominator;
 }
 
 // Checks every slice of a landed edit against the timeline it came from: whole-note places exact,
@@ -939,8 +918,8 @@ TEST_CASE("Meter edit re-addresses tempo anchors keeping their time", "[core][me
     CHECK(
         after.tempo_map.timeSignatures() ==
         std::vector<TimeSignatureChange>{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}},
         });
 }
 
@@ -1049,8 +1028,8 @@ TEST_CASE("Meter edit renumbers the measures after a changed reign", "[core][met
     CHECK(
         after.tempo_map.timeSignatures() ==
         std::vector<TimeSignatureChange>{
-            TimeSignatureChange{.measure = 1, .numerator = 2, .denominator = 4},
-            TimeSignatureChange{.measure = 5, .numerator = 3, .denominator = 4},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 2, .denominator = 4}},
+            TimeSignatureChange{.measure = 5, .meter = {.numerator = 3, .denominator = 4}},
         });
     CHECK(after.tempo_map.anchors().back() == anchor("8:1", 8500));
     const Chart& chart = chartOf(after, 0);
@@ -1079,8 +1058,8 @@ TEST_CASE("Meter edit refuses a reign that leaves a later meter mid-measure", "[
         .tempo_map =
             TempoMap{
                 {
-                    TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-                    TimeSignatureChange{.measure = 5, .numerator = 6, .denominator = 8},
+                    TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+                    TimeSignatureChange{.measure = 5, .meter = {.numerator = 6, .denominator = 8}},
                 },
                 {anchor("1:1", 0), anchor("7:1", 11000)},
             },
@@ -1112,7 +1091,7 @@ TEST_CASE("Meter edit with no later meter re-seats the terminal", "[core][meter-
     CHECK(
         after.tempo_map ==
         TempoMap{
-            {TimeSignatureChange{.measure = 1, .numerator = 3, .denominator = 4}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
             {anchor("1:1", 0), anchor("7:1", 9000)},
         });
     // Content keeps its time under the re-timed span: 4:4 is whole note 3 3/4, beat 1 of 6.
@@ -1179,13 +1158,13 @@ TEST_CASE(
 {
     // 6:2 of 3/4 is 16 quarters; 7:1 is 18, timed from 3:1 at the last span's 500 ms quarter.
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .numerator = 3, .denominator = 4}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
         {anchor("1:1", 0), anchor("3:1", 3000), anchor("6:2", 8000)},
     };
     CHECK(
         reseatTerminalAnchor(map) ==
         TempoMap{
-            {TimeSignatureChange{.measure = 1, .numerator = 3, .denominator = 4}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
             {anchor("1:1", 0), anchor("3:1", 3000), anchor("7:1", 9000)},
         });
 }
@@ -1194,7 +1173,7 @@ TEST_CASE("Terminal re-seat rounds its time to a millisecond once", "[core][mete
 {
     // 7001 ms over 16 quarters, extended to 18: 7876.125 ms, stored as 7876.
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .numerator = 3, .denominator = 4}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
         {anchor("1:1", 0), anchor("6:2", 7001)},
     };
     CHECK(reseatTerminalAnchor(map).anchors().back() == anchor("7:1", 7876));

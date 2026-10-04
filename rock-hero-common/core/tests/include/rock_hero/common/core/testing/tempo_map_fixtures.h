@@ -57,7 +57,7 @@ hides inside a helper and a time between two milliseconds cannot be written. A t
 */
 [[nodiscard]] inline std::vector<TimeSignatureChange> commonTime()
 {
-    return {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}};
+    return {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}};
 }
 
 /*!

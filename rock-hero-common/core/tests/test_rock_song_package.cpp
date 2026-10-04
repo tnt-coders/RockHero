@@ -840,13 +840,11 @@ TEST_CASE(
         std::vector{
             TimeSignatureChange{
                 .measure = 1,
-                .numerator = 4,
-                .denominator = 4,
+                .meter = {.numerator = 4, .denominator = 4},
             },
             TimeSignatureChange{
                 .measure = 12,
-                .numerator = 7,
-                .denominator = 8,
+                .meter = {.numerator = 7, .denominator = 8},
             },
         },
         std::vector{

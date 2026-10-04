@@ -125,7 +125,7 @@ struct MeasureLattice
     {
         return std::nullopt;
     }
-    const TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
+    const TimeSignature signature = tempo_map.timeSignatureAt(measure).meter;
     if (signature.denominator <= 0 || signature.numerator <= 0 ||
         g_tick_quantum_denominator % signature.denominator != 0)
     {
@@ -168,7 +168,7 @@ constexpr double g_tick_floor_tolerance_ticks = 1.0e-6;
     const auto [measure, beat] =
         tempo_map.beatAtGlobalIndex(static_cast<std::int64_t>(whole_beats));
     const GridPosition on_beat = GridPosition{.measure = measure, .beat = beat, .offset = {}};
-    const int denominator = tempo_map.timeSignatureAt(measure).denominator;
+    const int denominator = tempo_map.timeSignatureAt(measure).meter.denominator;
     if (denominator <= 0)
     {
         return on_beat;

@@ -71,15 +71,15 @@ TEST_CASE("Tempo map rules refuse each violation", "[core][tempo-map]")
     CHECK(refusalOf({}, twoMeasureAnchors()) == TempoMapErrorCode::MissingTimeSignature);
     CHECK(
         refusalOf(
-            {TimeSignatureChange{.measure = 2, .numerator = 4, .denominator = 4}},
+            {TimeSignatureChange{.measure = 2, .meter = {.numerator = 4, .denominator = 4}}},
             twoMeasureAnchors()) == TempoMapErrorCode::FirstTimeSignatureLate);
     CHECK(
         refusalOf(
-            {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 3}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 3}}},
             twoMeasureAnchors()) == TempoMapErrorCode::InvalidTimeSignature);
     CHECK(
         refusalOf(
-            {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 512}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 512}}},
             twoMeasureAnchors()) == TempoMapErrorCode::InvalidTimeSignature);
     CHECK(refusalOf({anchor("1:1", 0)}) == TempoMapErrorCode::MissingAnchors);
     CHECK(refusalOf({anchor("1:2", 0), anchor("3:1", 4000)}) == TempoMapErrorCode::FirstAnchorLate);

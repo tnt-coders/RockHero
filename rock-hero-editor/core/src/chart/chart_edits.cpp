@@ -177,7 +177,7 @@ struct KeyedSplit
 [[nodiscard]] common::core::Fraction minimumSlideWindowRing(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition onset)
 {
-    const int denominator = std::max(1, tempo_map.timeSignatureAt(onset.measure).denominator);
+    const int denominator = std::max(1, tempo_map.timeSignatureAt(onset.measure).meter.denominator);
     return authoredRing(
         tempo_map, onset, g_minimum_slide_window * common::core::Fraction{1, denominator});
 }

@@ -2072,8 +2072,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // the successor and rides inside it, so it would close nothing and this figure would stop
         // asking its question.
         const TempoMap meter_change{
-            {TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
-             TimeSignatureChange{.measure = 2, .numerator = 4, .denominator = 4}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 6, .denominator = 8}},
+             TimeSignatureChange{.measure = 2, .meter = {.numerator = 4, .denominator = 4}}},
             {anchor("1:1", 0), anchor("5:1", 20000)},
         };
         const std::vector<ChartNote> glide_into_chord = streamOf({
@@ -2120,7 +2120,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // onset — the convention — it is dropped by the strict test. Two spans is the pinned
         // answer; three would mean the read point had moved.
         const TempoMap into_a_fast_bar{
-            {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
             {anchor("1:1", 0), anchor("2:1", 4000), anchor("3:1", 4800), anchor("5:1", 6400)},
         };
         const std::vector<ChartNote> glide_into_the_fast_bar = streamOf({

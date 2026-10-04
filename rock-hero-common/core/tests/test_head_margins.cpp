@@ -32,9 +32,9 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap denseMap()
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-         TimeSignatureChange{.measure = 3, .numerator = 7, .denominator = 8},
-         TimeSignatureChange{.measure = 4, .numerator = 4, .denominator = 4}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+         TimeSignatureChange{.measure = 3, .meter = {.numerator = 7, .denominator = 8}},
+         TimeSignatureChange{.measure = 4, .meter = {.numerator = 4, .denominator = 4}}},
         {anchor("1:1", 0),
          anchor("2:3", 2777),
          anchor("3:4", 4321),
@@ -70,7 +70,7 @@ using rock_hero::common::core::testing::anchor;
         GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 40}}, 2, 5, NoteAttack::Pick));
     for (int measure = 1; measure <= 8; ++measure)
     {
-        const int beats = tempo_map.timeSignatureAt(measure).numerator;
+        const int beats = tempo_map.timeSignatureAt(measure).meter.numerator;
         for (int beat = 1; beat <= beats; ++beat)
         {
             if (measure > 1 || beat > 1)

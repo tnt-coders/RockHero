@@ -328,8 +328,10 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         time_signatures.push_back(
             TimeSignatureChange{
                 .measure = static_cast<int>(*measure),
-                .numerator = static_cast<int>(*numerator),
-                .denominator = static_cast<int>(*denominator),
+                .meter = {
+                    .numerator = static_cast<int>(*numerator),
+                    .denominator = static_cast<int>(*denominator)
+                },
             });
     }
 

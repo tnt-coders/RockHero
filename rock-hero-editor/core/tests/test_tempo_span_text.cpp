@@ -60,7 +60,9 @@ TEST_CASE("An inserted anchor's halves print the parent tempo", "[editor][tempo-
 TEST_CASE("An inserted anchor's half can print the parent's stored error", "[editor][tempo-map]")
 {
     const common::core::TempoMap parent{
-        {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {common::core::TimeSignatureChange{
+            .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+        }},
         {anchor("1:1", 0), anchor("5:1", 7219)}
     };
     REQUIRE(tempoSpanBpmText(parent, 0) == "133");

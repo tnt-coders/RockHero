@@ -51,8 +51,12 @@ using rock_hero::common::core::testing::anchor;
 {
     return common::core::TempoMap{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
+            common::core::TimeSignatureChange{
+                .measure = 3, .meter = {.numerator = 6, .denominator = 8}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -2135,7 +2139,9 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
     // terminal-anchor extrapolation.
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 6, .denominator = 8}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -2193,7 +2199,9 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
 {
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 7, .denominator = 8},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 7, .denominator = 8}
+            },
         },
         std::vector{
             anchor("1:1", 0),

@@ -115,8 +115,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         std::vector{
             common::core::TimeSignatureChange{
                 .measure = 1,
-                .numerator = 4,
-                .denominator = 4,
+                .meter = {.numerator = 4, .denominator = 4},
             },
         },
         std::vector{
@@ -437,7 +436,9 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
     }
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::move(anchors),
     };
@@ -518,7 +519,9 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
     // 401 px over 4 s is 100 px per second, so the 1:3 anchor at 2 s stands at x = 200.
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
     };
@@ -604,7 +607,9 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
     constexpr int view_x = 200;
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -653,7 +658,9 @@ TEST_CASE(
     constexpr int view_x = 385;
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -702,7 +709,9 @@ TEST_CASE(
     constexpr int view_x = 376;
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -752,8 +761,12 @@ TEST_CASE(
     constexpr int view_x = 376;
     const common::core::TempoMap tempo_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 2, .numerator = 3, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
+            common::core::TimeSignatureChange{
+                .measure = 2, .meter = {.numerator = 3, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -828,7 +841,9 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
     // through anchor-span interpolation (4 of 8 beats = 3.65s) and the inverse is inexact.
     const common::core::TempoMap two_measure_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),
@@ -1580,7 +1595,9 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
     auto state = makeLoadedEditorState(4.0);
     state.tempo_map = common::core::TempoMap{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
         },
         std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
     };

@@ -30,14 +30,16 @@ timeSignaturesOf(const common::core::TempoMap& tempo_map, std::span<const Placed
     std::vector<common::core::TimeSignatureChange> signatures;
     signatures.reserve(meters.size());
     const PlacedMeter* previous = nullptr;
-    for (const PlacedMeter& meter : meters)
+    for (const PlacedMeter& placed : meters)
     {
         int measure = 1;
         if (previous != nullptr)
         {
+            // The reign over the length of one of its measures.
+            const common::core::Fraction measure_length = previous->meter.measureWholeNotes();
             const common::core::Fraction reign_measures =
-                (meter.whole_note - previous->whole_note) *
-                common::core::Fraction{previous->denominator, previous->numerator};
+                (placed.whole_note - previous->whole_note) *
+                common::core::Fraction{measure_length.denominator, measure_length.numerator};
             if (reign_measures.denominator != 1)
             {
                 // Named where the charter sees it now: its place under the meters being replaced.
@@ -46,24 +48,20 @@ timeSignaturesOf(const common::core::TempoMap& tempo_map, std::span<const Placed
                     .message = std::format(
                         "the {}/{} time signature at {} would start mid-measure under the {}/{} "
                         "before it",
-                        meter.numerator,
-                        meter.denominator,
+                        placed.meter.numerator,
+                        placed.meter.denominator,
                         common::core::formatGridPositionToken(
                             common::core::advanceGridPositionByWholeNotes(
-                                tempo_map, common::core::GridPosition{}, meter.whole_note)),
-                        previous->numerator,
-                        previous->denominator),
+                                tempo_map, common::core::GridPosition{}, placed.whole_note)),
+                        previous->meter.numerator,
+                        previous->meter.denominator),
                 }};
             }
             measure = signatures.back().measure + reign_measures.numerator;
         }
         signatures.push_back(
-            common::core::TimeSignatureChange{
-                .measure = measure,
-                .numerator = meter.numerator,
-                .denominator = meter.denominator,
-            });
-        previous = &meter;
+            common::core::TimeSignatureChange{.measure = measure, .meter = placed.meter});
+        previous = &placed;
     }
     return signatures;
 }
@@ -82,8 +80,7 @@ std::vector<PlacedMeter> placedMetersOf(const common::core::TempoMap& tempo_map)
                     common::core::GridPosition{
                         .measure = signature.measure, .beat = 1, .offset = {}
                     }),
-                .numerator = signature.numerator,
-                .denominator = signature.denominator,
+                .meter = signature.meter,
             });
     }
     return meters;

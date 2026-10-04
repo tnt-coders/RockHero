@@ -95,8 +95,8 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     song.metadata.year = 2026;
     song.tempo_map = TempoMap{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
         },
         std::vector{
             anchor("1:1", 0),

@@ -545,9 +545,9 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
 TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][chart]")
 {
     const TempoMap tempo_map{
-        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-         TimeSignatureChange{.measure = 3, .numerator = 7, .denominator = 8},
-         TimeSignatureChange{.measure = 4, .numerator = 4, .denominator = 4}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+         TimeSignatureChange{.measure = 3, .meter = {.numerator = 7, .denominator = 8}},
+         TimeSignatureChange{.measure = 4, .meter = {.numerator = 4, .denominator = 4}}},
         {testing::anchor("1:1", 0),
          testing::anchor("2:3", 3013),
          testing::anchor("3:4+1/2", 5763),

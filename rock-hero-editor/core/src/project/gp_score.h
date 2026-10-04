@@ -14,6 +14,7 @@ the parser rejects scores that would need them.
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 #include <vector>
 
@@ -71,11 +72,8 @@ enum class GpTripletFeel : std::uint8_t
 /*! \brief One master bar: the signature, section marker and feel shared by every track. */
 struct GpMasterBar
 {
-    /*! \brief Time signature numerator. */
-    int numerator{4};
-
-    /*! \brief Time signature denominator. */
-    int denominator{4};
+    /*! \brief The bar's time signature. */
+    common::core::TimeSignature meter{};
 
     /*!
     \brief The section mark starting at this bar; absent when the bar carries none.

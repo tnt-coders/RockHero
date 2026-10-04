@@ -43,8 +43,12 @@ constexpr const char* g_second_tone_ref = "tone-drive";
 {
     return common::core::TempoMap{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 5, .numerator = 3, .denominator = 4},
+            common::core::TimeSignatureChange{
+                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+            },
+            common::core::TimeSignatureChange{
+                .measure = 5, .meter = {.numerator = 3, .denominator = 4}
+            },
         },
         std::vector{
             anchor("1:1", 0),

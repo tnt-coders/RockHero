@@ -11,11 +11,46 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
 {
+
+/*! \brief A meter: how many beats a measure holds, and which note value one beat is. */
+struct TimeSignature
+{
+    /*! \brief Beats per measure. */
+    int numerator{4};
+
+    /*! \brief Note value that represents one beat. */
+    int denominator{4};
+
+    /*!
+    \brief Returns how long one measure lasts on the whole-note axis.
+
+    THE ONE statement of a measure's length: `numerator` beats of one `denominator` note each.
+
+    \return The measure's length in whole notes.
+    */
+    [[nodiscard]] constexpr Fraction measureWholeNotes() const noexcept
+    {
+        return Fraction{numerator, denominator};
+    }
+
+    /*!
+    \brief Compares two meters by their stored fields.
+    \param lhs Left-hand meter.
+    \param rhs Right-hand meter.
+    \return True when both meters store equal values.
+    */
+    friend constexpr bool operator==(const TimeSignature& lhs, const TimeSignature& rhs) noexcept =
+        default;
+};
+
+static_assert(sizeof(TimeSignature) <= 16);
+static_assert(std::is_trivially_copyable_v<TimeSignature>);
 
 /*! \brief Time signature that starts at a measure and carries forward. */
 struct TimeSignatureChange
@@ -23,11 +58,8 @@ struct TimeSignatureChange
     /*! \brief One-based measure where this time signature begins. */
     int measure{1};
 
-    /*! \brief Beats per measure. */
-    int numerator{4};
-
-    /*! \brief Note value that represents one beat. */
-    int denominator{4};
+    /*! \brief The meter that governs from this measure on. */
+    TimeSignature meter{};
 
     /*!
     \brief Compares two time-signature changes by their stored fields.
@@ -370,15 +402,11 @@ private:
         // First measure governed by this segment; segment starts are non-decreasing and begin at 1.
         int start_measure{1};
 
-        // Beats per measure inside this segment, clamped to at least one.
-        int beats_per_measure{4};
+        // The meter inside this segment, both terms clamped to at least one.
+        TimeSignature meter{};
 
         // Global beat index of the first beat of the segment's first measure.
         std::int64_t start_beat_index{0};
-
-        // The signature's denominator inside this segment, clamped to at least one: the note value
-        // one beat is worth.
-        int denominator{4};
 
         // Whole-note position of the segment's first downbeat, exact: the axis stored positions
         // are held to, and the metronome's quarter-note axis below is this one scaled by four.
@@ -392,7 +420,7 @@ private:
         // power-of-two denominators the package format allows.
         [[nodiscard]] double quartersPerBeat() const noexcept
         {
-            return 4.0 / denominator;
+            return 4.0 / meter.denominator;
         }
 
         // Quarter-note position of the segment's first downbeat on the metronome timeline.

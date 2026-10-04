@@ -30,11 +30,8 @@ struct PlacedMeter
     /*! \brief Whole notes from the song's start to the meter's first downbeat. */
     common::core::Fraction whole_note{};
 
-    /*! \brief Beats per measure. */
-    int numerator{4};
-
-    /*! \brief Note value that represents one beat. */
-    int denominator{4};
+    /*! \brief The meter that governs from that place on. */
+    common::core::TimeSignature meter{};
 
     /*!
     \brief Compares two placed meters by their stored fields.

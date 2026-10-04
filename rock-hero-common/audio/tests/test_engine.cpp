@@ -1271,7 +1271,9 @@ TEST_CASE("Engine audio port mirrors tempo maps", "[audio][engine][integration]"
     REQUIRE(duration.seconds > 0.0);
 
     const common::core::TempoMap tempo_map{
-        {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {common::core::TimeSignatureChange{
+            .measure = 1, .meter = {.numerator = 4, .denominator = 4}
+        }},
         {
             anchor("1:1", 0),
             anchor("2:1", 2000),

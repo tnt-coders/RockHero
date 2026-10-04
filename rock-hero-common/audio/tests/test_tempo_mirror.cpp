@@ -38,7 +38,7 @@ struct TempoMirrorHarness
 [[nodiscard]] core::TempoMap makeSteadyMap()
 {
     return core::TempoMap{
-        {core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {core::TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
         {
             anchor("1:1", 0),
             anchor("2:1", 2000),
@@ -52,8 +52,8 @@ struct TempoMirrorHarness
 {
     return core::TempoMap{
         {
-            core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            core::TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8},
+            core::TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            core::TimeSignatureChange{.measure = 2, .meter = {.numerator = 6, .denominator = 8}},
         },
         {
             anchor("1:1", 0),
@@ -140,7 +140,7 @@ TEST_CASE("Tempo mirror preserves BPM beyond the official clamp", "[audio][tempo
     // Four quarters in half a second: 480 quarter-note BPM, well past Tracktion's 300 BPM
     // mutator clamp. Real charts exceed 300 BPM, so clamping would corrupt the mirror.
     const core::TempoMap map{
-        {core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {core::TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
         {
             anchor("1:1", 0),
             anchor("2:1", 500),

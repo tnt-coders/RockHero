@@ -544,9 +544,9 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
         {
             return invalidScore("master bar has no time signature");
         }
-        bar.numerator = juce::String{time.substr(0, slash)}.getIntValue();
-        bar.denominator = juce::String{time.substr(slash + 1)}.getIntValue();
-        if (bar.numerator <= 0 || bar.denominator <= 0)
+        bar.meter.numerator = juce::String{time.substr(0, slash)}.getIntValue();
+        bar.meter.denominator = juce::String{time.substr(slash + 1)}.getIntValue();
+        if (bar.meter.numerator <= 0 || bar.meter.denominator <= 0)
         {
             return invalidScore("master bar time signature is invalid: " + time);
         }

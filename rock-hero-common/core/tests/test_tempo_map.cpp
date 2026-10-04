@@ -66,9 +66,9 @@ TEST_CASE("TempoMap indexes beats across meter changes", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
-            TimeSignatureChange{.measure = 5, .numerator = 5, .denominator = 4},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
+            TimeSignatureChange{.measure = 5, .meter = {.numerator = 5, .denominator = 4}},
         },
         std::vector{
             anchor("1:1", 0),
@@ -131,9 +131,9 @@ TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
-            TimeSignatureChange{.measure = 5, .numerator = 5, .denominator = 4},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
+            TimeSignatureChange{.measure = 5, .meter = {.numerator = 5, .denominator = 4}},
         },
         std::vector{
             anchor("1:1", 0),
@@ -168,7 +168,7 @@ TEST_CASE("TempoMap counts an eighth-note meter in quarter notes", "[core][tempo
 {
     const TempoMap tempo_map{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 6, .denominator = 8}},
         },
         std::vector{
             anchor("1:1", 0),
@@ -186,8 +186,8 @@ TEST_CASE("TempoMap resolves beat positions from seconds", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 2, .numerator = 7, .denominator = 8},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 2, .meter = {.numerator = 7, .denominator = 8}},
         },
         std::vector{
             anchor("1:1", 0),
@@ -210,8 +210,8 @@ TEST_CASE("TempoMap holds quarter tempo across un-anchored meter changes", "[cor
     // notes, which at 120 quarter notes per minute lands at 3.75 seconds.
     const TempoMap tempo_map{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 2, .numerator = 7, .denominator = 8},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 2, .meter = {.numerator = 7, .denominator = 8}},
         },
         std::vector{
             anchor("1:1", 0),
@@ -232,9 +232,9 @@ TEST_CASE("TempoMap resolves the active signature at a time", "[core][tempo-map]
 {
     const TempoMap tempo_map{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
-            TimeSignatureChange{.measure = 5, .numerator = 5, .denominator = 4},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
+            TimeSignatureChange{.measure = 5, .meter = {.numerator = 5, .denominator = 4}},
         },
         std::vector{
             anchor("1:1", 0),
@@ -243,11 +243,11 @@ TEST_CASE("TempoMap resolves the active signature at a time", "[core][tempo-map]
     };
 
     // 19 beats over 9.5 seconds puts measure 3 at 4.0s and measure 5 at 7.0s.
-    CHECK(tempo_map.timeSignatureAtSeconds(3.9).numerator == 4);
-    CHECK(tempo_map.timeSignatureAtSeconds(4.0).numerator == 3);
-    CHECK(tempo_map.timeSignatureAtSeconds(7.2).numerator == 5);
-    CHECK(tempo_map.timeSignatureAtSeconds(-1.0).numerator == 4);
-    CHECK(tempo_map.timeSignatureAtSeconds(99.0).numerator == 5);
+    CHECK(tempo_map.timeSignatureAtSeconds(3.9).meter.numerator == 4);
+    CHECK(tempo_map.timeSignatureAtSeconds(4.0).meter.numerator == 3);
+    CHECK(tempo_map.timeSignatureAtSeconds(7.2).meter.numerator == 5);
+    CHECK(tempo_map.timeSignatureAtSeconds(-1.0).meter.numerator == 4);
+    CHECK(tempo_map.timeSignatureAtSeconds(99.0).meter.numerator == 5);
 }
 
 // Verifies the generated fallback map extends to a terminal downbeat after the audio.
@@ -267,7 +267,7 @@ TEST_CASE("TempoMap clamps beat positions below the first anchor", "[core][tempo
 {
     const TempoMap tempo_map{
         std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
         },
         std::vector{
             anchor("2:1", 10000),
@@ -291,8 +291,8 @@ TEST_CASE("TempoMap clamps beat positions below the first anchor", "[core][tempo
 TEST_CASE("TempoMap reports each anchor span's quarter length", "[core][tempo-map]")
 {
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-         TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+         TimeSignatureChange{.measure = 2, .meter = {.numerator = 6, .denominator = 8}}},
         {anchor("1:1", 0), anchor("2:1", 2000), anchor("3:1", 3500)}
     };
 
@@ -335,8 +335,8 @@ TEST_CASE("TempoMap default map ends on the first downbeat covering the audio", 
 TEST_CASE("TempoMap grows its terminal to cover a time", "[core][tempo-map]")
 {
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-         TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
+         TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}}},
         {anchor("1:1", 0), anchor("2:1", 2000)}
     };
 
@@ -345,7 +345,7 @@ TEST_CASE("TempoMap grows its terminal to cover a time", "[core][tempo-map]")
 
     // 241 quarter notes a minute over five minutes: one rounding, not one per measure.
     const TempoMap fast{
-        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
         {anchor("1:1", 0), anchor("2:1", 996)}
     };
     const BeatAnchor grown = fast.terminalCovering(300.0, 60.0 / 241.0);
