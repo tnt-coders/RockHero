@@ -1,9 +1,20 @@
 # Whole-Note Durations
 
-**Status:** Approved by the user 2026-10-04, in progress. DONE: Phase 0 (`99e4e7e5`), the sweep
-(converted packages verified exact under the new reader), and Phase 1 with Phases 2 and 3 folded
-in (`987b62cf`). Phase 4 (this prose pass) is in the working tree. REMAINING: the `ChartShape`
-places commit and Phase 5, the converter. A note's ring (`sustain`) and a
+**Status:** COMPLETE 2026-10-04. Approved by the user the same day.
+- Phase 0 is `99e4e7e5`.
+- The one-time sweep converted 10 packages, verified exact under the new reader: every ring end
+  and keyframe instant at the identical position and second, and repairs identical where the old
+  reader already repaired. 54 other packages were already unloadable and need a re-import
+  anyway. The backups are under `__scratch__/whole-note-sweep-backup/`.
+- Phase 1, with Phases 2 and 3 folded in, is `987b62cf`.
+- The `ChartShape` places commit is `f5769734` and `76460d58`.
+- Phase 4 (prose) is `52334932`.
+- Phase 5: the external converter was brought fully current in its working tree (uncommitted, per
+  the rule). All six sample conversions load cleanly.
+- The no-trace checklist returns zero outside history. Every remaining "beat" in code is an
+  address, a time, or an explanation of why durations left beats.
+
+A note's ring (`sustain`) and a
 keyframe's distance from its onset (`offset`) change from BEAT counts to WHOLE-NOTE fractions, in
 memory and in the chart document together. The change must be COMPLETE: no reader, writer, name,
 comment, test or document keeps the beat meaning. Every phase passes a simplicity-expert review

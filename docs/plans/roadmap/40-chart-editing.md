@@ -12,7 +12,8 @@ BEFORE this plan's Phase 3 adds interaction — the execution order is Phases 1�
 30 Phases 1–2, then Phases 3+ here. **Phase 1 complete 2026-07-16**: exact `Fraction`
 operator+/operator- (64-bit intermediates, normalized results) and the grid-arithmetic unit in
 common/core (`chart/grid_arithmetic.h`: `advanceGridPosition` with origin clamp,
-`beatDistance` as its exact inverse, `sustainEndPosition`, and `snapGridPosition` reproducing
+`beatDistance` as its exact inverse, `sustainEndPosition` — the beat-duration trio, deleted in
+`987b62cf` when durations became whole notes — and `snapGridPosition` reproducing
 the editor timeline grid's semantics — measure-anchored whole-note-fraction note values,
 downbeats always lines, ties to the earlier line; note-value validity policy stays with
 callers; the beat-axis pair and `sustainEndPosition` were deleted in `987b62cf`, which moved

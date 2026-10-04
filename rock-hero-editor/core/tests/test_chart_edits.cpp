@@ -1978,7 +1978,7 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
 
 // What the step list exists for: a GRID step moves the ring's END onto the adjacent grid line, so
 // a ring a tick step left between lines snaps onto the grid — ceiling when growing, flooring when
-// shrinking — instead of carrying its remainder forever, which is what a summed beat delta would
+// shrinking — instead of carrying its remainder forever, which is what a summed step delta would
 // do.
 TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][chart]")
 {
