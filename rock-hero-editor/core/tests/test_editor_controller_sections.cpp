@@ -602,8 +602,8 @@ TEST_CASE("EditorController deletes the selected section", "[core][sections]")
     CHECK(editor.sections().front().name == "Chorus");
 }
 
-// Deleting a section selects the one before it on the row, as Shift+Tab from its start would, so a
-// run of deletes walks back along the row.
+// Deleting a section selects the one before it on the row, as a chip click would, so a run of
+// deletes walks back along the row.
 TEST_CASE("Deleting a section selects the section before it", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(

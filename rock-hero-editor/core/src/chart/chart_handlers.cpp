@@ -2274,10 +2274,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
     deleteSelectedMarker();
 }
 
-// Deletes the selected MARKER, whatever its row, and then selects the one before it on that row —
-// exactly what Shift+Tab from the deleted marker's start would land on, cursor included — so a
-// run of deletes walks back along the row instead of dropping the keyboard off it. Where the
-// deleted marker was the row's first, nothing is left selected, as Shift+Tab is inert there. A
+// Deletes the selected MARKER, whatever its row, and then selects the one before it on that row,
+// so a run of deletes walks back along the row instead of dropping the keyboard off it. It is
+// selected as a chip click selects it, seeking nothing: the cursor and the view stay where the
+// charter was working, however far back that marker stands, and the ruler pins an off-screen chip
+// at the left edge. Where the deleted marker was the row's first, nothing is left selected. A
 // note's delete is not this rule: it leaves the caret on the emptied slot, which is the entry
 // plane's own continuation. A row with no delete verb (the time signature) deletes nothing, and the
 // selection stays.
@@ -2325,7 +2326,6 @@ void EditorController::Impl::deleteSelectedMarker()
             adjacentPosition(after, start, false);
         previous.has_value())
     {
-        moveCursorTo(*previous);
         selectMarkerStartingAt(row, *previous);
     }
     updateView();

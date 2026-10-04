@@ -279,8 +279,8 @@ void EditorController::Impl::followMovedMarker(const common::core::GridPosition 
 }
 
 // A marker selection names its marker; when the marker is gone — deleted, merged away by a retone,
-// moved or taken back by an undo — nothing is left to select, exactly as Delete leaves nothing
-// behind.
+// moved or taken back by an undo — nothing is left to select. (Delete itself then selects the
+// previous marker, as a click would; this release only clears a selection naming nothing.)
 void EditorController::Impl::releaseMarkerSelectionNamingNothing()
 {
     if (const std::optional<SelectedMarker> selected = selectedMarker();

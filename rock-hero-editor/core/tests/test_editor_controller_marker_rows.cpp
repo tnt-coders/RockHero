@@ -904,8 +904,8 @@ TEST_CASE("The hand chord restates the placement at the cursor", "[core][marker-
     CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
 }
 
-// Delete removes the selected placement and selects the one before it, as Shift+Tab from the
-// deleted start would; deleting the row's first leaves nothing selected; a chart may end with none.
+// Delete removes the selected placement and selects the one before it; deleting the row's first
+// leaves nothing selected; a chart may end with none.
 TEST_CASE("EditorController deletes the selected fret-hand position", "[core][marker-rows]")
 {
     MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
@@ -936,6 +936,60 @@ TEST_CASE("EditorController deletes the selected fret-hand position", "[core][ma
     sole.controller.onSelectionDeleteRequested();
     CHECK(sole.placements().empty());
     CHECK_FALSE(sole.selectedHandIndex().has_value());
+}
+
+// Delete selects the marker before the one it removed as a chip click selects it, seeking nothing
+// (user ruling 2026-10-03): on every marker row the cursor stays where the charter was working,
+// however far back that marker stands. Tab still steps from the selected chip, because the column
+// rule brings the cursor into it first. The tone row's case lives with the tone-region tests, whose
+// fixture carries the tones a region delete needs.
+TEST_CASE(
+    "Deleting a marker selects the previous one without moving the cursor", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeThreeMarkerSections(), {}, makeHandChart()};
+    // Measure 12, 22.0s: past every marker the cases below delete.
+    editor.parkAtMeasure(12);
+    constexpr double cursor_seconds = 22.0;
+
+    SECTION("a section")
+    {
+        editor.controller.onSongSectionSelected(downbeat(11));
+        editor.controller.onSelectionDeleteRequested();
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
+        CHECK(editor.transport.position().seconds == Catch::Approx(cursor_seconds));
+
+        // A run of deletes walks back along the row with the cursor still standing.
+        editor.controller.onSelectionDeleteRequested();
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+        CHECK(editor.transport.position().seconds == Catch::Approx(cursor_seconds));
+    }
+
+    SECTION("a fret-hand position, and Tab still steps from the selected chip")
+    {
+        editor.controller.onFretHandPositionSelected(2);
+        editor.controller.onSelectionDeleteRequested();
+        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+        CHECK(editor.transport.position().seconds == Catch::Approx(cursor_seconds));
+
+        // The cursor stands under the 8:2 placement, not the selected 5:1 one, so the step reads
+        // the chip: Shift+Tab from 5:1 lands on 1:1.
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
+        CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
+    }
+
+    SECTION("a tempo anchor")
+    {
+        editor.controller.onTempoAnchorSelected(downbeat(5));
+        editor.controller.onSelectionDeleteRequested();
+        CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(1)});
+        // The map changed under the cursor, which keeps its musical place (measure 12) rather than
+        // its seconds; it is not brought back to the 1:1 anchor at 0.0s.
+        const double measure_12 =
+            editor.controller.session().song().tempo_map.secondsAt(downbeat(12));
+        CHECK(editor.transport.position().seconds == Catch::Approx(measure_12));
+        CHECK(measure_12 > 20.0);
+    }
 }
 
 // Alt+arrows step the selected placement one placement-quantum line, keep it selected, and bring

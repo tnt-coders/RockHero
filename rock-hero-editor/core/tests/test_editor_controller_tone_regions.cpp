@@ -662,6 +662,23 @@ TEST_CASE(
     CHECK(editor.regions().front().id == g_region_a);
 }
 
+// Delete on a selected region selects the previous region as a chip click would, seeking nothing
+// (user ruling 2026-10-03): the cursor stays inside the span the deleted region handed back.
+TEST_CASE(
+    "Deleting a selected tone region selects the previous one without moving the cursor",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.5});
+    editor.controller.onToneRegionSelected(g_region_b);
+    REQUIRE(editor.selectedRegionId() == g_region_b);
+
+    editor.controller.onSelectionDeleteRequested();
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.selectedRegionId() == g_region_a);
+    CHECK_THAT(editor.transport.position().seconds, Catch::Matchers::WithinAbs(3.5, 1.0e-9));
+}
+
 // Deleting the first region hands its span to the next one, which takes over the song's opening
 // start; undo restores both starts.
 TEST_CASE(
