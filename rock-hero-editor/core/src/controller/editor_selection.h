@@ -40,12 +40,13 @@ struct SongSectionSelection
         default;
 };
 
-// A formally selected tempo chip on the ruler: the beat anchor it marks, identified by the beat it
-// pins, which is unique because anchors strictly advance. Its verbs are Enter (type the tempo of
-// the span it opens), Delete and Alt+arrows (move it in time); a move never changes its beat.
+// A formally selected tempo chip on the ruler: the beat anchor it marks, identified by the grid
+// position it pins, which is unique because anchors strictly advance. Its verbs are Enter (type the
+// tempo of the span it opens), Delete and Alt+arrows (move it in time); a move never changes its
+// position.
 struct TempoAnchorSelection
 {
-    // Beat the anchor pins, as a grid position with no offset.
+    // Grid position the anchor pins, a sub-beat offset included.
     common::core::GridPosition position{};
 
     friend bool operator==(const TempoAnchorSelection& lhs, const TempoAnchorSelection& rhs) =

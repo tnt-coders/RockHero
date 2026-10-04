@@ -947,19 +947,20 @@ struct EditorAction
     };
 
     /*!
-    \brief Insert a tempo anchor at a beat, pinning the time the map already gives that beat.
+    \brief Insert a tempo anchor at a grid position, pinning the time the map already gives it.
 
-    Carries the beat the surface captured at the press, like the section insert, so the verb never
-    re-reads the cursor. An occupied beat, or one at or past the terminal anchor, refuses.
+    Carries the position the surface captured at the press, like the section insert, so the verb
+    never re-reads the cursor. An occupied position, or one at or past the terminal anchor,
+    refuses.
     */
     struct InsertTempoAnchor
     {
-        /*! \brief Beat the anchor is asked for, with no offset. */
+        /*! \brief Grid position the anchor is asked for. */
         common::core::GridPosition position{};
     };
 
     /*!
-    \brief Type the quarter-note tempo of the span the anchor at a beat opens.
+    \brief Type the quarter-note tempo of the span the anchor at a grid position opens.
 
     The anchor stays put and every later anchor ripples by the same whole-millisecond amount, so
     every later span keeps its tempo. Position-anchored like the section rename, so the chord at
@@ -967,7 +968,7 @@ struct EditorAction
     */
     struct SetTempoSpanBpm
     {
-        /*! \brief Beat of the anchor opening the span. */
+        /*! \brief Grid position of the anchor opening the span. */
         common::core::GridPosition position{};
 
         /*! \brief Typed tempo in quarter notes per minute; a non-positive one refuses. */

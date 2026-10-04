@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <memory>
@@ -8,6 +10,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -26,6 +29,8 @@ namespace
 using Catch::Matchers::WithinAbs;
 using common::core::GridPosition;
 using common::core::SongSection;
+using common::core::testing::anchor;
+using common::core::testing::commonTimeMap;
 
 [[nodiscard]] GridPosition beatAt(int measure, int beat)
 {
@@ -56,6 +61,26 @@ using common::core::SongSection;
     return song;
 }
 
+// The half beat after 2:1, where the sub-beat song's extra anchor stands.
+[[nodiscard]] GridPosition subBeatPosition()
+{
+    return GridPosition{.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}};
+}
+
+// The tempo song with a sub-beat anchor at 2:1+1/2 beside the on-beat one at 2:1, both at the 120
+// BPM the map already has: the pair an address floored to its beat cannot tell apart.
+[[nodiscard]] common::core::Song makeSubBeatTempoSong()
+{
+    common::core::Song song = makeTempoSong();
+    song.tempo_map = commonTimeMap({
+        anchor("1:1", 0),
+        anchor("2:1", 2000),
+        anchor("2:1+1/2", 2250),
+        anchor("9:1", 16000),
+    });
+    return song;
+}
+
 // Owns the fakes and a controller with the tempo song loaded and its rig ready.
 struct TempoEditor
 {
@@ -68,6 +93,10 @@ struct TempoEditor
     FakeEditorView view;
 
     TempoEditor()
+        : TempoEditor{makeTempoSong()}
+    {}
+
+    explicit TempoEditor(common::core::Song song)
         : controller{
               audioPorts(transport, audio, plugin_host, live_rig),
               defaultControllerServices(),
@@ -80,7 +109,7 @@ struct TempoEditor
     {
         audio.next_prepared_audio_duration = common::core::TimeDuration{20.0};
         audio.next_set_active_arrangement_result = true;
-        project_services.next_song = makeTempoSong();
+        project_services.next_song = std::move(song);
         controller.attachView(view);
         controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     }
@@ -115,6 +144,19 @@ struct TempoEditor
         return std::numeric_limits<double>::quiet_NaN();
     }
 
+    // The stored time of the anchor standing exactly at a position, or nothing when none does.
+    [[nodiscard]] std::optional<std::int64_t> anchorMilliseconds(const GridPosition& position) const
+    {
+        const std::vector<common::core::BeatAnchor>& anchors = tempoMap().anchors();
+        const auto found =
+            std::ranges::find(anchors, position, &common::core::BeatAnchor::position);
+        if (found == anchors.end())
+        {
+            return std::nullopt;
+        }
+        return found->milliseconds;
+    }
+
     void seek(double seconds)
     {
         controller.onTimelineSeekRequested(common::core::TimePosition{seconds});
@@ -123,6 +165,22 @@ struct TempoEditor
     [[nodiscard]] TempoChordTarget chord() const
     {
         return state().tempo_chord_target;
+    }
+
+    // The position of the anchor Enter would retype, which is the selected one; empty when the
+    // selection is no span-opening anchor.
+    [[nodiscard]] std::optional<GridPosition> selectedAnchorPosition() const
+    {
+        const RestateTarget restate = state().restate_target;
+        const auto* const target = std::get_if<SetTempoTarget>(&restate);
+        return target != nullptr ? std::optional{target->position} : std::nullopt;
+    }
+
+    // Turns snapping off, which only the warning's own answer can do.
+    void turnSnapOff()
+    {
+        controller.onGridSnapToggleRequested();
+        controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
     }
 
     [[nodiscard]] std::size_t undoEntryCount() const
@@ -166,14 +224,14 @@ struct TempoEditor
 
 } // namespace
 
-// The chord's whole decision is published as the verb: the cursor read at the tick and floored to
-// its beat, an insert where no anchor stands, and the BPM prompt — prefilled with what the chip
-// prints — where one does, whether that anchor is selected or not.
-TEST_CASE("The published tempo chord names the verb at the cursor's beat", "[core][tempo]")
+// The chord's whole decision is published as the verb: an insert at the cursor's slot where no
+// anchor stands, and the BPM prompt — prefilled with what the chip prints — where one does, whether
+// that anchor is selected or not.
+TEST_CASE("The published tempo chord names the verb at the cursor's slot", "[core][tempo]")
 {
     TempoEditor editor;
 
-    editor.seek(2.3);
+    editor.seek(2.0);
     const TempoChordTarget empty_beat = editor.chord();
     const auto* const insert = std::get_if<InsertTempoAnchorTarget>(&empty_beat);
     REQUIRE(insert != nullptr);
@@ -194,6 +252,39 @@ TEST_CASE("The published tempo chord names the verb at the cursor's beat", "[cor
     const auto* const entered = std::get_if<SetTempoTarget>(&enter);
     REQUIRE(entered != nullptr);
     CHECK(*entered == *restate);
+}
+
+// The chord reads the cursor at the placement quantum, as the tone chord does: the grid line with
+// snap on, the tick with snap off, so an anchor stands between beats wherever the grid does. The
+// insert pins the time the map gives that slot, and the next press restates the new anchor.
+TEST_CASE("The tempo chord reads the cursor at the placement quantum", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 8});
+
+    // 2.3 s is 0.6 of a beat into 2:1, whose nearest eighth is the half beat.
+    editor.seek(2.3);
+    const TempoChordTarget snapped = editor.chord();
+    const auto* const on_grid = std::get_if<InsertTempoAnchorTarget>(&snapped);
+    REQUIRE(on_grid != nullptr);
+    CHECK(on_grid->position == subBeatPosition());
+
+    // With snap off the slot is the tick: 0.6 of a beat is 576 of its 960 ticks.
+    editor.turnSnapOff();
+    editor.seek(2.3);
+    const GridPosition tick{.measure = 2, .beat = 1, .offset = common::core::Fraction{3, 5}};
+    const TempoChordTarget unsnapped = editor.chord();
+    const auto* const on_tick = std::get_if<InsertTempoAnchorTarget>(&unsnapped);
+    REQUIRE(on_tick != nullptr);
+    CHECK(on_tick->position == tick);
+
+    editor.controller.onTempoAnchorInsertRequested(on_tick->position);
+    CHECK(editor.anchorMilliseconds(tick) == std::optional<std::int64_t>{2300});
+    const SetTempoTarget expected{.position = tick, .bpm_text = "120"};
+    const TempoChordTarget restated = editor.chord();
+    const auto* const restate = std::get_if<SetTempoTarget>(&restated);
+    REQUIRE(restate != nullptr);
+    CHECK(*restate == expected);
 }
 
 // Inert exactly where the commit would refuse: on the terminal, which opens no span; while the
@@ -324,6 +415,56 @@ TEST_CASE("A tempo anchor moves one pixel at the reported zoom", "[core][tempo]"
     editor.pressAltRight();
     CHECK(editor.tempoMap() == before);
     CHECK(editor.undoEntryCount() == entries);
+}
+
+// A sub-beat anchor is addressed by its whole position: nudged, retyped and deleted as ITSELF,
+// never as the on-beat anchor of the beat it falls in.
+TEST_CASE("A sub-beat tempo anchor is edited as itself, never its beat-mate", "[core][tempo]")
+{
+    TempoEditor editor{makeSubBeatTempoSong()};
+    const GridPosition on_beat = beatAt(2, 1);
+    const GridPosition sub_beat = subBeatPosition();
+
+    editor.controller.onTempoAnchorSelected(sub_beat);
+    editor.controller.onTimelineZoomChanged(100.0);
+    editor.pressAltRight();
+    CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2260});
+    CHECK(editor.anchorMilliseconds(on_beat) == std::optional<std::int64_t>{2000});
+    CHECK(editor.undoTopLabel() == "Move Tempo Anchor");
+
+    // 27.5 quarters at 60 BPM from 2.26 s put the terminal at 29.76 s; the anchor before stays.
+    editor.controller.onTempoSpanBpmRequested(sub_beat, "60");
+    CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2260});
+    CHECK(editor.anchorMilliseconds(on_beat) == std::optional<std::int64_t>{2000});
+    CHECK(editor.anchorMilliseconds(beatAt(9, 1)) == std::optional<std::int64_t>{29760});
+    CHECK(editor.undoTopLabel() == "Set Tempo to 60");
+
+    editor.controller.onSelectionDeleteRequested();
+    CHECK_FALSE(editor.anchorMilliseconds(sub_beat).has_value());
+    CHECK(editor.anchorMilliseconds(on_beat) == std::optional<std::int64_t>{2000});
+    CHECK(editor.undoTopLabel() == "Delete Tempo Anchor");
+}
+
+// Undo and redo focus the anchor they change by its whole position, so a sub-beat anchor comes back
+// selected as itself rather than as the on-beat anchor of its beat.
+TEST_CASE("Undo and redo re-select an edited sub-beat anchor", "[core][tempo]")
+{
+    TempoEditor editor{makeSubBeatTempoSong()};
+    const GridPosition sub_beat = subBeatPosition();
+    editor.controller.onTempoAnchorSelected(sub_beat);
+    editor.controller.onTimelineZoomChanged(100.0);
+    editor.pressAltRight();
+    REQUIRE(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2260});
+
+    editor.controller.onTempoAnchorSelected(beatAt(1, 1));
+    editor.controller.onUndoRequested();
+    CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2250});
+    CHECK(editor.selectedAnchorPosition() == std::optional{sub_beat});
+
+    editor.controller.onTempoAnchorSelected(beatAt(1, 1));
+    editor.controller.onRedoRequested();
+    CHECK(editor.anchorMilliseconds(sub_beat) == std::optional<std::int64_t>{2260});
+    CHECK(editor.selectedAnchorPosition() == std::optional{sub_beat});
 }
 
 // The engine's tempo-derived caches follow the map through every transition: the commit, the

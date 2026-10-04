@@ -11,6 +11,7 @@
 #include <optional>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <tuple>
@@ -82,7 +83,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     std::optional<common::core::GridPosition> last_insert_position{};
     int delete_count{0};
 
-    // Beat the tempo menu last asked an anchor for, and how often a restate was asked for.
+    // Position the tempo menu last asked an anchor for, and how often a restate was asked for.
     std::optional<common::core::GridPosition> last_tempo_insert_position{};
     int restate_count{0};
 
@@ -365,6 +366,39 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     ruler.setMarkerEditsEnabled(false);
     ruler.mouseDoubleClick(makeMouseDownEvent(ruler, 4.0f, 21.0f));
     CHECK(listener.restate_count == 2);
+}
+
+// The tempo menu's "Add Tempo Anchor" reads the right-click at the placement quantum the core
+// published, the slot the tempo chord would read: the grid line with snap on, the tick with it off.
+TEST_CASE(
+    "TimelineRuler tempo insert reads the click at the placement quantum", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+
+    // x = 160 is 1.6 s, 0.6 of a beat into 1:2 at one beat per second.
+    const juce::Point<float> click{160.0f, 21.0f};
+    ruler.setGrid(tempo_map, common::core::Fraction{1, 8});
+    CHECK(
+        ruler.tempoInsertPositionAt(click) ==
+        std::optional{common::core::GridPosition{
+            .measure = 1, .beat = 2, .offset = common::core::Fraction{1, 2}
+        }});
+
+    ruler.setGrid(tempo_map, common::core::g_tick_quantum_note_value);
+    CHECK(
+        ruler.tempoInsertPositionAt(click) ==
+        std::optional{common::core::GridPosition{
+            .measure = 1, .beat = 2, .offset = common::core::Fraction{3, 5}
+        }});
 }
 
 // A selected chip is placed before its neighbours, so on a dense map the neighbours give way

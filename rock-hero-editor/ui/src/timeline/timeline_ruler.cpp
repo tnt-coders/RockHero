@@ -453,11 +453,11 @@ const TimelineRuler::RulerChip* TimelineRuler::chipAt(
     return nullptr;
 }
 
-// The click's own grid position, read at the tick lattice so a click just short of a bar line or a
-// beat is never rounded into the next one; each kind's insert verb floors it to where that kind can
-// stand (a section to the measure the click is IN, a tempo anchor to its beat).
+// The click's own grid position at a quantum. The section insert reads at the tick lattice, so a
+// click just short of a bar line is never rounded into the next measure before its verb floors it
+// to the measure the click is IN.
 std::optional<common::core::GridPosition> TimelineRuler::clickedGridPosition(
-    const juce::Point<float> click) const
+    const juce::Point<float> click, const common::core::Fraction quantum) const
 {
     const std::optional<common::core::TimePosition> clicked = core::timelinePositionForX(
         static_cast<float>(m_view_x) + click.x, m_timeline_range, m_content_width);
@@ -465,8 +465,15 @@ std::optional<common::core::GridPosition> TimelineRuler::clickedGridPosition(
     {
         return std::nullopt;
     }
-    return core::nearestTempoGridPosition(
-        m_tempo_map, common::core::g_tick_quantum_note_value, *clicked);
+    return core::nearestTempoGridPosition(m_tempo_map, quantum, *clicked);
+}
+
+// The tempo insert places where the tempo chord would, at the published placement quantum, since
+// an anchor stands wherever a grid slot does.
+std::optional<common::core::GridPosition> TimelineRuler::tempoInsertPositionAt(
+    const juce::Point<float> click) const
+{
+    return clickedGridPosition(click, m_placement_quantum);
 }
 
 // Opens the ruler's section menu. The add verb is offered wherever the click resolves to a grid
@@ -481,7 +488,8 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<fl
         return;
     }
 
-    const std::optional<common::core::GridPosition> insert_position = clickedGridPosition(click);
+    const std::optional<common::core::GridPosition> insert_position =
+        clickedGridPosition(click, common::core::g_tick_quantum_note_value);
 
     // Read the chip's section BEFORE selecting it. The selection runs a full controller dispatch
     // that republishes the section list, and setSectionLabels rebuilds the chip row the pointer
@@ -533,7 +541,7 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<fl
         });
 }
 
-// Opens the tempo row's menu, the section menu's shape and policy: the insert at the clicked beat,
+// Opens the tempo row's menu, the section menu's shape and policy: the insert at the clicked slot,
 // plus Set Tempo and Delete on the chip the click landed on, which the menu selects first. Set
 // Tempo is the selection's restate verb, Delete the Delete key's.
 void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Point<float> click)
@@ -543,7 +551,7 @@ void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Poin
         return;
     }
 
-    const std::optional<common::core::GridPosition> insert_position = clickedGridPosition(click);
+    const std::optional<common::core::GridPosition> insert_position = tempoInsertPositionAt(click);
 
     // Selected only after everything is read off the row, for the reason showSectionContextMenu
     // states: the selection republishes the chip row the pointer points into.

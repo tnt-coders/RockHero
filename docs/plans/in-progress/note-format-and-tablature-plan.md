@@ -208,10 +208,10 @@ the song document. Everything below lives in that chart file. Design rules that 
   a note touches one field). Intra-note payloads (bends, slides) use *note-relative* beat
   offsets, so moving a note never rewrites its payloads. Techniques appear only when present.
 - **Positions reuse the tempo-map token grammar and its key.** `"position"` names an absolute
-  timeline position everywhere, exactly like tempo anchors: `"27:3"` is a whole beat,
-  `"27:3+1/2"` an exact rational sub-beat. Note-relative payload offsets are deliberately named
-  `"offset"` instead — same fraction grammar, different meaning, different word. Beat-fraction
-  durations are bare fraction tokens (`"3/2"`).
+  timeline position everywhere, exactly like tempo anchors (which may stand between beats too,
+  since 2026-10-03): `"27:3"` is a whole beat, `"27:3+1/2"` an exact rational sub-beat.
+  Note-relative payload offsets are deliberately named `"offset"` instead — same fraction grammar,
+  different meaning, different word. Beat-fraction durations are bare fraction tokens (`"3/2"`).
 - **Notes say what sounds; shapes say what the hand holds; templates are reusable postures.**
   Every `notes` entry is one string sounding — there is no note-versus-chord sum type. A strummed
   chord is simultaneous notes at one position. A `shapes` span `{position, sustain, chord}` marks

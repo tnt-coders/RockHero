@@ -1,7 +1,8 @@
 # Plan 41 — Tempo Map Authoring
 
 **Status:** Revised 2026-10-02 against `master @ 9e44e977`, after a simplicity review
-(git history keeps the 2026-07-06 text). Phases 1–4 are
+(git history keeps the 2026-07-06 text); amended 2026-10-03 for sub-beat anchors and
+whole-millisecond times (Non-goals, decisions 3 and 10). Phases 1–4 are
 ready to build in order; Phase 6 (time-signature editing) follows on provisional 41-Q1 = A
 (user, 2026-09-19), and G41-TS closes at its sighting. Phase 5 (onset snapping) and the tap-tempo
 readout are deferred out of the first releasable editor.
@@ -10,17 +11,22 @@ readout are deferred out of the first releasable editor.
 
 A charter starting from nothing but backing audio builds a beat grid that matches that audio,
 from the keyboard first and the mouse second, inside the marker grammar every other marker kind
-already follows: insert an anchor at a beat, type the tempo of the span it opens, nudge an anchor
-against a transient, delete one, and edit time signatures, all with one undo step per gesture and
-no change to the persisted song format. Today a usable tempo map exists only if the project came
-from a GP import; this plan removes that dependency and unblocks the New chart entry point
-(`docs/plans/roadmap/40-chart-editing.md` Phase 11).
+already follows: insert an anchor at a grid position, type the tempo of the span it opens, nudge an
+anchor against a transient, delete one, and edit time signatures, all with one undo step per
+gesture and no new key in the persisted song format. Today a usable tempo map exists only if the
+project came from a GP import; this plan removes that dependency and unblocks the New chart entry
+point (`docs/plans/roadmap/40-chart-editing.md` Phase 11).
 
 ## Non-goals
 
-- No song.json or chart format changes. Anchors stay on-beat `"<measure>:<beat>"` tokens with
-  millisecond-grid seconds. A span's BPM is derived, never stored. Sub-beat anchors are out of
-  scope; a real need routes through docs/plans/roadmap/10-format-versioning-and-chart-identity.md.
+- No new song.json key and no chart format change. An anchor's position is the shared grid token
+  every other position uses (`"measure:beat"`, or `"measure:beat+n/d"` between beats) and its
+  time keeps the `"seconds"` key, written with three decimals from a whole number of
+  milliseconds. A span's BPM is derived, never stored.
+- *Ruled 2026-10-03 (user, after the Phase 3 sighting):* anchors may stand at any tick-lattice
+  position, not only on a beat, and anchor time is held as whole milliseconds. This revision's
+  first text kept anchors on-beat and put sub-beat anchors out of scope; every existing song
+  loads unchanged under the new rule.
 - No create-project flow; plan 40 Phase 11 owns it. `TempoMap::defaultMap` is the seed map this
   plan makes editable.
 - No grid declutter (docs/plans/todo/tempo-grid-declutter-plan.md), no timeline-origin change
@@ -42,15 +48,17 @@ from a GP import; this plan removes that dependency and unblocks the New chart e
   changes warrant. clang-tidy runs only when the user asks.
 
 Hard invariants, enforced by the reader and preserved by every verb: tempo changes only at
-anchors and is constant inside a span; anchors are on-beat tokens with seconds on the 1 ms grid;
-the first anchor is `1:1`; the terminal anchor is on a downbeat past content; anchors strictly
-increase in position and seconds.
+anchors and is constant inside a span; anchors stand on the tick lattice and their times are
+whole milliseconds; the first anchor is `1:1`; the terminal anchor is on a downbeat (no sub-beat
+offset) past content; anchors strictly increase in position and time.
 
 ## Current state (verified 2026-10-02)
 
 - **Model**: `rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map.h`
   (`BeatAnchor`, `TimeSignatureChange`, `TempoMap`, `TempoMap::defaultMap`; Phase 1 added
-  `spanQuarterLength` and `terminalCovering`, Phase 3 deleted `quarterNoteBpmAtSeconds`).
+  `spanQuarterLength` and `terminalCovering`, Phase 3 deleted `quarterNoteBpmAtSeconds`). Since
+  2026-10-03 a `BeatAnchor` is `{GridPosition position; int64 milliseconds}`: `seconds()` is the
+  one conversion and `nearestAnchorMilliseconds` the one rounding.
 - **Validation**: `validateTempoMap` is package-private
   (`rock-hero-common/core/src/package/rock_song_package_format.h:45`), called by read
   (`rock_song_package_read.cpp:420`) and write (`rock_song_package_write.cpp:581`). The tone
@@ -59,7 +67,8 @@ increase in position and seconds.
 - **Already live** (no work here): `TempoAnchorSelection`, `MarkerRow::Tempo`, chip select, the
   `↑/↓` walk and `Tab` over the tempo row (`marker_row_handlers.cpp`), the letter
   `g_tempo_key = 'b'` and the `Ctrl+Shift+B` jump (`editor_command_registry.cpp`). `Delete`,
-  `Enter` and `Alt+←/→` on a tempo chip are inert.
+  `Enter` and `Alt+←/→` on a tempo chip were inert at this baseline; Phases 2–3 gave them their
+  verbs.
 - **Marker funnel**: `commitMarkerModel` (`marker_model_commit.h:64-91`) with the section
   (`section_handlers.cpp`) and hand-marker (`fret_hand_handlers.cpp`) kinds as precedents; the
   8-step new-kind checklist is `docs/plans/in-progress/marker-verb-grammar.md`, "What a NEW marker
@@ -89,7 +98,8 @@ Earlier decisions that stand:
    (docs/plans/completed/tempo-map-implementation-plan.md; docs/design/architecture.md,
    "Song Data Model").
 2. Tempo is constant inside each span (metronome-linear); BPM is quarter-note-referenced.
-3. Anchor seconds persist at millisecond precision.
+3. Anchor time is held as whole milliseconds (user, 2026-10-03; until then seconds rounded to the
+   millisecond grid), and the file writes it as `"seconds"` with three decimals.
 4. The grid is TRUTH (user, 2026-09-19): content holds its musical position and moves in time
    when the map changes; nothing is re-addressed to keep a second.
 5. Undo is RockHero-owned; Tracktion is a playback backend and stays tempo-inert apart from the
@@ -120,12 +130,14 @@ Rulings of 2026-10-02 (user, after the simplicity review):
    commit point (another edit, a selection change, an undo or redo, a save) — the rule notes
    already use. No timed settle window: a timer would split the slow, careful run. A run that walks
    back to where it began leaves no entry.
-10. **`Ctrl+B` follows `Ctrl+M`.** On an empty beat it inserts an anchor, pinning the time the map
-    already gives that beat (time-neutral to 0.5 ms), selects it and opens no prompt. On a beat
+10. **`Ctrl+B` follows `Ctrl+M`.** On an empty slot it inserts an anchor, pinning the time the map
+    already gives that slot (time-neutral to 0.5 ms), selects it and opens no prompt. On a slot
     where an anchor stands it selects that anchor and opens the BPM prompt, selected beforehand or
     not. `Enter` and a double-click on a selected chip open the same prompt. The cursor is read at
-    the tick and floored to its beat. Inert while playing, with no song, and at or past the
-    terminal. No digit-to-prompt for now.
+    the placement quantum — the grid note value with snap on, the 1/3840-whole-note tick with snap
+    off, the tone chord's rule — and the ruler's "Add Tempo Anchor" reads its click the same way
+    (user, 2026-10-03; until then both were floored to the beat). Inert while playing, with no
+    song, and at or past the terminal. No digit-to-prompt for now.
 11. **The chip prints what was typed.** It prints the shortest decimal (0–2 places) whose span
     length lies within ±1 ms of the stored one, so typing 137 prints 137 and an insert into a span
     of a typed tempo leaves both halves printing it. (A span whose stored length is already most of
@@ -151,7 +163,8 @@ Rulings of 2026-10-02 (user, after the simplicity review):
 ## Dependencies
 
 - **Unblocks** plan 40 Phase 11 (New chart), which is gated on this plan's Phases 1–3.
-- Plan 10: no format change. A tempo edit changes chart identity by design.
+- Plan 10: no new format key (a sub-beat anchor uses the shared grid token). A tempo edit changes
+  chart identity by design.
 - Plan 42: content validity after a meter edit reports through 42's rule set (Phase 6).
 - Plan 59: the count-in reads the same `TempoMap`; no coupling.
 
@@ -171,13 +184,14 @@ a simplicity review before its commit, and verifies with a build and the touched
 - **1b (editor/core).** One header beside `timeline/tempo_grid_geometry.h` holding pure functions
   over a `TempoMap`, each returning `std::expected` with a typed error and revalidating through
   the rules:
-  - `insertAnchorAt(map, beat)` — pins the beat's current seconds on the ms grid; refuses an
-    occupied beat or one at or past the terminal.
-  - `moveAnchorTo(map, beat, seconds)` — refuses onto or past a neighbour and `1:1` below 0.
-  - `setSpanBpm(map, beat, bpm, audio_end)` — the ripple, with terminal growth (decision 12);
-    refuses a non-positive or non-finite BPM and a result the rules refuse.
-  - `deleteAnchor(map, beat)` — refuses `1:1` and the terminal; neighbours stay pinned, so it is
-    the exact inverse of an insert.
+  - `insertTempoAnchor(map, position)` — pins the position's current time rounded to a whole
+    millisecond; refuses an occupied position or one at or past the terminal.
+  - `moveTempoAnchor(map, position, milliseconds)` — refuses onto or past a neighbour and `1:1`
+    below 0.
+  - `setTempoSpanBpm(map, position, bpm, audio_end)` — the ripple, with terminal growth (decision
+    12); refuses a non-positive or non-finite BPM and a result the rules refuse.
+  - `deleteTempoAnchor(map, position)` — refuses `1:1` and the terminal; neighbours stay pinned,
+    so it is the exact inverse of an insert.
   - `spanBpmText(map, span)` — decision 11; the chip and the prompt's prefill both read it.
 - **Tests.** `test_tempo_map_rules.cpp` (every invariant violated once; package tests stay green
   untouched); `test_tempo_map_edits.cpp`: insert is time-neutral; a ripple leaves every later
@@ -233,8 +247,8 @@ a simplicity review before its commit, and verifies with a build and the touched
 The primary method for most users (decision 13). Dragging a tempo chip previews the move,
 commits ONE `moveAnchorTo` on release, and `Esc` cancels with no history. The same refusals hold;
 a refused drop snaps back. JUCE's drag threshold keeps a chip click a click. Settle by sighting
-whether the selected anchor's beat line over the waveform needs emphasis (the track already draws
-every beat line). Sighting: drag an anchor onto a transient at two zooms; undo is one step.
+whether the selected anchor's line over the waveform needs emphasis (the track already draws
+every beat line, but a sub-beat anchor stands on none). Sighting: drag an anchor onto a transient at two zooms; undo is one step.
 
 ### Deferred — tap-tempo readout (out of the first releasable editor)
 
@@ -264,8 +278,9 @@ building; the snap applies to Phase 4's drag and Phase 2's nudge, not to tap-der
     fill, feature simply inactive until ready); cache in session-scoped editor state (never
     persisted, never written into packages). Snapping toggle: when enabled, anchor drags
     (Phase 3) and tap-derived anchor seconds (Phase 4) snap to the nearest onset within a
-    +/-30 ms window (tunable constant), then to the millisecond grid. Optional faint onset ticks
-    on the waveform row behind an on/off toggle.
+    +/-30 ms window (tunable constant), then to a whole millisecond
+    (`nearestAnchorMilliseconds`). Optional faint onset ticks on the waveform row behind an on/off
+    toggle.
 - **Public-header impact:** +1 common/core header, +1 common/audio header — both justified by
   cross-library consumers (constraint (b)).
 - **Testing:** kernel unit tests on synthetic signals (clicks/plucked-envelope ramps at known
@@ -305,9 +320,11 @@ re-derive the tests; the UI step survives all outcomes.
     the caret and loop land on different musical content after a signature edit while everything
     else is time-preserved)) to its global-beat position (+ fraction) under the old signature list,
     then
-    re-address under the new one. Anchors sit on integer global beats, so re-bucketing always
-    yields valid on-beat tokens; anchor seconds are untouched, so **the transform is
-    time-preserving**: every item resolves to identical absolute seconds before and after. The
+    re-address under the new one. Anchors re-address on the whole-note axis exactly like all other
+    content and stay on the tick lattice (since 2026-10-03 an anchor may stand between beats, so
+    an on-beat token is no longer guaranteed or needed); anchor times are untouched, so **the
+    transform is time-preserving**: every item resolves to identical absolute seconds before and
+    after. The
     old terminal downbeat may stop being a downbeat under the new bucketing —
     `reseatTerminalAnchor` repairs it deterministically.
   - Undo for signature edits is a **full-state memento** of the tempo map plus all

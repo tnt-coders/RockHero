@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -26,17 +27,6 @@ namespace rock_hero::editor::core
 
 namespace
 {
-
-// The beat a position falls in: the only place a tempo anchor can stand, since an anchor pins a
-// whole beat. Positions carry their offset within the beat, so dropping it floors.
-[[nodiscard]] common::core::GridPosition tempoAnchorBeat(const common::core::GridPosition& position)
-{
-    return common::core::GridPosition{
-        .measure = position.measure,
-        .beat = position.beat,
-        .offset = {},
-    };
-}
 
 // The tempo text of the span the anchor standing exactly at a position opens, as its chip prints
 // it, or nothing where no anchor opening a span stands there (the terminal opens none). The one
@@ -66,32 +56,31 @@ namespace
 
 } // namespace
 
-// The tempo chord authors at the cursor and never reads the selection: the beat the cursor is IN,
-// read from the tick so a cursor just short of a beat is not rounded into the next one, floored to
-// that beat, the only place an anchor can stand. An anchor already standing there is restated —
-// the BPM prompt for the span it opens — which is what makes the double press work: the first
-// inserts and selects, the second finds that anchor on the cursor's beat. Where none stands and a
-// marker may start, the verb is an insert; at or past the terminal it is nothing, since the
-// terminal opens no span and nothing may start after it.
+// The tempo chord authors at the cursor and never reads the selection: the cursor's placement slot,
+// the tone chord's read — the grid line with snap on, the tick with snap off. An anchor already
+// standing there is restated — the BPM prompt for the span it opens — which is what makes the
+// double press work: the first inserts and selects, and since the commit keeps the cursor on its
+// musical place, the second finds that anchor on the same slot. Where none stands and a marker may
+// start, the verb is an insert; at or past the terminal it is nothing, since the terminal opens no
+// span and nothing may start after it.
 TempoChordTarget EditorController::Impl::tempoChordTarget() const
 {
-    const std::optional<common::core::GridPosition> position =
-        cursorPosition(common::core::g_tick_quantum_note_value);
+    const std::optional<common::core::GridPosition> position = cursorPosition(placementQuantum());
     if (!position.has_value())
     {
         return {};
     }
-    const common::core::GridPosition beat = tempoAnchorBeat(*position);
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    if (std::optional<std::string> bpm_text = spanBpmTextAt(tempo_map, beat); bpm_text.has_value())
+    if (std::optional<std::string> bpm_text = spanBpmTextAt(tempo_map, *position);
+        bpm_text.has_value())
     {
-        return SetTempoTarget{.position = beat, .bpm_text = std::move(*bpm_text)};
+        return SetTempoTarget{.position = *position, .bpm_text = std::move(*bpm_text)};
     }
-    if (!common::core::markerCanStartAt(beat, tempo_map))
+    if (!common::core::markerCanStartAt(*position, tempo_map))
     {
         return {};
     }
-    return InsertTempoAnchorTarget{.position = beat};
+    return InsertTempoAnchorTarget{.position = *position};
 }
 
 // A selection naming an anchor that is gone answers nothing.
@@ -111,10 +100,9 @@ std::optional<SetTempoTarget> EditorController::Impl::selectedTempoTarget() cons
     return SetTempoTarget{.position = anchor->position, .bpm_text = std::move(*bpm_text)};
 }
 
-// The beat is floored here, at the boundary, so the verbs below address whole beats only.
 void EditorController::Impl::onTempoAnchorInsertRequested(const common::core::GridPosition position)
 {
-    runAction(EditorAction::InsertTempoAnchor{.position = tempoAnchorBeat(position)});
+    runAction(EditorAction::InsertTempoAnchor{.position = position});
 }
 
 // The prompt hands back raw text, so the parse is the core's: text that is not one number changes
@@ -131,7 +119,7 @@ void EditorController::Impl::onTempoSpanBpmRequested(
     }
     runAction(
         EditorAction::SetTempoSpanBpm{
-            .position = tempoAnchorBeat(position),
+            .position = position,
             .quarter_bpm = *quarter_bpm,
         });
 }
@@ -167,15 +155,15 @@ void EditorController::Impl::commitTempoMap(
     }
 }
 
-// Adds an anchor on a beat, pinning the time the map already gives it, so the insert moves nothing
-// audible. Like every insert, it leaves what it made SELECTED, so Enter, Delete and Alt+arrows act
-// on the new anchor next. An occupied beat, or one at or past the terminal, is the edit's refusal.
+// Adds an anchor at a grid position, pinning the time the map already gives it, so the insert moves
+// nothing audible. Like every insert, it leaves what it made SELECTED, so Enter, Delete and
+// Alt+arrows act on the new anchor next. An occupied position, or one at or past the terminal, is
+// the edit's refusal.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAnchor& action)
 {
     constexpr std::string_view label{"Add Tempo Anchor"};
     TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-    TempoMapEditResult inserted =
-        insertTempoAnchor(before.tempo_map, action.position.measure, action.position.beat);
+    TempoMapEditResult inserted = insertTempoAnchor(before.tempo_map, action.position);
     if (!inserted.has_value())
     {
         logMarkerRefusal(label, inserted.error().message);
@@ -198,8 +186,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
     TempoMapSnapshot before = TempoMapSnapshot::capture(session());
     TempoMapEditResult rippled = setTempoSpanBpm(
         before.tempo_map,
-        action.position.measure,
-        action.position.beat,
+        action.position,
         action.quarter_bpm,
         latestAudioEndSeconds(session().song()));
     if (!rippled.has_value())
@@ -208,7 +195,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
         return;
     }
 
-    // The edit refuses a beat no span-opening anchor holds, so the result always prints one.
+    // The edit refuses a position no span-opening anchor holds, so the result always prints one.
     std::string label =
         std::string{verb} + " to " + spanBpmTextAt(*rippled, action.position).value_or("");
     commitTempoMap(
@@ -221,12 +208,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
 // Moves the selected anchor one on-screen pixel at the reported zoom (at least a millisecond), in
 // free time: the anchor defines the grid, so no grid line can be its step. Every other anchor stays
 // pinned and the two spans beside it change tempo. A step onto a neighbour, or the first anchor
-// below zero, is refused rather than clamped. A move never changes the anchor's beat, so the
-// selection it lands is the one it started from, and a held run of presses is one undo entry.
+// below zero, is refused rather than clamped.
 void EditorController::Impl::moveSelectedTempoAnchor(
     const TempoAnchorSelection& selection, const ChartStepDirection direction)
 {
-    constexpr std::string_view label{"Move Tempo Anchor"};
     // The tempo row's markers are the anchors that open a span, in order, so a marker's index is
     // its anchor's.
     const std::optional<std::size_t> index = markerIndex(MarkerRow::Tempo, selection.position);
@@ -235,18 +220,22 @@ void EditorController::Impl::moveSelectedTempoAnchor(
         // The selection went stale; moving nothing is the answer.
         return;
     }
-    TempoMapSnapshot before = TempoMapSnapshot::capture(session());
     const std::int64_t step = tempoAnchorNudgeMilliseconds(m_timeline_zoom_pixels_per_second);
-    const std::int64_t milliseconds = before.tempo_map.anchors().at(*index).milliseconds +
-                                      (direction == ChartStepDirection::Left ? -step : step);
+    moveSelectedTempoAnchorTo(
+        selection,
+        session().song().tempo_map.anchors().at(*index).milliseconds +
+            (direction == ChartStepDirection::Left ? -step : step));
+}
 
-    // The move verb still speaks seconds; a whole millisecond converts exactly and rounds back to
-    // itself.
-    TempoMapEditResult moved = moveTempoAnchor(
-        before.tempo_map,
-        selection.position.measure,
-        selection.position.beat,
-        static_cast<double>(milliseconds) / 1000.0);
+// The one tail every tempo-anchor move ends in, whatever drives it. A move never changes the
+// anchor's position, so the selection it lands is the one it started from, and a held run of moves
+// is one undo entry.
+void EditorController::Impl::moveSelectedTempoAnchorTo(
+    const TempoAnchorSelection& selection, const std::int64_t milliseconds)
+{
+    constexpr std::string_view label{"Move Tempo Anchor"};
+    TempoMapSnapshot before = TempoMapSnapshot::capture(session());
+    TempoMapEditResult moved = moveTempoAnchor(before.tempo_map, selection.position, milliseconds);
     if (!moved.has_value())
     {
         logMarkerRefusal(label, moved.error().message);
@@ -270,8 +259,7 @@ void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelectio
 {
     constexpr std::string_view label{"Delete Tempo Anchor"};
     TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-    TempoMapEditResult merged =
-        deleteTempoAnchor(before.tempo_map, selection.position.measure, selection.position.beat);
+    TempoMapEditResult merged = deleteTempoAnchor(before.tempo_map, selection.position);
     if (!merged.has_value())
     {
         logMarkerRefusal(label, merged.error().message);

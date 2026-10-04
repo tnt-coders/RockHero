@@ -3688,8 +3688,8 @@ void EditorView::onSelectionRestateRequested()
     }
 }
 
-// The ruler menu's tempo insert, at the beat the menu was opened over; the core floors it and
-// refuses an occupied beat.
+// The ruler menu's tempo insert, at the slot the menu was opened over; the core refuses an occupied
+// position.
 void EditorView::onTempoAnchorInsertRequested(const common::core::GridPosition position)
 {
     m_controller.onTempoAnchorInsertRequested(position);

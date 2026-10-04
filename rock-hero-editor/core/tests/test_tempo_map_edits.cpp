@@ -1,15 +1,22 @@
 #include "timeline/tempo_map_edits.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <optional>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -19,6 +26,7 @@ namespace
 {
 
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTimeMap;
 
 using Catch::Matchers::WithinAbs;
 
@@ -31,10 +39,16 @@ using Catch::Matchers::WithinAbs;
 // A 4/4 map at 120 BPM with anchors at every other downbeat up to the 5:1 terminal.
 [[nodiscard]] common::core::TempoMap anchoredMap()
 {
-    return common::core::TempoMap{
-        {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
-        {anchor("1:1", 0), anchor("2:1", 2000), anchor("3:1", 4000), anchor("5:1", 8000)}
-    };
+    return commonTimeMap(
+        {anchor("1:1", 0), anchor("2:1", 2000), anchor("3:1", 4000), anchor("5:1", 8000)});
+}
+
+// A 4/4 map at 120 BPM with a sub-beat anchor at 2:1+1/2 beside the on-beat one at 2:1: the pair an
+// address floored to its beat cannot tell apart.
+[[nodiscard]] common::core::TempoMap subBeatMap()
+{
+    return commonTimeMap(
+        {anchor("1:1", 0), anchor("2:1", 2000), anchor("2:1+1/2", 2250), anchor("5:1", 8000)});
 }
 
 // The stored length of one anchor span in whole milliseconds, the unit a ripple must preserve.
@@ -45,10 +59,13 @@ using Catch::Matchers::WithinAbs;
     return anchors[span + 1].milliseconds - anchors[span].milliseconds;
 }
 
-// A whole beat as the grid position an anchor stands at.
-[[nodiscard]] common::core::GridPosition beatAt(int measure, int beat)
+// A grid position as the file spells it; a malformed token fails the test.
+[[nodiscard]] common::core::GridPosition at(const std::string& token)
 {
-    return common::core::GridPosition{.measure = measure, .beat = beat, .offset = {}};
+    const std::optional<common::core::GridPosition> parsed =
+        common::core::parseGridPositionToken(token);
+    REQUIRE(parsed.has_value());
+    return parsed.value_or(common::core::GridPosition{});
 }
 
 // The code an edit refused with; fails the test when the edit landed instead.
@@ -64,7 +81,7 @@ using Catch::Matchers::WithinAbs;
 TEST_CASE("Inserting a tempo anchor moves no beat", "[editor][tempo-map]")
 {
     const common::core::TempoMap source = defaultEightSeconds();
-    const TempoMapEditResult edited = insertTempoAnchor(source, 2, 3);
+    const TempoMapEditResult edited = insertTempoAnchor(source, at("2:3"));
     REQUIRE(edited.has_value());
     if (!edited.has_value())
     {
@@ -72,7 +89,7 @@ TEST_CASE("Inserting a tempo anchor moves no beat", "[editor][tempo-map]")
     }
 
     REQUIRE(edited->anchors().size() == 3);
-    CHECK(edited->anchors()[1].position == beatAt(2, 3));
+    CHECK(edited->anchors()[1].position == at("2:3"));
     CHECK(edited->anchors()[1].milliseconds == 3000);
     for (int measure = 1; measure <= 4; ++measure)
     {
@@ -85,23 +102,63 @@ TEST_CASE("Inserting a tempo anchor moves no beat", "[editor][tempo-map]")
     }
 }
 
-// Verifies an insert refuses the map's two ends, beats past them, and an occupied beat.
+// Verifies a sub-beat insert pins its position's time rounded once, so no tick of the song moves by
+// more than half a millisecond.
+TEST_CASE("Inserting a sub-beat tempo anchor is time-neutral", "[editor][tempo-map]")
+{
+    const common::core::TempoMap source = defaultEightSeconds();
+    const common::core::GridPosition position = at("2:3+1/3");
+    const TempoMapEditResult edited = insertTempoAnchor(source, position);
+    REQUIRE(edited.has_value());
+    if (!edited.has_value())
+    {
+        return;
+    }
+
+    REQUIRE(edited->anchors().size() == 3);
+    CHECK(edited->anchors()[1].position == position);
+    CHECK(
+        edited->anchors()[1].milliseconds ==
+        common::core::nearestAnchorMilliseconds(source.secondsAt(position)));
+    double worst = 0.0;
+    for (int measure = 1; measure <= 4; ++measure)
+    {
+        for (int beat = 1; beat <= 4; ++beat)
+        {
+            for (int tick = 0; tick < 960; ++tick)
+            {
+                const common::core::GridPosition slot{
+                    .measure = measure, .beat = beat, .offset = common::core::Fraction{tick, 960}
+                };
+                worst = std::max(worst, std::abs(edited->secondsAt(slot) - source.secondsAt(slot)));
+            }
+        }
+    }
+    CHECK(worst <= 0.0005);
+}
+
+// Verifies an insert refuses the map's two ends, positions past them, and an occupied position.
 TEST_CASE("Inserting a tempo anchor refuses the ends and occupied beats", "[editor][tempo-map]")
 {
     const common::core::TempoMap source = defaultEightSeconds();
-    CHECK(refusalCode(insertTempoAnchor(source, 1, 1)) == TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(insertTempoAnchor(source, 5, 1)) == TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(insertTempoAnchor(source, 6, 2)) == TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(insertTempoAnchor(source, 2, 5)) == TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(insertTempoAnchor(anchoredMap(), 3, 1)) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(refusalCode(insertTempoAnchor(source, at("1:1"))) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(refusalCode(insertTempoAnchor(source, at("5:1"))) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(refusalCode(insertTempoAnchor(source, at("6:2"))) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(refusalCode(insertTempoAnchor(source, at("2:5"))) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(
+        refusalCode(insertTempoAnchor(anchoredMap(), at("3:1"))) ==
+        TempoMapEditErrorCode::BrokenRule);
+    CHECK(
+        refusalCode(insertTempoAnchor(subBeatMap(), at("2:1+1/2"))) ==
+        TempoMapEditErrorCode::BrokenRule);
 }
 
-// Verifies a move changes only the anchor's own time, on the millisecond grid, and refuses a time
-// that would reach a neighbour or take the first anchor below zero.
+// Verifies a move changes only the anchor's own time and refuses a time that would reach a
+// neighbour or take the first anchor below zero.
 TEST_CASE("Moving a tempo anchor pins its neighbours", "[editor][tempo-map]")
 {
     const common::core::TempoMap source = anchoredMap();
-    const TempoMapEditResult moved = moveTempoAnchor(source, 3, 1, 4.1234);
+    const TempoMapEditResult moved = moveTempoAnchor(source, at("3:1"), 4123);
     REQUIRE(moved.has_value());
     if (!moved.has_value())
     {
@@ -111,18 +168,62 @@ TEST_CASE("Moving a tempo anchor pins its neighbours", "[editor][tempo-map]")
     CHECK(moved->anchors()[1].milliseconds == 2000);
     CHECK(moved->anchors()[3].milliseconds == 8000);
 
-    CHECK(refusalCode(moveTempoAnchor(source, 3, 1, 2.0)) == TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(moveTempoAnchor(source, 3, 1, 8.5)) == TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(moveTempoAnchor(source, 1, 1, -0.01)) == TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(moveTempoAnchor(source, 2, 2, 2.5)) == TempoMapEditErrorCode::NoAnchorAtBeat);
-    CHECK(moveTempoAnchor(source, 1, 1, 0.25).has_value());
     CHECK(
-        refusalCode(moveTempoAnchor(source, 5, 1, std::numeric_limits<double>::infinity())) ==
-        TempoMapEditErrorCode::BrokenRule);
+        refusalCode(moveTempoAnchor(source, at("3:1"), 2000)) == TempoMapEditErrorCode::BrokenRule);
     CHECK(
-        refusalCode(moveTempoAnchor(source, 3, 1, std::numeric_limits<double>::quiet_NaN())) ==
-        TempoMapEditErrorCode::BrokenRule);
-    CHECK(refusalCode(moveTempoAnchor(source, 5, 1, 1.0e300)) == TempoMapEditErrorCode::BrokenRule);
+        refusalCode(moveTempoAnchor(source, at("3:1"), 8500)) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(
+        refusalCode(moveTempoAnchor(source, at("1:1"), -10)) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(
+        refusalCode(moveTempoAnchor(source, at("2:2"), 2500)) ==
+        TempoMapEditErrorCode::NoAnchorAtPosition);
+    CHECK(moveTempoAnchor(source, at("1:1"), 250).has_value());
+}
+
+// Verifies every verb addresses a sub-beat anchor by its whole position — the on-beat anchor of the
+// same beat untouched — and refuses the floored position where no anchor stands.
+TEST_CASE("Tempo edits address a sub-beat anchor by its whole position", "[editor][tempo-map]")
+{
+    const common::core::TempoMap source = subBeatMap();
+
+    const TempoMapEditResult moved = moveTempoAnchor(source, at("2:1+1/2"), 2300);
+    REQUIRE(moved.has_value());
+    if (moved.has_value())
+    {
+        CHECK(moved->anchors()[1].milliseconds == 2000);
+        CHECK(moved->anchors()[2].milliseconds == 2300);
+    }
+
+    const TempoMapEditResult retyped = setTempoSpanBpm(source, at("2:1+1/2"), 60.0, 8.0);
+    REQUIRE(retyped.has_value());
+    if (retyped.has_value())
+    {
+        CHECK(retyped->anchors()[1].milliseconds == 2000);
+        CHECK(retyped->anchors()[2].milliseconds == 2250);
+        CHECK(tempoSpanBpmText(*retyped, 1) == "120");
+        CHECK(tempoSpanBpmText(*retyped, 2) == "60");
+    }
+
+    const TempoMapEditResult deleted = deleteTempoAnchor(source, at("2:1+1/2"));
+    REQUIRE(deleted.has_value());
+    if (deleted.has_value())
+    {
+        CHECK(
+            *deleted ==
+            commonTimeMap({anchor("1:1", 0), anchor("2:1", 2000), anchor("5:1", 8000)}));
+    }
+
+    const common::core::TempoMap sub_beat_only =
+        commonTimeMap({anchor("1:1", 0), anchor("2:1+1/2", 2250), anchor("5:1", 8000)});
+    CHECK(
+        refusalCode(moveTempoAnchor(sub_beat_only, at("2:1"), 2100)) ==
+        TempoMapEditErrorCode::NoAnchorAtPosition);
+    CHECK(
+        refusalCode(setTempoSpanBpm(sub_beat_only, at("2:1"), 60.0, 8.0)) ==
+        TempoMapEditErrorCode::NoAnchorAtPosition);
+    CHECK(
+        refusalCode(deleteTempoAnchor(sub_beat_only, at("2:1"))) ==
+        TempoMapEditErrorCode::NoAnchorAtPosition);
 }
 
 // Verifies a typed tempo sets the span and shifts every later anchor by one amount, so every later
@@ -130,7 +231,7 @@ TEST_CASE("Moving a tempo anchor pins its neighbours", "[editor][tempo-map]")
 TEST_CASE("Typing a tempo ripples every later anchor", "[editor][tempo-map]")
 {
     const common::core::TempoMap source = anchoredMap();
-    const TempoMapEditResult rippled = setTempoSpanBpm(source, 2, 1, 100.0, 8.0);
+    const TempoMapEditResult rippled = setTempoSpanBpm(source, at("2:1"), 100.0, 8.0);
     REQUIRE(rippled.has_value());
     if (!rippled.has_value())
     {
@@ -140,34 +241,70 @@ TEST_CASE("Typing a tempo ripples every later anchor", "[editor][tempo-map]")
     CHECK(rippled->anchors()[1].milliseconds == 2000);
     CHECK(rippled->anchors()[2].milliseconds == 4400);
     CHECK(rippled->anchors()[3].milliseconds == 8400);
-    CHECK(rippled->anchors()[3].position == beatAt(5, 1));
+    CHECK(rippled->anchors()[3].position == at("5:1"));
     CHECK(spanMilliseconds(*rippled, 0) == spanMilliseconds(source, 0));
     CHECK(spanMilliseconds(*rippled, 2) == spanMilliseconds(source, 2));
     CHECK(tempoSpanBpmText(*rippled, 1) == "100");
+}
+
+// Verifies a typed tempo on a sub-beat anchor shifts every later anchor, sub-beat ones included, by
+// one exact integer, so every later span keeps its stored length exactly.
+TEST_CASE("A sub-beat ripple shifts every later anchor by one integer", "[editor][tempo-map]")
+{
+    const common::core::TempoMap source = commonTimeMap({
+        anchor("1:1", 0),
+        anchor("2:1+1/2", 2250),
+        anchor("3:1", 4000),
+        anchor("3:3+1/4", 5125),
+        anchor("5:1", 8000),
+    });
+    const TempoMapEditResult rippled = setTempoSpanBpm(source, at("2:1+1/2"), 137.0, 7.0);
+    REQUIRE(rippled.has_value());
+    if (!rippled.has_value())
+    {
+        return;
+    }
+    REQUIRE(rippled->anchors().size() == source.anchors().size());
+
+    // 3.5 quarters at 137 BPM is 1.532846 s, so 3:1 lands on 3.783 s.
+    CHECK(rippled->anchors()[0] == source.anchors()[0]);
+    CHECK(rippled->anchors()[1] == source.anchors()[1]);
+    CHECK(rippled->anchors()[2].milliseconds == 3783);
+    const std::int64_t shift =
+        rippled->anchors()[2].milliseconds - source.anchors()[2].milliseconds;
+    for (std::size_t later = 2; later < source.anchors().size(); ++later)
+    {
+        CHECK(rippled->anchors()[later].position == source.anchors()[later].position);
+        CHECK(
+            rippled->anchors()[later].milliseconds - source.anchors()[later].milliseconds == shift);
+    }
+    CHECK(spanMilliseconds(*rippled, 2) == spanMilliseconds(source, 2));
+    CHECK(spanMilliseconds(*rippled, 3) == spanMilliseconds(source, 3));
+    CHECK(tempoSpanBpmText(*rippled, 1) == "137");
 }
 
 // Verifies a faster tempo that would end the map before the audio grows the terminal downbeat by
 // downbeat at the last span's tempo, and that a slower one never shrinks it.
 TEST_CASE("Typing a faster tempo grows the terminal to cover the audio", "[editor][tempo-map]")
 {
-    const TempoMapEditResult faster = setTempoSpanBpm(defaultEightSeconds(), 1, 1, 240.0, 8.0);
+    const TempoMapEditResult faster = setTempoSpanBpm(defaultEightSeconds(), at("1:1"), 240.0, 8.0);
     REQUIRE(faster.has_value());
     if (!faster.has_value())
     {
         return;
     }
     REQUIRE(faster->anchors().size() == 2);
-    CHECK(faster->anchors()[1].position == beatAt(9, 1));
+    CHECK(faster->anchors()[1].position == at("9:1"));
     CHECK(faster->anchors()[1].milliseconds == 8000);
     CHECK(tempoSpanBpmText(*faster, 0) == "240");
 
-    const TempoMapEditResult slower = setTempoSpanBpm(defaultEightSeconds(), 1, 1, 60.0, 8.0);
+    const TempoMapEditResult slower = setTempoSpanBpm(defaultEightSeconds(), at("1:1"), 60.0, 8.0);
     REQUIRE(slower.has_value());
     if (!slower.has_value())
     {
         return;
     }
-    CHECK(slower->anchors()[1].position == beatAt(5, 1));
+    CHECK(slower->anchors()[1].position == at("5:1"));
     CHECK(slower->anchors()[1].milliseconds == 16000);
 }
 
@@ -179,7 +316,7 @@ TEST_CASE("A typed tempo reads back as typed after the terminal grows", "[editor
         common::core::TempoMap::defaultMap(common::core::TimeDuration{300.0});
     for (const double typed : {241.0, 301.0, 137.0})
     {
-        const TempoMapEditResult rippled = setTempoSpanBpm(long_song, 1, 1, typed, 300.0);
+        const TempoMapEditResult rippled = setTempoSpanBpm(long_song, at("1:1"), typed, 300.0);
         REQUIRE(rippled.has_value());
         if (!rippled.has_value())
         {
@@ -194,7 +331,7 @@ TEST_CASE("A typed tempo reads back as typed after the terminal grows", "[editor
 // last span's stored tempo, which the ripple itself left alone.
 TEST_CASE("A ripple on an earlier span grows the terminal at the last tempo", "[editor][tempo-map]")
 {
-    const TempoMapEditResult rippled = setTempoSpanBpm(anchoredMap(), 2, 1, 240.0, 8.0);
+    const TempoMapEditResult rippled = setTempoSpanBpm(anchoredMap(), at("2:1"), 240.0, 8.0);
     REQUIRE(rippled.has_value());
     if (!rippled.has_value())
     {
@@ -203,7 +340,7 @@ TEST_CASE("A ripple on an earlier span grows the terminal at the last tempo", "[
     // Span 1 now lasts one second, pulling 3:1 to 3 s and the terminal to 7 s at 120 BPM; one more
     // measure at that tempo covers the eight seconds.
     CHECK(rippled->anchors()[2].milliseconds == 3000);
-    CHECK(rippled->anchors().back().position == beatAt(6, 1));
+    CHECK(rippled->anchors().back().position == at("6:1"));
     CHECK(rippled->anchors().back().milliseconds == 9000);
     CHECK(tempoSpanBpmText(*rippled, rippled->anchors().size() - 2) == "120");
 }
@@ -213,55 +350,67 @@ TEST_CASE("A ripple on an earlier span grows the terminal at the last tempo", "[
 TEST_CASE("A tempo too fast for the grid is refused", "[editor][tempo-map]")
 {
     CHECK(
-        refusalCode(setTempoSpanBpm(defaultEightSeconds(), 1, 1, 1.0e12, 8.0)) ==
+        refusalCode(setTempoSpanBpm(defaultEightSeconds(), at("1:1"), 1.0e12, 8.0)) ==
         TempoMapEditErrorCode::BrokenRule);
 }
 
-// Verifies a typed tempo refuses a value that is not a positive number and a beat opening no span.
+// Verifies a typed tempo refuses a value that is not a positive number and a position opening no
+// span.
 TEST_CASE("Typing a tempo refuses bad values and the terminal", "[editor][tempo-map]")
 {
     const common::core::TempoMap source = anchoredMap();
     CHECK(
-        refusalCode(setTempoSpanBpm(source, 2, 1, 0.0, 8.0)) == TempoMapEditErrorCode::InvalidBpm);
-    CHECK(
-        refusalCode(setTempoSpanBpm(source, 2, 1, -90.0, 8.0)) ==
+        refusalCode(setTempoSpanBpm(source, at("2:1"), 0.0, 8.0)) ==
         TempoMapEditErrorCode::InvalidBpm);
     CHECK(
-        refusalCode(setTempoSpanBpm(source, 2, 1, std::numeric_limits<double>::quiet_NaN(), 8.0)) ==
+        refusalCode(setTempoSpanBpm(source, at("2:1"), -90.0, 8.0)) ==
+        TempoMapEditErrorCode::InvalidBpm);
+    CHECK(
+        refusalCode(
+            setTempoSpanBpm(source, at("2:1"), std::numeric_limits<double>::quiet_NaN(), 8.0)) ==
         TempoMapEditErrorCode::InvalidBpm);
     // A tempo slow enough puts the span's end past any time an anchor can hold.
     CHECK(
-        refusalCode(setTempoSpanBpm(source, 1, 1, 1.0e-300, 8.0)) ==
+        refusalCode(setTempoSpanBpm(source, at("1:1"), 1.0e-300, 8.0)) ==
         TempoMapEditErrorCode::BrokenRule);
     CHECK(
-        refusalCode(setTempoSpanBpm(source, 5, 1, 120.0, 8.0)) ==
-        TempoMapEditErrorCode::NoAnchorAtBeat);
+        refusalCode(setTempoSpanBpm(source, at("5:1"), 120.0, 8.0)) ==
+        TempoMapEditErrorCode::NoAnchorAtPosition);
     CHECK(
-        refusalCode(setTempoSpanBpm(source, 2, 2, 120.0, 8.0)) ==
-        TempoMapEditErrorCode::NoAnchorAtBeat);
+        refusalCode(setTempoSpanBpm(source, at("2:2"), 120.0, 8.0)) ==
+        TempoMapEditErrorCode::NoAnchorAtPosition);
 }
 
 // Verifies a delete keeps the map's two ends and exactly undoes an insert.
 TEST_CASE("Deleting a tempo anchor is the inverse of inserting one", "[editor][tempo-map]")
 {
     const common::core::TempoMap source = defaultEightSeconds();
-    CHECK(refusalCode(deleteTempoAnchor(source, 1, 1)) == TempoMapEditErrorCode::ProtectedAnchor);
-    CHECK(refusalCode(deleteTempoAnchor(source, 5, 1)) == TempoMapEditErrorCode::ProtectedAnchor);
-    CHECK(refusalCode(deleteTempoAnchor(source, 3, 1)) == TempoMapEditErrorCode::NoAnchorAtBeat);
+    CHECK(
+        refusalCode(deleteTempoAnchor(source, at("1:1"))) ==
+        TempoMapEditErrorCode::ProtectedAnchor);
+    CHECK(
+        refusalCode(deleteTempoAnchor(source, at("5:1"))) ==
+        TempoMapEditErrorCode::ProtectedAnchor);
+    CHECK(
+        refusalCode(deleteTempoAnchor(source, at("3:1"))) ==
+        TempoMapEditErrorCode::NoAnchorAtPosition);
 
-    const TempoMapEditResult inserted = insertTempoAnchor(source, 2, 3);
-    REQUIRE(inserted.has_value());
-    if (!inserted.has_value())
+    for (const char* const token : {"2:3", "2:3+1/3"})
     {
-        return;
+        const TempoMapEditResult inserted = insertTempoAnchor(source, at(token));
+        REQUIRE(inserted.has_value());
+        if (!inserted.has_value())
+        {
+            return;
+        }
+        const TempoMapEditResult deleted = deleteTempoAnchor(*inserted, at(token));
+        REQUIRE(deleted.has_value());
+        if (!deleted.has_value())
+        {
+            return;
+        }
+        CHECK(*deleted == source);
     }
-    const TempoMapEditResult deleted = deleteTempoAnchor(*inserted, 2, 3);
-    REQUIRE(deleted.has_value());
-    if (!deleted.has_value())
-    {
-        return;
-    }
-    CHECK(*deleted == source);
 }
 
 // Verifies a nudge is one pixel of the zoom, never finer than a millisecond.

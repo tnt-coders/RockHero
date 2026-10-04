@@ -581,11 +581,11 @@ public:
     /*!
     \brief Handles a deliberate selection of a tempo chip on the ruler (a click).
 
-    The chip marks a beat anchor. Its selection carries no verbs yet: it is where the keyboard's
-    vertical walk stands on the tempo row, and like every marker selection it seeks nothing and is
-    cleared by any cursor move.
+    The chip marks a tempo anchor. The selection is the Enter (set tempo), Delete and Alt+arrow
+    (move) target and is where the keyboard's vertical walk stands on the tempo row; like every
+    marker selection it seeks nothing and is cleared by any cursor move.
 
-    \param position Beat the selected chip's anchor pins.
+    \param position Grid position the selected chip's anchor pins.
     */
     virtual void onTempoAnchorSelected(common::core::GridPosition position) = 0;
 
@@ -658,23 +658,25 @@ public:
         common::core::GridPosition position, std::string name) = 0;
 
     /*!
-    \brief Handles a request to insert a tempo anchor at a beat.
+    \brief Handles a request to insert a tempo anchor at a grid position.
 
-    The anchor pins the time the map already gives that beat, so the insert moves nothing. Refused
-    when an anchor already stands there or the beat lies at or past the terminal anchor.
+    The anchor pins the time the map already gives that position, so the insert moves nothing.
+    Refused when an anchor already stands there or the position lies at or past the terminal
+    anchor.
 
-    \param position Beat the anchor is asked for, as the published tempo chord named it.
+    \param position Grid position the anchor is asked for, as the published tempo chord or the
+    ruler menu named it.
     */
     virtual void onTempoAnchorInsertRequested(common::core::GridPosition position) = 0;
 
     /*!
-    \brief Handles a typed tempo for the span the anchor at a beat opens.
+    \brief Handles a typed tempo for the span the anchor at a grid position opens.
 
     The text is parsed here, in the core, so the prompt stays a plain text field: surrounding
     whitespace is ignored and anything else that is not one whole decimal number is refused and
     logged, changing nothing. The anchor stays put and every later anchor ripples.
 
-    \param position Beat of the anchor opening the span.
+    \param position Grid position of the anchor opening the span.
     \param text Tempo as typed, in quarter notes per minute.
     */
     virtual void onTempoSpanBpmRequested(common::core::GridPosition position, std::string text) = 0;

@@ -473,7 +473,7 @@ the BPM prompt this names and nothing else.
 */
 struct SetTempoTarget
 {
-    /*! \brief Beat the anchor stands on; the typed tempo addresses its span by this. */
+    /*! \brief Grid position the anchor stands at; the typed tempo addresses its span by this. */
     common::core::GridPosition position{};
 
     /*! \brief The span's tempo as its chip prints it, the prompt's starting text. */
@@ -487,28 +487,28 @@ struct SetTempoTarget
 };
 
 /*!
-\brief The verb that inserts a tempo anchor at a beat the core has already found free and able to
-carry one.
+\brief The verb that inserts a tempo anchor at a grid position the core has already found free and
+able to carry one.
 */
 struct InsertTempoAnchorTarget
 {
-    /*! \brief Beat the new anchor will stand on. */
+    /*! \brief Grid position the new anchor will stand at. */
     common::core::GridPosition position{};
 
     /*!
     \brief Compares two targets field by field.
-    \return True when both name the same beat.
+    \return True when both name the same position.
     */
     bool operator==(const InsertTempoAnchorTarget&) const = default;
 };
 
 /*!
 \brief What `Ctrl+B` would do right now: type the tempo of the span the anchor standing exactly at
-the cursor's beat opens, insert an anchor there, or nothing.
+the cursor's placement slot opens, insert an anchor there, or nothing.
 
-The tempo twin of \ref SectionChordTarget: derived from the cursor read at the tick and floored to
-its beat, never from the selection. Nothing while the transport plays, with no song, or at or past
-the terminal anchor, which opens no span.
+The tempo twin of \ref SectionChordTarget: derived from the cursor read at the placement quantum
+(the grid note value with snap on, the tick with snap off), never from the selection. Nothing while
+the transport plays, with no song, or at or past the terminal anchor, which opens no span.
 */
 using TempoChordTarget = std::variant<std::monostate, SetTempoTarget, InsertTempoAnchorTarget>;
 
@@ -1143,8 +1143,8 @@ struct EditorViewState
     /*!
     \brief What the tempo chord (`Ctrl+B`) would do at the cursor right now.
 
-    The tempo twin of \ref section_chord_target, read at the tick and floored to its beat: type the
-    tempo of the span the anchor standing there opens, insert an anchor there, or nothing.
+    The tempo twin of \ref section_chord_target, read at the placement quantum: type the tempo of
+    the span the anchor standing there opens, insert an anchor there, or nothing.
     */
     TempoChordTarget tempo_chord_target{};
 

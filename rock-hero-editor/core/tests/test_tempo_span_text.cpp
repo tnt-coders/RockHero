@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 
@@ -43,7 +44,8 @@ TEST_CASE("A tempo span prints the tempo that was typed", "[editor][tempo-map]")
 // were rounded separately.
 TEST_CASE("An inserted anchor's halves print the parent tempo", "[editor][tempo-map]")
 {
-    const TempoMapEditResult split = insertTempoAnchor(oneSpanAt(133.0, 2), 2, 1);
+    const TempoMapEditResult split = insertTempoAnchor(
+        oneSpanAt(133.0, 2), common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}});
     REQUIRE(split.has_value());
     if (!split.has_value())
     {
@@ -63,7 +65,8 @@ TEST_CASE("An inserted anchor's half can print the parent's stored error", "[edi
     };
     REQUIRE(tempoSpanBpmText(parent, 0) == "133");
 
-    const TempoMapEditResult split = insertTempoAnchor(parent, 4, 4);
+    const TempoMapEditResult split = insertTempoAnchor(
+        parent, common::core::GridPosition{.measure = 4, .beat = 4, .offset = {}});
     REQUIRE(split.has_value());
     if (!split.has_value())
     {

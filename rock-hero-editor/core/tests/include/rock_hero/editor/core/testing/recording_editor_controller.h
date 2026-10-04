@@ -964,10 +964,10 @@ public:
     /*! \brief Last name reported through onSongSectionRenameRequested(). */
     std::string last_renamed_song_section_name{};
 
-    /*! \brief Last beat reported through onTempoAnchorInsertRequested(). */
+    /*! \brief Last position reported through onTempoAnchorInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_tempo_anchor_position{};
 
-    /*! \brief Last anchor beat reported through onTempoSpanBpmRequested(). */
+    /*! \brief Last anchor position reported through onTempoSpanBpmRequested(). */
     std::optional<common::core::GridPosition> last_tempo_span_bpm_position{};
 
     /*! \brief Last tempo text reported through onTempoSpanBpmRequested(). */

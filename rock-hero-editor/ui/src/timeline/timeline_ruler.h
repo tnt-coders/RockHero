@@ -105,7 +105,7 @@ public:
 
         /*!
         \brief Called when the user clicks a tempo chip.
-        \param position Beat the clicked chip's anchor pins.
+        \param position Grid position the clicked chip's anchor pins.
         */
         virtual void onTempoAnchorSelected(common::core::GridPosition position) = 0;
 
@@ -127,8 +127,8 @@ public:
         virtual void onSongSectionInsertPromptRequested(common::core::GridPosition position) = 0;
 
         /*!
-        \brief Called when the tempo row's menu asks to add a tempo anchor at the clicked beat.
-        \param position Grid position the menu was opened over; the verb floors it to its beat.
+        \brief Called when the tempo row's menu asks to add a tempo anchor at the clicked slot.
+        \param position Grid position the menu was opened over, read at the placement quantum.
         */
         virtual void onTempoAnchorInsertRequested(common::core::GridPosition position) = 0;
 
@@ -274,10 +274,11 @@ public:
     \brief Stores which tempo and time-signature chips are selected.
 
     The two rows draw straight from the tempo map, so a selection names its chip by what the map
-    stores: the anchor's beat and the change's measure. An unchanged selection returns early
-    because every controller state push repeats it.
+    stores: the anchor's grid position and the change's measure. An unchanged selection returns
+    early because every controller state push repeats it.
 
-    \param tempo_anchor Beat of the selected tempo chip's anchor, or empty when none is selected.
+    \param tempo_anchor Grid position of the selected tempo chip's anchor, or empty when none is
+    selected.
     \param signature_measure Measure of the selected signature chip's change, or empty.
     */
     void setSelectedTempoMapChips(
@@ -317,6 +318,18 @@ public:
     \return The chip's bounds, or empty.
     */
     [[nodiscard]] std::optional<juce::Rectangle<int>> selectedChipBounds() const;
+
+    /*!
+    \brief Where the tempo menu's "Add Tempo Anchor" inserts for a right-click at a point.
+
+    The click read at the placement quantum the core published (\ref setGrid), the slot the tempo
+    chord would read at a cursor standing there, so the pointer and the keyboard place alike.
+
+    \param click Point in this ruler's coordinates.
+    \return The insert's grid position, or empty when the geometry cannot map the click.
+    */
+    [[nodiscard]] std::optional<common::core::GridPosition> tempoInsertPositionAt(
+        juce::Point<float> click) const;
 
 private:
     // A ruler text label already resolved to a non-overlapping draw position.
@@ -414,14 +427,15 @@ private:
     // would otherwise only be reachable by keyboard.
     void showSectionContextMenu(const RulerChip* chip, juce::Point<float> click);
 
-    // Opens the tempo row's menu: the insert at the clicked beat always, plus the chip's Set Tempo
+    // Opens the tempo row's menu: the insert at the clicked slot always, plus the chip's Set Tempo
     // and Delete when the click landed on one.
     void showTempoContextMenu(const RulerChip* chip, juce::Point<float> click);
 
-    // The click's grid position read at the tick lattice, which both menus' inserts floor to where
-    // their kind can stand; empty when the geometry cannot map the click.
+    // The click's grid position read at a quantum: the placement quantum for the tempo insert, the
+    // tick for the section insert, which floors it to its measure; empty when the geometry cannot
+    // map the click.
     [[nodiscard]] std::optional<common::core::GridPosition> clickedGridPosition(
-        juce::Point<float> click) const;
+        juce::Point<float> click, common::core::Fraction quantum) const;
 
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);

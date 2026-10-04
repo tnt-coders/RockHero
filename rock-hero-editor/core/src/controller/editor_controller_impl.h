@@ -594,6 +594,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // marker kind.
     void moveSelectedTempoAnchor(
         const TempoAnchorSelection& selection, ChartStepDirection direction);
+    // Moves the selected anchor to a time in whole milliseconds: the one tail every driver of an
+    // anchor move ends in, the Alt+arrow nudge above among them.
+    void moveSelectedTempoAnchorTo(
+        const TempoAnchorSelection& selection, std::int64_t milliseconds);
     // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative).
     void deleteSelectedTempoAnchor(const TempoAnchorSelection& selection);
     // The one commit of a whole tempo map (insert, typed tempo, delete): selects `landed` when

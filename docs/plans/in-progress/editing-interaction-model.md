@@ -202,11 +202,15 @@ selection dispatch, and everything else bubbles them there.
 
 ## Anchors: free-time by nature
 
-A tempo anchor's *musical* position is a whole beat — the anchor defines the grid — so grid
-snapping is meaningless for its time coordinate. Re-ruled 2026-10-02 (plan 41, decisions 7–13):
+A tempo anchor's *musical* position is any tick-lattice grid position, on a beat or between beats
+(user, 2026-10-03; it was a whole beat until then), and its time is a whole number of
+milliseconds. The anchor defines the grid, so grid snapping is meaningless for its time
+coordinate. Re-ruled 2026-10-02 (plan 41, decisions 7–13):
 
-- **Insert** is the marker chord `Ctrl+B` at the cursor, floored to its beat. It pins the time the
-  map already gives that beat, so it changes nothing audible.
+- **Insert** is the marker chord `Ctrl+B` at the cursor's placement-quantum slot (the grid note
+  value with snap on, the tick with snap off), the tone chord's rule; it was floored to the beat
+  until 2026-10-03. It pins the time the map already gives that slot, so it changes nothing
+  audible.
 - **Move** (`Alt+←/→`, and the chip drag) changes the anchor's *audio time* and is **always
   free-time**: the audio-sync gesture. One press is one on-screen pixel at the current zoom, at
   least 1 ms, with no modifier — zoom is the precision control. The other anchors stay pinned and
@@ -327,8 +331,8 @@ would arm — and nothing at all while the transport plays or with no song. The 
 "else the transport position"; a rolling transport lands a marker a beat late, so the fallback is
 paused-only. Every `Ctrl`+letter marker chord follows this one rule, each applying its own quantum
 on top of it: a section and a meter snap to the downbeat of the measure the cursor is IN, read from
-the tick, and a tempo anchor floors to the beat it is in. Ctrl+T works from anywhere, with no caret
-required.
+the tick, and a tempo anchor stands on the slot itself (until 2026-10-03 it floored to the beat).
+Ctrl+T works from anywhere, with no caret required.
 
 **That family IS the marker grammar, signed 2026-09-12:** letters touch the note, `Ctrl` touches
 the document, and `Alt`+letter does what the platform expects, which is open a menu. `Ctrl`+letter

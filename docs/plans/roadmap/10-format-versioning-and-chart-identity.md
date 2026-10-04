@@ -86,10 +86,9 @@ Verified with `rg`/reads against the tree; all paths repo-relative.
   `writeChartDocument`), so every existing chart carries `1`.
 
 **Serialization is hand-built string emission (no generic JSON writer)**
-- `song.json`: `songDocumentContents` at `rock_song_package_write.cpp:339-385`; timing values at a
-  fixed 3-decimal grid via `formatTimingValue` (`{:.3f}`, `rock_song_package_write.cpp:167-170`,
-  `g_timing_decimals = 3` in `rock-hero-common/core/src/package/rock_song_package_format.h:29`);
-  other doubles via `formatJsonDouble` (`{:.15g}`, lines 173-176).
+- `song.json`: `songDocumentContents` in `rock_song_package_write.cpp`; anchor times are stored as
+  whole milliseconds (user ruling 2026-10-03) and written as `"seconds"` with three decimals by
+  `formatAnchorLine`; other doubles via `formatJsonDouble` (`{:.15g}`).
 - Chart: `chartDocumentText` / `noteLine` (`chart_document.cpp:239-348, 503-571`) with
   omit-when-default rules (sustain omitted at 0, FHP `width` omitted at 4, technique fields only
   when present; `startOffset` omitted at 0 in `rock_song_package_write.cpp:275-281`).
@@ -176,9 +175,9 @@ Restated with sources; a fresh session must not re-litigate these.
   `docs/design/architecture.md` "Song Data Model" ("a value *derived* from playable chart data,
   not authored data") and `docs/plans/roadmap/11-derived-difficulty-calculator.md`. Nothing in this
   plan introduces an authored chart version or descriptor.
-- **Anchor seconds keep a fixed three-decimal grid** — `docs/design/architecture.md` "Song Data
-  Model"; enforced by `g_timing_decimals = 3`. The hash serialization reuses this exact stored
-  precision for anchors.
+- **Anchor times are whole milliseconds** — user ruling 2026-10-03 (`BeatAnchor::milliseconds`);
+  the file writes them as `"seconds"` with three decimals. The hash serialization reuses this
+  exact stored integer for anchors. Anchor positions are the shared grid token, sub-beat allowed.
 - **Chart positions are exact rational grid tokens, never seconds/floats** —
   `docs/plans/in-progress/note-format-and-tablature-plan.md` "Format Specification (v2)"; `Fraction`
   reduction makes token spellings unique, which the hash relies on.
@@ -352,9 +351,9 @@ No later phase starts before this gate closes. No code changes in this phase.
     and parts, package paths. (Q5-A scope.)
   - Positions and fractions via the existing canonical token formatters
     (`formatGridPositionToken`, `formatBeatFractionToken`) — unique because `Fraction` is reduced.
-  - Integers via `std::to_string`. Anchor seconds at the persisted 3-decimal grid
-    (`{:.3f}`, matching `g_timing_decimals`) because that *is* the exact stored value. All other
-    doubles (centOffset, bend semitones, touch) via `std::format("{}", v)` shortest round-trip
+  - Integers via `std::to_string`. Anchor times as their stored whole milliseconds, written with
+    three decimals exactly as the file writes them, because that *is* the exact stored value. All
+    other doubles (centOffset, bend semitones, touch) via `std::format("{}", v)` shortest round-trip
     form — exact and deterministic under IEEE-754 `to_chars`, deliberately *not* the file
     format's `{:.15g}`.
   - Digest: SHA-256 over the byte string, lowercase hex (matching the audio validation hash's

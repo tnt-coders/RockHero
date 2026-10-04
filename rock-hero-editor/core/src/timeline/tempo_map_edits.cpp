@@ -23,12 +23,6 @@ namespace
     return std::unexpected{TempoMapEditError{.code = code, .message = std::move(message)}};
 }
 
-// The whole beat the verbs still address, as the grid position an anchor stands at.
-[[nodiscard]] common::core::GridPosition beatPosition(int measure, int beat) noexcept
-{
-    return common::core::GridPosition{.measure = measure, .beat = beat, .offset = {}};
-}
-
 // Index of the anchor standing exactly at the position, if any — the terminal included, which the
 // move and delete verbs address (a span lookup is TempoMap::spanStartingAt).
 [[nodiscard]] std::optional<std::size_t> anchorIndexAt(
@@ -58,11 +52,11 @@ namespace
 
 } // namespace
 
-TempoMapEditResult insertTempoAnchor(const common::core::TempoMap& tempo_map, int measure, int beat)
+TempoMapEditResult insertTempoAnchor(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition position)
 {
-    // No range check of its own: a beat outside its measure, an occupied beat and a beat at or
-    // past the terminal (whose time the map clamps to the terminal's) all break a rule.
-    const common::core::GridPosition position = beatPosition(measure, beat);
+    // No range check of its own: an off-lattice position, an occupied one and one at or past the
+    // terminal (whose time the map clamps to the terminal's) all break a rule.
     std::vector<common::core::BeatAnchor> anchors = tempo_map.anchors();
     const auto after =
         std::ranges::find_if(anchors, [&position](const common::core::BeatAnchor& anchor) {
@@ -78,37 +72,35 @@ TempoMapEditResult insertTempoAnchor(const common::core::TempoMap& tempo_map, in
 }
 
 TempoMapEditResult moveTempoAnchor(
-    const common::core::TempoMap& tempo_map, int measure, int beat, double seconds)
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition position,
+    const std::int64_t milliseconds)
 {
-    const std::optional<std::size_t> index = anchorIndexAt(tempo_map, beatPosition(measure, beat));
+    const std::optional<std::size_t> index = anchorIndexAt(tempo_map, position);
     if (!index.has_value())
     {
-        return refuse(TempoMapEditErrorCode::NoAnchorAtBeat, "no tempo anchor stands at that beat");
-    }
-    // The rounding asks a time with a whole millisecond, and no anchor stands at any other.
-    if (!common::core::isRepresentableAnchorTime(seconds))
-    {
-        return refuse(TempoMapEditErrorCode::BrokenRule, "anchor time is out of range");
+        return refuse(
+            TempoMapEditErrorCode::NoAnchorAtPosition, "no tempo anchor stands at that position");
     }
 
     std::vector<common::core::BeatAnchor> anchors = tempo_map.anchors();
-    anchors[*index].milliseconds = common::core::nearestAnchorMilliseconds(seconds);
+    anchors[*index].milliseconds = milliseconds;
     return validated(tempo_map, std::move(anchors));
 }
 
 TempoMapEditResult setTempoSpanBpm(
-    const common::core::TempoMap& tempo_map, int measure, int beat, double quarter_bpm,
-    double cover_until_seconds)
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition position,
+    const double quarter_bpm, const double cover_until_seconds)
 {
     if (!std::isfinite(quarter_bpm) || quarter_bpm <= 0.0)
     {
         return refuse(TempoMapEditErrorCode::InvalidBpm, "a tempo must be a positive number");
     }
 
-    const std::optional<std::size_t> found = tempo_map.spanStartingAt(beatPosition(measure, beat));
+    const std::optional<std::size_t> found = tempo_map.spanStartingAt(position);
     if (!found.has_value())
     {
-        return refuse(TempoMapEditErrorCode::NoAnchorAtBeat, "no tempo span starts at that beat");
+        return refuse(
+            TempoMapEditErrorCode::NoAnchorAtPosition, "no tempo span starts at that position");
     }
     const std::size_t span = *found;
 
@@ -144,12 +136,14 @@ TempoMapEditResult setTempoSpanBpm(
     return validated(tempo_map, std::move(anchors));
 }
 
-TempoMapEditResult deleteTempoAnchor(const common::core::TempoMap& tempo_map, int measure, int beat)
+TempoMapEditResult deleteTempoAnchor(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition position)
 {
-    const std::optional<std::size_t> index = anchorIndexAt(tempo_map, beatPosition(measure, beat));
+    const std::optional<std::size_t> index = anchorIndexAt(tempo_map, position);
     if (!index.has_value())
     {
-        return refuse(TempoMapEditErrorCode::NoAnchorAtBeat, "no tempo anchor stands at that beat");
+        return refuse(
+            TempoMapEditErrorCode::NoAnchorAtPosition, "no tempo anchor stands at that position");
     }
     if (*index == 0 || *index + 1 == tempo_map.anchors().size())
     {

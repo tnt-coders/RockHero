@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 
@@ -16,8 +17,8 @@ namespace rock_hero::editor::core
 /*! \brief Stable reasons a tempo-map edit refuses. */
 enum class TempoMapEditErrorCode : std::uint8_t
 {
-    /*! \brief No anchor stands at the named beat, or none that opens a span there. */
-    NoAnchorAtBeat,
+    /*! \brief No anchor stands at the named position, or none that opens a span there. */
+    NoAnchorAtPosition,
 
     /*! \brief A delete named the first or the terminal anchor, which every map must keep. */
     ProtectedAnchor,
@@ -43,18 +44,17 @@ struct [[nodiscard]] TempoMapEditError
 using TempoMapEditResult = std::expected<common::core::TempoMap, TempoMapEditError>;
 
 /*!
-\brief Inserts an anchor at a beat, pinning the time the map already gives that beat.
+\brief Inserts an anchor at a grid position, pinning the time the map already gives it.
 
-The anchor's time is the beat's current time rounded to a whole millisecond, so the insert moves
-nothing by more than half a millisecond.
+The anchor's time is the position's current time rounded to a whole millisecond, so the insert
+moves nothing by more than half a millisecond.
 
 \param tempo_map Map to edit.
-\param measure One-based measure of the beat.
-\param beat One-based beat within the measure.
+\param position Grid position the anchor will pin.
 \return The edited map, or the refusal.
 */
 [[nodiscard]] TempoMapEditResult insertTempoAnchor(
-    const common::core::TempoMap& tempo_map, int measure, int beat);
+    const common::core::TempoMap& tempo_map, common::core::GridPosition position);
 
 /*!
 \brief Moves an anchor to a new time, every other anchor staying where it is.
@@ -63,13 +63,13 @@ The two spans beside the anchor change tempo; nothing else does. A time that wou
 neighbour, or take the first anchor below zero, is refused rather than clamped.
 
 \param tempo_map Map to edit.
-\param measure One-based measure of the anchor.
-\param beat One-based beat of the anchor.
-\param seconds New time, rounded to a whole millisecond.
+\param position Grid position of the anchor.
+\param milliseconds New time in whole milliseconds.
 \return The edited map, or the refusal.
 */
 [[nodiscard]] TempoMapEditResult moveTempoAnchor(
-    const common::core::TempoMap& tempo_map, int measure, int beat, double seconds);
+    const common::core::TempoMap& tempo_map, common::core::GridPosition position,
+    std::int64_t milliseconds);
 
 /*!
 \brief Sets the quarter-note tempo of the span an anchor opens, rippling every later anchor.
@@ -80,15 +80,14 @@ When the shifted terminal anchor falls before \p cover_until_seconds, it grows t
 downbeat at or past that time at the last span's tempo; it never shrinks.
 
 \param tempo_map Map to edit.
-\param measure One-based measure of the anchor opening the span.
-\param beat One-based beat of the anchor opening the span.
+\param position Grid position of the anchor opening the span.
 \param quarter_bpm Typed tempo in quarter notes per minute.
 \param cover_until_seconds Time the map must still reach, the end of the song's audio.
 \return The edited map, or the refusal.
 */
 [[nodiscard]] TempoMapEditResult setTempoSpanBpm(
-    const common::core::TempoMap& tempo_map, int measure, int beat, double quarter_bpm,
-    double cover_until_seconds);
+    const common::core::TempoMap& tempo_map, common::core::GridPosition position,
+    double quarter_bpm, double cover_until_seconds);
 
 /*!
 \brief Deletes an anchor, its neighbours staying where they are.
@@ -96,12 +95,11 @@ downbeat at or past that time at the last span's tempo; it never shrinks.
 The exact inverse of \ref insertTempoAnchor: the two spans beside it merge into one.
 
 \param tempo_map Map to edit.
-\param measure One-based measure of the anchor.
-\param beat One-based beat of the anchor.
+\param position Grid position of the anchor.
 \return The edited map, or the refusal.
 */
 [[nodiscard]] TempoMapEditResult deleteTempoAnchor(
-    const common::core::TempoMap& tempo_map, int measure, int beat);
+    const common::core::TempoMap& tempo_map, common::core::GridPosition position);
 
 /*!
 \brief Returns the time one keyboard nudge moves an anchor: one on-screen pixel.
