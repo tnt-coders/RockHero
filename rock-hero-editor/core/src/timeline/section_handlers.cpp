@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <string>
 #include <utility>
 #include <variant>
@@ -145,7 +146,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
     const std::string name = common::core::trimmedSongSectionName(action.name);
     match->name = name;
     if (commitMarkerModel(
-            std::move(before), std::move(after), "Rename Section " + before_name + " to " + name) !=
+            std::move(before),
+            std::move(after),
+            markerVerbLabel(MarkerVerb::RenameSection) + " " + before_name + " to " + name) !=
         MarkerCommit::Refused)
     {
         selectMarker(SongSectionSelection{.position = action.position});
@@ -181,7 +184,7 @@ void EditorController::Impl::moveSelectedSongSection(
     if (commitMarkerMove(
             std::move(before),
             std::move(after),
-            "Move Section",
+            markerVerbLabel(MarkerVerb::MoveSection),
             SongSectionSelection{.position = target}))
     {
         // The position IS the section's identity, so the commit selects the moved section under

@@ -36,12 +36,14 @@ the user picks which way the two surfaces reconcile.
   singleton writing a file. An in-memory test sink in `Logger::Config` (common/core) would delete
   all of it while `test_logger.cpp` keeps testing the file. Check first whether Quill makes a
   second sink cheap. Raised by the refusal-log simplicity review (2026-10-04).
-- **A marker verb's label is restated by its ruler row, its prompt title and its undo entry.**
-  "Add Tempo Anchor", "Delete Tempo Anchor", "Set Time Signature..." in the ruler's rows repeat the
-  core's undo labels (`tempo_handlers.cpp`, `meter_handlers.cpp`), and the prompt titles in
-  `editor_view.cpp` repeat them again. One table of verb labels in the core that the row, the
-  prompt and the undo entry all read. Raised by the Scale Tempo simplicity review (2026-10-04),
-  which fixed the one row that runs a registered command.
+- **Every action logs three lines per event.** `EditorController::Impl::runAction`
+  (`rock-hero-editor/core/src/controller/editor_controller.cpp:~1775`) writes "Action requested",
+  "Action started" and "Action dispatch completed" at INFO (`logEditorActionRequested` /
+  `logEditorActionStarted` / `logEditorActionDispatchCompleted`, `~394-416`) for every action,
+  including the per-pointer-event ones (`MoveTempoAnchor` during a chip drag). A drag therefore
+  floods the log with three lines per event and pays three log calls per event. This is a larger
+  flood than the refusal lines `RefusalLog` now merges, and it is why those merged records are never
+  next to each other in the file. Raised by the refusal-log merge (2026-10-04).
 
 ## Found by the tempo-editing reviews (plan 41, 2026-10-02)
 

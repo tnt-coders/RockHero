@@ -327,7 +327,10 @@ object's time instead of moving it with the beat (\ref guide_musical_time).
 `ScaleTempo` (`0x1409`, "Scale Tempo...", category Tempo) has no default chord either: a whole-song
 grid repair is rare and deliberate, so its surfaces are the Edit menu item and the tempo row's
 right-click row, and the row runs the same command (`invokeDirectly`) and prints the command's
-registered name (`findEditorCommandSpec`), so the two cannot drift. Unlike the chorded marker
+registered name (`findEditorCommandSpec`), so the two cannot drift. That name is itself read
+from the core's marker-verb table (`markerVerbPromptRow`, `marker_verb.h`), as is the
+`ClearHandPositionEndFret` command's, so a one-verb command and its verb's undo entry share one
+spelling. Unlike the chorded marker
 verbs it greys rather than staying active, since no chord can sound the system alert: its
 `getCommandInfo` and `perform` both read `marker_edits_enabled`, so it is off with no song and
 while the transport plays. It opens one prompt ("Scale Tempo", one field "Scale factor (e.g. 2,

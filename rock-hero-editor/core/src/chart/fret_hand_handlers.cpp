@@ -12,7 +12,9 @@
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -171,7 +173,8 @@ void EditorController::Impl::performActionImpl(
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
     after.placements.push_back(insert->placement);
-    if (commitMarkerModel(std::move(before), std::move(after), "Add Hand Position") !=
+    if (commitMarkerModel(
+            std::move(before), std::move(after), markerVerbLabel(MarkerVerb::AddHandPosition)) !=
         MarkerCommit::Refused)
     {
         // The insert selects what it made, and a selection made after the commit publishes with
@@ -189,7 +192,7 @@ void EditorController::Impl::performActionImpl(
 void EditorController::Impl::moveSelectedFretHandPosition(
     const FretHandPositionSelection& selection, const ChartStepDirection direction)
 {
-    constexpr const char* label = "Move Hand Position";
+    const std::string label = markerVerbLabel(MarkerVerb::MoveHandPosition);
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
     const auto match = findPlacement(after.placements, selection.position);
@@ -252,8 +255,9 @@ void EditorController::Impl::commitFretHandFret(ChartFretHandPlan plan)
     static_cast<void>(commitMarkerModel(
         FretHandPositionsSnapshot::capture(session()),
         std::move(plan.placements),
-        plan.edge == FretHandEdge::End ? "Set Hand Position End Fret"
-                                       : "Set Hand Position Start Fret"));
+        markerVerbLabel(
+            plan.edge == FretHandEdge::End ? MarkerVerb::SetHandPositionEndFret
+                                           : MarkerVerb::SetHandPositionStartFret)));
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -296,8 +300,10 @@ void EditorController::Impl::performActionImpl(EditorAction::ClearFretHandEnd /*
         return;
     }
     match->end_fret.reset();
-    static_cast<void>(
-        commitMarkerModel(std::move(before), std::move(after), "Clear Hand Position End Fret"));
+    static_cast<void>(commitMarkerModel(
+        std::move(before),
+        std::move(after),
+        markerVerbLabel(MarkerVerb::ClearHandPositionEndFret)));
 }
 
 // Deletes the selected placement. Nothing refuses it — a chart with no placement left is the nut
@@ -315,7 +321,8 @@ void EditorController::Impl::deleteSelectedFretHandPosition(
     }
 
     after.placements.erase(match);
-    commitMarkerModel(std::move(before), std::move(after), "Delete Hand Position");
+    commitMarkerModel(
+        std::move(before), std::move(after), markerVerbLabel(MarkerVerb::DeleteHandPosition));
 }
 
 } // namespace rock_hero::editor::core

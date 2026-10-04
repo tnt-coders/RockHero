@@ -22,6 +22,7 @@
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <string>
 #include <string_view>
@@ -34,19 +35,6 @@ namespace rock_hero::editor::core
 
 namespace
 {
-
-// The label a tempo-anchor move records its undo entry under and logs its refusals under,
-// whichever gesture drives it.
-constexpr std::string_view g_move_tempo_anchor_label{"Move Tempo Anchor"};
-
-// The label Scale Tempo records its undo entry under and logs its refusals under.
-constexpr std::string_view g_scale_tempo_label{"Scale Tempo"};
-
-// The verb a typed tempo logs its refusals under; its undo entry adds the tempo it set.
-constexpr std::string_view g_set_tempo_label{"Set Tempo"};
-
-// The label a tempo-anchor delete records its undo entry under and logs its refusals under.
-constexpr std::string_view g_delete_tempo_anchor_label{"Delete Tempo Anchor"};
 
 // The tempo text of the span the anchor standing exactly at a position opens, as its chip prints
 // it, or nothing where no anchor opening a span stands there (the terminal opens none). The one
@@ -206,7 +194,7 @@ void EditorController::Impl::onTempoSpanBpmRequested(
     const std::optional<double> quarter_bpm = common::core::parseFiniteDecimal(text);
     if (!quarter_bpm.has_value())
     {
-        m_refusal_log.markerEdit(g_set_tempo_label, "not a number: " + text);
+        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::SetTempo), "not a number: " + text);
         return;
     }
     runAction(
@@ -222,7 +210,7 @@ void EditorController::Impl::onTempoSpanBpmRequested(
 // the edit's refusal.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAnchor& action)
 {
-    constexpr std::string_view label{"Add Tempo Anchor"};
+    const std::string label = markerVerbLabel(MarkerVerb::AddTempoAnchor);
     TempoMapSnapshot before = TempoMapSnapshot::capture(session());
     TempoMapEditResult inserted = insertTempoAnchor(before.tempo_map, action.position);
     if (!inserted.has_value())
@@ -233,7 +221,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAn
     commitGridModel(
         std::move(before),
         TempoMapSnapshot{.tempo_map = std::move(*inserted)},
-        std::string{label},
+        label,
         MarkerRow::Tempo,
         action.position,
         keptPlace);
@@ -247,7 +235,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
 {
     const double cover_until_seconds = latestAudioEndSeconds(session().song());
     commitTempoEdit(
-        g_set_tempo_label,
+        markerVerbLabel(MarkerVerb::SetTempo),
         [&action, cover_until_seconds](const common::core::TempoMap& tempo_map) {
             return setTempoSpanBpm(
                 tempo_map, action.position, action.quarter_bpm, cover_until_seconds);
@@ -257,7 +245,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
             // prints one.
             .label =
                 [&action](const common::core::TempoMap& tempo_map) {
-                    return std::string{g_set_tempo_label} + " to " +
+                    return markerVerbLabel(MarkerVerb::SetTempo) + " to " +
                            spanBpmTextAt(tempo_map, action.position).value_or("");
                 },
             .anchor = action.position,
@@ -271,7 +259,7 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
     const std::expected<common::core::Fraction, std::string> factor = parseScaleFactor(text);
     if (!factor.has_value())
     {
-        m_refusal_log.markerEdit(g_scale_tempo_label, factor.error());
+        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::ScaleTempo), factor.error());
         return;
     }
     runAction(EditorAction::ScaleTempo{.factor = *factor});
@@ -287,13 +275,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         scaledTimeline(before.timeline, action.factor);
     if (!scaled.has_value())
     {
-        m_refusal_log.markerEdit(g_scale_tempo_label, scaled.error().message);
+        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::ScaleTempo), scaled.error().message);
         return;
     }
     commitGridModel(
         std::move(before),
         SongTimelineSnapshot{.timeline = std::move(*scaled)},
-        std::string{g_scale_tempo_label},
+        markerVerbLabel(MarkerVerb::ScaleTempo),
         MarkerRow::Tempo,
         std::nullopt,
         scaledPlaces(action.factor));
@@ -355,7 +343,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
             moveTempoAnchor(session().song().tempo_map, action.position, action.milliseconds);
         !moved.has_value())
     {
-        m_refusal_log.markerEdit(g_move_tempo_anchor_label, moved.error().message);
+        m_refusal_log.markerEdit(
+            markerVerbLabel(MarkerVerb::MoveTempoAnchor), moved.error().message);
         return;
     }
     m_held_tempo_anchor_milliseconds = action.milliseconds;
@@ -453,7 +442,7 @@ bool EditorController::Impl::refuseLockedTempoAnchorMove(
         return false;
     }
     m_refusal_log.markerEdit(
-        g_move_tempo_anchor_label,
+        markerVerbLabel(MarkerVerb::MoveTempoAnchor),
         "Tempo Lock is on: " + std::string{gesture} + " the tempo anchor at " +
             common::core::formatGridPositionToken(selection.position) + " is blocked");
     if (m_view != nullptr)
@@ -470,7 +459,7 @@ void EditorController::Impl::moveSelectedTempoAnchorTo(
     const TempoAnchorSelection& selection, const std::int64_t milliseconds)
 {
     commitTempoEdit(
-        g_move_tempo_anchor_label,
+        markerVerbLabel(MarkerVerb::MoveTempoAnchor),
         [&selection, milliseconds](const common::core::TempoMap& tempo_map) {
             return moveTempoAnchor(tempo_map, selection.position, milliseconds);
         },
@@ -483,14 +472,14 @@ void EditorController::Impl::moveSelectedTempoAnchorTo(
 void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelection& selection)
 {
     commitTempoEdit(
-        g_delete_tempo_anchor_label,
+        markerVerbLabel(MarkerVerb::DeleteTempoAnchor),
         [&selection](const common::core::TempoMap& tempo_map) {
             return deleteTempoAnchor(tempo_map, selection.position);
         },
         TempoGridCommit{
             .label =
                 [](const common::core::TempoMap& /*tempo_map*/) {
-                    return std::string{g_delete_tempo_anchor_label};
+                    return markerVerbLabel(MarkerVerb::DeleteTempoAnchor);
                 },
             .anchor = std::nullopt,
         });

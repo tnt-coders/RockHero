@@ -362,8 +362,11 @@ Building one means:
    nothing; the funnel owns the undo entry, the refusal log, the release of a selection naming a
    marker that is gone, and the publish. A verb must not call `updateView()` itself except to
    publish a selection it makes AFTER a landed commit. A verb that refuses before it has a model
-   to hand over logs through the funnel's own `m_refusal_log.markerEdit`, and where the kind may start is
-   `markerCanStartAt` (common core), asked by its validator and its chord alike.
+   to hand over logs through the funnel's own `m_refusal_log.markerEdit`, and where the kind may
+   start is `markerCanStartAt` (common core), asked by its validator and its chord alike. Each verb
+   with a fixed label names it once in `MarkerVerb` (`editor/core/timeline/marker_verb.h`): the
+   undo entry, the refusal log, the prompt title, the ruler row and a one-verb command's registry
+   name all read `markerVerbLabel`, and a row that opens a prompt reads `markerVerbPromptRow`.
 
 Three touchpoints no compiler reports, each missed once:
 

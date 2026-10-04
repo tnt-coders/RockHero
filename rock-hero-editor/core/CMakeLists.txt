@@ -89,6 +89,7 @@ target_sources(
             src/timeline/keep_notes_in_time.cpp
             src/timeline/keep_notes_in_time.h
             src/timeline/marker_row_handlers.cpp
+            src/timeline/marker_verb.cpp
             src/timeline/meter_edits.cpp
             src/timeline/meter_edits.h
             src/timeline/meter_handlers.cpp

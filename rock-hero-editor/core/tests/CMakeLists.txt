@@ -80,6 +80,7 @@ add_executable(
     test_timeline_geometry.cpp
     test_transport_readout_text.cpp
     test_load_notice.cpp
+    test_marker_verb.cpp
     test_meter_edits.cpp
     test_ratio_text.cpp
     test_tempo_scale.cpp

@@ -16,6 +16,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
@@ -650,18 +651,20 @@ std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::tempoRows(
             tempoInsertPositionAt(click);
         insert_position.has_value())
     {
-        rows.push_back({.text = "Add Tempo Anchor", .action = [this, inserted = *insert_position] {
-                            m_listener->onTempoAnchorInsertRequested(inserted);
-                        }});
+        rows.push_back(
+            {.text = core::markerVerbLabel(core::MarkerVerb::AddTempoAnchor),
+             .action = [this, inserted = *insert_position] {
+                 m_listener->onTempoAnchorInsertRequested(inserted);
+             }});
     }
     if (over_chip)
     {
-        rows.push_back({.text = "Set Tempo...", .action = [this] {
-                            m_listener->onSelectionRestateRequested();
-                        }});
-        rows.push_back({.text = "Delete Tempo Anchor", .action = [this] {
-                            m_listener->onSelectionDeleteRequested();
-                        }});
+        rows.push_back(
+            {.text = core::markerVerbPromptRow(core::MarkerVerb::SetTempo),
+             .action = [this] { m_listener->onSelectionRestateRequested(); }});
+        rows.push_back(
+            {.text = core::markerVerbLabel(core::MarkerVerb::DeleteTempoAnchor),
+             .action = [this] { m_listener->onSelectionDeleteRequested(); }});
     }
     if (const EditorCommandSpec* const scale =
             findEditorCommandSpec(toJuceCommandId(EditorCommandId::ScaleTempo));
@@ -724,18 +727,19 @@ std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::signatureRows(
         insert.has_value())
     {
         rows.push_back(
-            {.text = "Add Time Signature", .action = [this, inserted = std::move(*insert)] {
+            {.text = core::markerVerbLabel(core::MarkerVerb::AddTimeSignature),
+             .action = [this, inserted = std::move(*insert)] {
                  m_listener->onTimeSignatureInsertPromptRequested(inserted);
              }});
     }
     if (over_chip)
     {
-        rows.push_back({.text = "Set Time Signature...", .action = [this] {
-                            m_listener->onSelectionRestateRequested();
-                        }});
-        rows.push_back({.text = "Delete Time Signature", .action = [this] {
-                            m_listener->onSelectionDeleteRequested();
-                        }});
+        rows.push_back(
+            {.text = core::markerVerbPromptRow(core::MarkerVerb::SetTimeSignature),
+             .action = [this] { m_listener->onSelectionRestateRequested(); }});
+        rows.push_back(
+            {.text = core::markerVerbLabel(core::MarkerVerb::DeleteTimeSignature),
+             .action = [this] { m_listener->onSelectionDeleteRequested(); }});
     }
     return rows;
 }

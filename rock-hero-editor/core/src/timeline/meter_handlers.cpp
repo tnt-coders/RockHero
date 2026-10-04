@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <span>
@@ -31,13 +32,6 @@ namespace rock_hero::editor::core
 
 namespace
 {
-
-// The labels the four time-signature verbs record their undo entries under and log their refusals
-// under, whichever gesture drives them.
-constexpr std::string_view g_add_time_signature_label{"Add Time Signature"};
-constexpr std::string_view g_set_time_signature_label{"Set Time Signature"};
-constexpr std::string_view g_delete_time_signature_label{"Delete Time Signature"};
-constexpr std::string_view g_move_time_signature_label{"Move Time Signature"};
 
 // The prompt's text read back as a meter: two positive whole numbers around one slash, kept as
 // typed. Whether the meter is one a song may hold (a power-of-two denominator the tick lattice
@@ -136,7 +130,8 @@ void EditorController::Impl::onTimeSignatureSetRequested(const int measure, cons
     const std::optional<common::core::TimeSignature> meter = parseTimeSignatureText(text);
     if (!meter.has_value())
     {
-        m_refusal_log.markerEdit(g_set_time_signature_label, "not a time signature: " + text);
+        m_refusal_log.markerEdit(
+            markerVerbLabel(MarkerVerb::SetTimeSignature), "not a time signature: " + text);
         return;
     }
     runAction(EditorAction::SetTimeSignature{.measure = measure, .meter = *meter});
@@ -150,8 +145,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
 {
     const common::core::GridPosition downbeat = common::core::measureDownbeat(action.measure);
     const std::optional<std::size_t> standing = markerIndex(MarkerRow::TimeSignature, downbeat);
-    const std::string_view label =
-        standing.has_value() ? g_set_time_signature_label : g_add_time_signature_label;
+    const std::string label = markerVerbLabel(
+        standing.has_value() ? MarkerVerb::SetTimeSignature : MarkerVerb::AddTimeSignature);
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
     const common::core::TempoMap tempo_map = before.timeline.tempo_map;
     std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
@@ -180,12 +175,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
         return;
     }
     commitGridModel(
-        std::move(before),
-        std::move(*after),
-        std::string{label},
-        MarkerRow::TimeSignature,
-        downbeat,
-        keptPlace);
+        std::move(before), std::move(*after), label, MarkerRow::TimeSignature, downbeat, keptPlace);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
@@ -197,7 +187,8 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     if (selection.measure == 1)
     {
         m_refusal_log.markerEdit(
-            g_delete_time_signature_label, "the time signature at measure 1 cannot be deleted");
+            markerVerbLabel(MarkerVerb::DeleteTimeSignature),
+            "the time signature at measure 1 cannot be deleted");
         return;
     }
     const std::optional<std::size_t> standing =
@@ -211,8 +202,8 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     const common::core::TempoMap tempo_map = before.timeline.tempo_map;
     std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
     meters.erase(std::next(meters.begin(), static_cast<std::ptrdiff_t>(*standing)));
-    std::optional<SongTimelineSnapshot> after =
-        readdressedSnapshot(before.timeline, meters, g_delete_time_signature_label, m_refusal_log);
+    std::optional<SongTimelineSnapshot> after = readdressedSnapshot(
+        before.timeline, meters, markerVerbLabel(MarkerVerb::DeleteTimeSignature), m_refusal_log);
     if (!after.has_value())
     {
         return;
@@ -220,7 +211,7 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     commitGridModel(
         std::move(before),
         std::move(*after),
-        std::string{g_delete_time_signature_label},
+        markerVerbLabel(MarkerVerb::DeleteTimeSignature),
         MarkerRow::TimeSignature,
         std::nullopt,
         keptPlace);
@@ -240,7 +231,8 @@ void EditorController::Impl::moveSelectedTimeSignature(
     if (selection.measure == 1)
     {
         m_refusal_log.markerEdit(
-            g_move_time_signature_label, "the time signature at measure 1 cannot move");
+            markerVerbLabel(MarkerVerb::MoveTimeSignature),
+            "the time signature at measure 1 cannot move");
         return;
     }
     const std::optional<std::size_t> standing =
@@ -266,7 +258,8 @@ void EditorController::Impl::moveSelectedTimeSignature(
         (index + 1 < meters.size() && place >= meters[index + 1].whole_note))
     {
         m_refusal_log.markerEdit(
-            g_move_time_signature_label, "a time signature cannot step onto or past its neighbour");
+            markerVerbLabel(MarkerVerb::MoveTimeSignature),
+            "a time signature cannot step onto or past its neighbour");
         return;
     }
     // The run's origin is what the press re-addresses, so its terminal is the end the step must
@@ -276,14 +269,14 @@ void EditorController::Impl::moveSelectedTimeSignature(
         base.tempo_map.wholeNotePositionAt(common::core::terminalGridPosition(base.tempo_map)))
     {
         m_refusal_log.markerEdit(
-            g_move_time_signature_label,
+            markerVerbLabel(MarkerVerb::MoveTimeSignature),
             "a time signature cannot step to or past the end of the song");
         return;
     }
     meters[index].whole_note = place;
 
-    std::optional<SongTimelineSnapshot> moved =
-        readdressedSnapshot(base, meters, g_move_time_signature_label, m_refusal_log);
+    std::optional<SongTimelineSnapshot> moved = readdressedSnapshot(
+        base, meters, markerVerbLabel(MarkerVerb::MoveTimeSignature), m_refusal_log);
     if (!moved.has_value())
     {
         return;
@@ -291,7 +284,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
     if (commitMarkerMove(
             std::move(before),
             std::move(*moved),
-            std::string{g_move_time_signature_label},
+            markerVerbLabel(MarkerVerb::MoveTimeSignature),
             TimeSignatureSelection{.measure = target}))
     {
         followMovedMarker(common::core::measureDownbeat(target));

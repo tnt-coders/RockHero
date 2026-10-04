@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
+#include <string>
 #include <string_view>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -218,7 +221,7 @@ constexpr int g_add_lane_key = 'a';
             .id = EditorCommandId::ScaleTempo,
             // No default chord: Scale Tempo repairs a whole song's grid, rarely and deliberately,
             // so its surfaces are the Edit menu and the tempo row's menu.
-            .name = "Scale Tempo...",
+            .name = core::markerVerbPromptRow(core::MarkerVerb::ScaleTempo),
             .category = "Tempo",
             .default_keypresses = {},
         });
@@ -259,14 +262,14 @@ constexpr int g_add_lane_key = 'a';
     constexpr int alt = juce::ModifierKeys::altModifier;
     const auto add = [&registry](
                          EditorCommandId id,
-                         const char* name,
+                         std::string name,
                          const char* category,
                          std::vector<juce::KeyPress>
                              chords) {
         registry.push_back(
             EditorCommandSpec{
                 .id = id,
-                .name = name,
+                .name = std::move(name),
                 .category = category,
                 .default_keypresses = std::move(chords),
             });
@@ -425,7 +428,7 @@ constexpr int g_add_lane_key = 'a';
     // The Alt plane of Delete: remove the stated END, as Alt+digit states it. No Alt+Backspace
     // twin, because that chord is Undo to anyone raised on Windows.
     add(EditorCommandId::ClearHandPositionEndFret,
-        "Clear Hand Position End Fret",
+        core::markerVerbLabel(core::MarkerVerb::ClearHandPositionEndFret),
         "Selection",
         {chord(juce::KeyPress::deleteKey, alt)});
     // Cancel/Clear sits with the selection verbs (its user-visible rungs disarm the caret and

@@ -34,6 +34,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
 #include <string_view>
@@ -3801,7 +3802,7 @@ void EditorView::onSongSectionInsertPromptRequested(common::core::GridPosition p
 {
     showThemedTextPrompt(
         this,
-        "Add Section",
+        core::markerVerbLabel(core::MarkerVerb::AddSection),
         "Enter a name for the new section:",
         juce::String{},
         "Add",
@@ -3816,7 +3817,7 @@ void EditorView::renameSection(const core::RenameSectionTarget& target)
 {
     showThemedTextPrompt(
         this,
-        "Rename Section",
+        core::markerVerbLabel(core::MarkerVerb::RenameSection),
         "Enter a new name for this section:",
         juce::String{target.name},
         "Rename",
@@ -3832,7 +3833,7 @@ void EditorView::setTempo(const core::SetTempoTarget& target)
 {
     showThemedTextPrompt(
         this,
-        "Set Tempo",
+        core::markerVerbLabel(core::MarkerVerb::SetTempo),
         "Quarter-note BPM",
         juce::String{target.bpm_text},
         "Set",
@@ -3845,14 +3846,20 @@ void EditorView::setTempo(const core::SetTempoTarget& target)
 // menu's Set Time Signature, titled as the restate's undo entry is.
 void EditorView::setTimeSignature(const core::SetTimeSignatureTarget& target)
 {
-    promptTimeSignature("Set Time Signature", target.measure, target.meter_text);
+    promptTimeSignature(
+        core::markerVerbLabel(core::MarkerVerb::SetTimeSignature),
+        target.measure,
+        target.meter_text);
 }
 
 // The meter prompt behind the meter chord's insert and the ruler menu's Add Time Signature, titled
 // as the insert's undo entry is.
 void EditorView::addTimeSignature(const core::InsertTimeSignatureTarget& target)
 {
-    promptTimeSignature("Add Time Signature", target.measure, target.meter_text);
+    promptTimeSignature(
+        core::markerVerbLabel(core::MarkerVerb::AddTimeSignature),
+        target.measure,
+        target.meter_text);
 }
 
 // One text field, opened on the meter the core published with the verb, so "7/8" is typed whole.
@@ -3878,7 +3885,7 @@ void EditorView::promptScaleTempo()
 {
     showThemedTextPrompt(
         this,
-        "Scale Tempo",
+        core::markerVerbLabel(core::MarkerVerb::ScaleTempo),
         "Scale factor (e.g. 2, 1/2, 3/2)",
         juce::String{},
         "Scale",

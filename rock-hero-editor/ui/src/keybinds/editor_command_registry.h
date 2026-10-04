@@ -8,6 +8,7 @@
 #include "keybinds/editor_command_id.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -27,8 +28,12 @@ struct EditorCommandSpec final
     /*! \brief Stable command identity (the persistence key, locked forever). */
     EditorCommandId id;
 
-    /*! \brief Base display name shown in menus and the shortcuts dialog. */
-    const char* name{""};
+    /*!
+    \brief Base display name shown in menus and the shortcuts dialog. A command that runs exactly
+    one marker verb reads it from the verb table (\ref core::markerVerbLabel), so the two cannot
+    drift.
+    */
+    std::string name;
 
     /*! \brief Category grouping for the shortcuts dialog. */
     const char* category{""};
