@@ -1487,19 +1487,13 @@ ChartSelectionPlan planSetLegato(
     };
 }
 
-std::optional<ChartEditPlan> planSettleChart(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+ChartEditPlan planSettleChart(
+    const common::core::Chart& chart, const std::span<const std::size_t> unjustified,
     const common::core::Chart& base, const std::string_view label)
 {
+    // The conversions are the load path's report; an undo entry describes the change itself.
     std::vector<common::core::ChartNote> settled = chart.notes;
-    if (common::core::sweepUnjustifiedLegato(settled, tempo_map).empty())
-    {
-        // The ONE emptiness this planner reports: the sweep found nothing to flatten. Returning
-        // the diff's emptiness instead would conflate that with a flatten that exactly cancelled
-        // the burst it is diffed against, and the caller would leave its coalescing windows armed
-        // over a claim the sweep had rejected.
-        return std::nullopt;
-    }
+    static_cast<void>(common::core::flattenLegatoClaims(settled, unjustified));
     // Deliberately not through finalizePlan: the sweep only ever turns a `Legato` into a `Pick`, so
     // order, the same-string overlap bound, and every intra-note rule are exactly as the stream
     // already satisfied them — a plain pick demands nothing. Passing through the finalize would

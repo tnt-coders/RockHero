@@ -4271,29 +4271,24 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
         makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{2}),
         chart.notes[1],
     };
-    const auto settled = planSettleChart(chart, tempo_map, chart, "Settle Legato");
-    REQUIRE(settled.has_value());
-    if (settled.has_value())
-    {
-        REQUIRE(settled->inserted.size() == 1);
-        CHECK(settled->inserted[0].attack == common::core::NoteAttack::Pick);
-        CHECK(settled->label == "Settle Legato");
+    const std::vector<std::size_t> unjustified =
+        common::core::unjustifiedLegatoClaims(chart.notes, tempo_map);
+    const ChartEditPlan settled = planSettleChart(chart, unjustified, chart, "Settle Legato");
+    REQUIRE(settled.inserted.size() == 1);
+    CHECK(settled.inserted[0].attack == common::core::NoteAttack::Pick);
+    CHECK(settled.label == "Settle Legato");
 
-        // Idempotent, and silent when there is nothing to settle: that emptiness is exactly what
-        // tells the controller to leave its coalescing windows armed.
-        common::core::Chart clean = chart;
-        REQUIRE(applyChartChange(clean, *settled).has_value());
-        CHECK_FALSE(planSettleChart(clean, tempo_map, clean, "Settle Legato").has_value());
-    }
-    const auto folded = planSettleChart(chart, tempo_map, pre_burst, "Shrink Sustain");
-    REQUIRE(folded.has_value());
-    if (folded.has_value())
-    {
-        REQUIRE(folded->inserted.size() == 2);
-        CHECK(folded->inserted[0].sustain == common::core::Fraction{1});
-        CHECK(folded->inserted[1].attack == common::core::NoteAttack::Pick);
-        CHECK(folded->label == "Shrink Sustain");
-    }
+    // Idempotent, and silent when there is nothing to settle: that emptiness is exactly what
+    // tells the controller to leave its coalescing windows armed.
+    common::core::Chart clean = chart;
+    REQUIRE(applyChartChange(clean, settled).has_value());
+    CHECK(common::core::unjustifiedLegatoClaims(clean.notes, tempo_map).empty());
+
+    const ChartEditPlan folded = planSettleChart(chart, unjustified, pre_burst, "Shrink Sustain");
+    REQUIRE(folded.inserted.size() == 2);
+    CHECK(folded.inserted[0].sustain == common::core::Fraction{1});
+    CHECK(folded.inserted[1].attack == common::core::NoteAttack::Pick);
+    CHECK(folded.label == "Shrink Sustain");
 }
 
 // The settle fold's base is the CHART the replaced entry was applied to, not merely its notes: a
@@ -4316,23 +4311,23 @@ TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart
     common::core::Chart burst = pre_burst;
     burst.notes[0].string = 4;
 
-    const auto settled = planSettleChart(burst, tempo_map, pre_burst, "Move Note");
-    REQUIRE(settled.has_value());
-    if (settled.has_value())
-    {
-        // Applied to the pre-burst chart — which is exactly where the caller's walk-back leaves the
-        // live chart — the plan lands on the burst's own state with the claim flattened.
-        common::core::Chart applied = pre_burst;
-        REQUIRE(applyChartChange(applied, *settled).has_value());
-        REQUIRE(applied.notes.size() == 2);
-        CHECK(applied.notes[0].string == 4);
-        CHECK(applied.notes[0].fret == 5);
-        CHECK(applied.notes[1].attack == common::core::NoteAttack::Pick);
+    const ChartEditPlan settled = planSettleChart(
+        burst,
+        common::core::unjustifiedLegatoClaims(burst.notes, tempo_map),
+        pre_burst,
+        "Move Note");
+    // Applied to the pre-burst chart — which is exactly where the caller's walk-back leaves the
+    // live chart — the plan lands on the burst's own state with the claim flattened.
+    common::core::Chart applied = pre_burst;
+    REQUIRE(applyChartChange(applied, settled).has_value());
+    REQUIRE(applied.notes.size() == 2);
+    CHECK(applied.notes[0].string == 4);
+    CHECK(applied.notes[0].fret == 5);
+    CHECK(applied.notes[1].attack == common::core::NoteAttack::Pick);
 
-        // And one undo of the folded entry takes the whole burst back.
-        REQUIRE(applyChartChange(applied, settled->reversed()).has_value());
-        CHECK(applied == pre_burst);
-    }
+    // And one undo of the folded entry takes the whole burst back.
+    REQUIRE(applyChartChange(applied, settled.reversed()).has_value());
+    CHECK(applied == pre_burst);
 }
 
 // E4's landing requirement binds both strike attacks, so the in-plan flatten must cover both: a tap

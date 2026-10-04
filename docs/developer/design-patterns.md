@@ -178,15 +178,18 @@ separate apply step checks preconditions and swaps the change in. Undo replays t
 reverse, so round trips are exact by construction — and the hover ghost can run the *same* planner
 the click runs, so an affordance can never promise an edit the commit would refuse.
 
-One of the thirteen answers `std::optional<Plan>` instead, because for it an EMPTY plan is a real
-answer it must be able to give: `planSettleChart`'s flatten can exactly cancel the burst it is
-diffed against, and the caller still has to commit that — walking the chart back to the plan's base
-is what removes the claim. Its `nullopt` therefore carries the one thing left that is not a plan
-(the sweep found nothing to flatten), where collapsing the empty diff into `NoChange` would have
-told the caller to do nothing. Its base is a whole **chart state** rather than a note stream, and
-for a reason every fold-shaped planner inherits: the entry it replaces may have moved any authored
-array, and the caller walks the live chart back through that entry's own reversal — which takes
-every array with it — so a plan restating only the notes would silently drop the other halves.
+One of the thirteen answers a bare `Plan` instead, because for it an EMPTY plan is a real answer it
+must be able to give: `planSettleChart`'s flatten can exactly cancel the burst it is diffed
+against, and the caller still has to commit that — walking the chart back to the plan's base is
+what removes the claim. So the plan is never refused: reading its empty diff as `NoChange` would
+tell the caller to do nothing exactly when it must commit. The one thing that is not a plan (the
+sweep found nothing to flatten) is the CALLER's question, asked before it plans:
+`unjustifiedLegatoClaims` returns the claims to flatten, its emptiness means nothing to settle, and
+the planner is handed that list and called only with work. Its base is a whole **chart state**
+rather than a note stream, and for a reason every fold-shaped planner inherits: the entry it
+replaces may have moved any authored array, and the caller walks the live chart back through that
+entry's own reversal — which takes every array with it — so a plan restating only the notes would
+silently drop the other halves.
 
 Every other planner, `planAdjustSustain` included, keeps the
 `expected` shape: a gesture whose replayed steps put every ring back where it started needs no

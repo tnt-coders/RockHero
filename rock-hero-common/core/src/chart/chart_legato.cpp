@@ -2,7 +2,6 @@
 
 #include "span_cover.h"
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -12,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/chart/head_margins.h>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -102,36 +102,83 @@ bool arrivesIntoNextHead(
     return frettingStopAt(predecessor, *stated) == frettingStopAt(successor, successor.fret);
 }
 
+std::vector<std::size_t> chartPredecessors(const std::vector<ChartNote>& notes)
+{
+    // A PREDECESSOR is the last note on the string — a connection continues a ringing string — and
+    // the stream is sorted, so the last note seen per string IS it when the walk reaches the note.
+    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings)> last_per_string{};
+    last_per_string.fill(g_no_chart_predecessor);
+    std::vector<std::size_t> predecessors;
+    predecessors.reserve(notes.size());
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        // Bound once so the presence test and both reads are provably the same object.
+        const std::optional<std::size_t> string_index = chartStringIndex(notes[index]);
+        if (!string_index.has_value())
+        {
+            predecessors.push_back(g_no_chart_predecessor);
+            continue;
+        }
+        predecessors.push_back(last_per_string.at(*string_index));
+        last_per_string.at(*string_index) = index;
+    }
+    return predecessors;
+}
+
+std::vector<std::size_t> unjustifiedLegatoClaims(
+    const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    const std::vector<std::size_t> predecessors = chartPredecessors(notes);
+    std::vector<std::size_t> unjustified;
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        if (notes[index].attack != NoteAttack::Legato)
+        {
+            continue;
+        }
+        // Exactly what chartConnections resolves for this note, on the same saved forms: only the
+        // claim and its predecessor are converted, never the whole stream.
+        ChartNote saved_predecessor;
+        const ChartNote* predecessor = nullptr;
+        if (const std::size_t predecessor_index = predecessors[index];
+            predecessor_index != g_no_chart_predecessor)
+        {
+            saved_predecessor = savedChartNote(notes[predecessor_index]);
+            predecessor = &saved_predecessor;
+        }
+        if (resolveLegato(savedChartNote(notes[index]), predecessor, tempo_map) ==
+            LegatoMotion::Unjustified)
+        {
+            unjustified.push_back(index);
+        }
+    }
+    return unjustified;
+}
+
 ChartConnections chartConnections(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
     ChartConnections connections;
     // Everything downstream judges the SAVED form. A pick slide's latent mute is the difference
     // that matters: in memory an onset group can read as all-muted, and so choked, where the saved
     // chart reads it as held — which flips a span's hold extension and with it a following claim.
-    // Building the stream once here is what keeps every consumer on the same side of that.
+    // Building the stream once here is what keeps every consumer on the same side of that, and
+    // unjustifiedLegatoClaims resolves its claims on the same saved forms.
     connections.saved_notes.reserve(notes.size());
     for (const ChartNote& note : notes)
     {
         connections.saved_notes.push_back(savedChartNote(note));
     }
 
-    // The last note seen per string: the stream is sorted, so this IS each note's same-string
-    // predecessor when it is reached.
-    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings)> last_per_string{};
-    last_per_string.fill(g_no_chart_predecessor);
+    // The saved form leaves every string alone, so the relation is the same on either stream.
+    connections.predecessors = chartPredecessors(connections.saved_notes);
     connections.legato.reserve(notes.size());
-    connections.predecessors.reserve(notes.size());
     connections.hands_over.assign(notes.size(), false);
     connections.arrives_into.assign(notes.size(), false);
     connections.end_heads.assign(notes.size(), std::nullopt);
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
-        // Bound once so the presence test and both reads are provably the same object.
-        const std::optional<std::size_t> string_index = chartStringIndex(note);
-        const std::size_t predecessor_index =
-            string_index.has_value() ? last_per_string.at(*string_index) : g_no_chart_predecessor;
-        connections.predecessors.push_back(predecessor_index);
+        const std::size_t predecessor_index = connections.predecessors[index];
         const ChartNote* const predecessor = predecessor_index == g_no_chart_predecessor
                                                  ? nullptr
                                                  : &connections.saved_notes[predecessor_index];
@@ -172,11 +219,6 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         {
             connections.hands_over[predecessor_index] = predecessorHoldReaches(
                 predecessor->position, predecessor->sustain, note.position, tempo_map);
-        }
-        // A PREDECESSOR is the last note on the string: a connection continues a ringing string.
-        if (string_index.has_value())
-        {
-            last_per_string.at(*string_index) = index;
         }
     }
     return connections;
@@ -301,29 +343,14 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     return resolutions;
 }
 
-std::vector<ChartConversion> sweepUnjustifiedLegato(
-    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+std::vector<ChartConversion> flattenLegatoClaims(
+    std::vector<ChartNote>& notes, const std::span<const std::size_t> claims)
 {
-    // Nothing can flatten unless some note actually claims a connection, and this runs at EVERY
-    // settle event — every caret move, seek, selection change and playback start. The scan is a
-    // bare read over the stream; the connections pass below copies the whole stream once before it
-    // can answer the same question. `LeftTap` is deliberately not counted: its claim is local, so
-    // the sweep never touches one.
-    if (std::ranges::none_of(
-            notes, [](const ChartNote& note) { return note.attack == NoteAttack::Legato; }))
-    {
-        return {};
-    }
-    const ChartConnections connections = chartConnections(notes, tempo_map);
     std::vector<ChartConversion> conversions;
-    for (std::size_t index = 0; index < notes.size(); ++index)
+    conversions.reserve(claims.size());
+    for (const std::size_t index : claims)
     {
         ChartNote& note = notes[index];
-        if (note.attack != NoteAttack::Legato ||
-            connections.legato[index] != LegatoMotion::Unjustified)
-        {
-            continue;
-        }
         note.attack = NoteAttack::Pick;
         conversions.push_back(
             ChartConversion{
@@ -333,6 +360,12 @@ std::vector<ChartConversion> sweepUnjustifiedLegato(
             });
     }
     return conversions;
+}
+
+std::vector<ChartConversion> sweepUnjustifiedLegato(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    return flattenLegatoClaims(notes, unjustifiedLegatoClaims(notes, tempo_map));
 }
 
 } // namespace rock_hero::common::core

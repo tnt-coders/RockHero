@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -139,6 +140,40 @@ ONE PRODUCER, TWO WAYS TO ASK. The connections walk resolves it once per revisio
     const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map);
 
 /*!
+\brief Each note's nearest earlier note on its own string — THE same-string predecessor relation.
+
+One forward walk carrying the most recent note per string, which IS each note's predecessor when it
+is reached. The one producer of the relation: \ref chartConnections reads it, and so does the settle
+sweep's question (\ref unjustifiedLegatoClaims), which needs nothing else the connections carry. A
+note whose string lies outside the chart's lanes has no predecessor and is no one's.
+
+\param notes Note stream sorted by (position, string).
+
+\return Index-parallel to `notes`: each note's predecessor index, or \ref g_no_chart_predecessor.
+*/
+[[nodiscard]] std::vector<std::size_t> chartPredecessors(const std::vector<ChartNote>& notes);
+
+/*!
+\brief The legato claims the chart does not justify — the settle sweep's question, asked alone.
+
+Each `Legato` note is resolved exactly as \ref chartConnections resolves it — \ref resolveLegato on
+the saved forms of the note and its predecessor (\ref chartPredecessors) — so the answer is the
+connections' `Unjustified` entry for that note by construction. Asked on its own because it runs at
+every settle event and almost always finds nothing: it converts only the claims and their
+predecessors to the saved form, where the connections would copy the whole stream.
+
+`LeftTap` is never listed: its claim is local, so nothing can withdraw it.
+
+\param notes Note stream sorted by (position, string).
+\param tempo_map Song tempo map supplying the beat axis.
+
+\return Indices into `notes` of every unjustified `Legato` claim, ascending; empty when the stream
+        already satisfies the invariant.
+*/
+[[nodiscard]] std::vector<std::size_t> unjustifiedLegatoClaims(
+    const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+
+/*!
 \brief The saved note stream and every connection claim it justifies.
 
 What the connection rules need, and nothing more. \ref resolveLegato reads a predecessor's stored
@@ -146,10 +181,11 @@ position, ring, fret at the ring's end and attack class, so the saved stream plu
 answers every claim in the chart; nothing presentation derives — the ink ends, the hand-posture
 spans, the holds — can change a verdict here.
 
-That is why this is asked on its own rather than through \ref ChartResolutions. The settle sweep
-and the editor's legato verb want only these three vectors, and they run at every caret move,
-selection change, seek and playback start; deriving a whole song's ink ends, spans and holds to
-read one flag would be a full pass over the chart thrown away on every keystroke.
+That is why this is asked on its own rather than through \ref ChartResolutions. The editor's
+legato verb wants only these vectors; deriving a whole song's ink ends, spans and holds to read one
+flag would be a full pass over the chart thrown away on every keystroke. The settle sweep, which
+runs at every caret move, selection change, seek and playback start, asks narrower still
+(\ref unjustifiedLegatoClaims).
 
 Every vector is index-parallel to the note stream it was built from.
 */
@@ -176,10 +212,10 @@ struct ChartConnections
     /*!
     \brief Each note's nearest earlier note on its own string, or \ref g_no_chart_predecessor.
 
-    The relation the forward walk already established to answer \ref legato, handed out rather than
-    kept private: the `H` toggle asks the resolver its own hypothetical per selected note and needs
-    the same predecessor, and re-deriving it there would be both a restatement of this rule and a
-    backward scan per selected note.
+    The relation \ref chartPredecessors produces and the walk reads to answer \ref legato, handed
+    out rather than kept private: the `H` toggle asks the resolver its own hypothetical per
+    selected note and needs the same predecessor, and re-deriving it there would be both a
+    restatement of this rule and a backward scan per selected note.
     */
     std::vector<std::size_t> predecessors;
 
@@ -240,9 +276,8 @@ struct ChartConnections
 /*!
 \brief Resolves a whole note stream's connections: the saved form, the motions, the predecessors.
 
-One forward walk carrying the most recent note per string, which IS each note's same-string
-predecessor when it is reached, so the connection motions cost one pass over the stream rather than
-a backward search per note.
+One forward walk over the same-string predecessors (\ref chartPredecessors), so the connection
+motions cost one pass over the stream rather than a backward search per note.
 
 \param notes Note stream sorted by (position, string).
 \param tempo_map Song tempo map supplying the beat axis.
@@ -414,6 +449,25 @@ in that one stream too, so there is no second posture input a caller could forge
     const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
+\brief Flattens the named legato claims to plain picks — THE statement of what a rejected claim
+becomes.
+
+The one place a withdrawn connection is written back: the sweep below applies it to the claims
+\ref unjustifiedLegatoClaims names, and the editor's settle plan applies it to its own copy of the
+stream, so the two can never come to flatten a claim differently. Only the attack changes — a pick
+keeps the note's every other field — which is what lets one pass suffice (see
+\ref sweepUnjustifiedLegato).
+
+\param notes Note stream holding the claims; flattened in place.
+\param claims Indices into `notes` of `Legato` claims, ascending.
+
+\return One \ref ChartRepair::UnjustifiedLegato conversion per flattened claim, in the order given,
+        each naming the claim's position and string.
+*/
+std::vector<ChartConversion> flattenLegatoClaims(
+    std::vector<ChartNote>& notes, std::span<const std::size_t> claims);
+
+/*!
 \brief Flattens every legato claim the chart does not justify to a plain pick — the settle sweep.
 
 The one relational mutation in the system, and stateless: it judges only the stream it is handed, so
@@ -422,7 +476,8 @@ settle event, the chart normalizer (\ref normalizeChart) as its last stage on ev
 import, and the document writer before emitting — which is what makes the invariant `Unjustified`
 cannot survive a settle or reach a file hold everywhere at once instead of per call site.
 
-A `LeftTap` is never touched: its claim is local, so nothing can withdraw it.
+A `LeftTap` is never touched: its claim is local, so nothing can withdraw it. Which claims flatten
+is \ref unjustifiedLegatoClaims's answer, and \ref flattenLegatoClaims applies it.
 
 One pass is enough, and that is a property of the resolver rather than an assumption: resolution
 reads a predecessor's fret at the ring's end, node, attack class, position and ring, and flattening

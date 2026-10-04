@@ -16,6 +16,7 @@ construction.
 #include "chart/chart_selection.h"
 #include "controller/editor_undo_history.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -24,6 +25,7 @@ construction.
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/chart/chart_technique.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -748,10 +750,13 @@ such guard: the resolver disqualifies it outright, so its ring is never the only
 /*!
 \brief Plans the settle sweep: every legato claim the chart no longer justifies flattens.
 
-The editor half of \ref common::core::sweepUnjustifiedLegato: the sweep decides WHAT flattens, this
-turns it into an undo entry. Nothing else here is relational, which is why the sweep runs at settle
-points instead of inside \ref finalizePlan — mid-burst a broken claim simply displays as the pick it
-plays as, and the burst stays one undo step.
+The editor half of the settle sweep: \ref common::core::unjustifiedLegatoClaims decides WHAT
+flattens, this turns it into an undo entry. Nothing else here is relational, which is why the sweep
+runs at settle points instead of inside \ref finalizePlan — mid-burst a broken claim simply displays
+as the pick it plays as, and the burst stays one undo step.
+
+The caller asks the question first and plans only when it has work, so a settle with nothing to
+flatten — almost every settle — copies nothing at all.
 
 `base` is the chart state the returned plan is expressed against, which is not always the current
 chart: folding the flatten into the burst's own entry needs a plan spanning the whole burst, so the
@@ -763,19 +768,18 @@ state the replaced entry was applied to, and only the chart carries it: diffing 
 that entry's own notes from being dropped when the caller walks the chart back through the burst's
 reversal.
 
-\param chart Chart being settled; its notes are swept and its shapes supply the hold test.
-\param tempo_map Tempo map supplying the beat axis.
+\param chart Chart being settled.
+\param unjustified Indices into `chart.notes` of the claims to flatten, as
+       \ref common::core::unjustifiedLegatoClaims answered for this chart; never empty.
 \param base Chart state the plan is diffed against.
 \param label User-visible undo label.
 
-\return The planned change, or empty when THE SWEEP found nothing to flatten — which is exactly
-        when the caller must leave its coalescing windows armed. A present plan can itself be empty
-        (the flatten exactly cancelled the burst it is diffed against); that is still a commit,
-        because walking the chart to `base` is what removes the claim, and the caller retires the
-        entry it would have replaced with nothing.
+\return The planned change. It can itself be empty (the flatten exactly cancelled the burst it is
+        diffed against); that is still a commit, because walking the chart to `base` is what
+        removes the claim, and the caller retires the entry it would have replaced with nothing.
 */
-[[nodiscard]] std::optional<ChartEditPlan> planSettleChart(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+[[nodiscard]] ChartEditPlan planSettleChart(
+    const common::core::Chart& chart, std::span<const std::size_t> unjustified,
     const common::core::Chart& base, std::string_view label);
 
 /*!

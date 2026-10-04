@@ -3978,6 +3978,17 @@ bool EditorController::Impl::settleChartClaims()
     {
         return false;
     }
+    // Asked before anything is copied, because almost every settle finds nothing. That emptiness
+    // is the ONE "nothing to settle" answer: the plan's own diff can come out empty too (a flatten
+    // that exactly cancels the burst), and reading that as nothing would leave the coalescing
+    // windows armed over a claim the sweep had rejected.
+    const std::vector<std::size_t> unjustified = common::core::unjustifiedLegatoClaims(
+        arrangement->chart->notes, session().song().tempo_map);
+    if (unjustified.empty())
+    {
+        // Nothing to settle, so both coalescing windows stay armed exactly as they were.
+        return false;
+    }
 
     // The entry this settle folds into, or null to push its own: the burst record must still own
     // the history top AND the file must not hold the state that entry produced — rewriting the
@@ -4005,18 +4016,13 @@ bool EditorController::Impl::settleChartClaims()
         }
         label = burst->plan.label;
     }
-    std::optional<ChartEditPlan> settled =
-        planSettleChart(*arrangement->chart, session().song().tempo_map, base, label);
-    if (!settled.has_value())
-    {
-        // Nothing to settle, so both coalescing windows stay armed exactly as they were.
-        return false;
-    }
+    const ChartEditPlan settled_plan =
+        planSettleChart(*arrangement->chart, unjustified, base, label);
     // A fold that exactly cancels the burst — a claim made and flattened — describes nothing, and
     // an entry describing nothing is a dead Ctrl+Z: the burst RETIRES instead, exactly as a
     // gesture replayed to its origin does. Judged on the written form, which is what the entry
     // would hold.
-    ChartEditPlan written = writtenChartPlan(*settled);
+    ChartEditPlan written = writtenChartPlan(settled_plan);
     if (burst != nullptr && written.empty())
     {
         retireChartGesture(burst->plan);
@@ -4026,7 +4032,6 @@ bool EditorController::Impl::settleChartClaims()
     // The model moves first and the history follows, the order every chart edit takes
     // (applyChartEditPlan). Walk the live chart back to pre-burst and then to the settled state,
     // so the state the history top describes is exactly the state the chart holds.
-    const ChartEditPlan& settled_plan = *settled;
     const std::optional<bool> walked = m_session.writeChart([&burst, &settled_plan](
                                                                 common::core::Chart& chart) {
         return (burst == nullptr || applyChartChange(chart, burst->plan.reversed()).has_value()) &&
@@ -4034,7 +4039,7 @@ bool EditorController::Impl::settleChartClaims()
     });
     if (!walked.value_or(false))
     {
-        reportError("Could not apply chart edit: " + settled->label);
+        reportError("Could not apply chart edit: " + settled_plan.label);
         return false;
     }
     if (burst != nullptr)

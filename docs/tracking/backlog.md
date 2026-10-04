@@ -1102,8 +1102,8 @@ written down.
   "the thirteen planners" (lines 176, 191 and 201) and enumerates thirteen names at 191-194, but the
   enumeration omits four functions that DO carry the planner shape — `planInsertKeyframe`,
   `planSetHarmonic`, `planClearHarmonic` and `planClearPinchHarmonic` — while naming three that
-  return other plan types: `planSetLegato` (`ChartSelectionPlan`), `planSettleChart`
-  (`std::optional<ChartEditPlan>`) and `planToggleJunctions`
+  return other plan types: `planSetLegato` (`ChartSelectionPlan`), `planSettleChart` (a bare
+  `ChartEditPlan`, never refused) and `planToggleJunctions`
   (`std::expected<ChartJunctionPlan, ChartPlanRefusal>`). Since 2026-09-30 the eight per-note
   technique verbs also return `ChartSelectionPlan` rather than
   `std::expected<ChartEditPlan, ChartPlanRefusal>`, so neither the count nor the membership is right
@@ -1395,3 +1395,13 @@ against the tree on the date above.
   Tone has no shortcut. Same source.
 - **An Audio menu with "Audio Device Settings..." and "Calibrate Input...".** Not needed while the
   Calibrate button stays, but it would make both reachable from the keyboard. Same source.
+
+## Found while building the album-scale fixes (2026-10-03)
+
+- **The legato join pass restates the string range check.** `planToggleJunctions`' join pass
+  (`rock-hero-editor/core/src/chart/chart_edits.cpp`, "THE JOIN PASS") tests
+  `note.string >= 1 && note.string <= g_max_chart_strings` itself and indexes a
+  `g_max_chart_strings + 1` array by the raw string, where every other per-string walk asks
+  `chartStringIndex` (`common/core/chart/chart_rules.h`), the one range authority. Route it through
+  `chartStringIndex` and size the array `g_max_chart_strings`, so the two cannot come to disagree
+  about which strings exist. Raised by the review of plan 64's fix 6c.

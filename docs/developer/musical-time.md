@@ -272,8 +272,11 @@ travelling and the bend channel is on its curve, and the surfaces interpolate th
 song. A caller that only wants to know what a connection claim resolves to asks `chartConnections`
 instead — the saved stream, the resolved motions and each note's same-string predecessor, and
 nothing derived from presentation, because `resolveLegato` reads none of it. That is the pass the
-settle sweep and the editor's `H` verb take, and they run at every caret move, seek and selection
-change; `chartResolutions` carries its result rather than repeating the walk. The same walk answers
+editor's `H` verb takes; `chartResolutions` carries its result rather than repeating the walk. The
+settle sweep, which runs at every caret move, seek and selection change, asks narrower still:
+`unjustifiedLegatoClaims` resolves only the `Legato` claims, over the same predecessor relation
+(`chartPredecessors`, the one walk both read), converting only those claims and their predecessors
+to the saved form rather than the whole stream. The same walk answers
 `chartPlantedStops` — the stop a pull-off lands on beneath its source, whichever hand made the
 onset — because you cannot pull off onto a fret unless a finger is waiting there, so what a note
 holds is a fact about its NEIGHBOUR. A held stop is DERIVED, never stored (ruled 2026-09-29).
