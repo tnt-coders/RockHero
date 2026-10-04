@@ -341,7 +341,7 @@ the same chord with a marker of that kind selected RESTATES it — the digit law
 applied to markers (re-ruled 2026-09-14: the chord reads the CURSOR, never the selection — a
 marker standing at the cursor is restated, else one is inserted). `Alt+←/→` moves a selected
 marker by its kind's step and `Delete` removes it. The five chords are `Ctrl+T` (tone change),
-`Ctrl+M` (section), `Ctrl+B` (tempo anchor, plan 41), `Ctrl+/` (meter, plan 41 Phase 6) and
+`Ctrl+M` (section), `Ctrl+B` (tempo anchor, plan 41), `Ctrl+/` (meter, plan 65) and
 `Ctrl+H` (the hand marker, one object since 2026-09-15).
 
 ## Zoom & grid

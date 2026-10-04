@@ -6,13 +6,19 @@ whole-millisecond times (Non-goals, decisions 3 and 10). Phases 1–4 are
 ready to build in order; Phase 6 (time-signature editing) follows on provisional 41-Q1 = A
 (user, 2026-09-19), and G41-TS closes at its sighting. Phase 5 (onset snapping) and the tap-tempo
 readout are deferred out of the first releasable editor.
+**Re-scoped 2026-10-03 (user):** this plan is Phases 1–4 plus the sub-beat anchor change, and
+closes after the user's sighting of them. Phase 6 moved to
+`docs/plans/roadmap/65-time-signature-editing.md` (sequenced after plan 60; 41-Q1 became 65-Q1
+and G41-TS became G65-TS), and the ruled follow-ups to
+`docs/plans/roadmap/66-tempo-repair-tools.md`. Phase 5 and the tap-tempo readout stay here,
+deferred; a future plan takes them up when they are wanted.
 
 ## Goal
 
 A charter starting from nothing but backing audio builds a beat grid that matches that audio,
 from the keyboard first and the mouse second, inside the marker grammar every other marker kind
 already follows: insert an anchor at a grid position, type the tempo of the span it opens, nudge an
-anchor against a transient, delete one, and edit time signatures, all with one undo step per
+anchor against a transient, and delete one (time signatures: plan 65), all with one undo step per
 gesture and no new key in the persisted song format. Today a usable tempo map exists only if the
 project came from a GP import; this plan removes that dependency and unblocks the New chart entry
 point (`docs/plans/roadmap/40-chart-editing.md` Phase 11).
@@ -151,31 +157,18 @@ Rulings of 2026-10-02 (user, after the simplicity review):
     pointer live and the whole drag is one undo entry.
 14. **Deferred**: the tap-tempo readout and onset snapping are out of the first releasable editor.
 
-## Ruled follow-ups (user, 2026-10-03; to be planned after the projection-cost fix)
+## Ruled follow-ups (user, 2026-10-03) — moved to plan 66
 
-Fixing a song whose grid is wrong underneath correctly timed notes (a tempo tabbed at half speed,
-a wrong grid under a non-click performance) is common, and "the grid is truth" alone cannot do it.
-Three tools, sharing Phase 6's whole-song re-addressing and its one-entry whole-song undo:
-
-- **Scale Tempo** (Edit menu "Scale Tempo...", and the tempo row's right-click menu): every grid
-  address in the song (anchors, notes, rings, keyframes, hand markers, sections, tone changes,
-  automation points) scaled by a factor on the whole-note axis while every TIME stays put; x2
-  doubles every span's tempo and the measure count (a meter change at old bar m lands on new bar
-  2m-1); /2 and free factors (3/2) round to the tick lattice. A range-scoped form is later.
-- **Keep Notes in Time** (toolbar toggle, OFF by default, session state): while on, a tempo edit
-  keeps every object's time and re-addresses its grid position, instead of moving it with the beat.
-  Applies to tempo edits only (a meter edit already keeps time under Q1 = A). The workflow for a
-  non-click song: turn it on, sync anchors to the audio, turn it off.
-- **Tempo lock** (toolbar toggle, ON by default for every song each session, never saved): locked,
-  anchors cannot be MOVED in time (chip drag, `Alt+←/→`); adding one, deleting one, typing a tempo
-  and Scale Tempo stay available. A blocked move is refused visibly. This replaces the deleted
-  2026-07-09 grid lock, whose fault was blocking every tempo edit by default.
+The three tools the user ruled on 2026-10-03 for a song whose grid is wrong under correctly timed
+notes — Scale Tempo, Keep Notes in Time and the tempo lock — are planned in
+`docs/plans/roadmap/66-tempo-repair-tools.md`, which carries the rulings in full and builds on plan
+65's whole-song re-addressing and snapshot undo.
 
 ## Open questions
 
-- **Q1 — Time-signature content policy.** PROVISIONALLY A (user, 2026-09-19): hold the global
-  beat, measures renumber. Phase 6 builds A; G41-TS closes at its sighting. (B: keep literal
-  tokens — destructive; C: forbid meter edits once content exists — hostile.)
+- **Q1 — Time-signature content policy.** Moved 2026-10-03 to
+  `docs/plans/roadmap/65-time-signature-editing.md` as 65-Q1 (still PROVISIONALLY A, user
+  2026-09-19; gate G65-TS, formerly G41-TS, closes at that plan's sighting).
 - **Q2 — Onset analysis source** (deferred Phase 5). A: a self-written spectral-flux kernel in
   common/core (recommended); B: a third-party library; C: editor-local.
 - **Q3 — answered 2026-10-02.** Tap tempo, when built, is a measurement: a live BPM readout the
@@ -186,7 +179,7 @@ Three tools, sharing Phase 6's whole-song re-addressing and its one-entry whole-
 - **Unblocks** plan 40 Phase 11 (New chart), which is gated on this plan's Phases 1–3.
 - Plan 10: no new format key (a sub-beat anchor uses the shared grid token). A tempo edit changes
   chart identity by design.
-- Plan 42: content validity after a meter edit reports through 42's rule set (Phase 6).
+- Plans 65 and 66 (split out 2026-10-03) build on this plan's rules, verbs and engine refresh.
 - Plan 59: the count-in reads the same `TempoMap`; no coupling.
 
 ## Phased implementation
@@ -229,7 +222,7 @@ a simplicity review before its commit, and verifies with a build and the touched
   keeps the map it last pushed; when the session's map differs it calls
   `rebuildDerivedToneCurves` and `mirrorTempoMap` through `pushTempoDerivedAudio()`. Called from
   the funnel's shared tail and once when an undo or redo transition completes; rig load calls the
-  push unconditionally, before the project's audio is marked ready. Phase 6's meter edits inherit
+  push unconditionally, before the project's audio is marked ready. Plan 65's meter edits inherit
   it.
 - **The verbs**, through the existing dispatches (checklist steps 1–8): a published `Ctrl+B`
   chord target (nothing / restate-with-prompt / insert, the section's shape), a set-tempo arm in
@@ -318,83 +311,13 @@ building; the snap applies to Phase 4's drag and Phase 2's nudge, not to tap-der
   the fixture; disabling the toggle restores raw drag behavior exactly.
 - **Verification:** build + touched tests + clang-tidy.
 
-### Phase 6 — Time-signature editing (on provisional Q1 = A; phases below assume outcome A)
+### Phase 6 — Time-signature editing — moved to plan 65
 
-*Re-verify before building (2026-10-02): the actions and memento below predate the marker funnel.
-The meter is a marker kind (`Ctrl+/`), so it goes through the 8-step checklist and
-`commitMarkerModel` with a snapshot spanning the map and every position-bearing slice;
-`syncTempoDerivedAudio` (Phase 2) already covers its engine refresh; and `reseatTerminalAnchor`
-below means re-seating the terminal on a downbeat, a pure function beside Phase 1's transforms.*
-
-
-May start on provisional 41-Q1 = A (user, 2026-09-19); G41-TS closes at this phase's sighting. If
-that sighting picks B or C instead, replace the transform step with the corresponding policy and
-re-derive the tests; the UI step survives all outcomes.
-
-- **Scope:**
-  - Actions `SetTimeSignature{measure,numerator,denominator}` and
-    `RemoveTimeSignature{measure}` with format-rule validation (measure >= 1, positive numerator,
-    power-of-two denominator — same rules the reader enforces, now shared via
-    `tempo_map_rules.h`).
-  - Pure re-addressing transform `rock-hero-editor/core/src/timeline/signature_edits.{h,cpp}`:
-    map every position token (anchors; per-arrangement chart notes, shapes, fhps, sections; tone
-    regions; **plus the position tokens added since this list was written — the armed chart
-    caret's grid address, in-session and in its persisted `caret:` marker token, plan 47's
-    loop-selection GridPosition pair, and (2026-09-14) the editor's own marker selections
-    (`TempoAnchorSelection`'s GridPosition, `TimeSignatureSelection`'s measure, a
-    `SongSectionSelection`'s position) together with `ChartCursor::column`, which the
-    author-at-cursor grammar makes a marker-verb input** (2026-07-18 fold-in audit: without these
-    the caret and loop land on different musical content after a signature edit while everything
-    else is time-preserved)) to its global-beat position (+ fraction) under the old signature list,
-    then
-    re-address under the new one. Anchors re-address on the whole-note axis exactly like all other
-    content and stay on the tick lattice (since 2026-10-03 an anchor may stand between beats, so
-    an on-beat token is no longer guaranteed or needed); anchor times are untouched, so **the
-    transform is time-preserving**: every item resolves to identical absolute seconds before and
-    after. The
-    old terminal downbeat may stop being a downbeat under the new bucketing —
-    `reseatTerminalAnchor` repairs it deterministically.
-  - Undo for signature edits is a **full-state memento** of the tempo map plus all
-    position-bearing content slices of the open song (bounded at worst a few hundred KB;
-    constraint (f) explicitly prefers coherent full-state restore over granular replay).
-  - UI: click/context on the signature band opens a small numerator/denominator popover at that
-    measure; measure renumbering downstream is automatic because ruler labels derive from the
-    map; flash-highlight the renumbered range once so the shift is visible rather than silent.
-  - **Insert chord (2026-09-12, re-ruled 2026-09-14):** `Ctrl+/` reads the cursor and never the
-    selection. A meter standing on the cursor's measure downbeat — the downbeat of the measure the
-    cursor is IN, read from its tick — is RESTATED, reopening the numerator/denominator prompt;
-    otherwise one is INSERTED there. Inert while playing and with no song. The click/context
-    popover above is the pointer form of the same two verbs, and `Ctrl+Shift+/` is the signature's
-    select chord. The whole phase runs on provisional Q1 = A; G41-TS closes at its sighting.
-  - Coordinate with docs/plans/roadmap/42-chart-validation.md: post-edit content validation (if any
-    residual issues are possible under the chosen outcome) reports through 42's rule set, not a
-    plan-local validator.
-- **Public-header impact:** none intended (transform and edits stay `src/`-private).
-- **Testing:** property tests over randomized maps + content (round-trip A→B→A restores tokens
-  exactly; time-preservation invariant: resolved seconds identical within half a tick (see the
-  tick-lattice note below), since anchor seconds are untouched); terminal re-seat cases; memento
-  undo restores the full song slice field-equal; UI popover tests in the harness.
-  - **The tick lattice (2026-09-23).** Every stored position must be a whole number of ticks
-    (1/3840 of a whole note) and validation refuses one that is not. A global-beat position
-    "plus fraction" re-read under a larger denominator is not: an odd tick of a quarter-note beat
-    is half a tick of an eighth-note one. The transform therefore re-addresses on the whole-note
-    axis (`wholeNotePosition` / `advanceGridPositionByWholeNotes`, `grid_arithmetic.h`), which a
-    denominator change does not bend, and rounds any residue through `nearestTick`; the
-    time-preservation invariant then holds to within half a tick rather than exactly, which the
-    property tests state. A denominator the lattice cannot hold (512 and up) is already refused
-    by the package validator.
-- **Sighting (added 2026-09-23, from the lattice follow-up's own sighting, which did not get a
-  close look at this):** with a signature change authored, look closely at content that crosses
-  the change: move a note carrying a bend or slide across the barline both ways and confirm its
-  ring length and keyframe timing stay put musically; with snap off, tick-step a keyframe that
-  sits in the later meter; convert a short note just before the change into a pick slide and
-  confirm it rings a quarter note; place notes on an odd grid (`1/28`) on both sides of the
-  change and confirm consecutive placements touch. Each of these was refused or off the lattice
-  before `a6455969`, and the meter edit is the first verb that can create such content without
-  an import.
-- **Exit criteria:** meter can be edited on a fully populated chart with zero audible/temporal
-  content shift and single-step undo.
-- **Verification:** build + touched tests + clang-tidy.
+Moved 2026-10-03, in full, to `docs/plans/roadmap/65-time-signature-editing.md`: the `Ctrl+/`
+meter kind through the marker grammar, the whole-note re-addressing transform over every
+position-bearing slice (sub-beat anchors included), the whole-song snapshot undo, the property
+suite, the tick-lattice note and the sighting list. It is sequenced after plan 60 (user,
+2026-10-03), and its gate is G65-TS (formerly G41-TS). Git history keeps this section's text.
 
 ## Final acceptance
 
@@ -412,6 +335,3 @@ package unchanged.
 - Phase 1a is the only common/core surface change; if the shared rules fight the package error
   model, keep a thin translating shim, never a forked validator.
 - Phase 4's drag is one undo entry; `Ctrl+Z` takes it back whole.
-- Phase 6 is the risky phase: a re-addressing bug corrupts charts silently. Land it only behind
-  its property suite; if the time-preservation invariant cannot be made provably green, STOP and
-  re-raise Q1 rather than ship an approximate transform.

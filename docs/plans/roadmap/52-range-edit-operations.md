@@ -37,8 +37,9 @@ just the sounding notes.
   tempo map, sections, and tone changes, and its blast radius is a different order of magnitude
   — recorded as a possible future mode under Q3, never implied by this plan.
 - No tempo-map or time-signature content inside the clipboard payload (Q6 scope). Copying a
-  span never copies its tempo anchors or signature changes; docs/plans/roadmap/41-tempo-map-authoring.md
-  owns those edits.
+  span never copies its tempo anchors or signature changes;
+  docs/plans/roadmap/41-tempo-map-authoring.md owns the tempo edits and
+  docs/plans/roadmap/65-time-signature-editing.md the signature edits.
 - No cross-product behavior. The game never edits; everything here is editor workflow.
 
 ## 4. Constraints
@@ -102,9 +103,10 @@ Verified against code 2026-07-16, branch work-in-progress:
   trivially "subtract and add positions" — see Q2.
 - Related answered decisions this plan must stay consistent with: **40-Q2** (same-string sustain
   overlap on edit → auto-truncate inside the same undo entry), **40-Q3** (interaction grammar:
-  glyph click selects, empty click seeks, empty drag marquees, Alt = insert quasimode), **41-Q1**
-  (signature edits preserve global-beat positions), **47-Q1** (ruler band is the time-selection
-  drag surface), **47-Q2 recommendation B** (selection auto-engages looping — interplay in Q7).
+  glyph click selects, empty click seeks, empty drag marquees, Alt = insert quasimode), **65-Q1**,
+  asked as 41-Q1 (signature edits preserve global-beat positions), **47-Q1** (ruler band is the
+  time-selection drag surface), **47-Q2 recommendation B** (selection auto-engages looping —
+  interplay in Q7).
 - **Settled 2026-07-17 — the content creation gesture** (from
   docs/plans/in-progress/chart-span-and-selection-model.md §7): Shift+click in the content
   area creates this plan's time-range selection object, Guitar Pro-style — one big timespan
@@ -122,10 +124,10 @@ Verified against code 2026-07-16, branch work-in-progress:
 - docs/plans/roadmap/40-chart-editing.md — Phases 3–4 must land first (selection model, mutation
   intents, undo mementos); Phase 9 is the clipboard-codec twin (single-codec coordination rule
   in Non-goals). Phase 9's transpose/duplicate/bulk-edit scope is untouched.
-- docs/plans/roadmap/41-tempo-map-authoring.md — no code dependency, but Q2's position-basis
-  decision should be made with 41-Q1's answered philosophy (global-beat preservation for TS
-  *edits*) on the table, because this plan's recommendation deliberately differs for
-  *relocation* (see Q2).
+- docs/plans/roadmap/65-time-signature-editing.md (split from plan 41 on 2026-10-03) — no code
+  dependency, but Q2's position-basis decision should be made with 65-Q1's answered philosophy
+  (global-beat preservation for TS *edits*) on the table, because this plan's recommendation
+  deliberately differs for *relocation* (see Q2).
 - docs/plans/roadmap/42-chart-validation.md — advisory lint is the natural home for post-paste
   residue reporting (orphaned templates, signature-mismatch notices) if Q4/Q2 choose the
   lenient options.
@@ -183,7 +185,7 @@ recommendations below take effect without an explicit answer.
 2. **52-Q2 — Clipboard position basis (the time-signature question).** How are offsets and
    durations stored so paste works when source and destination signatures differ?
    - (A) **Beat-distance** on the global-beat axis (`beatDistance`/`advanceGridPosition`
-     directly). Cheap and exact; consistent with 41-Q1's stance for TS edits. But beats are
+     directly). Cheap and exact; consistent with 65-Q1's stance for TS edits. But beats are
      denominator units: a 4/4 riff (quarter-note beats) pasted into a 7/8 section becomes
      eighth-note-beat spacing — it plays **twice as fast** at the same tempo. Sustains
      (stored in beats) need no adjustment, which is precisely the problem: their musical
@@ -201,7 +203,7 @@ recommendations below take effect without an explicit answer.
      differs from the source (advisory, not blocking — pairs with plan 42).
    - **R (discussion input): B.** Preserving note values matches musical intent and the
      grid's note-value-authoritative design; A optimizes the implementation, not the outcome.
-     This deliberately differs from 41-Q1 (A there) because editing a signature *under* content
+     This deliberately differs from 65-Q1 (A there) because editing a signature *under* content
      and *relocating* content across signatures are different operations with different
      least-surprise answers — worth confirming the user agrees with that distinction.
 

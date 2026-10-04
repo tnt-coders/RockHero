@@ -65,10 +65,13 @@ And four rules ride along with it:
   was NOT selected, so the core's restate verbs select their target after the commit, as the inserts
   already do — rule 4, now stated in the core rather than holding for free.
 - **`Esc` drops the selection**, and **`Delete` selects the marker before the one it removed** on
-  the same row, cursor included — exactly what `Shift+Tab` from the deleted start lands on — so a
-  run of deletes walks back along the row; nothing stays selected where the deleted marker was the
-  row's first (ruled 2026-09-25, superseding "Delete leaves nothing selected"; one rule for every
-  marker row, `deleteSelectedMarker`). A NOTE's delete is not this rule: it leaves the caret on the
+  the same row, so a run of deletes walks back along the row; nothing stays selected where the
+  deleted marker was the row's first (ruled 2026-09-25, superseding "Delete leaves nothing
+  selected"; one rule for every marker row, `deleteSelectedMarker`). It selects that marker as a
+  chip click does, SEEKING NOTHING: the cursor and the view stay put, however far back the marker
+  stands, and the ruler pins an off-screen chip at the left edge (user ruling 2026-10-03, replacing
+  the 2026-09-25 cursor move that `Shift+Tab` makes, which jumped a tempo delete far back). A bend
+  chip's delete selects no neighbour. A NOTE's delete is not this rule: it leaves the caret on the
   emptied slot, the entry plane's own continuation.
 
 **Superseded 2026-09-14.** The form built 2026-09-13 read three rules: a SELECTED marker is restated
@@ -310,8 +313,9 @@ recorded drift is fixed and its backlog entry removed.
 
 ## What a NEW marker kind must do
 
-The two reserved kinds — tempo anchor (`Ctrl+B`) and meter (`Ctrl+/`) — inherit all of the
-above, as the hand marker (`Ctrl+H`, ruled 2026-09-15; the fret-hand position and the span are ONE
+The two reserved kinds — tempo anchor (`Ctrl+B`, built by plan 41 on 2026-10-03) and meter
+(`Ctrl+/`, `docs/plans/roadmap/65-time-signature-editing.md`) — inherit all of the above, as the
+hand marker (`Ctrl+H`, ruled 2026-09-15; the fret-hand position and the span are ONE
 object since that day, plan 60's 60-H1, so the former `Ctrl+P` position marker is not a separate
 kind) did when its stopgap form shipped on 2026-09-25 (`hand-marker-stopgap.md`: the stored
 placement, position and fret, through this grammar; the span half and the derivation are plan 60's).
@@ -452,8 +456,8 @@ Each of these was a judgment call. The forced moves are not listed; these are.
    entry and avoided a new action id along with its exhaustive switches. The counter-case: one
    action now has two shapes, and a sum-typed payload is a branch by another name.
 5. **Delete leaves nothing selected, but a merging retone selects the survivor.** *Settled
-   2026-09-25: Delete now selects the marker before the deleted one, as `Shift+Tab` would — see
-   the rules above.* Delete's target is gone and nothing inherits it. A retone that merges the selected region into its predecessor
+   2026-09-25: Delete now selects the marker before the deleted one, without moving the cursor
+   since 2026-10-03 — see the rules above.* Delete's target is gone and nothing inherits it. A retone that merges the selected region into its predecessor
    selects that predecessor, on the grounds that it now holds what the charter just made. The
    opposing reading: the marker the charter pointed at was dissolved, so nothing should stay
    selected there either, exactly as after Delete.

@@ -179,7 +179,8 @@ a complete, valid chart in the editor — today charts are read-only and enter o
 
 ## Non-goals
 
-- Tempo-map authoring (tap tempo, anchor drag, signature editing) — `docs/plans/roadmap/41-tempo-map-authoring.md`.
+- Tempo-map authoring (tap tempo, anchor drag) — `docs/plans/roadmap/41-tempo-map-authoring.md`;
+  signature editing — `docs/plans/roadmap/65-time-signature-editing.md`.
 - The validation rule set itself — `docs/plans/roadmap/42-chart-validation.md` owns the rules; this plan
   owns the editor's consumption surface (live feedback, problems display).
 - Song metadata/art editing — `docs/plans/roadmap/43-song-information-and-art.md`.

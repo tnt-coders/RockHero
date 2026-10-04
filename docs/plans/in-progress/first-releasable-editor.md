@@ -56,7 +56,7 @@ phase it blocks cannot start without it.
 
 | Gate | Where | Blocks |
 |---|---|---|
-| **G41-TS** — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Nothing now — Phase 1's time-signature work may start on A |
+| **G65-TS** (G41-TS until 2026-10-03) — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/65-time-signature-editing.md` Q1 | Nothing now — Phase 1's time-signature work may build on A, after plan 60 |
 | **G43-METADATA** — 43-Q1..Q6. NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5, so only Q6 (an authored chart version field; recommended: none) still stands | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Nothing in the release unless Q6 is ruled B — the four-field subset adds no format field |
 | ~~**The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G**~~ — CLOSED 2026-09-28 with Phase 3: W9-F resolved, W9-G ruled, the anchor moved to a watch item; bundle items 1–3 carried, not blocking | `technique-review-walkthrough.md` W9, Phase 3 below | Nothing |
 | **G60-RULINGS** — 60-Q1..Q5, a law-by-law session. **RULED 2026-10-02** (Q1 signed, its re-measurement condition discharged 2026-10-03; Q3/Q5 deferred to a Phase 5 session). Still unruled from the items this plan carried into it: harmonic follow-up #4 and the span-end margin #59 | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 open; #4 and #59 ruled at Phase 3's session |
@@ -77,7 +77,11 @@ ruling.
 
 Build the path that creates an editable song without importing a Guitar Pro file.
 
-- **Tempo map and time signatures** — plan 41 Phases 1–4 and Phase 6 (behind G41-TS). The `Ctrl+B`
+- **Tempo map and time signatures** — plan 41 Phases 1–4, and time-signature editing, which
+  moved out of plan 41's Phase 6 on 2026-10-03 into
+  `docs/plans/roadmap/65-time-signature-editing.md` (behind G65-TS) and is sequenced after plan 60
+  (Phase 4 below): it is one of the most important things to ship, but not simple enough to come
+  first (user, 2026-10-03). The `Ctrl+B`
   tempo-anchor and `Ctrl+/` meter chords follow the eight-step new-marker-kind checklist in
   `marker-verb-grammar.md`; the chip verbs (`Delete`, `Enter`, `Alt`+arrows) are inert until then.
   Plan 41 was revised 2026-10-02: typing a BPM ripples later anchors, `Alt`+arrows nudge by one
@@ -515,6 +519,12 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    beside it. Two small rulings are cheapest
    signed before Phase 2's verbs are wired — both RULED 2026-09-25: #277 (a tap at a claimed
    stop is legal; the derivation split is a Phase 2 build) and the split product (struck, built).
-4. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
-   sighting (G43 is narrowed to Q6 by D1), the bend bundle closed 2026-09-28, then G60-RULINGS (carrying #4,
-   #59 and the authored-span extend law) and G52-RANGE-EDIT.
+4. Schedule the signing sessions in the order their phases arrive: G65-TS (formerly G41-TS)
+   closes at plan 65's own sighting (G43 is narrowed to Q6 by D1), the bend bundle closed
+   2026-09-28, then G60-RULINGS (carrying #4, #59 and the authored-span extend law) and
+   G52-RANGE-EDIT.
+5. **Re-scoped 2026-10-03 (user):** plan 41 closes after the user's sighting of Phases 1–4 and
+   the sub-beat anchor change. Time-signature editing, formerly its Phase 6, is
+   `docs/plans/roadmap/65-time-signature-editing.md`, built after plan 60; the tempo repair tools
+   ruled the same day (Scale Tempo, Keep Notes in Time, the tempo lock) are
+   `docs/plans/roadmap/66-tempo-repair-tools.md`, built after or with plan 65.
