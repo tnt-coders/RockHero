@@ -5393,4 +5393,53 @@ TEST_CASE("The held default follows an edit that reflows the covering span", "[c
     CHECK_FALSE(default_under(std::nullopt).has_value());
 }
 
+// A tapped arpeggio: taps at 16 pull off to 11, 7 and 9, each fretted stop ringing on under the
+// next tap. The taps are the picking hand's sound, so they never keep the fretted 4s of the grip
+// before sounding; those died where their own rings ended, and the bracket dates from the first
+// fretted onset of the new grip.
+TEST_CASE("A tap sounding over a dead fretted ring does not push a span's front", "[core][chart]")
+{
+    const auto at = [](const int measure,
+                       const int beat,
+                       const Fraction offset,
+                       const int string,
+                       const int fret,
+                       const Fraction ring,
+                       const NoteAttack attack) {
+        ChartNote note = inMeasure(measure, noteAt(beat, offset, string, fret, ring));
+        note.attack = attack;
+        if (attack == NoteAttack::Tap && ring == Fraction{1, 4})
+        {
+            note.keyframes.push_back(Keyframe{.offset = Fraction{1, 8}, .fret = fret + 2});
+        }
+        return note;
+    };
+    const Fraction half{1, 2};
+    const NoteAttack tap = NoteAttack::Tap;
+    const NoteAttack pull = NoteAttack::Legato;
+    const std::vector<ChartNote> notes = streamOf({
+        at(1, 1, {}, 3, 7, Fraction{5, 8}, pull),    at(1, 1, half, 2, 11, Fraction{1, 8}, tap),
+        at(1, 2, {}, 2, 4, Fraction{3, 2}, pull),    at(1, 2, half, 4, 9, Fraction{1, 8}, tap),
+        at(1, 3, {}, 4, 4, Fraction{5, 4}, pull),    at(1, 3, half, 3, 9, Fraction{1, 4}, tap),
+        at(1, 4, half, 3, 7, Fraction{5, 8}, pull),  at(2, 3, {}, 3, 16, Fraction{1, 4}, tap),
+        at(2, 4, {}, 3, 11, Fraction{5, 8}, pull),   at(2, 4, half, 2, 16, Fraction{1, 8}, tap),
+        at(3, 1, {}, 2, 7, Fraction{3, 4}, pull),    at(3, 1, half, 4, 16, Fraction{1, 8}, tap),
+        at(3, 2, {}, 4, 9, Fraction{3, 4}, pull),    at(3, 2, half, 3, 16, Fraction{1, 4}, tap),
+        at(3, 3, half, 3, 11, Fraction{5, 8}, pull), at(3, 4, {}, 2, 16, Fraction{1, 8}, tap),
+        at(3, 4, half, 2, 7, Fraction{3, 4}, pull),  at(4, 1, {}, 4, 16, Fraction{1, 8}, tap),
+        at(4, 1, half, 4, 9, Fraction{3, 4}, pull),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    const auto grip = std::ranges::find_if(derived.shapes, [&derived](const ChartShape& shape) {
+        const std::vector<std::optional<ChartStop>>& stops = derived.postures[shape.posture].stops;
+        return stops[1] == std::optional{frettedStop(7)} &&
+               stops[2] == std::optional{frettedStop(11)} &&
+               stops[3] == std::optional{frettedStop(9)};
+    });
+    REQUIRE(grip != derived.shapes.end());
+    // The 11 struck at 2:4.
+    CHECK(grip->place == Fraction{7, 4});
+}
+
 } // namespace rock_hero::common::core

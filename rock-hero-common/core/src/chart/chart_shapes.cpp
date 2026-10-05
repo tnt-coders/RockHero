@@ -845,12 +845,14 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 
             // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
             // end of whatever foreign stop it last sounded — the displacing strike's own instant
-            // under a displacement, the dead ring's own end after a gap of silence.
+            // under a displacement, the dead ring's own end after a gap of silence. The stop and
+            // its end are both the finger's own: a tap sounding on over it is the other hand's,
+            // and never keeps an old fretted stop sounding.
             const ChartStop& struck_stop = *stated_stop;
             if (finger.has_value() &&
                 slideOutFretOrNull(saved_notes[*finger], arrives_into[*finger]) == nullptr)
             {
-                const Fraction sounded_until = std::min(hand[string_index].sounds, slot.place);
+                const Fraction sounded_until = std::min(ring_end_of(*finger), slot.place);
                 const std::optional<ChartStop> last_held = covers_at(string_index, sounded_until);
                 // THE FOLD (extending the hold-under law): a spell the hand provably never left is
                 // not foreign. A strike planting the last-held stop is the same hand adding a
