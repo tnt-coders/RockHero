@@ -59,7 +59,7 @@ phase it blocks cannot start without it.
 | **G65-TS** (G41-TS until 2026-10-03) — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/65-time-signature-editing.md` Q1 | Nothing now — Phase 1's time-signature work may build on A, after plan 60 |
 | **G43-METADATA** — 43-Q1..Q6. NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5, so only Q6 (an authored chart version field; recommended: none) still stands | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Nothing in the release unless Q6 is ruled B — the four-field subset adds no format field |
 | ~~**The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G**~~ — CLOSED 2026-09-28 with Phase 3: W9-F resolved, W9-G ruled, the anchor moved to a watch item; bundle items 1–3 carried, not blocking | `technique-review-walkthrough.md` W9, Phase 3 below | Nothing |
-| **G60-RULINGS** — 60-Q1..Q5, a law-by-law session. **RULED 2026-10-02** (Q1 signed, its re-measurement condition discharged 2026-10-03; Q3/Q5 deferred to a Phase 5 session). Still unruled from the items this plan carried into it: harmonic follow-up #4 and the span-end margin #59 | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 open; #4 and #59 ruled at Phase 3's session |
+| **G60-RULINGS** — 60-Q1..Q5, a law-by-law session. **RULED 2026-10-02** (Q1 signed, its re-measurement condition discharged 2026-10-03; Q3/Q5 deferred to a Phase 5 session). Still unruled from the items this plan carried into it: harmonic follow-up #4 and the span-end margin #59 | `docs/plans/roadmap/60-the-hand.md` §9 | Phase 4 open; #4 and #59 ruled at Phase 3's session |
 | **G52-RANGE-EDIT** — all of 52-Q1..Q8, individually | `docs/plans/roadmap/52-range-edit-operations.md` Phase 0 | Phase 5 |
 
 Signing sessions are cheap and unblock the most; run them ahead of the phase that needs them rather
@@ -240,7 +240,7 @@ Exit: bends can be created, adjusted, displayed and saved with the same confiden
 
 ### 4. Hand markers, FHPs and spans
 
-Execute `docs/plans/roadmap/60-hand-markers.md` as release work. It supersedes plan 40 Phase 8's
+Execute `docs/plans/roadmap/60-the-hand.md` as release work. It supersedes plan 40 Phase 8's
 template, shape and FHP halves, and it is the union of the former plans 60 and 61 — so the tabled
 tasks #280 (span marker seam), #281 (boundary gestures), #282 (FHP derivation) and #284 (the
 pull-off feasibility law, now rule 12) are all this phase, and #283 (the materialize-markers
@@ -250,8 +250,11 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
 
 **REDESIGNED 2026-10-04 (plan 60 §1a):** positions and holds are two authored kinds again
 (`positions` on `Ctrl+P`, `holds` on `Ctrl+H`); the zone, the bare marker and the span-end gesture
-are gone, a span's edges move and author a hold, and the timeline key becomes `at`. The phase
-bullets below predate that and read through plan 60's REVISED notes.
+are gone, a span's edges move and author a hold, and the timeline key becomes `at`. The plan is
+now a master with two sub-plans, built in this order: the master's rename sweep,
+`docs/plans/roadmap/60a-fret-hand-positions.md` (Phases 2 and 3), then
+`docs/plans/roadmap/60b-holds.md` (Phases 4 and 5). The phase bullets below predate that and read
+through the plans' REVISED notes.
 
 - ~~Run the G60 law-by-law ruling session.~~ DONE 2026-10-02 (plan 60 §9).
 - ~~Phase 0 — strict uniqueness for stored `fhps`.~~ DONE.

@@ -242,7 +242,7 @@ thing either.** A claim now has exactly one shape — `held` on a right-hand ons
 sounds the stop it holds, so every stop the model can record is a stop something plays. Stating a
 fretting-hand stop on a string where NOTHING sounds is therefore unauthorable today: a knowingly
 **ACCEPTED GAP**, not an oversight, and its future home is the span templates of
-`docs/plans/roadmap/60-hand-markers.md` (Phase 5). A template that reintroduces such a stop must
+`docs/plans/roadmap/60-the-hand.md` (Phase 5). A template that reintroduces such a stop must
 bring its own justification rule, because the old one was deleted rather than left dormant. Until
 then, read a proposal that needs an unsounded stop as a request to open that plan, and say so
 plainly rather than inventing a record for it.
@@ -519,7 +519,7 @@ below are marked as such deliberately.
   `chart_shapes.h`, `chart_presentation.h`, `chart_legato.h`; the reasoning lives in the Doxygen.
 - `docs/plans/todo/arpeggio-authoring.md` — the long-form design record for postures, held stops,
   and the box/bracket pair.
-- `docs/plans/roadmap/60-hand-markers.md` — Phase 5's span templates, the future home of the
+- `docs/plans/roadmap/60-the-hand.md` — Phase 5's span templates, the future home of the
   unsounded held stop the model cannot state today.
 - `docs/plans/in-progress/technique-compatibility-and-hardening.md` and
   `technique-review-walkthrough.md` — the live record of technique rulings and open items.

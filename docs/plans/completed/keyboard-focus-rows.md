@@ -9,7 +9,7 @@ following to the new start) landed first in `5d33a1fc`, recorded in `marker-verb
 **Phase 4 — the `Ctrl+Shift` selection chords and the hand rows — prerequisites 4.0a/4.0b/4.0c
 BUILT and SIGHTED, and step 4a (the jumps for the five rows that exist) BUILT and SIGHTED
 2026-09-15**. Steps 4b (the fret-hand position row) and 4c (the span row) were HANDED OFF
-2026-09-15 to `docs/plans/roadmap/60-hand-markers.md` §8: the position marker and the span marker
+2026-09-15 to `docs/plans/roadmap/60-the-hand.md` §8: the position marker and the span marker
 are one object (its ruling 60-H1), so they are planned and built as ONE hand row there. Step 4d
 (reveal the acted-on selection, user-observed and ruled 2026-09-15) is BUILT and SIGHTED
 2026-09-15 (`0b0ef106`, `4fed59cc`); the Phase 4 doc sweep landed the same day. **This plan is
@@ -472,7 +472,7 @@ The questions it settled, and the rulings each one reached:
      `editing-interaction-model.md`, `docs/developer/keyboard-input.md`,
      `docs/developer/the-editor-2d-views.md`, the command-id and registry Doxygen, and the roadmap
      notes in `00-roadmap.md`, plans 40, 53 and 60, and BOTH span-marker documents — the then
-     plan 61 seat (merged into `60-hand-markers.md` on 2026-09-15) and
+     plan 61 seat (merged into `60-the-hand.md` on 2026-09-15) and
      `docs/plans/todo/span-marker-redesign.md:259-261`, which each state the reserved `Ctrl+H` and
      `Ctrl+P` chords as inserting at the cursor and restating on selection.
 3. **Tone has two payload verbs** — retone (repoint the region; today's `Enter`/`Ctrl+T` restate)
@@ -1029,7 +1029,7 @@ marker rows over two objects. On 2026-09-15 the user ruled the two markers one o
 a hand holding a shape, so its position cannot change inside it, and the let-ring coupling
 already clips a span at every position shift — and asked for the hand to be planned and built as
 one coherent design. Both bodies moved, rewritten for the one object, to
-`docs/plans/roadmap/60-hand-markers.md` §8 (the hand row: objects, selection kind, holder rule,
+`docs/plans/roadmap/60-the-hand.md` §8 (the hand row: objects, selection kind, holder rule,
 walk / reach / Tab / jump, pointer selection, the pin rule, view state and marks, verbs, tests,
 sighting brief) and §9 (the decisions 60-D6 … 60-D12 and the new 60-H1 … 60-H6). Nothing of
 either design was dropped; what changed is that one row, one selection kind and one chord pair

@@ -46,7 +46,7 @@ An authored, song-level **dictionary**: entries of `{shape signature, name, fing
 section builds on no longer exist (`NoteAttack::None` left 2026-09-17, the stored `held` and the
 span-claim machinery 2026-09-29), and the recorded shape is now the REFERENCE model: the authored
 template reference rides the hand marker (`docs/plans/todo/span-marker-redesign.md`, "The
-template's content, the picker, and the FHP coupling"; `docs/plans/roadmap/60-hand-markers.md`
+template's content, the picker, and the FHP coupling"; `docs/plans/roadmap/60-the-hand.md`
 Phase 5). Kept as the record of the rejected reading and why.
 
 The user's framing: "arpeggio brackets being defined at the template level." Two readings were

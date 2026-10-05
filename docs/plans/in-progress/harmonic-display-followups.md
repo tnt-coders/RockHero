@@ -557,7 +557,7 @@ harmonics are re-enabled, because it is an acceptance case for that disabled for
 
 - `docs/plans/todo/artificial-harmonic-authoring.md` — item 6's authoring discussion belongs there;
   this plan records only what exists today and the options.
-- `docs/plans/roadmap/60-hand-markers.md` — owns the span laws as a whole (the hand marker,
+- `docs/plans/roadmap/60-the-hand.md` — owns the span laws as a whole (the hand marker,
   span-free zones, grip templates). Items 1, 4 and 8 change span DERIVATION under laws that plan
   sequences, so the founding rule ruled here must not contradict 60-Q1..Q5; if it would, it is a
   law-session item, not a follow-up.

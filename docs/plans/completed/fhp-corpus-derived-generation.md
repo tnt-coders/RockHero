@@ -3,7 +3,7 @@
 **SUPERSEDED (noted 2026-10-02).** The replacement this plan sketched is specified and measured in
 `docs/plans/in-progress/fhp-derivation-algorithm.md` (the figure-segmented floor tracker, which
 refutes this plan's "~35% of moves are forced" reading and its 0.8 s phrase-rest rule) and is
-scheduled as Phase 1 of `docs/plans/roadmap/60-hand-markers.md`. Nothing below is to be executed;
+scheduled as Phase 1 of `docs/plans/roadmap/60-the-hand.md`. Nothing below is to be executed;
 it stays only as the record of the 2026-07 study the measured algorithm grew out of.
 
 Status: deferred plan, written 2026-07-21. Re-read the current generator in

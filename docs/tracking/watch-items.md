@@ -763,7 +763,7 @@ chart holds, some bracket prints.
 Both rejected options went moot on 2026-09-17, when the `N` verb and `NoteAttack::None` were
 removed from the model entirely: there is no verb left to refuse a press and no record left to hide.
 Stating a fretting-hand stop on a string where nothing sounds is now unauthorable, ACCEPTED, and
-waits on the span templates of `docs/plans/roadmap/60-hand-markers.md` Phase 5; it is tracked there
+waits on the span templates of `docs/plans/roadmap/60-the-hand.md` Phase 5; it is tracked there
 and in `docs/plans/todo/span-marker-redesign.md` rather than reopened here. This
 item watched invisible records, and there are none. The sweep itself retired 2026-09-29 with the
 `held` field: every claim is derived, so nothing stored can state nothing.

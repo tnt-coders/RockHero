@@ -11,7 +11,7 @@ record settled on, `NoteAttack::None`, were removed from the model entirely on t
 unbound and free for reuse. A claim is now read through ONE query (`claimedStop`) — the `held` stop
 under a plain tap or a pick slide, and a tapped harmonic's own pressed `fret` — and stating a
 fretting-hand stop on a string where nothing sounds waits on the span
-templates of `docs/plans/roadmap/60-hand-markers.md` Phase 5. LAW II's justification half — a shape
+templates of `docs/plans/roadmap/60-the-hand.md` Phase 5. LAW II's justification half — a shape
 the hand alone states must be justified by a later sound at a claimed stop or it dissolves — was
 deleted the same day along with the attack value, every claim now riding a note that sounds at its
 own slot. The tap-harmonic arm this record describes — `fret` the touch, `held` the stop — was

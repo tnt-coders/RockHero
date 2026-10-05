@@ -271,7 +271,7 @@ The fingering conversation converged with the span-marker redesign's standing te
 ## The rulings (2026-10-02; the record is plan 60 §9)
 
 The five open rulings this record carried were ruled in plan 60's law-by-law session
-(`docs/plans/roadmap/60-hand-markers.md` §9, items 1, 2, 10, 5 and 11 respectively):
+(`docs/plans/roadmap/60-the-hand.md` §9, items 1, 2, 10, 5 and 11 respectively):
 
 1. The algorithm, now 13 rules, is SIGNED conditional on re-measuring rules 12 and 13.
 2. Profiles: none at first release and no parameter; a future profile is a chart-scoped

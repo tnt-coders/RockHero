@@ -1,12 +1,12 @@
 # Span Markers — Sound Founds, Claims Attach, Markers Define
 
-**REDESIGNED 2026-10-04 — read `docs/plans/roadmap/60-hand-markers.md` §1a first.** The span
+**REDESIGNED 2026-10-04 — read `docs/plans/roadmap/60-the-hand.md` §1a first.** The span
 marker, the span-free zone and the extent invariant recorded below are superseded by the HOLD: one
 authored stretch with two polarities, resizable from either edge, that never rewrites a tail. The
 founding principle and the zone's derivation effect carry over; the rest is the record of what was
 decided before.
 
-Status: **DESIGN RECORD; its roadmap seat is `docs/plans/roadmap/60-hand-markers.md`** (the former
+Status: **DESIGN RECORD; its roadmap seat is `docs/plans/roadmap/60-the-hand.md`** (the former
 plan 61 seat merged into plan 60 on 2026-09-15 — Phases 3, 4 and 5 there execute this record).
 Opened 2026-08-31 out of the review-blocker walk, for a
 dedicated future session. Nothing here is built; nothing here is signed as law. What IS signed is
@@ -297,7 +297,7 @@ Related record: `docs/plans/todo/tap-harmonic-display.md`.
    are the selection verbs. `Shift+S` is withdrawn. The premise that the map has no `Alt`+letter
    chord no longer holds either: `Alt`+letter is the menu-access plane (`Alt+F/E/V`).
    **RULED 2026-09-15: span and position markers are ONE object, the hand marker**
-   (`docs/plans/roadmap/60-hand-markers.md` §2, the roadmap plan this record now executes under;
+   (`docs/plans/roadmap/60-the-hand.md` §2, the roadmap plan this record now executes under;
    it absorbed plan 61's seat). One chord pair — `Ctrl+H` / `Ctrl+Shift+H`, ruled there as
    60-H2 — and `Ctrl+P` / `Ctrl+Shift+P` return to the pool. The record key `"span"` chosen in
    item 2 below was chosen for a span-only record and is re-asked as part of 60-H2.
