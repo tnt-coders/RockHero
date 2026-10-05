@@ -74,6 +74,37 @@ hand at fret 1 (rule 13).
 */
 [[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset);
 
+/*! \brief The stretch of a note's ring over which the fretting hand provably holds one stop. */
+struct HeldRing
+{
+    /*! \brief Whole notes from the onset where the hold begins. */
+    Fraction from{};
+
+    /*! \brief Whole notes from the onset where the hold ends, exclusive. */
+    Fraction to{};
+
+    /*! \brief The fret held. */
+    int fret{0};
+};
+
+/*!
+\brief RULE 6, stated once: the stop a ringing note provably holds, and for how long.
+
+A note the fretting hand stops at a fret, not dead, holds from its last pitched stop — where its
+fret channel last arrived somewhere new — to the end of its pitched ring, where a slide-out's
+departure ends it. So a slide-then-hold holds its destination, an arrival into the next head holds
+nothing, and bends and vibrato, which state no fret, keep holding. An open string holds nothing, so
+neither does a natural harmonic's ring: its node is demanded at the onset only.
+
+\param note Note whose ring is read.
+\param arrives_into Whether the note's ring ends in the next head on its string
+       (\ref ChartConnections::arrives_into), which makes its end statement an arrival rather than a
+       slide-out.
+
+\return The held stretch, or nothing where the ring holds no stop.
+*/
+[[nodiscard]] std::optional<HeldRing> heldRingOf(const ChartNote& note, bool arrives_into);
+
 /*!
 \brief Derives where the fret hand sits from the notes and the positions the charter authored — THE
 13-rule figure-segmented floor tracker (`docs/plans/in-progress/fhp-derivation-algorithm.md`, with

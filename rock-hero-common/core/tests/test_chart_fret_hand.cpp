@@ -82,6 +82,12 @@ namespace
     };
 }
 
+// Whether one authored position covers every fretted note of a stream sounding at its instant.
+[[nodiscard]] bool coveredBy(const std::vector<ChartNote>& notes, const FretHandPosition& position)
+{
+    return validateFretHandCoverage(notes, {position}, makeTempoMap()).has_value();
+}
+
 // An expected event: its front at a measure and beat of 4/4, and its window.
 [[nodiscard]] FretHandEvent eventAt(
     const int measure, const int beat, const int fret, const int width = g_min_fret_hand_width)
@@ -191,6 +197,44 @@ TEST_CASE("Fret-hand validation refuses an end fret below the index finger", "[c
 
     CHECK_FALSE(validateFretHandPositions({positionAt(1, 1, 5, 4)}, tuning, tempo_map).has_value());
     CHECK(validateFretHandPositions({positionAt(1, 1, 5, 5)}, tuning, tempo_map).has_value());
+}
+
+// An authored position covers every fretted note sounding at its instant: one struck there, and one
+// ringing through from before, each read against the fret the position states and its end where
+// one is stated.
+TEST_CASE("Fret-hand coverage refuses a sounding note outside the stated window", "[core][chart]")
+{
+    // Struck at the instant.
+    CHECK_FALSE(coveredBy({noteAt(1, 1, 1, 3)}, positionAt(1, 1, 5)));
+    CHECK(coveredBy({noteAt(1, 1, 1, 5)}, positionAt(1, 1, 5)));
+    CHECK_FALSE(coveredBy({noteAt(1, 1, 1, 9)}, positionAt(1, 1, 5, 7)));
+    CHECK(coveredBy({noteAt(1, 1, 1, 7)}, positionAt(1, 1, 5, 7)));
+
+    // A half note struck on beat 1 still sounds on beat 2.
+    CHECK_FALSE(coveredBy({noteAt(1, 1, 1, 3, Fraction{1, 2})}, positionAt(1, 2, 5)));
+    CHECK_FALSE(coveredBy({noteAt(1, 1, 1, 9, Fraction{1, 2})}, positionAt(1, 2, 5, 7)));
+    CHECK(coveredBy({noteAt(1, 1, 1, 6, Fraction{1, 2})}, positionAt(1, 2, 5, 7)));
+}
+
+// A ring reaching exactly to the instant is not there; an open string and a tap demand nothing of
+// the fretting hand; and with no end stated, nothing above the stated fret is outside the window.
+TEST_CASE("Fret-hand coverage leaves what the hand does not hold alone", "[core][chart]")
+{
+    CHECK(coveredBy({noteAt(1, 1, 1, 3)}, positionAt(1, 2, 5)));
+    CHECK(coveredBy({noteAt(1, 1, 1, 0, Fraction{1}), tapAt(1, 1, 2, 15)}, positionAt(1, 1, 5, 7)));
+    CHECK(coveredBy({noteAt(1, 1, 1, 20)}, positionAt(1, 1, 5)));
+}
+
+// A natural harmonic's node is demanded at its strike, and its chime holds nothing after it,
+// exactly as the hand derivation's ring pins read it.
+TEST_CASE("Fret-hand coverage demands a natural harmonic's node only", "[core][chart]")
+{
+    ChartNote chime = noteAt(1, 1, 1, 0, Fraction{1, 2});
+    chime.harmonic_node = 12.0;
+
+    CHECK_FALSE(coveredBy({chime}, positionAt(1, 1, 13)));
+    CHECK(coveredBy({chime}, positionAt(1, 1, 12)));
+    CHECK(coveredBy({chime}, positionAt(1, 2, 1, 4)));
 }
 
 // Rule 1: an open string and a tap constrain nothing; the window is the fretted notes' alone.

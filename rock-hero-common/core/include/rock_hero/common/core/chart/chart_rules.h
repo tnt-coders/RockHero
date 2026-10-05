@@ -180,7 +180,10 @@ enum class ChartErrorCode : std::uint8_t
     UnsortedOrDuplicateNotes,
     /*! \brief A keyframe is out of order or sustain, off the lattice, or states a negative. */
     InvalidNotePayload,
-    /*! \brief A fret-hand position is out of range, or the stream is not strictly ascending. */
+    /*!
+    \brief A fret-hand position is out of range, the stream is not strictly ascending, or a
+    position leaves a fretted note sounding at its instant uncovered.
+    */
     InvalidFretHandPosition,
     /*! \brief A pick-slide note carries other techniques or a non-traveling path. */
     InvalidPickSlide
@@ -702,6 +705,28 @@ applies.
 */
 [[nodiscard]] std::expected<void, ChartError> validateFretHandPositions(
     const std::vector<FretHandPosition>& placements, const ChartTuning& tuning,
+    const TempoMap& tempo_map);
+
+/*!
+\brief Validates the one rule between the notes and the authored positions: AN AUTHORED POSITION
+COVERS EVERY FRETTED NOTE SOUNDING AT ITS INSTANT.
+
+A note sounds from its onset up to, but not including, its ring's end, so a ring reaching exactly
+to a position's instant is not there. At its onset a note demands \ref fretHandDemandAt — nothing
+for an open string or a picking-hand onset; after it, only the stop its ring provably holds
+(\ref heldRingOf, the rule the derivation's ring pins read), so a natural harmonic's node is
+demanded at its strike and its chime holds nothing. The position covers a demand at or above its
+fret and, where an end fret is stated, at or below that end. Only what the position STATES is read:
+nothing derived (the figure's top, the four-fret floor) enters the test.
+
+\param notes Note stream, each ring already bounded by the next strike on its string
+       (\ref normalizeSustainOverlaps).
+\param positions Authored positions, strictly ascending (\ref validateFretHandPositions).
+\param tempo_map Song tempo map placing the notes and the positions.
+\return Empty success, or the first uncovered note, placed at the position and the note.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateFretHandCoverage(
+    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map);
 
 /*!

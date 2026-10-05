@@ -243,43 +243,18 @@ struct HandRun
     return run;
 }
 
-// Rule 6's plain rings: a note the fretting hand stops at a fret, not dead. Each PINS from its last
-// pitched stop — where its fret channel last arrived somewhere new — to the end of its pitched
-// ring, where a slide-out's departure ends it. So a slide-then-hold pins at its destination, an
-// arrival into the next head pins nothing, and bends and vibrato, which state no fret, keep
-// pinning.
+// Rule 6's plain rings: each held ring (\ref heldRingOf) PINS the hand for as long as it holds.
 [[nodiscard]] RingPins plainRingPinsOf(const ChartConnections& connections)
 {
     std::vector<std::pair<Fraction, Fraction>> pins;
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
-        const ChartNote& note = connections.saved_notes[index];
-        if (note.fret <= 0 || rightHandOnset(note.attack) || note.dead)
-        {
-            continue;
-        }
-        const Keyframe* const slide_out = slideOutKeyframe(note, connections.arrives_into[index]);
-        int stop = note.fret;
-        Fraction stop_from{};
-        for (const Keyframe& keyframe : note.keyframes)
-        {
-            // Bound to a local so the optional check and the access are provably the same object.
-            const std::optional<int>& fret = keyframe.fret;
-            if (!fret.has_value() || &keyframe == slide_out)
-            {
-                continue;
-            }
-            if (*fret != stop)
-            {
-                stop = *fret;
-                stop_from = keyframe.offset;
-            }
-        }
-        const Fraction end = slide_out != nullptr ? offsetBeforeEnd(note) : note.sustain;
-        if (stop_from < end)
+        if (const std::optional<HeldRing> held =
+                heldRingOf(connections.saved_notes[index], connections.arrives_into[index]);
+            held.has_value())
         {
             const Fraction place = connections.places[index];
-            pins.emplace_back(place + stop_from, place + end);
+            pins.emplace_back(place + held->from, place + held->to);
         }
     }
     std::ranges::sort(pins);
@@ -357,6 +332,39 @@ std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset
         return held;
     }
     return g_behind_the_nut_fret;
+}
+
+std::optional<HeldRing> heldRingOf(const ChartNote& note, const bool arrives_into)
+{
+    if (note.fret <= 0 || rightHandOnset(note.attack) || note.dead)
+    {
+        return std::nullopt;
+    }
+    const Keyframe* const slide_out = slideOutKeyframe(note, arrives_into);
+    HeldRing held{.from = Fraction{}, .to = note.sustain, .fret = note.fret};
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = keyframe.fret;
+        if (!fret.has_value() || &keyframe == slide_out)
+        {
+            continue;
+        }
+        if (*fret != held.fret)
+        {
+            held.fret = *fret;
+            held.from = keyframe.offset;
+        }
+    }
+    if (slide_out != nullptr)
+    {
+        held.to = offsetBeforeEnd(note);
+    }
+    if (!(held.from < held.to))
+    {
+        return std::nullopt;
+    }
+    return held;
 }
 
 std::vector<FretHandEvent> deriveFretHandEvents(

@@ -7,10 +7,13 @@
 #include <iterator>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -134,6 +137,23 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
     };
 }
 
+// What a sounding note demands of the hand at an offset along its ring: rule 1's demand at the
+// onset, and after it only the stop the ring provably holds (rule 6), so a natural harmonic's node
+// is demanded at its strike and its chime holds nothing.
+[[nodiscard]] std::optional<int> soundingDemandAt(
+    const ChartNote& note, const std::optional<HeldRing>& held, const Fraction offset)
+{
+    if (offset == Fraction{})
+    {
+        return fretHandDemandAt(note, offset);
+    }
+    if (held.has_value() && !(offset < held->from) && offset < held->to)
+    {
+        return held->fret;
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 void dropNotePath(ChartNote& note)
@@ -248,6 +268,55 @@ std::expected<void, ChartError> validateFretHandPositions(
             }};
         }
         previous_fhp = &fhp;
+    }
+    return {};
+}
+
+// Walked from the notes' side: each ring meets the positions standing inside it, found by one
+// search from its onset. The stored ring is the actual one — a re-strike already ended it — so no
+// note sounds past the next note on its string. The connections are rule 6's own input, so a ring
+// holds here exactly what it pins in the derivation.
+std::expected<void, ChartError> validateFretHandCoverage(
+    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
+    const TempoMap& tempo_map)
+{
+    if (positions.empty())
+    {
+        return {};
+    }
+    std::vector<Fraction> instants;
+    instants.reserve(positions.size());
+    for (const FretHandPosition& position : positions)
+    {
+        instants.push_back(tempo_map.wholeNotePositionAt(position.position));
+    }
+    const ChartConnections connections = chartConnections(notes, tempo_map);
+    for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
+    {
+        const ChartNote& note = connections.saved_notes[index];
+        const Fraction onset = connections.places[index];
+        const Fraction ring_end = onset + note.sustain;
+        const std::optional<HeldRing> held = heldRingOf(note, connections.arrives_into[index]);
+        // Half-open: the onset's own instant is inside the ring, the ring's end is not.
+        auto at = static_cast<std::size_t>(
+            std::distance(instants.begin(), std::ranges::lower_bound(instants, onset)));
+        for (; at < instants.size() && instants[at] < ring_end; ++at)
+        {
+            const FretHandPosition& position = positions[at];
+            const std::optional<int> demand = soundingDemandAt(note, held, instants[at] - onset);
+            // Read against what the position states: its fret, and its end where one is stated.
+            if (demand.has_value() &&
+                (*demand < position.fret || *demand > position.end_fret.value_or(*demand)))
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidFretHandPosition,
+                    .message = formatHandPositionToken(position.position) +
+                               " does not cover fret " + std::to_string(*demand) +
+                               " sounding from " +
+                               formatChartPlaceToken(note.position, note.string),
+                }};
+            }
+        }
     }
     return {};
 }
