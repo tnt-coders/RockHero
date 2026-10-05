@@ -219,6 +219,37 @@ struct MarkerRowEditor
         }
     }
 
+    // Clicks the lane chip fronting at a position, derived or authored.
+    void clickChipAt(const GridPosition& position)
+    {
+        const std::optional<std::size_t> chip = handChipAt(position);
+        REQUIRE(chip.has_value());
+        if (chip.has_value())
+        {
+            controller.onFretHandPositionSelected(*chip);
+        }
+    }
+
+    // The index of the lane chip outlined as selected, derived or authored, or nothing.
+    [[nodiscard]] std::optional<std::size_t> selectedChip() const
+    {
+        return state().chart_edit.selected_fret_hand_position;
+    }
+
+    // What the chart states at the lane chip fronting at a position; nothing is a derived chip.
+    [[nodiscard]] common::core::FhpAuthored chipAuthored(const GridPosition& position) const
+    {
+        const std::optional<std::size_t> chip = handChipAt(position);
+        const std::shared_ptr<const common::core::ChartViewState>& tab = state().tab;
+        REQUIRE(chip.has_value());
+        REQUIRE(tab != nullptr);
+        if (!chip.has_value() || tab == nullptr)
+        {
+            throw std::logic_error("no chip fronts there");
+        }
+        return tab->fret_hand_positions.at(*chip).authored;
+    }
+
     // The index in the chart's list of the placement whose chip the lane outlines as selected, or
     // nothing.
     [[nodiscard]] std::optional<std::size_t> selectedHandIndex() const
@@ -308,10 +339,11 @@ struct MarkerRowEditor
 
 // Up off the top string walks the ruler's rows by selection — time signature, tempo, section — and
 // each lands on the marker holding the cursor, with the caret disarmed and the cursor left where it
-// stood. Down retraces them and re-arms on the top string at the same slot.
+// stood. Down retraces them and re-arms on the top string at the same slot. The chart has no hand
+// event, so no position row sits between the strings and the ruler.
 TEST_CASE("EditorController walks up from the strings onto the ruler rows", "[core][marker-rows]")
 {
-    MarkerRowEditor editor;
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeBareChart()};
     editor.armAtMeasure(6);
     for (int press = 0; press < 5; ++press)
     {
@@ -376,10 +408,10 @@ TEST_CASE("EditorController walks up from the strings onto the ruler rows", "[co
 
 // Ctrl's reach jumps a whole group and lands on its nearest row: any string reaches the signature
 // row, and the signature row reaches the top string; between the ruler's one-row groups reach and
-// the plain step coincide.
+// the plain step coincide. The chart has no hand event, so no position row stands between.
 TEST_CASE("EditorController reaches between the ruler rows and the strings", "[core][marker-rows]")
 {
-    MarkerRowEditor editor;
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeBareChart()};
     editor.armAtMeasure(2);
     editor.step(ChartStepDirection::Up);
     editor.step(ChartStepDirection::Up);
@@ -398,12 +430,13 @@ TEST_CASE("EditorController reaches between the ruler rows and the strings", "[c
 
 // The first marker of a row also owns whatever precedes it, so a cursor ahead of the first section
 // still reaches the section row: the first section is selected and the cursor stays in the lead-in.
-// With no sections at all the row is absent and Up from the tempo row is inert.
+// With no sections at all the row is absent and Up from the tempo row is inert. The chart has no
+// hand event, so the reach from the strings lands on the ruler.
 TEST_CASE("EditorController gives the lead-in to a row's first marker", "[core][marker-rows]")
 {
     SECTION("the first section holds the lead-in")
     {
-        MarkerRowEditor editor;
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeBareChart()};
         editor.armAtMeasure(1);
         editor.step(ChartStepDirection::Up, true);
         editor.step(ChartStepDirection::Up);
@@ -419,7 +452,7 @@ TEST_CASE("EditorController gives the lead-in to a row's first marker", "[core][
 
     SECTION("no sections leaves no section row")
     {
-        MarkerRowEditor editor{std::vector<SongSection>{}};
+        MarkerRowEditor editor{std::vector<SongSection>{}, {}, makeBareChart()};
         editor.armAtMeasure(1);
         editor.step(ChartStepDirection::Up, true);
         editor.step(ChartStepDirection::Up);
@@ -559,10 +592,11 @@ TEST_CASE("EditorController releases a marker selection an undo takes away", "[c
 // the lead-in — the one place the selected marker's start lies AFTER the cursor, since a row's
 // first marker owns whatever precedes it — the first Tab therefore lands on that marker's own
 // start. Past either end the press is inert. Ctrl+Tab steps a marker row exactly as Tab does,
-// since only a string has keyframes to step over.
+// since only a string has keyframes to step over. The chart has no hand event, so the reach from
+// the strings lands on the ruler.
 TEST_CASE("EditorController steps a marker row to the neighbouring marker", "[core][marker-rows]")
 {
-    MarkerRowEditor editor;
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeBareChart()};
     editor.armAtMeasure(1);
     editor.step(ChartStepDirection::Up, true);
     editor.step(ChartStepDirection::Up);
@@ -1013,16 +1047,17 @@ TEST_CASE(
 
     SECTION("a fret-hand position, and Tab still steps from the selected chip")
     {
+        // The row's marker before 8:1 is the window measure 6 derives.
         editor.clickPlacement(2);
         editor.controller.onSelectionDeleteRequested();
-        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+        CHECK(editor.selectedChip() == editor.handChipAt(downbeat(6)));
         CHECK(editor.transport.position().seconds == Catch::Approx(cursor_seconds));
 
-        // The cursor stands under the 8:2 placement, not the selected 5:1 one, so the step reads
-        // the chip: Shift+Tab from 5:1 lands on 1:1.
+        // The cursor stands under the 8:2 placement, not the selected 6:1 chip, so the step reads
+        // the chip: Shift+Tab from 6:1 lands on 5:1.
         editor.controller.onRowObjectStepRequested(false, false);
-        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
-        CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
+        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+        CHECK(editor.transport.position().seconds == Catch::Approx(8.0));
     }
 
     SECTION("a tempo anchor")
@@ -1168,9 +1203,10 @@ TEST_CASE("Fret-hand move refuses an occupied start and both chart ends", "[core
     CHECK(editor.undoEntryCount() == entries_before);
 }
 
-// The position row sits between the time signature and the strings: the jump lands on the placement
-// holding the cursor exactly as the ruler jumps land, and the walk passes through the row. With no
-// placements the row is not listed, so the jump is silent and the walk goes straight to the ruler.
+// The position row sits between the time signature and the strings: the jump lands on the position
+// holding the cursor — here the window measure 6 derives — exactly as the ruler jumps land, and the
+// walk passes through the row. With no hand event at all the row is not listed, so the jump is
+// silent and the walk goes straight to the ruler.
 TEST_CASE("EditorController jumps onto and walks through the position row", "[core][marker-rows]")
 {
     SECTION("the jump selects the holder and the walk passes through the row")
@@ -1178,23 +1214,25 @@ TEST_CASE("EditorController jumps onto and walks through the position row", "[co
         MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
         editor.armAtMeasure(6);
         REQUIRE(editor.caretString() == std::optional{1});
+        const std::optional<std::size_t> derived = editor.handChipAt(downbeat(6));
+        REQUIRE(derived.has_value());
 
         editor.jump(FocusRowJump::FretHandPosition);
-        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+        CHECK(editor.selectedChip() == derived);
         CHECK_FALSE(editor.caretString().has_value());
         CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
 
         editor.step(ChartStepDirection::Up);
         CHECK(editor.state().selected_time_signature_measure == std::optional{5});
         editor.step(ChartStepDirection::Down);
-        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+        CHECK(editor.selectedChip() == derived);
         editor.step(ChartStepDirection::Down);
         CHECK(editor.caretString() == std::optional{6});
     }
 
-    SECTION("a chart with no placements lists no position row")
+    SECTION("a chart with no hand events lists no position row")
     {
-        MarkerRowEditor editor;
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeBareChart()};
         editor.armAtMeasure(4);
         REQUIRE(editor.caretString() == std::optional{1});
 
@@ -1211,26 +1249,25 @@ TEST_CASE("A hand chip click selects what the position-row jump selects", "[core
     MarkerRowEditor keyboard{makeMarkerSections(), {}, makeHandChart()};
     keyboard.armAtMeasure(6);
     keyboard.jump(FocusRowJump::FretHandPosition);
-    REQUIRE(keyboard.selectedHandIndex() == std::optional<std::size_t>{1});
+    REQUIRE(keyboard.selectedChip() == keyboard.handChipAt(downbeat(6)));
 
     MarkerRowEditor pointer{makeMarkerSections(), {}, makeHandChart()};
     pointer.armAtMeasure(6);
-    pointer.controller.onFretHandPositionSelected(1);
-    CHECK(pointer.selectedHandIndex() == keyboard.selectedHandIndex());
+    pointer.clickChipAt(downbeat(6));
+    CHECK(pointer.selectedChip() == keyboard.selectedChip());
     CHECK(pointer.state().restate_target == keyboard.state().restate_target);
     CHECK_FALSE(pointer.caretString().has_value());
     CHECK(pointer.transport.position().seconds == Catch::Approx(10.0));
 
-    // An index naming no placement selects nothing.
+    // An index naming no chip selects nothing.
     pointer.controller.onFretHandPositionSelected(9);
-    CHECK(pointer.selectedHandIndex() == std::optional<std::size_t>{1});
+    CHECK(pointer.selectedChip() == keyboard.selectedChip());
 }
 
-// The lane's chips are every hand event, so the three sites that name a placement's chip find it by
-// its position: an authored position between two derived windows is outlined on its own chip, a
-// click on that chip selects it, a click on a derived chip selects nothing yet, and a pending fret
-// entry's box rides that chip in the projection the entry previews.
-TEST_CASE("An authored position between derived chips maps to its own chip", "[core][marker-rows]")
+// Every chip is a row object: a click on a derived chip selects it as a click on an authored one
+// does, each outlined on its own chip, and a pending fret entry on the authored one rides its chip
+// in the projection the entry previews. The authored chip draws solid, the derived ones as ghosts.
+TEST_CASE("A click selects a derived chip and an authored one alike", "[core][marker-rows]")
 {
     common::core::Chart chart;
     chart.tuning.strings = common::core::testing::standardTuning();
@@ -1247,11 +1284,18 @@ TEST_CASE("An authored position between derived chips maps to its own chip", "[c
     CHECK(tab->fret_hand_positions[0].position == downbeat(2));
     CHECK(tab->fret_hand_positions[1].position == downbeat(3));
     CHECK(tab->fret_hand_positions[2].position == downbeat(4));
+    CHECK(tab->fret_hand_positions[0].authored == common::core::FhpAuthored::Nothing);
+    CHECK(tab->fret_hand_positions[1].authored == common::core::FhpAuthored::Fret);
+    CHECK(tab->fret_hand_positions[2].authored == common::core::FhpAuthored::Nothing);
 
     editor.controller.onFretHandPositionSelected(0);
-    CHECK_FALSE(editor.state().chart_edit.selected_fret_hand_position.has_value());
+    CHECK(editor.state().chart_edit.selected_fret_hand_position == std::optional<std::size_t>{0});
+    CHECK_FALSE(editor.selectedHandIndex().has_value());
+    CHECK(editor.state().selection_present);
     editor.controller.onFretHandPositionSelected(2);
-    CHECK_FALSE(editor.state().chart_edit.selected_fret_hand_position.has_value());
+    CHECK(editor.state().chart_edit.selected_fret_hand_position == std::optional<std::size_t>{2});
+    // Selecting it demotes the caret and seeks nothing, as every marker click does.
+    CHECK_FALSE(editor.caretString().has_value());
 
     editor.controller.onFretHandPositionSelected(1);
     CHECK(editor.state().chart_edit.selected_fret_hand_position == std::optional<std::size_t>{1});
@@ -1404,7 +1448,7 @@ TEST_CASE("The ring plane types a fret-hand position's end fret", "[core][marker
     if (chip.has_value())
     {
         CHECK(tab->fret_hand_positions[*chip].width == 3);
-        CHECK(tab->fret_hand_positions[*chip].end_authored);
+        CHECK(tab->fret_hand_positions[*chip].authored == common::core::FhpAuthored::FretAndEnd);
     }
 
     editor.controller.onUndoRequested();
@@ -1447,7 +1491,7 @@ TEST_CASE(
                 CHECK(chip->index == 0);
                 CHECK(chip->typed.fret == 8);
                 CHECK(common::core::FretWindow{.fret = 8, .width = chip->typed.width}.top() == 7);
-                CHECK(chip->typed.end_authored);
+                CHECK(chip->typed.authored == common::core::FhpAuthored::FretAndEnd);
             }
         }
     }
@@ -1471,7 +1515,7 @@ TEST_CASE(
             {
                 CHECK(chip->typed.fret == 12);
                 CHECK(common::core::FretWindow{.fret = 12, .width = chip->typed.width}.top() == 9);
-                CHECK(chip->typed.end_authored);
+                CHECK(chip->typed.authored == common::core::FhpAuthored::FretAndEnd);
             }
         }
     }
@@ -1532,6 +1576,163 @@ TEST_CASE("A digit with no placement selected still types at the caret", "[core]
             return note.position == downbeat(4) && note.string == 1 && note.fret == 5;
         }));
     }
+}
+
+// Tab and Shift+Tab walk the position row through every hand event in order, the window measure 6
+// derives between the authored 5:1 and 8:1 included.
+TEST_CASE("The position row walks derived and authored positions in order", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.clickPlacement(0);
+
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.selectedChip() == editor.handChipAt(downbeat(6)));
+    CHECK_FALSE(editor.selectedHandIndex().has_value());
+    CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{2});
+    editor.controller.onRowObjectStepRequested(false, false);
+    CHECK(editor.selectedChip() == editor.handChipAt(downbeat(6)));
+}
+
+// A digit on a selected DERIVED position states its fret the way it states an authored one's: the
+// position is authored there first, as Ctrl+P would make it, and the typed fret applies to it, the
+// two one undo entry. The chip stays selected, now drawn solid.
+TEST_CASE("A digit on a derived position authors it there", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.clickChipAt(downbeat(6));
+    REQUIRE(editor.chipAuthored(downbeat(6)) == common::core::FhpAuthored::Nothing);
+    const std::size_t entries_before = editor.undoEntryCount();
+
+    editor.controller.onChartFretDigitTyped(9);
+    std::vector<common::core::FretHandPosition> expected = makeHandChart().fret_hand_positions;
+    expected.insert(std::next(expected.begin(), 2), placementAt(downbeat(6), 9));
+    CHECK(editor.placements() == expected);
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+    CHECK(editor.state().undo_history.labels.back() == "Set Hand Position Start Fret");
+    CHECK(editor.chipAuthored(downbeat(6)) == common::core::FhpAuthored::Fret);
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{2});
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    CHECK(editor.chipAuthored(downbeat(6)) == common::core::FhpAuthored::Nothing);
+}
+
+// The ring plane's end fret states on a derived position too: it authors the position there first
+// with the fret standing there (the window measure 6 derives sits on fret 7), as one undo entry.
+TEST_CASE("An end fret typed on a derived position authors it there", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.clickChipAt(downbeat(6));
+    const std::size_t entries_before = editor.undoEntryCount();
+    std::vector<common::core::FretHandPosition> expected = makeHandChart().fret_hand_positions;
+
+    editor.controller.onChartRingDigitTyped(1);
+    editor.controller.onChartRingDigitTyped(1);
+    common::core::FretHandPosition stated = placementAt(downbeat(6), 7);
+    stated.end_fret = 11;
+    expected.insert(std::next(expected.begin(), 2), stated);
+    CHECK(editor.placements() == expected);
+    CHECK(editor.state().undo_history.labels.back() == "Set Hand Position End Fret");
+    CHECK(editor.chipAuthored(downbeat(6)) == common::core::FhpAuthored::FretAndEnd);
+
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{2});
+    editor.controller.onUndoRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+}
+
+// Alt+Delete clears a stated end, and a derived position states none: nothing is authored, nothing
+// is recorded, and the chip stays derived and selected.
+TEST_CASE("Alt+Delete on a derived position does nothing", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.clickChipAt(downbeat(6));
+    const std::size_t entries_before = editor.undoEntryCount();
+    const std::optional<std::size_t> selected_before = editor.selectedChip();
+    REQUIRE(selected_before.has_value());
+
+    editor.controller.onFretHandPositionEndClearRequested();
+
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    CHECK(editor.undoEntryCount() == entries_before);
+    CHECK(editor.chipAuthored(downbeat(6)) == common::core::FhpAuthored::Nothing);
+    CHECK(editor.selectedChip() == selected_before);
+}
+
+// A derived position stores nothing to delete or move, so Delete and Alt+arrows REFUSE it: the
+// stream, the history and the selection stay exactly as they were, and the chip glows red.
+TEST_CASE("Delete and the move refuse a derived position", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    const std::optional<std::size_t> derived = editor.handChipAt(downbeat(6));
+    REQUIRE(derived.has_value());
+    editor.clickChipAt(downbeat(6));
+    const std::size_t entries_before = editor.undoEntryCount();
+    const std::size_t flashes_before = editor.view.refusal_flashes.size();
+
+    editor.controller.onSelectionDeleteRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    CHECK(editor.undoEntryCount() == entries_before);
+    CHECK(editor.selectedChip() == derived);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+    CHECK(editor.view.refusal_flashes.back().fret_hand_position == derived);
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    CHECK(editor.undoEntryCount() == entries_before);
+    CHECK(editor.selectedChip() == derived);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 2);
+    CHECK(editor.view.refusal_flashes.back().fret_hand_position == derived);
+}
+
+// The prune drops every stored position the derivation reproduces and keeps the rest, as one undo
+// entry; with nothing left to drop it records nothing. Measure 2's position states the very window
+// its notes derive, so it goes; measure 4's states fret 9 over a note the notes alone would put on
+// fret 1, so it stays.
+TEST_CASE("The prune removes exactly the redundant stored positions", "[core][marker-rows]")
+{
+    common::core::Chart chart = makeBareChart();
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3),
+        makeTestNote({.measure = 3, .beat = 1}, 1, 4),
+        makeTestNote({.measure = 4, .beat = 1}, 2, 1),
+    };
+    chart.fret_hand_positions = {placementAt(downbeat(2), 3), placementAt(downbeat(4), 9)};
+    const std::vector<common::core::FretHandPosition> stored = chart.fret_hand_positions;
+    MarkerRowEditor editor{makeMarkerSections(), {}, std::move(chart)};
+    const std::shared_ptr<const common::core::ChartViewState> before = editor.state().tab;
+    REQUIRE(before != nullptr);
+    const std::size_t entries_before = editor.undoEntryCount();
+
+    editor.controller.onFretHandPositionsPruneRequested();
+    CHECK(editor.placements() == std::vector{placementAt(downbeat(4), 9)});
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+    CHECK(editor.state().undo_history.labels.back() == "Prune Hand Positions");
+    // The hand is unchanged; the pruned position's chip simply draws derived now.
+    const std::shared_ptr<const common::core::ChartViewState> after = editor.state().tab;
+    REQUIRE(after != nullptr);
+    REQUIRE(after->fret_hand_positions.size() == before->fret_hand_positions.size());
+    for (std::size_t index = 0; index < before->fret_hand_positions.size(); ++index)
+    {
+        CHECK(
+            after->fret_hand_positions[index].position ==
+            before->fret_hand_positions[index].position);
+        CHECK(after->fret_hand_positions[index].fret == before->fret_hand_positions[index].fret);
+        CHECK(after->fret_hand_positions[index].width == before->fret_hand_positions[index].width);
+    }
+    CHECK(editor.chipAuthored(downbeat(2)) == common::core::FhpAuthored::Nothing);
+    CHECK(editor.chipAuthored(downbeat(4)) == common::core::FhpAuthored::Fret);
+
+    editor.controller.onFretHandPositionsPruneRequested();
+    CHECK(editor.placements() == std::vector{placementAt(downbeat(4), 9)});
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.placements() == stored);
 }
 
 } // namespace rock_hero::editor::core

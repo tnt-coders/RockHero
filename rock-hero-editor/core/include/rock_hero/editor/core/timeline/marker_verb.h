@@ -72,6 +72,9 @@ enum class MarkerVerb : std::uint8_t
 
     /*! \brief Deletes a fret-hand position. */
     DeleteHandPosition,
+
+    /*! \brief Removes every stored fret-hand position the derivation does not need. */
+    PruneHandPositions,
 };
 
 /*!

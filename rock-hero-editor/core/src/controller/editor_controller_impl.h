@@ -68,6 +68,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/editor/core/project/project.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
+#include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <span>
 #include <string>
@@ -303,9 +304,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // nothing. What a refused entry's box prints (ChartPendingFretHandPosition::typed).
     [[nodiscard]] common::core::FhpViewState fretHandEntryChip(
         const common::core::GridPosition& position, FretHandEdge edge, int value) const;
-    // The index of the scene's chip fronting at `position`: the one mapping from a position to the
-    // chip that draws it, the chips being every hand event, derived and authored, so no list of
-    // authored positions shares their indices. Nothing where no chip fronts there.
+    // The index of `scene`'s chip fronting at `position`, nothing where none fronts there. The
+    // stored chart's chips are the position row's markers and need no lookup (markerIndex); this
+    // is for a scene a pending entry PREVIEWS, whose chips the typed value may renumber.
     [[nodiscard]] static std::optional<std::size_t> fretHandChipIndex(
         const common::core::ChartViewState& scene, const common::core::GridPosition& position);
     // Combining a digit into the pending entry: false = no live entry claimed it — an expired one
@@ -679,6 +680,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const FretHandPositionSelection& selection, ChartStepDirection direction);
     // Deletes the selected placement (the Delete-key dispatch for the fret-hand alternative).
     void deleteSelectedFretHandPosition(const FretHandPositionSelection& selection);
+    // Refuses `verb`, which needs a stored position, on a selected DERIVED one: the refusal log's
+    // record and the red glow on its chip, the selection left as it was.
+    void refuseDerivedFretHandPosition(const FretHandPositionSelection& selection, MarkerVerb verb);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
     void deleteSelectedMarker();
@@ -781,6 +785,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SelectFretHandPosition& action);
     void performActionImpl(EditorAction::AuthorFretHandPositionAtCursor action);
     void performActionImpl(EditorAction::ClearFretHandEnd action);
+    void performActionImpl(EditorAction::PruneFretHandPositions action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::InsertTempoAnchor& action);

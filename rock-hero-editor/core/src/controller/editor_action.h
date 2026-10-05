@@ -952,6 +952,17 @@ struct EditorAction
     };
 
     /*!
+    \brief Prune the chart's fret-hand positions: remove every stored one whose removal leaves the
+    derived hand events unchanged, and keep the rest.
+
+    Carries nothing: the subject is the whole chart. One undo entry; a chart where every stored
+    position is needed records none.
+    */
+    struct PruneFretHandPositions
+    {
+    };
+
+    /*!
     \brief Insert a song-structure section at a position's measure downbeat.
 
     Carries the position the surface captured AT THE PRESS, exactly as the tone-change insert
@@ -1082,8 +1093,8 @@ struct EditorAction
         ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
         RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
         ReleaseTempoAnchorDrag, ScaleTempo, SelectTimeSignature, SetTimeSignature,
-        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject,
-        JumpToFocusRow>;
+        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd,
+        PruneFretHandPositions, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

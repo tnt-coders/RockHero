@@ -339,6 +339,14 @@ while the transport plays. It opens one prompt ("Scale Tempo", one field "Scale 
 through `onScaleTempoRequested` for the core to parse (`parseScaleFactor`, which refuses a term
 over 16 once reduced). The Tempo Lock does not block it: it moves no anchor in time.
 
+`PruneHandPositions` (`0x140A`, "Prune Hand Positions", category Hand) has the same shape with no
+prompt: no default chord, an Edit-menu item greyed and self-gated on `marker_edits_enabled`, its
+name read from the marker-verb table, and its `perform` forwarding
+`onFretHandPositionsPruneRequested()` to the core's `PruneFretHandPositions` action. That walks
+the stored positions in order and drops each one whose removal leaves `deriveFretHandEvents`'s
+events unchanged, judged against the list kept so far, as one undo entry; with nothing redundant
+it records no entry and logs that.
+
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
@@ -411,7 +419,11 @@ it retypes what is selected — a selected fret-hand position included, whose ST
 state through the same entry (`ChartFretEntry::RetypeHandFret`, settled through the marker funnel
 as "Set Hand Position Start Fret", refused red by the funnel's own front half, `judgeMarkerModel`),
 while the `Alt` digit states its window's END fret ("Set Hand Position End Fret") and `Alt+Delete`
-(`ClearHandPositionEndFret`) clears that end back to the derived one; at the caret, on an EMPTY slot and at a
+(`ClearHandPositionEndFret`) clears that end back to the derived one. On a selected DERIVED
+position either digit first authors the position there at the fret standing there — what `Ctrl+P`
+makes at that place — in the same undo entry (`statedPlacement`); `Alt+Delete` does nothing, there
+being no stated end to clear; and Delete and `Alt+Left/Right` refuse it, since nothing is stored to
+delete or move; at the caret, on an EMPTY slot and at a
 ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply the next note, since the
 ring already stops there, which is why sequential entry is safe, whatever that end states — the
 head under the caret RETYPED, and STRICTLY INSIDE a ring the head that CUTS it
@@ -589,9 +601,8 @@ the rig, the lanes and the signal-chain panel with it, and why a caret RIDING a 
 automation point across a region boundary does the same. Arming still seeks NOTHING — the playhead
 does not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
-— the ruler's section, tempo and time-signature rows, the position row (the chart's AUTHORED
-fret-hand positions; the lane draws a chip for every derived position too, but only an authored
-one is a row marker yet), the strings, the tone-region row, the visible
+— the ruler's section, tempo and time-signature rows, the position row (every hand event, derived
+and authored alike: the chips the lane draws), the strings, the tone-region row, the visible
 lanes, the "+" row — and every landing goes
 through `landOnRow`, which arms a string or lane row and selects the marker holding the cursor on a
 marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a landing that
@@ -612,7 +623,7 @@ selected and an armed caret demotes in place exactly as a step would leave it. B
 rows through one non-const `rowsFromFocus`, which folds the column rule (`moveCursorIntoSelectedMarker`,
 so a marker selected far from the cursor is where the target row is read) and `focusRowStack` in that
 order, so neither can list before reconciling. **Stack membership is the silence rule**: a row the
-stack does not list — a song with no sections, a chart with no fret-hand positions — is not landed
+stack does not list — a song with no sections, a chart with no hand events — is not landed
 on at all, so
 the press does nothing and leaves an armed caret armed, where indexing that row's markers would have
 thrown. The jump never calls `prepareLandingRow`, which is the rule for landings that KEEP the row.

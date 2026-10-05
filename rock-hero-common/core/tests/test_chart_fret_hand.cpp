@@ -145,14 +145,16 @@ TEST_CASE("Chart projection publishes every hand event as a chip", "[core][chart
     CHECK(before.position == GridPosition{.measure = 1, .beat = 1});
     CHECK(before.fret == 3);
     CHECK(before.width == 4);
+    CHECK(before.authored == FhpAuthored::Nothing);
     const FhpViewState& stated = state.fret_hand_positions[1];
     CHECK(stated.position == GridPosition{.measure = 1, .beat = 3});
     CHECK(stated.fret == 5);
     CHECK(stated.width == 5);
-    CHECK_FALSE(stated.end_authored);
+    CHECK(stated.authored == FhpAuthored::Fret);
     const FhpViewState& after = state.fret_hand_positions[2];
     CHECK(after.position == GridPosition{.measure = 2, .beat = 1});
     CHECK(after.fret == 11);
+    CHECK(after.authored == FhpAuthored::Nothing);
 
     // An authored end is the window's end, and published as authored, which is what the chip
     // prints as a range. The chord's fret 9 above it is struck at the position's own instant, which
@@ -161,7 +163,7 @@ TEST_CASE("Chart projection publishes every hand event as a chip", "[core][chart
     const ChartViewState ended = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(ended.fret_hand_positions.size() == 3);
     CHECK(ended.fret_hand_positions[1].width == 3);
-    CHECK(ended.fret_hand_positions[1].end_authored);
+    CHECK(ended.fret_hand_positions[1].authored == FhpAuthored::FretAndEnd);
 }
 
 // A placement is a marker, so it may start only where every marker may: on the grid and strictly

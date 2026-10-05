@@ -502,8 +502,11 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         const GridPosition fhp_position = tempo_map.gridPositionAtWholeNote(fhp_place);
         const auto stated = std::ranges::lower_bound(
             authored, fhp_position, std::ranges::less{}, &FretHandPosition::position);
-        const bool end_authored = stated != authored.end() && stated->position == fhp_position &&
-                                  stated->end_fret.has_value();
+        FhpAuthored statement = FhpAuthored::Nothing;
+        if (stated != authored.end() && stated->position == fhp_position)
+        {
+            statement = stated->end_fret.has_value() ? FhpAuthored::FretAndEnd : FhpAuthored::Fret;
+        }
         const double arrival_seconds = tempo_map.secondsAtWholeNote(fhp_place);
         double ramp_start_seconds = 0.0;
         bool unpitched_ramp = false;
@@ -533,7 +536,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             .position = fhp_position,
             .fret = event.window.fret,
             .width = event.window.width,
-            .end_authored = end_authored,
+            .authored = statement,
             .ramp_seconds = arrival_seconds - ramp_start_seconds,
             .unpitched_ramp = unpitched_ramp,
             .settle_seconds = settle_seconds,

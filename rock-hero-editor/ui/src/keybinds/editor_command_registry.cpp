@@ -237,6 +237,15 @@ constexpr int g_add_lane_key = 'a';
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::PruneHandPositions,
+            // No default chord: pruning the stored positions is a whole-chart cleanup, rare and
+            // deliberate, so its surfaces are the Edit menu and the Actions list.
+            .name = core::markerVerbLabel(core::MarkerVerb::PruneHandPositions),
+            .category = "Hand",
+            .default_keypresses = {},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::RestateSelection,
             // Enter edits what is selected, which on a marker is whatever that marker states: a
             // section's name, a region's tone. Bare Enter is free — nothing else in the editor

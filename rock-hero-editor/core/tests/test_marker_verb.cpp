@@ -27,6 +27,7 @@ TEST_CASE("Every marker verb's label is pinned", "[core][marker-verb]")
     CHECK(markerVerbLabel(MarkerVerb::SetHandPositionEndFret) == "Set Hand Position End Fret");
     CHECK(markerVerbLabel(MarkerVerb::ClearHandPositionEndFret) == "Clear Hand Position End Fret");
     CHECK(markerVerbLabel(MarkerVerb::DeleteHandPosition) == "Delete Hand Position");
+    CHECK(markerVerbLabel(MarkerVerb::PruneHandPositions) == "Prune Hand Positions");
 }
 
 // The ellipsis is the one display convention for a row that opens the verb's prompt, applied to

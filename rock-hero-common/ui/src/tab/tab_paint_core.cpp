@@ -2451,7 +2451,8 @@ juce::Rectangle<float> paintTabPendingEntryBox(
 juce::String tabFhpChipText(const common::core::FhpViewState& fhp)
 {
     // An authored end always prints as a range, so the chip says which ends the charter stated.
-    if (!fhp.end_authored && fhp.width == common::core::g_min_fret_hand_width)
+    if (fhp.authored != common::core::FhpAuthored::FretAndEnd &&
+        fhp.width == common::core::g_min_fret_hand_width)
     {
         return juce::String{fhp.fret};
     }
@@ -2644,6 +2645,14 @@ void drawTabFhpChip(
         return;
     }
 
+    // A DERIVED position draws as a ghost, an authored one solid, so the charter sees which ones
+    // the chart stores: the ghost note's weight over the flattened chip, ground and digits alike.
+    std::optional<ScopedTransparencyLayer> ghost;
+    if (fhp.authored == common::core::FhpAuthored::Nothing &&
+        g.clipRegionIntersects(layerBounds(box)))
+    {
+        ghost.emplace(g, layerBounds(box), g_ghost_opacity);
+    }
     g.setColour(g_lane_chip_ground);
     g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
     g.setColour(g_lane_chip_text);

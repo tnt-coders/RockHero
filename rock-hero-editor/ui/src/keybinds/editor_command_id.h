@@ -201,6 +201,17 @@ enum class EditorCommandId : std::uint16_t
     */
     ScaleTempo = 0x1409,
 
+    /*!
+    \brief Prune the chart's stored fret-hand positions: remove every one whose removal leaves the
+    derived hand events unchanged, and keep the rest (Prune Hand Positions).
+
+    One undo entry; a chart where every stored position is needed records none and logs that. The
+    Edit menu's "Prune Hand Positions" runs it. No default chord: a whole-chart cleanup is rare and
+    deliberate. Disabled while the marker plane is closed — while the transport plays, or with no
+    song.
+    */
+    PruneHandPositions = 0x140A,
+
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
 
@@ -237,8 +248,7 @@ enum class EditorCommandId : std::uint16_t
     The groups are the ruler's section, tempo and time-signature rows, the position row, the
     strings, the tone row, the automation lanes and the "+" row beneath them, and the jump lands on
     the destination group's nearest row: from any string the position row (the time-signature row
-    on a chart with no fret-hand positions), from any lane the tone row, from the "+" row the last
-    lane.
+    on a chart with no hand events), from any lane the tone row, from the "+" row the last lane.
     */
     CaretJumpSurfaceAbove = 0x150B,
 
@@ -246,8 +256,7 @@ enum class EditorCommandId : std::uint16_t
     \brief Jump to the nearest row of the group of rows below (`Ctrl+Down`).
 
     From the position row this reaches the top string (from the time-signature row, the position row
-    where the chart has fret-hand positions), from any string the tone row, and from any lane the
-    "+" row.
+    where the chart has hand events), from any string the tone row, and from any lane the "+" row.
     */
     CaretJumpSurfaceBelow = 0x150C,
 
@@ -308,10 +317,10 @@ enum class EditorCommandId : std::uint16_t
     CaretJumpAddLaneRow = 0x1515,
 
     /*!
-    \brief Jump keyboard focus onto the position row, the chart's fret-hand positions
-    (`Ctrl+Shift+P`).
+    \brief Jump keyboard focus onto the position row, the chart's fret-hand positions, derived and
+    authored (`Ctrl+Shift+P`).
 
-    Silent on a chart with no placements, where the row has nothing to hold the cursor.
+    Silent on a chart with no hand events, where the row has nothing to hold the cursor.
     */
     CaretJumpFretHandPositionRow = 0x1516,
 

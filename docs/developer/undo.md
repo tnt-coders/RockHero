@@ -66,7 +66,9 @@ rename and boundary-move; its `normalize` prunes catalog tones no region referen
 delete; its `normalize` sorts by position and its `validate` is the shared
 `validateSongSectionRules`) and `FretHandPositionsSnapshot`
 (`chart/fret_hand_positions_snapshot.h` — the current chart's whole list of AUTHORED fret-hand
-positions behind the fret-hand position's add, move and delete; its `normalize` sorts by position,
+positions behind the fret-hand position's add, move, fret entries, end clear, delete and the
+Prune Hand Positions command — a stating verb on a DERIVED position authors it inside the same
+entry, and a prune that finds nothing redundant records none; its `normalize` sorts by position,
 its `validate` is the chart gate's own `validateFretHandPositions`, and its apply writes through
 `Session::writeChart()` so the chart revision the projections are keyed on advances), and
 `SongTimelineSnapshot` (`timeline/song_timeline_snapshot.h` — the song's WHOLE timeline, the

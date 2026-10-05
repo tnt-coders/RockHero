@@ -132,10 +132,14 @@ void setFixtureState(TabView& view)
     };
     // A WIDE placement, which spells out its inclusive range ("10-16") and so draws a chip wider
     // than the letters' own panel -- the case that makes "the pinned chip is inert too" say
-    // something the panel's own rule does not already say.
+    // something the panel's own rule does not already say. Both are authored, so they draw solid.
     state.fret_hand_positions = {
-        common::core::FhpViewState{.seconds = 2.0, .fret = 10, .width = 7},
-        common::core::FhpViewState{.seconds = 12.0, .fret = 3, .width = 4},
+        common::core::FhpViewState{
+            .seconds = 2.0, .fret = 10, .width = 7, .authored = common::core::FhpAuthored::Fret
+        },
+        common::core::FhpViewState{
+            .seconds = 12.0, .fret = 3, .width = 4, .authored = common::core::FhpAuthored::Fret
+        },
     };
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
@@ -812,6 +816,44 @@ TEST_CASE("TabView glows a refused head red until the projection changes", "[ui]
 
     setFixtureState(view);
     CHECK(render() == plain);
+}
+
+// A refused fret-hand position — a derived one asked to be deleted or moved — glows red on its chip
+// as a refused head does. Asked as a sum over a box just left of the chip (12.0s, x = 120), where
+// the halo spills, so a pulse level above zero is all the check needs.
+TEST_CASE("TabView glows a refused fret-hand chip red", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeFurnitureTabState(), 0);
+    const auto red_beside_chip = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        int red = 0;
+        for (int x = 114; x < 120; ++x)
+        {
+            for (int y = 2; y < 12; ++y)
+            {
+                red += image.getPixelAt(x, y).getRed();
+            }
+        }
+        return red;
+    };
+    const int plain = red_beside_chip();
+
+    view.flashRefusal(
+        core::ChartRefusalFlash{
+            .notes = {}, .keyframes = {}, .fret_hand_position = std::size_t{1}
+        });
+    CHECK(red_beside_chip() > plain);
 }
 
 // The glow draws OVER the caret square, so a refusal at the caret's own slot is never cut by it:

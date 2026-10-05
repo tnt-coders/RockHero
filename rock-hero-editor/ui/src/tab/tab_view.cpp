@@ -134,6 +134,10 @@ void TabView::flashRefusal(core::ChartRefusalFlash flash)
         [](core::ChartRefusalFlash& into, const core::ChartRefusalFlash& from) {
             joinRefused(into.notes, from.notes);
             joinRefused(into.keyframes, from.keyframes);
+            if (from.fret_hand_position.has_value())
+            {
+                into.fret_hand_position = from.fret_hand_position;
+            }
         });
     repaint();
 }
@@ -973,6 +977,21 @@ void TabView::paint(juce::Graphics& g)
         {
             g.setColour(accent);
             g.drawRect(chip->box, overlayRingStroke(chip->box.getHeight()));
+        }
+    }
+
+    // A REFUSED fret-hand chip glows as every refused mark does, traced on the chip where it is
+    // drawn, over the selection's outline and under the pending box.
+    if (m_refusal.has_value())
+    {
+        if (const std::optional<std::size_t>& refused = m_refusal->subject.fret_hand_position;
+            refused.has_value())
+        {
+            if (const std::optional<DrawnChip> chip = drawn_chip(*refused); chip.has_value())
+            {
+                const MarkOutline mark = plate_outline(chip->box);
+                paintRefusalGlow(g, mark.path, mark.extent, m_refusal->pulse.level());
+            }
         }
     }
 

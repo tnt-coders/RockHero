@@ -59,13 +59,14 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
         }
         case MarkerRow::FretHandPosition:
         {
-            if (const common::core::Arrangement* const arrangement = session().currentArrangement();
-                arrangement != nullptr && arrangement->chart.has_value())
+            // Every hand event, derived and authored alike: the chips the lane draws, in the
+            // order it draws them, so a row index IS a chip index. Read off the memoized
+            // projection, which derives them once per chart revision.
+            if (const common::core::ChartViewState* const scene = currentTabProjection())
             {
-                for (const common::core::FretHandPosition& placement :
-                     arrangement->chart->fret_hand_positions)
+                for (const common::core::FhpViewState& chip : scene->fret_hand_positions)
                 {
-                    starts.push_back(placement.position);
+                    starts.push_back(chip.position);
                 }
             }
             break;

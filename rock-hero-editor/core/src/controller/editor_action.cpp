@@ -315,6 +315,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ClearFretHandEnd;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::PruneFretHandPositions>)
+    {
+        return EditorAction::Id::PruneFretHandPositions;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::StepToRowObject>)
     {
         return EditorAction::Id::StepToRowObject;

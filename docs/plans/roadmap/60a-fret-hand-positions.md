@@ -4,8 +4,11 @@
 
 **Sub-plan of `docs/plans/roadmap/60-the-hand.md`, split out 2026-10-04.** Phases 0 and 1 are
 DONE (Phase 1 closed 2026-10-04 at 88.213% exact, identical to its reference). The master's
-rename sweep is DONE (`c910b8d8`). NEXT: Phase 2 (the derived stream), then Phase 3 (the position
-row's remainder). Positions are finished before the holds plan (`60b-holds.md`) starts.
+rename sweep is DONE (`c910b8d8`). Phase 2 is BUILT through step 4 of 5 (2026-10-05: `16878e2f`
+the derivation takes authored positions, `3b8966db` positions derive at read, `b8eb6f82` and
+`959fcb9c` the slide-out ride, then the row walking every position with the prune command);
+unsighted. NEXT: step 5 (the one chart rule), the sighting, then Phase 3 (the position row's
+remainder). Positions are finished before the holds plan (`60b-holds.md`) starts.
 
 Section numbers are the family's (the master's §0 has the map): §§1–6, the G60 gate record of §9
 and §§10–12 are in the master; the phases, §8 and the rulings below keep the numbers they had.
@@ -27,9 +30,9 @@ Saved as `positions[]`, today `fhps`.
   This answers the "scope of a stated fret" question Phase 2 carried: neither "the run it heads"
   nor "until the next marker".
 - **Whether a note at an authored position's own instant, outside its window, is REFUSED** was
-  ruled yes on 2026-10-04 and is OPEN again as of 2026-10-05; Phase 2's build rulings carry the
-  user's current reading and what is owed. The derivation needs no refusal: a position owns its
-  own instant. A note later on is never refused; the position stops standing there.
+  ruled yes on 2026-10-04 and re-ruled as ONE chart rule on 2026-10-05; Phase 2's build rulings
+  carry it and what is owed before it is switched on. The derivation needs no refusal: a position
+  owns its own instant. A note later on is never refused; the position stops standing there.
 - **Chords:** `Ctrl+P` inserts or restates, `Ctrl+Shift+P` jumps to the row. The built `Ctrl+H`
   pair moves there.
 
@@ -246,8 +249,14 @@ answers). These are the current reading wherever the older text below disagrees.
   alone, so it draws no chip, takes no click and is no row object. Step 2 deletes the stored form;
   this is step 3, and Phase 2 is not sighted without it.
 - **The steps, renumbered:** (1) the derivation accepts authored positions, DONE; (2) positions
-  derive at read; (3) the slide-out motion; (4) the row walks the derived positions, with the
-  prune command; (5) the refusal.
+  derive at read, DONE; (3) the slide-out motion, DONE; (4) the row walks the derived positions,
+  with the prune command, DONE; (5) the refusal.
+- **Step 4 as built (2026-10-05):** the row's markers ARE the hand events' chips. A derived chip
+  draws as a ghost (user), an authored one solid. A verb that STATES something on a derived
+  position (a fret or an end fret) first authors the standing fret there, as `Ctrl+P` does, in one
+  undo step; Delete and `Alt`+arrows on a derived position are refused with the red glow; clearing
+  an end it never stated does nothing. "Prune Hand Positions" (no default chord, Edit menu) removes
+  every stored position whose removal leaves the derived events unchanged.
 - **Converted songs KEEP the source's positions as authored** (user). They are what a charter
   placed, they behave the same under "stands until contradicted" (the next one ends each), and the
   scorer needs them as its ground truth. This reverses the converter note below: the converter
@@ -263,7 +272,8 @@ answers). These are the current reading wherever the older text below disagrees.
   chip maps to an authored position by its front. On a selected DERIVED position, typing a fret
   authors a position there and Delete is refused.
 - **`Ctrl+P` states the fret already standing at the cursor,** the nut window where nothing
-  stands; `defaultedPlacement` and its stop fold go.
+  stands. `defaultedPlacement`'s stop fold is gone; the function stays as that one statement,
+  which every stating verb on a derived position also goes through (step 4).
 - **`chartResolutions` takes the `Chart`** (notes, authored positions, capo). There are 20 call
   sites, 18 of them in tests, not the 28 counted below. `FretHandEvent` moves beside `FretWindow`
   in `chart.h`, since `chart_fret_hand.h` includes `chart_legato.h`.

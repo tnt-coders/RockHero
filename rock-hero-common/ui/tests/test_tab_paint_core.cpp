@@ -941,10 +941,15 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .bracket_seconds = 10.0,
         },
     };
+    // Authored positions, so their chips draw solid (a derived one is a ghost).
     state.fret_hand_positions = {
-        common::core::FhpViewState{.seconds = 2.0, .fret = 5, .width = 4},
+        common::core::FhpViewState{
+            .seconds = 2.0, .fret = 5, .width = 4, .authored = common::core::FhpAuthored::Fret
+        },
         // Wider than the standard four-fret hand: the marker spells out the inclusive range.
-        common::core::FhpViewState{.seconds = 14.0, .fret = 3, .width = 5},
+        common::core::FhpViewState{
+            .seconds = 14.0, .fret = 3, .width = 5, .authored = common::core::FhpAuthored::Fret
+        },
     };
     indexVisibleRanges(state);
 
@@ -1206,12 +1211,18 @@ TEST_CASE("Tab FHP chip text prints an authored end as a range", "[ui][tab-paint
     CHECK(
         tabFhpChipText(
             common::core::FhpViewState{
-                .seconds = 0.0, .fret = 5, .width = 4, .end_authored = true
+                .seconds = 0.0,
+                .fret = 5,
+                .width = 4,
+                .authored = common::core::FhpAuthored::FretAndEnd,
             }) == "5-8");
     CHECK(
         tabFhpChipText(
             common::core::FhpViewState{
-                .seconds = 0.0, .fret = 1, .width = 3, .end_authored = true
+                .seconds = 0.0,
+                .fret = 1,
+                .width = 3,
+                .authored = common::core::FhpAuthored::FretAndEnd,
             }) == "1-3");
     // A refused entry's box prints the chip the typed value would have made, even a window whose
     // end falls below its start, so the refused half reads in place.
@@ -1221,8 +1232,39 @@ TEST_CASE("Tab FHP chip text prints an authored end as a range", "[ui][tab-paint
                 .seconds = 0.0,
                 .fret = 5,
                 .width = common::core::FretWindow::through(5, 3).width,
-                .end_authored = true,
+                .authored = common::core::FhpAuthored::FretAndEnd,
             }) == "5-3");
+}
+
+// A derived position's chip is a ghost of the authored one: the same ground, at partial coverage,
+// so the charter tells what the chart stores from what the notes derive.
+TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 200, 120},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{10.0},
+        },
+        6,
+        6);
+    const auto chip_ground = [&metrics](const common::core::FhpAuthored authored) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        drawTabFhpChip(
+            graphics,
+            metrics,
+            common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 6, .authored = authored},
+            0.0f);
+        // Inside the chip's fill, left of its centred text.
+        return image.getPixelAt(2, 7);
+    };
+    CHECK(chip_ground(common::core::FhpAuthored::Fret) == juce::Colour{0xff2a2f36});
+    const juce::Colour ghost = chip_ground(common::core::FhpAuthored::Nothing);
+    CHECK(ghost.getAlpha() > 0);
+    CHECK(ghost.getAlpha() < 0xff);
 }
 
 // A fret-hand harmonic's head names its node, not its fret.

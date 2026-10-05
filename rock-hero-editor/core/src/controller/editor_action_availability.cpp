@@ -95,6 +95,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ScaleTempo:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
         case EditorAction::Id::ClearFretHandEnd:
+        case EditorAction::Id::PruneFretHandPositions:
         {
             return true;
         }
@@ -225,6 +226,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SelectFretHandPosition:
             case EditorAction::Id::AuthorFretHandPositionAtCursor:
             case EditorAction::Id::ClearFretHandEnd:
+            case EditorAction::Id::PruneFretHandPositions:
             {
                 return Reason::SessionFaulted;
             }
@@ -386,6 +388,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
         case EditorAction::Id::ClearFretHandEnd:
+        case EditorAction::Id::PruneFretHandPositions:
         {
             return firstFailure({
                 require(conditions.has_chart, Reason::NoChart),
@@ -543,6 +546,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
         case EditorAction::Id::ClearFretHandEnd:
+        case EditorAction::Id::PruneFretHandPositions:
         {
             return false;
         }

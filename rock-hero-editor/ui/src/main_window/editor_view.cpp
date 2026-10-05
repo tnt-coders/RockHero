@@ -308,6 +308,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SelectFretHandPosition:
             case core::EditorActionId::AuthorFretHandPositionAtCursor:
             case core::EditorActionId::ClearFretHandEnd:
+            case core::EditorActionId::PruneFretHandPositions:
             {
                 return "Save your tone before continuing?";
             }
@@ -408,6 +409,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SelectFretHandPosition:
         case core::EditorActionId::AuthorFretHandPositionAtCursor:
         case core::EditorActionId::ClearFretHandEnd:
+        case core::EditorActionId::PruneFretHandPositions:
         {
             return "Save changes before continuing?";
         }
@@ -1655,6 +1657,7 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::Redo);
         menu.addSeparator();
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ScaleTempo);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::PruneHandPositions);
         menu.addSeparator();
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ShowActions);
         return menu;
@@ -1950,8 +1953,9 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             break;
         }
         case EditorCommandId::ScaleTempo:
+        case EditorCommandId::PruneHandPositions:
         {
-            // A menu verb with no default chord, so it can grey: the tempo row's menu greys its
+            // Menu verbs with no default chord, so they can grey: the tempo row's menu greys its
             // rows on the same published answer.
             info.setActive(m_state.marker_edits_enabled);
             break;
@@ -2792,6 +2796,14 @@ bool EditorView::performCommand(const InvocationInfo& info)
             if (m_state.marker_edits_enabled)
             {
                 promptScaleTempo();
+            }
+            return true;
+        }
+        case EditorCommandId::PruneHandPositions:
+        {
+            if (m_state.marker_edits_enabled)
+            {
+                m_controller.onFretHandPositionsPruneRequested();
             }
             return true;
         }

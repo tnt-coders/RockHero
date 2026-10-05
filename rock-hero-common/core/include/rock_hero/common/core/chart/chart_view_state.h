@@ -955,6 +955,23 @@ struct ShapeViewState
 };
 
 /*!
+\brief What the charter stated of a fret-hand position: nothing (it is derived), its fret, or its
+fret and its window's end fret (\ref FretHandPosition). One answer rather than two flags, so an end
+stated on a position that states nothing cannot be represented.
+*/
+enum class FhpAuthored : std::uint8_t
+{
+    /*! \brief Derived from the notes; nothing is stored there. */
+    Nothing,
+
+    /*! \brief Authored, with its window's end derived. */
+    Fret,
+
+    /*! \brief Authored with its end fret stated as well. */
+    FretAndEnd,
+};
+
+/*!
 \brief One fret-hand position — a hand event (\ref ChartResolutions::hand_events), derived or
 authored — or one slide-out ride (\ref ChartResolutions::hand_rides), resolved to a timeline second,
 with its eased approach.
@@ -984,10 +1001,11 @@ struct FhpViewState
     int width{g_min_fret_hand_width};
 
     /*!
-    \brief True when the window's end fret is authored rather than derived
-    (\ref FretHandPosition::end_fret), so the editor's chip always prints it as a range.
+    \brief What the charter stated here: the editor draws a derived position's chip as a ghost, and
+    always prints an authored end fret (\ref FretHandPosition::end_fret) as a range. A ride is
+    always \ref FhpAuthored::Nothing.
     */
-    bool end_authored{false};
+    FhpAuthored authored{FhpAuthored::Nothing};
 
     /*!
     \brief Duration of the hand's eased approach ending at \ref seconds; zero arrives instantly.
@@ -1031,8 +1049,7 @@ struct FhpViewState
     friend constexpr bool operator==(const FhpViewState& lhs, const FhpViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.position == rhs.position &&
-               lhs.fret == rhs.fret && lhs.width == rhs.width &&
-               lhs.end_authored == rhs.end_authored &&
+               lhs.fret == rhs.fret && lhs.width == rhs.width && lhs.authored == rhs.authored &&
                std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
                lhs.unpitched_ramp == rhs.unpitched_ramp &&
                std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);

@@ -914,6 +914,12 @@ struct ChartRefusalFlash
 
     /*! \brief The refused keyframes as projected positions. */
     std::vector<ChartKeyframeRef> keyframes{};
+
+    /*!
+    \brief Index of the refused fret-hand position's chip in the tab projection's placement order:
+    a derived position a verb needing a stored one was asked of.
+    */
+    std::optional<std::size_t> fret_hand_position{};
 };
 
 /*!

@@ -354,6 +354,10 @@ namespace
         {
             return "ClearFretHandEnd";
         }
+        case EditorAction::Id::PruneFretHandPositions:
+        {
+            return "PruneFretHandPositions";
+        }
         case EditorAction::Id::InsertSongSection:
         {
             return "InsertSongSection";
@@ -1015,6 +1019,11 @@ void EditorController::onFretHandPositionChordRequested()
 void EditorController::onFretHandPositionEndClearRequested()
 {
     m_impl->runAction(EditorAction::ClearFretHandEnd{});
+}
+
+void EditorController::onFretHandPositionsPruneRequested()
+{
+    m_impl->runAction(EditorAction::PruneFretHandPositions{});
 }
 
 void EditorController::onSongSectionInsertRequested(
@@ -2943,7 +2952,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 )
                 {
                     // A placement's fret entry wears its box on the placement's own lane chip in
-                    // the projection pushed above (fretHandChipIndex).
+                    // the projection pushed above, the preview, whose chips the typed value may
+                    // renumber (fretHandChipIndex).
                     if (const std::optional<std::size_t> index =
                             state.tab != nullptr ? fretHandChipIndex(*state.tab, hand->position)
                                                  : std::nullopt;

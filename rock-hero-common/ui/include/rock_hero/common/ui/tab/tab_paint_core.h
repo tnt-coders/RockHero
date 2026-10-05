@@ -518,7 +518,8 @@ ONE chip drawer, two callers, because the mark is the same mark either way: \ref
 paintTabLaneFurniture draws every visible placement at its own column, and a host that pins the
 GOVERNING placement to the window's left edge draws the ordinary chip there. Taking the column as a
 parameter rather than reading it off the placement is what keeps the pinned chip from becoming a
-second drawing of the same thing.
+second drawing of the same thing. A derived position's chip draws as a ghost, at a ghost note's
+weight, and an authored one solid (\ref common::core::FhpViewState::authored).
 
 \param g Graphics context to draw into.
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.

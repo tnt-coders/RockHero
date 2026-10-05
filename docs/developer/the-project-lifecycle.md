@@ -299,7 +299,9 @@ the import authors none, so every position is derived at read, once per chart re
 `common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`); the measured algorithm and the
 rulings it is built to are in `docs/plans/in-progress/fhp-derivation-algorithm.md` and plan 60 §9.
 The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
-statement: it stands until the chart contradicts it. Rules 5–9 are the derivation's plain-English
+statement: it stands until the chart contradicts it. A project whose stored positions predate the
+derivation keeps them all as authored; the editor's Prune Hand Positions command removes each one
+whose removal leaves the derived events unchanged. Rules 5–9 are the derivation's plain-English
 spec:
 
 5. **The law.** Cut the song into figures at boundaries you can see — a chord being struck, a bar

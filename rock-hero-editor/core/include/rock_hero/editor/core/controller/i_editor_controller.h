@@ -625,12 +625,12 @@ public:
     \brief Handles a deliberate selection of a fret-hand position: a click on its chip in the tab
     lane.
 
-    Selects the placement and seeks nothing, as a ruler chip click does; the selection is the
-    operand of Delete and Alt+arrows, and like every marker selection it is cleared by any cursor
-    move. An index naming no chip, or a chip no authored position stands at, selects nothing.
+    Selects the position the chip draws, derived or authored, and seeks nothing, as a ruler chip
+    click does; the selection is the operand of the digits, Delete and Alt+arrows, and like every
+    marker selection it is cleared by any cursor move. An index naming no chip selects nothing.
 
     \param index Index of the chip in the tab projection's placement list, which holds every hand
-    event; the authored position is found by the chip's front.
+    event: the position row's markers, in order.
     */
     virtual void onFretHandPositionSelected(std::size_t index) = 0;
 
@@ -649,11 +649,23 @@ public:
     /*!
     \brief Handles `Alt+Delete` over a selected fret-hand position: clear its authored end fret.
 
-    The window's end returns to the one the notes derive, and the placement stays selected. Does
-    nothing where the selection is no placement or its end is already derived — never deleting the
-    placement, which is Delete's — and is inert while playing and with no chart.
+    The window's end returns to the one the notes derive, and the placement stays selected. A
+    derived position is authored first, stating the fret standing there, as every stating verb on
+    one does. Does nothing where the selection is no placement or an authored one's end is already
+    derived — never deleting the placement, which is Delete's — and is inert while playing and with
+    no chart.
     */
     virtual void onFretHandPositionEndClearRequested() = 0;
+
+    /*!
+    \brief Handles the Prune Hand Positions command: remove every stored fret-hand position whose
+    removal leaves the derived hand events unchanged, and keep the rest.
+
+    Walks the stored positions in order, judging each against the list kept so far, and lands as
+    one undo entry; a chart where every stored position is needed records nothing and logs that.
+    Inert while playing and with no chart.
+    */
+    virtual void onFretHandPositionsPruneRequested() = 0;
 
     /*!
     \brief Handles a request to insert a song-structure section at the marker.

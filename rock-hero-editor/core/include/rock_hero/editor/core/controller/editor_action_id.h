@@ -250,6 +250,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Clear the selected fret-hand position's authored end fret back to the derived one. */
     ClearFretHandEnd,
 
+    /*! \brief Remove every stored fret-hand position whose removal leaves the hand unchanged. */
+    PruneFretHandPositions,
+
     /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
     StepToRowObject,
 

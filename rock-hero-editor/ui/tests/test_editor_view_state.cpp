@@ -349,6 +349,34 @@ TEST_CASE("EditorView forwards the hand end clear while a selection stands", "[u
     CHECK(controller.fret_hand_position_end_clear_count == 1);
 }
 
+// Prune Hand Positions is an Edit-menu verb with Scale Tempo's gate: greyed, and forwarding
+// nothing, while the marker plane is closed; open, it forwards the prune for the core to decide.
+TEST_CASE("EditorView Prune Hand Positions forwards the prune", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    const int prune_command = toJuceCommandId(EditorCommandId::PruneHandPositions);
+    const juce::ApplicationCommandTarget::InvocationInfo info{prune_command};
+
+    view.setState(core::EditorViewState{});
+    const juce::PopupMenu::Item closed_item =
+        requiredMenuItem(view.getMenuForIndex(1, "Edit"), prune_command);
+    CHECK(closed_item.text == "Prune Hand Positions");
+    CHECK_FALSE(closed_item.isEnabled);
+    CHECK(view.perform(info));
+    CHECK(controller.fret_hand_positions_prune_count == 0);
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    state.marker_edits_enabled = true;
+    view.setState(state);
+    CHECK(requiredMenuItem(view.getMenuForIndex(1, "Edit"), prune_command).isEnabled);
+    CHECK(view.perform(info));
+    CHECK(controller.fret_hand_positions_prune_count == 1);
+}
+
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
 TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
 {
@@ -625,6 +653,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertFretHandPosition,
          .value = 0x1406,
          .chords = {chord('p', command)}},
+        {.id = EditorCommandId::PruneHandPositions, .value = 0x140A, .chords = {}},
         {.id = EditorCommandId::RestateSelection,
          .value = 0x1404,
          .chords = {chord(juce::KeyPress::returnKey)}},
@@ -1129,6 +1158,7 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK_FALSE(acts(EditorCommandId::InsertTempoAnchor));
     CHECK_FALSE(acts(EditorCommandId::InsertTimeSignature));
     CHECK_FALSE(acts(EditorCommandId::ScaleTempo));
+    CHECK_FALSE(acts(EditorCommandId::PruneHandPositions));
     CHECK_FALSE(acts(EditorCommandId::InsertToneChange));
     CHECK_FALSE(acts(EditorCommandId::InsertFretHandPosition));
     CHECK_FALSE(acts(EditorCommandId::SaveProject));

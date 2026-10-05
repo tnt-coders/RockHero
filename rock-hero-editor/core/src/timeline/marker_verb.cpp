@@ -80,6 +80,10 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Delete Hand Position";
         }
+        case MarkerVerb::PruneHandPositions:
+        {
+            return "Prune Hand Positions";
+        }
     }
     return {};
 }

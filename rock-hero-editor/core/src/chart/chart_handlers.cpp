@@ -191,13 +191,12 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
         edit.selected_keyframes =
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
-    // The position row's selection is outlined on the lane's chip fronting at the selected position
-    // (fretHandChipIndex).
-    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection);
-        placement != nullptr && m_tab_view_state != nullptr)
+    // The position row's selection is outlined on its chip: the row's markers are the lane's chips,
+    // so the selected marker's index is the chip's.
+    if (const std::optional<SelectedMarker> marker = selectedMarker();
+        marker.has_value() && marker->row == MarkerRow::FretHandPosition)
     {
-        edit.selected_fret_hand_position =
-            fretHandChipIndex(*m_tab_view_state, placement->position);
+        edit.selected_fret_hand_position = marker->index;
     }
     // Armed ⟹ paused is structural (play and the transport listener demote), so no transport
     // check re-derives it here.
@@ -2399,7 +2398,9 @@ void EditorController::Impl::deleteSelectedMarker()
     const std::vector<common::core::GridPosition> after = markerStarts(row);
     if (std::ranges::contains(after, start))
     {
-        return; // nothing was deleted: no verb on this row, or the commit refused
+        // Nothing was deleted (no verb on this row, or a refusal), or the marker stands on: a
+        // deleted hand position the derivation puts back at the same place.
+        return;
     }
     if (const std::optional<common::core::GridPosition> previous =
             adjacentPosition(after, start, false);

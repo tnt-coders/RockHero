@@ -450,12 +450,17 @@ Four consequences worth knowing before touching this:
   the box's disappearance is the settle. A note retype's box rides what it retypes instead — every
   affected head — and is not projected. A selected fret-hand position's fret IS
   projected, like a creation, and its box fills the placement's own chip — found in the projected
-  chips by the placement's position (`fretHandChipIndex`), since the chips are every hand event,
-  derived and authored, and the events after a retyped position re-derive
+  chips by the placement's position (`fretHandChipIndex`), since the events around a retyped
+  position re-derive, so the preview's chip indices need not match the stored chart's
   (`ChartPendingFretHandPosition`, `paintTabPendingEntryPlate` over
   `tabFhpChipBounds`), carrying the chip's committed text and window, or, when refused, the typed
   value in the chip's own range notation (`fretHandEntryText`: "8-7" for a start typed above an
-  authored end). An authored end fret always prints as a range (`FhpViewState::end_authored`). Nothing else needs previewing, because nothing else authors: the pointer creates under
+  authored end). A digit on a selected DERIVED position previews the same way: the plan authors the
+  position there first, at the fret standing there, and applies the digit to it. What the charter
+  stated of each chip is `FhpViewState::authored` (`FhpAuthored`: nothing, the fret, or the fret
+  and the end): an authored end fret always prints as a range, and a derived chip draws as a ghost
+  at a ghost note's weight (`drawTabFhpChip`). Nothing else needs previewing, because nothing else
+  authors: the pointer creates under
   no modifier, and what `Alt` shows while it is held is the ring REVEAL — every visible note drawn
   on to its stored ring end — not a preview of a placement.
 - **The harmonic node picker is a POPUP, and the lane draws nothing for it.** `H` reaches the
@@ -605,9 +610,12 @@ pinned chrome is INERT" below). A press on a SCROLLING fret-hand chip is the one
 resolves itself: the chip is the position row's marker, measured in the lane's own fret font
 (`tabFhpChipBounds`), so `TabView::fretHandChipAt` hit-tests it and the press goes to the chip sink
 (`setFretHandChipCallback` → `onFretHandPositionSelected(index)`) instead of reaching the chart as a
-press on the top string. The chips are every hand event, derived and authored, so the core selects
-the authored position starting at the chip's `position` through the select every marker chip uses
-(`selectMarkerStartingAt`); a press on a derived chip selects nothing yet. The ruler resolves its own chips in its
+press on the top string. The chips are every hand event, derived and authored, and they ARE the
+position row's markers (`markerStarts` reads them off the memoized projection), so the chip's index
+is its marker's and the core selects it through the select every marker chip uses
+(`markerSelectionAt`), a derived chip exactly as an authored one. A refused verb on a derived chip
+— Delete or a move, which need a stored position — glows the chip red
+(`ChartRefusalFlash::fret_hand_position`). The ruler resolves its own chips in its
 own view the same way, and on the same condition: only while the marker plane is open
 (`setMarkerEditsEnabled`, fed from `EditorViewState::marker_edits_enabled`). While it is closed
 there is no selection to make, so a chip press is an ordinary press — the ruler seeks, and this
