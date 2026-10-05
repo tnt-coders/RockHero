@@ -1,10 +1,12 @@
 # Comment consolidation sweep
 
-**Status:** every decision is ruled. Level 3 is signed for regular comments, with Doxygen held to
-its own, more descriptive standard (section 3). D1-D4 are recorded in section 4. The worked
-examples on two whole files (`C:/__MAIN__/Coding/__scratch__/comment-sweep-examples/`) are the
-signed reference standard; Phase 0 copies their before/after pairs into the `comment-editor`
-agent definition. Next step: Phase 0 on the sweep branch.
+**Status:** every decision is ruled and the standard is signed (2026-10-04). Regular comments are
+mostly one-line notes, with multi-line comments for whole-function descriptions and real
+explanation (section 3); Doxygen keeps its own, more descriptive standard. The signed reference
+files are `engine_tone_timeline.cpp` (regular comments), and `busy_overlay.h` and `highway_light.h`
+(Doxygen), in `C:/__MAIN__/Coding/__scratch__/comment-sweep-examples/level3/` beside their
+originals. Phase 0 copies their before/after pairs into the `comment-editor` agent definition.
+Next step: Phase 0, run by a Fable session in this worktree.
 
 ## 1. Goal
 
@@ -121,10 +123,14 @@ Estimated reduction: 30-45%.
 
 ### Level 3: Budgeted (recommended)
 
-Level 2, plus a length budget that any agent can check:
+Level 2, plus a shape that any agent can check (ruled: most comments are small notes):
 
-- An inline comment is at most 3 lines.
-- A function or type comment is at most 4 lines.
+- **Most comments are one-line notes.** A comment inside a body says its one thing in one line.
+- **Multi-line comments stay common in two places:** a comment describing a whole function or
+  type (up to 4 lines), and a comment that genuinely needs explaining, such as a reason that spans
+  several facts or a warning against a plausible but wrong refactor (up to 3 lines inline).
+- These ceilings are what the pre-commit check enforces (D3). The one-line default is the writing
+  standard, which reviewers hold workers to.
 - A longer comment is allowed only where it states a law or invariant the code cannot show, and
   then only at the rule's owner (its header Doxygen or the developer guide). Every other site
   names the owner.
@@ -153,8 +159,12 @@ which parts of the code read it, and why it is shaped this way when a caller nee
 loses only what does not belong in reference documentation: history, the trail of how a decision
 was reached, and narration of the implementation, which belongs in the `.cpp`. The worked header
 example (`highway_light.h`) changes little for that reason: "a look chosen on sight" and "a
-sighting knob" go, and the descriptions stay. The worked source example (`highway_projection.cpp`)
-shows the budget: 111 comment lines become 67.
+sighting knob" go, and the descriptions stay. The signed reference source example
+is `engine_tone_timeline.cpp`: 44 comment lines become 18. Seven of its ten notes inside function
+bodies are one line; the three multi-line comments are the three real explanations (restoring gains
+on release, the two-point envelope minimum, and the function comments). The earlier
+`highway_projection.cpp` example predates the one-line default and is looser than the standard, so
+it is NOT a reference; Phase 0 must not copy it into the agent definition.
 
 **Why this level is recommended.** Every sweep without a measurable limit has drifted back. A
 budget is the one rule a worker, a reviewer and a future agent can all check. The law exception
