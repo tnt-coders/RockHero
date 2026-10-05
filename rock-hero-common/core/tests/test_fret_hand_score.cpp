@@ -93,8 +93,10 @@ struct Score
 void scoreChart(const Chart& chart, const TempoMap& tempo_map, PartScore& part, Score& score)
 {
     const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+    // The stored positions are the truth this scores AGAINST, so none of them is handed in: the
+    // derivation is asked what the notes alone say.
     const std::vector<FretHandEvent> events =
-        deriveFretHandEvents(connections, tempo_map, chart.tuning.capo, &score.tally);
+        deriveFretHandEvents(connections, tempo_map, chart.tuning.capo, {}, &score.tally);
     if (events.empty())
     {
         ++score.arrangements_skipped;

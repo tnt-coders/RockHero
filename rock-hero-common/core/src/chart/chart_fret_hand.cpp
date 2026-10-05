@@ -203,6 +203,46 @@ void collectNoteDemands(
     return std::max(g_min_fret_hand_width, FretWindow::through(lowest, highest).width);
 }
 
+// One run of groups, `[head, next)`, and the hull of what it demands.
+struct HandRun
+{
+    std::size_t next{0};
+    int lowest{0};
+    int highest{0};
+};
+
+// Rule 3: the run from `head` closes at a bar line, at a chord, or where the grip would outgrow the
+// hand's capacity, max(4, hull) — the reach test keeps the four-fret floor. It also closes at
+// `limit`, the first group an authored position takes, since that position states its own window
+// from there. `head` must lie before `limit`.
+[[nodiscard]] HandRun runFrom(
+    const std::vector<CoverageGroup>& groups, const std::size_t head, const std::size_t limit)
+{
+    HandRun run{
+        .next = head + 1,
+        .lowest = groups[head].lowest,
+        .highest = groups[head].highest,
+    };
+    for (; run.next < limit; ++run.next)
+    {
+        const CoverageGroup& group = groups[run.next];
+        if (breaksAtBar(groups, run.next) || group.struck > 1)
+        {
+            break;
+        }
+        const int joined_lowest = std::min(run.lowest, group.lowest);
+        const int joined_highest = std::max(run.highest, group.highest);
+        if (FretWindow::through(joined_lowest, joined_highest).width >
+            runWidth(run.lowest, run.highest))
+        {
+            break;
+        }
+        run.lowest = joined_lowest;
+        run.highest = joined_highest;
+    }
+    return run;
+}
+
 // Rule 6's plain rings: a note the fretting hand stops at a fret, not dead. Each PINS from its last
 // pitched stop — where its fret channel last arrived somewhere new — to the end of its pitched
 // ring, where a slide-out's departure ends it. So a slide-then-hold pins at its destination, an
@@ -419,7 +459,7 @@ std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset
 
 std::vector<FretHandEvent> deriveFretHandEvents(
     const ChartConnections& connections, const TempoMap& tempo_map, const int capo,
-    FretHandDerivationTally* const tally)
+    const std::vector<FretHandPosition>& authored, FretHandDerivationTally* const tally)
 {
     // Counted into the caller's tally, or into one nobody reads.
     FretHandDerivationTally unread;
@@ -429,33 +469,68 @@ std::vector<FretHandEvent> deriveFretHandEvents(
     counts.ring_pins += static_cast<long long>(ring_pins.starts.size());
     const std::vector<Fraction>& onsets = connections.places;
 
+    // Where each authored position stands on the whole-note axis; ascending, as the list is.
+    std::vector<Fraction> authored_places;
+    authored_places.reserve(authored.size());
+    for (const FretHandPosition& position : authored)
+    {
+        authored_places.push_back(tempo_map.wholeNotePositionAt(position.position));
+    }
+    // The first group at or after authored position `index`, which that position takes; every
+    // group where no such position remains.
+    const auto first_group_at = [&](const std::size_t index) {
+        if (index == authored_places.size())
+        {
+            return groups.size();
+        }
+        return static_cast<std::size_t>(std::distance(
+            groups.begin(),
+            std::ranges::lower_bound(groups, authored_places[index], {}, &CoverageGroup::place)));
+    };
+
     std::vector<FretHandEvent> events;
     std::optional<FretWindow> standing;
     std::size_t head = 0;
-    while (head < groups.size())
+    std::size_t stated = 0;
+    while (head < groups.size() || stated < authored.size())
     {
-        // Rule 3: the run closes at a bar line, at a chord, or where the grip would outgrow the
-        // hand's capacity, max(4, hull) — the reach test keeps the four-fret floor.
-        int lowest = groups[head].lowest;
-        int highest = groups[head].highest;
-        std::size_t next = head + 1;
-        for (; next < groups.size(); ++next)
+        const std::size_t limit = first_group_at(stated);
+        if (head == limit)
         {
-            const CoverageGroup& group = groups[next];
-            if (breaksAtBar(groups, next) || group.struck > 1)
+            // AN AUTHORED POSITION, standing where it is stated and always an event of its own.
+            // Its window is `[fret, end fret]` where the end is stated; else the floor is pinned
+            // and rule 8 gives the top: the top of the run it heads, never under four frets. It
+            // then stands until the chart contradicts it: it takes its own instant whatever
+            // sounds there, and every later group that fits inside the window, up to the next
+            // authored position. The derivation resumes at the first group that does not fit.
+            const FretHandPosition& position = authored[stated];
+            const Fraction place = authored_places[stated];
+            ++stated;
+            const std::size_t reach = first_group_at(stated);
+            int top = position.fret + g_min_fret_hand_width - 1;
+            // Bound once so the presence test and the read are provably one object.
+            const std::optional<int>& end_fret = position.end_fret;
+            if (end_fret.has_value())
             {
-                break;
+                top = *end_fret;
             }
-            const int joined_lowest = std::min(lowest, group.lowest);
-            const int joined_highest = std::max(highest, group.highest);
-            if (FretWindow::through(joined_lowest, joined_highest).width >
-                runWidth(lowest, highest))
+            else if (head < reach)
             {
-                break;
+                top = std::max(top, runFrom(groups, head, reach).highest);
             }
-            lowest = joined_lowest;
-            highest = joined_highest;
+            const FretWindow window = FretWindow::through(position.fret, top);
+            events.push_back(FretHandEvent{.front = place, .window = window});
+            standing = window;
+            while (head < reach &&
+                   (groups[head].place == place ||
+                    (window.covers(groups[head].lowest) && window.covers(groups[head].highest))))
+            {
+                ++head;
+            }
+            continue;
         }
+
+        const HandRun run = runFrom(groups, head, limit);
         ++counts.runs;
         const Fraction run_head = groups[head].place;
         const std::optional<Fraction> ring_end = ring_pins.latestEndBefore(run_head);
@@ -464,35 +539,36 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         // window already covers: a one-fret run restates nothing, and nothing moves while a plain
         // ring struck earlier still sounds.
         const bool unforced =
-            standing.has_value() && standing->covers(lowest) && standing->covers(highest);
+            standing.has_value() && standing->covers(run.lowest) && standing->covers(run.highest);
         if (unforced && ring_end.has_value() && run_head < *ring_end)
         {
             ++counts.held_by_ring;
-            head = next;
+            head = run.next;
             continue;
         }
-        if (unforced && lowest == highest)
+        if (unforced && run.lowest == run.highest)
         {
             ++counts.held_on_one_fret;
-            head = next;
+            head = run.next;
             continue;
         }
 
         // Rules 7, 8 and 9: the window sits on the run's floor, spans max(4, hull), and fits on the
         // board. Rule 11: it is emitted only where it changes.
-        const int width = runWidth(lowest, highest);
-        const FretWindow window{.fret = fittedWindowFret(lowest, width, capo), .width = width};
+        const int width = runWidth(run.lowest, run.highest);
+        const FretWindow window{.fret = fittedWindowFret(run.lowest, width, capo), .width = width};
         if (standing == window)
         {
             ++counts.restated;
-            head = next;
+            head = run.next;
             continue;
         }
 
         // Rule 10: the front is the first onset after the latest of the previous run's last
         // instant, the latest end among the plain rings struck before this run, and the bar line
         // that broke the run — never later than the run's own head. The first run therefore
-        // reaches back to the chart's first note.
+        // reaches back to the chart's first note. It never reaches back to the event before it:
+        // an authored position over silence keeps every onset up to its own instant.
         Fraction bound{};
         if (ring_end.has_value())
         {
@@ -503,8 +579,13 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             bound = std::max(
                 bound, tempo_map.wholeNotePositionAt(measureDownbeat(groups[head].measure)));
         }
-        const auto after_previous =
+        auto after_previous =
             head == 0 ? onsets.begin() : std::ranges::upper_bound(onsets, groups[head - 1].place);
+        if (!events.empty())
+        {
+            after_previous =
+                std::max(after_previous, std::ranges::upper_bound(onsets, events.back().front));
+        }
         const auto first_onset = std::ranges::lower_bound(after_previous, onsets.end(), bound);
         const Fraction front =
             first_onset != onsets.end() && *first_onset < run_head ? *first_onset : run_head;
@@ -515,7 +596,7 @@ std::vector<FretHandEvent> deriveFretHandEvents(
 
         events.push_back(FretHandEvent{.front = front, .window = window});
         standing = window;
-        head = next;
+        head = run.next;
     }
     return events;
 }

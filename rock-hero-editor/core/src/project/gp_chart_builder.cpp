@@ -3341,7 +3341,7 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
     const common::core::ChartConnections slide_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
     const std::vector<common::core::FretHandPosition> natural_placements = placementsOf(
-        common::core::deriveFretHandEvents(slide_connections, tempo_map, chart.tuning.capo),
+        common::core::deriveFretHandEvents(slide_connections, tempo_map, chart.tuning.capo, {}),
         tempo_map);
     FabricatedPlacements fabricated;
     resolveSlideIns(built, natural_placements, fabricated, tempo_map, notes, chart.tuning.capo);
@@ -3547,7 +3547,8 @@ void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placeme
             common::core::deriveFretHandEvents(
                 common::core::chartConnections(chart.notes, tempo_map),
                 tempo_map,
-                chart.tuning.capo),
+                chart.tuning.capo,
+                {}),
             tempo_map),
         fabricated);
     roundPlacementsOntoTickLattice(chart.fret_hand_positions, tempo_map);

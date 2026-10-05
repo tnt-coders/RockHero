@@ -77,12 +77,25 @@ namespace
     return note;
 }
 
-// The hand events the 13 rules derive from one stream, under a capo where a case names one.
+// The hand events the 13 rules derive from one stream, under a capo where a case names one and
+// around the authored positions where a case states any.
 [[nodiscard]] std::vector<FretHandEvent> eventsOf(
-    const std::vector<ChartNote>& notes, const int capo = 0)
+    const std::vector<ChartNote>& notes, const int capo = 0,
+    const std::vector<FretHandPosition>& authored = {})
 {
     const TempoMap tempo_map = makeTempoMap();
-    return deriveFretHandEvents(chartConnections(notes, tempo_map), tempo_map, capo);
+    return deriveFretHandEvents(chartConnections(notes, tempo_map), tempo_map, capo, authored);
+}
+
+// An authored position at a measure and beat, with an end fret where a case states one.
+[[nodiscard]] FretHandPosition positionAt(
+    const int measure, const int beat, const int fret, const std::optional<int> end_fret = {})
+{
+    return FretHandPosition{
+        .position = GridPosition{.measure = measure, .beat = beat},
+        .fret = fret,
+        .end_fret = end_fret,
+    };
 }
 
 // An expected event: its front at a measure and beat of 4/4, and its window.
@@ -552,6 +565,97 @@ TEST_CASE("Hand derivation puts a behind-the-nut bend at fret one", "[core][char
     CHECK(eventsOf({bent_later}) == std::vector{eventAt(1, 1, 1)});
 
     CHECK(eventsOf({noteAt(1, 1, 1, 0)}).empty());
+}
+
+// An authored position is a row object of its own, so it is emitted even where the window it
+// states is the one already standing — the one event rule 11 never drops.
+TEST_CASE("An authored position is an event even where it restates the window", "[core][chart]")
+{
+    const std::vector notes{noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 6)};
+    CHECK(eventsOf(notes) == std::vector{eventAt(1, 1, 5)});
+    CHECK(
+        eventsOf(notes, 0, {positionAt(1, 2, 5)}) ==
+        std::vector{eventAt(1, 1, 5), eventAt(1, 2, 5)});
+}
+
+// A stated fret pins the floor and rule 8 gives the top from there: the top of the run the
+// position heads, never under four frets.
+TEST_CASE("An authored fret reaches the top of the run it heads", "[core][chart]")
+{
+    CHECK(
+        eventsOf({noteAt(1, 1, 1, 7), noteAt(1, 2, 1, 10)}, 0, {positionAt(1, 1, 5)}) ==
+        std::vector{eventAt(1, 1, 5, 6)});
+    CHECK(
+        eventsOf({noteAt(1, 1, 1, 5)}, 0, {positionAt(1, 1, 5)}) == std::vector{eventAt(1, 1, 5)});
+}
+
+// A stated end fret IS the top, however narrow, and the derivation resumes at the first instant
+// that falls outside the window.
+TEST_CASE("An authored end fret is the window's top", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 6), noteAt(1, 3, 1, 7)},
+            0,
+            {positionAt(1, 1, 5, 6)}) == std::vector{eventAt(1, 1, 5, 2), eventAt(1, 3, 7)});
+}
+
+// The notes alone move the hand to a two-fret figure's floor in the next bar; an authored window
+// that covers the figure stands through it, bar line and all.
+TEST_CASE("An authored position stands through every figure that fits", "[core][chart]")
+{
+    const std::vector notes{noteAt(1, 1, 1, 5), noteAt(2, 1, 1, 7), noteAt(2, 2, 1, 8)};
+    CHECK(eventsOf(notes) == std::vector{eventAt(1, 1, 5), eventAt(2, 1, 7)});
+    CHECK(eventsOf(notes, 0, {positionAt(1, 1, 5)}) == std::vector{eventAt(1, 1, 5)});
+}
+
+TEST_CASE("The derivation resumes where an authored window is contradicted", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 7), noteAt(1, 3, 1, 12), noteAt(1, 4, 1, 13)},
+            0,
+            {positionAt(1, 1, 5)}) == std::vector{eventAt(1, 1, 5), eventAt(1, 3, 12)});
+}
+
+// What sounds at the position's own instant cannot end it: the window stands from there, and a
+// stop below its floor stays outside it.
+TEST_CASE("An authored position owns its own instant", "[core][chart]")
+{
+    CHECK(
+        eventsOf({noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 8)}, 0, {positionAt(1, 1, 7)}) ==
+        std::vector{eventAt(1, 1, 7)});
+}
+
+// The next authored position ends the one before it, and no run crosses it: the first window's
+// top is read from the notes before the second position, not from the ones it takes.
+TEST_CASE("No run crosses an authored position", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 6), noteAt(1, 3, 1, 9), noteAt(1, 4, 1, 12)},
+            0,
+            {positionAt(1, 1, 5), positionAt(1, 3, 9)}) ==
+        std::vector{eventAt(1, 1, 5), eventAt(1, 3, 9)});
+}
+
+// Rule 10 reaches a derived front back over leading open strings, but never past an authored
+// position: one standing over silence keeps every onset up to its own instant.
+TEST_CASE("A derived front never reaches back past an authored position", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 1, 3, Fraction{1, 8}), noteAt(1, 2, 2, 0), noteAt(1, 4, 1, 12)},
+            0,
+            {positionAt(1, 3, 5, 8)}) ==
+        std::vector{eventAt(1, 1, 3), eventAt(1, 3, 5), eventAt(1, 4, 12)});
+}
+
+TEST_CASE("An authored position after the last note is still an event", "[core][chart]")
+{
+    CHECK(
+        eventsOf({noteAt(1, 1, 1, 5)}, 0, {positionAt(2, 1, 9)}) ==
+        std::vector{eventAt(1, 1, 5), eventAt(2, 1, 9)});
 }
 
 } // namespace rock_hero::common::core

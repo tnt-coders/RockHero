@@ -2326,7 +2326,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 built->tempo_map,
                 census.derivation);
             static_cast<void>(common::core::deriveFretHandEvents(
-                resolutions.connections, built->tempo_map, chart.tuning.capo, &census.hand));
+                resolutions.connections, built->tempo_map, chart.tuning.capo, {}, &census.hand));
         }
     }
 

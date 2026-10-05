@@ -102,8 +102,9 @@ hand at fret 1 (rule 13).
 [[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset);
 
 /*!
-\brief Derives where the fret hand sits from the notes alone — THE 13-rule figure-segmented floor
-tracker (`docs/plans/in-progress/fhp-derivation-algorithm.md`, with plan 60's Phase 1 rulings).
+\brief Derives where the fret hand sits from the notes and the positions the charter authored — THE
+13-rule figure-segmented floor tracker (`docs/plans/in-progress/fhp-derivation-algorithm.md`, with
+plan 60's Phase 1 rulings), superseded wherever an authored position stands.
 
 THE LAW, in the three sentences a charter is taught: cut the song into figures at boundaries you can
 see — a chord being struck, a bar line, or the grip outgrowing the hand; put the hand at each
@@ -117,8 +118,16 @@ pull-off plants beneath it (\ref chartPlantedStops), which widens every instant 
 
 Each event's front is the first onset after the latest of the previous figure's last instant, the
 latest end among the plain rings struck before the figure, and the bar line that broke the figure;
-the window before the first front is the reader's question. An event is emitted only where the
-window changes, so consecutive events always differ.
+the window before the first front is the reader's question. A derived event is emitted only where
+the window changes.
+
+AN AUTHORED POSITION is a statement the derivation consumes, never a patch on its output. It is
+always an event, fronting exactly where it stands, and no figure runs across it. Its window is
+`[fret, end fret]` where the end is stated; otherwise the stated fret is the floor and the top is
+the top of the figure it heads, never under four frets. It stands until the chart contradicts it:
+it takes its own instant whatever sounds there, and every later instant whose demands fit inside
+the window, up to the next authored position. The 13 rules resume at the first instant that does
+not fit, and their fronts never reach back to an authored position.
 
 Memoryless per figure and never reads seconds: the bar test is the measure number changing between
 consecutive instants.
@@ -129,13 +138,16 @@ consecutive instants.
        measure. A parameter rather than part of the connections, which are a value and could only
        carry a reference that might dangle.
 \param capo The tuning's capo fret; 0 for none.
+\param authored The chart's authored positions, valid and strictly ascending
+       (\ref validateFretHandPositions); empty to ask what the notes alone derive, as an instrument
+       scoring the derivation against stored positions must.
 \param tally Counts to add what this derivation met to, or null where nobody measures it.
 
 \return The hand events, strictly ascending by front.
 */
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandEvents(
     const ChartConnections& connections, const TempoMap& tempo_map, int capo,
-    FretHandDerivationTally* tally = nullptr);
+    const std::vector<FretHandPosition>& authored, FretHandDerivationTally* tally = nullptr);
 
 /*! \brief The lowest and highest fretting-hand stops held during one placement's stretch. */
 struct HeldFretRange

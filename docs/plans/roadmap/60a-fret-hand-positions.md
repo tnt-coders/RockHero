@@ -21,13 +21,15 @@ Saved as `positions[]`, today `fhps`.
 - **Positions derive at read** (60-Q4 stands); the list stores only what the charter authored, and
   a fresh import stores none.
 - **An authored position stands until the chart contradicts it.** Its window is `[fret, endFret]`
-  where the end is stated, else the stated fret with the width of the run it heads, never under
-  four frets. It stands through every later run that fits inside that window and emits nothing; the
-  derivation resumes at the first demand outside it. This answers the "scope of a stated fret"
-  question Phase 2 carried: neither "the run it heads" nor "until the next marker".
-- **A note entered at an authored position's own instant, outside its window, is REFUSED.** This
-  reverses the 2026-09-25 stopgap ruling (law 4's last sentence) that such a stop "stays outside".
-  A note later on is not refused; the position stops standing there.
+  where the end is stated, else the stated fret up to the top of the run it heads, never under
+  four frets (Phase 2 build rulings, 2026-10-05). It stands through every later instant that fits
+  inside that window and emits nothing; the derivation resumes at the first demand outside it.
+  This answers the "scope of a stated fret" question Phase 2 carried: neither "the run it heads"
+  nor "until the next marker".
+- **Whether a note at an authored position's own instant, outside its window, is REFUSED** was
+  ruled yes on 2026-10-04 and is OPEN again as of 2026-10-05; Phase 2's build rulings carry the
+  user's current reading and what is owed. The derivation needs no refusal: a position owns its
+  own instant. A note later on is never refused; the position stops standing there.
 - **Chords:** `Ctrl+P` inserts or restates, `Ctrl+Shift+P` jumps to the row. The built `Ctrl+H`
   pair moves there.
 
@@ -205,6 +207,54 @@ through these changes:
   window, is refused.
 - Unchanged: the events inside `ChartResolutions`, the pass order, the importer storing nothing,
   everything this phase deletes, the exit-ride and dip ruling, the converter note, the sighting.
+
+**Phase 2 build rulings — 2026-10-05** (a readiness audit against `999c0386`, then the user's
+answers). These are the current reading wherever the older text below disagrees.
+
+- **Built in three steps, each sighted:** (1) the derivation accepts authored positions — DONE
+  2026-10-05, no visible change; (2) positions derive at read and the importer stores none; (3)
+  the row walks the derived positions.
+- **The authored window, exactly** (refines §1a's wording): `[fret, end fret]` where the end is
+  stated; else the stated fret is the floor and the top is the top of the run the position heads,
+  never under four frets. "The fret plus the run's width" would leave a run's top uncovered
+  wherever the stated fret sits below the run's floor; this is the reach the width fold gave.
+- **An authored position is a forced boundary:** it is always an event, no run crosses it, the run
+  it heads starts at the first demand at or after it, and a derived front never reaches back to
+  it. It OWNS ITS OWN INSTANT: whatever sounds there cannot end it, so the derivation is total
+  with no refusal. Built as step 1 (`deriveFretHandEvents`' `authored` parameter).
+- **The refusal is OPEN again.** The user's reading (2026-10-05): a note STRUCK at an authored
+  position's own instant, outside its window, is refused; a note struck earlier and still ringing
+  as the position arrives is tolerated. Owed: the user's confirmation of that reading, whether a
+  carried ring is tolerated however long it rings, and where the rule is enforced — proposed at
+  the EDIT, not at file load, so that converted songs and the scored corpus, whose positions
+  other tools wrote, keep opening.
+- **The dips are DROPPED** (user). They cannot be rebuilt from stored data — a scoop is an
+  ordinary slide once imported — and rules 1 and 2 already demand the approach fret and the
+  arrival. **The exit ride is OPEN:** the user wants to keep "the slight smoothing after a slide
+  out" and is confirming whether that is the travelling window or the settle easing, which stays
+  regardless. If kept, it is rebuilt as highway motion derived from the slide-out itself, never as
+  positions, so it draws no chips.
+- **Converted songs KEEP the source's positions as authored** (user). They are what a charter
+  placed, they behave the same under "stands until contradicted" (the next one ends each), and the
+  scorer needs them as its ground truth. This reverses the converter note below: the converter
+  does not change. The scorer derives with an empty `authored` list, so the truth is never an
+  input to what it scores.
+- **Existing projects are PRUNED, not stripped** (user): remove every stored position whose removal
+  leaves the derived events unchanged, and keep the rest as authored. That is the former Phase 3
+  item 6, built in this phase as an editor command.
+- **The row walks the derived positions in this phase** (user): the former Phase 3 item 1. Three
+  sites assume the stored list and the drawn chips line up
+  (`chart_handlers.cpp` selection outline, `editor_controller.cpp` pending box,
+  `fret_hand_handlers.cpp` chip click), which stops being true the moment positions derive. A
+  chip maps to an authored position by its front. On a selected DERIVED position, typing a fret
+  authors a position there and Delete is refused.
+- **`Ctrl+P` states the fret already standing at the cursor,** the nut window where nothing
+  stands; `defaultedPlacement` and its stop fold go.
+- **`chartResolutions` takes the `Chart`** (notes, authored positions, capo). There are 20 call
+  sites, 18 of them in tests, not the 28 counted below. `FretHandEvent` moves beside `FretWindow`
+  in `chart.h`, since `chart_fret_hand.h` includes `chart_legato.h`.
+- **Every census fret-hand row is re-signed** on the derived events, which gain width-only changes
+  and lose the fabricated placements.
 
 The marker's `fret` becomes OPTIONAL; the record is then `{position, fret?, endFret?}` — a forced
 statement boundary carrying an optional direct window statement — under the key 60-H2 settles
