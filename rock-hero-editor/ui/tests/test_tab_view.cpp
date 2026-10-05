@@ -2048,10 +2048,10 @@ TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
     CHECK(image.getPixelAt(50, 30).getARGB() == 0);
 }
 
-// A SCROLLING fret-hand chip is the hand row's marker: while the marker plane is open a press on
-// it names that placement to the chip sink and never reaches the chart pointer path, so it neither
-// seeks nor lands on the string under the chip; a press anywhere else, and any press while the
-// plane is closed, still goes to the chart.
+// A SCROLLING fret-hand chip is the position row's marker: while the marker plane is open a press
+// on it names that placement to the chip sink and never reaches the chart pointer path, so it
+// neither seeks nor lands on the string under the chip; a press anywhere else, and any press while
+// the plane is closed, still goes to the chart.
 TEST_CASE("TabView reports a press on a fret-hand chip as its placement", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2133,8 +2133,8 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
 }
 
 // A selected placement the panel PINS is outlined where it is drawn — on the pinned chip — because
-// its own column lies under the panel there: selecting it from the keyboard (the hand row's jump
-// lands on the placement governing the cursor) must still show which placement is selected.
+// its own column lies under the panel there: selecting it from the keyboard (the position row's
+// jump lands on the placement governing the cursor) must still show which placement is selected.
 TEST_CASE("TabView outlines a selected fret-hand chip where it is pinned", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

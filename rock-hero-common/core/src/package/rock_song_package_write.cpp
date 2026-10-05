@@ -161,14 +161,14 @@ constexpr int g_zip_compression_level = 9;
 // non-negative and the split into seconds and milliseconds needs no sign handling.
 [[nodiscard]] std::string formatAnchorLine(const BeatAnchor& anchor)
 {
-    return R"({ "position": ")" + formatGridPositionToken(anchor.position) + R"(", "seconds": )" +
+    return R"({ "at": ")" + formatGridPositionToken(anchor.position) + R"(", "seconds": )" +
            std::format("{}.{:03}", anchor.milliseconds / 1000, anchor.milliseconds % 1000) + " }";
 }
 
 // Renders one song-structure section marker as a compact object line.
 [[nodiscard]] std::string formatSectionLine(const SongSection& section)
 {
-    return R"({ "position": ")" + formatGridPositionToken(section.position) + R"(", "name": )" +
+    return R"({ "at": ")" + formatGridPositionToken(section.position) + R"(", "name": )" +
            jsonString(section.name) + " }";
 }
 
@@ -216,7 +216,7 @@ struct ArrangementDocumentEntry
 // own; its name comes from the catalog tone it references.
 [[nodiscard]] std::string formatToneChangeLine(const ToneChangeDocumentEntry& entry)
 {
-    std::string line = "{ \"start\": ";
+    std::string line = "{ \"at\": ";
     line += jsonString(entry.start);
     line += ", \"tone\": ";
     line += jsonString(entry.tone_id);
@@ -255,7 +255,7 @@ struct ArrangementDocumentEntry
         {
             line += ", ";
         }
-        line += "{ \"position\": ";
+        line += "{ \"at\": ";
         line += jsonString(formatGridPositionToken(point.position));
         line += ", \"value\": ";
         line += formatJsonDouble(point.norm_value);

@@ -165,7 +165,7 @@ the posture half.
 | **keyframe** | A change point inside a ring: `{offset, fret?, bend?, vibrato?}`, each channel optional and independent. Signed 2026-08-27. | `ChartNote::keyframes` |
 | **node** | The fractional fret position a harmonic is touched at — a position, AND the assertion that the note is a harmonic. | `ChartNote::harmonic_node` |
 | **emphasis** | One axis, `accent` / `normal` / `ghost` — how hard the note is struck. Not two flags. | `NoteEmphasis` |
-| **hand window** / **FHP** | The fret-hand position: a fret plus a width, the neck region the hand occupies. | `fhps[]`, `FretHandPosition` |
+| **hand window** / **FHP** | The fret-hand position: a fret plus a width, the neck region the hand occupies. | `positions[]`, `FretHandPosition` |
 | **charter** | The person authoring a chart in the editor. | throughout |
 
 Two vocabulary hazards worth stating outright. **"Ghost" here is a dynamic** (`emphasis: ghost`, a
@@ -363,7 +363,7 @@ node is measured *from*: on a tap or pick slide the sounding length is set by `h
   a symbol, sweep for a second meaning it already carries on either surface — the same discipline
   `naming-expert` applies to words.
 - **Position marks are regional, not per-note.** Roman numerals (`V`, `CVII`) declare where the hand
-  sits; barré glyphs declare a finger laid across strings. RockHero's `fhps[]` (fret plus width) is
+  sits; barré glyphs declare a finger laid across strings. RockHero's `positions[]` (fret plus width) is
   the same idea in machine form, which is worth saying when someone proposes per-note fingering:
   the notation tradition also puts hand position on the region, not the note.
 - **Fingering is a separate layer from position, and RockHero authors neither.** Postures carry no

@@ -317,10 +317,10 @@ The persisted tempo-map shape is:
       { "measure": 25, "numerator": 4, "denominator": 4 }
     ],
     "anchors": [
-      { "position": "1:1",  "seconds": 1.840 },
-      { "position": "17:1", "seconds": 28.057 },
-      { "position": "17:2+1/2", "seconds": 29.112 },
-      { "position": "33:1", "seconds": 48.500 }
+      { "at": "1:1",  "seconds": 1.840 },
+      { "at": "17:1", "seconds": 28.057 },
+      { "at": "17:2+1/2", "seconds": 29.112 },
+      { "at": "33:1", "seconds": 48.500 }
     ]
   }
 }

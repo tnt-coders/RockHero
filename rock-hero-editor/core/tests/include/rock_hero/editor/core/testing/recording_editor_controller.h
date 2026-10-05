@@ -414,16 +414,16 @@ public:
         last_selected_fret_hand_position = index;
     }
 
-    /*! \copydoc IEditorController::onHandChordRequested */
-    void onHandChordRequested() override
+    /*! \copydoc IEditorController::onFretHandPositionChordRequested */
+    void onFretHandPositionChordRequested() override
     {
-        hand_chord_count += 1;
+        fret_hand_position_chord_count += 1;
     }
 
-    /*! \copydoc IEditorController::onHandEndClearRequested */
-    void onHandEndClearRequested() override
+    /*! \copydoc IEditorController::onFretHandPositionEndClearRequested */
+    void onFretHandPositionEndClearRequested() override
     {
-        hand_end_clear_count += 1;
+        fret_hand_position_end_clear_count += 1;
     }
 
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
@@ -986,11 +986,11 @@ public:
     /*! \brief Last placement index reported through onFretHandPositionSelected(). */
     std::optional<std::size_t> last_selected_fret_hand_position{};
 
-    /*! \brief Number of onHandChordRequested() intents received. */
-    int hand_chord_count{0};
+    /*! \brief Number of onFretHandPositionChordRequested() intents received. */
+    int fret_hand_position_chord_count{0};
 
-    /*! \brief Number of onHandEndClearRequested() intents received. */
-    int hand_end_clear_count{0};
+    /*! \brief Number of onFretHandPositionEndClearRequested() intents received. */
+    int fret_hand_position_end_clear_count{0};
 
     /*! \brief Last position reported through onSongSectionInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_song_section_position{};

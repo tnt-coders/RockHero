@@ -927,7 +927,7 @@ struct EditorAction
     };
 
     /*!
-    \brief The hand chord: author a fret-hand position at the cursor.
+    \brief The fret-hand position chord: author a fret-hand position at the cursor.
 
     Carries nothing, because the verb has nothing to prompt for: the core reads the cursor and
     decides the marker grammar's precedence inside this one action — restate (select) the placement

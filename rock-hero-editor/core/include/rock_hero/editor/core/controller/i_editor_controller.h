@@ -635,7 +635,7 @@ public:
     virtual void onFretHandPositionSelected(std::size_t index) = 0;
 
     /*!
-    \brief Handles the hand chord (`Ctrl+H`): author a fret-hand position at the cursor.
+    \brief Handles the position chord (`Ctrl+P`): author a fret-hand position at the cursor.
 
     The marker grammar, decided entirely in the core because the verb has nothing to prompt for: a
     placement arriving exactly at the cursor is restated, which — with no fret entry yet — only
@@ -644,7 +644,7 @@ public:
     placement before it, else fret 1) and left selected. Inert while playing, with no song, with
     no chart, and on the song's closing barline.
     */
-    virtual void onHandChordRequested() = 0;
+    virtual void onFretHandPositionChordRequested() = 0;
 
     /*!
     \brief Handles `Alt+Delete` over a selected fret-hand position: clear its authored end fret.
@@ -653,7 +653,7 @@ public:
     nothing where the selection is no placement or its end is already derived — never deleting the
     placement, which is Delete's — and is inert while playing and with no chart.
     */
-    virtual void onHandEndClearRequested() = 0;
+    virtual void onFretHandPositionEndClearRequested() = 0;
 
     /*!
     \brief Handles a request to insert a song-structure section at the marker.

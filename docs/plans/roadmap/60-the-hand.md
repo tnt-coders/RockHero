@@ -32,7 +32,8 @@ final vocabulary (§1a, "Names and the format"):
 1. **The timeline key `position` becomes `at`** in the save files: `notes[]` and the fret-hand
    list in the chart document, tempo `anchors[]`, `sections[]` and automation `points[]` in the
    song document — reader, writer, `docs/developer/file-formats.md` and every JSON fixture.
-   `toneChanges[].start` stays.
+   `toneChanges[].start` becomes `at` too (user, 2026-10-04): it has no `end`, and `start` is
+   kept for a range that states one.
 2. **`fhps` becomes `positions`.**
 3. **The position's chords move to `Ctrl+P` / `Ctrl+Shift+P`,** keeping their command ids, which
    frees the `H` pair for the hold.
@@ -42,10 +43,11 @@ final vocabulary (§1a, "Names and the format"):
 5. **The importer repo follows:** the converter and the harness's package reader write and read
    the new keys, and the scored corpus is rebuilt.
 
-Acceptance: build and full tests green on a forced relink; the `[.fhp-score]` scorer and the
-corpus census print the numbers they printed at Phase 1's close (88.213% exact), which is what
-proves the sweep changed no behaviour. OPEN: whether any project on disk must survive the key
-change — a throwaway key-rename script if so, a re-import if not.
+Acceptance: build and full tests green on a forced relink; the `[.fhp-score]` scorer reads every
+rebuilt package and prints the number it printed at Phase 1's close (88.213% exact). That one run
+is the only check that the converter's keys and the reader's agree, since the two are changed
+apart. The census is not re-run: it reads Guitar Pro files and touches no renamed key. The user's four projects on disk survive it through a
+throwaway key-rename script, run on a backup-first copy and never part of the product.
 
 ## 1. Status
 
@@ -136,12 +138,12 @@ and the list of what is still open are in `60b-holds.md`.
 - **Save-file keys:** `positions`, `holds`, `grips`. 60-H2's `hand` (§9 item 6) is dropped.
 - **The timeline key `position` becomes `at`** on notes, positions, tempo anchors, sections and
   automation points, so that `positions` can mean the hand's. `start` and `end` are the hold's, a
-  range's two ends. `toneChanges[].start` STAYS (user) — the one `start` with no `end` beside it,
-  its region ending at the next change; OPEN whether it follows the others to `at`.
+  range's two ends. `toneChanges[].start` becomes `at` as well (user, 2026-10-04): it has no
+  `end`, so `start` appears only where a range states one.
   The code keeps `position` (`GridPosition`, `note.position`): `at` is a label, not a second noun.
   It lands as its own commit AHEAD of Phase 2, with the converter and the scoring harness in the
-  importer repo and a rebuild of the scored corpus. OPEN: whether any project on disk must survive
-  it (a throwaway key-rename script, else re-import).
+  importer repo and a rebuild of the scored corpus. The user's projects on disk are carried across
+  by a throwaway key-rename script.
 - **Code names** (naming review, 2026-10-04): `FretHandPosition` and `FretHandPositionSelection`
   stay; `MarkerRow::Hand` becomes `MarkerRow::FretHandPosition`; the hold's record is `HandHold`,
   never a bare `Hold`, which the display's hold channel (`chartHolds`) and the game's sustain

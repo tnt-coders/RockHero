@@ -191,11 +191,12 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
         edit.selected_keyframes =
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
-    // The hand row's selection is outlined on the lane's chip: the placement's index in the chart's
-    // stream is its index in the projection too, one placement projecting to one chip.
+    // The position row's selection is outlined on the lane's chip: the placement's index in the
+    // chart's stream is its index in the projection too, one placement projecting to one chip.
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
-        edit.selected_fret_hand_position = markerIndex(MarkerRow::Hand, placement->position);
+        edit.selected_fret_hand_position =
+            markerIndex(MarkerRow::FretHandPosition, placement->position);
     }
     // Armed ⟹ paused is structural (play and the transport listener demote), so no transport
     // check re-derives it here.
@@ -1459,8 +1460,8 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     push_marker_row(MarkerRow::Section);
     push_marker_row(MarkerRow::Tempo);
     push_marker_row(MarkerRow::TimeSignature);
-    // The hand row sits over the strings, where the lane draws its fret-hand chips along the top.
-    push_marker_row(MarkerRow::Hand);
+    // The position row sits over the strings, where the lane draws the fret-hand chips on top.
+    push_marker_row(MarkerRow::FretHandPosition);
     // Strings draw with string 1 at the visual bottom, so the stack runs from the top string down.
     for (int string = string_count; string >= 1; --string)
     {
@@ -1813,8 +1814,8 @@ EditorController::Impl::FocusRow EditorController::Impl::focusRowFor(const Focus
             return MarkerFocusRow{.row = MarkerRow::Tempo};
         case FocusRowJump::TimeSignature:
             return MarkerFocusRow{.row = MarkerRow::TimeSignature};
-        case FocusRowJump::Hand:
-            return MarkerFocusRow{.row = MarkerRow::Hand};
+        case FocusRowJump::FretHandPosition:
+            return MarkerFocusRow{.row = MarkerRow::FretHandPosition};
         case FocusRowJump::Tone:
             return MarkerFocusRow{.row = MarkerRow::Tone};
         case FocusRowJump::AddAutomationLane:

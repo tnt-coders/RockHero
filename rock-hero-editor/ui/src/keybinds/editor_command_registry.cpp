@@ -29,7 +29,7 @@ namespace
 constexpr int g_section_key = 'm';
 constexpr int g_tempo_key = 'b';
 constexpr int g_time_signature_key = '/';
-constexpr int g_hand_key = 'h';
+constexpr int g_fret_hand_position_key = 'p';
 constexpr int g_tone_key = 't';
 constexpr int g_add_lane_key = 'a';
 
@@ -228,12 +228,12 @@ constexpr int g_add_lane_key = 'a';
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertFretHandPosition,
-            // Ctrl+H, the hand's letter on the marker plane: the placement arriving at the cursor
-            // is restated (selected, until its fret can be re-entered), a free slot takes a new one
-            // at the fret its stretch's notes default it to.
+            // Ctrl+P, the position's letter on the marker plane: the placement arriving at the
+            // cursor is restated (selected, until its fret can be re-entered), a free slot takes a
+            // new one at the fret its stretch's notes default it to.
             .name = "Insert or Restate Hand Position at Cursor",
             .category = "Hand",
-            .default_keypresses = {markerAuthorChord(g_hand_key)},
+            .default_keypresses = {markerAuthorChord(g_fret_hand_position_key)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -359,10 +359,10 @@ constexpr int g_add_lane_key = 'a';
         "Jump to Time Signature Row",
         "Navigation",
         {markerJumpChord(g_time_signature_key)});
-    add(EditorCommandId::CaretJumpHandRow,
-        "Jump to Hand Row",
+    add(EditorCommandId::CaretJumpFretHandPositionRow,
+        "Jump to Hand Position Row",
         "Navigation",
-        {markerJumpChord(g_hand_key)});
+        {markerJumpChord(g_fret_hand_position_key)});
     add(EditorCommandId::CaretJumpToneRow,
         "Jump to Tone Row",
         "Navigation",

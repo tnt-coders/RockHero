@@ -119,11 +119,11 @@ enum class ChartCaretJump : std::uint8_t
 \brief A row the keyboard jumps onto by selection (the `Ctrl+Shift`+letter family).
 
 Each value names one of the rows the focus-row walk reaches by selecting rather than by arming a
-caret: the ruler's three marker rows, the hand row above the strings, the tone row, and the "+" row
-beneath the lanes. A jump lands exactly as the walk does — it selects the marker holding the cursor
-and demotes the caret in place — and where the row has nothing to hold the cursor (a song with no
-sections, a chart with no fret-hand positions) it selects nothing, silently. The string and lane
-rows need no jump: the arrows return to the row the caret was last armed on.
+caret: the ruler's three marker rows, the position row above the strings, the tone row, and the "+"
+row beneath the lanes. A jump lands exactly as the walk does — it selects the marker holding the
+cursor and demotes the caret in place — and where the row has nothing to hold the cursor (a song
+with no sections, a chart with no fret-hand positions) it selects nothing, silently. The string and
+lane rows need no jump: the arrows return to the row the caret was last armed on.
 */
 enum class FocusRowJump : std::uint8_t
 {
@@ -136,8 +136,8 @@ enum class FocusRowJump : std::uint8_t
     /*! \brief The ruler's time-signature row — `Ctrl+Shift+/`. */
     TimeSignature,
 
-    /*! \brief The hand row, the chart's fret-hand positions — `Ctrl+Shift+H`. */
-    Hand,
+    /*! \brief The position row, the chart's fret-hand positions — `Ctrl+Shift+P`. */
+    FretHandPosition,
 
     /*! \brief The tone row — `Ctrl+Shift+T`. */
     Tone,

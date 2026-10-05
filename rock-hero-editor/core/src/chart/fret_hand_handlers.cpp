@@ -22,7 +22,7 @@
 namespace rock_hero::editor::core
 {
 
-// The hand row's markers: the chart's stored fret-hand positions, authored through the marker
+// The position row's markers: the chart's stored fret-hand positions, authored through the marker
 // grammar every other marker kind shares. Where the hand arrives and its index finger's fret are
 // stored; the window's reach is derived unless the charter states its end fret.
 
@@ -90,27 +90,27 @@ namespace
     return placement;
 }
 
-// The hand chord's restate: the placement arriving at the cursor, which it selects.
+// The fret-hand position chord's restate: the placement arriving at the cursor, which it selects.
 struct RestateAt
 {
     common::core::GridPosition position;
 };
 
-// The hand chord's insert: the placement it will add, fret already defaulted.
+// The fret-hand position chord's insert: the placement it will add, fret already defaulted.
 struct InsertAt
 {
     common::core::FretHandPosition placement;
 };
 
-// What the hand chord does, or nothing.
-using HandChordTarget = std::variant<std::monostate, RestateAt, InsertAt>;
+// What the fret-hand position chord does, or nothing.
+using FretHandPositionChordTarget = std::variant<std::monostate, RestateAt, InsertAt>;
 
-// THE hand chord's precedence, stated once: it authors at the cursor and never reads the selection.
-// A placement arriving exactly there is restated, which is what keeps a second press from inserting
-// a second placement on the first one's start; anywhere else a marker may start, the verb is an
-// insert. Nothing without a chart, without a cursor (playing, no song), or on the closing barline,
-// so the chord is inert exactly where the commit would refuse it.
-[[nodiscard]] HandChordTarget handChordTarget(
+// THE fret-hand position chord's precedence, stated once: it authors at the cursor and never reads
+// the selection. A placement arriving exactly there is restated, which is what keeps a second
+// press from inserting a second placement on the first one's start; anywhere else a marker may
+// start, the verb is an insert. Nothing without a chart, without a cursor (playing, no song), or on
+// the closing barline, so the chord is inert exactly where the commit would refuse it.
+[[nodiscard]] FretHandPositionChordTarget fretHandPositionChordTarget(
     const common::core::Arrangement* const arrangement,
     const std::optional<common::core::GridPosition>& cursor,
     const common::core::TempoMap& tempo_map)
@@ -139,22 +139,22 @@ using HandChordTarget = std::variant<std::monostate, RestateAt, InsertAt>;
 // through the select every path onto a marker shares, so the caret demotes.
 void EditorController::Impl::performActionImpl(const EditorAction::SelectFretHandPosition& action)
 {
-    if (action.index < markerStarts(MarkerRow::Hand).size())
+    if (action.index < markerStarts(MarkerRow::FretHandPosition).size())
     {
-        selectMarker(markerSelectionAt(MarkerRow::Hand, action.index));
+        selectMarker(markerSelectionAt(MarkerRow::FretHandPosition, action.index));
     }
     updateView();
 }
 
-// The hand chord runs its own target: the verb has nothing to prompt for, so the precedence is
-// decided and performed here, at the press, rather than published for a surface to hand back. The
-// cursor is read at the placement quantum — the slot an arrow press would arm on, as the tone
-// chord reads it. A restate only selects, since a placement's fret has no entry to re-open yet;
-// an insert that lands is left SELECTED, so Delete and Alt+arrows act on it next.
+// The fret-hand position chord runs its own target: the verb has nothing to prompt for, so the
+// precedence is decided and performed here, at the press, rather than published for a surface to
+// hand back. The cursor is read at the placement quantum — the slot an arrow press would arm on,
+// as the tone chord reads it. A restate only selects, since a placement's fret has no entry to
+// re-open yet; an insert that lands is left SELECTED, so Delete and Alt+arrows act on it next.
 void EditorController::Impl::performActionImpl(
     EditorAction::AuthorFretHandPositionAtCursor /*action*/)
 {
-    const HandChordTarget target = handChordTarget(
+    const FretHandPositionChordTarget target = fretHandPositionChordTarget(
         session().currentArrangement(),
         cursorPosition(placementQuantum()),
         session().song().tempo_map);

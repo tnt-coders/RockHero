@@ -310,9 +310,9 @@ TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
     CHECK(controller.last_scale_tempo_text == std::optional<std::string>{"3/2"});
 }
 
-// The hand chord has nothing to prompt for, so no verb is published for it: the view forwards the
-// press as it stands and the core decides what it does.
-TEST_CASE("EditorView forwards the hand chord to the core", "[ui][editor-view]")
+// The fret-hand position chord has nothing to prompt for, so no verb is published for it: the view
+// forwards the press as it stands and the core decides what it does.
+TEST_CASE("EditorView forwards the fret-hand position chord to the core", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -323,7 +323,7 @@ TEST_CASE("EditorView forwards the hand chord to the core", "[ui][editor-view]")
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::InsertFretHandPosition)};
     CHECK(view.perform(info));
-    CHECK(controller.hand_chord_count == 1);
+    CHECK(controller.fret_hand_position_chord_count == 1);
     CHECK_FALSE(controller.last_selected_fret_hand_position.has_value());
 }
 
@@ -340,13 +340,13 @@ TEST_CASE("EditorView forwards the hand end clear while a selection stands", "[u
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::ClearHandPositionEndFret)};
     CHECK(view.perform(info));
-    CHECK(controller.hand_end_clear_count == 0);
+    CHECK(controller.fret_hand_position_end_clear_count == 0);
 
     core::EditorViewState state;
     state.selection_present = true;
     view.setState(state);
     CHECK(view.perform(info));
-    CHECK(controller.hand_end_clear_count == 1);
+    CHECK(controller.fret_hand_position_end_clear_count == 1);
 }
 
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
@@ -624,7 +624,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::ScaleTempo, .value = 0x1409, .chords = {}},
         {.id = EditorCommandId::InsertFretHandPosition,
          .value = 0x1406,
-         .chords = {chord('h', command)}},
+         .chords = {chord('p', command)}},
         {.id = EditorCommandId::RestateSelection,
          .value = 0x1404,
          .chords = {chord(juce::KeyPress::returnKey)}},
@@ -690,9 +690,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::CaretJumpTimeSignatureRow,
          .value = 0x1513,
          .chords = {chord('/', command | shift)}},
-        {.id = EditorCommandId::CaretJumpHandRow,
+        {.id = EditorCommandId::CaretJumpFretHandPositionRow,
          .value = 0x1516,
-         .chords = {chord('h', command | shift)}},
+         .chords = {chord('p', command | shift)}},
         {.id = EditorCommandId::CaretJumpToneRow,
          .value = 0x1514,
          .chords = {chord('t', command | shift)}},

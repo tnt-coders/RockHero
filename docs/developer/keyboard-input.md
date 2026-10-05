@@ -275,11 +275,12 @@ chords read the CURSOR and never the selection: the armed
 caret, else the paused cursor (`cursorPosition(quantum)`, at the placement quantum for the tone's
 slot and at the tick for the section's measure downbeat). "Nothing" carries the playback and no-song
 gates, stated once in the projection rather than in five UI guards, so a chord typed while the
-transport rolls finds no verb to perform. `Ctrl+H` (the hand chord) has nothing to prompt for, so
-it publishes no verb at all: its `perform` forwards `onHandChordRequested()`, and the core decides
-the same precedence and acts on it inside ONE action (`AuthorFretHandPositionAtCursor`, whose
-`handChordTarget` is file-local to `fret_hand_handlers.cpp`). `F3`/`F8` are commands that
-toggle UI panels directly — trigger-only commands with no core policy. Two more UI-only families
+transport rolls finds no verb to perform. `Ctrl+P` (the position chord) has nothing to prompt for,
+so it publishes no verb at all: its `perform` forwards `onFretHandPositionChordRequested()`, and
+the core decides the same precedence and acts on it inside ONE action
+(`AuthorFretHandPositionAtCursor`, whose `fretHandPositionChordTarget` is file-local to
+`fret_hand_handlers.cpp`). `F3`/`F8` are commands that toggle UI panels directly — trigger-only
+commands with no core policy. Two more UI-only families
 ride the same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
 combo pick, so the controller still owns the applied value), and `ZoomIn`/`ZoomOut` zoom
@@ -588,7 +589,7 @@ the rig, the lanes and the signal-chain panel with it, and why a caret RIDING a 
 automation point across a region boundary does the same. Arming still seeks NOTHING — the playhead
 does not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
-— the ruler's section, tempo and time-signature rows, the hand row (the chart's fret-hand
+— the ruler's section, tempo and time-signature rows, the position row (the chart's fret-hand
 positions, whose lane chips are its markers), the strings, the tone-region row, the visible
 lanes, the "+" row — and every landing goes
 through `landOnRow`, which arms a string or lane row and selects the marker holding the cursor on a
@@ -856,7 +857,7 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    see the Alt-code note under Decoding). One command per
    (chord, verb) pair: a `Ctrl` precision/reach tier is its own command, per the interaction
    model's operation-not-key rule. **A marker kind's letter is declared ONCE** — the file-local
-   `g_section_key`, `g_tempo_key`, `g_time_signature_key`, `g_hand_key`, `g_tone_key`,
+   `g_section_key`, `g_tempo_key`, `g_time_signature_key`, `g_fret_hand_position_key`, `g_tone_key`,
    `g_add_lane_key` — and both
    of its chords are composed from it by `markerAuthorChord` (`Ctrl`+letter, authors at the cursor)
    and `markerJumpChord` (`Ctrl+Shift`+letter, jumps focus onto the row), so the pair cannot drift.

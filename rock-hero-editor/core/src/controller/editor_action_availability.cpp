@@ -83,8 +83,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ChooseChartBend:
         case EditorAction::Id::SetChartBend:
         case EditorAction::Id::ToggleChartJunction:
-        // The section, tempo and hand-marker verbs edit the project the calibration prompt is
-        // parked over.
+        // The section, tempo and fret-hand position verbs edit the project the calibration prompt
+        // is parked over.
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::InsertTempoAnchor:

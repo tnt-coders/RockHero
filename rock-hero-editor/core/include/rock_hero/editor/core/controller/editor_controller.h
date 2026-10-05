@@ -515,11 +515,11 @@ public:
     /*! \copydoc IEditorController::onFretHandPositionSelected */
     void onFretHandPositionSelected(std::size_t index) override;
 
-    /*! \copydoc IEditorController::onHandChordRequested */
-    void onHandChordRequested() override;
+    /*! \copydoc IEditorController::onFretHandPositionChordRequested */
+    void onFretHandPositionChordRequested() override;
 
-    /*! \copydoc IEditorController::onHandEndClearRequested */
-    void onHandEndClearRequested() override;
+    /*! \copydoc IEditorController::onFretHandPositionEndClearRequested */
+    void onFretHandPositionEndClearRequested() override;
 
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(

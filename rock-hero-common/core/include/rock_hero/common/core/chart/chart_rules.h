@@ -691,8 +691,9 @@ here — the hold test that wanted them belongs to the resolver.
 already in its normal form (\ref normalizeFretHandPosition), and the stream strictly ascending and
 unique by position.
 
-\ref validateChartRules asks this for the chart's own stream; the editor's hand-marker commit asks
-it of the stream alone, so a placement edit is judged by exactly the rule a package load applies.
+\ref validateChartRules asks this for the chart's own stream; the editor's fret-hand position
+commit asks it of the stream alone, so a placement edit is judged by exactly the rule a package load
+applies.
 
 \param placements Placement stream to validate.
 \param tuning Tuning the placements sit under; supplies the capo floor.

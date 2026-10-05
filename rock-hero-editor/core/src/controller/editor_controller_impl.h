@@ -665,8 +665,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Builds the engine's tempo-derived caches from the session's map, unconditionally: the one
     // push both the rig load and syncTempoDerivedAudio() make.
     void pushTempoDerivedAudio();
-    // Fret-hand positions (src/chart/fret_hand_handlers.cpp), the hand row's markers. Arrangement-
-    // scoped like the tone regions: the placements are the current chart's own stream.
+    // Fret-hand positions (src/chart/fret_hand_handlers.cpp), the position row's markers.
+    // Arrangement-scoped like the tone regions: the placements are the current chart's own stream.
     // Moves the selected placement one placement-quantum line (the Alt+arrow dispatch for the
     // fret-hand alternative). Left or Right only; the move dispatch refuses a vertical direction
     // for every marker kind.
@@ -1505,15 +1505,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const AutomationLaneRow& row, const common::core::GridPosition& position);
 
     // The rows the keyboard reaches by SELECTING a marker rather than arming the caret: the ruler's
-    // section, tempo and time-signature rows and the hand row above the strings, and the tone row
-    // below them. A marker's span runs from its start to the next marker's start, and the first
+    // section, tempo and time-signature rows and the position row above the strings, and the tone
+    // row below them. A marker's span runs from its start to the next marker's start, and the first
     // marker also owns whatever precedes it.
     enum class MarkerRow : std::uint8_t
     {
         Section,
         Tempo,
         TimeSignature,
-        Hand,
+        FretHandPosition,
         Tone,
     };
 

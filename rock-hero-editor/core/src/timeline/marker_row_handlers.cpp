@@ -18,10 +18,10 @@
 namespace rock_hero::editor::core
 {
 
-// The marker rows: the ruler's section, tempo and time-signature rows, the hand row and the tone
-// row, which the keyboard reaches by selecting a marker. Every row answers the same questions —
-// where its markers start, which one holds a position, which one the selection names — so the
-// walk, a chip click and Tab share one model of all five.
+// The marker rows: the ruler's section, tempo and time-signature rows, the position row and the
+// tone row, which the keyboard reaches by selecting a marker. Every row answers the same
+// questions — where its markers start, which one holds a position, which one the selection names —
+// so the walk, a chip click and Tab share one model of all five.
 
 std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     const MarkerRow row) const
@@ -57,7 +57,7 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
             }
             break;
         }
-        case MarkerRow::Hand:
+        case MarkerRow::FretHandPosition:
         {
             if (const common::core::Arrangement* const arrangement = session().currentArrangement();
                 arrangement != nullptr && arrangement->chart.has_value())
@@ -119,7 +119,7 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     }
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
-        return marker(MarkerRow::Hand, placement->position);
+        return marker(MarkerRow::FretHandPosition, placement->position);
     }
     if (const auto* const region = std::get_if<ToneRegionSelection>(&m_selection))
     {
@@ -157,7 +157,7 @@ MarkerSelection EditorController::Impl::markerSelectionAt(
         {
             return TimeSignatureSelection{.measure = start.measure};
         }
-        case MarkerRow::Hand:
+        case MarkerRow::FretHandPosition:
         {
             return FretHandPositionSelection{.position = start};
         }

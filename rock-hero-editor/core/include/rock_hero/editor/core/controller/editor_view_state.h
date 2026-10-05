@@ -1099,9 +1099,9 @@ struct EditorViewState
     Every published time is re-timed from \ref tempo_map to this map at each content surface's
     seconds-to-pixel seam (common::core::TempoMap::secondsRetimedFrom), which is the identity
     whenever the two are equal. The re-time is exact for every onset and end, so notes, rings,
-    keyframes, hand markers, sections, tone regions and automation stand where the release puts
-    them. Only notation a law states in seconds — a tail's crop, the kept-sustain floor, a head's
-    margin — was decided under \ref tempo_map and is off by the drag's tempo ratio until the
+    keyframes, fret-hand positions, sections, tone regions and automation stand where the release
+    puts them. Only notation a law states in seconds — a tail's crop, the kept-sustain floor, a
+    head's margin — was decided under \ref tempo_map and is off by the drag's tempo ratio until the
     release re-derives it. The waveform never re-times: audio keeps its time.
     */
     common::core::TempoMap content_map{};

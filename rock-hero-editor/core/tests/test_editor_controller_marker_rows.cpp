@@ -836,16 +836,19 @@ TEST_CASE(
     CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
 }
 
-// The hand chord inserts at a free cursor at the fret the new placement's stretch defaults it to:
-// the lowest stop the stretch holds, else the fret of the placement before it, else fret 1. The
-// insert is left selected, and undo and redo round-trip it through the one marker commit.
-TEST_CASE("The hand chord inserts at the cursor with a defaulted fret", "[core][marker-rows]")
+// The fret-hand position chord inserts at a free cursor at the fret the new placement's stretch
+// defaults it to: the lowest stop the stretch holds, else the fret of the placement before it, else
+// fret 1. The insert is left selected, and undo and redo round-trip it through the one marker
+// commit.
+TEST_CASE(
+    "The fret-hand position chord inserts at the cursor with a defaulted fret",
+    "[core][marker-rows]")
 {
     SECTION("the lowest stop the stretch holds")
     {
         MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
         editor.parkAtMeasure(6);
-        editor.controller.onHandChordRequested();
+        editor.controller.onFretHandPositionChordRequested();
         const std::vector<common::core::FretHandPosition> placements = editor.placements();
         REQUIRE(placements.size() == 5);
         CHECK(placements[2] == placementAt(downbeat(6), 7));
@@ -863,7 +866,7 @@ TEST_CASE("The hand chord inserts at the cursor with a defaulted fret", "[core][
     {
         MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
         editor.parkAtMeasure(3);
-        editor.controller.onHandChordRequested();
+        editor.controller.onFretHandPositionChordRequested();
         const std::vector<common::core::FretHandPosition> placements = editor.placements();
         REQUIRE(placements.size() == 5);
         CHECK(placements[1] == placementAt(downbeat(3), 5));
@@ -874,7 +877,7 @@ TEST_CASE("The hand chord inserts at the cursor with a defaulted fret", "[core][
     {
         MarkerRowEditor editor{makeMarkerSections(), {}, makeBareChart()};
         editor.parkAtMeasure(4);
-        editor.controller.onHandChordRequested();
+        editor.controller.onFretHandPositionChordRequested();
         const std::vector<common::core::FretHandPosition> placements = editor.placements();
         REQUIRE(placements.size() == 1);
         CHECK(placements.front() == placementAt(downbeat(4), 1));
@@ -888,7 +891,7 @@ TEST_CASE("The hand chord inserts at the cursor with a defaulted fret", "[core][
         REQUIRE(editor.caretString().has_value());
         const std::size_t entries_before = editor.undoEntryCount();
 
-        editor.controller.onHandChordRequested();
+        editor.controller.onFretHandPositionChordRequested();
         CHECK(editor.placements() == makeHandChart().fret_hand_positions);
         CHECK(editor.undoEntryCount() == entries_before);
         CHECK_FALSE(editor.selectedHandIndex().has_value());
@@ -897,13 +900,14 @@ TEST_CASE("The hand chord inserts at the cursor with a defaulted fret", "[core][
 
 // On a start a placement already holds, the chord restates it: with no payload to re-enter, that
 // only selects it — and it is what keeps a second press from inserting a duplicate there.
-TEST_CASE("The hand chord restates the placement at the cursor", "[core][marker-rows]")
+TEST_CASE(
+    "The fret-hand position chord restates the placement at the cursor", "[core][marker-rows]")
 {
     MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
     editor.parkAtMeasure(5);
     const std::size_t entries_before = editor.undoEntryCount();
 
-    editor.controller.onHandChordRequested();
+    editor.controller.onFretHandPositionChordRequested();
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
     CHECK(editor.undoEntryCount() == entries_before);
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
@@ -937,7 +941,7 @@ TEST_CASE("EditorController deletes the selected fret-hand position", "[core][ma
 
     MarkerRowEditor sole{makeMarkerSections(), {}, makeBareChart()};
     sole.parkAtMeasure(2);
-    sole.controller.onHandChordRequested();
+    sole.controller.onFretHandPositionChordRequested();
     REQUIRE(sole.placements().size() == 1);
     sole.controller.onSelectionDeleteRequested();
     CHECK(sole.placements().empty());
@@ -1127,10 +1131,10 @@ TEST_CASE("Fret-hand move refuses an occupied start and both chart ends", "[core
     CHECK(editor.undoEntryCount() == entries_before);
 }
 
-// The hand row sits between the time signature and the strings: the jump lands on the placement
+// The position row sits between the time signature and the strings: the jump lands on the placement
 // holding the cursor exactly as the ruler jumps land, and the walk passes through the row. With no
 // placements the row is not listed, so the jump is silent and the walk goes straight to the ruler.
-TEST_CASE("EditorController jumps onto and walks through the hand row", "[core][marker-rows]")
+TEST_CASE("EditorController jumps onto and walks through the position row", "[core][marker-rows]")
 {
     SECTION("the jump selects the holder and the walk passes through the row")
     {
@@ -1138,7 +1142,7 @@ TEST_CASE("EditorController jumps onto and walks through the hand row", "[core][
         editor.armAtMeasure(6);
         REQUIRE(editor.caretString() == std::optional{1});
 
-        editor.jump(FocusRowJump::Hand);
+        editor.jump(FocusRowJump::FretHandPosition);
         CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
         CHECK_FALSE(editor.caretString().has_value());
         CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
@@ -1151,13 +1155,13 @@ TEST_CASE("EditorController jumps onto and walks through the hand row", "[core][
         CHECK(editor.caretString() == std::optional{6});
     }
 
-    SECTION("a chart with no placements lists no hand row")
+    SECTION("a chart with no placements lists no position row")
     {
         MarkerRowEditor editor;
         editor.armAtMeasure(4);
         REQUIRE(editor.caretString() == std::optional{1});
 
-        editor.jump(FocusRowJump::Hand);
+        editor.jump(FocusRowJump::FretHandPosition);
         CHECK_FALSE(editor.selectedHandIndex().has_value());
         CHECK(editor.caretString() == std::optional{1});
     }
@@ -1165,11 +1169,11 @@ TEST_CASE("EditorController jumps onto and walks through the hand row", "[core][
 
 // A click on a hand chip reaches the same select the keyboard does: it selects the same marker and
 // publishes the same verbs on it.
-TEST_CASE("A hand chip click selects what the hand-row jump selects", "[core][marker-rows]")
+TEST_CASE("A hand chip click selects what the position-row jump selects", "[core][marker-rows]")
 {
     MarkerRowEditor keyboard{makeMarkerSections(), {}, makeHandChart()};
     keyboard.armAtMeasure(6);
-    keyboard.jump(FocusRowJump::Hand);
+    keyboard.jump(FocusRowJump::FretHandPosition);
     REQUIRE(keyboard.selectedHandIndex() == std::optional<std::size_t>{1});
 
     MarkerRowEditor pointer{makeMarkerSections(), {}, makeHandChart()};
@@ -1391,7 +1395,7 @@ TEST_CASE("Alt+Delete clears a fret-hand position's authored end fret", "[core][
     editor.controller.onFretHandPositionSelected(1);
 
     const std::size_t entries_before = editor.undoEntryCount();
-    editor.controller.onHandEndClearRequested();
+    editor.controller.onFretHandPositionEndClearRequested();
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
     CHECK(editor.undoEntryCount() == entries_before);
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
@@ -1400,13 +1404,13 @@ TEST_CASE("Alt+Delete clears a fret-hand position's authored end fret", "[core][
     editor.controller.onChartRingDigitTyped(4);
     REQUIRE(editor.placements()[1].end_fret == std::optional{14});
 
-    editor.controller.onHandEndClearRequested();
+    editor.controller.onFretHandPositionEndClearRequested();
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
     CHECK(editor.undoEntryCount() == entries_before + 2);
     CHECK(editor.state().undo_history.labels.back() == "Clear Hand Position End Fret");
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
 
-    editor.controller.onHandEndClearRequested();
+    editor.controller.onFretHandPositionEndClearRequested();
     CHECK(editor.undoEntryCount() == entries_before + 2);
     CHECK(editor.placements().size() == 4);
 }

@@ -320,9 +320,9 @@ void TabView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    // A fret-hand chip is the hand row's marker, and a press on it selects that placement the way a
-    // ruler chip click selects its marker — instead of reaching the chart as a press on the top
-    // string the chip is drawn over. While the marker plane is closed there is no selection to
+    // A fret-hand chip is the position row's marker, and a press on it selects that placement the
+    // way a ruler chip click selects its marker — instead of reaching the chart as a press on the
+    // top string the chip is drawn over. While the marker plane is closed there is no selection to
     // make, so the press goes to the chart like any other, as a ruler chip column seeks then.
     if (m_marker_edits_enabled && m_fret_hand_chip_callback != nullptr)
     {

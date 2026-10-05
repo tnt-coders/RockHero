@@ -1396,7 +1396,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(navigate_menu, EditorCommandId::CaretJumpSectionRow);
     add(navigate_menu, EditorCommandId::CaretJumpTempoRow);
     add(navigate_menu, EditorCommandId::CaretJumpTimeSignatureRow);
-    add(navigate_menu, EditorCommandId::CaretJumpHandRow);
+    add(navigate_menu, EditorCommandId::CaretJumpFretHandPositionRow);
     add(navigate_menu, EditorCommandId::CaretJumpToneRow);
     add(navigate_menu, EditorCommandId::CaretJumpAddLaneRow);
     navigate_menu.addSeparator();
@@ -1861,7 +1861,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CaretJumpSectionRow:
         case EditorCommandId::CaretJumpTempoRow:
         case EditorCommandId::CaretJumpTimeSignatureRow:
-        case EditorCommandId::CaretJumpHandRow:
+        case EditorCommandId::CaretJumpFretHandPositionRow:
         case EditorCommandId::CaretJumpToneRow:
         case EditorCommandId::CaretJumpAddLaneRow:
         case EditorCommandId::TimeSelectionExtendLeft:
@@ -2181,7 +2181,7 @@ bool EditorView::performCommand(const InvocationInfo& info)
         }
         case EditorCommandId::InsertFretHandPosition:
         {
-            m_controller.onHandChordRequested();
+            m_controller.onFretHandPositionChordRequested();
             return true;
         }
         case EditorCommandId::RestateSelection:
@@ -2513,9 +2513,9 @@ bool EditorView::performCommand(const InvocationInfo& info)
             m_controller.onFocusRowJumpRequested(core::FocusRowJump::TimeSignature);
             return true;
         }
-        case EditorCommandId::CaretJumpHandRow:
+        case EditorCommandId::CaretJumpFretHandPositionRow:
         {
-            m_controller.onFocusRowJumpRequested(core::FocusRowJump::Hand);
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::FretHandPosition);
             return true;
         }
         case EditorCommandId::CaretJumpToneRow:
@@ -2637,7 +2637,7 @@ bool EditorView::performCommand(const InvocationInfo& info)
         {
             if (m_state.selection_present)
             {
-                m_controller.onHandEndClearRequested();
+                m_controller.onFretHandPositionEndClearRequested();
             }
             return true;
         }

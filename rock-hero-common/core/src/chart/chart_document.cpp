@@ -29,7 +29,7 @@ constexpr int g_chart_format_version{1};
 
 [[nodiscard]] std::expected<GridPosition, ChartError> readPosition(const juce::var& object)
 {
-    const std::string text = Json::readOptionalString(object, "position", "");
+    const std::string text = Json::readOptionalString(object, "at", "");
     const auto position = parseGridPositionToken(text);
     if (!position.has_value())
     {
@@ -461,7 +461,7 @@ void appendJsonString(std::string& out, const std::string& text)
 
 [[nodiscard]] std::string noteLine(const ChartNote& note)
 {
-    std::string line = R"({ "position": ")" + formatGridPositionToken(note.position) + '"';
+    std::string line = R"({ "at": ")" + formatGridPositionToken(note.position) + '"';
     line += ", \"string\": " + std::to_string(note.string);
     line += ", \"fret\": " + std::to_string(note.fret);
     // Always emitted: the ring is the note's own fact, and the reader refuses a document that omits
@@ -686,13 +686,13 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
         return std::unexpected{malformed("chart notes must be sorted by position and string")};
     }
 
-    const juce::var& fhps_json = Json::value(root, "fhps");
-    if (fhps_json.isArray())
+    const juce::var& positions_json = Json::value(root, "positions");
+    if (positions_json.isArray())
     {
-        chart.fret_hand_positions.reserve(static_cast<std::size_t>(fhps_json.size()));
-        for (int index = 0; index < fhps_json.size(); ++index)
+        chart.fret_hand_positions.reserve(static_cast<std::size_t>(positions_json.size()));
+        for (int index = 0; index < positions_json.size(); ++index)
         {
-            const juce::var& fhp_json = fhps_json[index];
+            const juce::var& fhp_json = positions_json[index];
             auto position = readPosition(fhp_json);
             if (!position.has_value())
             {
@@ -775,8 +775,8 @@ namespace
     };
 
     append_array("notes", chart.notes, noteLine);
-    append_array("fhps", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
-        std::string line = R"({ "position": ")" + formatGridPositionToken(fhp.position) +
+    append_array("positions", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
+        std::string line = R"({ "at": ")" + formatGridPositionToken(fhp.position) +
                            R"(", "fret": )" + std::to_string(fhp.fret);
         // Written only where authored: an absent end is the derived window.
         if (const std::optional<int>& end_fret = fhp.end_fret; end_fret.has_value())

@@ -365,13 +365,13 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto position_text = Json::tryReadString(anchor_json, "position");
+        const auto position_text = Json::tryReadString(anchor_json, "at");
         const auto seconds = Json::tryReadDouble(anchor_json, "seconds");
         if (!position_text.has_value() || !seconds.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.anchors entries require position and seconds",
+                R"(tempoMap.anchors entries require "at" and "seconds")",
             }};
         }
 
@@ -380,7 +380,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                R"(tempoMap.anchors position must be a grid token such as "188:1" or "188:3+1/2")",
+                R"(tempoMap.anchors "at" must be a grid token such as "188:1" or "188:3+1/2")",
             }};
         }
 
@@ -475,13 +475,13 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     sections.reserve(static_cast<std::size_t>(sections_json.size()));
     for (const juce::var& section_json : *sections_json.getArray())
     {
-        const auto position_text = Json::tryReadString(section_json, "position");
+        const auto position_text = Json::tryReadString(section_json, "at");
         const auto name = Json::tryReadString(section_json, "name");
         if (!section_json.isObject() || !position_text.has_value() || !name.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "sections entries require a position and a name",
+                R"(sections entries require "at" and "name")",
             }};
         }
 
@@ -490,7 +490,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "sections position is not a grid token: " + *position_text,
+                R"(sections "at" is not a grid token: )" + *position_text,
             }};
         }
 
@@ -538,13 +538,13 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     tone_track.regions.reserve(static_cast<std::size_t>(tone_changes_json.size()));
     for (const juce::var& change_json : *tone_changes_json.getArray())
     {
-        const auto start_text = Json::tryReadString(change_json, "start");
+        const auto at_text = Json::tryReadString(change_json, "at");
         const auto tone_id = Json::tryReadString(change_json, "tone");
-        if (!change_json.isObject() || !start_text.has_value() || !tone_id.has_value())
+        if (!change_json.isObject() || !at_text.has_value() || !tone_id.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "toneChanges entries require start and tone fields",
+                R"(toneChanges entries require "at" and "tone")",
             }};
         }
 
@@ -556,12 +556,12 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto start = parseGridPositionToken(*start_text);
+        const auto start = parseGridPositionToken(*at_text);
         if (!start.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "tone change start must be a \"<measure>:<beat>\" or \"<measure>:<beat>+<n>/<d>\" "
+                "tone change \"at\" must be a \"<measure>:<beat>\" or \"<measure>:<beat>+<n>/<d>\" "
                 "token",
             }};
         }
@@ -686,13 +686,13 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
         entry.points.reserve(static_cast<std::size_t>(points_json.size()));
         for (const juce::var& point_json : *points_json.getArray())
         {
-            const auto position_text = Json::tryReadString(point_json, "position");
+            const auto position_text = Json::tryReadString(point_json, "at");
             const auto value = Json::tryReadDouble(point_json, "value");
             if (!position_text.has_value() || !value.has_value())
             {
                 return std::unexpected{SongPackageError{
                     SongPackageErrorCode::InvalidArrangement,
-                    "toneAutomation points require position and value fields",
+                    R"(toneAutomation points require "at" and "value")",
                 }};
             }
 
@@ -701,7 +701,7 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
             {
                 return std::unexpected{SongPackageError{
                     SongPackageErrorCode::InvalidArrangement,
-                    "toneAutomation point position is not a grid-position token: " + *position_text,
+                    R"(toneAutomation point "at" is not a grid-position token: )" + *position_text,
                 }};
             }
 

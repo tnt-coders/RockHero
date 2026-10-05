@@ -1007,12 +1007,12 @@ void EditorController::onFretHandPositionSelected(const std::size_t index)
     m_impl->runAction(EditorAction::SelectFretHandPosition{.index = index});
 }
 
-void EditorController::onHandChordRequested()
+void EditorController::onFretHandPositionChordRequested()
 {
     m_impl->runAction(EditorAction::AuthorFretHandPositionAtCursor{});
 }
 
-void EditorController::onHandEndClearRequested()
+void EditorController::onFretHandPositionEndClearRequested()
 {
     m_impl->runAction(EditorAction::ClearFretHandEnd{});
 }
@@ -2944,7 +2944,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                     // A placement's fret entry wears its box on the placement's own lane chip,
                     // named by its index in the stream, which the projection mirrors one to one.
                     if (const std::optional<std::size_t> index =
-                            markerIndex(MarkerRow::Hand, hand->position);
+                            markerIndex(MarkerRow::FretHandPosition, hand->position);
                         index.has_value())
                     {
                         state.chart_edit.pending_fret = ChartPendingFretViewState{
