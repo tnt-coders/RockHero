@@ -2095,15 +2095,39 @@ held stop.
 }
 
 /*!
-\brief The last stop the note's fret channel states STRICTLY INSIDE its ring — the onset's where it
-states none.
+\brief The last keyframe stating a fret STRICTLY INSIDE the note's ring, or nullptr where only the
+onset states one.
 
 The position channel read short of the end, which is where the pass-through rule comes from: a note
-that glided hands over its last fret-STATING keyframe rather than its onset fret (a 5→7 slide
-departs from 7), while keyframes stating only a bend or a vibrato change say nothing about position
-and carry the running fret forward. NOTE-LOCAL, and the question a caller asks when it wants where
-the travel left FROM rather than where the note ends: the departure a glide's own delta is measured
-against, and the fret a SLIDE-OUT leaves from.
+that glided hands over its last fret-STATING keyframe rather than its onset (a 5→7 slide departs
+from 7), while keyframes stating only a bend or a vibrato change say nothing about position. It is
+where the travel into the ring's end leaves FROM, which a SLIDE-OUT's fret (\ref fretBeforeEnd) and
+its instant (\ref offsetBeforeEnd) both read.
+
+\param note Note whose interior position channel is read.
+
+\return The last fret statement inside the ring, or nullptr for the onset.
+*/
+[[nodiscard]] inline const Keyframe* lastFretStatementBeforeEnd(const ChartNote& note) noexcept
+{
+    const Keyframe* last = nullptr;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        if (keyframe.fret.has_value() && keyframe.offset < note.sustain)
+        {
+            last = &keyframe;
+        }
+    }
+    return last;
+}
+
+/*!
+\brief The last stop the note's fret channel states STRICTLY INSIDE its ring — the onset's where it
+states none (\ref lastFretStatementBeforeEnd).
+
+NOTE-LOCAL, and the question a caller asks when it wants where the travel left FROM rather than
+where the note ends: the departure a glide's own delta is measured against, and the fret a
+SLIDE-OUT leaves from.
 
 \param note Note whose interior position channel is read.
 
@@ -2111,17 +2135,23 @@ against, and the fret a SLIDE-OUT leaves from.
 */
 [[nodiscard]] inline int fretBeforeEnd(const ChartNote& note)
 {
-    int fret = note.fret;
-    for (const Keyframe& keyframe : note.keyframes)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& stated = keyframe.fret;
-        if (stated.has_value() && keyframe.offset < note.sustain)
-        {
-            fret = *stated;
-        }
-    }
-    return fret;
+    const Keyframe* const last = lastFretStatementBeforeEnd(note);
+    // The presence test is re-asked beside the read so the optional-access checker can pair them.
+    return last != nullptr && last->fret.has_value() ? *last->fret : note.fret;
+}
+
+/*!
+\brief Where that last stop is stated, as an offset from the onset — zero where only the onset
+states one (\ref lastFretStatementBeforeEnd): the instant a SLIDE-OUT departs.
+
+\param note Note whose interior position channel is read.
+
+\return Whole notes from the onset to the last fret statement inside the ring.
+*/
+[[nodiscard]] inline Fraction offsetBeforeEnd(const ChartNote& note) noexcept
+{
+    const Keyframe* const last = lastFretStatementBeforeEnd(note);
+    return last != nullptr ? last->offset : Fraction{};
 }
 
 /*!

@@ -261,8 +261,6 @@ struct HandRun
         const Keyframe* const slide_out = slideOutKeyframe(note, connections.arrives_into[index]);
         int stop = note.fret;
         Fraction stop_from{};
-        // The current stop's last statement, where a following slide-out departs from it.
-        Fraction stated_last{};
         for (const Keyframe& keyframe : note.keyframes)
         {
             // Bound to a local so the optional check and the access are provably the same object.
@@ -276,9 +274,8 @@ struct HandRun
                 stop = *fret;
                 stop_from = keyframe.offset;
             }
-            stated_last = keyframe.offset;
         }
-        const Fraction end = slide_out != nullptr ? stated_last : note.sustain;
+        const Fraction end = slide_out != nullptr ? offsetBeforeEnd(note) : note.sustain;
         if (stop_from < end)
         {
             const Fraction place = connections.places[index];
@@ -322,15 +319,7 @@ struct SlideOutRide
         {
             continue;
         }
-        // The slide departs from the last stop stated before it, or the onset's.
-        Fraction departure{};
-        for (const Keyframe& keyframe : note.keyframes)
-        {
-            if (keyframe.fret.has_value() && &keyframe != slide_out)
-            {
-                departure = keyframe.offset;
-            }
-        }
+        const Fraction departure = offsetBeforeEnd(note);
         // The fretting hand travels only with a stop it holds: a tap's slide-out is the picking
         // hand's.
         if (!fretHandDemandAt(note, departure).has_value())
