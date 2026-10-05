@@ -188,8 +188,8 @@ for stripping's sake. It is not recommended.
 
 - **D1: Doxygen prose (ruled).** The Doxygen blocks are in the sweep under their own descriptive
   standard (section 3), not the regular-comment budget. They lose history and implementation
-  narration and keep everything a reader of the generated documentation needs. Required fields
-  (`\brief`, every `\param`, `\tparam` and `\return`, and every enumerator) stay in every case.
+  narration and keep everything a reader of the generated documentation needs. `\brief` and every
+  enumerator's documentation stay in every case; `\param`, `\tparam` and `\return` follow D5.
   Markdown under `docs/` stays out of scope.
 - **D2: Conventions change (ruled: yes).** `docs/design/documentation-conventions.md` gains a
   section, "Comments State the Current Truth": rewrite instead of append, history belongs in git
@@ -203,6 +203,32 @@ for stripping's sake. It is not recommended.
   carve out.
 - **D4: The per-function comment mandate (ruled: kept).** Every `.cpp` function keeps a comment
   unless it is explicitly trivial. The cap makes those comments short; it never removes one.
+- **D5: No boilerplate Doxygen fields (ruled: yes).** This follows LLVM's rule: include parameters
+  and return values only "when it provides additional information, such as intent, usage, or
+  behavior that's non-obvious." A Doxygen field earns its place by saying something the signature
+  does not:
+  - `\param` and `\tparam` appear when a parameter has units, a range, ownership, lifetime, a
+    nullable meaning or an effect the name and type leave open. When any `\param` is written,
+    every parameter is documented: `WARN_IF_INCOMPLETE_DOC` (kept on) enforces all-or-nothing.
+  - `\return` appears when the value carries more than its type and the brief already say, such as
+    units, a sentinel, an empty case, or ownership.
+  - Deleted and defaulted special members (copy and move constructors and assignments, defaulted
+    destructors) get no Doxygen block. A class that is non-copyable or non-movable for a
+    non-obvious reason says so once, in the class's own Doxygen.
+  - Mechanics: `WARN_NO_PARAMDOC` goes from `YES` to `NO` in `docs/Doxyfile.in`, and the "Required
+    Fields" and "Header Doxygen Coverage" sections of `documentation-conventions.md` are rewritten
+    to match. Verified on Doxygen 1.16.1: with `WARN_NO_PARAMDOC = NO`, a function documented by
+    its brief alone raises no warning, a partially documented parameter list still does, and an
+    undocumented deleted member never did (only our conventions required those blocks).
+  - Removals are the one thing workers may do to a Doxygen block beyond rewording: they remove a
+    field that restates the signature (`\param lhs Left-hand stretch.`, `\return True when both
+    pops store equal values.`). A field that carries information stays.
+- **D6: A header-documented function is not documented again at its definition (ruled: yes).**
+  LLVM: "Don't duplicate the documentation comment in the header file and in the implementation
+  file." D4's mandate is satisfied at such a definition by the one-line pointer the tree already
+  uses ("Rationale lives on the declaration in highway_projection.h."). Implementation detail the
+  header does not carry may follow as normal notes inside the body. A `.cpp` comment that restates
+  the header's Doxygen is deleted in favor of the pointer.
 
 ## 5. Rules every worker applies
 
@@ -210,8 +236,8 @@ for stripping's sake. It is not recommended.
    current code.
 2. **No history.** Remove dates, rulings, "sighted", "used to", "now", "no longer", "the old X",
    plan, phase, review and task IDs, commit hashes and attributions. The only exception is the one
-   in section 1, written as the reason and citing a commit hash, never a date. References to numbered rules stay, because they
-   name rules, not events.
+   in section 1, written as the reason and citing a commit hash, never a date. References to
+   numbered rules stay, because they name rules, not events.
 3. **One reason, one place.** A rule is explained at its owner. Every other site gets one line
    naming that owner.
 4. **Verify every claim against the code.** Correct a comment that is wrong. Never change code.
@@ -220,13 +246,17 @@ for stripping's sake. It is not recommended.
    a load-bearing constant, a refactor that would silently break, a library bridge, a remote
    invariant, surprising behavior, code that looks wrong but is intended. Delete only restatements
    of the code.
-6. **Keep the Doxygen structure.** Required fields stay, as does the Doxygen-versus-regular comment
-   placement.
-7. **Mechanics.** Wrap lines at 100 columns by hand, never `/*` inside a block comment, and never a
+6. **Keep the Doxygen structure, without boilerplate.** `\brief`, every enumerator's documentation,
+   and the Doxygen-versus-regular comment placement stay. `\param`, `\tparam` and `\return` stay
+   only where they say something the signature does not, and then all-or-nothing per function
+   (D5). Deleted and defaulted special members lose their blocks (D5).
+7. **No duplicate at the definition.** A function documented in its header gets only the one-line
+   pointer at its `.cpp` definition, plus any body notes the header does not carry (D6).
+8. **Mechanics.** Wrap lines at 100 columns by hand, never `/*` inside a block comment, and never a
    `//` line ending in a backslash (`-Wcomment` is part of `-Wall`, so CI would fail).
-8. **The chosen level's budget, for regular comments.** Doxygen follows the descriptive standard in
+9. **The chosen level's budget, for regular comments.** Doxygen follows the descriptive standard in
    section 3: a complete contract, minus history and implementation narration.
-9. **Move a why to where it applies.** A reason about one line belongs on that line, not in the
+10. **Move a why to where it applies.** A reason about one line belongs on that line, not in the
    function's header comment. The worked example moves the "ramp from the previous arrival, never a
    release" warning onto the ramp assignment it guards.
 
@@ -243,7 +273,13 @@ reaches master when the branch merges, which keeps master undisturbed while othe
   remains the standing agent for any future comment work.
 - One line in `CLAUDE.md` under Agent Process: any brief that edits code carries "rewrite comments
   to the current truth; never append".
-- D3, if signed off.
+- The D3 pre-commit check.
+- The D5 and D6 conventions text, and `WARN_NO_PARAMDOC = NO` in `docs/Doxyfile.in`. Because the
+  Doxyfile change removes warnings on its own, the Doxygen gate's baseline (section 9) is taken
+  AFTER this commit, never before.
+- The `comment-editor` reference pairs show D5's removals: the `highway_light.h` and
+  `busy_overlay.h` examples are redone without their boilerplate fields and deleted-member
+  blocks before they are copied into the agent definition.
 
 ## 7. Setup
 
@@ -306,8 +342,10 @@ blocks, compare equal, while a code edit and a constant edit are both caught. Th
    since an em dash is three bytes; no `/*` inside a block comment, no
    `//` line ending in a backslash.
 3. **History grep.** No dates or listed history markers remain, unless the report justifies one.
-4. **Doxygen.** Run `doxygen` before and after. The warning count must not grow; the build enables
-   `WARN_IF_UNDOCUMENTED` and `WARN_NO_PARAMDOC`.
+4. **Doxygen.** Run `doxygen` before and after each shard; the warning count must not grow.
+   The baseline is taken after the Phase 0 commit, since `WARN_NO_PARAMDOC = NO` lowers the count
+   by itself. `WARN_IF_UNDOCUMENTED` and `WARN_IF_INCOMPLETE_DOC` stay on, so a dropped `\brief`
+   or a half-documented parameter list still shows up as a new warning.
 5. **pre-commit**, once per shard.
 6. **Final.** After master is merged in: one build and the full test suites in the worktree
    (configured once), then a PR so CI runs GCC, Clang and clang-cl.
