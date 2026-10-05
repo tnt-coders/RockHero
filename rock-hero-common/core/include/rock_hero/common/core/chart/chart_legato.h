@@ -414,6 +414,13 @@ struct ChartResolutions
     HeadMargins margins;
 
     /*!
+    \brief Where the fret hand sits: the hand events the notes and the authored positions derive
+    (\ref deriveFretHandEvents), authored positions among them, strictly ascending by front. Not
+    index-parallel to the notes.
+    */
+    std::vector<FretHandEvent> hand_events;
+
+    /*!
     \brief Where each note's ink stops, as a note-relative offset: \ref ChartPresentation::ink_end,
     carried here. Same order and size as \ref ChartConnections::saved_notes.
     */
@@ -465,7 +472,7 @@ struct ChartResolutions
 };
 
 /*!
-\brief Resolves a whole note stream once: connections, ink ends, spans, holds.
+\brief Resolves a whole chart once: connections, hand events, ink ends, spans, holds.
 
 The connections come from \ref chartConnections, so the walk that answers them is stated once for
 both the callers that want the whole picture and the callers that want a claim.
@@ -473,14 +480,16 @@ both the callers that want the whole picture and the callers that want a claim.
 The spans come from the same stream rather than from a caller, which is what makes them impossible
 to disagree with it: a caller holding a stale span list has nowhere to pass it. The held stops ride
 in that one stream too, so there is no second posture input a caller could forget to hand over.
+The hand events read the chart's authored positions and its capo, which is why the pass takes the
+whole chart.
 
-\param notes Note stream sorted by (position, string).
+\param chart Chart to resolve: its notes, sorted by (position, string), its authored positions and
+       its tuning's capo.
 \param tempo_map Song tempo map supplying the meter every place is measured in.
 
-\return The resolutions; every per-note vector is index-parallel to `notes`.
+\return The resolutions; every per-note vector is index-parallel to the chart's notes.
 */
-[[nodiscard]] ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+[[nodiscard]] ChartResolutions chartResolutions(const Chart& chart, const TempoMap& tempo_map);
 
 /*!
 \brief Flattens the named legato claims to plain picks — THE statement of what a rejected claim

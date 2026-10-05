@@ -79,9 +79,9 @@ Two implementations, dispatched by extension:
   delays the audio, negative means the recording's head precedes the score and playback skips
   it. Most real charts carry a negative value, so dropping it desyncs the song. The builder then
   plays each bar's stated `TripletFeel` — the swing Guitar Pro leaves off the page (rule 20c) —
-  resolves the score's gestures, clamps each ring at its own string's next onset, and derives the
-  fret-hand positions from the finished notes per the policy spec below. Chord spans are NOT generated: they are derived
-  from the finished notes wherever they are read (rules 10-12a).
+  resolves the score's gestures and clamps each ring at its own string's next onset. Neither
+  fret-hand positions nor chord spans are stored: both are derived from the finished notes wherever
+  they are read (rules 5–9 and 10–12a), so an import authors no position at all.
 
 An import produces an **unsaved** project: no path, `save_requires_destination` set, so the first
 save is forced to Save As — which is also the moment per-project view state starts persisting.
@@ -92,8 +92,8 @@ The plain-English specification of what the builder does to a Guitar Pro chart b
 conversion. This section is deliberately written as numbered rules so a behavior tweak can be
 made by editing a rule here and re-aligning the code
 (`gp_chart_builder.cpp` — `resolveSlideIns` (rule 16's scoops), `resolveSlideOutExits` (rule 9's
-slide-out rides and rule 13's exit fret), the one chart normalizer `normalizeChart` (rule 26), and
-closing with the fret-hand derivation `deriveFretHandEvents` (rules 5–9), all covered by
+exit fret), and the one chart normalizer `normalizeChart` (rule 26); the fret-hand derivation
+`deriveFretHandEvents` (rules 5–9) runs at read, in common/core; all covered by
 `test_gp_song_importer.cpp`). Rules
 1–25 apply to GP import only; rule 26 is the normalizer every load path runs — `.rock` imports
 and saved projects go through exactly the same function, so a chart written under older rules is
@@ -208,9 +208,9 @@ publishes the pair the census reads (`GpLetRingReport`): rings the figure end ex
 left at exactly their written duration. The second is the mis-seam detector: under this law the
 figure end is the only thing that ever lengthens a marked ring, so a mark that changed nothing is
 either a texture the physics already bounds or a seam landing too early, and telling those apart
-is the census's job. One ordering is RULED: the stored fret-hand stream is derived AFTER this
-pass, from the settled rings (plan 60 §9 Q11), so what the import stores is what a reader deriving
-from the same notes finds — its ring rule reads the stored ring, let-ring extension included. The
+is the census's job. One ordering is RULED: the fret-hand positions are derived at read from the
+settled rings (plan 60 §9 Q11), so the derivation's ring rule reads the stored ring, let-ring
+extension included. The
 planned hand coupling runs the other way (FHP → rings, clipping rings at position shifts), so the
 extension inside the stored ring is owed a ruling before that coupling is built (plan 60 §9 Q3,
 before Phase 6); until then nothing reads the FHP stream to shape a ring, and no cycle exists.
@@ -293,21 +293,24 @@ split is `docs/plans/in-progress/note-sustain-model.md`.
 Durations in these rules are note values in whole notes — a quarter is `1/4` in every meter —
 matching the chart model's own sustain unit.
 
-**Fret-hand position derivation** (GP has no hand-position concept, so the track is derived from
-the notes by the 13-rule figure-segmented floor tracker, `common::core::deriveFretHandEvents`
-(`chart/chart_fret_hand.h`); the measured algorithm and the rulings it is built to are in
-`docs/plans/in-progress/fhp-derivation-algorithm.md` and plan 60 §9):
+**Fret-hand position derivation** — not an import rule at all. GP has no hand-position concept and
+the import authors none, so every position is derived at read, once per chart revision inside
+`chartResolutions`, by the 13-rule figure-segmented floor tracker,
+`common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`); the measured algorithm and the
+rulings it is built to are in `docs/plans/in-progress/fhp-derivation-algorithm.md` and plan 60 §9.
+The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
+statement: it stands until the chart contradicts it. Rules 5–9 are the derivation's plain-English
+spec:
 
 5. **The law.** Cut the song into figures at boundaries you can see — a chord being struck, a bar
    line, or the grip outgrowing the hand. Put the hand at each figure's floor, spanning the grip,
    never narrower than four. Two exceptions, both of which only ever REMOVE motion: the hand never
    moves while a written note still rings, and a one-fret figure the standing window already covers
-   does not move it. The import derives the stream LAST, from the normalized chart, so what it
-   stores is what a reader deriving from the same notes would find; it states a placement only
-   where the window changes — a fabricated one (rule 9) that restates the fret before it is dropped
-   — and stores the fret alone. How far each stored window reaches is still derived from the notes
-   by the projection (`deriveFretHandWidths`) until plan 60 Phase 2 derives the whole window at
-   read.
+   does not move it. A window is stated only where it changes. An authored position is always a
+   window of its own, fronting where it stands: `[fret, endFret]` where the end is stated, else its
+   fret up to the top of the figure it heads, never under four. It owns its own instant and stands
+   through every later instant that fits inside it, up to the next authored position; the rules
+   resume at the first instant that does not fit, and their fronts never reach back to it.
 6. **Open strings never constrain, and taps float above.** Fret-zero notes are playable from
    anywhere and neither place nor move the window — save an open string BENT anywhere along its
    ring, which is bent behind the nut and puts the hand at fret 1. A *tapped* note is likewise not
@@ -347,27 +350,16 @@ the notes by the 13-rule figure-segmented floor tracker, `common::core::deriveFr
    nothing and one that escapes starts a figure on its own floor. No drag rule exists: the floor is
    where the hand goes, however it got there.
 
-   PENDING plan 60 Phase 2, which rules whether these fabricated windows stay (as the projection's
-   ramps) or go — the import still lays them over the derived stream: the window always rides an
-   unpitched slide-out. An exit placement at the slide-out's stored end carries the window with the
-   gesture. That placement rides the slide-out's OWN segment and eases with the unpitched curve, so
-   the window follows the drawn rail precisely instead of approximating it — a slide-out's curve is
-   defined, so there is nothing to approximate. Arriving through the standard margin morph instead
-   leaves the window stationary for most of the drawn glide and then sprinting to catch up. The
-   morph's own reason — stopping the window creeping from the note's onset on long notes — is a
-   property of the RAIL's own span, so if the creep reads wrong the fix belongs to the drawn geometry
-   rather than to the window, which simply agrees with whatever is drawn. The hand's next move — read
-   from the stream derived before the rings settle, with the scoops' dips (rule 16) laid over it —
-   decides the rest. When its next placement departs in the slide-out's direction AND arrives by
-   the very next onset, the gesture IS the departure: the exit fret rides the anchor travel
-   (widened to the slide-in rule's two-fret minimum) and the window flows onward into the arrival.
-   Otherwise the gesture is a slide-out and return: the exit keeps the fixed four-fret gesture, the
-   window dips with it, and a restore at the very next onset hands the hand back to the window the
-   stored stream states there — so notes after the gesture are never stranded in the dipped window.
-   A slide-out ending EXACTLY on the next onset leaves that instant to the next strike's window
-   where the strike presses a stop; a strike of open strings or taps alone places no window, so
-   there the exit rides the gesture to that onset and the restore waits for the onset after it. A
-   slide-out with no room before the next onset stays planted.
+   A slide-out places no window of its own. A window that fronts exactly where a slide-out ends —
+   the next strike's — rides the slide-out's OWN segment and eases with the unpitched curve, so it
+   follows the drawn rail instead of sprinting to catch up after a margin morph.
+
+   The import reads the positions derived before the rings settle for a bare slide-out's EXIT FRET
+   (`resolveSlideOutExits`), as it does for a scoop's start fret (rule 16). When the next
+   window departs in the slide-out's direction AND arrives by the very next onset, the gesture IS
+   the departure: the exit fret rides that travel (widened to the slide-in rule's two-fret minimum).
+   Otherwise the slide-out keeps the fixed four-fret gesture, as does one running past the next
+   onset or past the end of the score.
 
 **Posture and shape derivation** — not an import rule at all. GP scores in practice carry no
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
@@ -1182,16 +1174,10 @@ clamped and then drawn like any other):
     before the rings settle, since the start fret must be chosen before they do), the flag's stated
     direction winning over a still hand or a contradicting delta (two frets out in the flag's
     direction), an agreeing one-fret delta widening to the same two-fret minimum.
-    The hand stays planted while the approach sits inside the active window — a two-fret
-    scoop is usually a finger gesture, not a hand move (the unpitched-slide precedent). An
-    approach OUTSIDE the window drags the window with it for exactly the scoop's duration,
-    because a window anchored on the notated fret leaves the approach uncovered:
-    the onset's window derives backward from the active one so the head keeps its slot, and
-    the stored stream's own window returns at the scoop's end, yielding to any placement already
-    there. (PENDING plan 60 Phase 2, as rule 9's exit ride: the dip is a fabricated window none of
-    the derivation's rules produces, and because the stored scoop is struck at its approach fret,
-    the derived window often covers it already, leaving the dip to restate it and drop.) An open-string landing or a start that would leave the neck (into fret 1 from
-    below) stays a plain note with a conversion note. The transformed note is a slide before
+    The scoop moves no window of its own: the stored scoop is struck at its approach fret and states
+    the notated fret at its arrival, so the positions a reader derives cover both (rules 5–9). An
+    open-string landing or a start that would leave the neck (into fret 1 from below) stays a plain
+    note with a conversion note. The transformed note is a slide before
     anything reads it, so a slide-in into a held landing keeps its hold like any notated slide,
     cropped like every tail but never dropped as effect-free. A grace note
     sliding into its principal already carries its explicit start fret and resolves through the
@@ -1330,8 +1316,8 @@ clamped and then drawn like any other):
     authored experiment — with a capo at 3, an entered "1" sounds the pitch at absolute fret 4.
     The chart stores absolute frets with `0` meaning the open string, capo'd or not, so the capo
     never appears as a fret number, and frets `1..capo` are invalid. Every *pressed* position the
-    importer generates therefore floors at **capo + 1**: the fret-hand window's anchor, a
-    slide-in's approach fret, a slide-out's exit window, and a scrape's synthesized start. The
+    importer generates therefore floors at **capo + 1**: a slide-in's approach fret, a slide-out's
+    exit fret, and a scrape's synthesized start — as does every derived fret-hand window. The
     capo itself is clamped to `0..12` (`g_max_capo`) with a conversion note when it was out of
     range.
 

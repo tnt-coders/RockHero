@@ -157,8 +157,8 @@ enum class EditorCommandId : std::uint16_t
 
     Shares the tone change's marker grammar, read at the same placement quantum: a placement
     arriving exactly at the cursor is restated — which, with no fret entry yet, only selects it —
-    and anywhere else a new one is inserted at the fret the core defaults it to (the lowest stop its
-    stretch holds) and left selected. With nothing to prompt for, the view forwards the press and
+    and anywhere else a new one is inserted stating the fret already standing at the cursor, and
+    left selected. With nothing to prompt for, the view forwards the press and
     the core decides and acts in one action; the press is inert while the transport plays, with no
     song, with no chart, or on the closing barline. The walk, Tab, the jump and a chip click are the
     ways onto an existing placement; `Delete` and `Alt+Left/Right` are its verbs.

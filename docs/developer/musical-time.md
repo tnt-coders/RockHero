@@ -19,13 +19,14 @@ author; **seconds** are what renderers and audio consume. Exactly one type conve
 
 # The chart model, briefly
 
-The chart itself — "the true tab" of notes, tuning, and hand placements — is the arrangement-owned
-model in `common/core/chart/chart.h`, addressed entirely in `GridPosition`s and consumed by the
-tab and highway projections and by package IO. Chart *editing* is partly built rather than unbuilt:
-a family of pure planners lives in editor core (`editor/core/src/chart/chart_edits.h`) — insertion,
-selection, retyping, sustain, and the technique verbs — all funnelling through one shared finalize
-gate. The model still gets no field-by-field tour here — see \ref guide_file_formats for the
-persisted shape and `docs/plans/roadmap/40-chart-editing.md` for the remaining phases.
+The chart itself — "the true tab" of notes, tuning, and authored hand positions — is the
+arrangement-owned model in `common/core/chart/chart.h`, addressed entirely in `GridPosition`s and
+consumed by the tab and highway projections and by package IO. Chart *editing* is partly built
+rather than unbuilt: a family of pure planners lives in editor core
+(`editor/core/src/chart/chart_edits.h`) — insertion, selection, retyping, sustain, and the technique
+verbs — all funnelling through one shared finalize gate. The model still gets no field-by-field tour
+here — see \ref guide_file_formats for the persisted shape and
+`docs/plans/roadmap/40-chart-editing.md` for the remaining phases.
 
 # Grid arithmetic (`chart/grid_arithmetic.h`)
 
@@ -50,7 +51,7 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   keeps before a HEAD is read from `HeadMargins` (`chart/head_margins.h`): `chartResolutions` asks
   the function once per distinct onset and carries the table, so the spans, the ink ends, the drawn
   span extents and each note's `margin_start_seconds` read one answer per head. The function stays
-  the authority — the table only stops the build asking it again — and a fret-hand placement, which
+  the authority — the table only stops the build asking it again — and a fret-hand position, which
   is not a head, asks `minimumSustainDistance` directly.
 - `g_minimum_kept_sustain_seconds` — the kept-sustain bound presentation rule 2 drops a short
   effect-free tail against, a **duration** for the same reason. Rule 2 reads each note's actual

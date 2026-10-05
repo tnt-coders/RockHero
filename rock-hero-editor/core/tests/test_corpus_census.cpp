@@ -840,9 +840,9 @@ void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<Fraction>& ink_end,
     const std::vector<bool>& arrives_into, const std::vector<ChartShape>& shapes,
     const std::vector<ChartPosture>& postures, const std::vector<bool>& arrivals,
-    const std::vector<common::core::FretHandPosition>& hand_positions,
-    const std::vector<int>& hand_widths, const std::vector<std::optional<int>>& held_frets,
-    const TempoMap& tempo_map, DerivationCounters& out)
+    const std::vector<common::core::FretHandEvent>& hand_events,
+    const std::vector<std::optional<int>>& held_frets, const TempoMap& tempo_map,
+    DerivationCounters& out)
 {
     const StreamIndex index = makeStreamIndex(saved, tempo_map);
     constexpr auto string_count = static_cast<std::size_t>(common::core::g_max_chart_strings);
@@ -850,24 +850,19 @@ void countDerivation(
     out.natural_harmonic_notes += std::ranges::count_if(
         saved, [](const ChartNote& note) { return common::core::frettingFingerOnNode(note); });
 
-    // The fret-hand windows on the same whole-note axis the spans are read on, so the convergence
-    // invariant compares two derivations rather than two coordinate systems. Ascending by
-    // construction (the chart stores them sorted by position), so the window covering an instant
-    // is the last one at or before it.
-    std::vector<Fraction> hand_position_places;
-    hand_position_places.reserve(hand_positions.size());
-    for (const common::core::FretHandPosition& window : hand_positions)
-    {
-        hand_position_places.push_back(tempo_map.wholeNotePositionAt(window.position));
-    }
+    // The fret-hand windows front on the same whole-note axis the spans are read on, so the
+    // convergence invariant compares two derivations rather than two coordinate systems. Strictly
+    // ascending by front (the derivation's own promise), so the window covering an instant is the
+    // last one at or before it.
     const auto window_covering =
-        [&hand_position_places](const Fraction place) -> std::optional<std::size_t> {
-        const auto after = std::ranges::upper_bound(hand_position_places, place);
-        if (after == hand_position_places.begin())
+        [&hand_events](const Fraction place) -> std::optional<std::size_t> {
+        const auto after = std::ranges::upper_bound(
+            hand_events, place, std::ranges::less{}, &common::core::FretHandEvent::front);
+        if (after == hand_events.begin())
         {
             return std::nullopt;
         }
-        return static_cast<std::size_t>(std::distance(hand_position_places.begin(), after) - 1);
+        return static_cast<std::size_t>(std::distance(hand_events.begin(), after) - 1);
     };
 
     // THE HAND-COUPLING GATE's placement classes, read once per track: which windows arrive
@@ -885,10 +880,10 @@ void countDerivation(
             any = true;
             fretted = fretted || common::core::fretFor(note) != 0;
         }
-        out.fhp_placements += static_cast<long long>(hand_position_places.size());
-        for (const Fraction& place : hand_position_places)
+        out.fhp_placements += static_cast<long long>(hand_events.size());
+        for (const common::core::FretHandEvent& event : hand_events)
         {
-            const auto at = onsets.find(place);
+            const auto at = onsets.find(event.front);
             if (at != onsets.end() && at->second.first && !at->second.second)
             {
                 ++out.fhp_placements_unfretted;
@@ -899,9 +894,9 @@ void countDerivation(
         // sounding at it (end-exclusive: a ring ending exactly there released in time), whose
         // fretting-hand stop lies outside the window's reach. A note struck AT the arrival belongs
         // to the new window and is the convergence invariant's business, not a pin. The finger is
-        // read AT the arrival through heldFretAt — the one "is a finger down, and where" authority
-        // the width derivation reads — so a slid ring pins with the fret it is sounding, not the
-        // fret it was struck at, a tap pins with its held stop, and an open string pins nothing.
+        // read AT the arrival through heldFretAt, the one "is a finger down, and where" authority,
+        // so a slid ring pins with the fret it is sounding, not the fret it was struck at, a tap
+        // pins with its held stop, and an open string pins nothing.
         struct SoundingRing
         {
             Fraction onset;
@@ -921,13 +916,10 @@ void countDerivation(
                     .held = &held_frets[note],
                 });
         }
-        for (std::size_t placement = 0; placement < hand_position_places.size(); ++placement)
+        for (const common::core::FretHandEvent& event : hand_events)
         {
-            const Fraction& arrival = hand_position_places[placement];
-            const common::core::FretWindow window{
-                .fret = hand_positions[placement].fret,
-                .width = hand_widths[placement],
-            };
+            const Fraction& arrival = event.front;
+            const common::core::FretWindow& window = event.window;
             long long pinned = 0;
             for (const SoundingRing& ring : rings)
             {
@@ -997,8 +989,10 @@ void countDerivation(
 
         // THE HAND-COUPLING GATE: windows arriving strictly inside this span's run.
         {
-            const auto first_inside = std::ranges::upper_bound(hand_position_places, start);
-            const auto past_run = std::ranges::lower_bound(hand_position_places, end);
+            const auto first_inside = std::ranges::upper_bound(
+                hand_events, start, std::ranges::less{}, &common::core::FretHandEvent::front);
+            const auto past_run = std::ranges::lower_bound(
+                hand_events, end, std::ranges::less{}, &common::core::FretHandEvent::front);
             const auto inside = std::distance(first_inside, past_run);
             if (inside > 0)
             {
@@ -1015,10 +1009,7 @@ void countDerivation(
         }
         else
         {
-            const common::core::FretWindow reach{
-                .fret = hand_positions[*window].fret,
-                .width = hand_widths[*window],
-            };
+            const common::core::FretWindow reach = hand_events[*window].window;
             long long out_of_reach = 0;
             for (const std::optional<ChartStop>& stop : posture)
             {
@@ -2265,7 +2256,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             }
 
             const common::core::ChartResolutions resolutions =
-                common::core::chartResolutions(chart.notes, built->tempo_map);
+                common::core::chartResolutions(chart, built->tempo_map);
 
             // DERIVED HELD's population, read off the production derivation rather than restated:
             // a PLANT under a note the picking hand stops the string for is exactly a pull-off
@@ -2319,9 +2310,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 resolutions.shapes,
                 resolutions.postures,
                 resolutions.arrivals,
-                chart.fret_hand_positions,
-                common::core::deriveFretHandWidths(
-                    resolutions, chart.fret_hand_positions, built->tempo_map),
+                resolutions.hand_events,
                 resolutions.held_stops,
                 built->tempo_map,
                 census.derivation);
@@ -2793,19 +2782,20 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // finding a reader needs. The stop row beside it is the same population counted
                 // per STOP, since one span can hold several out-of-reach fingers.
                 //
-                // The pin reflects the derived width: a window reaches every stop held in its
-                // stretch, rings carried in included, and the import states a placement only where
-                // the fret changes. Re-signed 2026-10-04 for plan 60 Phase 1's 13-rule derivation
-                // (141 / 191 under the replaced walk): a window on its figure's floor leaves fewer
-                // held stops below the index finger.
+                // The pin reads the derived hand events, each window the one its figure states:
+                // its floor, spanning max(4, the figure's own frets), never widened for a ring
+                // carried into it. Re-signed 2026-10-05 for plan 60a Phase 2 (74 / 114 before,
+                // when a width fold widened each stored placement for every stop held while it
+                // stood, carried rings included; the fold over these same events measures 74 /
+                // 114 again, so the rise is that rule alone).
                 .label = "spans holding a stop outside the window",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
-                .expected = 74.0,
+                .expected = 88.0,
             },
             CrossCheck{
                 .label = "  those out-of-reach stops",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_stops),
-                .expected = 114.0,
+                .expected = 128.0,
             },
             CrossCheck{
                 // THE HAND-COUPLING GATE's ceiling: spans a window arrives strictly inside. Each
@@ -2814,19 +2804,19 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // refinement's whole reach. The shift row beside it counts the ARRIVALS, since
                 // one long span can be crossed more than once.
                 //
-                // The pin reflects the derived width: a placement stores only its fret, and the
-                // import states one only where the fret changes, so no window that merely widens,
-                // narrows or restates its fret arrives inside a span. Re-signed 2026-10-04 for plan
-                // 60 Phase 1's derivation; the replaced walk measured 393 / 487 that day, against
-                // its own 376 / 469 pins.
+                // The pin reads the derived hand events, an event wherever the window changes, its
+                // width alone included. Re-signed 2026-10-05 for plan 60a Phase 2 (402 / 447
+                // before, over the placements the import stored: the derivation's fronts with the
+                // slide passes' fabricated windows laid over them and the width-only changes
+                // dropped).
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 402.0,
+                .expected = 394.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 447.0,
+                .expected = 435.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window
@@ -2834,20 +2824,21 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // HAND's fret, so a natural harmonic counts as the finger it stands on and only the
                 // open string is unfretted.
                 //
-                // The pin reflects the derived width: a placement is stated only where the fret
-                // changes, so none exists to change the width alone or to restate the fret before
-                // it. Re-signed 2026-10-04 for plan 60 Phase 1's derivation (the replaced walk
-                // measured 18378 and 287 that day). The lone-open class is no longer a hand moved
-                // for nothing: a window takes over at the first onset after the previous figure,
-                // so a figure's leading open strings carry it — the authored charts' own habit.
+                // The pin reads the derived hand events, an event wherever the window changes, its
+                // width alone included. Re-signed 2026-10-05 for plan 60a Phase 2 (16014 and 2224
+                // before, over the placements the import stored, which dropped the width-only
+                // changes and carried the slide passes' fabricated windows). The lone-open class
+                // is no hand moved for nothing: a window takes over at the first onset after the
+                // previous figure, so a figure's leading open strings carry it — the authored
+                // charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 16014.0,
+                .expected = 16034.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
-                .expected = 2224.0,
+                .expected = 2155.0,
             },
             CrossCheck{
                 // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a
@@ -2856,21 +2847,22 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // count and not ruled to zero for the same reason as the convergence row above —
                 // the number is evidence about the derivation, and it has to be free to be read.
                 //
-                // The pin reflects the derived width. The rig counts rings sounding at a window's
-                // arrival whose fretting-hand stop (fretHandStopAt) the window does not cover. The
-                // window's reach is derived to cover every stop held in its stretch, so what the
-                // rig can still find is a finger held BELOW the index finger the placement authors.
-                // Re-signed 2026-10-04 for plan 60 Phase 1's derivation (88 / 107 under the
-                // replaced walk): its ring rule holds the window still while a written ring
-                // sounds, so only a forced move can still arrive over one.
+                // The pin reads the derived hand events. The rig counts rings sounding at a
+                // window's arrival whose fretting-hand stop (heldFretAt) the window does not
+                // cover. The ring rule holds the window still while a written ring sounds, so only
+                // a FORCED move arrives over one, and its window spans its own figure, never the
+                // ring. Re-signed 2026-10-05 for plan 60a Phase 2 (64 / 98 before, when a width
+                // fold widened each stored placement over every ring held while it stood, so only
+                // a finger below the index finger could pin; the fold over these same events
+                // measures 65 / 99, so the rise is that rule alone).
                 .label = "windows arriving over a pinned finger",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
-                .expected = 64.0,
+                .expected = 118.0,
             },
             CrossCheck{
                 .label = "  those pinned rings",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_rings),
-                .expected = 98.0,
+                .expected = 157.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING that this rig's own fret-channel reading

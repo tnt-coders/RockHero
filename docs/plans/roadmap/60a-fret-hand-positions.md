@@ -211,9 +211,8 @@ through these changes:
 **Phase 2 build rulings — 2026-10-05** (a readiness audit against `999c0386`, then the user's
 answers). These are the current reading wherever the older text below disagrees.
 
-- **Built in three steps, each sighted:** (1) the derivation accepts authored positions — DONE
-  2026-10-05, no visible change; (2) positions derive at read and the importer stores none; (3)
-  the row walks the derived positions.
+- **Built in steps** (the list at the end of these rulings): step 1, the derivation accepting
+  authored positions, is DONE 2026-10-05 with no visible change.
 - **The authored window, exactly** (refines §1a's wording): `[fret, end fret]` where the end is
   stated; else the stated fret is the floor and the top is the top of the run the position heads,
   never under four frets. "The fret plus the run's width" would leave a run's top uncovered
@@ -222,18 +221,33 @@ answers). These are the current reading wherever the older text below disagrees.
   it heads starts at the first demand at or after it, and a derived front never reaches back to
   it. It OWNS ITS OWN INSTANT: whatever sounds there cannot end it, so the derivation is total
   with no refusal. Built as step 1 (`deriveFretHandEvents`' `authored` parameter).
-- **The refusal is OPEN again.** The user's reading (2026-10-05): a note STRUCK at an authored
-  position's own instant, outside its window, is refused; a note struck earlier and still ringing
-  as the position arrives is tolerated. Owed: the user's confirmation of that reading, whether a
-  carried ring is tolerated however long it rings, and where the rule is enforced — proposed at
-  the EDIT, not at file load, so that converted songs and the scored corpus, whose positions
-  other tools wrote, keep opening.
+- **The refusal — RULED 2026-10-05 (user), and it is ONE rule.** A note occupies the time from its
+  onset up to, but not including, its ring's end, so a ring that reaches exactly to the next note
+  or to a position's start is not there: there is no "carried-in" class to tolerate and no case
+  analysis. The rule: AN AUTHORED POSITION COVERS EVERY FRETTED NOTE SOUNDING AT ITS INSTANT,
+  where covering is read against what the position states — its fret, and its end fret where it
+  has one. It is a chart rule like any other: one predicate, and an edit that would break it is
+  refused, whichever side the edit is on. (An earlier draft of this entry enforced it at the edit
+  only and judged each edit on what it touched; the user rejected that as machinery for a simple
+  problem.) Owed before it is switched on: how many converted packages, and whether the user's
+  four projects, already break it, since an ordinary chart rule also applies when a file loads —
+  the tool that wrote a breaking position is what gets fixed. Built as step 5.
 - **The dips are DROPPED** (user). They cannot be rebuilt from stored data — a scoop is an
   ordinary slide once imported — and rules 1 and 2 already demand the approach fret and the
-  arrival. **The exit ride is OPEN:** the user wants to keep "the slight smoothing after a slide
-  out" and is confirming whether that is the travelling window or the settle easing, which stays
-  regardless. If kept, it is rebuilt as highway motion derived from the slide-out itself, never as
-  positions, so it draws no chips.
+  arrival.
+- **The exit ride is KEPT — RULED 2026-10-05 (user):** the hand travels with an unpitched
+  slide-out, so the window must. It is rebuilt as MOTION DERIVED FROM THE SLIDE, never as a
+  position: at the slide-out's end the window arrives covering the exit fret, riding the slide's
+  own segment with the unpitched ease; at the next demand instant it returns to whatever the
+  position stream states there. A hand genuinely moving on in the slide's direction is simply the
+  next position, so the drawing has no departure case; the importer keeps its own departure test,
+  which only chooses the stored exit fret. A slide-out with no room before the next demand stays
+  planted. The motion lives in its own list beside the chips, read by the highway's hand track
+  alone, so it draws no chip, takes no click and is no row object. Step 2 deletes the stored form;
+  this is step 3, and Phase 2 is not sighted without it.
+- **The steps, renumbered:** (1) the derivation accepts authored positions, DONE; (2) positions
+  derive at read; (3) the slide-out motion; (4) the row walks the derived positions, with the
+  prune command; (5) the refusal.
 - **Converted songs KEEP the source's positions as authored** (user). They are what a charter
   placed, they behave the same under "stands until contradicted" (the next one ends each), and the
   scorer needs them as its ground truth. This reverses the converter note below: the converter

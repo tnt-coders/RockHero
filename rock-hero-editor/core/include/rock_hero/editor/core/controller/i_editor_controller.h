@@ -627,10 +627,10 @@ public:
 
     Selects the placement and seeks nothing, as a ruler chip click does; the selection is the
     operand of Delete and Alt+arrows, and like every marker selection it is cleared by any cursor
-    move. An index naming no placement selects nothing.
+    move. An index naming no chip, or a chip no authored position stands at, selects nothing.
 
-    \param index Index of the placement in the chart's stream, which the tab projection's placement
-    list mirrors one to one.
+    \param index Index of the chip in the tab projection's placement list, which holds every hand
+    event; the authored position is found by the chip's front.
     */
     virtual void onFretHandPositionSelected(std::size_t index) = 0;
 
@@ -639,10 +639,10 @@ public:
 
     The marker grammar, decided entirely in the core because the verb has nothing to prompt for: a
     placement arriving exactly at the cursor is restated, which — with no fret entry yet — only
-    selects it; anywhere else a placement may start, one is inserted at the fret its stretch
-    defaults it to (the lowest fretting-hand stop the stretch holds, else the fret of the
-    placement before it, else fret 1) and left selected. Inert while playing, with no song, with
-    no chart, and on the song's closing barline.
+    selects it; anywhere else a placement may start, one is inserted stating the fret already
+    standing at the cursor (the nut window where nothing stands yet), so inserting moves no hand,
+    and left selected. Inert while playing, with no song, with no chart, and on the song's closing
+    barline.
     */
     virtual void onFretHandPositionChordRequested() = 0;
 

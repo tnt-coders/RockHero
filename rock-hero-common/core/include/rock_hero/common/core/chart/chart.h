@@ -2152,9 +2152,9 @@ is why the connection resolver disqualifies a scrape before ever asking this.
 /*!
 \brief The fewest frets a fret-hand window spans: one finger per fret from the index up.
 
-The floor of every derived window width (\ref deriveFretHandEvents, \ref deriveFretHandWidths), and
-so also how HIGH a placement's index finger may sit: the narrowest window must still end on the
-board (\ref fittedWindowFret).
+The floor of every derived window width (\ref deriveFretHandEvents), and so also how HIGH a
+position's index finger may sit: the narrowest window must still end on the board
+(\ref fittedWindowFret).
 */
 inline constexpr int g_min_fret_hand_width{4};
 
@@ -2213,12 +2213,45 @@ struct FretWindow
 };
 
 /*!
-\brief Fret-hand position: where the hand sits on the neck from this point on.
+\brief One hand event: where the hand arrives at a window, standing until the next event.
 
-WHERE the index finger sits is authored. How far the window reaches is derived from the stops the
-notes hold while the placement stands (\ref deriveFretHandWidths) unless the charter states its
-END fret: the notes prove which frets are played but not which way the hand faces, so a pinky on
-the third fret reaching down from it is a fact only the charter can state.
+Derived from the notes and the authored positions (\ref deriveFretHandEvents) and carried once per
+chart revision in \ref ChartResolutions::hand_events; an authored position is one of them, fronting
+exactly where it stands.
+*/
+struct FretHandEvent
+{
+    /*!
+    \brief Where the window takes over, on the whole-note axis
+    (\ref ChartConnections::places).
+    */
+    Fraction front{};
+
+    /*!
+    \brief The window: the run's floor fitted onto the board (\ref fittedWindowFret) and the width
+    `max(4, run hull)`, or the window an authored position states.
+    */
+    FretWindow window{};
+
+    /*!
+    \brief Compares two events by their stored fields.
+    \param lhs Left-hand event.
+    \param rhs Right-hand event.
+    \return True when both events store equal values.
+    */
+    friend constexpr bool operator==(const FretHandEvent& lhs, const FretHandEvent& rhs) noexcept =
+        default;
+};
+
+/*!
+\brief An authored fret-hand position: where the charter states the hand sits from this point on.
+
+The chart stores only what the charter authored; every other position is derived from the notes
+(\ref deriveFretHandEvents), which consumes these as statements. WHERE the index finger sits is
+stated. How far the window reaches is the top of the figure the position heads, never under four
+frets, unless the charter states its END fret: the notes prove which frets are played but not which
+way the hand faces, so a pinky on the third fret reaching down from it is a fact only the charter
+can state. The position stands until the chart contradicts it.
 */
 struct FretHandPosition
 {
@@ -2235,8 +2268,8 @@ struct FretHandPosition
     window (\ref g_min_fret_hand_width) floors only the derived width. The index finger still leaves
     that narrowest window's room under the last fret (\ref normalizeFretHandPosition), so clearing
     an authored end always leaves a legal window, and an authored window never starts above
-    `g_max_fret - 3`. A stop the notes hold above the end stays outside the window, the same honest
-    report a stop below \ref fret gives.
+    `g_max_fret - 3`. A demand above the end at the position's own instant stays outside the
+    window, as one below \ref fret does; a demand outside it later on ends the position.
     */
     std::optional<int> end_fret{};
 
@@ -2284,9 +2317,10 @@ struct ChartTuning
 /*!
 \brief The true tab of one arrangement.
 
-Notes say where each finger goes and what it sounds; the hand placements say where the hand sits on
-the neck. What the hand HOLDS — the chord boxes and arpeggio brackets
-both surfaces draw — is derived from those two rather than stored beside them
+Notes say where each finger goes and what it sounds; the authored hand positions say where the
+charter states the hand sits on the neck, and every other position is derived. What the hand HOLDS
+— the chord boxes and arpeggio brackets both surfaces draw — is derived from those two rather than
+stored beside them
 (\ref deriveChartShapes), because a span is a statement about the notes under it and a stored one
 could only ever disagree with them. There is exactly one chart per arrangement — difficulty is a
 derived rating, never authored variants.
@@ -2299,7 +2333,10 @@ struct Chart
     /*! \brief Every note, sorted by (position, string), holding one slot at most once. */
     std::vector<ChartNote> notes;
 
-    /*! \brief Fret-hand positions, strictly ascending and unique by position. */
+    /*!
+    \brief The fret-hand positions the charter authored, strictly ascending and unique by position;
+    every other position is derived (\ref deriveFretHandEvents).
+    */
     std::vector<FretHandPosition> fret_hand_positions;
 
     /*!

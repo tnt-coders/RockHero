@@ -449,8 +449,10 @@ Four consequences worth knowing before touching this:
   unchanged. Discarding the entry drops the projection; settling stores exactly what was drawn, and
   the box's disappearance is the settle. A note retype's box rides what it retypes instead — every
   affected head — and is not projected. A selected fret-hand position's fret IS
-  projected, like a creation (a fret change keeps every placement's index), and its box fills the
-  placement's own chip (`ChartPendingFretHandPosition`, `paintTabPendingEntryPlate` over
+  projected, like a creation, and its box fills the placement's own chip — found in the projected
+  chips by the placement's position (`fretHandChipIndex`), since the chips are every hand event,
+  derived and authored, and the events after a retyped position re-derive
+  (`ChartPendingFretHandPosition`, `paintTabPendingEntryPlate` over
   `tabFhpChipBounds`), carrying the chip's committed text and window, or, when refused, the typed
   value in the chip's own range notation (`fretHandEntryText`: "8-7" for a start typed above an
   authored end). An authored end fret always prints as a range (`FhpViewState::end_authored`). Nothing else needs previewing, because nothing else authors: the pointer creates under
@@ -603,11 +605,13 @@ pinned chrome is INERT" below). A press on a SCROLLING fret-hand chip is the one
 resolves itself: the chip is the position row's marker, measured in the lane's own fret font
 (`tabFhpChipBounds`), so `TabView::fretHandChipAt` hit-tests it and the press goes to the chip sink
 (`setFretHandChipCallback` → `onFretHandPositionSelected(index)`) instead of reaching the chart as a
-press on the top string. The ruler resolves its own chips in its own view the same way, and on the
-same condition: only while the marker plane is open (`setMarkerEditsEnabled`, fed from
-`EditorViewState::marker_edits_enabled`). While it is closed there is no selection to make, so a
-chip press is an ordinary press — the ruler seeks, and this lane hands it to the chart. The
-selected placement's chip wears the accent outline, from
+press on the top string. The chips are every hand event, derived and authored, so the core selects
+the authored position starting at the chip's `position` through the select every marker chip uses
+(`selectMarkerStartingAt`); a press on a derived chip selects nothing yet. The ruler resolves its own chips in its
+own view the same way, and on the same condition: only while the marker plane is open
+(`setMarkerEditsEnabled`, fed from `EditorViewState::marker_edits_enabled`). While it is closed
+there is no selection to make, so a chip press is an ordinary press — the ruler seeks, and this
+lane hands it to the chart. The selected placement's chip wears the accent outline, from
 `ChartEditViewState::selected_fret_hand_position`. The yielding
 component is the *cursor overlay*, whose `hitTest` returns false wherever a pass-through
 predicate — installed in `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the

@@ -641,11 +641,11 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
 std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
-    // The window's reach is derived from the notes (deriveFretHandWidths), which never hold a fret
-    // past the board, so the index finger only has to leave room for the narrowest window — kept
-    // even under an authored end, so clearing that end always leaves a legal window. Every legal
-    // capo leaves that room above it; the floor still wins on a capo out of range, which the
-    // validator refuses after this runs.
+    // The window's reach is the top of the figure the position heads (deriveFretHandEvents), and no
+    // note holds a fret past the board, so the index finger only has to leave room for the
+    // narrowest window — kept even under an authored end, so clearing that end always leaves a
+    // legal window. Every legal capo leaves that room above it; the floor still wins on a capo out
+    // of range, which the validator refuses after this runs.
     static_assert(g_max_fret - g_max_capo >= g_min_fret_hand_width);
     const int fitted = fittedWindowFret(position.fret, g_min_fret_hand_width, tuning.capo);
     bool past_board = fitted < position.fret;

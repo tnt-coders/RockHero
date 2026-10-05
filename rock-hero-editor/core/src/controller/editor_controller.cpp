@@ -2838,11 +2838,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
         // placement's fret draws as what it makes the moment the digit lands: the plan is applied
         // to a copy and projected, so the marks the settle will leave are the ordinary ones, while
         // the stored chart and the history stay untouched until the entry settles. A placement's
-        // fret keeps every placement index, so its chip draws the committed text and derived
-        // window at once. The pending box published below is what says "provisional". A refused
-        // value projects nothing and keeps only its red box, and discarding the entry drops this
-        // one-push projection. Clicks are unaffected: a press settles the entry before the
-        // controller hit-tests it, and a settle stores exactly this plan.
+        // chip is found by its position, which a fret entry never moves, so it draws the committed
+        // text and window at once, however the events after it re-derive. The pending box
+        // published below is what says "provisional". A refused value projects nothing and keeps
+        // only its red box, and discarding the entry drops this one-push projection. Clicks are
+        // unaffected: a press settles the entry before the controller hit-tests it, and a settle
+        // stores exactly this plan.
         if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value())
         {
             const Impl::ChartFretEntryPlan& plan = *m_chart_fret_entry->plan;
@@ -2941,10 +2942,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         std::get_if<Impl::ChartFretEntry::RetypeHandFret>(&entry.target)
                 )
                 {
-                    // A placement's fret entry wears its box on the placement's own lane chip,
-                    // named by its index in the stream, which the projection mirrors one to one.
+                    // A placement's fret entry wears its box on the placement's own lane chip in
+                    // the projection pushed above (fretHandChipIndex).
                     if (const std::optional<std::size_t> index =
-                            markerIndex(MarkerRow::FretHandPosition, hand->position);
+                            state.tab != nullptr ? fretHandChipIndex(*state.tab, hand->position)
+                                                 : std::nullopt;
                         index.has_value())
                     {
                         state.chart_edit.pending_fret = ChartPendingFretViewState{

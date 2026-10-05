@@ -3,7 +3,6 @@
 #include <map>
 #include <optional>
 #include <ranges>
-#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
@@ -177,7 +176,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // stream it draws, where each ring's ink stops, each note's resolved connection motion, and
     // each note's hold. It is derived from the saved form, so a pick slide's in-memory overrides
     // (chart.h) are already stripped and the scrape draws as the scrape it is.
-    const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
+    const ChartResolutions resolutions = chartResolutions(chart, tempo_map);
     const std::vector<ChartNote>& notes = resolutions.connections.saved_notes;
 
     // Where each fret-hand placement's approach ramp begins; asked once for the whole chart and
@@ -491,16 +490,19 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // segment so a drawn hand travels with the note, any other placement morphs over the shared
     // minimum-sustain-distance margin before the arrival, and crowded transitions shorten against
     // the previous arrival rather than overlapping it. The synthetic pre-first nut window
-    // counts as arriving at the chart origin. Each window's reach is derived once for the whole
-    // stream from the stops the notes state under it (deriveFretHandWidths); only the index
-    // finger's fret is stored.
-    const std::vector<int> fhp_widths =
-        deriveFretHandWidths(resolutions, chart.fret_hand_positions, tempo_map);
-    state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
-    for (std::size_t fhp_index = 0; fhp_index < chart.fret_hand_positions.size(); ++fhp_index)
+    // counts as arriving at the chart origin. One chip per hand event, derived and authored alike
+    // (ChartResolutions::hand_events); a position's identity is its grid position, so the authored
+    // position standing at a chip, if any, is the one stored at the chip's own.
+    const std::vector<FretHandPosition>& authored = chart.fret_hand_positions;
+    state.fret_hand_positions.reserve(resolutions.hand_events.size());
+    for (const FretHandEvent& event : resolutions.hand_events)
     {
-        const FretHandPosition& fhp = chart.fret_hand_positions[fhp_index];
-        const Fraction fhp_place = tempo_map.wholeNotePositionAt(fhp.position);
+        const Fraction fhp_place = event.front;
+        const GridPosition fhp_position = tempo_map.gridPositionAtWholeNote(fhp_place);
+        const auto stated = std::ranges::lower_bound(
+            authored, fhp_position, std::ranges::less{}, &FretHandPosition::position);
+        const bool end_authored = stated != authored.end() && stated->position == fhp_position &&
+                                  stated->end_fret.has_value();
         const double arrival_seconds = tempo_map.secondsAtWholeNote(fhp_place);
         double ramp_start_seconds = 0.0;
         bool unpitched_ramp = false;
@@ -530,9 +532,10 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         state.fret_hand_positions.push_back(
             FhpViewState{
                 .seconds = arrival_seconds,
-                .fret = fhp.fret,
-                .width = fhp_widths[fhp_index],
-                .end_authored = fhp.end_fret.has_value(),
+                .position = fhp_position,
+                .fret = event.window.fret,
+                .width = event.window.width,
+                .end_authored = end_authored,
                 .ramp_seconds = arrival_seconds - ramp_start_seconds,
                 .unpitched_ramp = unpitched_ramp,
                 .settle_seconds = settle_seconds,

@@ -589,8 +589,9 @@ the rig, the lanes and the signal-chain panel with it, and why a caret RIDING a 
 automation point across a region boundary does the same. Arming still seeks NOTHING — the playhead
 does not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
-— the ruler's section, tempo and time-signature rows, the position row (the chart's fret-hand
-positions, whose lane chips are its markers), the strings, the tone-region row, the visible
+— the ruler's section, tempo and time-signature rows, the position row (the chart's AUTHORED
+fret-hand positions; the lane draws a chip for every derived position too, but only an authored
+one is a row marker yet), the strings, the tone-region row, the visible
 lanes, the "+" row — and every landing goes
 through `landOnRow`, which arms a string or lane row and selects the marker holding the cursor on a
 marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a landing that

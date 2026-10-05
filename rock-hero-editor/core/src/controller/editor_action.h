@@ -916,13 +916,16 @@ struct EditorAction
     /*!
     \brief Select a fret-hand position: a click on its tab-lane hand chip.
 
-    Addressed by the placement's index in the chart's stream, which the tab projection's placement
-    list mirrors one to one, because the lane that reports the click draws from that projection
-    and carries no musical position of its own.
+    Addressed by the chip's index in the tab projection's placement list, because the lane that
+    reports the click draws from that projection and carries no musical position of its own; the
+    core finds the authored position by the chip's front.
     */
     struct SelectFretHandPosition
     {
-        /*! \brief Index of the placement; an index naming no placement selects nothing. */
+        /*!
+        \brief Index of the chip; one naming no chip, or a chip no authored position stands at,
+        selects nothing.
+        */
         std::size_t index{};
     };
 

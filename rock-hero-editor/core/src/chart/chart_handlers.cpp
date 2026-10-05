@@ -191,12 +191,13 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
         edit.selected_keyframes =
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
-    // The position row's selection is outlined on the lane's chip: the placement's index in the
-    // chart's stream is its index in the projection too, one placement projecting to one chip.
-    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    // The position row's selection is outlined on the lane's chip fronting at the selected position
+    // (fretHandChipIndex).
+    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection);
+        placement != nullptr && m_tab_view_state != nullptr)
     {
         edit.selected_fret_hand_position =
-            markerIndex(MarkerRow::FretHandPosition, placement->position);
+            fretHandChipIndex(*m_tab_view_state, placement->position);
     }
     // Armed ⟹ paused is structural (play and the transport listener demote), so no transport
     // check re-derives it here.

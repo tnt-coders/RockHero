@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <iterator>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <map>
 #include <optional>
@@ -38,6 +39,7 @@
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
@@ -549,6 +551,28 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
     const common::core::Arrangement* const arrangement = controller.session().currentArrangement();
     return arrangement != nullptr && arrangement->chart.has_value() ? &*arrangement->chart
                                                                     : nullptr;
+}
+
+/*!
+\brief Finds the tab lane's hand chip fronting at a position, the index a chip click reports.
+
+The lane draws a chip for every hand event, derived and authored alike, so a test reaches an
+authored position's chip by the position the two share.
+
+\param tab Published tab projection.
+\param position Grid position the chip fronts at.
+\return The chip's index in the projection's list, or nothing where no chip fronts there.
+*/
+[[nodiscard]] inline std::optional<std::size_t> fretHandChipAt(
+    const common::core::ChartViewState& tab, const common::core::GridPosition& position)
+{
+    const std::vector<common::core::FhpViewState>& chips = tab.fret_hand_positions;
+    const auto found = std::ranges::find(chips, position, &common::core::FhpViewState::position);
+    if (found == chips.end())
+    {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(std::distance(chips.begin(), found));
 }
 
 /*!

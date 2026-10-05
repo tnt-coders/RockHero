@@ -954,7 +954,10 @@ struct ShapeViewState
     }
 };
 
-/*! \brief One fret-hand placement resolved to a timeline second, with its eased approach. */
+/*!
+\brief One fret-hand position — a hand event (\ref ChartResolutions::hand_events), derived or
+authored — resolved to a timeline second, with its eased approach.
+*/
 struct FhpViewState
 {
     /*!
@@ -964,12 +967,18 @@ struct FhpViewState
     */
     double seconds{0.0};
 
+    /*!
+    \brief Where the event fronts, on the grid: the identity an authored position standing there
+    shares, so a selection naming one finds its chip by equality.
+    */
+    GridPosition position{};
+
     /*! \brief Lowest fret under the index finger. */
     int fret{1};
 
     /*!
-    \brief Fret span covered by the hand: derived from the notes, or reaching an authored end fret
-    (\ref deriveFretHandWidths).
+    \brief Fret span covered by the hand: derived from the notes, or stated by an authored position
+    (\ref deriveFretHandEvents).
     */
     int width{g_min_fret_hand_width};
 
@@ -1020,8 +1029,9 @@ struct FhpViewState
     */
     friend constexpr bool operator==(const FhpViewState& lhs, const FhpViewState& rhs) noexcept
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.width == rhs.width && lhs.end_authored == rhs.end_authored &&
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.position == rhs.position &&
+               lhs.fret == rhs.fret && lhs.width == rhs.width &&
+               lhs.end_authored == rhs.end_authored &&
                std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
                lhs.unpitched_ramp == rhs.unpitched_ramp &&
                std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
@@ -1125,7 +1135,10 @@ struct ChartViewState
     */
     std::vector<double> shape_close_prefix_max;
 
-    /*! \brief Fret-hand placements in ascending arrival order. */
+    /*!
+    \brief Fret-hand positions in ascending arrival order: one per hand event, derived and authored
+    alike (\ref ChartResolutions::hand_events).
+    */
     std::vector<FhpViewState> fret_hand_positions;
 
     /*!

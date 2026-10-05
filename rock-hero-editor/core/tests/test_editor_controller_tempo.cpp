@@ -118,6 +118,24 @@ struct TempoEditor : SongEditorHarness
         return chart != nullptr ? chart->fret_hand_positions
                                 : std::vector<common::core::FretHandPosition>{};
     }
+
+    // Clicks the lane chip of the placement at `index` in the chart's list (fretHandChipAt).
+    void clickPlacement(const std::size_t index)
+    {
+        const std::shared_ptr<const common::core::ChartViewState>& tab = state().tab;
+        REQUIRE(tab != nullptr);
+        if (tab == nullptr)
+        {
+            return;
+        }
+        const std::optional<std::size_t> chip =
+            fretHandChipAt(*tab, placements().at(index).position);
+        REQUIRE(chip.has_value());
+        if (chip.has_value())
+        {
+            controller.onFretHandPositionSelected(*chip);
+        }
+    }
 };
 
 // The marker refusal records in a captured log, in order, each as the text after its category.
@@ -491,7 +509,7 @@ TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][
     SECTION("a fret-hand position")
     {
         const std::vector<common::core::FretHandPosition> original = editor.placements();
-        editor.controller.onFretHandPositionSelected(1);
+        editor.clickPlacement(1);
         editor.pressAlt(ChartStepDirection::Right, 3);
         CHECK_FALSE(editor.placements() == original);
         CHECK(editor.undoEntryCount() == 1);

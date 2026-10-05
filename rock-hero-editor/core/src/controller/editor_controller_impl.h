@@ -303,6 +303,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // nothing. What a refused entry's box prints (ChartPendingFretHandPosition::typed).
     [[nodiscard]] common::core::FhpViewState fretHandEntryChip(
         const common::core::GridPosition& position, FretHandEdge edge, int value) const;
+    // The index of the scene's chip fronting at `position`: the one mapping from a position to the
+    // chip that draws it, the chips being every hand event, derived and authored, so no list of
+    // authored positions shares their indices. Nothing where no chip fronts there.
+    [[nodiscard]] static std::optional<std::size_t> fretHandChipIndex(
+        const common::core::ChartViewState& scene, const common::core::GridPosition& position);
     // Combining a digit into the pending entry: false = no live entry claimed it — an expired one
     // settled and the digit falls through to a fresh entry.
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);

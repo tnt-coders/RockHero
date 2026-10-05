@@ -529,7 +529,8 @@ remains:
 - ~~**`withinGrid` in `gp_chart_builder.cpp` restates `isValidGridPosition`**~~ — **GONE
   2026-10-04** with `whole-note-durations.md`: the importer derives every place on the whole-note
   axis and converts through the tempo map's one `gridPositionAtWholeNote`, so both beat-to-position
-  converters and `withinGrid` are deleted; `withinScore` compares a place against the terminal.
+  converters and `withinGrid` are deleted. `withinScore`, which replaced it, went 2026-10-05 with
+  the importer's fabricated hand placements (plan 60a Phase 2).
 - ~~**Two payload-clip helpers for one rule**~~ — **GONE 2026-09-23** with
   `ring-ends-and-authoring-planes.md`: presentation no longer clips a payload (it only stops the
   ink), so `clipPayloadsTo` is deleted and `clipPayloadsToSustain` (`chart_rules.h`) is the one
@@ -1120,14 +1121,6 @@ written down.
   question "is 0 a finger" is answered at the seam between two tables of one type. Typing the plant
   as a `ChartStop` (a place) and the held column as a pressed fret would make the two unmixable.
   Not required while only these two readers exist; raised by the review of e40cab06.
-
-- **The importer's hand windows see no held stop.** `fretWindowsOf`
-  (`rock-hero-editor/core/src/project/gp_chart_builder.cpp`) passes an all-`nullopt` held column to
-  `deriveFretHandWidths`, so a tap's plant or default never widens an IMPORTED window, while the
-  editor's own derivation (`deriveHeldFretRanges`) reads `ChartResolutions::held_stops` and does.
-  The comment says so honestly, but the two derivations then disagree about one chart. Fix shape:
-  resolve the built stream once (`chartResolutions`) and pass its `held_stops`, or state why the
-  importer's pass may ignore the picking hand's stops.
 
 - **The design-pattern guide's planner list is stale.** `docs/developer/design-patterns.md` counts
   "the thirteen planners" (lines 176, 191 and 201) and enumerates thirteen names at 191-194, but the

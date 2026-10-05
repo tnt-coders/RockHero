@@ -8,7 +8,6 @@
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
-#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -22,9 +21,10 @@
 namespace rock_hero::editor::core
 {
 
-// The position row's markers: the chart's stored fret-hand positions, authored through the marker
+// The position row's markers: the fret-hand positions the charter authored, through the marker
 // grammar every other marker kind shares. Where the hand arrives and its index finger's fret are
-// stored; the window's reach is derived unless the charter states its end fret.
+// stated; the window's reach is the top of the figure the position heads unless the charter states
+// its end fret. Every other position is derived and drawn, but not yet a row object.
 
 namespace
 {
@@ -52,42 +52,28 @@ namespace
     return std::ranges::find(placements, position, &common::core::FretHandPosition::position);
 }
 
-// The placement an insert at a position makes: the fret defaults to the lowest fretting-hand stop
-// its stretch holds, asked of the one fold that also derives every window's width
-// (deriveHeldFretRanges) over the stream with the new placement in it, so "its stretch" is exactly
-// the stretch it will govern. A stretch holding no stop keeps the hand where the placement before
-// it put it, and the nut window (fret 1) where there is none. The fret is fitted onto the board
-// afterwards, by the one normalizer every stored placement passes.
+// The placement an insert at a position makes: it states the fret of the window already standing
+// there — the last hand event fronting at or before it, derived or authored, resolved exactly as
+// the projection resolves it — so inserting moves no hand. Where nothing stands yet it
+// states the nut window, the first fret the capo leaves playable. Either fret is already one the
+// normalizer leaves alone: every event's window is fitted onto the board, and so is the nut window.
 [[nodiscard]] common::core::FretHandPosition defaultedPlacement(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const common::core::GridPosition& position)
 {
-    std::vector<common::core::FretHandPosition> placements = chart.fret_hand_positions;
-    const auto at = std::ranges::upper_bound(
-        placements, position, std::ranges::less{}, &common::core::FretHandPosition::position);
-    const auto index = static_cast<std::size_t>(std::distance(placements.begin(), at));
-    placements.insert(at, common::core::FretHandPosition{.position = position, .fret = 1});
-
-    // Resolved exactly as the projection resolves it, so the claims read here are the claims the
-    // drawn window is derived from.
-    const std::vector<std::optional<common::core::HeldFretRange>> held =
-        common::core::deriveHeldFretRanges(
-            common::core::chartResolutions(chart.notes, tempo_map), placements, tempo_map);
-
-    common::core::FretHandPosition placement{.position = position, .fret = 1};
-    // Bound once so the presence test and the read are provably one object.
-    if (const std::optional<common::core::HeldFretRange>& stretch = held[index];
-        stretch.has_value())
-    {
-        placement.fret = stretch->lowest;
-    }
-    else if (index > 0)
-    {
-        placement.fret = placements[index - 1].fret;
-    }
-    // The repairs are not a refusal: fitting the defaulted window onto the board IS the default.
-    static_cast<void>(common::core::normalizeFretHandPosition(placement, chart.tuning));
-    return placement;
+    const std::vector<common::core::FretHandEvent> events =
+        common::core::chartResolutions(chart, tempo_map).hand_events;
+    const auto past = std::ranges::upper_bound(
+        events,
+        tempo_map.wholeNotePositionAt(position),
+        std::ranges::less{},
+        &common::core::FretHandEvent::front);
+    return common::core::FretHandPosition{
+        .position = position,
+        .fret = past == events.begin() ? common::core::firstPlayableFret(chart.tuning.capo)
+                                       : std::prev(past)->window.fret,
+        .end_fret = std::nullopt,
+    };
 }
 
 // The fret-hand position chord's restate: the placement arriving at the cursor, which it selects.
@@ -135,13 +121,31 @@ using FretHandPositionChordTarget = std::variant<std::monostate, RestateAt, Inse
 
 } // namespace
 
-// A hand chip click selects the placement it names and seeks nothing, exactly as a ruler chip does,
-// through the select every path onto a marker shares, so the caret demotes.
+// Chips ascend by their fronts, so the one fronting at a position is one search.
+std::optional<std::size_t> EditorController::Impl::fretHandChipIndex(
+    const common::core::ChartViewState& scene, const common::core::GridPosition& position)
+{
+    const std::vector<common::core::FhpViewState>& chips = scene.fret_hand_positions;
+    const auto found = std::ranges::lower_bound(
+        chips, position, std::ranges::less{}, &common::core::FhpViewState::position);
+    if (found == chips.end() || !(found->position == position))
+    {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(std::distance(chips.begin(), found));
+}
+
+// A hand chip click selects the authored position standing at the chip's front and seeks nothing,
+// exactly as a ruler chip does, through the select every marker shares, so the caret demotes. The
+// chip index is the scene's, which counts every hand event, so the chip names its position by its
+// front; a chip no authored position stands at selects nothing yet.
 void EditorController::Impl::performActionImpl(const EditorAction::SelectFretHandPosition& action)
 {
-    if (action.index < markerStarts(MarkerRow::FretHandPosition).size())
+    if (const common::core::ChartViewState* const scene = currentTabProjection();
+        scene != nullptr && action.index < scene->fret_hand_positions.size())
     {
-        selectMarker(markerSelectionAt(MarkerRow::FretHandPosition, action.index));
+        selectMarkerStartingAt(
+            MarkerRow::FretHandPosition, scene->fret_hand_positions[action.index].position);
     }
     updateView();
 }
@@ -273,6 +277,7 @@ common::core::FhpViewState EditorController::Impl::fretHandEntryChip(
     // Bound once so the presence test and the read are provably one object.
     const std::optional<int>& end_fret = typed.end_fret;
     return common::core::FhpViewState{
+        .position = position,
         .fret = typed.fret,
         .width = end_fret.has_value()
                      ? common::core::FretWindow::through(typed.fret, *end_fret).width

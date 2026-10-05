@@ -458,7 +458,9 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.chart.shapes[1].strings[2].string == 5);
     CHECK(state.chart.shapes[1].strings[2].stop == frettedStop(8));
 
-    REQUIRE(state.chart.fret_hand_positions.size() == 1);
+    // The authored position first, then the windows the later figures derive once they leave it.
+    REQUIRE(state.chart.fret_hand_positions.size() == 3);
+    CHECK(state.chart.fret_hand_positions[0].position == GridPosition{.measure = 2, .beat = 1});
     CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
     // No slide lands on this placement, so it morphs over the shared minimum-sustain-distance
     // margin.
@@ -519,7 +521,12 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     CHECK_FALSE(scene.shapes[0].arpeggio);
     CHECK(scene.shapes[1].arpeggio);
     CHECK(scene.shapes[1].strings.size() == 3);
-    CHECK(scene.fret_hand_positions.size() == 2);
+    // Both authored positions, and the windows the notes derive where they leave them.
+    CHECK(scene.fret_hand_positions.size() == 4);
+    CHECK(std::ranges::count_if(scene.fret_hand_positions, [&chart](const FhpViewState& chip) {
+              return std::ranges::contains(
+                  chart.fret_hand_positions, chip.position, &FretHandPosition::position);
+          }) == 2);
 
     // The continuation rule is a READ of the scene, shared by construction: the scrape's turnaround
     // continues the gesture, while its terminal — the slide-out, last of the same keyframe sequence
@@ -597,9 +604,15 @@ TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][cha
                 NoteAttack::Legato));
         }
     }
+    // Authored windows spanning the rest of the board, so no note ends either and the chips are
+    // exactly these two.
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 3},
-        FretHandPosition{.position = GridPosition{.measure = 5, .beat = 1}, .fret = 3},
+        FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 1}, .fret = 3, .end_fret = g_max_fret
+        },
+        FretHandPosition{
+            .position = GridPosition{.measure = 5, .beat = 1}, .fret = 3, .end_fret = g_max_fret
+        },
     };
     REQUIRE(validateChartRules(chart, tempo_map).has_value());
 

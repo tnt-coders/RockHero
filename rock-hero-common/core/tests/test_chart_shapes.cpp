@@ -23,6 +23,15 @@ namespace rock_hero::common::core
 namespace
 {
 
+// A chart holding only these notes: what the one resolutions pass takes, with no authored position
+// and no capo.
+[[nodiscard]] Chart chartOf(std::vector<ChartNote> notes)
+{
+    Chart chart;
+    chart.notes = std::move(notes);
+    return chart;
+}
+
 using rock_hero::common::core::testing::anchor;
 
 // Sixteen seconds of default 4/4, which is what every case here needs from the map: a stable
@@ -779,7 +788,7 @@ TEST_CASE(
     chart.notes = notes;
     const TempoMap tempo_map = makeTempoMap();
     CHECK_FALSE(normalizeChart(chart, tempo_map).empty());
-    const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
+    const ChartResolutions resolutions = chartResolutions(chart, tempo_map);
     REQUIRE(resolutions.shapes.size() == 1);
     CHECK(resolutions.shapes.front().place == Fraction{});
     CHECK(resolutions.shapes.front().sustain == Fraction{1, 2});
@@ -3481,7 +3490,7 @@ TEST_CASE("A tap at or below the standing grip's stop splits the span", "[core][
     SECTION("the tap that split the span holds nothing: its default is the open string")
     {
         const std::vector<ChartNote> notes = chord_with(tapAt(2, Fraction{}, 3, 9, Fraction{1, 4}));
-        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        const ChartResolutions resolutions = chartResolutions(chartOf(notes), makeTempoMap());
         CHECK_FALSE(resolutions.held_stops[indexAt(notes, 1, 2, 3)].has_value());
     }
 }
@@ -4206,7 +4215,7 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     SECTION("the posture holds the pressed fret while the wide table holds the plant")
     {
         const std::vector<ChartNote> notes = figure(artificial);
-        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        const ChartResolutions resolutions = chartResolutions(chartOf(notes), makeTempoMap());
         REQUIRE(resolutions.connections.legato[indexAt(notes, 1, 2, 3)] == LegatoMotion::Pull);
         // The plant is REAL, and the wide table says so: a finger waits on 3 for the whole of the
         // harmonic's ring, which is exactly what the hand window has to reach.
@@ -5287,7 +5296,7 @@ TEST_CASE("A pull-off source's plant is its held stop", "[core][chart]")
         noteAt(1, Fraction{}, 2, 3, Fraction{1}),
         pull,
     });
-    const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+    const ChartResolutions resolutions = chartResolutions(chartOf(notes), makeTempoMap());
     REQUIRE(resolutions.connections.legato[indexAt(notes, 1, 3, 1)] == LegatoMotion::Pull);
 
     SECTION("the source holds the stop its pull-off plants")
@@ -5307,7 +5316,7 @@ TEST_CASE("A pull-off source's plant is its held stop", "[core][chart]")
 TEST_CASE("A bare tap's held stop defaults to the grip the covering span holds", "[core][chart]")
 {
     const std::vector<ChartNote> notes = chugOverTap(7);
-    const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+    const ChartResolutions resolutions = chartResolutions(chartOf(notes), makeTempoMap());
 
     // The span the defaults are read out of: one shape from the chord to the restrike's end,
     // stating 5, 7 and 7 on strings 1 to 3 and nothing on string 5.
@@ -5357,7 +5366,7 @@ TEST_CASE("A pull-off's plant beats the tap's default", "[core][chart]")
                 note.attack = NoteAttack::Legato;
             }
         }
-        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        const ChartResolutions resolutions = chartResolutions(chartOf(notes), makeTempoMap());
         return resolutions.held_stops[indexAt(notes, 1, 2, 3)];
     };
 
@@ -5373,7 +5382,7 @@ TEST_CASE("The held default follows an edit that reflows the covering span", "[c
 {
     const auto default_under = [](const std::optional<int> grip) {
         const std::vector<ChartNote> notes = chugOverTap(grip);
-        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        const ChartResolutions resolutions = chartResolutions(chartOf(notes), makeTempoMap());
         return resolutions.held_stops[indexAt(notes, 1, 2, 3)];
     };
 

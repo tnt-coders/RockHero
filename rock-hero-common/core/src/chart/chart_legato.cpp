@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -321,10 +322,15 @@ std::vector<std::optional<int>> chartHeldStops(
     return held;
 }
 
-ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+ChartResolutions chartResolutions(const Chart& chart, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
-    resolutions.connections = chartConnections(notes, tempo_map);
+    resolutions.connections = chartConnections(chart.notes, tempo_map);
+    // WHERE THE HAND SITS, and its place in the pipeline is part of the rule: positions come before
+    // spans (the one-arrow order), so the derivation reads the connections and the plants they
+    // state, and never the held table below, which is read out of the spans.
+    resolutions.hand_events = deriveFretHandEvents(
+        resolutions.connections, tempo_map, chart.tuning.capo, chart.fret_hand_positions);
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
     resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};
