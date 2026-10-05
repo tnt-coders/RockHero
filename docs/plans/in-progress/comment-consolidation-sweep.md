@@ -121,19 +121,24 @@ B (11 lines):
 
 Estimated reduction: 30-45%.
 
-### Level 3: Budgeted (recommended)
+### Level 3: Best practice, no quotas (RULED, the standard the sweep applies)
 
-Level 2, plus a shape that any agent can check (ruled: most comments are small notes):
+Level 2, shaped by what the C++ guides agree on (Google's style guide, the C++ Core Guidelines
+NL.1-NL.3, LLVM, Ousterhout), and by the user's ruling: **commenting follows true best practice and
+conforms to no line limit**.
 
-- **Most comments are one-line notes.** A comment inside a body says its one thing in one line.
-- **Multi-line comments stay common in two places:** a comment describing a whole function or
-  type (up to 4 lines), and a comment that genuinely needs explaining, such as a reason that spans
-  several facts or a warning against a plausible but wrong refactor (up to 3 lines inline).
-- These ceilings are what the pre-commit check enforces (D3). The one-line default is the writing
-  standard, which reviewers hold workers to.
-- A longer comment is allowed only where it states a law or invariant the code cannot show, and
-  then only at the rule's owner (its header Doxygen or the developer guide). Every other site
-  names the owner.
+- **Inline notes default to one line.** A comment inside a body says its one thing in one line. It
+  runs longer only when the explanation is genuinely meaningful, such as a reason spanning several
+  facts or a warning against a plausible but wrong refactor.
+- **A comment describing a whole function or type is well thought out**: its purpose, its contract
+  and the reasons behind its shape, as long as that takes and no longer. It never narrates the body.
+- **No quota in either direction.** A comment never grows to look thorough and is never cut to fit
+  a number. Reviewers judge each comment by what a reader needs, not by its length.
+- A rule's full explanation lives at its owner (its header Doxygen or the developer guide); every
+  other site names the owner.
+
+The line counts in the examples below and in section 2 describe what happened to particular
+comments; they are not targets.
 
 A (2 lines):
 
@@ -153,7 +158,7 @@ B (4 lines):
 
 Estimated reduction: 50-60%.
 
-**The budget binds regular comments only. Doxygen has its own standard.** Doxygen is reference
+**Doxygen has its own standard.** Doxygen is reference
 documentation, so it stays descriptive: what the entity is, its units and contract, its edge cases,
 which parts of the code read it, and why it is shaped this way when a caller needs to know. Doxygen
 loses only what does not belong in reference documentation: history, the trail of how a decision
@@ -166,10 +171,10 @@ on release, the two-point envelope minimum, and the function comments). The earl
 `highway_projection.cpp` example predates the one-line default and is looser than the standard, so
 it is NOT a reference; Phase 0 must not copy it into the agent definition.
 
-**Why this level is recommended.** Every sweep without a measurable limit has drifted back. A
-budget is the one rule a worker, a reviewer and a future agent can all check. The law exception
-keeps the explanations that really are load-bearing, so it does not strip for the sake of
-stripping.
+**Why no numbers.** A line limit is arbitrary: it either pads a comment to fill it or cuts a
+meaningful explanation to fit it, and no study supports any particular number. What stops the drift
+instead is the rewrite-not-append rule, the history rule (a date in a comment fails pre-commit), the
+`comment-editor` agent's reference pairs, and review against the standard.
 
 ### Level 4: Minimal
 
@@ -187,22 +192,21 @@ for stripping's sake. It is not recommended.
 ## 4. Other decisions
 
 - **D1: Doxygen prose (ruled).** The Doxygen blocks are in the sweep under their own descriptive
-  standard (section 3), not the regular-comment budget. They lose history and implementation
+  standard (section 3), separate from the regular-comment standard. They lose history and implementation
   narration and keep everything a reader of the generated documentation needs. `\brief` and every
   enumerator's documentation stay in every case; `\param`, `\tparam` and `\return` follow D5.
   Markdown under `docs/` stays out of scope.
 - **D2: Conventions change (ruled: yes).** `docs/design/documentation-conventions.md` gains a
   section, "Comments State the Current Truth": rewrite instead of append, history belongs in git
-  (with the rare exception in section 1), and the two-tier standard (descriptive Doxygen, capped
-  regular comments). "The cost of a stale comment is small" is removed, because a stale stacked
+  (with the rare exception in section 1), and the two-tier standard (descriptive Doxygen, regular
+  comments as notes with no quota). "The cost of a stale comment is small" is removed, because a stale stacked
   comment is exactly the cost this sweep is paying.
 - **D3: Mechanical check (ruled: yes).** `scripts/verify-project-conventions.py`, which already runs
-  in pre-commit, rejects dates (`YYYY-MM-DD`) inside comments and flags regular comment blocks over
-  the cap; Doxygen is exempt from the length check. In the rare case where history explains the
-  code, the comment cites the commit hash, never a date, so the date check has no exception to
-  carve out.
+  in pre-commit, rejects dates (`YYYY-MM-DD`) inside comments. In the rare case where history
+  explains the code, the comment cites the commit hash, never a date, so the date check has no
+  exception to carve out. There is no length check: the user ruled out line limits.
 - **D4: The per-function comment mandate (ruled: kept).** Every `.cpp` function keeps a comment
-  unless it is explicitly trivial. The cap makes those comments short; it never removes one.
+  unless it is explicitly trivial. The sweep rewrites those comments; it never removes one.
 - **D5: No boilerplate Doxygen fields (ruled: yes).** This follows LLVM's rule: include parameters
   and return values only "when it provides additional information, such as intent, usage, or
   behavior that's non-obvious." A Doxygen field earns its place by saying something the signature
@@ -254,8 +258,9 @@ for stripping's sake. It is not recommended.
    pointer at its `.cpp` definition, plus any body notes the header does not carry (D6).
 8. **Mechanics.** Wrap lines at 100 columns by hand, never `/*` inside a block comment, and never a
    `//` line ending in a backslash (`-Wcomment` is part of `-Wall`, so CI would fail).
-9. **The chosen level's budget, for regular comments.** Doxygen follows the descriptive standard in
-   section 3: a complete contract, minus history and implementation narration.
+9. **Length follows meaning, never a quota.** Inline notes default to one line; a function's
+   comment is as long as a well-thought-out description needs. Doxygen follows the descriptive
+   standard in section 3: a complete contract, minus history and implementation narration.
 10. **Move a why to where it applies.** A reason about one line belongs on that line, not in the
    function's header comment. The worked example moves the "ramp from the previous arrival, never a
    release" warning onto the ramp assignment it guards.

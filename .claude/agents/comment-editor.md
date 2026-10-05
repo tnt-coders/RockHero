@@ -24,25 +24,32 @@ Truth** is the standard you apply, and **Required Fields** governs Doxygen field
    format's constraint): state it as the reason, citing a commit hash, never a date. References to
    numbered rules stay; they name rules, not events.
 3. **One reason, one place.** A rule is explained at its owner (the header Doxygen of what
-   enforces it, or the developer guide). Every other site gets one line naming that owner. Report
-   explanations you find duplicated across files; do not edit files outside your list.
+   enforces it, or the developer guide). Every other site gets one line naming that owner. Before
+   replacing an explanation with a pointer, READ the owner and confirm it states every reason you
+   are removing; a reason specific to this site (why the work happens HERE and not elsewhere, why a
+   case is absent here, a warning about a refactor of THIS code) stays here. Report explanations you
+   find duplicated across files; do not edit files outside your list.
 4. **Verify every claim against the code.** Read the code a comment describes before keeping or
    writing a word of it. Correct a wrong comment; never change code to match a comment. Report
    every correction.
 5. **Keep what is load-bearing:** a load-bearing constant, a refactor that would silently break, a
    library bridge, a remote invariant, surprising behavior, code that looks wrong but is intended
    (the list under "When in Doubt, Comment"). Delete only restatements of the code and history.
-6. **Regular comments are notes.** Most are one line. A whole function's or type's description runs
-   up to four lines; a real explanation (several facts, or a warning against a plausible but wrong
-   refactor) up to three lines inline. Four consecutive `//` lines is the hard ceiling. A longer
-   law lives at its owner's header Doxygen or in the developer guide, and this site names it.
+6. **Regular comments inside a body are notes, one line by default.** A note runs longer only when
+   the explanation is genuinely meaningful (a reason spanning several facts, a warning against a
+   plausible but wrong refactor). A comment describing a whole function or type is well thought
+   out: purpose, contract and the reasons behind its shape, as long as that takes and no longer.
+   There is NO line quota either way: never pad a comment to look thorough, never cut one to fit a
+   number. Judge each comment by what the reader needs.
 7. **Doxygen stays descriptive, without boilerplate.** Keep `\brief`, every enumerator's
    documentation, and the Doxygen-versus-regular placement. Keep what reference documentation
    needs: what it is, units, contract, edge cases, who reads it, why it is shaped so when a caller
    must know. Drop history and implementation narration (that belongs in the `.cpp`). `\param`,
    `\tparam` and `\return` stay only where they say something the signature does not, and then
-   all-or-nothing for a function's parameters. Deleted and defaulted special members lose their
-   blocks; a non-obvious non-copyability is stated once in the class's own Doxygen.
+   all-or-nothing for a function's parameters. Deleted or defaulted copy and move constructors and
+   assignments, and defaulted destructors, lose their blocks; a non-obvious non-copyability is
+   stated once in the class's own Doxygen. A defaulted default constructor that establishes a
+   meaningful value (`Fraction() = default` is 0/1) keeps its brief.
 8. **No duplicate at the definition.** A function documented in its header gets a one-line pointer
    at its `.cpp` definition (`// Rationale lives on the declaration in tab_paint_core.h.`), plus
    body notes the header does not carry. The per-function comment mandate stays: never leave a
@@ -88,7 +95,8 @@ Signed before/after excerpts. Match their density, not their words.
     m_impl->m_tone_schedule_baked = !regions.empty();
 ```
 
-**A real explanation keeps its three lines** (5 to 3; it is a reason spanning several facts):
+**A real explanation stays multi-line** (5 to 3; it is a reason spanning several facts, so it
+keeps every fact it needs):
 
 ```cpp
     // Restoring the recorded audible tone's gains is part of RELEASING the schedule, not something
@@ -249,7 +257,7 @@ python scripts/verify-project-conventions.py <path>...
 
 The gate proves the comment-free token stream is unchanged against `comment-sweep-base` and checks
 width, `/*` nesting, trailing backslashes, dates and control characters; the script applies the
-conventions (the date rule, the four-line ceiling, the column limit). Once per session, before
+conventions (the date rule, the column limit). Once per session, before
 trusting the gate, run a negative control in your scratchpad: `git show comment-sweep-base:<path>`
 into one file, copy it with one token changed, and `gate.sh <before> <after>` must print
 `FAIL ... TOKENS`.

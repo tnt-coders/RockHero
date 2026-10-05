@@ -175,20 +175,21 @@ states the current truth once, concisely, at the place that owns it.
 
 The standard has two tiers:
 
-- **Regular comments are notes.** Most are one line: a comment inside a body says its one thing
-  in one line. A comment describing a whole function or type runs up to four lines, and an
-  explanation that genuinely spans several facts, or warns against a plausible but wrong
-  refactor, up to three lines inline. Four consecutive `//` lines is the ceiling. A longer
-  explanation states a law the code cannot show, and lives at its owner, header Doxygen or the
-  developer guide, never in a regular comment.
+- **Regular comments inside a body are notes.** The default is one line: a note says its one
+  thing in one line. A note runs longer only when the explanation is genuinely meaningful, such
+  as a reason that spans several facts or a warning against a plausible but wrong refactor.
+- **A comment describing a whole function or type is well thought out.** It says what the reader
+  needs to use or change the function: its purpose, its contract and the reasons behind its
+  shape. It is as long as that takes and no longer, with no padding and no narration of the body.
+- There is no line quota in either direction. Length follows meaning: a comment never grows to
+  look thorough and is never cut to fit a number.
 - **Doxygen is reference documentation and stays descriptive.** It says what the entity is, its
   units and contract, its edge cases, which parts of the code read it, and why it is shaped as it
   is when a caller needs to know. It carries no history, no trail of how a decision was reached,
   and no narration of the implementation, which belongs in the `.cpp`. Its fields follow
   [Required Fields](#required-fields).
 
-`scripts/verify-project-conventions.py` rejects a date inside any comment and a run of `//` lines
-over the ceiling.
+`scripts/verify-project-conventions.py` rejects a date inside any comment.
 
 # Doxygen Block Format
 

@@ -10,15 +10,14 @@ Tree-wide checks, over every tracked file:
 - Function-local constants do not wear the g_ prefix (.clang-tidy).
 - Lines carrying a comment fit the 100-column limit (documentation-conventions.md).
 
-Changed-file checks, over the project C++ files named on the command line, or the staged ones when
+Changed-file check, over the project C++ files named on the command line, or the staged ones when
 none are named (documentation-conventions.md, "Comments State the Current Truth"):
 
 - No date inside a comment.
-- No run of full-line `//` comments longer than the ceiling.
 
-These two bind only changed files because the tree is still being swept to the standard: a
-tree-wide run would fail every commit on comments the commit never touched. Once the sweep lands
-they can move to the tree-wide set like any other check.
+It binds only changed files because the tree is still being swept to the standard: a tree-wide run
+would fail every commit on comments the commit never touched. Once the sweep lands it can move to
+the tree-wide set like any other check.
 
 PENDING_CHECKS is empty: nothing is written-but-parked today. Pass --pending to run whatever it
 holds, which is how to inventory what a sweep must fix before a check moves into CHECKS.
@@ -41,10 +40,6 @@ EXEMPT = {'placeholder.cpp'}
 # trees, excluding external/, generated, and vendored content.
 PRODUCT_ROOTS = tuple(f'rock-hero-{product}/' for product in PRODUCTS)
 COLUMN_LIMIT = 100
-
-# The longest run of full-line `//` comments documentation-conventions.md allows: a whole
-# function's or type's description. Doxygen blocks are reference documentation and are not capped.
-COMMENT_BLOCK_LIMIT = 4
 
 # An ISO date, which is history and belongs in a commit message, never in a comment.
 COMMENT_DATE = re.compile(r'(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)')
@@ -93,11 +88,10 @@ class Check(NamedTuple):
 
 
 class CommentText(NamedTuple):
-    """The comment text on one line, and whether the line is nothing but a `//` comment."""
+    """The comment text on one line."""
 
     number: int
     text: str
-    line_comment: bool
 
 
 def trackedTextFiles(repo: pathlib.Path) -> tuple[TextFile, ...]:
@@ -196,7 +190,6 @@ def commentText(lines: tuple[str, ...]) -> Iterator[CommentText]:
     for number, line in enumerate(lines, 1):
         text: list[str] = []
         seen = in_block
-        line_comment = not in_block and raw_close is None and line.lstrip().startswith('//')
         index = 0
         while index < len(line):
             if in_block:
@@ -236,7 +229,7 @@ def commentText(lines: tuple[str, ...]) -> Iterator[CommentText]:
             else:
                 index += 1
         if seen:
-            yield CommentText(number=number, text=''.join(text), line_comment=line_comment)
+            yield CommentText(number=number, text=''.join(text))
 
 
 def checkLibraryRootPlacement(sources: Sources) -> list[str]:
@@ -353,28 +346,6 @@ def checkNoDatesInComments(sources: Sources) -> list[str]:
     return violations
 
 
-def checkCommentBlockLength(sources: Sources) -> list[str]:
-    """No run of full-line `//` comments in a changed file exceeds the ceiling.
-
-    A code line, a blank line, or a trailing comment on a code line all end a run. Doxygen
-    `/*! */` blocks are reference documentation with their own standard and are not counted.
-    """
-    violations: list[str] = []
-    for file in sources.changed_files:
-        start = 0
-        length = 0
-        for comment in commentText(file.lines):
-            if comment.line_comment and comment.number == start + length:
-                length += 1
-                continue
-            if length > COMMENT_BLOCK_LIMIT:
-                violations.append(f'{file.path}:{start}: {length} lines')
-            start, length = (comment.number, 1) if comment.line_comment else (0, 0)
-        if length > COMMENT_BLOCK_LIMIT:
-            violations.append(f'{file.path}:{start}: {length} lines')
-    return violations
-
-
 CHECKS = (
     Check(
         find=checkLibraryRootPlacement,
@@ -429,18 +400,6 @@ CHECKS = (
             'History belongs in git: rewrite the comment as the current truth. Where the code\n'
             'cannot be understood without its history, state that history as the reason and\n'
             'cite the commit hash, never a date.'
-        ),
-    ),
-    Check(
-        find=checkCommentBlockLength,
-        heading=(
-            f'Regular comment blocks over {COMMENT_BLOCK_LIMIT} lines '
-            '(see docs/design/documentation-conventions.md):'
-        ),
-        remedy=(
-            'Rewrite the comment as the current truth, once: most notes are one line, a whole\n'
-            "function's or type's description up to four. A law the code cannot show lives at\n"
-            "its owner's header Doxygen or in the developer guide, and this site names the owner."
         ),
     ),
 )
