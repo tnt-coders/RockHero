@@ -94,6 +94,10 @@ under [Fable Orchestrates, Opus Works](#fable-orchestrates-opus-works). Task-sco
 their task brief instead. Non-Claude agents follow their own harness file (`AGENTS.md`) and ignore
 this section.
 
+Every change that edits code, and every brief that delegates one, carries the comment rule:
+rewrite the comments the change touches to the current truth, never append to them; history
+belongs in git (`docs/design/documentation-conventions.md`, "Comments State the Current Truth").
+
 ### Depth over Agent Speed
 
 Optimize for cleanliness, correctness, and runtime performance of the delivered code — never for

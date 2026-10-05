@@ -2,19 +2,26 @@
 
 Each convention gets one check function; the script fails when any check reports violations.
 
-Current checks:
+Tree-wide checks, over every tracked file:
 
 - Library roots hold folders only (architectural-principles.md).
 - No UTF-8 byte-order mark in a tracked text file.
 - No stray C0 control byte in a tracked text file.
 - Function-local constants do not wear the g_ prefix (.clang-tidy).
-- Comment lines fit the 100-column limit (documentation-conventions.md).
+- Lines carrying a comment fit the 100-column limit (documentation-conventions.md).
+
+Changed-file checks, over the project C++ files named on the command line, or the staged ones when
+none are named (documentation-conventions.md, "Comments State the Current Truth"):
+
+- No date inside a comment.
+- No run of full-line `//` comments longer than the ceiling.
+
+These two bind only changed files because the tree is still being swept to the standard: a
+tree-wide run would fail every commit on comments the commit never touched. Once the sweep lands
+they can move to the tree-wide set like any other check.
 
 PENDING_CHECKS is empty: nothing is written-but-parked today. Pass --pending to run whatever it
 holds, which is how to inventory what a sweep must fix before a check moves into CHECKS.
-
-Known gap, deliberate: the comment-column check covers comment LINES, not trailing comments on
-code lines (none violate today; the compound parse was not worth it until one does).
 """
 from __future__ import annotations
 
@@ -34,6 +41,17 @@ EXEMPT = {'placeholder.cpp'}
 # trees, excluding external/, generated, and vendored content.
 PRODUCT_ROOTS = tuple(f'rock-hero-{product}/' for product in PRODUCTS)
 COLUMN_LIMIT = 100
+
+# The longest run of full-line `//` comments documentation-conventions.md allows: a whole
+# function's or type's description. Doxygen blocks are reference documentation and are not capped.
+COMMENT_BLOCK_LIMIT = 4
+
+# An ISO date, which is history and belongs in a commit message, never in a comment.
+COMMENT_DATE = re.compile(r'(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)')
+
+# The encoding prefixes a string or character literal may wear. An identifier run ending at a
+# quote that is none of these is a digit separator (`1'000`), not a literal.
+ENCODING_PREFIXES = ('', 'u8', 'L', 'u', 'U')
 
 # Every C0 control character except tab and newline. Newline is the line split, so it can never
 # appear inside a line; tab is legal in the fixtures and tool files that need it.
@@ -60,9 +78,10 @@ class TextFile(NamedTuple):
 
 
 class Sources(NamedTuple):
-    """Everything the checks read: the tracked text files, split once."""
+    """Everything the checks read: the tracked text files, split once, and the changed subset."""
 
     text_files: tuple[TextFile, ...]
+    changed_files: tuple[TextFile, ...]
 
 
 class Check(NamedTuple):
@@ -71,6 +90,14 @@ class Check(NamedTuple):
     find: Callable[[Sources], list[str]]
     heading: str
     remedy: str
+
+
+class CommentText(NamedTuple):
+    """The comment text on one line, and whether the line is nothing but a `//` comment."""
+
+    number: int
+    text: str
+    line_comment: bool
 
 
 def trackedTextFiles(repo: pathlib.Path) -> tuple[TextFile, ...]:
@@ -100,52 +127,116 @@ def trackedTextFiles(repo: pathlib.Path) -> tuple[TextFile, ...]:
     return tuple(files)
 
 
+def changedFiles(
+    repo: pathlib.Path, text_files: tuple[TextFile, ...], named: list[str]
+) -> tuple[TextFile, ...]:
+    """Selects the project C++ files the changed-file checks cover.
+
+    Named on the command line, they are whatever the caller points at (a worker checking the file
+    it just edited); otherwise they are the staged files, which is what a commit is about to
+    carry. pre-commit stashes unstaged edits for the hook's duration, so under the hook the tree
+    IS the index; a manual run reads the working tree.
+    """
+    if named:
+        paths: list[str] = []
+        for name in named:
+            try:
+                paths.append(pathlib.Path(name).resolve().relative_to(repo).as_posix())
+            except ValueError:
+                sys.exit(f'{name}: outside the repository')
+    else:
+        staged = subprocess.run(
+            ('git', 'diff', '--cached', '--name-only', '--diff-filter=d', '-z'),
+            cwd=repo, capture_output=True, check=True)
+        paths = [name for name in staged.stdout.decode('utf-8').split('\0') if name]
+    wanted = {path for path in paths if isProjectCppFile(path)}
+    tracked = {file.path: file for file in text_files}
+    missing = wanted - tracked.keys()
+    if missing:
+        sys.exit('not tracked: ' + ', '.join(sorted(missing)))
+    return tuple(tracked[path] for path in sorted(wanted))
+
+
 def isProjectCppFile(path: str) -> bool:
     """Reports whether a tracked path is project-owned C++ that the docs' rules bind."""
     return path.startswith(PRODUCT_ROOTS) and path.endswith(SOURCE_SUFFIXES)
 
 
-def endsInsideBlockComment(line: str, in_block: bool) -> bool:
-    """Carries /* */ state across one line.
+def literalPrefix(line: str, index: int) -> str:
+    """The identifier run ending just before `index`, classifying the quote or R found there."""
+    start = index
+    while start > 0 and (line[start - 1].isalnum() or line[start - 1] == '_'):
+        start -= 1
+    return line[start:index]
 
-    String literals are not parsed: a "/*" inside a string would open a phantom block. Nothing in
-    the tree does that today, and the tracker is self-checking in practice because a phantom open
-    leaks to the end of the file and turns every following line into a comment.
-    """
-    if '/' not in line:
-        return in_block
-    index = 0
-    while True:
-        if in_block:
-            index = line.find('*/', index)
-            if index < 0:
-                return True
+
+def skipQuoted(line: str, index: int, quote: str) -> int:
+    """Index just past the literal opening at `index`, honoring backslash escapes."""
+    index += 1
+    while index < len(line):
+        if line[index] == '\\':
             index += 2
-            in_block = False
             continue
-        open_at = line.find('/*', index)
-        line_at = line.find('//', index)
-        # A line comment starting first swallows the rest of the line, block markers included.
-        if line_at >= 0 and (open_at < 0 or line_at < open_at):
-            return False
-        if open_at < 0:
-            return False
-        index = open_at + 2
-        in_block = True
+        if line[index] == quote:
+            return index + 1
+        index += 1
+    return len(line)
 
 
-def commentLineNumbers(lines: tuple[str, ...]) -> Iterator[int]:
-    """Yields the 1-based numbers of the lines whose content is comment text.
+def commentText(lines: tuple[str, ...]) -> Iterator[CommentText]:
+    """Yields the comment text of every line that carries any.
 
-    Project Doxygen blocks are `/*! ... */` with no leading `*` on body lines, so a comment line
-    is only recognizable from the block state carried across lines, not from a per-line marker.
+    String and character literals are skipped, so a `//`, `/*` or date inside one never reads as
+    a comment; raw string literals carry their closing delimiter across lines. Project Doxygen
+    blocks are `/*! ... */` with no leading `*` on body lines, so a body line is recognizable only
+    from the block state carried across lines, not from a per-line marker.
     """
     in_block = False
+    raw_close: str | None = None
     for number, line in enumerate(lines, 1):
-        is_comment = in_block or line.lstrip().startswith(('//', '/*'))
-        in_block = endsInsideBlockComment(line, in_block)
-        if is_comment:
-            yield number
+        text: list[str] = []
+        seen = in_block
+        line_comment = not in_block and raw_close is None and line.lstrip().startswith('//')
+        index = 0
+        while index < len(line):
+            if in_block:
+                end = line.find('*/', index)
+                if end < 0:
+                    text.append(line[index:])
+                    break
+                text.append(line[index:end])
+                index = end + 2
+                in_block = False
+            elif raw_close is not None:
+                end = line.find(raw_close, index)
+                if end < 0:
+                    break
+                index = end + len(raw_close)
+                raw_close = None
+            elif line.startswith('//', index):
+                seen = True
+                text.append(line[index + 2:])
+                break
+            elif line.startswith('/*', index):
+                seen = True
+                in_block = True
+                index += 2
+            elif line[index] == '"':
+                prefix = literalPrefix(line, index)
+                if prefix.endswith('R') and prefix[:-1] in ENCODING_PREFIXES:
+                    paren = line.find('(', index)
+                    if paren < 0:
+                        break
+                    raw_close = ')' + line[index + 1:paren] + '"'
+                    index = paren + 1
+                else:
+                    index = skipQuoted(line, index, '"')
+            elif line[index] == "'" and literalPrefix(line, index) in ENCODING_PREFIXES:
+                index = skipQuoted(line, index, "'")
+            else:
+                index += 1
+        if seen:
+            yield CommentText(number=number, text=''.join(text), line_comment=line_comment)
 
 
 def checkLibraryRootPlacement(sources: Sources) -> list[str]:
@@ -188,7 +279,7 @@ def checkNoByteOrderMark(sources: Sources) -> list[str]:
     return [
         f'{file.path}:1'
         for file in sources.text_files
-        if file.lines and file.lines[0].startswith('\ufeff')
+        if file.lines and file.lines[0].startswith('﻿')
     ]
 
 
@@ -212,7 +303,7 @@ def checkNoStrayControlBytes(sources: Sources) -> list[str]:
 
 
 def checkCommentLineLength(sources: Sources) -> list[str]:
-    """Every comment line in project-owned C++ fits the 100-column limit.
+    """Every line carrying a comment in project-owned C++ fits the 100-column limit.
 
     clang-format sets `ReflowComments: false` on purpose, so the formatter never wraps a comment
     and nothing else enforced the limit documentation-conventions.md states for them.
@@ -221,10 +312,10 @@ def checkCommentLineLength(sources: Sources) -> list[str]:
     for file in sources.text_files:
         if not isProjectCppFile(file.path):
             continue
-        for number in commentLineNumbers(file.lines):
-            length = len(file.lines[number - 1])
+        for comment in commentText(file.lines):
+            length = len(file.lines[comment.number - 1])
             if length > COLUMN_LIMIT:
-                violations.append(f'{file.path}:{number}: {length} columns')
+                violations.append(f'{file.path}:{comment.number}: {length} columns')
     return violations
 
 
@@ -245,6 +336,42 @@ def checkLocalConstantPrefix(sources: Sources) -> list[str]:
                 continue
             if LOCAL_G_CONSTANT.match(line):
                 violations.append(f'{file.path}:{number}: {line.strip()}')
+    return violations
+
+
+def checkNoDatesInComments(sources: Sources) -> list[str]:
+    """No comment in a changed file carries a date.
+
+    A date is history, and history belongs in git. The one comment allowed to carry history
+    cites a commit hash instead, so this check needs no exception.
+    """
+    violations: list[str] = []
+    for file in sources.changed_files:
+        for comment in commentText(file.lines):
+            for match in COMMENT_DATE.finditer(comment.text):
+                violations.append(f'{file.path}:{comment.number}: {match.group()}')
+    return violations
+
+
+def checkCommentBlockLength(sources: Sources) -> list[str]:
+    """No run of full-line `//` comments in a changed file exceeds the ceiling.
+
+    A code line, a blank line, or a trailing comment on a code line all end a run. Doxygen
+    `/*! */` blocks are reference documentation with their own standard and are not counted.
+    """
+    violations: list[str] = []
+    for file in sources.changed_files:
+        start = 0
+        length = 0
+        for comment in commentText(file.lines):
+            if comment.line_comment and comment.number == start + length:
+                length += 1
+                continue
+            if length > COMMENT_BLOCK_LIMIT:
+                violations.append(f'{file.path}:{start}: {length} lines')
+            start, length = (comment.number, 1) if comment.line_comment else (0, 0)
+        if length > COMMENT_BLOCK_LIMIT:
+            violations.append(f'{file.path}:{start}: {length} lines')
     return violations
 
 
@@ -295,6 +422,27 @@ CHECKS = (
             'will not do it, and the limit covers indentation and comment markers.'
         ),
     ),
+    Check(
+        find=checkNoDatesInComments,
+        heading='Dates inside comments (see docs/design/documentation-conventions.md):',
+        remedy=(
+            'History belongs in git: rewrite the comment as the current truth. Where the code\n'
+            'cannot be understood without its history, state that history as the reason and\n'
+            'cite the commit hash, never a date.'
+        ),
+    ),
+    Check(
+        find=checkCommentBlockLength,
+        heading=(
+            f'Regular comment blocks over {COMMENT_BLOCK_LIMIT} lines '
+            '(see docs/design/documentation-conventions.md):'
+        ),
+        remedy=(
+            'Rewrite the comment as the current truth, once: most notes are one line, a whole\n'
+            "function's or type's description up to four. A law the code cannot show lives at\n"
+            "its owner's header Doxygen or in the developer guide, and this site names the owner."
+        ),
+    ),
 )
 
 # No check is parked today. A check belongs here only while the tree still carries pre-existing
@@ -305,10 +453,14 @@ PENDING_CHECKS: tuple[Check, ...] = ()
 
 def main() -> int:
     repo = pathlib.Path(__file__).resolve().parent.parent
-    sources = Sources(text_files=trackedTextFiles(repo))
+    arguments = sys.argv[1:]
+    text_files = trackedTextFiles(repo)
+    named = [argument for argument in arguments if not argument.startswith('--')]
+    sources = Sources(
+        text_files=text_files, changed_files=changedFiles(repo, text_files, named))
 
     # --pending runs the parked checks as well, which is how to inventory what a sweep must fix.
-    checks = CHECKS + PENDING_CHECKS if '--pending' in sys.argv[1:] else CHECKS
+    checks = CHECKS + PENDING_CHECKS if '--pending' in arguments else CHECKS
 
     failed = False
     for check in checks:

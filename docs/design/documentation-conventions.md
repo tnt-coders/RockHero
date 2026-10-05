@@ -83,6 +83,9 @@ configure_file(
 - Document every project-owned header declaration that is visible outside a single `.cpp` file:
   classes, structs, enums, public or protected methods, public data members, free functions, and
   aliases whose purpose is not immediately obvious.
+- Deleted and defaulted special members (copy and move constructors and assignments, defaulted
+  destructors) get no Doxygen block. A class that is non-copyable or non-movable for a non-obvious
+  reason says so once, in its own Doxygen.
 - When documenting an enum, document every enumerator with a `\brief`. Doxygen warns on
   undocumented enumerators of a documented enum, so partial coverage is not allowed.
 - Use regular comments for private header members when they carry non-obvious invariants, ownership,
@@ -92,6 +95,10 @@ configure_file(
 
 - Every project-owned function or method definition in a `.cpp` file gets a regular comment
   immediately above it unless it is explicitly trivial.
+- A function documented in its header is not documented again at its definition. The comment
+  there is a one-line pointer to the declaration (`// Rationale lives on the declaration in
+  tab_paint_core.h.`); implementation notes the header does not carry follow as regular comments
+  inside the body.
 - Every class or struct defined entirely inside a `.cpp` file gets a regular class-level comment
   immediately above the definition unless it is explicitly trivial.
 - Trivial exceptions are defaulted or empty special members with no meaningful behavior, obvious
@@ -144,10 +151,44 @@ What still does not deserve a comment:
 - References to the current task, ticket, PR, or recent change. Those belong in commit messages.
 - Defensive narration of straightforward control flow.
 
-When the call is close, write the comment. The cost of a comment that later becomes stale is
-small; the cost of a missing comment that costs someone a debugging session, or that invites a
-plausible-looking but wrong refactor, is large. Bias toward commenting whenever clarity is not
-certain.
+When the call is close, write the comment, in the shape the next section sets.
+
+# Comments State the Current Truth
+
+The section above decides whether a comment exists; this one decides what it says. A comment
+states the current truth once, concisely, at the place that owns it.
+
+- **Rewrite, never append.** When a change leaves a comment wrong or incomplete, rewrite it so it
+  reads as if written today by someone who knows the current code. Never add the new reason
+  beside the old one.
+- **History belongs in git.** No dates, rulings, "sighted", "used to", "now", "no longer", "the
+  old X", plan, phase, review or task IDs, or attributions. The one exception is history without
+  which the shape of the code cannot be understood, such as a workaround for a framework defect or
+  a constraint a shipped format imposes: state it as the reason, citing the commit hash, never a
+  date. References to numbered rules stay, because they name rules, not events.
+- **One reason, one place.** A rule is explained at its owner: the header Doxygen of the entity
+  that enforces it, or the developer guide. Every other site gets one line naming that owner.
+- **A why sits where it applies.** A reason about one line belongs on that line, not in the
+  comment above the function.
+- **Every claim is true of the code as it is.** Verify a comment against the code before keeping
+  or writing it.
+
+The standard has two tiers:
+
+- **Regular comments are notes.** Most are one line: a comment inside a body says its one thing
+  in one line. A comment describing a whole function or type runs up to four lines, and an
+  explanation that genuinely spans several facts, or warns against a plausible but wrong
+  refactor, up to three lines inline. Four consecutive `//` lines is the ceiling. A longer
+  explanation states a law the code cannot show, and lives at its owner, header Doxygen or the
+  developer guide, never in a regular comment.
+- **Doxygen is reference documentation and stays descriptive.** It says what the entity is, its
+  units and contract, its edge cases, which parts of the code read it, and why it is shaped as it
+  is when a caller needs to know. It carries no history, no trail of how a decision was reached,
+  and no narration of the implementation, which belongs in the `.cpp`. Its fields follow
+  [Required Fields](#required-fields).
+
+`scripts/verify-project-conventions.py` rejects a date inside any comment and a run of `//` lines
+over the ceiling.
 
 # Doxygen Block Format
 
@@ -159,12 +200,9 @@ within the 100-character line limit:
 /*! \brief Stops the transport and returns the playhead to the loop start. */
 \endcode
 
-The one-line form is only available when the entity needs no other tag, so in practice it is for
-`void` functions, data members, types, and enumerators. A function that RETURNS something always
-needs a `\return` (see Required Fields below), which means it always needs the multi-line form — a
-brief-only one-liner on a value-returning function is wrong however well it fits. This paragraph
-exists because the example here used to be exactly that, and the two sections contradicted each
-other for long enough that eleven declarations followed the wrong one.
+The one-line form is for an entity whose brief states its whole contract: data members, types,
+enumerators, and any function whose parameters and return value need no field of their own (see
+Required Fields below).
 
 The full Doxygen block must be indented to the same level as the declaration it documents. Every
 line inside the block uses that same indentation, including `\brief`, body paragraphs, tags, and
@@ -180,8 +218,6 @@ Example for a top-level declaration:
 Like state(), this method is a current message-thread-only read and is not thread-safe. Listener
 callbacks report only TransportState changes and do not carry position. UI code that needs smooth
 cursor motion should call position() at its own render cadence.
-
-\return Current transport position.
 */
 [[nodiscard]] virtual common::core::TimePosition position() const noexcept = 0;
 \endcode
@@ -215,19 +251,19 @@ Preferred commands include:
 
 # Required Fields
 
-Document all applicable fields.
+A field earns its place by saying something the signature does not.
 
-- Use `\param` for every parameter of every documented function. Partial parameter documentation
-  is not allowed and is enforced by `WARN_NO_PARAMDOC = YES`.
-- Use `\tparam` for every template parameter of every documented template. Same enforcement.
-- Use `\return` for every documented non-void function. Enforced by `WARN_NO_PARAMDOC = YES`,
-  which warns on any documented function missing its return documentation regardless of how
-  obvious the return type is.
-- Use `\throws` when exceptions are part of the contract.
-- Use `\note` for important usage constraints, thread-safety rules, lifetime caveats, or temporary
-  implementation shims.
+- `\brief`, always.
+- `\param` and `\tparam` when a parameter has units, a range, ownership, a lifetime, a nullable
+  meaning, or an effect its name and type leave open. Once one parameter of a function is
+  documented, every parameter is: `WARN_IF_INCOMPLETE_DOC = YES` enforces all-or-nothing. A field
+  that restates the signature (`\param lhs Left-hand stretch.`) is removed, not kept for symmetry.
+- `\return` when the value carries more than its type and the brief say: units, a sentinel, the
+  empty case, ownership.
+- `\throws` when exceptions are part of the contract.
+- `\note` for usage constraints, thread-safety rules, lifetime caveats, or implementation shims.
 
-If a field does not apply, omit it.
+`WARN_NO_PARAMDOC = NO`, so a function documented by its brief alone raises no warning.
 
 # Blank-Line Rules
 
@@ -235,8 +271,7 @@ If a field does not apply, omit it.
 - If a Doxygen block has no verbose description, do not insert a blank line between `\brief` and
   the next Doxygen command.
 - If a Doxygen comment has only a `\brief`, use the single-line form unless the line would exceed
-  100 characters. Only a construct with nothing else required can have only a `\brief` — a
-  value-returning function always carries `\return` (see Required Fields), so it never qualifies.
+  100 characters.
 - Keep blank lines between logically separate paragraphs when a description spans multiple sections.
 
 # File Headers
