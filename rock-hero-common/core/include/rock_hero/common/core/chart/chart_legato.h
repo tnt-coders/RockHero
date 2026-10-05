@@ -421,6 +421,12 @@ struct ChartResolutions
     std::vector<FretHandEvent> hand_events;
 
     /*!
+    \brief How the window rides the unpitched slide-outs (\ref deriveFretHandRides): motion beside
+    \ref hand_events, read by the board's hand track alone, so it is no chip and no position.
+    */
+    std::vector<FretHandEvent> hand_rides;
+
+    /*!
     \brief Where each note's ink stops, as a note-relative offset: \ref ChartPresentation::ink_end,
     carried here. Same order and size as \ref ChartConnections::saved_notes.
     */

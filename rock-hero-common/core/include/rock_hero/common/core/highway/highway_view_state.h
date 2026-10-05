@@ -162,7 +162,8 @@ rounding of any kind here.
 approach ending there.
 
 THE ONE MOTION ELEMENT BOTH HANDS SHARE, resolved by one rule (\ref highwayHandWindowAt): the
-fretting hand's track (\ref HighwayViewState::fret_hand) is an arrival per placement, and the
+fretting hand's track (\ref HighwayViewState::fret_hand) is an arrival per placement and per
+slide-out ride, and the
 picking hand's (\ref HighwayViewState::pick_hand) is an arrival per stop of the taps' travel.
 Edges are fret-line coordinates (line 0 is the nut side of fret 1): a settled window covering
 frets [fret, fret + width - 1] has edges fret - 1 and fret + width - 1.
@@ -579,7 +580,8 @@ struct HighwayViewState
     /*!
     \brief The fretting hand's light.
 
-    Its track is an arrival per placement (\ref ChartViewState::fret_hand_positions): what the
+    Its track is an arrival per placement (\ref ChartViewState::fret_hand_positions) and per
+    slide-out ride (\ref ChartViewState::fret_hand_rides), merged in arrival order: what the
     board's window motion reads — the window edges, the morph dim, the camera's framing — through
     the one resolver both hands share (\ref highwayHandWindowAt). The chart's placements stay the
     authority for what a placement IS (the 2D lane draws them, the board labels them). It is lit

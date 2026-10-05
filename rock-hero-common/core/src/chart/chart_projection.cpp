@@ -492,11 +492,12 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // the previous arrival rather than overlapping it. The synthetic pre-first nut window
     // counts as arriving at the chart origin. One chip per hand event, derived and authored alike
     // (ChartResolutions::hand_events); a position's identity is its grid position, so the authored
-    // position standing at a chip, if any, is the one stored at the chip's own.
+    // position standing at a chip, if any, is the one stored at the chip's own. The slide-out rides
+    // (ChartResolutions::hand_rides) are arrivals like any other, so they ramp by the same rule and
+    // crowd the arrivals beside them, but they are published apart, where no chip reads them.
     const std::vector<FretHandPosition>& authored = chart.fret_hand_positions;
-    state.fret_hand_positions.reserve(resolutions.hand_events.size());
-    for (const FretHandEvent& event : resolutions.hand_events)
-    {
+    double previous_arrival_seconds = tempo_map.secondsAtBeat(1, 1);
+    const auto arrival_of = [&](const FretHandEvent& event) {
         const Fraction fhp_place = event.front;
         const GridPosition fhp_position = tempo_map.gridPositionAtWholeNote(fhp_place);
         const auto stated = std::ranges::lower_bound(
@@ -524,22 +525,35 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         }
         // A ramp never reaches back past the previous arrival: crowded transitions shorten
         // against it rather than overlapping it.
-        const double previous_arrival_seconds = state.fret_hand_positions.empty()
-                                                    ? tempo_map.secondsAtBeat(1, 1)
-                                                    : state.fret_hand_positions.back().seconds;
         ramp_start_seconds =
             std::clamp(ramp_start_seconds, previous_arrival_seconds, arrival_seconds);
-        state.fret_hand_positions.push_back(
-            FhpViewState{
-                .seconds = arrival_seconds,
-                .position = fhp_position,
-                .fret = event.window.fret,
-                .width = event.window.width,
-                .end_authored = end_authored,
-                .ramp_seconds = arrival_seconds - ramp_start_seconds,
-                .unpitched_ramp = unpitched_ramp,
-                .settle_seconds = settle_seconds,
-            });
+        previous_arrival_seconds = arrival_seconds;
+        return FhpViewState{
+            .seconds = arrival_seconds,
+            .position = fhp_position,
+            .fret = event.window.fret,
+            .width = event.window.width,
+            .end_authored = end_authored,
+            .ramp_seconds = arrival_seconds - ramp_start_seconds,
+            .unpitched_ramp = unpitched_ramp,
+            .settle_seconds = settle_seconds,
+        };
+    };
+    // Walked in one ascending order: no ride fronts where a hand event does.
+    state.fret_hand_positions.reserve(resolutions.hand_events.size());
+    state.fret_hand_rides.reserve(resolutions.hand_rides.size());
+    auto ride = resolutions.hand_rides.begin();
+    for (const FretHandEvent& event : resolutions.hand_events)
+    {
+        for (; ride != resolutions.hand_rides.end() && ride->front < event.front; ++ride)
+        {
+            state.fret_hand_rides.push_back(arrival_of(*ride));
+        }
+        state.fret_hand_positions.push_back(arrival_of(event));
+    }
+    for (; ride != resolutions.hand_rides.end(); ++ride)
+    {
+        state.fret_hand_rides.push_back(arrival_of(*ride));
     }
 
     // The 2D lane's visible-range indexes, over the further of each event's two ends

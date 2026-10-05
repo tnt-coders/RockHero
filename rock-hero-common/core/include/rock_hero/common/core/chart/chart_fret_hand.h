@@ -1,7 +1,7 @@
 /*!
 \file chart_fret_hand.h
 \brief The fret hand derived from the notes and the authored positions: where the hand sits
-(\ref deriveFretHandEvents).
+(\ref deriveFretHandEvents), and how its window rides a slide-out (\ref deriveFretHandRides).
 */
 
 #pragma once
@@ -121,5 +121,44 @@ consecutive instants.
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandEvents(
     const ChartConnections& connections, const TempoMap& tempo_map, int capo,
     const std::vector<FretHandPosition>& authored, FretHandDerivationTally* tally = nullptr);
+
+/*!
+\brief The first event fronting strictly AFTER a place: the event before it is the window standing
+there, since an event fronting at the place has already arrived.
+
+\param events Events strictly ascending by front.
+\param place Place on the whole-note axis.
+
+\return The first event fronting after `place`; `events.begin()` where no window stands there yet.
+*/
+[[nodiscard]] std::vector<FretHandEvent>::const_iterator firstFretHandEventAfter(
+    const std::vector<FretHandEvent>& events, Fraction place);
+
+/*!
+\brief The window's ride with every unpitched slide-out: MOTION derived from the slide, never a
+position, so it is no hand event and changes none.
+
+The hand travels with a slide-out of a stop it holds (\ref fretHandDemandAt), so the window does: it
+arrives at the slide-out's end covering the exit fret, and at the next instant the hand derivation
+covers it is back at the window the hand events state there. The ride shifts the standing window the
+least distance that covers the exit frets of every slide-out ending at that instant, keeping its
+width; a window already covering them does not move. A slide-out stays planted where it has no
+room: where the next demand comes before its end or exactly at it, or where a hand event fronts
+between its start and its end — that event is the hand moving on, so the drawing has no departure
+case. The way back is a ride arrival only where no hand event fronts first; otherwise that event is
+the way back.
+
+The board's hand track merges these arrivals with the hand events and eases each as it eases any
+arrival, so the ride takes the slide's own segment and unpitched ease. Nothing else reads them.
+
+\param connections The resolved connections the events were derived from.
+\param tempo_map Tempo map the connections were resolved against.
+\param events The hand events (\ref deriveFretHandEvents).
+
+\return The ride arrivals, strictly ascending by front, none fronting where a hand event does.
+*/
+[[nodiscard]] std::vector<FretHandEvent> deriveFretHandRides(
+    const ChartConnections& connections, const TempoMap& tempo_map,
+    const std::vector<FretHandEvent>& events);
 
 } // namespace rock_hero::common::core

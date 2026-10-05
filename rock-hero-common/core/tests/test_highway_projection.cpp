@@ -1924,6 +1924,58 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     CHECK(std::is_eq(state.fret_hand.track[2].settle_seconds <=> 0.0));
 }
 
+// A slide-out ride is motion and nothing else: the track merges its two arrivals between the
+// placements, the first riding the slide's own segment with the unpitched ease and the second
+// morphing back over the margin, while the scene publishes no chip for either.
+TEST_CASE("Highway fret hand rides a slide-out without a placement", "[core][highway]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // An eighth from fret 5 sliding out to fret 1, a quarter before the next fret-5 strike.
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 1}},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 3},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{1, 32},
+            .bend = {},
+            .keyframes = {},
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const HighwayViewState state = boardOf(arrangement, tempo_map);
+    CHECK(state.chart.fret_hand_positions.size() == 1);
+    REQUIRE(state.chart.fret_hand_rides.size() == 2);
+    REQUIRE(state.fret_hand.track.size() == 3);
+
+    // The slide's segment runs from the onset, so the ride's ramp is the whole of it.
+    const HighwayHandArrival& ridden = state.fret_hand.track[1];
+    CHECK(ridden.seconds == Catch::Approx(tempo_map.secondsAtWholeNote(Fraction{1, 8})));
+    CHECK(ridden.ramp_seconds == Catch::Approx(ridden.seconds));
+    CHECK(ridden.unpitched_ramp);
+    CHECK(ridden.low_line == Catch::Approx(0.0));
+    CHECK(ridden.high_line == Catch::Approx(4.0));
+
+    const HighwayHandArrival& back = state.fret_hand.track[2];
+    CHECK(back.seconds == Catch::Approx(tempo_map.secondsAtWholeNote(Fraction{1, 2})));
+    CHECK_FALSE(back.unpitched_ramp);
+    CHECK(back.ramp_seconds > 0.0);
+    CHECK(back.ramp_seconds <= back.seconds - ridden.seconds);
+    CHECK(back.low_line == Catch::Approx(4.0));
+    CHECK(back.high_line == Catch::Approx(8.0));
+}
+
 namespace
 {
 

@@ -354,6 +354,20 @@ spec:
    the next strike's — rides the slide-out's OWN segment and eases with the unpitched curve, so it
    follows the drawn rail instead of sprinting to catch up after a margin morph.
 
+   The hand still TRAVELS with a slide-out, so the window does — as derived MOTION, never a
+   position (`deriveFretHandRides`, `ChartResolutions::hand_rides`). Where the fretting hand holds
+   the stop the slide leaves, the window arrives at the slide-out's end covering the exit fret,
+   shifted the least distance that does so with its width kept (one window for strings sliding out
+   together; a window already covering the exit does not move), riding the slide's own segment with
+   the unpitched ease. At the next instant the hand covers it is back at whatever the positions
+   state there; where a position fronts first, that position is the way back. A slide-out stays
+   planted where the next demand comes before its end or exactly at it (a ring is half-open), and
+   where a position fronts while it travels — that position is the hand moving on, so nothing draws
+   a departure. A tap's slide-out is the picking hand's and never moves the fretting hand. The rides
+   are published beside the positions (`ChartViewState::fret_hand_rides`) and read by the board's
+   hand track alone: no chip, no click, no floor number, and the positions the scorer and the census
+   read are untouched.
+
    The import reads the positions derived before the rings settle for a bare slide-out's EXIT FRET
    (`resolveSlideOutExits`), as it does for a scoop's start fret (rule 16). When the next
    window departs in the slide-out's direction AND arrives by the very next onset, the gesture IS

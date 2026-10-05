@@ -2086,17 +2086,6 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     return ends;
 }
 
-// The hand window standing at a place: the iterator PAST the last event fronting at or before it.
-// Callers read `after - 1` as the standing window and handle begin() ("no window yet") themselves
-// — the two slide resolvers deliberately differ there (a scoop still applies with its default
-// start; a slide-out gesture is skipped entirely).
-[[nodiscard]] std::vector<common::core::FretHandEvent>::const_iterator firstEventAfter(
-    const std::vector<common::core::FretHandEvent>& hand, const Fraction place)
-{
-    return std::ranges::upper_bound(
-        hand, place, std::ranges::less{}, &common::core::FretHandEvent::front);
-}
-
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
 // notation. The gesture is an ON-BEAT scoop: the ornament is the manner of the note's ATTACK and
 // occupies the note's own time slot — notation practice and faithful score players pluck on the
@@ -2139,7 +2128,7 @@ void resolveSlideIns(
 
         int start = from_below ? note.fret - g_minimum_slide_travel_frets
                                : note.fret + g_minimum_slide_travel_frets;
-        const auto after = firstEventAfter(hand, entry.place);
+        const auto after = common::core::firstFretHandEventAfter(hand, entry.place);
         if (after != hand.begin())
         {
             const auto landing = after - 1;
@@ -2232,7 +2221,7 @@ void resolveSlideOutExits(
         // the fret the gesture leaves.
         const int departing = common::core::fretBeforeEnd(note);
         const bool downward = *slide_out < departing;
-        const auto after = firstEventAfter(hand, entry.place);
+        const auto after = common::core::firstFretHandEventAfter(hand, entry.place);
         if (after == hand.begin())
         {
             continue;

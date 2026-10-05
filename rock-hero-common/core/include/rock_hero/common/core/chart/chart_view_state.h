@@ -956,7 +956,8 @@ struct ShapeViewState
 
 /*!
 \brief One fret-hand position — a hand event (\ref ChartResolutions::hand_events), derived or
-authored — resolved to a timeline second, with its eased approach.
+authored — or one slide-out ride (\ref ChartResolutions::hand_rides), resolved to a timeline second,
+with its eased approach.
 */
 struct FhpViewState
 {
@@ -1140,6 +1141,13 @@ struct ChartViewState
     alike (\ref ChartResolutions::hand_events).
     */
     std::vector<FhpViewState> fret_hand_positions;
+
+    /*!
+    \brief The window's slide-out rides in ascending arrival order
+    (\ref ChartResolutions::hand_rides), resolved as \ref fret_hand_positions are and read by the
+    board's hand track alone: motion, so no surface draws a chip or a number for one.
+    */
+    std::vector<FhpViewState> fret_hand_rides;
 
     /*!
     \brief Number of strings the chart's tuning declares; zero means no chart is loaded.

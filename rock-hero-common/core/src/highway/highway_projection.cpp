@@ -27,25 +27,33 @@ namespace
 // target at rest the longest but reads too static, so 2 gives the tighter, livelier frame.
 constexpr int g_camera_zone_measures = 2;
 
-// THE FRETTING HAND'S TRACK (HighwayViewState::fret_hand's track): each placement's approach, in
-// the board's one motion element.
+// THE FRETTING HAND'S TRACK (HighwayViewState::fret_hand's track): each placement's approach and
+// each slide-out ride's, merged into one ascending sequence in the board's one motion element.
 [[nodiscard]] std::vector<HighwayHandArrival> makeHighwayFretHand(const ChartViewState& scene)
 {
     std::vector<HighwayHandArrival> track;
-    track.reserve(scene.fret_hand_positions.size());
-    for (const FhpViewState& fhp : scene.fret_hand_positions)
+    track.reserve(scene.fret_hand_positions.size() + scene.fret_hand_rides.size());
+    for (const auto* const arrivals : {&scene.fret_hand_positions, &scene.fret_hand_rides})
     {
-        track.push_back(
-            HighwayHandArrival{
-                .seconds = fhp.seconds,
-                .low_line = static_cast<double>(fhp.fret - 1),
-                .high_line =
-                    static_cast<double>(FretWindow{.fret = fhp.fret, .width = fhp.width}.top()),
-                .ramp_seconds = fhp.ramp_seconds,
-                .unpitched_ramp = fhp.unpitched_ramp,
-                .settle_seconds = fhp.settle_seconds,
-            });
+        for (const FhpViewState& fhp : *arrivals)
+        {
+            track.push_back(
+                HighwayHandArrival{
+                    .seconds = fhp.seconds,
+                    .low_line = static_cast<double>(fhp.fret - 1),
+                    .high_line =
+                        static_cast<double>(FretWindow{.fret = fhp.fret, .width = fhp.width}.top()),
+                    .ramp_seconds = fhp.ramp_seconds,
+                    .unpitched_ramp = fhp.unpitched_ramp,
+                    .settle_seconds = fhp.settle_seconds,
+                });
+        }
     }
+    std::ranges::inplace_merge(
+        track,
+        track.begin() + static_cast<std::ptrdiff_t>(scene.fret_hand_positions.size()),
+        std::ranges::less{},
+        &HighwayHandArrival::seconds);
     return track;
 }
 

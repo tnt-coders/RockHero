@@ -331,6 +331,8 @@ ChartResolutions chartResolutions(const Chart& chart, const TempoMap& tempo_map)
     // state, and never the held table below, which is read out of the spans.
     resolutions.hand_events = deriveFretHandEvents(
         resolutions.connections, tempo_map, chart.tuning.capo, chart.fret_hand_positions);
+    resolutions.hand_rides =
+        deriveFretHandRides(resolutions.connections, tempo_map, resolutions.hand_events);
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
     resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};

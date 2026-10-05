@@ -8,6 +8,7 @@
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -63,11 +64,8 @@ namespace
 {
     const std::vector<common::core::FretHandEvent> events =
         common::core::chartResolutions(chart, tempo_map).hand_events;
-    const auto past = std::ranges::upper_bound(
-        events,
-        tempo_map.wholeNotePositionAt(position),
-        std::ranges::less{},
-        &common::core::FretHandEvent::front);
+    const auto past =
+        common::core::firstFretHandEventAfter(events, tempo_map.wholeNotePositionAt(position));
     return common::core::FretHandPosition{
         .position = position,
         .fret = past == events.begin() ? common::core::firstPlayableFret(chart.tuning.capo)

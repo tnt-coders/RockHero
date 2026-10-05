@@ -201,8 +201,9 @@ more than one of them: the onset from the note's own fret, a slide from each fre
 
 **BOTH HANDS MOVE BY ONE MORPH.** The fretting hand's window and the picking hand's light are two
 tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand.track`, an
-arrival per placement; `HighwayViewState::pick_hand.track`, an arrival per stop of the taps'
-travel), resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's
+arrival per placement and per slide-out ride merged in arrival order — the rides are derived
+motion, `ChartViewState::fret_hand_rides`, which only this track reads;
+`HighwayViewState::pick_hand.track`, an arrival per stop of the taps' travel), resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's
 passes only decide where to sample it. Each arrival carries its ramp, the ease family the rail
 draws with, and its SETTLE: the crop zone, from the rail's ink end to the arrival, over which the
 approach leaves the leg's curve where the rail is cut and comes to rest at the arrival with a
