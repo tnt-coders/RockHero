@@ -248,6 +248,11 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
 `span-derivation-ground-up.md`, `docs/plans/todo/span-marker-redesign.md`,
 `docs/plans/todo/chord-dictionary.md`.
 
+**REDESIGNED 2026-10-04 (plan 60 §1a):** positions and holds are two authored kinds again
+(`positions` on `Ctrl+P`, `holds` on `Ctrl+H`); the zone, the bare marker and the span-end gesture
+are gone, a span's edges move and author a hold, and the timeline key becomes `at`. The phase
+bullets below predate that and read through plan 60's REVISED notes.
+
 - ~~Run the G60 law-by-law ruling session.~~ DONE 2026-10-02 (plan 60 §9).
 - ~~Phase 0 — strict uniqueness for stored `fhps`.~~ DONE.
 - ~~Phase 1 — the derived 13-rule tracker.~~ CLOSED 2026-10-04: built, and scored at 88.213%

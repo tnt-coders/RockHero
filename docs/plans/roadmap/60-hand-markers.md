@@ -17,6 +17,10 @@ user, who ruled all twelve the same day (§9, "Phase 1 build rulings — RULED 2
 the phase scopes carry the corrections; the gates still open for later phases are listed at the
 end of §9.
 
+**REDESIGNED 2026-10-04 (§1a), after Phase 1 closed:** the position marker and the span marker are
+TWO authored kinds again — `positions` and `holds` — and the zone, the bare marker and the optional
+fret are gone. §1a supersedes §2 and revises Phases 2 to 5; read it before anything below it.
+
 **PHASE 1 CLOSED 2026-10-04; PHASE 2 IS NEXT.** The derivation is built and scores 88.213% exact
 on the rebuilt corpus, identical to its reference (§7, Phase 1, Acceptance). Two acceptance items
 were deferred at the close to Phase 6's entry, where the stream they measure is the final one: the
@@ -59,7 +63,126 @@ The design records this plan executes, in the order a new reader should take the
 - `docs/plans/completed/keyboard-focus-rows.md` — the marker-row keyboard model the hand row
   reuses (built through 4d; its 4b/4c bodies moved here as §8).
 
-## 2. The one object — RULED 2026-09-15
+## 1a. The 2026-10-04 redesign — positions and holds (SUPERSEDES §2 for authored records)
+
+Ruled by the user in the design conversation that followed Phase 1's close. Where this section
+and anything below it disagree, this section wins; the phases carry a REVISED note each, and the
+text they supersede stays as the record of what was decided before.
+
+**The reversal, and its reason.** 60-H1 (§2) made the position marker and the span marker one
+object. For AUTHORED records that is reversed: a span is what states a grip, and a position does
+not. The physical law §2 rested on — a position cannot change inside a span — never needed a
+shared record: the derivation order states it once (positions feed spans, and Phase 6 clips a span
+at every shift). Stated on one record, the two halves have different lifetimes, never constrain
+each other, and force a bare "states nothing" marker into existence. The DERIVED hand events stay
+one stream.
+
+**The principle for both kinds.** A derived statement is never deleted, because nothing of it is
+stored; it is SUPERSEDED by an authored one. The derivation asserts only what the chart proves, and
+the charter states the rest.
+
+### The position (`positions[]`, today `fhps`)
+
+- **The record is today's, unchanged:** `{at, fret, endFret?}`. `fret` stays REQUIRED, so the bare
+  marker, the optional fret and "an end fret without a fret" do not exist.
+- **Positions derive at read** (60-Q4 stands); the list stores only what the charter authored, and
+  a fresh import stores none.
+- **An authored position stands until the chart contradicts it.** Its window is `[fret, endFret]`
+  where the end is stated, else the stated fret with the width of the run it heads, never under
+  four frets. It holds through every later run that fits inside that window and emits nothing; the
+  derivation resumes at the first demand outside it. This answers the "scope of a stated fret"
+  question Phase 2 carried: neither "the run it heads" nor "until the next marker".
+- **A note entered at an authored position's own instant, outside its window, is REFUSED.** This
+  reverses the 2026-09-25 stopgap ruling (law 4's last sentence) that such a stop "stays outside".
+  A note later on is not refused; it ends the hold.
+- **Chords:** `Ctrl+P` inserts or restates, `Ctrl+Shift+P` jumps to the row. The built `Ctrl+H`
+  pair moves there.
+
+### The hold (`holds[]`, new)
+
+A stretch of the song with a start and an end, in one of two polarities. It replaces three things
+this plan carried: the authored span marker, the span-free zone, and the bare boundary marker.
+
+- **The record:** `{at, until, grip?}`, ascending and non-overlapping (`until` is PROPOSED as the
+  end's word, pairing with `at`; the user asked for one in place of `start` / `end`). `grip`
+  absent means ONE GRIP IS HELD, its content whatever the notes inside sound; `"none"` means
+  NOTHING IS HELD; from Phase 5 it may instead be the id of a `grips` entry, which then states the
+  content. One field, so "none
+  plus a template" cannot be written. No fret is ever stored on a hold (the 2026-09-29 ruling
+  stands: a held stop is never typed).
+- **A held stretch takes every note inside it that fits, ringing or not.** That is how a muted or
+  staccato arpeggio out of one shape is charted: the sound never proves that hold, so the
+  derivation never asserts it, and the charter states it with its extent.
+- **A conflicting note inside a held stretch is REFUSED,** by chart validation, with ONE fit test —
+  the test that walls an edge (§9 item 9's, rewritten without `held`). Entering, re-fretting,
+  moving and pasting are refused alike, and a file holding the state does not read.
+- **A not-held stretch blocks arpeggio founding only.** Struck chords inside it stand as chord
+  spans: a chord span is the minimum proven truth of a grip and can be neither shrunk nor deleted.
+- **Derived yields, authored blocks.** No derived span overlaps a hold; a hold's edge takes notes
+  from a derived neighbour and is refused at another hold.
+- **Derived spans are unchanged:** they never bridge a gap, and their ends follow the note tails.
+
+The verbs, and what each saves:
+
+| Verb | Saved |
+|---|---|
+| `Ctrl+H` over selected notes | A held stretch, first onset to the last ring's end |
+| Move either edge of a derived span | A held stretch at the new extent — the span is now authored |
+| Delete a derived arpeggio span | A not-held stretch over it |
+| Move an edge of a hold | That edge |
+| Delete a hold | Nothing: the derivation takes the stretch back |
+
+- **Edges move outward** to a conflicting note or another hold, and **inward** to a struck chord
+  or the founding minimum, a HARD STOP (the 2026-09-05 dissolve ruling, for its own reason: removal
+  is Delete, and two verbs do not produce one outcome).
+- **Resizing never changes a tail.** A fretted note may therefore ring past its bracket's end, the
+  picture the zone design already accepted.
+- **The cost accepted:** once a span is authored, NEITHER edge follows later note edits.
+- **A held stretch emptied of its notes stays,** drawn empty; only Delete removes a statement.
+- **`Ctrl+Shift+H`** jumps to the hold under the caret; a hold is also selected by its brackets.
+
+### The grip dictionary (`grips`, Phase 5)
+
+Song-scoped; a hold's `grip` points into it. An entry states the stops, with optional fingers, and
+an optional `chord` name. PROPOSED, not yet ruled: export requires `chord` on an entry of three or
+more strings, while the file accepts its absence, on the plan's own save-warns / export-blocks
+tiers. The entry's fields are Phase 5's design.
+
+### Names and the format
+
+- **Save-file keys:** `positions`, `holds`, `grips`. 60-H2's `hand` (§9 item 6) is dropped.
+- **The timeline key `position` becomes `at`** on notes, positions, tempo anchors, sections and
+  automation points, so that `positions` can mean the hand's. PROPOSED with the hold's `until`:
+  `toneChanges[].start` becomes `at` as well, so every record says where it sits with one word and
+  no `start` remains (the user first kept `start`, then asked to replace it given another end word).
+  The code keeps `position` (`GridPosition`, `note.position`): `at` is a label, not a second noun.
+  It lands as its own commit AHEAD of Phase 2, with the converter and the scoring harness in the
+  importer repo and a rebuild of the scored corpus. OPEN: whether any project on disk must survive
+  it (a throwaway key-rename script, else re-import).
+- **Code names** (naming review, 2026-10-04): `FretHandPosition` and `FretHandPositionSelection`
+  stay; `MarkerRow::Hand` becomes `MarkerRow::FretHandPosition`; the hold's record is `HandHold`,
+  never a bare `Hold`, which the display's hold channel (`chartHolds`) and the game's sustain
+  scoring already mean.
+
+### What this reverses
+
+60-H1 for authored records, and 60-H2's key; the extent invariant (law 6, non-goal "No direct span
+resize", user-confirmed 2026-09-01); the 2026-10-02 strike of the front-move gesture, replaced by
+edge moves that author a hold instead of rewriting tails; law 4's "the stop stays outside"; and
+law 7's "markers are deletable" as the only rule, which now reads "authored statements are
+deletable, derived ones are superseded".
+
+### Still OPEN
+
+- **How a not-held stretch draws.** The 2026-09-01 zone rulings carry (editor-only, its own span
+  style, red-leaning, the authored start line). PROPOSED: its bracket breaks around each chord
+  span inside it and is still one object. A sighting, with the UI design review.
+- **A held stretch across a position shift.** Phase 6 clips a derived span at a shift; whether an
+  authored hold is refused across one, or pins the position the way a fingering will, is ruled
+  with Phase 6.
+- **The fit test's exact clauses**, re-read against the span derivation before the hold is built.
+
+## 2. The one object — RULED 2026-09-15; REVERSED 2026-10-04 for authored records (§1a)
 
 **A fret-hand position marker and a span marker are one object: the hand marker.** This confirms
 the 2026-09-05 shared-object ruling and closes the "one marker kind or two" question the 2026-09-12
@@ -125,8 +248,10 @@ position shifts.
   say otherwise is the marker's authored end fret (RULED 2026-09-29, built), which is a statement
   the derivation consumes, not a patch on its output. The former "no width overrides" non-goal is
   superseded by that ruling (§9 item 4); the stored-width field it refused stays gone.
-- **No direct span resize** — the extent invariant (user-confirmed 2026-09-01): a span's extent is
-  strictly derived from its content; every want routes through tails, markers, zones or Delete.
+- ~~**No direct span resize**~~ REVERSED 2026-10-04 (§1a): a span's edge moves, and the move
+  authors a hold. The struck text: the extent invariant (user-confirmed 2026-09-01): a span's
+  extent is strictly derived from its content; every want routes through tails, markers, zones or
+  Delete.
 - **No pointer AUTHORING gesture** for markers — chords only (the 2026-09-12/14 reservation);
   pointer SELECTION is in and built (60-D11).
 - **Not W10's split-tail verb** — its kinship with the split marker is noted for W10's build.
@@ -169,9 +294,12 @@ without them in view.
 5. **Invalidity is unrepresentable by the derivation being total.** Every verb edits inputs
    (tails, markers, zones), and the derivation derives something legal from every input state.
    Fronts are unique and strictly ascending — enforced as 60-D6 states (built).
-6. **The extent invariant.** Spans are never resizable; the zone is the one resizable record
-   because it has no content to derive from.
-7. **Markers are visible and deletable; derived boundaries draw nothing extra.** Every authored
+6. ~~**The extent invariant.** Spans are never resizable; the zone is the one resizable record
+   because it has no content to derive from.~~ REVERSED 2026-10-04 (§1a): a DERIVED span's extent
+   is still strictly its content's, and an edge move authors a hold, whose two ends are the
+   charter's statement.
+7. **Authored statements are visible and deletable; derived ones are superseded, never deleted**
+   (reworded 2026-10-04, §1a); derived boundaries draw nothing extra. Every authored
    marker draws a tell in the editor 2D lane; absence of the tell IS the derived tell. The highway
    draws derived results only.
 8. **Format minimalism.** A marker stores its location and its direct statement, and nothing else
@@ -433,6 +561,26 @@ everywhere.
 
 ### Phase 2 — the derived stream (gated on 60-Q4 and §9 item 4; needs Phase 1)
 
+**REVISED 2026-10-04 (§1a) — this phase is POSITIONS ONLY, and smaller.** Read the text below
+through these changes:
+
+- **Ahead of the phase, its own commit:** the timeline key `position` becomes `at` (§1a, "Names and
+  the format").
+- **The record does not change shape.** `fret` stays required: strike "The marker's `fret` becomes
+  OPTIONAL" and every consequence of it — the bare `Ctrl+H` marker, `{position, fret?, endFret?}`,
+  and three of the four marker-semantics questions (where a bare marker over silence fronts,
+  whether `endFret` without `fret` is legal, whether a marker that changes nothing is a row event:
+  an authored position is always a row object). The fourth, the scope of a stated fret, is RULED:
+  it stands until the chart contradicts it.
+- **The key is `positions`,** not `hand`; the chords are `Ctrl+P` / `Ctrl+Shift+P`; the
+  `MarkerRow::Hand` rename's touch list below is the `positions` rename's.
+- **The resolutions pass takes the authored positions** as its input beside the notes; no hold
+  reaches it in this phase, and nothing about holds is built here.
+- **Validation gains one rule:** a note at an authored position's own instant, outside its
+  window, is refused.
+- Unchanged: the events inside `ChartResolutions`, the pass order, the importer storing nothing,
+  everything this phase deletes, the exit-ride and dip ruling, the converter note, the sighting.
+
 The marker's `fret` becomes OPTIONAL; the record is then `{position, fret?, endFret?}` — a forced
 statement boundary carrying an optional direct window statement — under the key 60-H2 settles
 (§9 item 6; one format change, not two). The derived events live INSIDE `ChartResolutions`
@@ -504,6 +652,14 @@ record (subsumed: a marker with a stated fret over silence IS that statement, §
 
 ### Phase 3 — the hand marker and the hand row — REMAINDER (needs Phase 2)
 
+**REVISED 2026-10-04 (§1a).** The row is the POSITION row, and its items read so: item 1 (the
+derived events as the row's objects) and item 2 (the authored tell) stand, for positions; item 3
+(rail selection) stands and becomes how a span or a hold is selected; item 4's END-gesture
+question is CLOSED — edges move, and the move authors a hold (§1a), so neither the struck
+content-editing front move nor the tail-rewriting end gesture is built; item 6 ("drop markers that
+state nothing") stands for positions. The hold — its record, validation rule, `Ctrl+H` pair, edge
+verbs and Delete — is built in what was Phase 4.
+
 Built by the stopgap: the record, the chords, the funnel, the row, the selection kind, the focus
 column, walk / reach / Tab / jump, chip and pinned-chip selection, the outline, Delete, the
 grid-quantum move, fret entry, the end fret, the reveal of an acted-on selection. What remains:
@@ -553,6 +709,15 @@ grid-quantum move, fret entry, the end fret, the reveal of an acted-on selection
 
 ### Phase 4 — span-free zones and the settlement census (needs Phase 3)
 
+**REVISED 2026-10-04 (§1a) — this phase builds THE HOLD.** The zone is the hold's not-held
+polarity and is no longer a record of its own: one kind, `holds[] {at, until, grip?}`, answers the
+"one kind with polarity vs two kinds" question below. What carries from the zone text: it blocks
+accumulation-founded openings only, statement openings are immune, a derived span closes at its
+edge, `Delete` on a derived span authors it, and its ink is editor-only. What changes: BOTH
+polarities are resizable from either edge, "a marker inside a zone is refused" becomes "holds do
+not overlap", and the held polarity (the charter's own span, with its refusal of a conflicting
+note) is built here beside it. The census re-sign stands.
+
 Plan 61's Phase 2, unchanged in substance: the zone record (location-anchored range; one kind
 with polarity vs two kinds is the naming question — nothing is built, and the record's
 `SpanFounding` discriminator is a planned name, not a symbol) and its derivation wall (no
@@ -570,6 +735,12 @@ the FHP counter rows left unsigned for this bundle. (Verified 2026-10-04: nothin
 renamed, and the span record's "sweep STILL OPEN" is moot — the sweep is deleted.)
 
 ### Phase 5 — templates, dictionary, editor and fingering coupling (gated on 60-Q3, 60-Q5)
+
+**REVISED 2026-10-04 (§1a).** The dictionary is saved as `grips`, its entries carry an optional
+`chord` name, and the reference rides the HOLD (`holds[].grip`), not a hand marker: read "markers
+reference entries" and "authors the reference on the marker at the span's front" below as the
+hold's `grip`. A grip's stops are stated ONLY here, never on a hold. Everything else in this phase
+stands, re-verified at its own session.
 
 **Prerequisite, unlisted until now:** the GP parser carries no fingering and no chord diagrams
 (`gp_score.h`), so the import wiring this phase assumes ("GP chord-diagram fingering assembles
@@ -903,6 +1074,11 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
 
 ### Gates still OPEN, per phase (as of 2026-10-04)
 
+REVISED the same day by §1a, which closes several entries of this table: Phase 2's
+marker-semantics list and its selection-kind spelling (the names are ruled), Phase 3's END gesture,
+and Phase 4's zone-kind question. §1a's own "Still OPEN" list adds the not-held bracket's drawing,
+a hold across a position shift, and the fit test's clauses.
+
 | Phase | Ruled | Still OPEN |
 |---|---|---|
 | 1 | 60-Q1 (item 1, condition discharged 2026-10-03), items 2 and 3, Q1–Q12 above | Nothing. CLOSED 2026-10-04 |
@@ -914,7 +1090,7 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
 
 ### The hand rulings (RULED 2026-09-15; kept as the record of what was decided)
 
-- **60-H1 — one object.** §2.
+- **60-H1 — one object.** §2. REVERSED 2026-10-04 for authored records (§1a).
 - **60-H2 — `Ctrl+H` / `Ctrl+Shift+H`, id `0x1516`.** Built. H reads as "what the hand holds";
   `Cmd+H` is Hide on macOS (60-D10), a cost accepted, with the macOS default decided when the
   chord ships there. The record key and the selection kind's name are item 6 above.
