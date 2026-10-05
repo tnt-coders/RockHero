@@ -3,8 +3,8 @@
 **Status: SIGNED 2026-10-02 (plan 60 gate G60-RULINGS, item 1); the sign's condition — rules 12
 and 13 re-measured with the headline holding — was discharged 2026-10-03 (88.09% exact with
 rule 12; rule 13 has no corpus population). Implemented 2026-10-04 as `deriveFretHandEvents`
-(`chart_fret_hand.h`, plan 60 Phase 1); not yet scored against the dataset (Phase 1 acceptance
-(b)).**
+(`chart_fret_hand.h`, plan 60 Phase 1) and scored the same day: 88.213% exact over the 4,100
+converted arrangements, identical to its Python reference (plan 60, Phase 1 acceptance (b)).**
 
 This is the outcome of the FHP accuracy push: a ground-truth dataset of 4,555 professionally
 reviewed arrangements (442,323 authored hand-position anchors; the dataset lives in local
@@ -12,9 +12,9 @@ scratch, outside the repo, per the corpus firewall), two independent statistical
 against it, a ten-facet research pass over position pedagogy / biomechanics / the
 automatic-fingering literature / charting practice, and a final expert synthesis in which every
 rule below was measured, not argued. It supersedes the study in
-`docs/plans/todo/fhp-corpus-derived-generation.md` (whose "~35% of moves are forced" and 0.8 s
-phrase-rest rule are both now refuted) and, once implemented, replaces the body of
-`generateFretHandPositions` in `rock-hero-editor/core/src/project/gp_chart_builder.cpp`.
+`docs/plans/completed/fhp-corpus-derived-generation.md` (whose "~35% of moves are forced" and 0.8 s
+phrase-rest rule are both now refuted) and replaced `generateFretHandPositions` in
+`rock-hero-editor/core/src/project/gp_chart_builder.cpp`, which is deleted.
 
 The headline model shift: the authored anchor stream is not a coverage-satisfier with a shift
 heuristic. It is a **figure-segmented floor tracker** — partition the fretted onset stream into

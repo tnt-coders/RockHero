@@ -149,7 +149,7 @@ the brightness crossfade so everything at the hit line moves as a single gesture
   plan is the 3D highway only.
 - The FHP *generation* algorithm is untouched (its slide rule shipped separately in
   `a51fb314`; the corpus-derived generator remains
-  `docs/plans/todo/fhp-corpus-derived-generation.md`).
+  `docs/plans/completed/fhp-corpus-derived-generation.md`).
 
 ## Behavior notes
 

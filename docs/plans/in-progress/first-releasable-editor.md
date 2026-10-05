@@ -250,9 +250,10 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
 
 - ~~Run the G60 law-by-law ruling session.~~ DONE 2026-10-02 (plan 60 §9).
 - ~~Phase 0 — strict uniqueness for stored `fhps`.~~ DONE.
-- Phases 1–2 — the derived 13-rule tracker and stream; rules 12 and 13 were re-measured
-  2026-10-03 (88.09% exact with rule 12), so Phase 1 has nothing in front of it. Rule 12 is not
-  satisfied by today's generator.
+- ~~Phase 1 — the derived 13-rule tracker.~~ CLOSED 2026-10-04: built, and scored at 88.213%
+  exact, identical to its reference. The offender worklist's walk and the seam-vs-shift measure's
+  slide split moved to Phase 6's entry.
+- Phase 2 — the derived stream: stored `fhps` deleted, positions derived at read.
 - Phase 3 — the hand row's remainder: the derived events as its objects, the authored tell, rail
   selection, the marker-only `Alt+←/→` (the content-editing front gesture is struck; the END
   gesture is that phase's open question), "drop markers that state nothing".

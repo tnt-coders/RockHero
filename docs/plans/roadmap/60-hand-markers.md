@@ -17,6 +17,12 @@ user, who ruled all twelve the same day (§9, "Phase 1 build rulings — RULED 2
 the phase scopes carry the corrections; the gates still open for later phases are listed at the
 end of §9.
 
+**PHASE 1 CLOSED 2026-10-04; PHASE 2 IS NEXT.** The derivation is built and scores 88.213% exact
+on the rebuilt corpus, identical to its reference (§7, Phase 1, Acceptance). Two acceptance items
+were deferred at the close to Phase 6's entry, where the stream they measure is the final one: the
+per-file offender worklist with the user's sightings, and the slide split of the seam-vs-shift
+measure.
+
 What has landed since the merge, and what this revision folds in:
 
 - **Phase 0 is DONE** and the **hand-marker stopgap is BUILT and merged** (2026-09-26, with the
@@ -283,16 +289,19 @@ built (the stopgap's Phase 0 deviation: it was the order rule stated twice). 60-
 the funnel refusing a marker at an occupied front, is built too (`handChordTarget` restates
 instead of inserting; a move onto a held start is refused at the commit).
 
-### Phase 1 — the derivation core (gated on 60-Q1; needs nothing else) — CORE BUILT 2026-10-04
+### Phase 1 — the derivation core (gated on 60-Q1; needs nothing else) — CLOSED 2026-10-04
 
-**Status (2026-10-04):** the derivation, the one clamp, the end-of-import call and the old walk's
-deletion are built, with a unit test per rule and the importer and census re-pinned (census FHP
-rows re-signed against a same-day baseline of the walk). Acceptance (b)'s scorer is built
+**Status (2026-10-04): CLOSED.** The derivation, the one clamp, the end-of-import call and the old
+walk's deletion are built, with a unit test per rule and the importer and census re-pinned (census
+FHP rows re-signed against a same-day baseline of the walk). Acceptance (b)'s scorer is built
 (`test_fret_hand_score.cpp`, `[.fhp-score]`, reading `ROCKHERO_FHP_SCORED_CORPUS_DIR`) and the
 derivation publishes a `FretHandDerivationTally`, which also feeds Q3's rule-6 census rows
-(reported, unsigned). Open: one definitional difference from the reference — the port demands a
-natural harmonic at its node's fret (`heldFretAt`), the reference demands nothing (`fret > 0`);
-the sign-off score on the rebuilt corpus; the offender worklist and the sightings of (c); and (d).
+(reported, unsigned). The port and the reference (`reference.py`, harness `e45c1b4`) agree on
+every definition: both demand a natural harmonic at its node's fret at its onset (`heldFretAt`
+and its mirror `held_fret_at`) and let its ring pin nothing, the form the user RULED 2026-10-04
+(§9 Q3). Acceptance (a) and (b) passed; (c)'s census is re-signed and (d)'s ceiling is taken, with
+the offender worklist and the slide split deferred to Phase 6's entry. The records follow the
+acceptance text below.
 
 Phase 1 is EXACTLY the measured zero-input 13-rule algorithm (§9 Q9): no marker input, no format
 change, no row change. Every rule's open point is settled by the 2026-10-04 rulings (§9, Q1–Q12);
@@ -385,6 +394,42 @@ census counters `spans_crossed_by_fhp_shift` and `fhp_shifts_inside_spans`, over
 shifts not carried by a slide. Phase 6's threshold on it stays the user's.
 **Must land before Phase 6** — building the coupling against the old walk would clip wrongly
 everywhere.
+
+**Acceptance records (2026-10-04).**
+
+- **(b) PASSED.** The reference is the harness's `reference.py` (`cd3fe0e`, amended `e45c1b4`):
+  the 13 rules on bar-line breaks only, reading the same converted packages with the port's input
+  choices. Port and reference both score **88.213% exact** (3,895,334 of 4,415,805 fretted notes;
+  within one fret 95.04%, coverage 99.929%, 320,736 emissions; Lead 89.402%, Rhythm 91.156%, Bass
+  76.983%) and agree on every intermediate count: 2,529,636 groups, 83,039 keyframe demands,
+  43,292 plants of which 31,088 on a pressed fret, 1,314,890 runs. The port was re-run on a forced
+  relink the same day. The corpus was rebuilt after the converter's pitched-slide fix (`788ebc5`,
+  refined by `323c618`). It scores 4,100 of the dataset's 4,555 arrangements, in 1,301 packages,
+  because the converter fails four dataset archives whole (455 arrangements, 448 of them in one
+  compatibility pack). The plant yardstick of 34,405 above belongs to the raw dataset and does not
+  compare; the scored corpus's figure is the 31,088 both sides print. Rule 10's cross-bar share
+  (Q6): the bar stop cuts 22,611 reach-backs, 12.39% of the 182,543 emissions after a bar line and
+  7.05% of all emissions. On the raw dataset the measured champion scores 88.06% on bars alone
+  against 88.09% with section breaks.
+- **(c) Census re-signed; the worklist DEFERRED to Phase 6's entry.** On a forced relink every
+  fret-hand row equals its pin: 16,014 windows placed, 2,224 arriving where nothing fretted sounds,
+  64 windows over 98 pinned rings, 402 spans crossed by 447 interior shifts. The pinned count did
+  not collapse toward the dataset's residue as predicted: 64 of 16,014 is 0.4%, against the walk's
+  88 that day. Rule 6's named row reports 478 figures held of 63,426 cut (0.75%, against 0.14% on
+  the dataset's sparse sustains) over 185,696 pinning rings, and stays reported until the user
+  signs a figure. The one position-level sighting on record (scratch registry #1, a window leaving
+  fret 10 mid-figure at 5:4) is fixed: the probe shows one window from 5:1 standing through the
+  figure. Deferred: the per-file offender worklist's re-measure and the user's sightings of its
+  worst entries. The list holds per-file counts of the 2026-09-05 walk and no positions, the tool
+  that produced its columns was never committed, and Phase 2's ruling on the fabricated exit
+  rides and dips changes the stored stream it would measure.
+- **(d) The ceiling is taken; the slide split DEFERRED to Phase 6's entry.** With slide carriage
+  not subtracted, 447 stored windows arrive strictly inside 402 spans: 2.8% of the 16,014 windows
+  and 1.8% of the 22,316 spans. Q12's denominator, the emitted shifts not carried by a slide, has
+  no counter, and "carried by a slide" has no authority yet. Phase 6's coupling needs that
+  predicate in the product, so the census reads it there instead of stating it first in a test;
+  and the split belongs on the derived events, which Phase 2 makes the stream, where the gate
+  reads today a stored stream that carries the importer's fabricated placements.
 
 ### Phase 2 — the derived stream (gated on 60-Q4 and §9 item 4; needs Phase 1)
 
@@ -557,9 +602,13 @@ camera framing and the census counters only.
 ### Phase 6 — the let-ring hand coupling (closes the sequence; gated on the census measure)
 
 Derived spans clip at any emitted position shift not carried by a slide. Readiness gate: the
-census seam-vs-shift agreement measure produced by Phase 1's acceptance — defined 2026-10-04
-(§9 Q12) from `spans_crossed_by_fhp_shift` and `fhp_shifts_inside_spans` over the emitted shifts
-not carried by a slide; its pass THRESHOLD is the user's, OPEN until this phase. Also OPEN and
+census seam-vs-shift agreement measure — defined 2026-10-04 (§9 Q12) from
+`spans_crossed_by_fhp_shift` and `fhp_shifts_inside_spans` over the emitted shifts not carried by
+a slide; its pass THRESHOLD is the user's, OPEN until this phase. **Owed at this phase's entry,
+deferred from Phase 1's close (2026-10-04):** the measure's slide split — the product's one
+predicate for a shift carried by a slide, read by the census over the derived events (Phase 1
+took only the unsplit ceiling, 447 windows inside 402 spans); and the per-file offender worklist
+re-measured and walked with the user (§11). Also OPEN and
 owed before this phase (§9 Q3, 2026-10-04): rule 6 pins on the STORED sustain, which includes the
 let-ring extension, while this phase clips rings — the two must be reconciled by a ruling. Rule 6
 concentrates the clips where a hand demonstrably moved, which is what makes the coupling honest.
@@ -779,6 +828,15 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
    never `ink_end` (presentation). GP durations are dense where the dataset's are sparse, so the
    re-measure the design record owes is a NAMED census row (Phase 1 acceptance (c)). (Audit form
    superseded: its "no `harmonic_node`" and "no keyframe fret statement" exclusions are gone.)
+   **A natural harmonic — RULED 2026-10-04 (user):** the window must cover its node's fret when
+   it is struck, because the fretting hand is exactly on that node (rule 1, a one-note demand at
+   the onset, through `heldFretAt`); its ring then holds the hand nowhere, because the finger
+   lifts and the string rings on until something contradicts it or the tail ends. Both halves are
+   built and pinned (`test_chart_fret_hand.cpp`: "places a natural harmonic at its node's fret",
+   "pins a pinch harmonic's ring but not a natural's"), and the reference reads the demand the
+   same way since harness `e45c1b4`. Measured both ways on the scored corpus (5,279 natural
+   harmonics): the node demand adds 998 emissions and moves exact agreement by −25 notes of
+   4,415,805 (88.213% against 88.214%), so the ruling is physics, not a score.
    **Owed before Phase 6:** the stored sustain includes the let-ring extension, which conflicts
    with Phase 6's ring clipping; that must be ruled before Phase 6 (in the open gates below).
 4. **Q4 — "unforced" (rules 5 and 6).** **FINAL:** a run is unforced exactly when its hull lies
@@ -847,12 +905,12 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
 
 | Phase | Ruled | Still OPEN |
 |---|---|---|
-| 1 | 60-Q1 (item 1, condition discharged 2026-10-03), items 2 and 3, Q1–Q12 above | Nothing. READY |
+| 1 | 60-Q1 (item 1, condition discharged 2026-10-03), items 2 and 3, Q1–Q12 above | Nothing. CLOSED 2026-10-04 |
 | 2 | 60-Q4 (item 5), items 4, 6 and 7 | The selection kind's spelling (the naming expert, item 6). The marker semantics Q9 deferred: whether a marker that changes nothing is still a row event (rule 11 against §2 and law 7); the scope of a stated fret (the run it heads, or until the next marker); where a bare marker over silence fronts; whether `endFret` without `fret` is legal. The fate of the exit ride and the scoop dips (Q11: drop, or `FhpViewState` ramps). Whether any hand-placed package exists that needs the conversion script (item 5) |
 | 3 | Items 8 and 9 | The END gesture (OPEN by design: build it, or let the members' tail keys serve). The tell and outline strength (a sighting). Q-D, which `bracket_place` probably answers. How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate |
 | 4 | none named | The zone record's kind: one kind with polarity, or two. The settlement edge (re-verify on a regenerated reel; likely moot). The background triplet (a sighting) |
 | 5 | 60-Q5 (item 11) RULED NO, reopenable there | 60-Q3, the fingering model, and the GP parser's fingering scope (item 10); purge-on-save and the invalidation rule's confirming word (item 12) — all DEFERRED to the Phase 5 session |
-| 6 | The measure's DEFINITION (Q12) | The pass threshold on seam-vs-shift agreement (the user's). The let-ring extension inside the stored sustain, which rule 6 pins on and this phase clips (§9 Q3), ruled before this phase. The drone watch item, re-read here |
+| 6 | The measure's DEFINITION (Q12) | The measure's slide split and the offender worklist's walk, both deferred from Phase 1's close. The pass threshold on seam-vs-shift agreement (the user's). The let-ring extension inside the stored sustain, which rule 6 pins on and this phase clips (§9 Q3), ruled before this phase. The drone watch item, re-read here |
 
 ### The hand rulings (RULED 2026-09-15; kept as the record of what was decided)
 
@@ -902,8 +960,8 @@ Build + tests green with the relink forced; the dataset scorer's coverage and ex
 numbers recorded beside the harness's; census re-run with the position counters re-signed (fold
 the three drifted rows and the stale-baseline re-sign into this pass); the offender worklist
 walked with the user until the pins column is explained (FIXED-CLASS / OPINION / SIGHTED per
-file); the seam-vs-shift agreement measure (defined §9 Q12) produced (Phase 1) and consumed
-(Phase 6); the
+file); the seam-vs-shift agreement measure (defined §9 Q12) produced and consumed at Phase 6
+(Phase 1 took its unsplit ceiling); the
 sighting gates of Phases 3, 4 and 5 recorded; CI blind-spot reading pass over every touched hunk
 (new variant alternatives → designated initializers, `-Wswitch-enum` on `MarkerRow`, optional
 access in tests, the `-Wmissing-designated-field-initializers` sweep when `FretHandPosition`
@@ -917,8 +975,9 @@ gains an optional `fret`).
 - **`docs/plans/in-progress/fhp-derivation-algorithm.md`**: its status line and "three record
   kinds" residue after G60; moves to `completed/` when Phase 2 lands.
 - **`docs/plans/in-progress/hand-marker-stopgap.md`**: completed work — move to `completed/`.
-- **`docs/plans/todo/fhp-corpus-derived-generation.md`**: superseded (pointer added
-  2026-10-02); delete or move to `completed/` when Phase 1 lands.
+- ~~**`docs/plans/todo/fhp-corpus-derived-generation.md`**: superseded (pointer added
+  2026-10-02); delete or move to `completed/` when Phase 1 lands.~~ MOVED 2026-10-04 to
+  `docs/plans/completed/`, with the walk it studied deleted.
 - **`docs/plans/todo/span-marker-redesign.md`** and **`chord-dictionary.md`**: re-verify before
   Phase 3 and Phase 5; every "claim" reads as retired.
 - **`docs/plans/in-progress/span-derivation-ground-up.md`**: rule 2's claim wording after the
