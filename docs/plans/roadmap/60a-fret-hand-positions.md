@@ -3,8 +3,8 @@
 ## Status
 
 **Sub-plan of `docs/plans/roadmap/60-the-hand.md`, split out 2026-10-04.** Phases 0 and 1 are
-DONE (Phase 1 closed 2026-10-04 at 88.213% exact, identical to its reference). NEXT: the master's
-rename sweep, then Phase 2 (the derived stream), then Phase 3 (the position row's remainder).
+DONE (Phase 1 closed 2026-10-04 at 88.213% exact, identical to its reference). The master's rename sweep is DONE (`c910b8d8`). NEXT: Phase 2 (the derived
+stream), then Phase 3 (the position row's remainder).
 Positions are finished before the holds plan (`60b-holds.md`) starts.
 
 Section numbers are the family's (the master's §0 has the map): §§1–6, the G60 gate record of §9

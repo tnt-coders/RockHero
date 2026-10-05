@@ -4,7 +4,7 @@
 
 The hand is one design built as two plans, in this order (user, 2026-10-04):
 
-1. **The rename sweep** — below; first, before any further phase.
+1. **The rename sweep** — below. DONE 2026-10-04 (`c910b8d8`).
 2. **`docs/plans/roadmap/60a-fret-hand-positions.md`** — where the hand is. Phases 0 and 1 are
    DONE; Phases 2 and 3 are next.
 3. **`docs/plans/roadmap/60b-holds.md`** — what the hand holds. NOT STARTED; Phases 4 and 5.
@@ -24,7 +24,7 @@ any of the three still names one place:
 | The position's design, Phases 0–3, §8, §9's Phase 1 build rulings, hand rulings and row decisions | `60a-fret-hand-positions.md` |
 | The hold's design, the grip dictionary, the former Phase 3 items 3–5, Phases 4 and 5 | `60b-holds.md` |
 
-### The rename sweep — FIRST (user, 2026-10-04)
+### The rename sweep — DONE 2026-10-04 (`c910b8d8`)
 
 One mechanical change set with no behaviour change, so that everything after it is written in the
 final vocabulary (§1a, "Names and the format"):
@@ -46,7 +46,14 @@ final vocabulary (§1a, "Names and the format"):
 Acceptance: build and full tests green on a forced relink; the `[.fhp-score]` scorer reads every
 rebuilt package and prints the number it printed at Phase 1's close (88.213% exact). That one run
 is the only check that the converter's keys and the reader's agree, since the two are changed
-apart. The census is not re-run: it reads Guitar Pro files and touches no renamed key. The user's four projects on disk survive it through a
+apart. The census is not re-run: it reads Guitar Pro files and touches no renamed key.
+
+**Result:** all six suites pass on a forced relink; the scorer, on the `relwithdebinfo` build,
+read all 1,301 rebuilt packages and scored 88.213% (76 s, against 435 s on `debug`). The four
+projects were converted and load through `Project::load` with every count matching; the
+old-key originals are refused, so the reader has no fallback. Beyond the list above, the sweep
+also renamed `FocusRowJump::Hand`, `onHandChordRequested`, `onHandEndClearRequested` and
+`HandChordTarget`, since "the hand chord" will mean the hold's. The user's four projects on disk survive it through a
 throwaway key-rename script, run on a backup-first copy and never part of the product.
 
 ## 1. Status
