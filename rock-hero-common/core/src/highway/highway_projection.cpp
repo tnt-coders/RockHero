@@ -344,11 +344,9 @@ void clampStrikePops(
 // window; an unboxed cluster's fretted notes each pop the wires bounding the slot they PRESS. Then
 // the fretting-hand notes' landings and bend arrivals (appendArrivalPops), and the one clamp.
 //
-// Whether a box covers a cluster is the projection's answer, not a member count here: a second
-// reading of "is there a box here" would light both, or neither, wherever the two disagreed. BOTH
-// PRODUCERS count: a strum's own chord box, and the ARPEGGIO mark its covering span draws.
-// A lone note under a bracket wears no chord box, so reading the box alone would light its per-fret
-// lines straight through a mark already standing over them.
+// Whether a cluster is boxed is the projection's answer (box_treatment), not a member count here.
+// Only the STRIKE's own box counts: a lone note opening an arpeggio pops its own fret, not the
+// sides of the mark standing over it, because the pop shows what was struck (sighted 2026-10-04).
 //
 // A fretted pop skips fret 0, which is a natural harmonic's stop (its finger is on the node and
 // presses nothing) as much as a true open string's, so no node reaches the wires and the
@@ -373,9 +371,8 @@ void clampStrikePops(
         const bool any_open = std::ranges::any_of(members, [](const NoteViewState& note) {
             return !rightHandOnset(note.attack) && openString(note);
         });
-        const HighwayChordGroupViewState& covering = groups[note_group[index]];
         const bool boxed =
-            covering.box_treatment != HighwayChordBoxTreatment::None || covering.arpeggio_mark;
+            groups[note_group[index]].box_treatment != HighwayChordBoxTreatment::None;
         if (boxed || any_open)
         {
             pops.push_back(

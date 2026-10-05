@@ -3159,12 +3159,6 @@ void HighwayRenderer::Impl::draw(
             // instants they draw at, so comparing against them cannot go stale. It is a scan rather
             // than a search because the arpeggio marks visible at once are a handful, where
             // searching the shape list would walk the whole song per group.
-            //
-            // Not the same question as the group's own \ref arpeggio_mark, which the strike glow
-            // reads: that says a mark STANDS at this onset, whole-song and window-free, while this
-            // says one DRAWS here in this frame. Suppression owes the stricter answer — a box
-            // suppressed for a mark the frame did not build would leave the onset with nothing
-            // drawn at all — so the two stay separate on purpose rather than by oversight.
             const bool coincides_with_arpeggio = std::ranges::any_of(
                 std::ranges::subrange(boxes.begin(), boxes.begin() + arpeggio_boxes),
                 [&](const BoxDraw& box) {

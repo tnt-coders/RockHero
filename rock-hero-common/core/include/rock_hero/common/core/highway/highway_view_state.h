@@ -455,25 +455,6 @@ struct HighwayChordGroupViewState
     HighwayChordBoxTreatment box_treatment{HighwayChordBoxTreatment::None};
 
     /*!
-    \brief True when an ARPEGGIO span's opening mark draws at this onset.
-
-    The OTHER box producer, published beside \ref box_treatment because "is a box standing over
-    this onset" has two answers and a reader with only one of them draws the wrong picture: the
-    strike glow lights a boxed cluster's window EDGES instead of its per-fret lines, and a lone
-    note under a bracket would otherwise light its fret lines straight through the mark already
-    standing over them.
-
-    Answered here rather than off whatever boxes a frame happens to have built, and that is not a
-    convenience: a renderer's box list is clamped to the visible board, while the glow reads
-    clusters that have already passed the hit line, so the frame's list is silent about exactly the
-    onsets whose glow is still fading.
-
-    A mark and a strum can coincide, and then both are true — the coincidence rule suppresses the
-    chord box and shows the arpeggio one, which changes WHICH box draws and never whether one does.
-    */
-    bool arpeggio_mark{false};
-
-    /*!
     \brief Onset of the next note-showing strum, capping this group's span-hold display;
            infinity when none follows in the song.
 
@@ -499,7 +480,6 @@ struct HighwayChordGroupViewState
                lhs.count == rhs.count && lhs.fretting_hand_count == rhs.fretting_hand_count &&
                lhs.emphasis == rhs.emphasis && lhs.all_palm_muted == rhs.all_palm_muted &&
                lhs.all_dead == rhs.all_dead && lhs.box_treatment == rhs.box_treatment &&
-               lhs.arpeggio_mark == rhs.arpeggio_mark &&
                std::is_eq(lhs.hold_cap_seconds <=> rhs.hold_cap_seconds);
     }
 };
@@ -760,7 +740,6 @@ whatever window a renderer happens to be drawing.
             .all_palm_muted = true,
             .all_dead = true,
             .box_treatment = HighwayChordBoxTreatment::None,
-            .arpeggio_mark = false,
             .hold_cap_seconds = std::numeric_limits<double>::infinity(),
         };
         std::vector<std::pair<int, ChartStop>> stops;
@@ -866,20 +845,6 @@ whatever window a renderer happens to be drawing.
                 : std::nullopt;
         // Recorded before any of the early exits below, so an unboxed onset still breaks a run.
         const std::optional<std::size_t> previous = std::exchange(previous_span, lies_in);
-        // The OTHER box producer (\ref HighwayChordGroupViewState::arpeggio_mark), answered here
-        // because here is where the covering span is already in hand. An opening mark always falls
-        // on an onset — a span an event states opens at its own slot, and a landing-opened one
-        // defers to a sounding — so every mark that draws has a group to be published on, and the
-        // question needs no walk of its own. Recorded before the early exits too, since a lone note
-        // under a bracket is exactly the case a reader gets wrong.
-        if (lies_in.has_value())
-        {
-            const ShapeViewState& span = shapes[*lies_in];
-            // Bound once so the presence test and the read are provably the same object.
-            const std::optional<double>& mark = span.bracket_seconds;
-            group.arpeggio_mark = span.arpeggio && mark.has_value() &&
-                                  std::abs(*mark - group.start_seconds) < g_onset_match_epsilon;
-        }
         // Two or more fretting-hand members is what makes the group a STRUM, and only a strum is
         // simultaneous. Taps are the other hand: a fretted note under a simultaneous right-hand
         // onset is a single note, and a tapped dyad gets the tapped box from the tap onsets.

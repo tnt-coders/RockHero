@@ -435,18 +435,13 @@ that exclusion is not a special case but a consequence of comparing string sets 
 REPLACES a chord member shrinks the fretting set, so that onset really is a different onset and
 wears its own full box.
 
-**Every consumer of "is there a box here" reads the published answer, and there are TWO producers
-of it.** `box_treatment` is the strum's own, and `HighwayChordGroupViewState::arpeggio_mark` is the
-other: true where an arpeggio span's opening mark draws at this onset, published by
-`makeHighwayChordGroups` where the covering span is already in hand. The plain box, the arpeggio
-box's emphasis inheritance and the strike glow all defer to a box and would light both marks, or
-neither, wherever a second reading disagreed — and the glow is why the second producer is published
-at all. It lights a boxed cluster's window EDGES instead of its per-fret lines, and reading
-`box_treatment` alone would light a lone note's fret lines straight through the bracket mark already
-standing over them. The question is answered in the projection rather than off whatever
-boxes a frame happened to build, because a renderer's box list is clamped to the visible board while
-the glow reads clusters that have already crossed the hit line — exactly the onsets such a list is
-silent about.
+**The strike glow asks the strike's own box, never the arpeggio mark.** A cluster whose
+`box_treatment` is not `None` (every strum) pops its window EDGES instead of its per-fret lines; a
+lone note pops its own fret even where an arpeggio span's opening mark stands over it, because the
+pop shows what was struck and the mark shows what the hand holds (sighted 2026-10-04). The answer is
+read from the projection rather than off whatever boxes a frame happened to build, because a
+renderer's box list is clamped to the visible board while the glow reads clusters that have already
+crossed the hit line — exactly the onsets such a list is silent about.
 
 **An arpeggio span's mark draws at `ShapeViewState::bracket_seconds`, not at its start.** The
 derivation publishes that anchor per span (`ChartShape::bracket_place`) rather than leaving each

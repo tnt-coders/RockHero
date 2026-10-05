@@ -1302,6 +1302,20 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 
 ## Retired
 
+### ~~An arpeggio that opens on a single onset lights its whole box at that first note~~ — RETIRED 2026-10-04: the trigger fired
+
+Recorded 2026-10-02: the first lone note of an arpeggio popped the sides of the arpeggio box over
+it instead of its own fret, because the strike pops counted the arpeggio's opening mark as a box
+(`HighwayChordGroupViewState::arpeggio_mark`, published for that one reader). The user left it at
+first, then ruled on 2026-10-04 that it reads as wrong: the pop should light the fret the note
+lands on.
+
+**Retired** by deleting that second box answer rather than special-casing the moment: the
+fretting-hand pops now ask only the strike's own `box_treatment`, so a lone note pops its fret
+under an arpeggio mark as it does anywhere else, and a strum opening an arpeggio still pops its
+window sides. The general rule that the fretting-hand light shows the hand's whole window is
+unchanged.
+
 ### ~~A silent bare point mid-slide wears a head where the hand is not~~ — RETIRED 2026-09-27: the user ruled its mark
 
 Every fret-less keyframe that is not bend-only wears a linked head printing the fret in force
@@ -1639,16 +1653,3 @@ section 2026-09-05.
   **Trigger:** a sighting of a chord slide followed by a tap with no later member sounding, where
   the reader cannot tell what the tap is held over. **Remedy:** a span-furniture question (where a
   landing-opened span's mark draws), not a return of the note satellite.
-
-- **An arpeggio that opens on a single onset lights its whole box at that first note
-  (2026-10-02).** The fretting-hand light marks where the hand is, not what it plays
-  (`docs/plans/in-progress/one-floor-light.md`): any held note lights the hand's whole window, and
-  a box's sides are that window, so the first lone note of an arpeggio lights every edge of the
-  box rather than its own fret. The user sighted it as a bit odd, and as possibly right since the
-  box is drawn there, and ruled to leave it. A general reversal (lighting only struck frets) is not
-  wanted.
-
-  **Trigger:** the look reads as wrong in further sightings, or players read the lit box edges as
-  frets to play. **Remedy:** a special case for exactly this moment, a lone onset at the start of
-  an arpeggio, weighed with the fretting-hand expert; never a change to the general rule that the
-  light shows the hand's window.

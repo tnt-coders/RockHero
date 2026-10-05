@@ -736,8 +736,8 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
 
 ## Highway repeat-box membership reads the drawn extent (found 2026-09-04, UNVERIFIED population)
 
-`highway_view_state.h` (`lies_in`, ~:887) asks "does this onset lie in this span" — feeding
-repeat-box identity and `arpeggio_mark` — against `drawn_end_seconds`, while the 2026-09-04
+`highway_view_state.h` (`lies_in`, ~:840) asks "does this onset lie in this span" — feeding
+repeat-box identity — against `drawn_end_seconds`, while the 2026-09-04
 musical-close ruling moved every other membership question (`SpanCover`, the hold, the bracket
 clip, the arrivals tap window) to the close. An onset inside the final display margin would be
 judged outside its own span. The population may be empty: a sounding onset that RODE the span is

@@ -3098,6 +3098,35 @@ TEST_CASE("Highway strike pops land on their strips, in their note's hand", "[co
     checkPop(picking[2], 3.0, g_hit_glow_release_seconds, std::nullopt);
 }
 
+// A lone note opening an arpeggio pops its own fret, not the sides of the mark standing over it:
+// only the strike's own box moves a pop to the window edges.
+TEST_CASE(
+    "Highway strike pop of a lone note opening an arpeggio lands on its fret", "[core][highway]")
+{
+    // Three staggered notes on three strings, each still ringing when the next is struck.
+    const HighwayViewState board = popBoard({
+        popNote(GridPosition{.measure = 1, .beat = 1}, 3, 5, NoteAttack::Pick, {}, Fraction{1, 1}),
+        popNote(GridPosition{.measure = 1, .beat = 2}, 2, 7, NoteAttack::Pick, {}, Fraction{3, 4}),
+        popNote(GridPosition{.measure = 1, .beat = 3}, 1, 8, NoteAttack::Pick, {}, Fraction{1, 2}),
+    });
+
+    REQUIRE(board.chart.shapes.size() == 1);
+    const ShapeViewState& span = board.chart.shapes[0];
+    CHECK(span.arpeggio);
+    const std::optional<double>& mark = span.bracket_seconds;
+    REQUIRE(mark.has_value());
+    if (mark.has_value())
+    {
+        CHECK(*mark == Catch::Approx(0.0));
+    }
+
+    const std::vector<HighwayStrikePop>& fretting = board.fret_hand.pops;
+    REQUIRE(fretting.size() == 3);
+    checkPop(fretting[0], 0.0, g_hit_glow_release_seconds, 5);
+    checkPop(fretting[1], 0.5, g_hit_glow_release_seconds, 7);
+    checkPop(fretting[2], 1.0, g_hit_glow_release_seconds, 8);
+}
+
 // THE POP CLAMP: a pop clamps against the next pop of its hand on the SAME strips only — never
 // against a pop on another fret in between; two pops at one instant are one strike and never clamp
 // each other; and every box pop of a hand lands on its live window's sides, so box pops clamp each
