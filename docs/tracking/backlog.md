@@ -28,6 +28,22 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while fixing the bracket-over-head draw order (2026-10-05)
+
+- **The highway's bracket glyphs have an ordering authority of their own.** The arpeggio bracket
+  glyphs are placed by a hand-built painter rule (`submit_brackets_below` and its drain in
+  `highway_renderer.cpp`), while every other upright subject is ordered by the depth prepass. The
+  rule is now correct for a glyph pinned at the hit line, but an APPROACHING glyph that a nearer
+  higher-lane note forces under can still be painted over by an even nearer lower-lane ribbon.
+  The one-authority shape: each glyph writes a depth proxy for its bars and joins the far-to-near
+  sweep at its own depth, the way the floor numbers do (`submit_numbers_beyond`), and the lane
+  rule is deleted. It needs a measured bar silhouette for the bracket cells, the counterpart of
+  the head art profile, so it is texture work as well as code.
+- **`BracketBatch` allocates on the render path every frame.** Each batch owns two vectors, and
+  `scratch.bracket_batches.clear()` destroys them, so every posture string of every visible
+  arpeggio span allocates again each frame. Pooling the batches like the other scratch vectors
+  removes it; the entry above removes it too, by folding the glyphs into the shared batches.
+
 ## Raised while wording the Tempo Lock refusal (2026-10-04)
 
 - **The logger's only output is a file, so the test log capture works around it.**

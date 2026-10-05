@@ -1792,8 +1792,9 @@ struct FloorNumber
 struct BracketBatch
 {
     int lane{0};
-    double span_start_seconds{0.0};
-    double span_end_seconds{0.0};
+    // Where the glyph stands on the travel axis: its mark's depth, pinned at the hit line once
+    // the mark has arrived.
+    double z{0.0};
     std::vector<PosColorUvVertex> vertices;
     std::vector<std::uint16_t> indices;
     bool submitted{false};
@@ -2923,10 +2924,12 @@ void HighwayRenderer::Impl::draw(
 
     // Arpeggio bracket geometry accumulates per box PER STRING in the box pass below and
     // submits lane-dominantly inside the note pass: an upright bracket against a flat lane
-    // ribbon is occluded by lane height, not time — a camera ray from above reaches the higher
-    // surface first regardless of z — so each bracket glyph draws over everything on lower
-    // lanes (any onset) and yields only to groups containing notes on lanes above its own. The
-    // box panels stay under all notes.
+    // ribbon is occluded by lane height, not time, so each bracket glyph draws over everything
+    // on its own lane and below (any onset). The camera looks down the board from in front of
+    // the hit line, so its ray reaches a higher lane first only where that lane's content is
+    // NEARER than the glyph: the glyph yields to exactly those notes, and one pinned at the hit
+    // line, with nothing nearer, yields to none and reads over the heads held there. The box
+    // panels stay under all notes.
     std::vector<BracketBatch>& bracket_batches = scratch.bracket_batches;
 
     // --- Chord and arpeggio boxes: Charter's translucent panels at chord onsets, plus an
@@ -3019,13 +3022,11 @@ void HighwayRenderer::Impl::draw(
                 const std::uint32_t tint =
                     packAbgr(stringLaneColor(lane, displayed_count, palette));
                 // One lane-tagged batch per posture string, so the note pass can order each
-                // glyph against note content by lane height; the span window scopes which
-                // notes can force the glyph underneath them.
+                // glyph against note content by lane height and depth.
                 bracket_batches.push_back(
                     BracketBatch{
                         .lane = invert ? (displayed_count + 1 - lane) : lane,
-                        .span_start_seconds = shape.start_seconds,
-                        .span_end_seconds = shape.drawn_end_seconds,
+                        .z = z,
                         .vertices = {},
                         .indices = {},
                     });
@@ -3527,9 +3528,11 @@ void HighwayRenderer::Impl::draw(
     // draws depth-ALWAYS, because its proxies are built from SILHOUETTE geometry rather than the
     // color quads themselves, and coplanar quads built from different vertices land a float ULP
     // apart: under LEQUAL the content intermittently loses against its own proxy, which shows
-    // as heads flickering at the hit line during holds. Testing only the floor-flat batches costs
-    // the prepass nothing: what it exists to stop is floor-flat ink (a ribbon, its outward glow
-    // spill) crossing an upright object, and every floor-flat batch still tests.
+    // as heads flickering at the hit line during holds. A bracket glyph draws ALWAYS for the same
+    // fight one step removed: pinned at the hit line it shares a plane with its own string's
+    // held head, and would lose against THAT head's proxy. Testing only the floor-flat batches
+    // costs the prepass nothing: what it exists to stop is floor-flat ink (a ribbon, its outward
+    // glow spill) crossing an upright object, and every floor-flat batch still tests.
     const bgfx::TextureHandle heads_texture = atlases.heads.get();
     const auto flush_note_batches = [&] {
         // Depth first, and with no color of its own: every color batch below — this group's and
@@ -3637,20 +3640,31 @@ void HighwayRenderer::Impl::draw(
     };
     // Lane-dominant bracket submission at NOTE granularity (groups can hold lanes on both sides of
     // a glyph, so group-level slotting would let a low open tail ride its higher groupmate over the
-    // notation). A bracket glyph stays pending — compositing over every lower lane's tails and
-    // heads, whatever their onsets — until the note about to draw sits on a lane ABOVE the glyph
-    // AND overlaps its span; the batches flush and the glyph submits underneath that note,
-    // mid-group when that is where the lane boundary falls (in-group notes iterate lane-ascending,
-    // so lower lanes are already batched). Never-triggered glyphs drain after the last group.
+    // notation). A bracket glyph stays pending — compositing over the tails and heads of its own
+    // lane and every lower one, whatever their onsets — until the note about to draw sits on a
+    // lane ABOVE the glyph AND nearer than it; the batches flush and the glyph submits underneath
+    // that note, mid-group when that is where the lane boundary falls (in-group notes iterate
+    // lane-ascending, so lower lanes are already batched). Never-triggered glyphs drain after the
+    // last group.
+    const auto submit_bracket = [&](BracketBatch& glyph) {
+        submitBatch(
+            glyph.vertices,
+            glyph.indices,
+            posColorUvLayout(),
+            texture_tint_program.get(),
+            &heads_texture,
+            g_board_view,
+            alwaysDepth(g_blended_state));
+        glyph.submitted = true;
+    };
     const auto submit_brackets_below = [&](const common::core::NoteViewState& note) {
         const int lane = laneOf(note.string);
         const int note_lane = invert ? (displayed_count + 1 - lane) : lane;
+        const double note_z = time_to_z(std::max(note.start_seconds, now_seconds));
         bool flushed = false;
         for (BracketBatch& batch : bracket_batches)
         {
-            if (batch.submitted || batch.lane >= note_lane ||
-                note.start_seconds > batch.span_end_seconds ||
-                note.ink_end_seconds < batch.span_start_seconds)
+            if (batch.submitted || batch.lane >= note_lane || note_z >= batch.z)
             {
                 continue;
             }
@@ -3659,13 +3673,7 @@ void HighwayRenderer::Impl::draw(
                 flush_note_batches();
                 flushed = true;
             }
-            submitBatch(
-                batch.vertices,
-                batch.indices,
-                posColorUvLayout(),
-                texture_tint_program.get(),
-                &heads_texture);
-            batch.submitted = true;
+            submit_bracket(batch);
         }
     };
 
@@ -5554,19 +5562,13 @@ void HighwayRenderer::Impl::draw(
 
     emit_pending_markers();
     flush_note_batches();
-    // Drain the never-triggered bracket glyphs: nothing above their lanes overlapped them, so
-    // they read over everything below.
+    // Drain the never-triggered bracket glyphs: nothing above their lanes stood nearer, so they
+    // read over everything drawn — the heads held at the hit line among it.
     for (BracketBatch& batch : bracket_batches)
     {
         if (!batch.submitted)
         {
-            submitBatch(
-                batch.vertices,
-                batch.indices,
-                posColorUvLayout(),
-                texture_tint_program.get(),
-                &heads_texture);
-            batch.submitted = true;
+            submit_bracket(batch);
         }
     }
 
