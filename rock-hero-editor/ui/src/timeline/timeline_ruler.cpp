@@ -39,8 +39,11 @@ const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 // each pinning the active value to the left edge while the song scrolls, and each chip dropping
 // a dotted leader line down to the ruler body so its exact position stays readable. The ruler
 // body below them holds the measure-number row above the tick band; measure ticks run the
-// body's full height so the numbers stay attached to their downbeats. The heights fold into
-// g_timeline_ruler_height; change them together.
+// body's full height so the numbers stay attached to their downbeats. The tab lane's span chips
+// stand on the ruler's bottom edge over the tick band: 12 px at the lane's fret size, which keeps
+// them clear of the measure numbers' ink (rows 47-55 under the Windows face) and of the lane's
+// fret-hand chips a row below the edge. The heights fold into g_timeline_ruler_height; change
+// them together.
 constexpr int g_section_row_y{2};
 constexpr int g_tempo_row_y{16};
 constexpr int g_signature_row_y{30};
@@ -315,6 +318,10 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     drawBeatTicks(g);
     drawMeasureLabels(g);
+    for (const common::ui::TabSpanChip& chip : m_span_chips)
+    {
+        common::ui::drawTabSpanChip(g, m_span_chip_font, chip);
+    }
 
     drawChipRow(g, m_section_row.chips, editorTheme().section_chip, g_section_row_y);
     drawTempoChips(g);
@@ -778,6 +785,19 @@ void TimelineRuler::setSectionLabels(std::vector<RulerSectionLabel> labels)
     repaint();
 }
 
+// Stores the span starts. Only the span chips depend on them, so only those rebuild.
+void TimelineRuler::setSpanStarts(std::vector<RulerSpanStart> starts)
+{
+    if (m_span_starts == starts)
+    {
+        return;
+    }
+
+    m_span_starts = std::move(starts);
+    refreshSpanChips();
+    repaint();
+}
+
 // Stores the selected tempo and signature chips. A selection claims its chip's room when the rows
 // place, so a changed selection rebuilds them.
 void TimelineRuler::setSelectedTempoMapChips(
@@ -840,6 +860,17 @@ std::optional<common::core::TimePosition> TimelineRuler::timeAtLocalX(
 // Maps an absolute timeline second to this pinned ruler's local x coordinate.
 std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexcept
 {
+    const std::optional<float> local_x = unboundedLocalXForSeconds(seconds);
+    if (!local_x.has_value() || *local_x < 0.0f || *local_x >= static_cast<float>(getWidth()))
+    {
+        return std::nullopt;
+    }
+
+    return local_x;
+}
+
+std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) const noexcept
+{
     const auto content_x = core::timelineXForPosition(
         common::core::TimePosition{seconds},
         m_timeline_range,
@@ -850,24 +881,56 @@ std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexc
         return std::nullopt;
     }
 
-    const float local_x = *content_x - static_cast<float>(m_view_x);
-    if (local_x < 0.0f || local_x >= static_cast<float>(getWidth()))
-    {
-        return std::nullopt;
-    }
-
-    return local_x;
+    return *content_x - static_cast<float>(m_view_x);
 }
 
-// Rebuilds the cached tick rectangles, the measure-number row, and the chip rows from the
-// stored grid lines, timeline geometry, and tempo map. Kept out of paint() so repaints driven
-// only by cursor movement, whether vblank-driven playback or a single click, do not rebuild
-// geometry or repeat the per-label GlyphArrangement text-width measurement on every frame; all of
-// these only need to rerun when the state they depend on actually changes.
+// Each chip stands at its own span's start and ends at the latest a pixel short of the next one's,
+// so a chip shows exactly when its start lies left of the ruler's right edge and the next start
+// lies right of its left edge. Starts ascend, so the walk stops at the first start past the edge.
+void TimelineRuler::refreshSpanChips()
+{
+    m_span_chips.clear();
+    const auto width = static_cast<float>(getWidth());
+    for (std::size_t index = 0; index < m_span_starts.size(); ++index)
+    {
+        const std::optional<float> start_x =
+            unboundedLocalXForSeconds(m_span_starts[index].seconds);
+        if (!start_x.has_value())
+        {
+            continue;
+        }
+        if (*start_x >= width)
+        {
+            break;
+        }
+        const std::optional<float> next_start_x =
+            index + 1 < m_span_starts.size()
+                ? unboundedLocalXForSeconds(m_span_starts[index + 1].seconds)
+                : std::nullopt;
+        if (next_start_x.has_value() && *next_start_x <= 0.0f)
+        {
+            continue;
+        }
+        m_span_chips.push_back(
+            common::ui::TabSpanChip{
+                .base_left = {*start_x, static_cast<float>(getHeight())},
+                .next_start_x = next_start_x,
+                .arpeggio = m_span_starts[index].arpeggio,
+                .name = std::nullopt,
+            });
+    }
+}
+
+// Rebuilds the cached tick rectangles, the measure-number row, the chip rows and the span chips
+// from the stored grid lines, timeline geometry, tempo map and span starts. Kept out of paint() so
+// repaints driven only by cursor movement, whether vblank-driven playback or a single click, do
+// not rebuild geometry or repeat the per-label GlyphArrangement text-width measurement on every
+// frame; all of these only need to rerun when the state they depend on actually changes.
 void TimelineRuler::refreshRulerGeometry()
 {
     m_tick_rects.clear();
     m_measure_labels.clear();
+    refreshSpanChips();
 
     const juce::Font font = rulerFont();
 

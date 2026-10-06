@@ -83,8 +83,8 @@ scrolls — above the ruler body with its measure-number row and tick band; the 
 divide chrome, body, and the content scrolling under it. Each chip drops a dotted leader line in
 its own color down to the top of the body, marking its exact position (the body's own ticks take
 over from there); leaders draw for every event, even where a chip was suppressed on a dense map,
-and every chip paints above every leader. A 1px divider along the bottom edge
-separates the ruler from the rows scrolling under it.
+and every chip paints above every leader. The tab lane's span chips stand on the ruler's bottom
+edge over the tick band (see the tab lane below).
 
 Every chip is an object the one editor-wide selection can hold, so every row raises intents through
 `TimelineRuler::Listener` (the tone strip's shape, for the tone strip's reason: the prompts and
@@ -629,8 +629,20 @@ built once per edit in **common/core** (`chart/chart_projection.cpp`,
 which is why it lives in common rather than editor core: the game's 2D tab view shares the same
 scene model), so painting never queries musical positions. Because sustains overlap, it keeps a
 prefix-max index of note end times and binary-searches the visible note range each paint instead of
-scanning the whole chart. It draws each hand-shape span's rail and, for an arpeggio, its brackets; a
-span's NAME has no drawn form on either surface, because nothing authors one (see above).
+scanning the whole chart. It draws each hand-shape span's rails and, for an arpeggio, its brackets.
+Where one span's rails meet the next span's start they stop one screen pixel short, so two spans
+that meet read as two; that parting is paint-time only, and the drawn extent stays rule 12a's.
+
+Each span also wears a **label chip** at its start: a steep trapezoid in the span's hand-shape base
+color, rimmed in the rails' ink, its bottom-left corner on the span's start
+(`common::ui::drawTabSpanChip`). The lane has no room above its fret-hand chips, so the chip stands
+on the RULER's bottom edge, directly on the lane's top rail: `EditorView` pushes every span's start
+(re-timed to the content map, as the sections are) through `TrackViewport::setSpanStarts`, and
+`TimelineRuler` places and paints the chips over its tick band, under the measure numbers' ink. The
+chip is blank, as wide as it is tall, because a span carries no name; the drawer takes an optional
+name and prints it inside the top edge where the room holds the whole named chip. A chip stops a
+pixel short of the next span's start, the rails' parting, and a name the room cannot hold is dropped
+whole while the blank chip stays.
 
 String colors come from the **shared palette** in
 `rock-hero-common/ui/.../string_colors/string_color_palette.h` — a JUCE-free authority (colors are

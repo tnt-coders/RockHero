@@ -884,6 +884,24 @@ void EditorView::setState(const core::EditorViewState& state)
             });
     }
     m_track_viewport->setSectionLabels(std::move(section_labels));
+
+    // The tab lane's spans stand their label chips on the ruler, re-timed to the content map as
+    // the sections are, so a chip stays on the rail the lane draws through its own re-time.
+    std::vector<RulerSpanStart> span_starts;
+    if (m_state.tab != nullptr)
+    {
+        span_starts.reserve(m_state.tab->shapes.size());
+        for (const common::core::ShapeViewState& shape : m_state.tab->shapes)
+        {
+            span_starts.push_back(
+                RulerSpanStart{
+                    .seconds = m_state.content_map.secondsRetimedFrom(
+                        m_state.tempo_map, shape.start_seconds),
+                    .arpeggio = shape.arpeggio,
+                });
+        }
+    }
+    m_track_viewport->setSpanStarts(std::move(span_starts));
     m_track_viewport->setSelectedTempoMapChips(
         m_state.selected_tempo_anchor, m_state.selected_time_signature_measure);
 

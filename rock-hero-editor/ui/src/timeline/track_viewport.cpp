@@ -446,6 +446,13 @@ void TrackViewport::setSectionLabels(std::vector<RulerSectionLabel> labels)
     m_timeline_ruler.setSectionLabels(std::move(labels));
 }
 
+// Forwards the tab lane's span starts to the pinned ruler, whose bottom edge the span chips stand
+// on, directly above the lane's top rail.
+void TrackViewport::setSpanStarts(std::vector<RulerSpanStart> starts)
+{
+    m_timeline_ruler.setSpanStarts(std::move(starts));
+}
+
 // Forwards the selected tempo and time-signature chips to the pinned ruler.
 void TrackViewport::setSelectedTempoMapChips(
     const std::optional<common::core::GridPosition> tempo_anchor,

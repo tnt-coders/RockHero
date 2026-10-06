@@ -395,6 +395,45 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
     CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 40, 11}, row_background) == 0);
 }
 
+// The tab lane's spans stand their label chips on the ruler's bottom edge, each at its own span's
+// start in its span's color, rising no higher than the chip's own height above that edge.
+TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setSpanStarts(
+        std::vector<RulerSpanStart>{
+            RulerSpanStart{.seconds = 1.0, .arpeggio = false},
+            RulerSpanStart{.seconds = 2.0, .arpeggio = true},
+        });
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // One measure across 401px maps seconds * 100: the chord chip's corner at x = 100, the
+    // arpeggio's at x = 200, both probed at their middles, clear of the beat ticks they cover.
+    const int height =
+        juce::roundToInt(common::ui::tabSpanChipHeight(common::ui::tabSpanChipFont()));
+    const int middle_y = g_timeline_ruler_height - (height / 2);
+    CHECK(image.getPixelAt(100 + (height / 2), middle_y) == juce::Colour{0xff3157a7});
+    CHECK(image.getPixelAt(200 + (height / 2), middle_y) == juce::Colour{0xff8559b7});
+    CHECK(
+        image.getPixelAt(100 + (height / 2), g_timeline_ruler_height - height - 1) ==
+        editorTheme().timeline_ruler_background);
+}
+
 // A chip is an object, not a position: clicking one reports the section it stands for and seeks
 // nothing, which is what lets the section selection survive the cursor-move rule that clears it.
 // Clicking off every chip falls back to the ruler's cursor placement.

@@ -985,8 +985,8 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffac73ed});
     CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffac73ed});
 
-    // Shape names draw in the host's name-chip band, not in the lane, so nothing but the rails
-    // and the FHP marker touches the lane's top edge here.
+    // Span chips stand above the lane, on the host's ruler, so nothing but the rails and the FHP
+    // marker touches the lane's top edge here.
 
     // Onsets carry no vertical bars: the columns between lanes at the strummed onset (3.0s)
     // and the arpeggio start (10.0s) stay empty.
@@ -1265,6 +1265,177 @@ TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
     const juce::Colour ghost = chip_ground(common::core::FhpAuthored::Nothing);
     CHECK(ghost.getAlpha() > 0);
     CHECK(ghost.getAlpha() < 0xff);
+}
+
+// A span chip stands with its bottom-left corner on the span's start and its base on the given
+// line, filled in the span's hand-shape base and rimmed in the rails' ink, chord and arpeggio
+// alike.
+TEST_CASE("Tab span chip stands at its span's start in the span's colors", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneFont font = tabSpanChipFont();
+    const int height = juce::roundToInt(tabSpanChipHeight(font));
+    for (const bool arpeggio : {false, true})
+    {
+        const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 80, 40, true)};
+        {
+            juce::Graphics graphics{image};
+            drawTabSpanChip(
+                graphics,
+                font,
+                TabSpanChip{
+                    .base_left = {20.0f, 30.0f},
+                    .next_start_x = std::nullopt,
+                    .arpeggio = arpeggio,
+                    .name = std::nullopt,
+                });
+        }
+        const int middle_x = 20 + (height / 2);
+        const juce::Colour base = arpeggio ? juce::Colour{0xff8559b7} : juce::Colour{0xff3157a7};
+        CHECK(image.getPixelAt(middle_x, 30 - (height / 2)) == base);
+        // The rim's bottom and top rows, and nothing beyond either or left of the start.
+        CHECK(image.getPixelAt(middle_x, 29) == tabShapeMarkColor(arpeggio));
+        CHECK(image.getPixelAt(middle_x, 30 - height) == tabShapeMarkColor(arpeggio));
+        CHECK(image.getPixelAt(middle_x, 30).getARGB() == 0);
+        CHECK(image.getPixelAt(middle_x, 29 - height).getARGB() == 0);
+        CHECK(image.getPixelAt(19, 29).getARGB() == 0);
+    }
+}
+
+// A blank chip is as wide as it is tall, never a sliver; only the next span's start narrows it, a
+// pixel short of that start, and a room under a pixel leaves no chip at all.
+TEST_CASE("Tab span chip draws blank at its height and yields to the next span", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneFont font = tabSpanChipFont();
+    const int height = juce::roundToInt(tabSpanChipHeight(font));
+    const auto render_blank = [&font](const std::optional<float> next_start_x) {
+        const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 80, 40, true)};
+        {
+            juce::Graphics graphics{image};
+            drawTabSpanChip(
+                graphics,
+                font,
+                TabSpanChip{
+                    .base_left = {20.0f, 30.0f},
+                    .next_start_x = next_start_x,
+                    .arpeggio = false,
+                    .name = std::nullopt,
+                });
+        }
+        return image;
+    };
+
+    // Probed on the bottom row, where the leaning side covers the last column only partly.
+    const juce::Image blank = render_blank(std::nullopt);
+    CHECK(blank.getPixelAt(20 + height - 1, 29).getAlpha() > 0);
+    CHECK(blank.getPixelAt(20 + height, 29).getARGB() == 0);
+
+    // The next span six pixels on leaves five: the parting pixel stays empty.
+    const juce::Image narrowed = render_blank(26.0f);
+    CHECK(narrowed.getPixelAt(24, 29).getAlpha() > 0);
+    CHECK(narrowed.getPixelAt(25, 29).getARGB() == 0);
+
+    const juce::Image crowded = render_blank(20.5f);
+    CHECK(crowded.getPixelAt(20, 29).getARGB() == 0);
+}
+
+// A name prints only where the room holds the whole named chip; where the next span starts too
+// close, it is dropped entire and the chip draws exactly as a blank one.
+TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneFont font = tabSpanChipFont();
+    const int height = juce::roundToInt(tabSpanChipHeight(font));
+    const auto render = [&font](
+                            const std::optional<float> next_start_x,
+                            const std::optional<juce::String>& name) {
+        const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 120, 40, true)};
+        {
+            juce::Graphics graphics{image};
+            drawTabSpanChip(
+                graphics,
+                font,
+                TabSpanChip{
+                    .base_left = {20.0f, 30.0f},
+                    .next_start_x = next_start_x,
+                    .arpeggio = false,
+                    .name = name,
+                });
+        }
+        return image;
+    };
+
+    // With room, the named chip runs past a blank chip's width: probed on its bottom rim, which no
+    // glyph reaches.
+    const juce::Image named = render(std::nullopt, juce::String{"Am7"});
+    CHECK(named.getPixelAt(20 + height + 2, 29) == tabShapeMarkColor(false));
+
+    // A next span ten pixels past a blank chip's width cannot hold "Am7" whole.
+    const auto tight = static_cast<float>(20 + height + 10);
+    const juce::Image dropped = render(tight, juce::String{"Am7"});
+    const juce::Image blank = render(tight, std::nullopt);
+    int differing = 0;
+    for (int y = 0; y < dropped.getHeight(); ++y)
+    {
+        for (int x = 0; x < dropped.getWidth(); ++x)
+        {
+            if (dropped.getPixelAt(x, y) != blank.getPixelAt(x, y))
+            {
+                ++differing;
+            }
+        }
+    }
+    CHECK(differing == 0);
+    CHECK(dropped.getPixelAt(20 + height + 2, 29).getARGB() == 0);
+}
+
+// Two spans that meet part by one screen pixel: the earlier span's rails stop a pixel short of the
+// later one's start, top and bottom, at a drawn end the model leaves exactly at that start.
+TEST_CASE("Tab paint core parts abutting spans' rails by a pixel", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.shapes = {
+        common::core::ShapeViewState{
+            .start_seconds = 2.0,
+            .drawn_end_seconds = 10.0,
+            .close_seconds = 10.0,
+            .arpeggio = false,
+            .strings = {},
+        },
+        common::core::ShapeViewState{
+            .start_seconds = 10.0,
+            .drawn_end_seconds = 14.0,
+            .close_seconds = 14.0,
+            .arpeggio = true,
+            .strings = {},
+        },
+    };
+    indexVisibleRanges(state);
+
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 400, 240},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        },
+        common::core::displayedStringCount(state.stringCount(), 0),
+        state.stringCount());
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    {
+        juce::Graphics graphics{image};
+        paintTabLaneFurniture(graphics, metrics, state);
+    }
+
+    // 20 px a second puts the meeting at x = 200.
+    for (const int rail_y : {1, 238})
+    {
+        CHECK(image.getPixelAt(198, rail_y) == tabShapeMarkColor(false));
+        CHECK(image.getPixelAt(199, rail_y).getARGB() == 0);
+        CHECK(image.getPixelAt(200, rail_y) == tabShapeMarkColor(true));
+    }
 }
 
 // A fret-hand harmonic's head names its node, not its fret.

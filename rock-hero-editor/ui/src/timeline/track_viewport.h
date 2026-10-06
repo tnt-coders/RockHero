@@ -358,6 +358,14 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
+    \brief Forwards the tab lane's span starts to the pinned ruler, which draws each span's label
+    chip on its bottom edge, directly above the lane's top rail.
+    \param starts Every span's start in ascending order, re-timed to the content's map; empty
+    clears the chips.
+    */
+    void setSpanStarts(std::vector<RulerSpanStart> starts);
+
+    /*!
     \brief Forwards the selected tempo and time-signature chips to the pinned ruler.
     \param tempo_anchor Beat of the selected tempo chip's anchor, or empty when none is selected.
     \param signature_measure Measure of the selected signature chip's change, or empty.

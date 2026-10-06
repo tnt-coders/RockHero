@@ -33,7 +33,9 @@ An authored, song-level **dictionary**: entries of `{shape signature, name, fing
 - **Optional at authoring and import.** The imported corpus does not provide templates (the
   source content lacks chord definitions — do not design around seeding; at most seed
   opportunistically if a source ever carries diagrams). A nameless span is a legitimate, visible
-  state: it draws its frets and simply has no name chip.
+  state: it draws its frets and a BLANK label chip (SUPERSEDED 2026-10-06: every span now draws a
+  label chip at its start in the tab lane, blank until named — see `60b-holds.md`, "Where a grip's
+  name shows"; this plan's dictionary is now 60b Phase 5's `grips`).
 - **Completeness pressure lives at SAVE** (user rule): on save, warn and encourage — step through
   every span lacking an entry, offering pick-a-matching-template or define-new (collapse rule
   applies), skippable per span, never blocking the save. Same temperament as the grid-off

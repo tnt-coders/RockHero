@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <vector>
@@ -75,12 +76,41 @@ struct RulerSectionLabel
 };
 
 /*!
+\brief One hand-shape span's start, where the ruler stands the span's label chip.
+
+Tab-projection data, not ruler data: the tab lane's spans own it, and the ruler draws their chips
+because its bottom band is the room directly above the lane's top rail.
+*/
+struct RulerSpanStart
+{
+    /*! \brief Absolute timeline second of the span start, in the content's time. */
+    double seconds{0.0};
+
+    /*! \brief True for an arpeggio span (purple chip); false for a chord span (blue chip). */
+    bool arpeggio{false};
+
+    /*!
+    \brief Compares two span starts by their stored values.
+    \param lhs Left-hand start.
+    \param rhs Right-hand start.
+    \return True when both starts store equal values.
+    */
+    friend bool operator==(const RulerSpanStart& lhs, const RulerSpanStart& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. The ordering query expresses exact equality warning-free.
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.arpeggio == rhs.arpeggio;
+    }
+};
+
+/*!
 \brief Draws the pinned bars-and-beats ruler above the scrollable timeline content.
 
 The ruler stays fixed while the timeline content scrolls under it: the section, tempo, and
 signature chip rows sit on top, and the ruler body below them holds the measure-number row and
-the tick band. Each chip drops a dotted leader line in its own color down to the ruler body so
-its exact position stays readable, with every chip drawn above every leader. Callers push the
+the tick band, where the tab lane's span chips stand on the ruler's bottom edge. Each header chip
+drops a dotted leader line in its own color down to the ruler body so its exact position stays
+readable, with every chip drawn above every leader. Callers push the
 current view geometry and the shared visible-span grid lines; the ruler renders everything from
 that one scan result. Clicks convert into the same snapped cursor-placement intent as
 timeline-content clicks.
@@ -320,6 +350,18 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
+    \brief Stores the tab lane's span starts, each drawn as a blank label chip standing on the
+    ruler's bottom edge, directly above the lane's top rail (\ref common::ui::drawTabSpanChip).
+
+    The chip stays below the measure numbers' ink and above the lane's fret-hand chips, overlapping
+    neither. An unchanged list returns early because every controller state push repeats it.
+
+    \param starts Every span's start in ascending order, re-timed to the content's map; empty
+    clears the chips.
+    */
+    void setSpanStarts(std::vector<RulerSpanStart> starts);
+
+    /*!
     \brief Stores which tempo and time-signature chips are selected.
 
     The two rows draw straight from the tempo map, so a selection names its chip by what the map
@@ -358,7 +400,7 @@ public:
     void flashRenumberedMeasures(int from_measure);
 
     /*!
-    \brief Paints the measure-number row and the grid header's ticks and chip rows.
+    \brief Paints the measure-number row, the grid header's ticks and chip rows, and the span chips.
     \param g Graphics context used for drawing.
     */
     void paint(juce::Graphics& g) override;
@@ -495,6 +537,15 @@ private:
 
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
+
+    // The same mapping without the ruler's own bounds: a column left of or past the ruler, for a
+    // mark whose anchor has scrolled off while part of it still shows. Empty only outside the
+    // timeline.
+    [[nodiscard]] std::optional<float> unboundedLocalXForSeconds(double seconds) const noexcept;
+
+    // Rebuilds the span chips from the span starts: each visible chip, its column and the next
+    // span's column, which bounds its width.
+    void refreshSpanChips();
 
     // Maps this pinned ruler's local x coordinate to the content time under it, at the current
     // scroll offset; empty when the geometry cannot map it.
@@ -671,6 +722,15 @@ private:
     // Song-section names, pushed by the owning view whenever the song's sections change;
     // positions resolve via localXForSeconds when the chip row rebuilds.
     std::vector<RulerSectionLabel> m_section_source{};
+
+    // The tab lane's span starts, pushed by the owning view whenever the displayed chart changes.
+    std::vector<RulerSpanStart> m_span_starts{};
+
+    // The span chips the ruler shows, placed when the geometry rebuilds.
+    std::vector<common::ui::TabSpanChip> m_span_chips{};
+
+    // The font a span chip's name prints in, built once because building it measures a glyph.
+    common::ui::TabLaneFont m_span_chip_font{common::ui::tabSpanChipFont()};
 
     // The selected tempo chip's anchor beat and signature chip's measure, as last pushed.
     std::optional<common::core::GridPosition> m_selected_tempo_anchor{};

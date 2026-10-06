@@ -11,6 +11,7 @@ each host supplies only bounds, timeline mapping, and state.
 #pragma once
 
 #include <juce_graphics/juce_graphics.h>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
@@ -53,11 +54,11 @@ the paint core's JUCE conversion of the shared palette authority.
 [[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
 
 /*!
-\brief Returns the hand-shape mark color shared by the tab lane and name chips above it.
+\brief Returns the ink of a span's rails and of its label chip's rim.
 
-The Charter hand-shape base brightened so the narrow span rails and the chord/arpeggio name
-chips read clearly against dark chrome; hosts drawing name chips derived from the same tab
-projection must agree on it so a chip visually belongs to the rails below it.
+The Charter hand-shape base brightened so the narrow rails read clearly against dark chrome. The
+span chip (\ref drawTabSpanChip) rims itself in this ink over a fill of the unbrightened base, so
+the chip and the rails it stands on read as one object.
 
 \param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
 \return Opaque mark color.
@@ -529,6 +530,58 @@ weight, and an authored one solid (\ref common::core::FhpViewState::authored).
 void drawTabFhpChip(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp,
     float left_x);
+
+/*! \brief One hand-shape span's label chip, placed against its span and the span after it. */
+struct TabSpanChip
+{
+    /*! \brief The chip's bottom-left corner: the span's start column, on the line it stands on. */
+    juce::Point<float> base_left{};
+
+    /*! \brief The next span's start column, or empty when no span follows this one. */
+    std::optional<float> next_start_x{};
+
+    /*! \brief True for an arpeggio span (purple); false for a chord span (blue). */
+    bool arpeggio{false};
+
+    /*! \brief The span's name, or empty for a nameless span, whose chip stays blank. */
+    std::optional<juce::String> name{};
+};
+
+/*!
+\brief The font a span chip prints its name in: the lane's fret face, at the size a lane reaching
+its note-height cap (\ref TabLaneStyle::max_note_height) prints its frets.
+
+The chip stands outside every lane, so it cannot ask one for its font; the editor's lane always
+reaches the cap, so this is the size its fret-hand chips print at. Building the font measures a
+glyph outline, so a host builds it once rather than per paint.
+
+\return The chip font.
+*/
+[[nodiscard]] TabLaneFont tabSpanChipFont();
+
+/*!
+\brief A span chip's height: the font's ink with a pixel of padding and a pixel of rim either side.
+\param font The chip font (\ref tabSpanChipFont).
+\return Chip height in pixels.
+*/
+[[nodiscard]] float tabSpanChipHeight(const TabLaneFont& font);
+
+/*!
+\brief Draws one span's label chip: a steep trapezoid standing on the chip's base line, its
+bottom-left corner on the span's start, filled in the span's hand-shape base color and rimmed in
+the rails' ink (\ref tabShapeMarkColor).
+
+A blank chip is as wide as it is tall. A named one is as wide as its name needs, the name inside the
+top edge. Either way the chip stops a pixel short of the next span's start, the same parting the
+rails keep (\ref paintTabLaneFurniture), and draws nothing when that leaves it under a pixel. A
+name prints only where the room holds the chip's whole named width; otherwise the name is dropped
+entire, never clipped or shrunk, and the chip draws blank.
+
+\param g Graphics context to draw into.
+\param font The chip font (\ref tabSpanChipFont).
+\param chip The chip and its neighbour.
+*/
+void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanChip& chip);
 
 /*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.

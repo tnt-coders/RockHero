@@ -62,6 +62,17 @@ an optional `chord` name. PROPOSED, not yet ruled: export requires `chord` on an
 more strings, while the file accepts its absence, on the plan's own save-warns / export-blocks
 tiers. The entry's fields are Phase 5's design.
 
+**Where a grip's name shows (user, 2026-10-06).** The 2D tab lane already draws a LABEL CHIP at
+every span's start (built ahead of this plan, during 60a Phase 2): a steep trapezoid in the span's
+blue or purple, on the top side between the fret-hand position chips and the measure numbers,
+left-aligned to the span's start. It is BLANK until an entry names the grip, never a "?" (a
+nameless span is a legitimate state), and abutting spans are separated by a 1 px pixel trim of the
+earlier span's rails. Phase 5 feeds the chip's name; the draw function already takes one. Owed
+here: (1) the grip name on the 3D highway, NOT as a trapezoid, in the conventional in-lane style
+the user has in mind; (2) a span-start mark on the highway, world-sized, since a pixel gap cannot
+read through the rails' glow there. Until (1) lands, the 2D name is a surface divergence this plan
+closes.
+
 ### Still OPEN
 
 - **How a not-held stretch draws.** The 2026-09-01 zone rulings carry (editor-only, its own span

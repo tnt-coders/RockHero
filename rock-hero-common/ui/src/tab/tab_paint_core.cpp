@@ -10,6 +10,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/bend_travel.h>
@@ -79,6 +80,17 @@ struct StringStyle;
 
 constexpr float g_shape_rail_height{3.0f};
 
+// The pixel a span's marks stop short of the next span's start, so two spans that meet read as
+// two: the rails keep it at their end and the label chip at its right edge.
+constexpr float g_span_parting{1.0f};
+
+// A span chip's sides lean in by this much per pixel of its height.
+constexpr float g_span_chip_lean{1.0f / 3.0f};
+
+// A span chip's rim, and the clearance between the rim and the name's ink.
+constexpr float g_span_chip_rim{1.0f};
+constexpr float g_span_chip_padding{1.0f};
+
 // The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — with its
 // text. Every chip in the lane, boxed or floating, shares the corner rounding
 // (g_lane_chip_corner_radius, in the header).
@@ -97,6 +109,13 @@ constexpr float g_bend_fraction_scale{1.30f};
 [[nodiscard]] float laneChipHeight(const TabLaneFont& font)
 {
     return font.height() + 2.0f;
+}
+
+// The lane's one face, bold, at a text height: the fret digits, the fractions and every chip print
+// in it.
+[[nodiscard]] TabLaneFont laneFont(const float text_height)
+{
+    return TabLaneFont{juce::Font{juce::FontOptions{text_height}.withStyle("Bold")}};
 }
 
 // The room a floating chip's plate leaves either side of its text.
@@ -2067,14 +2086,13 @@ void drawNoteHead(
 // draw — ShapeViewState publishes its ends, its arpeggio flag and its posture, and nothing else.
 //
 // WHERE THE RAILS STOP is handed in rather than read off the span, because a span carries two ends
-// and the caller has already picked between them (TabSpanRevealed). One rail length reaches both
-// the cull and this drawing, so a rail cannot be culled on one end and drawn to the other.
+// and the caller has already picked between them (TabSpanRevealed) and kept the parting before the
+// next span.
 void drawShapeSpan(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ShapeViewState& shape,
-    const double end_seconds)
+    const float end_x)
 {
     const float start_x = metrics.x(shape.start_seconds);
-    const float end_x = metrics.x(end_seconds);
     if (end_x <= start_x)
     {
         return;
@@ -2470,8 +2488,7 @@ juce::String tabNoteHeadText(const common::core::NoteViewState& note, const int 
         common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_head))};
 }
 
-// Shared with host name chips (the editor timeline ruler's chord/arpeggio band) so chip and
-// rails always agree (brightness bumps over the Charter hand-shape bases).
+// The Charter hand-shape bases brightened for the rails, which the span chip's rim shares.
 juce::Colour tabShapeMarkColor(bool arpeggio)
 {
     return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_brightness)
@@ -2510,11 +2527,8 @@ TabLaneMetrics makeTabLaneMetrics(
     // The text height comes off the geometry, which is also what the framework-free satellite slot
     // is sized from — so the column a digit is drawn in and the column a click lands in derive from
     // one number rather than two that happen to agree.
-    metrics.fret_font =
-        TabLaneFont{juce::Font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")}};
-    metrics.fraction_font = TabLaneFont{juce::Font{
-        juce::FontOptions{metrics.fretTextHeight() * g_bend_fraction_scale}.withStyle("Bold")
-    }};
+    metrics.fret_font = laneFont(metrics.fretTextHeight());
+    metrics.fraction_font = laneFont(metrics.fretTextHeight() * g_bend_fraction_scale);
     return metrics;
 }
 
@@ -2657,6 +2671,101 @@ void drawTabFhpChip(
     g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
     g.setColour(g_lane_chip_text);
     metrics.fret_font.draw(g, tabFhpChipText(fhp), box);
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+TabLaneFont tabSpanChipFont()
+{
+    TabLaneGeometry full_size;
+    full_size.note_height = TabLaneStyle{}.max_note_height;
+    return laneFont(full_size.fretTextHeight());
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+float tabSpanChipHeight(const TabLaneFont& font)
+{
+    return std::ceil(font.inkHeight()) + 2.0f * (g_span_chip_padding + g_span_chip_rim);
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanChip& chip)
+{
+    const float height = tabSpanChipHeight(font);
+    const float lean = height * g_span_chip_lean;
+    const float left = chip.base_left.x;
+    const float bottom = chip.base_left.y;
+    const std::optional<float>& next_start_x = chip.next_start_x;
+    const float room = next_start_x.has_value() ? *next_start_x - g_span_parting - left
+                                                : std::numeric_limits<float>::infinity();
+
+    // Blank unless the room holds the whole named chip: the name inside the top edge, padded
+    // clear of the rim.
+    float natural_width = height;
+    juce::String printed;
+    if (const std::optional<juce::String>& name = chip.name; name.has_value())
+    {
+        const float named_width = std::max(
+            height,
+            static_cast<float>(font.width(*name)) +
+                (2.0f * (g_span_chip_padding + g_span_chip_rim)) + (2.0f * lean));
+        if (named_width <= room)
+        {
+            natural_width = named_width;
+            printed = *name;
+        }
+    }
+    const float width = std::min(natural_width, room);
+    if (width < 1.0f)
+    {
+        return;
+    }
+
+    // Sides leaning in at the chip's own slope; a chip narrower than its two leans meets in a
+    // point rather than crossing over.
+    const auto outline = [](const float from_x,
+                            const float to_x,
+                            const float base_y,
+                            const float rise,
+                            const float inset) {
+        juce::Path path;
+        path.startNewSubPath(from_x, base_y);
+        path.lineTo(from_x + inset, base_y - rise);
+        path.lineTo(to_x - inset, base_y - rise);
+        path.lineTo(to_x, base_y);
+        path.closeSubPath();
+        return path;
+    };
+    const float right = left + width;
+    const float slant = std::min(lean, width / 2.0f);
+    g.setColour(tabShapeMarkColor(chip.arpeggio));
+    g.fillPath(outline(left, right, bottom, height, slant));
+
+    // The fill inside a rim of even width all round: a leaning side moves in further than the rim
+    // to keep its perpendicular width, and sits higher by the rim along its own slope.
+    const float slope = slant / height;
+    const float side_inset = g_span_chip_rim * (slope + std::sqrt(1.0f + (slope * slope)));
+    const float inner_rise = height - (2.0f * g_span_chip_rim);
+    const float inner_left = left + side_inset;
+    const float inner_right = right - side_inset;
+    if (inner_right > inner_left)
+    {
+        g.setColour(chip.arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color);
+        g.fillPath(outline(
+            inner_left,
+            inner_right,
+            bottom - g_span_chip_rim,
+            inner_rise,
+            std::min(slope * inner_rise, (inner_right - inner_left) / 2.0f)));
+    }
+
+    if (printed.isNotEmpty())
+    {
+        g.setColour(g_lane_chip_text);
+        font.draw(
+            g,
+            printed,
+            juce::Rectangle<float>{left + slant, bottom - height, width - (2.0f * slant), height});
+    }
 }
 
 // Draws the visible chart content in Charter's layer order: string lines, sustain tails with their
@@ -3135,10 +3244,19 @@ void paintTabLaneFurniture(
         const double end_seconds = tabSpanRevealed(revealed_shape, shape_index)
                                        ? shape.close_seconds
                                        : shape.drawn_end_seconds;
-        if (end_seconds >= span_start)
+        if (end_seconds < span_start)
         {
-            drawShapeSpan(g, metrics, shape, end_seconds);
+            continue;
         }
+        // A screen pixel short of the next span's start, never a model time: two spans that meet
+        // read as two at every zoom, and the drawn extent stays rule 12a's alone.
+        float end_x = metrics.x(end_seconds);
+        if (shape_index + 1 < tab.shapes.size())
+        {
+            end_x = std::min(
+                end_x, metrics.x(tab.shapes[shape_index + 1].start_seconds) - g_span_parting);
+        }
+        drawShapeSpan(g, metrics, shape, end_x);
     }
 
     // The capo chip shares the lane's top-left band with the fret-hand chips, and a placement
