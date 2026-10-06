@@ -349,6 +349,18 @@ public:
     */
     [[nodiscard]] juce::Rectangle<int> legendBounds() const;
 
+    /*!
+    \brief Returns the font this lane prints its frets and fret-hand chips in, or empty while the
+    lane has nothing to draw or its notes are too small to carry text.
+
+    Published for the ruler's span chips, which stand outside the lane yet must print at the size
+    its fret-hand chips do (common::ui::drawTabSpanChip); the font is the lane's own metrics', so
+    the two can never be measured apart.
+
+    \return The lane's fret font, or empty.
+    */
+    [[nodiscard]] std::optional<common::ui::TabLaneFont> labelFont() const;
+
 private:
     // The lane's geometry together with the projection it was derived FROM: laneMetrics answering
     // is what proves that chart non-null, so the two travel as one value and a caller cannot hold

@@ -10,7 +10,6 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/bend_travel.h>
@@ -80,16 +79,8 @@ struct StringStyle;
 
 constexpr float g_shape_rail_height{3.0f};
 
-// The pixel a span's marks stop short of the next span's start, so two spans that meet read as
-// two: the rails keep it at their end and the label chip at its right edge.
+// The pixel a span's marks stop short of the next span's start (tabSpanStopX).
 constexpr float g_span_parting{1.0f};
-
-// The room a span chip leaves around its name: above and below the font's ink, and either side
-// of the name's measured width.
-constexpr float g_span_chip_padding{1.0f};
-
-// A span chip's sides lean in by this much per pixel of its height.
-constexpr float g_span_chip_lean{1.0f / 4.0f};
 
 // The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — with its
 // text. Every chip in the lane, boxed or floating, shares the corner rounding
@@ -109,6 +100,17 @@ constexpr float g_bend_fraction_scale{1.30f};
 [[nodiscard]] float laneChipHeight(const TabLaneFont& font)
 {
     return font.height() + 2.0f;
+}
+
+// The room a boxed lane chip leaves either side of its text.
+constexpr float g_boxed_chip_padding{3.0f};
+
+// A boxed lane chip's width: its text in the lane's font, padded either side. The one width rule
+// for the chips that box a label — the fret-hand chip, the capo chip and the span chip — so a span
+// chip sized as a fret-hand chip stays that size.
+[[nodiscard]] float boxedChipWidth(const TabLaneFont& font, const juce::String& text)
+{
+    return static_cast<float>(font.width(text)) + (2.0f * g_boxed_chip_padding);
 }
 
 // The lane's one face, bold, at a text height: the fret digits, the fractions and every chip print
@@ -2123,11 +2125,10 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     }
 
     const juce::String text = "Capo " + juce::String{capo};
-    const float width = static_cast<float>(metrics.fret_font.width(text)) + 6.0f;
     const juce::Rectangle<float> box{
         static_cast<float>(metrics.bounds.getX()) + 2.0f,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
-        width,
+        boxedChipWidth(metrics.fret_font, text),
         laneChipHeight(metrics.fret_font)
     };
     g.setColour(g_lane_chip_ground);
@@ -2609,7 +2610,7 @@ juce::Rectangle<float> tabFhpChipBounds(
     return juce::Rectangle<float>{
         left_x,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
-        static_cast<float>(metrics.fret_font.width(tabFhpChipText(fhp))) + 6.0f,
+        boxedChipWidth(metrics.fret_font, tabFhpChipText(fhp)),
         laneChipHeight(metrics.fret_font)
     };
 }
@@ -2674,79 +2675,71 @@ void drawTabFhpChip(
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
-TabLaneFont tabSpanChipFont()
+float tabSpanStopX(const float end_x, const std::optional<float> next_start_x)
 {
-    TabLaneGeometry full_size;
-    full_size.note_height = TabLaneStyle{}.max_note_height;
-    return laneFont(full_size.fretTextHeight());
-}
-
-// Rationale lives on the declaration in tab_paint_core.h.
-float tabSpanChipHeight(const TabLaneFont& font)
-{
-    return std::ceil(font.inkHeight()) + (2.0f * g_span_chip_padding);
+    return next_start_x.has_value() ? std::min(end_x, *next_start_x - g_span_parting) : end_x;
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
 void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanChip& chip)
 {
-    const float height = tabSpanChipHeight(font);
-    const float lean = height * g_span_chip_lean;
     const float left = chip.base_left.x;
     const float bottom = chip.base_left.y;
-    const float top = bottom - height;
-    const std::optional<float>& next_start_x = chip.next_start_x;
-    const float room = next_start_x.has_value() ? *next_start_x - g_span_parting - left
-                                                : std::numeric_limits<float>::infinity();
+    const float room = chip.stop_x - left;
+    const float full_height = laneChipHeight(font);
+    const float scale = std::min(1.0f, chip.max_height / full_height);
 
-    // The top edge is never shorter than the height, and a name widens it to hold the name padded;
-    // the chip prints a name only where the room holds the whole named chip.
-    float top_width = height;
+    // Blank, the chip is a one-figure fret-hand chip's full width even where its height is scaled,
+    // so the two chips stacked at a span's start share their right edge; a name widens it, and
+    // prints only where the room holds the whole named chip.
+    float natural_width = boxedChipWidth(font, g_reference_figure);
     juce::String printed;
     if (const std::optional<juce::String>& name = chip.name; name.has_value())
     {
-        const float named_top_width =
-            std::max(height, static_cast<float>(font.width(*name)) + (2.0f * g_span_chip_padding));
-        if (named_top_width + (2.0f * lean) <= room)
+        const float named_width = std::max(natural_width, boxedChipWidth(font, *name) * scale);
+        if (named_width <= room)
         {
-            top_width = named_top_width;
+            natural_width = named_width;
             printed = *name;
         }
     }
-    const float width = std::min(top_width + (2.0f * lean), room);
+    const float width = std::min(natural_width, room);
     if (width < 1.0f)
     {
         return;
     }
 
-    // A chip squeezed by the next span gives up its leans before its top edge, so it narrows into
-    // an upright block rather than a point.
-    const float slant = std::clamp((width - height) / 2.0f, 0.0f, lean);
-    const float top_left = left + slant;
-    const float top_right = left + width - slant;
-
-    // Only the top corners round, each cut back along both of its edges by the radius, held to half
-    // the top edge so a squeezed chip's two curves never cross; the base meets the line square.
-    const float side = std::hypot(slant, height);
-    const float radius = std::min(g_lane_chip_corner_radius, (top_right - top_left) / 2.0f);
-    const float cut_x = radius * slant / side;
-    const float cut_y = radius * height / side;
+    const float height = full_height * scale;
+    const juce::Rectangle<float> box{left, bottom - height, width, height};
+    // Only the top corners round; the base meets the line square. JUCE holds the radius to half
+    // the width, so a narrowed chip's two curves never cross.
     juce::Path outline;
-    outline.startNewSubPath(left, bottom);
-    outline.lineTo(top_left - cut_x, top + cut_y);
-    outline.quadraticTo(top_left, top, top_left + radius, top);
-    outline.lineTo(top_right - radius, top);
-    outline.quadraticTo(top_right, top, top_right + cut_x, top + cut_y);
-    outline.lineTo(left + width, bottom);
-    outline.closeSubPath();
+    outline.addRoundedRectangle(
+        box.getX(),
+        box.getY(),
+        box.getWidth(),
+        box.getHeight(),
+        g_lane_chip_corner_radius,
+        g_lane_chip_corner_radius,
+        true,
+        true,
+        false,
+        false);
     g.setColour(tabShapeMarkColor(chip.arpeggio));
     g.fillPath(outline);
 
     if (printed.isNotEmpty())
     {
         // The dark chip ground, since white falls short of legible contrast on the light rail ink.
+        // The name prints at the lane's size in the unscaled box, scaled about the base corner, so
+        // it shrinks with the chip instead of being measured in a second font.
+        const juce::Graphics::ScopedSaveState saved{g};
+        g.addTransform(juce::AffineTransform::scale(scale, scale, left, bottom));
         g.setColour(g_lane_chip_ground);
-        font.draw(g, printed, juce::Rectangle<float>{top_left, top, top_right - top_left, height});
+        font.draw(
+            g,
+            printed,
+            juce::Rectangle<float>{left, bottom - full_height, width / scale, full_height});
     }
 }
 
@@ -3230,15 +3223,11 @@ void paintTabLaneFurniture(
         {
             continue;
         }
-        // A screen pixel short of the next span's start, never a model time: two spans that meet
-        // read as two at every zoom, and the drawn extent stays rule 12a's alone.
-        float end_x = metrics.x(end_seconds);
-        if (shape_index + 1 < tab.shapes.size())
-        {
-            end_x = std::min(
-                end_x, metrics.x(tab.shapes[shape_index + 1].start_seconds) - g_span_parting);
-        }
-        drawShapeSpan(g, metrics, shape, end_x);
+        const std::optional<float> next_start_x =
+            shape_index + 1 < tab.shapes.size()
+                ? std::optional{metrics.x(tab.shapes[shape_index + 1].start_seconds)}
+                : std::nullopt;
+        drawShapeSpan(g, metrics, shape, tabSpanStopX(metrics.x(end_seconds), next_start_x));
     }
 
     // The capo chip shares the lane's top-left band with the fret-hand chips, and a placement

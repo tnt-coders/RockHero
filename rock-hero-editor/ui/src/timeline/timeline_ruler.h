@@ -76,30 +76,34 @@ struct RulerSectionLabel
 };
 
 /*!
-\brief One hand-shape span's start, where the ruler stands the span's label chip.
+\brief One hand-shape span, whose label chip the ruler stands at its start.
 
 Tab-projection data, not ruler data: the tab lane's spans own it, and the ruler draws their chips
 because its bottom band is the room directly above the lane's top rail.
 */
-struct RulerSpanStart
+struct RulerSpan
 {
     /*! \brief Absolute timeline second of the span start, in the content's time. */
-    double seconds{0.0};
+    double start_seconds{0.0};
+
+    /*! \brief Absolute timeline second of the span's drawn end, in the content's time. */
+    double end_seconds{0.0};
 
     /*! \brief True for an arpeggio span (purple chip); false for a chord span (blue chip). */
     bool arpeggio{false};
 
     /*!
-    \brief Compares two span starts by their stored values.
-    \param lhs Left-hand start.
-    \param rhs Right-hand start.
-    \return True when both starts store equal values.
+    \brief Compares two spans by their stored values.
+    \param lhs Left-hand span.
+    \param rhs Right-hand span.
+    \return True when both spans store equal values.
     */
-    friend bool operator==(const RulerSpanStart& lhs, const RulerSpanStart& rhs)
+    friend bool operator==(const RulerSpan& lhs, const RulerSpan& rhs)
     {
         // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // floating member. The ordering query expresses exact equality warning-free.
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.arpeggio == rhs.arpeggio;
+        // floating members. The ordering query expresses exact equality warning-free.
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.arpeggio == rhs.arpeggio;
     }
 };
 
@@ -350,16 +354,22 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
-    \brief Stores the tab lane's span starts, each drawn as a blank label chip standing on the
-    ruler's bottom edge, directly above the lane's top rail (\ref common::ui::drawTabSpanChip).
+    \brief Stores the tab lane's spans, each drawn as a blank label chip standing on the ruler's
+    bottom edge, directly above the lane's top rail (\ref common::ui::drawTabSpanChip).
 
-    The chip stays below the measure numbers' ink and above the lane's fret-hand chips, overlapping
-    neither. An unchanged list returns early because every controller state push repeats it.
+    A chip stands at its span's start; once that start has scrolled off the left, it holds at the
+    ruler's left edge while its span still shows, narrowing as the span's end comes in and leaving
+    with it (\ref stickyLabelLeft). The chip is the size of the lane's fret-hand chips, scaled down
+    whole where that would reach the measure numbers' ink, so it always keeps a clear row below
+    them. An unchanged list and font return early because every controller state push repeats
+    them.
 
-    \param starts Every span's start in ascending order, re-timed to the content's map; empty
-    clears the chips.
+    \param spans Every span in ascending start order, re-timed to the content's map; empty clears
+    the chips.
+    \param font The lane's fret font (\ref common::ui::TabLaneMetrics::fret_font), or empty while
+    the lane prints no text, which draws no chips, as the lane then draws no fret-hand chips.
     */
-    void setSpanStarts(std::vector<RulerSpanStart> starts);
+    void setSpans(std::vector<RulerSpan> spans, std::optional<common::ui::TabLaneFont> font);
 
     /*!
     \brief Stores which tempo and time-signature chips are selected.
@@ -543,8 +553,8 @@ private:
     // timeline.
     [[nodiscard]] std::optional<float> unboundedLocalXForSeconds(double seconds) const noexcept;
 
-    // Rebuilds the span chips from the span starts: each visible chip, its column and the next
-    // span's column, which bounds its width.
+    // Rebuilds the span chips from the spans: each visible chip, its column and the column its
+    // span's marks stop at, which bounds its width.
     void refreshSpanChips();
 
     // Maps this pinned ruler's local x coordinate to the content time under it, at the current
@@ -723,14 +733,13 @@ private:
     // positions resolve via localXForSeconds when the chip row rebuilds.
     std::vector<RulerSectionLabel> m_section_source{};
 
-    // The tab lane's span starts, pushed by the owning view whenever the displayed chart changes.
-    std::vector<RulerSpanStart> m_span_starts{};
+    // The tab lane's spans and fret font, pushed by the owning view whenever the displayed chart
+    // changes.
+    std::vector<RulerSpan> m_spans{};
+    std::optional<common::ui::TabLaneFont> m_span_chip_font{};
 
     // The span chips the ruler shows, placed when the geometry rebuilds.
     std::vector<common::ui::TabSpanChip> m_span_chips{};
-
-    // The font a span chip's name prints in, built once because building it measures a glyph.
-    common::ui::TabLaneFont m_span_chip_font{common::ui::tabSpanChipFont()};
 
     // The selected tempo chip's anchor beat and signature chip's measure, as last pushed.
     std::optional<common::core::GridPosition> m_selected_tempo_anchor{};

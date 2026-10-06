@@ -358,12 +358,17 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
-    \brief Forwards the tab lane's span starts to the pinned ruler, which draws each span's label
-    chip on its bottom edge, directly above the lane's top rail.
-    \param starts Every span's start in ascending order, re-timed to the content's map; empty
-    clears the chips.
+    \brief Forwards the tab lane's spans to the pinned ruler, which draws each span's label chip on
+    its bottom edge, directly above the lane's top rail, together with the lane's own font, so the
+    chips print at the size the lane's fret-hand chips do.
+
+    The font is read from the lane here, so the caller pushes the spans after the lane's state and
+    its displayed lane count (\ref setTabDisplayedStrings), the only facts that font follows.
+
+    \param spans Every span in ascending start order, re-timed to the content's map; empty clears
+    the chips.
     */
-    void setSpanStarts(std::vector<RulerSpanStart> starts);
+    void setSpans(std::vector<RulerSpan> spans);
 
     /*!
     \brief Forwards the selected tempo and time-signature chips to the pinned ruler.

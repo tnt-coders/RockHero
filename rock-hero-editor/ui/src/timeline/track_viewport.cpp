@@ -446,11 +446,11 @@ void TrackViewport::setSectionLabels(std::vector<RulerSectionLabel> labels)
     m_timeline_ruler.setSectionLabels(std::move(labels));
 }
 
-// Forwards the tab lane's span starts to the pinned ruler, whose bottom edge the span chips stand
-// on, directly above the lane's top rail.
-void TrackViewport::setSpanStarts(std::vector<RulerSpanStart> starts)
+// Forwards the tab lane's spans and its font to the pinned ruler, whose bottom edge the span chips
+// stand on, directly above the lane's top rail.
+void TrackViewport::setSpans(std::vector<RulerSpan> spans)
 {
-    m_timeline_ruler.setSpanStarts(std::move(starts));
+    m_timeline_ruler.setSpans(std::move(spans), m_tab_view.labelFont());
 }
 
 // Forwards the selected tempo and time-signature chips to the pinned ruler.

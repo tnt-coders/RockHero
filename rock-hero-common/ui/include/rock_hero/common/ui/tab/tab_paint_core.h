@@ -185,6 +185,17 @@ public:
     */
     void draw(juce::Graphics& g, const juce::String& text, juce::Rectangle<float> box) const;
 
+    /*!
+    \brief Compares two lane fonts by the face they draw with, which the measured ink derives from.
+    \param lhs Left-hand font.
+    \param rhs Right-hand font.
+    \return True when both draw with the same face.
+    */
+    friend bool operator==(const TabLaneFont& lhs, const TabLaneFont& rhs)
+    {
+        return lhs.m_font == rhs.m_font;
+    }
+
 private:
     // Initialized via FontOptions because JUCE 8 deprecates the default Font constructor.
     juce::Font m_font{juce::FontOptions{}};
@@ -531,14 +542,37 @@ void drawTabFhpChip(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp,
     float left_x);
 
-/*! \brief One hand-shape span's label chip, placed against its span and the span after it. */
+/*!
+\brief Returns the column where a hand-shape span's marks stop: its own end, held a pixel short of
+the next span's start where that comes first, so two spans that meet read as two at every zoom.
+
+THE ONE statement of that parting. The rails stop here (\ref paintTabLaneFurniture), and so does a
+span's label chip (\ref TabSpanChip::stop_x), so the chip never reaches past the rails it names.
+The parting is a screen pixel, never a model time: the drawn extent stays the span's own.
+
+\param end_x The span's end column.
+\param next_start_x The next span's start column, or empty when no span follows this one.
+\return The column the span's marks stop at.
+*/
+[[nodiscard]] float tabSpanStopX(float end_x, std::optional<float> next_start_x);
+
+/*! \brief One hand-shape span's label chip, placed against its span. */
 struct TabSpanChip
 {
-    /*! \brief The chip's bottom-left corner: the span's start column, on the line it stands on. */
+    /*!
+    \brief The chip's bottom-left corner on the line it stands on: the span's start column, or the
+    window's left edge while the start has scrolled past it.
+    */
     juce::Point<float> base_left{};
 
-    /*! \brief The next span's start column, or empty when no span follows this one. */
-    std::optional<float> next_start_x{};
+    /*! \brief The column the chip's right edge never passes: its span's \ref tabSpanStopX. */
+    float stop_x{};
+
+    /*!
+    \brief The tallest the chip may stand where its host places it, in pixels. A chip taller than
+    this at the lane's size stands exactly this tall, its name scaled to match.
+    */
+    float max_height{};
 
     /*! \brief True for an arpeggio span (purple); false for a chord span (blue). */
     bool arpeggio{false};
@@ -548,42 +582,25 @@ struct TabSpanChip
 };
 
 /*!
-\brief The font a span chip prints its name in: the lane's fret face, at the size a lane reaching
-its note-height cap (\ref TabLaneStyle::max_note_height) prints its frets.
+\brief Draws one span's label chip: a rectangle standing square on the chip's base line with its
+left edge at the chip's x, its top corners rounded (\ref g_lane_chip_corner_radius), filled in the
+rails' ink (\ref tabShapeMarkColor).
 
-The chip stands outside every lane, so it cannot ask one for its font; the editor's lane always
-reaches the cap, so this is the size its fret-hand chips print at. Building the font measures a
-glyph outline, so a host builds it once rather than per paint.
-
-\return The chip font.
-*/
-[[nodiscard]] TabLaneFont tabSpanChipFont();
-
-/*!
-\brief A span chip's height: the font's ink, rounded up to whole pixels, with a pixel of padding
-above and below.
-\param font The chip font (\ref tabSpanChipFont).
-\return Chip height in pixels.
-*/
-[[nodiscard]] float tabSpanChipHeight(const TabLaneFont& font);
-
-/*!
-\brief Draws one span's label chip: a trapezoid standing square on the chip's base line, its
-bottom-left corner on the span's start, its top corners rounded (\ref g_lane_chip_corner_radius),
-filled in the rails' ink (\ref tabShapeMarkColor).
-
-Each side leans in by a quarter of the chip's height. A blank chip's top edge is as long as the
-chip is tall. A named one's top edge is as long as its name needs with a pixel either side, never
-shorter, the name printed inside it in the dark chip ground for contrast against the light fill.
-Either way the chip stops a pixel short of the next span's start, the same parting the rails keep
-(\ref paintTabLaneFurniture), and draws nothing when that leaves it under a pixel. A chip narrower
-than its full shape gives up its leans before its top edge, narrowing into an upright block, never
-a point. A name prints only where the room holds the chip's whole named width; otherwise the name
-is dropped entire, never clipped or shrunk, and the chip draws blank.
+Sized as a fret-hand-position chip in the same font (\ref tabFhpChipBounds): a blank chip is
+exactly as wide and tall as a one-figure fret-hand chip, and a named one keeps that height and is
+as wide as its name boxed the way a fret-hand chip boxes its text, never narrower than the blank
+chip, the name printed in the dark chip ground for contrast against the light fill. Where that
+height exceeds \ref TabSpanChip::max_height, the chip stands exactly that tall and its name scales
+down to match, but a blank chip keeps the fret-hand chip's full width, so the two chips stacked at
+a span's start share their right edge. The chip is held to \ref TabSpanChip::stop_x, narrowing to
+the room left before it and drawing nothing when that leaves it under a pixel. A name prints only
+where the room holds the chip's whole named width; otherwise the name is dropped entire, never
+clipped or shrunk, and the chip draws blank.
 
 \param g Graphics context to draw into.
-\param font The chip font (\ref tabSpanChipFont).
-\param chip The chip and its neighbour.
+\param font The fret font of the lane the chip labels (\ref TabLaneMetrics::fret_font), so the chip
+       scales with the lane exactly as its fret-hand chips do.
+\param chip The chip and the column it stops at.
 */
 void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanChip& chip);
 

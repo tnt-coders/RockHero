@@ -1144,6 +1144,18 @@ juce::Rectangle<int> TabView::legendBounds() const
     return m_legend_column.translated(m_visible_content_left, 0);
 }
 
+// Rationale lives on the declaration in tab_view.h.
+std::optional<common::ui::TabLaneFont> TabView::labelFont() const
+{
+    // Bound to a local so the presence test and the read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value() || !lane->metrics.draw_text)
+    {
+        return std::nullopt;
+    }
+    return lane->metrics.fret_font;
+}
+
 // The pinned chrome's local rectangle at the current pin: the panel plus whatever the pinned chip
 // reaches past it, and empty when neither draws.
 juce::Rectangle<int> TabView::pinnedChromeBounds() const

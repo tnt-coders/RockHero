@@ -40,10 +40,9 @@ const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 // a dotted leader line down to the ruler body so its exact position stays readable. The ruler
 // body below them holds the measure-number row above the tick band; measure ticks run the
 // body's full height so the numbers stay attached to their downbeats. The tab lane's span chips
-// stand on the ruler's bottom edge over the tick band: 12 px at the lane's fret size, which keeps
-// them clear of the measure numbers' ink (rows 47-55 under the Windows face) and of the lane's
-// fret-hand chips a row below the edge. The heights fold into g_timeline_ruler_height; change
-// them together.
+// stand on the ruler's bottom edge over the tick band, the size of the lane's fret-hand chips but
+// never taller than the room below the measure numbers' ink (spanChipMaxHeight). The heights fold
+// into g_timeline_ruler_height; change them together.
 constexpr int g_section_row_y{2};
 constexpr int g_tempo_row_y{16};
 constexpr int g_signature_row_y{30};
@@ -71,6 +70,19 @@ constexpr FlashTrain g_renumber_flash_train{.pulses = 1.0, .seconds = 0.8};
 [[nodiscard]] juce::Font rulerFont()
 {
     return juce::Font{juce::FontOptions{12.0f}};
+}
+
+// The tallest a span chip may stand on the ruler's bottom edge: up to a clear row below the
+// measure numbers' baseline, the lowest edge of their ink since digits carry no descenders. Read
+// from the face's own metrics, placed as drawText centres a line in the label row, so the chip
+// keeps the clearance on every platform's face.
+[[nodiscard]] float spanChipMaxHeight()
+{
+    const juce::Font font = rulerFont();
+    const float baseline = static_cast<float>(g_measure_row_y) +
+                           ((static_cast<float>(g_label_row_height) - font.getHeight()) / 2.0f) +
+                           font.getAscent();
+    return static_cast<float>(g_timeline_ruler_height) - (std::ceil(baseline) + 1.0f);
 }
 
 // Chip text face, sized so a chip row reads as a label band rather than as content.
@@ -318,9 +330,12 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     drawBeatTicks(g);
     drawMeasureLabels(g);
-    for (const common::ui::TabSpanChip& chip : m_span_chips)
+    if (m_span_chip_font.has_value())
     {
-        common::ui::drawTabSpanChip(g, m_span_chip_font, chip);
+        for (const common::ui::TabSpanChip& chip : m_span_chips)
+        {
+            common::ui::drawTabSpanChip(g, *m_span_chip_font, chip);
+        }
     }
 
     drawChipRow(g, m_section_row.chips, editorTheme().section_chip, g_section_row_y);
@@ -785,15 +800,17 @@ void TimelineRuler::setSectionLabels(std::vector<RulerSectionLabel> labels)
     repaint();
 }
 
-// Stores the span starts. Only the span chips depend on them, so only those rebuild.
-void TimelineRuler::setSpanStarts(std::vector<RulerSpanStart> starts)
+// Stores the spans and the lane's font. Only the span chips depend on them, so only those rebuild.
+void TimelineRuler::setSpans(
+    std::vector<RulerSpan> spans, std::optional<common::ui::TabLaneFont> font)
 {
-    if (m_span_starts == starts)
+    if (m_spans == spans && m_span_chip_font == font)
     {
         return;
     }
 
-    m_span_starts = std::move(starts);
+    m_spans = std::move(spans);
+    m_span_chip_font = std::move(font);
     refreshSpanChips();
     repaint();
 }
@@ -884,18 +901,28 @@ std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) co
     return *content_x - static_cast<float>(m_view_x);
 }
 
-// Each chip stands at its own span's start and ends at the latest a pixel short of the next one's,
-// so a chip shows exactly when its start lies left of the ruler's right edge and the next start
-// lies right of its left edge. Starts ascend, so the walk stops at the first start past the edge.
+// Each chip rides its span by the pinned-label rule every scrolling label obeys: at the span's
+// start, or at the ruler's left edge (local x 0) while the start has scrolled past it, never past
+// where the span's rails stop. Starts ascend, so the walk stops at the first start past the edge.
 void TimelineRuler::refreshSpanChips()
 {
     m_span_chips.clear();
-    const auto width = static_cast<float>(getWidth());
-    for (std::size_t index = 0; index < m_span_starts.size(); ++index)
+    if (!m_span_chip_font.has_value())
     {
-        const std::optional<float> start_x =
-            unboundedLocalXForSeconds(m_span_starts[index].seconds);
-        if (!start_x.has_value())
+        return;
+    }
+
+    const auto width = static_cast<float>(getWidth());
+    const float max_height = spanChipMaxHeight();
+    for (std::size_t index = 0; index < m_spans.size(); ++index)
+    {
+        const RulerSpan& span = m_spans[index];
+        const std::optional<float> start_x = unboundedLocalXForSeconds(span.start_seconds);
+        // Held to the timeline's end, which the canvas stops at, so a span running past it still
+        // maps the column it stops at.
+        const std::optional<float> end_x =
+            unboundedLocalXForSeconds(std::min(span.end_seconds, m_timeline_range.end.seconds));
+        if (!start_x.has_value() || !end_x.has_value())
         {
             continue;
         }
@@ -904,18 +931,20 @@ void TimelineRuler::refreshSpanChips()
             break;
         }
         const std::optional<float> next_start_x =
-            index + 1 < m_span_starts.size()
-                ? unboundedLocalXForSeconds(m_span_starts[index + 1].seconds)
-                : std::nullopt;
-        if (next_start_x.has_value() && *next_start_x <= 0.0f)
+            index + 1 < m_spans.size() ? unboundedLocalXForSeconds(m_spans[index + 1].start_seconds)
+                                       : std::nullopt;
+        const float stop_x = common::ui::tabSpanStopX(*end_x, next_start_x);
+        const std::optional<float> left = stickyLabelLeft(*start_x, stop_x, 0.0f);
+        if (!left.has_value())
         {
             continue;
         }
         m_span_chips.push_back(
             common::ui::TabSpanChip{
-                .base_left = {*start_x, static_cast<float>(getHeight())},
-                .next_start_x = next_start_x,
-                .arpeggio = m_span_starts[index].arpeggio,
+                .base_left = {*left, static_cast<float>(getHeight())},
+                .stop_x = stop_x,
+                .max_height = max_height,
+                .arpeggio = span.arpeggio,
                 .name = std::nullopt,
             });
     }

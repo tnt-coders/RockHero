@@ -886,22 +886,26 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setSectionLabels(std::move(section_labels));
 
     // The tab lane's spans stand their label chips on the ruler, re-timed to the content map as
-    // the sections are, so a chip stays on the rail the lane draws through its own re-time.
-    std::vector<RulerSpanStart> span_starts;
+    // the sections are, so a chip stays on the rail the lane draws through its own re-time. Pushed
+    // after the lane's state and lane count, since the viewport reads the lane's font with them.
+    std::vector<RulerSpan> spans;
     if (m_state.tab != nullptr)
     {
-        span_starts.reserve(m_state.tab->shapes.size());
+        spans.reserve(m_state.tab->shapes.size());
+        const auto retimed = [this](const double chart_seconds) {
+            return m_state.content_map.secondsRetimedFrom(m_state.tempo_map, chart_seconds);
+        };
         for (const common::core::ShapeViewState& shape : m_state.tab->shapes)
         {
-            span_starts.push_back(
-                RulerSpanStart{
-                    .seconds = m_state.content_map.secondsRetimedFrom(
-                        m_state.tempo_map, shape.start_seconds),
+            spans.push_back(
+                RulerSpan{
+                    .start_seconds = retimed(shape.start_seconds),
+                    .end_seconds = retimed(shape.drawn_end_seconds),
                     .arpeggio = shape.arpeggio,
                 });
         }
     }
-    m_track_viewport->setSpanStarts(std::move(span_starts));
+    m_track_viewport->setSpans(std::move(spans));
     m_track_viewport->setSelectedTempoMapChips(
         m_state.selected_tempo_anchor, m_state.selected_time_signature_measure);
 

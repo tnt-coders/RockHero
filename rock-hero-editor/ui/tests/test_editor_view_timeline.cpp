@@ -151,6 +151,19 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     };
 }
 
+// A tab lane at the editor's density, whose fret font the ruler's span chips print in.
+[[nodiscard]] common::ui::TabLaneMetrics spanChipLaneMetrics()
+{
+    return common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 401, 240},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{0.0},
+            .end = common::core::TimePosition{4.0},
+        },
+        6,
+        6);
+}
+
 // A chart carrying one bare note head on the lowest string at a time: at the very first beat, the
 // figure the leftmost scroll position has to draw whole.
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeSingleNoteChart(
@@ -396,7 +409,7 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
 }
 
 // The tab lane's spans stand their label chips on the ruler's bottom edge, each at its own span's
-// start in its span's color, rising no higher than the chip's own height above that edge.
+// start in its span's color.
 TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -414,26 +427,140 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
         core::visibleTempoGridLines(
             tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
-    ruler.setSpanStarts(
-        std::vector<RulerSpanStart>{
-            RulerSpanStart{.seconds = 1.0, .arpeggio = false},
-            RulerSpanStart{.seconds = 2.0, .arpeggio = true},
-        });
+    const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
+    ruler.setSpans(
+        std::vector<RulerSpan>{
+            RulerSpan{.start_seconds = 1.0, .end_seconds = 2.0, .arpeggio = false},
+            RulerSpan{.start_seconds = 2.0, .end_seconds = 3.0, .arpeggio = true},
+        },
+        lane.fret_font);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
     // One measure across 401px maps seconds * 100: the chord chip's foot at x = 100, the
-    // arpeggio's at x = 200, both probed at their middles (a blank chip runs half again as wide as
-    // it is tall), clear of the beat ticks they cover.
-    const int height =
-        juce::roundToInt(common::ui::tabSpanChipHeight(common::ui::tabSpanChipFont()));
-    const int middle_x = height * 3 / 4;
-    const int middle_y = g_timeline_ruler_height - (height / 2);
-    CHECK(image.getPixelAt(100 + middle_x, middle_y) == common::ui::tabShapeMarkColor(false));
-    CHECK(image.getPixelAt(200 + middle_x, middle_y) == common::ui::tabShapeMarkColor(true));
-    CHECK(
-        image.getPixelAt(100 + middle_x, g_timeline_ruler_height - height - 1) ==
-        editorTheme().timeline_ruler_background);
+    // arpeggio's at x = 200, both probed inside, clear of the beat ticks they cover.
+    const int inside_y = g_timeline_ruler_height - 4;
+    CHECK(image.getPixelAt(104, inside_y) == common::ui::tabShapeMarkColor(false));
+    CHECK(image.getPixelAt(204, inside_y) == common::ui::tabShapeMarkColor(true));
+}
+
+// A chip under a measure number never reaches the number's ink: a clear row always parts them,
+// whatever the lane's chip size asks for.
+TEST_CASE(
+    "TimelineRuler keeps span chips a row clear of the measure numbers", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
+    const auto render = [&](const std::vector<RulerSpan>& spans) {
+        TimelineRuler ruler;
+        ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+        ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+        ruler.setGrid(tempo_map, grid_note_value);
+        ruler.setGridLines(
+            core::visibleTempoGridLines(
+                tempo_map,
+                grid_note_value,
+                one_measure_window,
+                ruler.getWidth(),
+                0,
+                ruler.getWidth()));
+        ruler.setProjectLoaded(true);
+        ruler.setSpans(spans, lane.fret_font);
+        return ruler.createComponentSnapshot(ruler.getLocalBounds());
+    };
+    const juce::Image bare = render({});
+    const juce::Image chipped = render({
+        RulerSpan{.start_seconds = 0.0, .end_seconds = 4.0, .arpeggio = false},
+    });
+
+    // The measure "1" prints right of the downbeat at x = 0, clear of every tick in these
+    // columns; the chip's top is read in the column left of the number.
+    int ink_bottom = -1;
+    for (int y = 0; y < g_timeline_ruler_height; ++y)
+    {
+        for (int x = 3; x < 24; ++x)
+        {
+            if (bare.getPixelAt(x, y) != editorTheme().timeline_ruler_background &&
+                bare.getPixelAt(x, y) != editorTheme().window_background)
+            {
+                ink_bottom = y;
+            }
+        }
+    }
+    int chip_top = g_timeline_ruler_height;
+    for (int y = g_timeline_ruler_height - 1; y >= 0; --y)
+    {
+        if (chipped.getPixelAt(2, y) != bare.getPixelAt(2, y))
+        {
+            chip_top = y;
+        }
+    }
+    REQUIRE(ink_bottom >= 0);
+    REQUIRE(chip_top < g_timeline_ruler_height);
+    CHECK(chip_top >= ink_bottom + 2);
+}
+
+// A span whose start has scrolled off the left keeps its chip at the ruler's left edge while the
+// span still shows, by the pinned-label rule every scrolling label obeys: the chip narrows as the
+// span's end comes in and leaves with it, and a span whose start is on screen keeps its chip there.
+TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
+    // Every probe reads a row inside the chip; no chip reaches 20 px wide.
+    const int middle_y = g_timeline_ruler_height - 4;
+    constexpr int past_chip = 20;
+    const juce::Colour chord = common::ui::tabShapeMarkColor(false);
+
+    // Eight seconds across 801px maps seconds * 100; scrolled 150px in, the ruler's left edge is
+    // 1.5 s. Each case is one chord span starting at `start` and ending at `end`.
+    const auto render = [&lane](const double start, const double end) {
+        TimelineRuler ruler;
+        ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+        ruler.setTimelineView(
+            common::core::TimeRange{
+                .start = common::core::TimePosition{0.0},
+                .end = common::core::TimePosition{8.0},
+            },
+            801,
+            150);
+        ruler.setGridLines({});
+        ruler.setProjectLoaded(true);
+        ruler.setSpans(
+            std::vector<RulerSpan>{
+                RulerSpan{.start_seconds = start, .end_seconds = end, .arpeggio = false},
+            },
+            lane.fret_font);
+        return ruler.createComponentSnapshot(ruler.getLocalBounds());
+    };
+
+    // Started at 1 s, ending at 3 s: the whole chip at the left edge.
+    const juce::Image held = render(1.0, 3.0);
+    CHECK(held.getPixelAt(0, middle_y) == chord);
+    CHECK(held.getPixelAt(8, middle_y) == chord);
+    CHECK(held.getPixelAt(past_chip, middle_y) != chord);
+
+    // Ending at 1.565 s, six and a half pixels in: the chip narrows to the span.
+    const juce::Image narrowed = render(1.0, 1.565);
+    CHECK(narrowed.getPixelAt(0, middle_y) == chord);
+    CHECK(narrowed.getPixelAt(5, middle_y) == chord);
+    CHECK(narrowed.getPixelAt(6, middle_y) != chord);
+
+    // Ending at the edge itself: the chip has left with its span.
+    const juce::Image gone = render(1.0, 1.5);
+    CHECK(gone.getPixelAt(0, middle_y) != chord);
+
+    // Started at 2 s, on screen at x = 50: the chip stands at its own start, not the edge.
+    const juce::Image unscrolled = render(2.0, 3.0);
+    CHECK(unscrolled.getPixelAt(49, middle_y) != chord);
+    CHECK(unscrolled.getPixelAt(50, middle_y) == chord);
+    CHECK(unscrolled.getPixelAt(58, middle_y) == chord);
 }
 
 // A chip is an object, not a position: clicking one reports the section it stands for and seeks
