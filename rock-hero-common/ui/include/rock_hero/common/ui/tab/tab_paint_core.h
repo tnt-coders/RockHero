@@ -560,9 +560,8 @@ The parting is a screen pixel, never a model time: the drawn extent stays the sp
 struct TabSpanChip
 {
     /*!
-    \brief The chip's bottom-left corner on the line it stands on: the span's start column, or,
-    while the host holds the chip at its window's left edge, one \ref tabSpanChipLean left of that
-    edge, so the top-left corner sits on the edge and the left side's lean lies past it.
+    \brief The chip's bottom-left corner on the line it stands on: the span's start column, or the
+    window's left edge while the host holds the chip there.
     */
     juce::Point<float> base_left{};
 
@@ -571,7 +570,7 @@ struct TabSpanChip
 
     /*!
     \brief The tallest the chip may stand where its host places it, in pixels. A chip taller than
-    this at the lane's size stands exactly this tall and draws blank, its name's ink no longer
+    this at the lane's size stands exactly this tall and draws blank, its label's ink no longer
     fitting.
     */
     float max_height{};
@@ -579,39 +578,31 @@ struct TabSpanChip
     /*! \brief True for an arpeggio span (purple); false for a chord span (blue). */
     bool arpeggio{false};
 
-    /*! \brief The span's name, or empty for a nameless span, whose chip stays blank. */
+    /*!
+    \brief The chord name of the span's grip template, or empty for a span without a template,
+    whose chip prints "?": a span is complete only once it carries a template.
+
+    A template that names no chord will need a reading of its own, apart from the "?" that stands
+    for no template.
+    */
     std::optional<juce::String> name{};
 };
 
 /*!
-\brief Returns how far each side of a span chip leans in over its height: a quarter of the height
-the chip stands at.
+\brief Draws one span's label chip: a rectangle standing square on the chip's base line with its
+bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
+(\ref g_lane_chip_corner_radius), filled in the rails' ink (\ref tabShapeMarkColor).
 
-A host holding a chip at its window's left edge places the chip's base this far left of the edge
-(\ref TabSpanChip::base_left), so the top-left corner holds at the edge.
-
-\param font The fret font of the lane the chip labels (\ref TabLaneMetrics::fret_font).
-\param max_height The host's ceiling on the chip's height (\ref TabSpanChip::max_height).
-\return The lean in pixels.
-*/
-[[nodiscard]] float tabSpanChipLean(const TabLaneFont& font, float max_height);
-
-/*!
-\brief Draws one span's label chip: a trapezoid standing square on the chip's base line with its
-bottom-left corner at \ref TabSpanChip::base_left, each side leaning in by \ref tabSpanChipLean,
-its top corners rounded (\ref g_lane_chip_corner_radius), filled in the rails' ink
-(\ref tabShapeMarkColor).
-
-Its flat top edge is sized as a fret-hand-position chip in the same font (\ref tabFhpChipBounds):
-blank, as wide as a one-figure fret-hand chip; named, as wide as its name boxed the way a fret-hand
-chip boxes its text, never narrower than the blank top, the name printed in the dark chip ground for
-contrast against the light fill. The chip stands as tall as the font's ink, rounded up to whole
-pixels, with a pixel above and below, so a name prints in the lane's own font; where that exceeds
-\ref TabSpanChip::max_height, the chip stands exactly that tall with the same top edge. The chip is
-held to \ref TabSpanChip::stop_x, narrowing to the room left before it, giving up its leans before
-its top edge so it narrows into an upright block rather than a point, and drawing nothing when that
-leaves it under a pixel. A name prints only where the room holds the chip's whole named width and
-the ceiling leaves the chip its own height; otherwise the name is dropped entire, never clipped or
+The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
+centred in the dark chip ground for contrast against the light fill. It is sized as a
+fret-hand-position chip in the same font (\ref tabFhpChipBounds): blank, as wide as a one-figure
+fret-hand chip; labelled, as wide as its label boxed the way a fret-hand chip boxes its text, never
+narrower than the blank chip. The chip stands as tall as the font's ink, rounded up to whole pixels,
+with a pixel above and below, so a label prints in the lane's own font; where that exceeds
+\ref TabSpanChip::max_height, the chip stands exactly that tall. The chip is held to
+\ref TabSpanChip::stop_x, narrowing to the room left before it and drawing nothing when that leaves
+it under a pixel. A label prints only where the room holds the chip's whole labelled width and the
+ceiling leaves the chip its own height; otherwise the label is dropped entire, never clipped or
 shrunk, and the chip draws blank.
 
 \param g Graphics context to draw into.

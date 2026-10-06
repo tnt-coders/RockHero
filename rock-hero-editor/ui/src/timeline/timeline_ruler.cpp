@@ -902,9 +902,8 @@ std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) co
 }
 
 // Each chip rides its span by the pinned-label rule every scrolling label obeys: at the span's
-// start, or held with its top-left corner on the ruler's left edge once it scrolls that far,
-// never past where the span's rails stop. Starts ascend, so the walk stops at the first start
-// past the edge.
+// start, or held at the ruler's left edge once it scrolls that far, never past where the span's
+// rails stop. Starts ascend, so the walk stops at the first start past the edge.
 void TimelineRuler::refreshSpanChips()
 {
     m_span_chips.clear();
@@ -915,10 +914,6 @@ void TimelineRuler::refreshSpanChips()
 
     const auto width = static_cast<float>(getWidth());
     const float max_height = spanChipMaxHeight();
-    // The edge a chip's BASE holds at: a lean left of local x 0, so a held chip's top-left corner
-    // stays on the ruler's edge with its left lean scrolled past it, and a chip reaches that hold
-    // by scrolling there rather than jumping.
-    const float held_base_left = -common::ui::tabSpanChipLean(*m_span_chip_font, max_height);
     for (std::size_t index = 0; index < m_spans.size(); ++index)
     {
         const RulerSpan& span = m_spans[index];
@@ -939,7 +934,7 @@ void TimelineRuler::refreshSpanChips()
             index + 1 < m_spans.size() ? unboundedLocalXForSeconds(m_spans[index + 1].start_seconds)
                                        : std::nullopt;
         const float stop_x = common::ui::tabSpanStopX(*end_x, next_start_x);
-        const std::optional<float> left = stickyLabelLeft(*start_x, stop_x, held_base_left);
+        const std::optional<float> left = stickyLabelLeft(*start_x, stop_x, 0.0f);
         if (!left.has_value())
         {
             continue;

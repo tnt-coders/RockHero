@@ -354,16 +354,16 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
-    \brief Stores the tab lane's spans, each drawn as a blank label chip standing on the ruler's
-    bottom edge, directly above the lane's top rail (\ref common::ui::drawTabSpanChip).
+    \brief Stores the tab lane's spans, each drawn as a label chip standing on the ruler's bottom
+    edge, directly above the lane's top rail (\ref common::ui::drawTabSpanChip). No span carries a
+    grip template, so every chip is given no name and prints "?".
 
-    A chip stands at its span's start; once it has scrolled far enough left that its top-left
-    corner meets the ruler's left edge, it holds there while its span still shows, its left lean
-    past the edge, narrowing as the span's end comes in and leaving with it (\ref stickyLabelLeft).
-    The chip's top edge is the width of the lane's fret-hand chips and the chip is as tall as the
-    lane's fret ink with a pixel of padding, lowered whole where that would reach the measure
-    numbers' ink, so it always keeps a clear row below them. An unchanged list and font return
-    early because every controller state push repeats them.
+    A chip stands at its span's start; once its left edge reaches the ruler's left edge, it holds
+    there while its span still shows, narrowing as the span's end comes in and leaving with it
+    (\ref stickyLabelLeft). The chip is the width of the lane's one-figure fret-hand chip and as
+    tall as the lane's fret ink with a pixel of padding, lowered whole where that would reach the
+    measure numbers' ink, so it always keeps a clear row below them. An unchanged list and font
+    return early because every controller state push repeats them.
 
     \param spans Every span in ascending start order, re-timed to the content's map; empty clears
     the chips.

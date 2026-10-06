@@ -63,12 +63,14 @@ more strings, while the file accepts its absence, on the plan's own save-warns /
 tiers. The entry's fields are Phase 5's design.
 
 **Where a grip's name shows (user, 2026-10-06).** The 2D tab lane already draws a LABEL CHIP at
-every span's start (built ahead of this plan, during 60a Phase 2): a steep trapezoid in the span's
-blue or purple, on the top side between the fret-hand position chips and the measure numbers,
-left-aligned to the span's start. It is BLANK until an entry names the grip, never a "?" (a
-nameless span is a legitimate state), and abutting spans are separated by a 1 px pixel trim of the
-earlier span's rails. Phase 5 feeds the chip's name; the draw function already takes one. Owed
-here: (1) the grip name on the 3D highway, NOT as a trapezoid, in the conventional in-lane style
+every span's start (built ahead of this plan, during 60a Phase 2): a rectangle with rounded top
+corners in the span's rail color, standing on the ruler's bottom edge between the measure numbers
+and the fret-hand position chips, left-aligned to the span's start and held at the visible left
+edge while its span is scrolled. It prints "?" for a span with NO TEMPLATE (user, 2026-10-06:
+"while the chart is VALID every span SHOULD have an associated template to be fully complete"),
+reversing an earlier blank-chip choice; abutting spans are separated by a 1 px trim of the
+earlier span's rails. Phase 5 feeds the chip's name, and must decide how a template WITHOUT a
+`chord` name reads, which is neither "?" nor a name. Owed here: (1) the grip name on the 3D highway, NOT as a trapezoid, in the conventional in-lane style
 the user has in mind; (2) a span-start mark on the highway, world-sized, since a pixel gap cannot
 read through the rails' glow there. Until (1) lands, the 2D name is a surface divergence this plan
 closes.

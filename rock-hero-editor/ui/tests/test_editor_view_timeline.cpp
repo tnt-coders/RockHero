@@ -164,30 +164,13 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         6);
 }
 
-// A column under the flat top of a span chip whose bottom-left corner stands at x = 0: past the
-// most its side can lean, and short of its top edge, a one-figure fret-hand chip's width.
-[[nodiscard]] int spanChipFlatTopX(const common::ui::TabLaneMetrics& lane)
+// A blank span chip's width in that lane: a one-figure fret-hand chip's.
+[[nodiscard]] int spanChipBlankWidth(const common::ui::TabLaneMetrics& lane)
 {
-    const float widest_lean = common::ui::tabSpanChipLean(lane.fret_font, 1000.0f);
-    const float top_width =
+    return static_cast<int>(
         common::ui::tabFhpChipBounds(
             lane, common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 4}, 0.0f)
-            .getWidth();
-    REQUIRE(top_width > widest_lean + (2.0f * common::ui::g_lane_chip_corner_radius));
-    return juce::roundToInt((widest_lean + top_width) / 2.0f);
-}
-
-// The first row from the top where a column is solid ink, or the image's height when none is.
-[[nodiscard]] int topSolidRow(const juce::Image& image, const int x, const juce::Colour ink)
-{
-    for (int y = 0; y < image.getHeight(); ++y)
-    {
-        if (image.getPixelAt(x, y) == ink)
-        {
-            return y;
-        }
-    }
-    return image.getHeight();
+            .getWidth());
 }
 
 // A chart carrying one bare note head on the lowest string at a time: at the very first beat, the
@@ -435,7 +418,7 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
 }
 
 // The tab lane's spans stand their label chips on the ruler's bottom edge, each at its own span's
-// start in its span's color.
+// start in its span's color, each printing the "?" of a span with no name.
 TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -463,11 +446,34 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 401px maps seconds * 100: the chord chip's foot at x = 100, the
-    // arpeggio's at x = 200, both probed inside, clear of the beat ticks they cover.
+    // One measure across 401px maps seconds * 100: the chord chip's left edge at x = 100, the
+    // arpeggio's at x = 200, both probed in their left padding, clear of the beat ticks they cover
+    // and of the label.
     const int inside_y = g_timeline_ruler_height - 4;
-    CHECK(image.getPixelAt(104, inside_y) == common::ui::tabShapeMarkColor(false));
-    CHECK(image.getPixelAt(204, inside_y) == common::ui::tabShapeMarkColor(true));
+    const juce::Colour chord = common::ui::tabShapeMarkColor(false);
+    CHECK(image.getPixelAt(100, inside_y) == chord);
+    CHECK(image.getPixelAt(99, inside_y) != chord);
+    CHECK(image.getPixelAt(201, inside_y) == common::ui::tabShapeMarkColor(true));
+
+    // The chord chip's centre is not its fill alone: the "?" prints there. Read coarsely, since
+    // the label is a glyph.
+    const int width = spanChipBlankWidth(lane);
+    const auto height = static_cast<int>(std::ceil(lane.fret_font.inkHeight())) + 2;
+    const juce::Rectangle<int> centre{
+        100 + 3, g_timeline_ruler_height - height + 1, width - 6, height - 2
+    };
+    int label_pixels = 0;
+    for (int y = centre.getY(); y < centre.getBottom(); ++y)
+    {
+        for (int x = centre.getX(); x < centre.getRight(); ++x)
+        {
+            if (image.getPixelAt(x, y) != chord)
+            {
+                ++label_pixels;
+            }
+        }
+    }
+    CHECK(label_pixels > 0);
 }
 
 // A chip under a measure number stands its own height, the fret font's ink with a pixel above and
@@ -508,7 +514,7 @@ TEST_CASE(
     // The measure "1" prints right of the downbeat at x = 0, clear of every tick in these
     // columns; the chip's top is read where the chip differs from the bare ruler, in a column
     // under its flat top.
-    const int flat_top_x = spanChipFlatTopX(lane);
+    const int flat_top_x = spanChipBlankWidth(lane) / 2;
     int ink_bottom = -1;
     for (int y = 0; y < g_timeline_ruler_height; ++y)
     {
@@ -537,18 +543,18 @@ TEST_CASE(
 }
 
 // A span whose start has scrolled off the left keeps its chip at the ruler's left edge while the
-// span still shows, by the pinned-label rule every scrolling label obeys: held with its top-left
-// corner on the edge and its left lean past it, the chip narrows as the span's end comes in and
-// leaves with it, and a span whose start is on screen keeps its chip there.
+// span still shows, by the pinned-label rule every scrolling label obeys: held whole with its left
+// edge on the ruler's, the chip narrows as the span's end comes in and leaves with it, and a span
+// whose start is on screen keeps its chip there.
 TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
-    // Every probe reads a row inside the chip; no chip reaches 20 px wide.
+    // Every probe reads a row inside the chip, left of its label; no chip reaches 20 px wide.
     const int middle_y = g_timeline_ruler_height - 4;
     const int base_y = g_timeline_ruler_height - 1;
     constexpr int past_chip = 20;
-    const auto radius = static_cast<int>(common::ui::g_lane_chip_corner_radius);
+    REQUIRE(spanChipBlankWidth(lane) < past_chip);
     const juce::Colour chord = common::ui::tabShapeMarkColor(false);
 
     // Eight seconds across 801px maps seconds * 100; scrolled 150px in, the ruler's left edge is
@@ -573,26 +579,36 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
         return ruler.createComponentSnapshot(ruler.getLocalBounds());
     };
 
-    // Started at 1 s, ending at 3 s: the whole chip held at the left edge. Its top-left corner
-    // sits on the edge: the edge column rounds into the flat top, its first solid row below the
-    // top's yet within a corner's radius of it, and stands solid from there to the base, so the
-    // left side reads as a vertical cut with no lean showing.
+    // Started at 2 s, on screen at x = 50: the chip stands at its own start, its left side upright
+    // down to a square base.
+    const juce::Image unscrolled = render(2.0, 3.0);
+    CHECK(unscrolled.getPixelAt(49, middle_y) != chord);
+    CHECK(unscrolled.getPixelAt(50, middle_y) == chord);
+    CHECK(unscrolled.getPixelAt(50, base_y) == chord);
+
+    // Started at 1 s, ending at 3 s: held at the left edge, the same chip pixel for pixel, label
+    // and all, as the one standing at its own start, and nothing past it.
     const juce::Image held = render(1.0, 3.0);
-    const int top = topSolidRow(held, spanChipFlatTopX(lane), chord);
-    REQUIRE(top < g_timeline_ruler_height);
-    CHECK(topSolidRow(held, 0, chord) > top);
-    CHECK(topSolidRow(held, 0, chord) <= top + radius);
+    const auto chip_height = static_cast<int>(std::ceil(lane.fret_font.inkHeight())) + 2;
+    int differing_pixels = 0;
+    for (int y = g_timeline_ruler_height - chip_height; y < g_timeline_ruler_height; ++y)
+    {
+        for (int x = 0; x < past_chip; ++x)
+        {
+            if (held.getPixelAt(x, y) != unscrolled.getPixelAt(50 + x, y))
+            {
+                ++differing_pixels;
+            }
+        }
+    }
+    CHECK(differing_pixels == 0);
     CHECK(held.getPixelAt(0, middle_y) == chord);
-    CHECK(held.getPixelAt(0, base_y) == chord);
-    CHECK(held.getPixelAt(8, middle_y) == chord);
     CHECK(held.getPixelAt(past_chip, middle_y) != chord);
 
-    // Started a pixel before the edge: its top-left corner has not reached the edge, so the chip
-    // still rides its start rather than jumping to the hold, its left lean crossing the edge
-    // column only near the base.
-    const juce::Image riding = render(1.49, 3.0);
-    CHECK(riding.getPixelAt(0, base_y) == chord);
-    CHECK(topSolidRow(riding, 0, chord) > top + radius);
+    // Started a hundredth of a second before the edge: held there too, never hanging past it.
+    const juce::Image just_past = render(1.49, 3.0);
+    CHECK(just_past.getPixelAt(0, middle_y) == chord);
+    CHECK(just_past.getPixelAt(0, base_y) == chord);
 
     // Ending at 1.565 s, six and a half pixels in: the chip narrows to the span.
     const juce::Image narrowed = render(1.0, 1.565);
@@ -603,14 +619,6 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
     // Ending at the edge itself: the chip has left with its span.
     const juce::Image gone = render(1.0, 1.5);
     CHECK(gone.getPixelAt(0, middle_y) != chord);
-
-    // Started at 2 s, on screen at x = 50: the chip stands at its own start, not the edge, with
-    // its left side leaning in from there.
-    const juce::Image unscrolled = render(2.0, 3.0);
-    CHECK(unscrolled.getPixelAt(49, base_y) != chord);
-    CHECK(unscrolled.getPixelAt(52, middle_y) == chord);
-    CHECK(unscrolled.getPixelAt(58, middle_y) == chord);
-    CHECK(topSolidRow(unscrolled, 50, chord) > top + radius);
 }
 
 // A chip is an object, not a position: clicking one reports the section it stands for and seeks

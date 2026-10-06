@@ -433,7 +433,7 @@ constexpr int g_digit_window = 4;
         6);
 }
 
-// A one-figure fret-hand chip's box in that lane, whose width is a blank span chip's top edge.
+// A one-figure fret-hand chip's box in that lane, whose width is a blank span chip's.
 [[nodiscard]] juce::Rectangle<float> oneFigureFhpChip(const TabLaneMetrics& metrics)
 {
     return tabFhpChipBounds(
@@ -486,6 +486,28 @@ constexpr float g_span_chip_headroom{30.0f};
         }
     }
     return true;
+}
+
+// The pixels of a span chip render nearer the dark chip ground than the chord span's light fill:
+// a printed label's ink, classified to the nearer of the two colors rather than matched exactly.
+[[nodiscard]] int spanChipLabelInk(const juce::Image& image)
+{
+    const float midpoint =
+        (juce::Colour{0xff2a2f36}.getBrightness() + tabShapeMarkColor(false).getBrightness()) /
+        2.0f;
+    int ink = 0;
+    for (int y = 0; y < image.getHeight(); ++y)
+    {
+        for (int x = 0; x < image.getWidth(); ++x)
+        {
+            const juce::Colour pixel = image.getPixelAt(x, y);
+            if (pixel.getAlpha() == 0xff && pixel.getBrightness() < midpoint)
+            {
+                ++ink;
+            }
+        }
+    }
+    return ink;
 }
 
 } // namespace
@@ -1336,121 +1358,115 @@ TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
     CHECK(ghost.getAlpha() < 0xff);
 }
 
-// A blank span chip is a trapezoid standing on the given line with its bottom-left corner at the
-// chip's x: the fret font's ink with a pixel of padding, a flat top as wide as a one-figure
-// fret-hand chip between rounded corners, and each side leaning out a quarter of the height below
-// it to a square base, filled wholly in the rails' ink, chord and arpeggio alike.
-TEST_CASE("Tab span chip is a fret-hand-topped trapezoid in the span's colors", "[ui][tab-paint]")
+// A blank span chip is a rectangle standing on the given line with its left edge at the chip's x:
+// as wide as a one-figure fret-hand chip, as tall as the fret font's ink with a pixel of padding,
+// its top corners rounded and its base square, filled wholly in the rails' ink, chord and arpeggio
+// alike. A name the room cannot hold leaves the chip blank, which keeps every probe off a glyph.
+TEST_CASE("Tab span chip is a rectangle with a rounded top in the span's colors", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const TabLaneMetrics metrics = spanChipLaneMetrics();
-    const juce::Rectangle<float> fhp = oneFigureFhpChip(metrics);
-    const float height = spanChipHeight(metrics);
-    const float lean = tabSpanChipLean(metrics.fret_font, g_span_chip_headroom);
-    CHECK(lean == Catch::Approx(height / 4.0f));
-    const float top = 30.0f - height;
-    const auto solid_top_row = static_cast<int>(std::ceil(top));
-    const float top_left = 20.0f + lean;
-    const float top_right = top_left + fhp.getWidth();
-    const float base_right = top_right + lean;
-    const auto middle_x = static_cast<int>((top_left + top_right) / 2.0f);
-    const auto middle_y = static_cast<int>(30.0f - (height / 2.0f));
+    const auto width = static_cast<int>(oneFigureFhpChip(metrics).getWidth());
+    const auto height = static_cast<int>(spanChipHeight(metrics));
+    const int right = 20 + width - 1;
+    const int top = 30 - height;
+    const int middle_x = 20 + (width / 2);
+    const int middle_y = 30 - (height / 2);
     const auto radius = static_cast<int>(g_lane_chip_corner_radius);
     for (const bool arpeggio : {false, true})
     {
-        const juce::Image image = renderSpanChip(metrics, 1000.0f, arpeggio, std::nullopt);
+        const juce::Image image =
+            renderSpanChip(metrics, static_cast<float>(right + 5), arpeggio, juce::String{"Am7"});
         const juce::Colour ink = tabShapeMarkColor(arpeggio);
-        CHECK(image.getPixelAt(middle_x, middle_y) == ink);
 
         // The chip's height: the base row and the top row solid, the line below the base and the
         // row above the top empty.
         CHECK(image.getPixelAt(middle_x, 29) == ink);
         CHECK(image.getPixelAt(middle_x, 30).getARGB() == 0);
-        CHECK(image.getPixelAt(middle_x, solid_top_row) == ink);
-        CHECK(image.getPixelAt(middle_x, solid_top_row - 1).getARGB() == 0);
+        CHECK(image.getPixelAt(middle_x, top) == ink);
+        CHECK(image.getPixelAt(middle_x, top - 1).getARGB() == 0);
 
-        // The square base runs from the start's column to the full width, where each leaning side
-        // covers its outer column only partly: both end columns lit, the columns past them empty.
-        CHECK(image.getPixelAt(20, 29).getAlpha() > 0);
-        CHECK(image.getPixelAt(19, 29).getARGB() == 0);
-        CHECK(image.getPixelAt(static_cast<int>(std::floor(base_right)) - 1, 29).getAlpha() > 0);
-        CHECK(image.getPixelAt(static_cast<int>(std::ceil(base_right)), 29).getARGB() == 0);
+        // Upright sides a one-figure fret-hand chip apart: both end columns solid from the middle
+        // down to a square base, the columns past them empty.
+        CHECK(image.getPixelAt(20, middle_y) == ink);
+        CHECK(image.getPixelAt(20, 29) == ink);
+        CHECK(image.getPixelAt(19, middle_y).getARGB() == 0);
+        CHECK(image.getPixelAt(right, middle_y) == ink);
+        CHECK(image.getPixelAt(right, 29) == ink);
+        CHECK(image.getPixelAt(right + 1, middle_y).getARGB() == 0);
 
-        // The sides lean: the start's column, lit on the base row, is empty on the top row.
-        CHECK(image.getPixelAt(20, solid_top_row).getARGB() == 0);
-
-        // The top runs flat for a one-figure fret-hand chip's width: solid at both ends of its
-        // straight run between the rounded corners, and empty a pixel past either corner.
-        const auto top_left_column = static_cast<int>(std::ceil(top_left));
-        const auto top_right_column = static_cast<int>(std::floor(top_right));
-        CHECK(image.getPixelAt(top_left_column + radius, solid_top_row) == ink);
-        CHECK(image.getPixelAt(top_right_column - 1 - radius, solid_top_row) == ink);
-        CHECK(
-            image.getPixelAt(static_cast<int>(std::floor(top_left)) - 2, solid_top_row).getARGB() ==
-            0);
-        CHECK(image.getPixelAt(top_right_column + 2, solid_top_row).getARGB() == 0);
+        // The top corners round: each corner pixel only partly covered, the top solid a radius in.
+        CHECK(image.getPixelAt(20, top).getAlpha() < 0xff);
+        CHECK(image.getPixelAt(right, top).getAlpha() < 0xff);
+        CHECK(image.getPixelAt(20 + radius, top) == ink);
+        CHECK(image.getPixelAt(right - radius, top) == ink);
     }
 }
 
-// The stop column narrows the chip to the room before it, the chip giving up its leans before its
-// top edge so it squeezes into an upright block rather than a point, and a room under a pixel
-// leaves no chip.
+// The stop column narrows the chip to the room before it, an upright block down to a single pixel,
+// dropping its "?" whole once the room is short of it, and a room under a pixel leaves no chip.
 TEST_CASE("Tab span chip narrows to its stop column", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const TabLaneMetrics metrics = spanChipLaneMetrics();
-    const juce::Rectangle<float> fhp = oneFigureFhpChip(metrics);
-    REQUIRE(fhp.getWidth() > 6.0f);
-    const float height = spanChipHeight(metrics);
-    const auto middle_y = static_cast<int>(30.0f - (height / 2.0f));
+    REQUIRE(oneFigureFhpChip(metrics).getWidth() > 6.0f);
+    const auto height = static_cast<int>(spanChipHeight(metrics));
+    const int middle_y = 30 - (height / 2);
     // A row below the top corners' rounding, where an upright side fills its column.
-    const auto upper_y =
-        static_cast<int>(std::ceil(30.0f - height)) + static_cast<int>(g_lane_chip_corner_radius);
+    const int upper_y = 30 - height + static_cast<int>(g_lane_chip_corner_radius);
+    const juce::Colour ink = tabShapeMarkColor(false);
 
-    // Six pixels of room, narrower than the top edge alone: an upright block, solid down both
-    // sides, with the stop column left empty.
+    // Six pixels of room, narrower than a blank chip: solid down both sides, the stop column empty.
     const juce::Image narrowed = renderSpanChip(metrics, 26.0f, false, std::nullopt);
-    CHECK(narrowed.getPixelAt(20, upper_y) == tabShapeMarkColor(false));
-    CHECK(narrowed.getPixelAt(20, middle_y) == tabShapeMarkColor(false));
-    CHECK(narrowed.getPixelAt(25, upper_y) == tabShapeMarkColor(false));
-    CHECK(narrowed.getPixelAt(25, 29) == tabShapeMarkColor(false));
+    CHECK(narrowed.getPixelAt(20, upper_y) == ink);
+    CHECK(narrowed.getPixelAt(20, middle_y) == ink);
+    CHECK(narrowed.getPixelAt(25, upper_y) == ink);
+    CHECK(narrowed.getPixelAt(25, 29) == ink);
     CHECK(narrowed.getPixelAt(26, middle_y).getARGB() == 0);
+    CHECK(spanChipLabelInk(narrowed) == 0);
 
+    // A single pixel of room still stands a block; under a pixel, nothing.
+    const juce::Image sliver = renderSpanChip(metrics, 21.0f, false, std::nullopt);
+    CHECK(sliver.getPixelAt(20, 29) == ink);
+    CHECK(sliver.getPixelAt(21, 29).getARGB() == 0);
     const juce::Image crowded = renderSpanChip(metrics, 20.5f, false, std::nullopt);
     CHECK(crowded.getPixelAt(20, 29).getARGB() == 0);
 }
 
-// Under a ceiling lower than its own height, the chip stands exactly the ceiling tall, leaning by a
-// quarter of that height, yet keeps a one-figure fret-hand chip's top; a name, whose ink the
-// lowered chip no longer holds, is dropped and the chip draws exactly as a blank one.
-TEST_CASE("Tab span chip keeps its top and drops its name under its ceiling", "[ui][tab-paint]")
+// Under a ceiling lower than its own height, the chip stands exactly the ceiling tall at a blank
+// chip's width; its label, whose ink the lowered chip no longer holds, is dropped, a name and the
+// "?" alike.
+TEST_CASE("Tab span chip drops its label under its ceiling", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const TabLaneMetrics metrics = spanChipLaneMetrics();
-    const juce::Rectangle<float> fhp = oneFigureFhpChip(metrics);
     REQUIRE(spanChipHeight(metrics) > 8.0f);
-    const float lean = tabSpanChipLean(metrics.fret_font, 8.0f);
-    CHECK(lean == Catch::Approx(2.0f));
-    const float top_left = 20.0f + lean;
-    const float top_right = top_left + fhp.getWidth();
-    const float base_right = top_right + lean;
-    const auto radius = static_cast<int>(g_lane_chip_corner_radius);
+    const auto width = static_cast<int>(oneFigureFhpChip(metrics).getWidth());
+    const int middle_x = 20 + (width / 2);
     const juce::Colour ink = tabShapeMarkColor(false);
 
     const juce::Image lowered = renderSpanChip(metrics, 1000.0f, false, std::nullopt, 8.0f);
-    const auto middle_x = static_cast<int>((top_left + top_right) / 2.0f);
     CHECK(lowered.getPixelAt(middle_x, 22) == ink);
     CHECK(lowered.getPixelAt(middle_x, 21).getARGB() == 0);
-    const auto top_left_column = static_cast<int>(std::ceil(top_left));
-    const auto top_right_column = static_cast<int>(std::floor(top_right));
-    CHECK(lowered.getPixelAt(top_left_column + radius, 22) == ink);
-    CHECK(lowered.getPixelAt(top_right_column - 1 - radius, 22) == ink);
-    CHECK(lowered.getPixelAt(top_right_column + 2, 22).getARGB() == 0);
-    CHECK(lowered.getPixelAt(static_cast<int>(std::floor(base_right)) - 1, 29).getAlpha() > 0);
-    CHECK(lowered.getPixelAt(static_cast<int>(std::ceil(base_right)), 29).getARGB() == 0);
+    CHECK(lowered.getPixelAt(20 + width - 1, 26) == ink);
+    CHECK(lowered.getPixelAt(20 + width, 26).getARGB() == 0);
+    CHECK(spanChipLabelInk(lowered) == 0);
 
     const juce::Image named = renderSpanChip(metrics, 1000.0f, false, juce::String{"Am7"}, 8.0f);
     CHECK(sameSpanChipImage(named, lowered));
+}
+
+// A chip given no name prints "?", exactly as a chip named "?" would, its ink nearer the dark chip
+// ground than the fill.
+TEST_CASE("Tab span chip prints a question mark for a span with no name", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = spanChipLaneMetrics();
+
+    const juce::Image unnamed = renderSpanChip(metrics, 1000.0f, false, std::nullopt);
+    const juce::Image questioned = renderSpanChip(metrics, 1000.0f, false, juce::String{"?"});
+    CHECK(sameSpanChipImage(unnamed, questioned));
+    CHECK(spanChipLabelInk(unnamed) > 0);
 }
 
 // The stop column is the rails' own: a span's end, held a pixel short of the next span's start
@@ -1464,52 +1480,39 @@ TEST_CASE("Tab span stop column parts a span from the next one", "[ui][tab-paint
 }
 
 // A name prints only where the room holds the whole named chip; where the stop comes too close, it
-// is dropped entire and the chip draws exactly as a blank one.
+// is dropped entire and the chip draws blank at a blank chip's width.
 TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const TabLaneMetrics metrics = spanChipLaneMetrics();
+    const juce::Colour ink = tabShapeMarkColor(false);
 
-    // With room, the named chip runs past a blank chip's base: probed on its bottom row, in the
-    // padding no glyph reaches.
-    const float lean = tabSpanChipLean(metrics.fret_font, g_span_chip_headroom);
-    const int blank_end =
-        20 + juce::roundToInt(oneFigureFhpChip(metrics).getWidth() + (2.0f * lean));
+    // With room, the named chip runs past a blank chip's right edge: probed on its bottom row, in
+    // the padding no glyph reaches.
+    const int blank_end = 20 + static_cast<int>(oneFigureFhpChip(metrics).getWidth());
     const juce::Image named = renderSpanChip(metrics, 1000.0f, false, juce::String{"Am7"});
-    CHECK(named.getPixelAt(blank_end + 2, 29) == tabShapeMarkColor(false));
+    CHECK(named.getPixelAt(blank_end + 2, 29) == ink);
 
-    // The name prints at the lane's own size inside the chip's height: pixels nearer the dark
-    // ground than the light fill inside the chip, and nothing on the row above its top.
+    // The name prints at the lane's own size inside the chip's height: label ink inside the chip,
+    // and nothing on the row above its top.
     const int top_row = 30 - static_cast<int>(spanChipHeight(metrics));
-    const float midpoint =
-        (juce::Colour{0xff2a2f36}.getBrightness() + tabShapeMarkColor(false).getBrightness()) /
-        2.0f;
-    int ground_pixels = 0;
     int above_top_pixels = 0;
     for (int x = 0; x < named.getWidth(); ++x)
     {
-        for (int y = top_row; y < 30; ++y)
-        {
-            const juce::Colour pixel = named.getPixelAt(x, y);
-            if (pixel.getAlpha() == 0xff && pixel.getBrightness() < midpoint)
-            {
-                ++ground_pixels;
-            }
-        }
         if (named.getPixelAt(x, top_row - 1).getAlpha() > 0)
         {
             ++above_top_pixels;
         }
     }
-    CHECK(ground_pixels > 0);
+    CHECK(spanChipLabelInk(named) > 0);
     CHECK(above_top_pixels == 0);
 
-    // A stop four pixels past a blank chip's base cannot hold "Am7" whole.
-    const auto tight = static_cast<float>(blank_end + 4);
-    const juce::Image dropped = renderSpanChip(metrics, tight, false, juce::String{"Am7"});
-    const juce::Image blank = renderSpanChip(metrics, tight, false, std::nullopt);
-    CHECK(sameSpanChipImage(dropped, blank));
-    CHECK(dropped.getPixelAt(blank_end + 2, 29).getARGB() == 0);
+    // A stop four pixels past a blank chip's right edge cannot hold "Am7" whole.
+    const juce::Image dropped =
+        renderSpanChip(metrics, static_cast<float>(blank_end + 4), false, juce::String{"Am7"});
+    CHECK(spanChipLabelInk(dropped) == 0);
+    CHECK(dropped.getPixelAt(blank_end - 1, 29) == ink);
+    CHECK(dropped.getPixelAt(blank_end, 29).getARGB() == 0);
 }
 
 // Two spans that meet part by one screen pixel: the earlier span's rails stop a pixel short of the
