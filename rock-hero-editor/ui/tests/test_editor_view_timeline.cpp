@@ -427,8 +427,8 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     const int height =
         juce::roundToInt(common::ui::tabSpanChipHeight(common::ui::tabSpanChipFont()));
     const int middle_y = g_timeline_ruler_height - (height / 2);
-    CHECK(image.getPixelAt(100 + (height / 2), middle_y) == juce::Colour{0xff3157a7});
-    CHECK(image.getPixelAt(200 + (height / 2), middle_y) == juce::Colour{0xff8559b7});
+    CHECK(image.getPixelAt(100 + (height / 2), middle_y) == common::ui::tabShapeMarkColor(false));
+    CHECK(image.getPixelAt(200 + (height / 2), middle_y) == common::ui::tabShapeMarkColor(true));
     CHECK(
         image.getPixelAt(100 + (height / 2), g_timeline_ruler_height - height - 1) ==
         editorTheme().timeline_ruler_background);

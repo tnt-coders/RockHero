@@ -54,11 +54,11 @@ the paint core's JUCE conversion of the shared palette authority.
 [[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
 
 /*!
-\brief Returns the ink of a span's rails and of its label chip's rim.
+\brief Returns the ink of a span's rails and of its label chip.
 
 The Charter hand-shape base brightened so the narrow rails read clearly against dark chrome. The
-span chip (\ref drawTabSpanChip) rims itself in this ink over a fill of the unbrightened base, so
-the chip and the rails it stands on read as one object.
+span chip (\ref drawTabSpanChip) fills in this ink too, so the chip and the rails it stands on read
+as one object.
 
 \param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
 \return Opaque mark color.
@@ -560,7 +560,7 @@ glyph outline, so a host builds it once rather than per paint.
 [[nodiscard]] TabLaneFont tabSpanChipFont();
 
 /*!
-\brief A span chip's height: the font's ink with a pixel of padding and a pixel of rim either side.
+\brief A span chip's height: the font's ink with two pixels of padding above and below.
 \param font The chip font (\ref tabSpanChipFont).
 \return Chip height in pixels.
 */
@@ -568,14 +568,16 @@ glyph outline, so a host builds it once rather than per paint.
 
 /*!
 \brief Draws one span's label chip: a steep trapezoid standing on the chip's base line, its
-bottom-left corner on the span's start, filled in the span's hand-shape base color and rimmed in
-the rails' ink (\ref tabShapeMarkColor).
+bottom-left corner on the span's start, filled in the rails' ink (\ref tabShapeMarkColor).
 
-A blank chip is as wide as it is tall. A named one is as wide as its name needs, the name inside the
-top edge. Either way the chip stops a pixel short of the next span's start, the same parting the
-rails keep (\ref paintTabLaneFurniture), and draws nothing when that leaves it under a pixel. A
-name prints only where the room holds the chip's whole named width; otherwise the name is dropped
-entire, never clipped or shrunk, and the chip draws blank.
+A blank chip's top edge is as long as the chip is tall, its sides leaning out from there. A named
+one's top edge is as long as its name needs, never shorter, the name printed inside it in the dark
+chip ground for contrast against the light fill. Either way the chip stops a pixel short of the next
+span's start, the same parting the rails keep (\ref paintTabLaneFurniture), and draws nothing when
+that leaves it under a pixel. A chip narrower than its full shape gives up its leans before its top
+edge, narrowing into an upright block, never a point. A name prints only where the room holds the
+chip's whole named width; otherwise the name is dropped entire, never clipped or shrunk, and the
+chip draws blank.
 
 \param g Graphics context to draw into.
 \param font The chip font (\ref tabSpanChipFont).

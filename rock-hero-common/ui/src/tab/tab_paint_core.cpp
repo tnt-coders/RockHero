@@ -87,9 +87,8 @@ constexpr float g_span_parting{1.0f};
 // A span chip's sides lean in by this much per pixel of its height.
 constexpr float g_span_chip_lean{1.0f / 3.0f};
 
-// A span chip's rim, and the clearance between the rim and the name's ink.
-constexpr float g_span_chip_rim{1.0f};
-constexpr float g_span_chip_padding{1.0f};
+// The clearance between a span chip's edges and the name's ink.
+constexpr float g_span_chip_padding{2.0f};
 
 // The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — with its
 // text. Every chip in the lane, boxed or floating, shares the corner rounding
@@ -2488,7 +2487,7 @@ juce::String tabNoteHeadText(const common::core::NoteViewState& note, const int 
         common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_head))};
 }
 
-// The Charter hand-shape bases brightened for the rails, which the span chip's rim shares.
+// The Charter hand-shape bases brightened for the rails, which the span chip's fill shares.
 juce::Colour tabShapeMarkColor(bool arpeggio)
 {
     return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_brightness)
@@ -2684,7 +2683,7 @@ TabLaneFont tabSpanChipFont()
 // Rationale lives on the declaration in tab_paint_core.h.
 float tabSpanChipHeight(const TabLaneFont& font)
 {
-    return std::ceil(font.inkHeight()) + 2.0f * (g_span_chip_padding + g_span_chip_rim);
+    return std::ceil(font.inkHeight()) + (2.0f * g_span_chip_padding);
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
@@ -2698,69 +2697,43 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
     const float room = next_start_x.has_value() ? *next_start_x - g_span_parting - left
                                                 : std::numeric_limits<float>::infinity();
 
-    // Blank unless the room holds the whole named chip: the name inside the top edge, padded
-    // clear of the rim.
-    float natural_width = height;
+    // The top edge is never shorter than the height, and a name widens it to hold the name padded;
+    // the chip prints a name only where the room holds the whole named chip.
+    float top_width = height;
     juce::String printed;
     if (const std::optional<juce::String>& name = chip.name; name.has_value())
     {
-        const float named_width = std::max(
-            height,
-            static_cast<float>(font.width(*name)) +
-                (2.0f * (g_span_chip_padding + g_span_chip_rim)) + (2.0f * lean));
-        if (named_width <= room)
+        const float named_top_width =
+            std::max(height, static_cast<float>(font.width(*name)) + (2.0f * g_span_chip_padding));
+        if (named_top_width + (2.0f * lean) <= room)
         {
-            natural_width = named_width;
+            top_width = named_top_width;
             printed = *name;
         }
     }
-    const float width = std::min(natural_width, room);
+    const float width = std::min(top_width + (2.0f * lean), room);
     if (width < 1.0f)
     {
         return;
     }
 
-    // Sides leaning in at the chip's own slope; a chip narrower than its two leans meets in a
-    // point rather than crossing over.
-    const auto outline = [](const float from_x,
-                            const float to_x,
-                            const float base_y,
-                            const float rise,
-                            const float inset) {
-        juce::Path path;
-        path.startNewSubPath(from_x, base_y);
-        path.lineTo(from_x + inset, base_y - rise);
-        path.lineTo(to_x - inset, base_y - rise);
-        path.lineTo(to_x, base_y);
-        path.closeSubPath();
-        return path;
-    };
+    // A chip squeezed by the next span gives up its leans before its top edge, so it narrows into
+    // an upright block rather than a point.
+    const float slant = std::clamp((width - height) / 2.0f, 0.0f, lean);
     const float right = left + width;
-    const float slant = std::min(lean, width / 2.0f);
+    juce::Path outline;
+    outline.startNewSubPath(left, bottom);
+    outline.lineTo(left + slant, bottom - height);
+    outline.lineTo(right - slant, bottom - height);
+    outline.lineTo(right, bottom);
+    outline.closeSubPath();
     g.setColour(tabShapeMarkColor(chip.arpeggio));
-    g.fillPath(outline(left, right, bottom, height, slant));
-
-    // The fill inside a rim of even width all round: a leaning side moves in further than the rim
-    // to keep its perpendicular width, and sits higher by the rim along its own slope.
-    const float slope = slant / height;
-    const float side_inset = g_span_chip_rim * (slope + std::sqrt(1.0f + (slope * slope)));
-    const float inner_rise = height - (2.0f * g_span_chip_rim);
-    const float inner_left = left + side_inset;
-    const float inner_right = right - side_inset;
-    if (inner_right > inner_left)
-    {
-        g.setColour(chip.arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color);
-        g.fillPath(outline(
-            inner_left,
-            inner_right,
-            bottom - g_span_chip_rim,
-            inner_rise,
-            std::min(slope * inner_rise, (inner_right - inner_left) / 2.0f)));
-    }
+    g.fillPath(outline);
 
     if (printed.isNotEmpty())
     {
-        g.setColour(g_lane_chip_text);
+        // The dark chip ground, since white falls short of legible contrast on the light rail ink.
+        g.setColour(g_lane_chip_ground);
         font.draw(
             g,
             printed,

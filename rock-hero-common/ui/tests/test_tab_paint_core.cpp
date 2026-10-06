@@ -419,6 +419,13 @@ constexpr int g_digit_window = 4;
     return inkCentroidRow(control, control.getBounds(), juce::Colours::white) - line_y;
 }
 
+// A blank span chip's full width: a top edge as long as the chip is tall, and each side leaning
+// out a third of the height below it.
+[[nodiscard]] float blankSpanChipWidth(const int height)
+{
+    return static_cast<float>(height) * 5.0f / 3.0f;
+}
+
 } // namespace
 
 // An `Unjustified` claim draws exactly what the plain pick beside it draws: nothing. The whole
@@ -1268,8 +1275,7 @@ TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
 }
 
 // A span chip stands with its bottom-left corner on the span's start and its base on the given
-// line, filled in the span's hand-shape base and rimmed in the rails' ink, chord and arpeggio
-// alike.
+// line, filled wholly in the rails' ink, chord and arpeggio alike.
 TEST_CASE("Tab span chip stands at its span's start in the span's colors", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1290,10 +1296,9 @@ TEST_CASE("Tab span chip stands at its span's start in the span's colors", "[ui]
                     .name = std::nullopt,
                 });
         }
-        const int middle_x = 20 + (height / 2);
-        const juce::Colour base = arpeggio ? juce::Colour{0xff8559b7} : juce::Colour{0xff3157a7};
-        CHECK(image.getPixelAt(middle_x, 30 - (height / 2)) == base);
-        // The rim's bottom and top rows, and nothing beyond either or left of the start.
+        const int middle_x = 20 + static_cast<int>(blankSpanChipWidth(height) / 2.0f);
+        CHECK(image.getPixelAt(middle_x, 30 - (height / 2)) == tabShapeMarkColor(arpeggio));
+        // The bottom and top rows, and nothing beyond either or left of the start.
         CHECK(image.getPixelAt(middle_x, 29) == tabShapeMarkColor(arpeggio));
         CHECK(image.getPixelAt(middle_x, 30 - height) == tabShapeMarkColor(arpeggio));
         CHECK(image.getPixelAt(middle_x, 30).getARGB() == 0);
@@ -1302,8 +1307,9 @@ TEST_CASE("Tab span chip stands at its span's start in the span's colors", "[ui]
     }
 }
 
-// A blank chip is as wide as it is tall, never a sliver; only the next span's start narrows it, a
-// pixel short of that start, and a room under a pixel leaves no chip at all.
+// A blank chip's flat top edge is as long as the chip is tall; only the next span's start narrows
+// the chip, a pixel short of that start, into an upright block rather than a point, and a room
+// under a pixel leaves no chip at all.
 TEST_CASE("Tab span chip draws blank at its height and yields to the next span", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1326,13 +1332,25 @@ TEST_CASE("Tab span chip draws blank at its height and yields to the next span",
         return image;
     };
 
-    // Probed on the bottom row, where the leaning side covers the last column only partly.
+    // The width, probed on the bottom row, where the leaning side covers the last column only
+    // partly: the column holding the right corner is lit and the one past it empty.
+    const float width = blankSpanChipWidth(height);
     const juce::Image blank = render_blank(std::nullopt);
-    CHECK(blank.getPixelAt(20 + height - 1, 29).getAlpha() > 0);
-    CHECK(blank.getPixelAt(20 + height, 29).getARGB() == 0);
+    CHECK(blank.getPixelAt(20 + static_cast<int>(std::floor(width)) - 1, 29).getAlpha() > 0);
+    CHECK(blank.getPixelAt(20 + static_cast<int>(std::ceil(width)), 29).getARGB() == 0);
+    // The top edge is flat, not a point: the top row is solid a quarter and three quarters across.
+    const int top_y = 30 - height;
+    CHECK(
+        blank.getPixelAt(20 + static_cast<int>(std::ceil(width / 4.0f)), top_y) ==
+        tabShapeMarkColor(false));
+    CHECK(
+        blank.getPixelAt(20 + static_cast<int>(std::floor(width * 3.0f / 4.0f)) - 1, top_y) ==
+        tabShapeMarkColor(false));
 
-    // The next span six pixels on leaves five: the parting pixel stays empty.
+    // The next span six pixels on leaves five, square to the top: the parting pixel stays empty.
     const juce::Image narrowed = render_blank(26.0f);
+    CHECK(narrowed.getPixelAt(20, top_y) == tabShapeMarkColor(false));
+    CHECK(narrowed.getPixelAt(24, top_y) == tabShapeMarkColor(false));
     CHECK(narrowed.getPixelAt(24, 29).getAlpha() > 0);
     CHECK(narrowed.getPixelAt(25, 29).getARGB() == 0);
 
@@ -1366,13 +1384,14 @@ TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-pai
         return image;
     };
 
-    // With room, the named chip runs past a blank chip's width: probed on its bottom rim, which no
-    // glyph reaches.
+    // With room, the named chip runs past a blank chip's width: probed on its bottom row, in the
+    // padding no glyph reaches.
+    const int blank_end = 20 + static_cast<int>(std::ceil(blankSpanChipWidth(height)));
     const juce::Image named = render(std::nullopt, juce::String{"Am7"});
-    CHECK(named.getPixelAt(20 + height + 2, 29) == tabShapeMarkColor(false));
+    CHECK(named.getPixelAt(blank_end + 2, 29) == tabShapeMarkColor(false));
 
-    // A next span ten pixels past a blank chip's width cannot hold "Am7" whole.
-    const auto tight = static_cast<float>(20 + height + 10);
+    // A next span four pixels past a blank chip's width cannot hold "Am7" whole.
+    const auto tight = static_cast<float>(blank_end + 4);
     const juce::Image dropped = render(tight, juce::String{"Am7"});
     const juce::Image blank = render(tight, std::nullopt);
     int differing = 0;
@@ -1387,7 +1406,7 @@ TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-pai
         }
     }
     CHECK(differing == 0);
-    CHECK(dropped.getPixelAt(20 + height + 2, 29).getARGB() == 0);
+    CHECK(dropped.getPixelAt(blank_end + 2, 29).getARGB() == 0);
 }
 
 // Two spans that meet part by one screen pixel: the earlier span's rails stop a pixel short of the

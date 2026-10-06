@@ -633,16 +633,17 @@ scanning the whole chart. It draws each hand-shape span's rails and, for an arpe
 Where one span's rails meet the next span's start they stop one screen pixel short, so two spans
 that meet read as two; that parting is paint-time only, and the drawn extent stays rule 12a's.
 
-Each span also wears a **label chip** at its start: a steep trapezoid in the span's hand-shape base
-color, rimmed in the rails' ink, its bottom-left corner on the span's start
+Each span also wears a **label chip** at its start: a trapezoid filled in the rails' ink, its
+bottom-left corner on the span's start
 (`common::ui::drawTabSpanChip`). The lane has no room above its fret-hand chips, so the chip stands
 on the RULER's bottom edge, directly on the lane's top rail: `EditorView` pushes every span's start
 (re-timed to the content map, as the sections are) through `TrackViewport::setSpanStarts`, and
 `TimelineRuler` places and paints the chips over its tick band, under the measure numbers' ink. The
-chip is blank, as wide as it is tall, because a span carries no name; the drawer takes an optional
-name and prints it inside the top edge where the room holds the whole named chip. A chip stops a
-pixel short of the next span's start, the rails' parting, and a name the room cannot hold is dropped
-whole while the blank chip stays.
+chip is blank, its top edge as long as the chip is tall, because a span carries no name; the drawer
+takes an optional name and prints it inside the top edge, in the dark chip ground, where the room
+holds the whole named chip. A chip stops a pixel short of the next span's start, the rails' parting;
+a squeezed chip gives up its leaning sides before its top edge, so it narrows into a block rather
+than a triangle, and a name the room cannot hold is dropped whole while the blank chip stays.
 
 String colors come from the **shared palette** in
 `rock-hero-common/ui/.../string_colors/string_color_palette.h` — a JUCE-free authority (colors are
