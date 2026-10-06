@@ -52,9 +52,9 @@ nowhere, and the status line reads `[audio device closed]`. Only live input need
 The settings window is the repair path; while it stages, it hands the engine to the silent device
 so the hardware is free, and every route it opens goes through the engine's no-fallback restore.
 The editor opens it from view state (`EditorViewState::audio_device_settings_open`), like any
-prompt: the menu-bar button only asks the controller, and with no usable saved route (a first run,
-or a saved route that could not be read) the controller opens it at startup so the user chooses
-one. A saved device that does not open at startup, or a running one lost outside the window, raises
+prompt, once the editor is on screen and no busy operation is running: the menu-bar button only
+asks the controller, and with no usable saved route (a first run, or a saved route that could not
+be read) the controller opens it at startup so the user chooses one. A saved device that does not open at startup, or a running one lost outside the window, raises
 `AudioDeviceLostPrompt` instead: the engine's reason, with Audio Settings and Close. The controller
 tells a lost device from one never running by its last observation, `m_audio_device_open`.
 

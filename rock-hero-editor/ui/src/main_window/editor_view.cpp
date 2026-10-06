@@ -927,7 +927,6 @@ void EditorView::setState(const core::EditorViewState& state)
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
     presentToneImportPromptIfNeeded(m_state.tone_import_prompt);
-    presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentGridSnapWarningIfNeeded(m_state.grid_snap_warning_prompt);
     presentTopLevelWindowsFromState();
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
@@ -1145,6 +1144,7 @@ void EditorView::parentHierarchyChanged()
 // window showed, or while a busy operation ran, is opened once the editor can present it.
 void EditorView::presentTopLevelWindowsFromState()
 {
+    presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentAudioDeviceLostPromptIfNeeded(m_state.audio_device_lost_prompt);
     presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
     presentAudioDeviceSettingsIfNeeded(m_state.audio_device_settings_open);
@@ -1153,7 +1153,9 @@ void EditorView::presentTopLevelWindowsFromState()
 // A top-level window opened before the main window shows sits behind it. A minimised main window
 // still owns one, which is why this is not isShowing(). A window opened during a busy operation
 // would stand over the overlay unable to answer: plugin construction holds the message thread, so
-// its input lands only between plugins. A window already open stays open.
+// its input lands only between plugins. A window already open stays open. Startup begins the
+// project restore before the main window shows (MainWindow), so the first presentable frame
+// already sees busy.
 bool EditorView::canPresentTopLevelWindows() const
 {
     const juce::Component* const top = getTopLevelComponent();
@@ -3224,7 +3226,7 @@ void EditorView::presentRestoreInterruptedPromptIfNeeded(
         return;
     }
 
-    if (m_last_presented_restore_interrupted_prompt == prompt)
+    if (m_last_presented_restore_interrupted_prompt == prompt || !canPresentTopLevelWindows())
     {
         return;
     }

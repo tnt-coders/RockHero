@@ -350,9 +350,10 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
             .isVisible());
 }
 
-// A window asked for during a busy operation waits for it to clear, since plugin construction
-// holds the message thread and a window over the overlay could not answer its input.
-TEST_CASE("Audio settings window waits for a busy operation to clear", "[ui][editor-view]")
+// Startup order: the state asks for the window and the restore has begun busy before the view is
+// on screen. The window waits for the busy operation to clear, since plugin construction holds the
+// message thread and a window over the overlay could not answer its input.
+TEST_CASE("Audio settings window asked for at startup waits for busy to clear", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -360,15 +361,15 @@ TEST_CASE("Audio settings window waits for a busy operation to clear", "[ui][edi
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
     view.setBounds(0, 0, 1280, 800);
-    showOnScreen(view);
 
     core::EditorViewState state;
     state.audio_device_settings_open = true;
     state.busy = core::BusyViewState{
-        .operation = core::BusyOperation::LoadingLiveRig,
-        .message = "Loading live rig...",
+        .operation = core::BusyOperation::OpeningProject,
+        .message = "Opening project...",
     };
     view.setState(state);
+    showOnScreen(view);
     CHECK_THROWS(
         findRequiredTopLevelComponent<juce::DocumentWindow>("audio_device_settings_window"));
 
@@ -377,6 +378,35 @@ TEST_CASE("Audio settings window waits for a busy operation to clear", "[ui][edi
     CHECK(
         findRequiredTopLevelComponent<juce::DocumentWindow>("audio_device_settings_window")
             .isVisible());
+}
+
+// The device-lost notice raised at startup, before the window shows, waits for the restore's busy
+// operation exactly as the settings window does.
+TEST_CASE("Device-lost notice asked for at startup waits for busy to clear", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    view.setBounds(0, 0, 1280, 800);
+
+    core::EditorViewState state;
+    state.audio_device_lost_prompt = core::AudioDeviceLostPrompt{.reason = "Disconnected"};
+    state.busy = core::BusyViewState{
+        .operation = core::BusyOperation::OpeningProject,
+        .message = "Opening project...",
+    };
+    view.setState(state);
+    showOnScreen(view);
+    CHECK(juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0);
+
+    state.busy.reset();
+    view.setState(state);
+    const juce::Component* const notice =
+        juce::ModalComponentManager::getInstance()->getModalComponent(0);
+    REQUIRE(notice != nullptr);
+    CHECK(notice->getName() == "Audio device not running");
 }
 
 // The pickup chooser lists the five kinds, opens on humbuckers and offers the chosen kind's

@@ -1436,6 +1436,11 @@ a crash during restore is detected next launch and surfaces a Retry/Cancel promp
 crash loop. When there is nothing to restore, the editor stands up the Tone Designer — its
 resting mode — rather than an empty shell.
 
+`MainWindow` begins the restore before the window first shows. A window the startup state asks
+for, such as the device-lost notice or the audio settings window, therefore meets the busy
+overlay on the first presentable frame and waits for it to clear, rather than opening over the
+plugin load, which holds the message thread and answers input only between plugins.
+
 Per-project view state (cursor, grid note value, zoom, selected arrangement) persists in
 **per-user editor settings keyed by project path, outside the `.rhp`** — deliberately, so moving
 the cursor never dirties the project.

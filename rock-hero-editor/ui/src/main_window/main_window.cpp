@@ -99,6 +99,13 @@ MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor
     {
         peer->setNonFullScreenBounds(restore_bounds);
     }
+    // The restore begins before the window first shows, so a window the startup state asks for
+    // (the device-lost notice, the settings window) already meets the busy gate on the first
+    // presentable frame, instead of opening over plugin construction that holds the message thread.
+    if (m_editor != nullptr)
+    {
+        m_editor->restoreLastOpenProject();
+    }
     setVisible(true);
 
     // JUCE's show path does not request native foreground activation, so ask once at startup for
@@ -160,15 +167,6 @@ void MainWindow::requestExit()
     if (m_editor != nullptr)
     {
         m_editor->requestExit();
-    }
-}
-
-// Starts project restore after the editor feature is installed in the window.
-void MainWindow::restoreLastOpenProject()
-{
-    if (m_editor != nullptr)
-    {
-        m_editor->restoreLastOpenProject();
     }
 }
 

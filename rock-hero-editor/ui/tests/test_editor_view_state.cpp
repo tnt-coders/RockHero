@@ -1256,4 +1256,27 @@ TEST_CASE(
     CHECK(button.getToggleState());
 }
 
+// The startup restore raises the interrupted-restore prompt before the main window shows; it opens
+// once the view is on screen to own it, never behind the window.
+TEST_CASE("EditorView opens the interrupted-restore prompt once on screen", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    view.setBounds(0, 0, 1280, 800);
+
+    core::EditorViewState state;
+    state.restore_interrupted_prompt = core::RestoreInterruptedPrompt{"song.rhp"};
+    view.setState(state);
+    CHECK(juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0);
+
+    showOnScreen(view);
+    const juce::Component* const prompt =
+        juce::ModalComponentManager::getInstance()->getModalComponent(0);
+    REQUIRE(prompt != nullptr);
+    CHECK(prompt->getName() == "Project did not finish opening");
+}
+
 } // namespace rock_hero::editor::ui

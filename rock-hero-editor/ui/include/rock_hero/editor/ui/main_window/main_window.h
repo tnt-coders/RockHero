@@ -82,9 +82,6 @@ public:
     /*! \brief Requests the same guarded exit workflow used by File > Exit. */
     void requestExit();
 
-    /*! \brief Restores the previous project through the composed editor workflow. */
-    void restoreLastOpenProject();
-
 private:
     // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
     std::unique_ptr<Editor> m_editor;

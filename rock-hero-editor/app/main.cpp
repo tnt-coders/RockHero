@@ -141,7 +141,6 @@ public:
 
         m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(
             getApplicationName(), std::move(editor));
-        m_main_window->restoreLastOpenProject();
     }
 
     // Releases the editor window before JUCE tears down the application object. The task runner
