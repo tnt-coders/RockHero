@@ -567,9 +567,10 @@ private:
     void refreshRulerGeometry();
 
     // Rebuilds the three chip rows: a section chip per section start, a metronome marking
-    // (enlarged quarter-note glyph plus chip-size digits) for the span each non-terminal anchor
-    // starts, and a signature chip at each signature-change downbeat. The caller passes the
-    // view-left time when pinning is active (empty otherwise) so every pinned row shares one gate.
+    // (a quarter-note glyph taller than the chip-face digits beside it) for the span each
+    // non-terminal anchor starts, and a signature chip at each signature-change downbeat. The
+    // caller passes the view-left time when pinning is active (empty otherwise) so every pinned
+    // row shares one gate.
     void refreshChipRows(std::optional<double> pinned_left_seconds);
 
     // Places one chip row over a row's markers, ascending by start: the pinned active marker at
@@ -577,10 +578,11 @@ private:
     // marker's chip is placed before any other, so density suppresses its neighbours instead of
     // it, and as the pin it never yields; a selection the keyboard walked onto is always drawn.
     // Text is formatted and measured only for a chip that could still be placed, since dense maps
-    // offer far more candidates than survive.
+    // offer far more candidates than survive. lead_width is room ahead of the text (the tempo
+    // glyph).
     template <typename SecondsAt, typename TextAt>
     [[nodiscard]] ChipRow placeChipRow(
-        std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at,
+        std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at, int lead_width,
         std::optional<double> pinned_left_seconds, std::optional<std::size_t> selected) const;
 
     // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
@@ -737,6 +739,10 @@ private:
     // height every chip row's chips stand, both from the one chip authority and measured once.
     const common::ui::TabLaneFont m_chip_font{common::ui::chipLabelFont()};
     const int m_chip_height{static_cast<int>(common::ui::chipHeight(m_chip_font))};
+
+    // The quarter note opening every tempo chip, as an outline with its ink's top-left corner at
+    // the origin. A path rather than text, so it can stand taller than the chip face's digits.
+    const juce::Path m_tempo_glyph;
 
     // The tab lane's spans, pushed by the owning view whenever the displayed chart changes.
     std::vector<RulerSpan> m_spans{};

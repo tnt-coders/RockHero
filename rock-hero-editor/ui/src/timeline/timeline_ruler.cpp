@@ -167,13 +167,38 @@ private:
     std::optional<Interval> m_claimed{};
 };
 
-// The quarter-note glyph that opens every tempo marking: U+2669, supplied as escaped UTF-8 so
-// source-file encoding cannot corrupt it; text shaping falls back to a symbol font when the UI
-// font lacks the glyph. It prints in the chip face with the digits: at that size its stem already
-// reaches the chip's top edge, so a larger glyph would not fit.
-[[nodiscard]] juce::String quarterNoteGlyph()
+// The quarter-note glyph that opens every tempo marking, as an outline whose ink stands
+// `ink_height` tall with its top-left corner at the origin; empty where no font draws the glyph.
+// U+2669 is supplied as escaped UTF-8 so source-file encoding cannot corrupt it, and text shaping
+// falls back to a symbol font when the UI font lacks it. Measured at the face's default size and
+// scaled, because an outline scales exactly as a larger font size would, and drawn as a path
+// because a text draw snaps its baseline to a whole row, which would cost the glyph a row of size.
+[[nodiscard]] juce::Path quarterNoteOutline(const float ink_height)
 {
-    return juce::String::fromUTF8("\xE2\x99\xA9");
+    juce::GlyphArrangement glyph;
+    glyph.addLineOfText(
+        juce::Font{juce::FontOptions{}.withStyle("Bold")},
+        juce::String::fromUTF8("\xE2\x99\xA9"),
+        0.0f,
+        0.0f);
+    juce::Path outline;
+    glyph.createPath(outline);
+    const juce::Rectangle<float> ink = outline.getBounds();
+    if (ink.isEmpty())
+    {
+        return outline;
+    }
+    outline.applyTransform(
+        juce::AffineTransform::translation(-ink.getX(), -ink.getY())
+            .scaled(ink_height / ink.getHeight()));
+    return outline;
+}
+
+// The room a tempo chip spends on its quarter note ahead of the digits: the glyph's ink and a clear
+// column before the equals sign's advance box.
+[[nodiscard]] int tempoGlyphLead(const juce::Path& glyph)
+{
+    return static_cast<int>(std::ceil(glyph.getBounds().getWidth())) + 1;
 }
 
 // The measure-number row's band across a ruler of the given width: what the renumber flash
@@ -185,8 +210,11 @@ private:
 
 } // namespace
 
-// Names the component for tests and enables direct mouse placement.
+// Names the component for tests and enables direct mouse placement. The quarter note's ink fills
+// the chip but for the clear rows every chip keeps.
 TimelineRuler::TimelineRuler()
+    : m_tempo_glyph{quarterNoteOutline(
+          static_cast<float>(m_chip_height) - (2.0f * common::ui::g_chip_ink_clearance))}
 {
     setComponentID("timeline_ruler");
     setInterceptsMouseClicks(true, false);
@@ -1032,7 +1060,7 @@ void TimelineRuler::refreshRulerGeometry()
 template <typename SecondsAt, typename TextAt>
 TimelineRuler::ChipRow TimelineRuler::placeChipRow(
     const std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at,
-    const std::optional<double> pinned_left_seconds,
+    const int lead_width, const std::optional<double> pinned_left_seconds,
     const std::optional<std::size_t> selected) const
 {
     ChipRow row;
@@ -1044,8 +1072,8 @@ TimelineRuler::ChipRow TimelineRuler::placeChipRow(
         }
         return static_cast<int>(std::round(*local_x));
     };
-    const auto width_of = [this](const juce::String& text) {
-        return m_chip_font.width(text) + g_label_width_pad;
+    const auto width_of = [this, lead_width](const juce::String& text) {
+        return lead_width + m_chip_font.width(text) + g_label_width_pad;
     };
     const auto chip_of = [&selected](int label_x, juce::String text, int width, std::size_t index) {
         return RulerChip{
@@ -1143,11 +1171,10 @@ TimelineRuler::ChipRow TimelineRuler::placeChipRow(
     return row;
 }
 
-// Rebuilds the three chip rows from the section list and the tempo map. Tempo markings
-// ("♩=137") split into an enlarged quarter-note glyph and chip-size digits, drawn in their own
-// fonts inside one chip because one text draw cannot mix fonts; only the glyph is enlarged, so
-// the equals sign rides with the digits. The caller owns the pin gate, keeping the chip rows and
-// the measure row pinning in lockstep.
+// Rebuilds the three chip rows from the section list and the tempo map. A tempo marking ("♩=137")
+// stores only its text, "=137": the quarter note is drawn ahead of it at its own size, so the row
+// reserves the glyph's room as each chip's lead. The caller owns the pin gate, keeping the chip
+// rows and the measure row pinning in lockstep.
 void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seconds)
 {
     // The index of the first of a row's markers the predicate accepts: how each row finds the
@@ -1168,6 +1195,7 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
         m_section_source.size(),
         [this](const std::size_t index) { return m_section_source[index].seconds; },
         [this](const std::size_t index) { return m_section_source[index].name; },
+        0,
         pinned_left_seconds,
         first_index_where(m_section_source.size(), [this](const std::size_t index) {
             return m_section_source[index].selected;
@@ -1181,9 +1209,9 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
         marking_count,
         [&anchors](const std::size_t index) { return anchors[index].seconds(); },
         [this](const std::size_t index) {
-            return quarterNoteGlyph() + "=" +
-                   juce::String{core::tempoSpanBpmText(m_tempo_map, index)};
+            return "=" + juce::String{core::tempoSpanBpmText(m_tempo_map, index)};
         },
+        tempoGlyphLead(m_tempo_glyph),
         pinned_left_seconds,
         first_index_where(marking_count, [this, &anchors](const std::size_t index) {
             return m_selected_tempo_anchor == anchors[index].position;
@@ -1198,6 +1226,7 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
         [&changes](const std::size_t index) {
             return juce::String{core::timeSignatureText(changes[index].meter)};
         },
+        0,
         pinned_left_seconds,
         first_index_where(changes.size(), [this, &changes](const std::size_t index) {
             return m_selected_signature_measure == changes[index].measure;
@@ -1306,9 +1335,13 @@ void TimelineRuler::drawChipRow(
     }
 }
 
-// Draws the tempo chip row, each chip glowing while a refusal of its anchor runs.
+// Draws the tempo chip row, each chip glowing while a refusal of its anchor runs. The quarter note
+// stands half the label padding in from the chip's left edge and a clear row down from its top;
+// the digits centre in the room after its lead, which leaves them the same padding on the right.
 void TimelineRuler::drawTempoChips(juce::Graphics& g)
 {
+    const auto glyph_lead = static_cast<float>(tempoGlyphLead(m_tempo_glyph));
+    const float glyph_inset = static_cast<float>(g_label_width_pad) / 2.0f;
     // Read once ahead of the loop, so the loop never reaches into the optional flash.
     std::span<const common::core::GridPosition> refused_anchors;
     float refusal_level{0.0f};
@@ -1331,7 +1364,11 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
             outline.addRoundedRectangle(bounds, g_chip_corner_radius);
             paintRefusalGlow(g, outline, bounds.getHeight(), refusal_level);
         }
-        m_chip_font.draw(g, chip.label.text, bounds);
+        g.fillPath(
+            m_tempo_glyph,
+            juce::AffineTransform::translation(
+                bounds.getX() + glyph_inset, bounds.getY() + common::ui::g_chip_ink_clearance));
+        m_chip_font.draw(g, chip.label.text, bounds.withTrimmedLeft(glyph_lead));
     }
 }
 

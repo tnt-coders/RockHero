@@ -2374,7 +2374,7 @@ TabLaneFont chipLabelFont()
 // it rounds up to; the extra row is what keeps both padding rows clear wherever it lands.
 float chipHeight(const TabLaneFont& label_font)
 {
-    return std::ceil(label_font.inkHeight()) + 1.0f + 2.0f;
+    return std::ceil(label_font.inkHeight()) + 1.0f + (2.0f * g_chip_ink_clearance);
 }
 
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the

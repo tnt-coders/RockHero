@@ -224,10 +224,13 @@ so a host builds it beside its other fonts, never once per label drawn.
 */
 [[nodiscard]] TabLaneFont chipLabelFont();
 
+/*! \brief The clear rows every chip keeps above and below whatever it prints, in pixels. */
+inline constexpr float g_chip_ink_clearance{1.0f};
+
 /*!
 \brief Returns the height every chip stands, from its label's ink: the ink's whole pixels, one more
-because the renderer snaps a line to a whole row and can spread the ink across it, and a clear row
-above and below.
+because the renderer snaps a line to a whole row and can spread the ink across it, and
+\ref g_chip_ink_clearance above and below.
 
 \param label_font The chip label font (\ref chipLabelFont).
 \return Chip height in whole pixels.

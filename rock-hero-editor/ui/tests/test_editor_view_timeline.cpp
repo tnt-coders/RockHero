@@ -829,6 +829,49 @@ TEST_CASE("TimelineRuler glows a refused tempo chip", "[ui][timeline-ruler]")
     CHECK(probe().getRed() > plain.getRed());
 }
 
+// A tempo chip's quarter note stands as tall as the chip allows: its ink reaches the rows just
+// inside the chip's top and bottom edges and leaves those edge rows clear.
+TEST_CASE("TimelineRuler fills a tempo chip's height with its quarter note", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // The 1:1 chip stands on the tempo row from x = 0, y = 16; its quarter note starts half the
+    // label padding in, at x = 4, and the equals sign's ink stands right of x = 8, so columns 4 to
+    // 7 hold the glyph and the chip fill alone.
+    constexpr int chip_top = 16;
+    const int chip_bottom = chip_top + chipHeight() - 1;
+    const auto glyph_ink_in_row = [&image](const int y) {
+        int ink = 0;
+        for (int x = 4; x < 8; ++x)
+        {
+            if (image.getPixelAt(x, y) != editorTheme().tempo_chip)
+            {
+                ++ink;
+            }
+        }
+        return ink;
+    };
+    CHECK(glyph_ink_in_row(chip_top) == 0);
+    CHECK(glyph_ink_in_row(chip_top + 1) > 0);
+    CHECK(glyph_ink_in_row(chip_bottom - 1) > 0);
+    CHECK(glyph_ink_in_row(chip_bottom) == 0);
+}
+
 // The signature menu offers the rows that apply where it opens: Add on a measure whose downbeat
 // carries no time signature, Set and Delete over a chip. Every row is disabled while the marker
 // plane is closed, and building the menu selects nothing.
