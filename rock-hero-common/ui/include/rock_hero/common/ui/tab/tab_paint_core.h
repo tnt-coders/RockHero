@@ -594,7 +594,7 @@ bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
 (\ref g_lane_chip_corner_radius), filled in the rails' ink (\ref tabShapeMarkColor).
 
 The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
-centred in the dark chip ground for contrast against the light fill. It is sized as a
+centred in the lane chips' white text color. It is sized as a
 fret-hand-position chip in the same font (\ref tabFhpChipBounds): blank, as wide as a one-figure
 fret-hand chip; labelled, as wide as its label boxed the way a fret-hand chip boxes its text, never
 narrower than the blank chip. The chip stands as tall as the font's ink, rounded up to whole pixels,

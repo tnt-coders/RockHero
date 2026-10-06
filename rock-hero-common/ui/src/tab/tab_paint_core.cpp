@@ -2746,8 +2746,8 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
 
     if (printed.isNotEmpty())
     {
-        // The dark chip ground, since white falls short of legible contrast on the light rail ink.
-        g.setColour(g_lane_chip_ground);
+        // The lane chips' own text color, so every chip in the lane prints its label alike.
+        g.setColour(g_lane_chip_text);
         font.draw(g, printed, box);
     }
 }

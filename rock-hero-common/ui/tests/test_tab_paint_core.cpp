@@ -488,20 +488,19 @@ constexpr float g_span_chip_headroom{30.0f};
     return true;
 }
 
-// The pixels of a span chip render nearer the dark chip ground than the chord span's light fill:
-// a printed label's ink, classified to the nearer of the two colors rather than matched exactly.
+// The pixels of a span chip render nearer the white label text than the chord span's saturated
+// fill: a printed label's ink, classified by saturation to the nearer of the two colors rather
+// than matched exactly, since the fill and white are both near full brightness.
 [[nodiscard]] int spanChipLabelInk(const juce::Image& image)
 {
-    const float midpoint =
-        (juce::Colour{0xff2a2f36}.getBrightness() + tabShapeMarkColor(false).getBrightness()) /
-        2.0f;
+    const float midpoint = tabShapeMarkColor(false).getSaturation() / 2.0f;
     int ink = 0;
     for (int y = 0; y < image.getHeight(); ++y)
     {
         for (int x = 0; x < image.getWidth(); ++x)
         {
             const juce::Colour pixel = image.getPixelAt(x, y);
-            if (pixel.getAlpha() == 0xff && pixel.getBrightness() < midpoint)
+            if (pixel.getAlpha() == 0xff && pixel.getSaturation() < midpoint)
             {
                 ++ink;
             }
