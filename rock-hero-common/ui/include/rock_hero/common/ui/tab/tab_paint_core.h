@@ -56,10 +56,10 @@ the paint core's JUCE conversion of the shared palette authority.
 /*!
 \brief Returns the ink of a span's rails and of its label chip.
 
-The Charter hand-shape base, scaled along its own hue to the lightest shade on which the lane
-chips' white text keeps a 4.5:1 contrast (WCAG AA). The span chip (\ref drawTabSpanChip) fills in
-this ink too, so the chip and the rails it stands on read as one object, and prints its label in
-that white text over it.
+The Charter hand-shape base, scaled along its own hue to a shade light enough to read as the
+lane's span color and dark enough to carry the lane chips' white text. The span chip
+(\ref drawTabSpanChip) fills in this ink too, so the chip and the rails it stands on read as one
+object, and prints its label in that white text over it.
 
 \param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
 \return Opaque mark color.

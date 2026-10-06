@@ -1064,15 +1064,15 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     // The strummed A5 span rails the lane's top and bottom edges in the hand-shape blue (base
     // x1.16) inside its range and not outside it, and does not tint the lane interior. The probe
     // column sits at 4.5s, inside the span.
-    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff3864c1});
-    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff3864c1});
+    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff4173de});
+    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff4173de});
     CHECK(image.getPixelAt(90, 5).getARGB() == 0);
     CHECK(image.getPixelAt(150, 1).getARGB() == 0);
     CHECK(image.getPixelAt(150, 238).getARGB() == 0);
 
     // The arpeggio span's rails are the hand-shape purple at its own scale (base x0.955).
-    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff7f54ae});
-    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff7f54ae});
+    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff9664ce});
+    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff9664ce});
 
     // Span chips stand above the lane, on the host's ruler, so nothing but the rails and the FHP
     // marker touches the lane's top edge here.

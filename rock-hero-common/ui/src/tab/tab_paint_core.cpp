@@ -164,12 +164,11 @@ constexpr float g_floating_chip_padding{3.0f};
     return label;
 }
 
-// Each hand-shape base's scale for the span marks: the lightest shade of its hue on which the lane
-// chips' white text, composited over it, keeps a 4.5:1 contrast (WCAG AA): 4.54:1 on the chord
-// blue, 4.51:1 on the arpeggio purple. The purple base is the lighter of the two, so it scales
-// below one where the blue scales above it.
-constexpr double g_shape_mark_scale{1.16};
-constexpr double g_arpeggio_mark_scale{0.955};
+// Each hand-shape base's scale for the span marks, set by eye between a mark bright enough to read
+// as the lane's own color and one dark enough to carry the lane chips' white text: about 3.7:1 on
+// the chord blue and 3.5:1 on the arpeggio purple, short of the 4.5:1 a fully dark fill reaches.
+constexpr double g_shape_mark_scale{1.33};
+constexpr double g_arpeggio_mark_scale{1.13};
 // The square-bracket pair marking an arpeggio posture note reads as "[ fret ]" and stays much
 // lighter than the note rings it wraps. Its SIZE lives on the lane geometry
 // (TabLaneGeometry::bracketGeometry) rather than here, because the layout manifest places the
