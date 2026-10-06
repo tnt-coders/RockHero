@@ -2016,6 +2016,46 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         CHECK(state.shapes[1].arpeggio);
         CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
     }
+
+    SECTION("a chord gliding up and back draws no bracket at its turn or its return")
+    {
+        // Open strings under two fingers that glide 5 to 7 and back: the turn and the return each
+        // land a chord the hand slid into, so both successors draw nothing on either surface.
+        Arrangement arrangement = makeArrangementWithChart();
+        Chart* const chart = chartOrNull(arrangement);
+        REQUIRE(chart != nullptr);
+        if (chart != nullptr)
+        {
+            chart->notes.clear();
+            for (const int string : {1, 2, 4, 5, 6})
+            {
+                const bool fretted = string == 2 || string == 4;
+                ChartNote note{
+                    .position = GridPosition{.measure = 1, .beat = 1},
+                    .string = string,
+                    .fret = fretted ? 5 : 0,
+                    .sustain = Fraction{3, 2},
+                    .bend = {},
+                    .keyframes = {},
+                };
+                if (fretted)
+                {
+                    note.keyframes = {
+                        Keyframe{.offset = Fraction{1, 2}, .fret = 7},
+                        Keyframe{.offset = Fraction{1}, .fret = 5},
+                    };
+                }
+                chart->notes.push_back(note);
+            }
+            chart->fret_hand_positions = {};
+        }
+
+        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+        REQUIRE(state.shapes.size() == 3);
+        CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
+        CHECK_FALSE(state.shapes[2].bracket_seconds.has_value());
+    }
 }
 
 // A ring and a keyframe are note values from the onset, so where they land on the clock is read

@@ -567,7 +567,7 @@ struct DerivationCounters
     long long successor_spans_at_slot{0};
 
     // THE SOURCE-SIDE READING of the same population, kept as the rig's independent second
-    // opinion: a boundary is a LANDING where some ring crossing it arrives at its resting stop
+    // opinion: a boundary is a LANDING where some ring crossing it has its fret channel land
     // exactly there, read off the fret channels rather than off the walk.
     //
     // ONE CAUSE (grip-tenure law rule 7): ring-out opens NOTHING, so a member's DEATH is not a
@@ -651,35 +651,34 @@ struct DerivationCounters
     long long fhp_pinned_finger_rings{0};
 };
 
-// Where a note's fret channel comes to REST after leaving its onset stop, and where that rest ends
-// — [D2]'s landing, read from the SOURCE side. This is the model's own reading of the channel
-// ("equal frets are a HOLD, different frets are travel"), so a fret the channel leaves again is a
-// point on the path and never a grip.
+// The offsets at which a note's fret channel LANDS, in order — [D2]'s landings, read from the
+// SOURCE side. This is the model's own reading of the channel: a travel goes on while each fret
+// lies further in its direction, so a fret a glide passes is a point on the path, and a restated
+// fret (a rest) or a fret back the way it came (a turn) lands it. A landing's statement covers its
+// hold and the glide out of it, so it runs to the next landing, or to the ring's end after the
+// last one.
 //
 // Spelled here rather than approximated, for the reason the lone-re-pick member test is: the
 // finished spans record which landings OPENED and never which ones were suppressed, so a rig that
 // cannot read the channel cannot attribute the movement to an edge. The derivation's own
 // `successor_spans` stands beside these as the authority, and a disagreement between the two is a
 // finding rather than a defect in either.
-struct SourceLanding
-{
-    Fraction arrival{};
-    Fraction statement_end{};
-};
-
-[[nodiscard]] std::optional<SourceLanding> sourceLanding(
+[[nodiscard]] std::vector<Fraction> sourceLandings(
     const ChartNote& note, const bool arrives_into_next_head)
 {
     // The SLIDE-OUT states where the hand LEAVES toward as the sound stops, which is the one fret
-    // statement that is no grip at all: it is skipped in both passes below, so a slide-out never
-    // reads as a landing and never ends one. An ARRIVAL is a landing like any other — the finger
-    // comes to rest on the stop the next head takes — so the RESOLVED relation is what this skips
-    // by (\ref common::core::arrivesIntoNextHead), never position alone.
+    // statement that is no grip at all: it is skipped below, so a slide-out never reads as a
+    // landing and never ends one. An ARRIVAL is a landing like any other — the finger comes to
+    // rest on the stop the next head takes — so the RESOLVED relation is what this skips by
+    // (\ref common::core::arrivesIntoNextHead), never position alone.
     const common::core::Keyframe* const slide_out =
         common::core::slideOutKeyframe(note, arrives_into_next_head);
-    // The first stop the channel comes to rest on after leaving the note's own.
-    std::optional<Fraction> arrival;
-    int landed = note.fret;
+    std::vector<Fraction> landings;
+    // The stop the channel last stood on; while a travel away from it is under way, the furthest
+    // fret it has reached and the offset it reached it at.
+    int standing = note.fret;
+    int furthest = note.fret;
+    std::optional<Fraction> reached_at;
     for (const common::core::Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the presence test and the read are provably the same object.
@@ -688,47 +687,31 @@ struct SourceLanding
         {
             continue;
         }
-        if (!arrival.has_value())
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<Fraction>& travelling = reached_at;
+        if (travelling.has_value())
         {
-            if (*fret != note.fret)
+            if (furthest > standing ? *fret > furthest : *fret < furthest)
             {
-                arrival = keyframe.offset;
-                landed = *fret;
+                furthest = *fret;
+                reached_at = keyframe.offset;
+                continue;
             }
-            continue;
+            landings.push_back(*travelling);
+            standing = furthest;
+            reached_at.reset();
         }
-        if (*fret == landed)
+        if (*fret != standing)
         {
-            break;
+            furthest = *fret;
+            reached_at = keyframe.offset;
         }
-        arrival = keyframe.offset;
-        landed = *fret;
     }
-    const std::optional<Fraction>& lands = arrival;
-    if (!lands.has_value())
+    if (reached_at.has_value())
     {
-        return std::nullopt;
+        landings.push_back(*reached_at);
     }
-    // Where that rest ends: its last restatement before the channel leaves again, or the ring's
-    // own end where it never does.
-    Fraction held = *lands;
-    Fraction ends = note.sustain;
-    for (const common::core::Keyframe& keyframe : note.keyframes)
-    {
-        const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value() || keyframe.offset < *lands || &keyframe == slide_out)
-        {
-            continue;
-        }
-        if (*fret == landed)
-        {
-            held = keyframe.offset;
-            continue;
-        }
-        ends = held;
-        break;
-    }
-    return SourceLanding{.arrival = *lands, .statement_end = std::min(ends, note.sustain)};
+    return landings;
 }
 
 // A sounding fretting-hand onset: what opens a span, re-picks one, and travels. The picking hand's
@@ -1063,7 +1046,7 @@ void countDerivation(
             out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
 
             // THE SOURCE-SIDE READING of the same opening: a LANDING is a ring crossing this
-            // instant whose fret channel comes to rest exactly here, which is the hand ARRIVING.
+            // instant whose fret channel lands exactly here, which is the hand ARRIVING.
             // Read per string off the last note before the front, because that is the record whose
             // chain crosses.
             //
@@ -1120,13 +1103,9 @@ void countDerivation(
                 {
                     continue;
                 }
-                const std::optional<SourceLanding> landed =
-                    sourceLanding(saved[ringing], arrives_into[ringing]);
-                if (!landed.has_value())
-                {
-                    continue;
-                }
-                landing_here = index.onset[ringing] + landed->arrival == start;
+                landing_here = std::ranges::any_of(
+                    sourceLandings(saved[ringing], arrives_into[ringing]),
+                    [&](const Fraction landed) { return index.onset[ringing] + landed == start; });
             }
             if (landing_here)
             {
@@ -1434,14 +1413,14 @@ void countDerivation(
         bool travels = false;
         for (const std::size_t member : struck_at_start)
         {
-            const std::optional<SourceLanding> landed =
-                sourceLanding(saved[member], arrives_into[member]);
-            if (!landed.has_value())
+            const std::vector<Fraction> landings =
+                sourceLandings(saved[member], arrives_into[member]);
+            if (landings.empty())
             {
                 continue;
             }
             travels = true;
-            const Fraction here = index.onset[member] + landed->arrival;
+            const Fraction here = index.onset[member] + landings.front();
             staggered = staggered || (common_landing.has_value() && *common_landing != here);
             common_landing = here;
             earliest_landing =
@@ -1472,11 +1451,12 @@ void countDerivation(
                 long long resting = 0;
                 for (const std::size_t member : struck_at_start)
                 {
-                    const std::optional<SourceLanding> landed =
-                        sourceLanding(saved[member], arrives_into[member]);
+                    const std::vector<Fraction> landings =
+                        sourceLandings(saved[member], arrives_into[member]);
+                    // The first landing's statement runs to the next landing or the ring's end.
                     const Fraction ends =
                         index.onset[member] +
-                        (landed.has_value() ? landed->statement_end : saved[member].sustain);
+                        (landings.size() > 1 ? landings[1] : saved[member].sustain);
                     resting += *lands + margin < ends ? 1 : 0;
                 }
                 out.travel_landings_open += resting >= 2 ? 1 : 0;
@@ -2480,7 +2460,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("spans opened by anything else (an EVENT)",
         census.derivation.spans - census.derivation.successor_spans);
     std::cout << "  --- the SOURCE-SIDE second opinion on the landing arm ---\n"
-                 "  (a LANDING is a crossing ring arriving at its resting stop exactly there,\n"
+                 "  (a LANDING is a crossing ring whose fret channel lands exactly there,\n"
                  "   read off the fret channels. Under the one-cause law this is a CONVERGENCE\n"
                  "   check rather than a split: the unattributed row is this rig's own shortfall,\n"
                  "   not a second cause.)\n";
@@ -2698,7 +2678,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22316.0,
+                .expected = 22340.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
@@ -2708,7 +2688,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // own members sound apart.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1041.0,
+                .expected = 1043.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2731,21 +2711,20 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2773.0,
+                .expected = 2786.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
                 // onset-less open the grip-tenure law admits. ONE cause only (rule 7): a member
-                // that merely rings on past a break is a tail and opens nothing, and an open
-                // string no hand holds counts toward no landed grip, so what stands here is chord
-                // slides arriving at the grip they travel to. THE EXACT END OF A TAIL NEVER FOUNDS
-                // A SPAN, so a glide whose arrival stands on the head it slides into hands nothing
-                // over and opens nothing: only a ring running STRICTLY PAST its landing does. The
-                // SOURCE-side reading in section [5] attributes the same population edge by edge,
-                // independently of this count.
+                // that merely rings on past a break is a tail and opens nothing, so what stands
+                // here is chord slides arriving at the grip they travel to or turn on. THE EXACT
+                // END OF A TAIL NEVER FOUNDS A SPAN, so a glide whose arrival stands on the head it
+                // slides into hands nothing over and opens nothing: only a ring running STRICTLY
+                // PAST its landing does. The SOURCE-side reading in section [5] attributes the
+                // same population edge by edge, independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = 988.0,
+                .expected = 1231.0,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
@@ -2758,7 +2737,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // numbers.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = 904.0,
+                .expected = 1145.0,
             },
             CrossCheck{
                 // DERIVED HELD's population itself: the right-hand onsets a PULL-OFF states a
@@ -2820,12 +2799,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // what is left is a window widening or sliding over a grip it still covers.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 317.0,
+                .expected = 155.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 342.0,
+                .expected = 155.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window
@@ -2839,7 +2818,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 17650.0,
+                .expected = 17649.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",
@@ -2872,7 +2851,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // cannot stand an arrival on. The two readings are genuinely separate code over
                 // the same source: the walk caps a member's coverage at the arrival
                 // `statedStopFrom` reports, and this rig re-reads the keyframes itself
-                // (\ref sourceLanding) and asks whether the instant it finds is the span's own
+                // (\ref sourceLandings) and asks whether any instant it finds is the span's own
                 // start. THE AGREEMENT IS THE PINNED EXPECTATION, exact-match: a shortfall means
                 // one of the two readings of the fret channel has moved under the other, which is
                 // the finding this second opinion exists to raise and has no acceptable band.

@@ -45,8 +45,8 @@ constexpr std::size_t g_accumulation_member_minimum = 3;
 // note's own ring. The channel is an ordered run of statements — the onset, then every
 // fret-stating keyframe — so both moments come off one walk of it: `departure` is the last offset
 // at which the channel still states the stop it holds there, and `arrival` is the offset at which
-// it next comes to REST, with `fret` the stop it rests on — the landing where the new statement
-// is established and where the span hands over (rule 10).
+// it next LANDS — comes to rest or turns back — with `fret` the stop it lands on: where the new
+// statement is established and where the span hands over (rule 10).
 struct FretTravel
 {
     Fraction departure{};
@@ -69,8 +69,8 @@ struct StatedStop
     std::optional<FretTravel> travel{};
 
     // The offset at which the stated stop's own statement BEGAN inside this channel: zero where
-    // the channel never left the onset's stop, and the travel's arrival where a glide came to rest
-    // on it — a landing is where a new statement is established (rule 10). Mid-travel it names
+    // the channel never left the onset's stop, and the travel's arrival where a glide landed on
+    // it — a landing is where a new statement is established (rule 10). Mid-travel it names
     // where the statement being travelled into will begin, the only honest answer while the finger
     // is on no stop at all. Read together with \ref StringHand::stated_since this is what dates a
     // slid string's grip with no second record of the landing kept anywhere, exactly as the same
@@ -79,10 +79,11 @@ struct StatedStop
 };
 
 // THE channel reader: the one authority on where a finger is. A copy of this fact kept anywhere
-// else is where defects of this kind come from, never from this reader. A fret the channel LEAVES
-// AGAIN is a point on the path and never a landing ("equal frets are a hold, different frets are
-// travel"), which keeps a continuous multi-fret glide one travel to its end while a glide with a
-// held grip between its legs states each grip exactly once.
+// else is where defects of this kind come from, never from this reader. A travel goes on only
+// while each fret it states lies further in its direction: a fret it glides PAST is a point on the
+// path, so a continuous multi-fret glide stays one travel to its end. Anything else LANDS it — a
+// restated fret is a rest, and a fret back the way it came is a TURN, where the listener hears the
+// chord the glide turned on as the chord landed on even though the finger holds it for no time.
 [[nodiscard]] StatedStop statedStopFrom(
     const ChartNote& note, const Fraction from, const bool arrives_into_next_head)
 {
@@ -105,30 +106,30 @@ struct StatedStop
         {
             continue;
         }
-        if (!travel.has_value())
+        if (travel.has_value())
         {
-            if (*fret == stop)
+            const bool onward = travel->fret > stop ? *fret > travel->fret : *fret < travel->fret;
+            if (onward)
             {
-                held = keyframe.offset;
+                travel->arrival = keyframe.offset;
+                travel->fret = *fret;
                 continue;
             }
-            travel = FretTravel{.departure = held, .arrival = keyframe.offset, .fret = *fret};
+            if (from < travel->arrival)
+            {
+                break;
+            }
+            stop = travel->fret;
+            stop_from = travel->arrival;
+            held = travel->arrival;
+            travel.reset();
+        }
+        if (*fret == stop)
+        {
+            held = keyframe.offset;
             continue;
         }
-        if (*fret != travel->fret)
-        {
-            travel->arrival = keyframe.offset;
-            travel->fret = *fret;
-            continue;
-        }
-        if (from < travel->arrival)
-        {
-            break;
-        }
-        stop = travel->fret;
-        stop_from = travel->arrival;
-        held = keyframe.offset;
-        travel.reset();
+        travel = FretTravel{.departure = held, .arrival = keyframe.offset, .fret = *fret};
     }
     // THE NODE ARM, and the whole of the harmonic law's reach into the channel: a fretting-hand
     // harmonic touches a NODE and presses nothing, so the stop it states IS that node — never the
@@ -166,7 +167,7 @@ struct StatedStop
 // the two questions wrongly:
 //
 //   `covers` — how far the FRETTING HAND's own statement reaches: the last member strike's ring,
-//   capped at the landing its fret channel comes to rest at. THE ONLY input to a span's reach and
+//   capped at the next landing of its fret channel. THE ONLY input to a span's reach and
 //   close — how far the shape reaches is a statement about the hand that makes shapes.
 //
 //   `sounds` — how far the string goes on sounding over the fretting hand's stop, WHICHEVER hand
@@ -221,21 +222,6 @@ struct StringHand
     // rather than re-ask a question whose evidence the strike itself replaced.
     std::optional<ChartStop> stated_beneath;
 };
-
-// A HAND-FREE stop: one the fretting hand presses NOTHING for, so its RING proves nothing about
-// where the hand is once the strike is over. The open string and the node a natural (or open-string
-// tap) harmonic touches both record fret 0 — the one place the "fret is 0 under a node" invariant
-// is load-bearing — while an artificial harmonic presses a fret under its damped node and is not
-// hand-free. This is a question about the ring's TENURE: the finger lifts the instant the chime
-// sounds, so a harmonic ringing on is as hand-free as an open string ringing on (and a natural's
-// node states no grip at all, \ref nodeGrip). Asked at the landing alone, the one seam a member
-// crosses: a finger that slid carries its stop into the landed grip, and a string no finger holds
-// has none to carry. Not at the displacement witness — that reads the SOUND, and a hand-free ring's
-// sound is evidence a strike can contradict even though no finger holds it.
-[[nodiscard]] bool handFree(const ChartStop& stop)
-{
-    return stop.fret == 0;
-}
 
 // A NODE GRIP: a natural harmonic's stop, a node touched with nothing pressed. It states no grip:
 // the finger rests over the node for the strike and lifts, holding no stop a posture could keep,
@@ -399,9 +385,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // (\ref StringHand::stated_since) re-asked at the channel, exactly as \ref covers_at re-asks
     // the stop. The two halves of one question: a strike's statement begins where the strike does
     // unless the tie doctrine hands it an earlier beginning, and a TRAVEL's statement begins at
-    // the landing it comes to rest on, which the channel already knows — so the landing needs no
-    // write anywhere and a lone glide under no span dates as honestly as one inside a shape. Zero
-    // where the hand has never sounded the string.
+    // its landing, which the channel already knows — so the landing needs no write anywhere and a
+    // lone glide under no span dates as honestly as one inside a shape. Zero where the hand has
+    // never sounded the string.
     const auto stated_since_at = [&saved_notes, &onset_place, &arrives_into, &hand](
                                      const std::size_t string_index, const Fraction now) {
         const std::optional<std::size_t>& finger = hand[string_index].finger;
@@ -419,13 +405,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     };
 
     // How far the fretting hand's own statement on this string reaches, measured from `now`: the
-    // finger's ring, capped at the next landing its channel comes to rest at (\ref
-    // StringHand::covers). ONE authority for the three moments a statement (re)starts and the cap
-    // has to be re-read — a strike stating it, a landing handing it on, and a carry folding into a
-    // new span. The third moment is why this is a function at all: a landing NO SPAN WAS STANDING
-    // TO WITNESS restarts coverage exactly as a witnessed one does, and without the re-read a lone
-    // glide's coverage would stay frozen at its first arrival forever, so the next span to fold
-    // that string in would reach only as far as a landing long past.
+    // finger's ring, capped at the next landing of its channel (\ref StringHand::covers). ONE
+    // authority for the three moments a statement (re)starts and the cap has to be re-read — a
+    // strike stating it, a landing handing it on, and a carry folding into a new span. The third
+    // moment is why this is a function at all: a landing NO SPAN WAS STANDING TO WITNESS restarts
+    // coverage exactly as a witnessed one does, and without the re-read a lone glide's coverage
+    // would stay frozen at its first arrival forever, so the next span to fold that string in
+    // would reach only as far as a landing long past.
     const auto coverage_at = [&saved_notes, &onset_place, &arrives_into, &ring_end_of, &hand](
                                  const std::size_t string_index, const Fraction now) {
         const std::optional<std::size_t>& finger = hand[string_index].finger;
@@ -598,17 +584,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     // STRICTLY past the boundary survive into the landed grip.
                     continue;
                 }
-                if (handFree(*stop) || !open->stops[string_index].has_value())
+                if (!open->stops[string_index].has_value())
                 {
                     // A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, and the landing is the one
-                    // way a member crosses a seam: the grip itself moved, carried by fingers that
-                    // slid and never lifted. So the survivors are the closing span's own FRETTED
-                    // members and nothing else. A ring that span never held was never its member;
-                    // a string no finger holds neither slid nor stayed — a one-string slide over a
-                    // struck drone lands into no bracket, which is an accepted consequence. A
-                    // glide coming to rest ON the open string is the hand lifting, not landing, so
-                    // the skip suppressing that arrival is the same rule and not a gap. Every such
-                    // ring is a plain tail.
+                    // way a member crosses a seam: the grip itself moved under the fingers that
+                    // slid. So the survivors are the closing span's own members, its open strings
+                    // included — they are part of the chord landed on. A ring that span never held
+                    // was never its member, and is a plain tail.
                     continue;
                 }
                 landed[string_index] = stop;

@@ -1799,6 +1799,53 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         CHECK(landed[1] == std::optional{frettedStop(11)});
         CHECK(landed[2] == std::optional{frettedStop(13)});
     }
+
+    SECTION("a glide that turns back lands on the fret it turns at")
+    {
+        // A chord with open strings whose two fretted members glide 5 to 7 and back to 5. The 7
+        // is never restated, but the glide TURNS on it, so it is the chord landed on: three spans
+        // tiling the ring, each landed grip keeping the open strings as members of the chord.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 0, Fraction{3, 8}),
+            travellingAt(
+                noteAt(1, Fraction{}, 2, 5, Fraction{3, 8}),
+                {{Fraction{1, 8}, 7}, {Fraction{1, 4}, 5}}),
+            travellingAt(
+                noteAt(1, Fraction{}, 4, 5, Fraction{3, 8}),
+                {{Fraction{1, 8}, 7}, {Fraction{1, 4}, 5}}),
+            noteAt(1, Fraction{}, 5, 0, Fraction{3, 8}),
+            noteAt(1, Fraction{}, 6, 0, Fraction{3, 8}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 3);
+        const auto chord_at = [](const int fretted) {
+            std::vector<std::optional<ChartStop>> stops(
+                static_cast<std::size_t>(g_max_chart_strings));
+            stops[0] = frettedStop(0);
+            stops[1] = frettedStop(fretted);
+            stops[3] = frettedStop(fretted);
+            stops[4] = frettedStop(0);
+            stops[5] = frettedStop(0);
+            return stops;
+        };
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{1, 8});
+        CHECK(derivedStops(derived, 0) == chord_at(5));
+        CHECK(derived.shapes[1].place == Fraction{1, 8});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 8});
+        CHECK(derivedStops(derived, 1) == chord_at(7));
+        CHECK(derived.shapes[2].place == Fraction{1, 4});
+        CHECK(derived.shapes[2].sustain == Fraction{1, 8});
+        CHECK(derivedStops(derived, 2) == chord_at(5));
+        // The shape was slid into, so neither landing states anything a bracket could show.
+        for (const std::size_t landed : {std::size_t{1}, std::size_t{2}})
+        {
+            CHECK(derived.shapes[landed].landing_opened);
+            CHECK_FALSE(derived.shapes[landed].bracket_place.has_value());
+        }
+        everySpanIsPositive(derived);
+    }
 }
 
 // [D2] — the split falls at the LANDING. What that BUYS, case by case: the transit rides the
@@ -4676,9 +4723,9 @@ TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
 //
 // A refused ring is a plain tail, the open string's included: a bracket states
 // the onsets inside its span and nothing else, so no later bracket prints it and it classes no
-// span. What the hand still decides is the LANDING — the one seam a member crosses, the grip
-// itself moving under fingers that slid — where a string no finger holds (\c handFree) can be no
-// survivor.
+// span. The one seam a member crosses is the LANDING — the grip itself moving under fingers that
+// slid — and there every member of the closing span still sounding survives, open strings
+// included.
 TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
 {
     SECTION("an open-position arpeggio still founds from its first open string")
@@ -4837,46 +4884,33 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         everySpanIsPositive(derived);
     }
 
-    SECTION("a landing hands a hand-free survivor to no successor")
+    SECTION("a landing carries a struck open drone into the landed grip")
     {
         // One string slides over a struck open drone. The pair is a statement and its span stands
-        // to the landing; there the drone is ringing on out of the span it was struck in, so the
-        // landed note is the only survivor and no successor opens. The fretted control — the same
-        // slide over a held 7 — lands into a second span, which is the landing law untouched.
-        const ChartShapes over_drone = deriveFrom(streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1, 2}, 7}}),
-            noteAt(1, Fraction{}, 6, 0, Fraction{1}),
-        }));
-        REQUIRE(over_drone.shapes.size() == 1);
-        CHECK(over_drone.shapes[0].place == Fraction{});
+        // to the landing; the drone was struck in that span and rings on past it, so it survives
+        // into the landed chord exactly as a held 7 does. Nothing sounds INSIDE the successor, so
+        // it carries no mark: the shape was slid into, and a bracket would show nothing new.
+        const auto slide_over = [](const int drone_fret) {
+            return deriveFrom(streamOf({
+                travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1, 2}, 7}}),
+                noteAt(1, Fraction{}, 6, drone_fret, Fraction{1}),
+            }));
+        };
+        const ChartShapes over_drone = slide_over(0);
+        REQUIRE(over_drone.shapes.size() == 2);
+        CHECK(over_drone.shapes[1].place == Fraction{1, 2});
+        CHECK(over_drone.shapes[1].landing_opened);
+        CHECK(derivedStops(over_drone, 1)[0] == std::optional{frettedStop(7)});
+        CHECK(derivedStops(over_drone, 1)[5] == std::optional{frettedStop(0)});
+        CHECK_FALSE(over_drone.shapes[1].bracket_place.has_value());
+        CHECK_FALSE(over_drone.shapes[1].sounds_in_parts);
         everySpanIsPositive(over_drone);
 
-        const ChartShapes over_fretted = deriveFrom(streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1, 2}, 7}}),
-            noteAt(1, Fraction{}, 6, 7, Fraction{1}),
-        }));
+        const ChartShapes over_fretted = slide_over(7);
         REQUIRE(over_fretted.shapes.size() == 2);
-        CHECK(over_fretted.shapes[1].place == Fraction{1, 2});
+        CHECK(over_fretted.shapes[1].place == over_drone.shapes[1].place);
+        CHECK(over_fretted.shapes[1].sustain == over_drone.shapes[1].sustain);
         everySpanIsPositive(over_fretted);
-
-        // Two fretted members slide over the struck open drone: the landing hands the two slid
-        // fingers to a successor, and the drone — no survivor, since no finger holds it — is a tail
-        // under the landed grip, absent from its posture. Nothing sounds INSIDE the successor, so
-        // it carries no mark and classes as the chord it slid from.
-        const ChartShapes landed = deriveFrom(streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1, 2}, 7}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{1}), {{Fraction{1, 2}, 9}}),
-            noteAt(1, Fraction{}, 6, 0, Fraction{1}),
-        }));
-        REQUIRE(landed.shapes.size() == 2);
-        CHECK(landed.shapes[1].place == Fraction{1, 2});
-        CHECK(landed.shapes[1].landing_opened);
-        CHECK(memberCount(landed, 1) == 2);
-        CHECK(derivedStops(landed, 1)[0] == std::optional{frettedStop(7)});
-        CHECK_FALSE(derivedStops(landed, 1)[5].has_value());
-        CHECK_FALSE(landed.shapes[1].bracket_place.has_value());
-        CHECK_FALSE(landed.shapes[1].sounds_in_parts);
-        everySpanIsPositive(landed);
     }
 
     SECTION("a spent ring founds nothing, a finger holding it or not")

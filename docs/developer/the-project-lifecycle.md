@@ -444,8 +444,8 @@ neighbours.
     span's end is fresh evidence and folds in like any other member — which is what lets an
     open-position arpeggio still found from its first open string. The LANDING is the one seam a
     member crosses, the grip itself moving under fingers that slid, so its survivors are the
-    closing span's own FRETTED members: a string no hand holds neither slid nor stayed, hands
-    nothing to the successor and counts toward no survivor threshold. **A bracket states the
+    closing span's own members still sounding, open strings included — they are part of the chord
+    landed on. **A bracket states the
     onsets inside its span, and nothing else**: a ring refused at either seam is a plain tail
     whatever its stop, an open drone's `0` included, so it prints in no later bracket and classes
     no span — the posture is the grip alone, and every rule, every display and the census read
@@ -761,8 +761,13 @@ neighbours.
     there — the ONE onset-less open the law admits** ([D2], rule 6 of the grip-tenure law). A
     note's fret channel states where
     its finger is along the ring, so it bounds that member the same way the ring does, and the
-    bound is the **ARRIVAL** — the moment the channel comes to rest on the grip it was moving to. A
-    chord slide keeps the fingers planted and the rings run continuously, so fingers travelling
+    bound is the **ARRIVAL** — the moment the channel LANDS on the grip it was moving to. A travel
+    goes on only while each fret it states lies further in its direction, so a fret a continuous
+    glide passes is a point on the path; a restated fret is a rest, and a fret back the way it came
+    is a **TURN**, which lands exactly as a rest does — the chord the glide turns on is the chord
+    the listener hears it land on. A glide 5 to 7 and back to 5 is therefore three spans: the
+    departing grip covering the glide up, the 7-chord from the turn covering the glide back, and
+    the 5-chord again from the return. A chord slide keeps the fingers planted and the rings run continuously, so fingers travelling
     together with the grip held CARRY the statement: the span states the departing grip, COVERS the
     glide, and the break lands where the new grip ESTABLISHES. Rule 11a's minimum then makes the
     EARLIEST landing the end, exactly as the earliest stopped ring is. A travelling finger has let

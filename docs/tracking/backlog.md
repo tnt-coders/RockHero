@@ -1445,3 +1445,11 @@ against the tree on the date above.
   the one such path today is `enterToneDesignerIfNoProject`'s empty rig load failing. The same box
   raised mid-load would also stand over the busy overlay. The clean fix is the move the other
   startup prompts already made: carry errors and notices as view state the gate presents.
+
+## Found while splitting spans at slide turns (2026-10-05)
+
+- **Brackets could slide with the hand.** A span a landing opens draws no bracket there, because the
+  shape was slid into and the grip never broke. Where the departing span DID draw a bracket, an
+  idea to sight is carrying that bracket along the fretboard with the hand through the landed
+  spans, rather than leaving it at the departing front. Nothing is built; sight a figure with a
+  bracketed shape that then slides before deciding.
