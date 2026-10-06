@@ -1435,3 +1435,13 @@ against the tree on the date above.
   preview — set `true`, so until its first `setDisplayOptions` the renderer stacks the strings the
   way neither product draws them. Either default it to `true`, or delete the field outright: only
   the renderer smoke test draws with `false`. Raised by the review of plan 64's fix 6a.
+
+## Found while gating the startup windows behind busy (2026-10-05)
+
+- **Error and notice boxes bypass the top-level-window gate.** `EditorView::showError` and
+  `showNotice` (`rock-hero-editor/ui/src/main_window/editor_view.cpp`) open a themed box at once,
+  not from state through `presentTopLevelWindowsFromState`. Since the startup restore now begins
+  before `MainWindow` shows, a synchronous failure inside it would open behind the main window;
+  the one such path today is `enterToneDesignerIfNoProject`'s empty rig load failing. The same box
+  raised mid-load would also stand over the busy overlay. The clean fix is the move the other
+  startup prompts already made: carry errors and notices as view state the gate presents.
