@@ -5442,4 +5442,34 @@ TEST_CASE("A tap sounding over a dead fretted ring does not push a span's front"
     CHECK(grip->place == Fraction{7, 4});
 }
 
+// A chord of 0, 5 and 4 struck at 2:1, then taps pulling off over it, the first at 11 onto 6 on a
+// string whose fretted 4 died at the chord. That tap sounds over the 6 it is planted on, never over
+// the dead 4, so the landing on 6 displaces nothing: it grows the chord's span, which keeps its
+// front.
+TEST_CASE("A tap planted on a new stop does not keep the old stop sounding", "[core][chart]")
+{
+    const Fraction half{1, 2};
+    const std::vector<ChartNote> notes = streamOf({
+        tapAt(2, half, 4, 9, Fraction{1, 8}),
+        pullOffAt(3, {}, 4, 4, Fraction{1, 2}),
+        inMeasure(2, noteAt(1, {}, 1, 0, Fraction{7, 2})),
+        inMeasure(2, noteAt(1, {}, 2, 5, Fraction{7, 8})),
+        inMeasure(2, noteAt(1, {}, 3, 4, Fraction{1, 2})),
+        inMeasure(2, tapAt(2, {}, 4, 11, Fraction{1, 8})),
+        inMeasure(2, pullOffAt(2, half, 4, 6, Fraction{3, 4})),
+        inMeasure(2, tapAt(3, {}, 3, 11, Fraction{1, 4})),
+        inMeasure(2, pullOffAt(4, {}, 3, 4, Fraction{5, 8})),
+        inMeasure(2, tapAt(4, half, 2, 12, Fraction{1, 8})),
+        inMeasure(3, pullOffAt(1, {}, 2, 5, Fraction{3, 4})),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    const auto grip = std::ranges::find_if(derived.shapes, [&derived](const ChartShape& shape) {
+        return derived.postures[shape.posture].stops[3] == std::optional{frettedStop(6)};
+    });
+    REQUIRE(grip != derived.shapes.end());
+    // The chord at 2:1.
+    CHECK(grip->place == Fraction{1});
+}
+
 } // namespace rock_hero::common::core

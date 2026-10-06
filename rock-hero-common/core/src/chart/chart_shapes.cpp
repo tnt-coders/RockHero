@@ -168,10 +168,11 @@ struct StatedStop
 //   capped at the landing its fret channel comes to rest at. THE ONLY input to a span's reach and
 //   close — how far the shape reaches is a statement about the hand that makes shapes.
 //
-//   `sounds` — how far the string goes on sounding, WHICHEVER hand made the onset. THE ONLY input
-//   to renewal and continuity: a tap on a member string ends that member's ring underneath with
-//   no hand lifting anywhere, so the sound was replaced, not silenced, and the statement chains
-//   straight through it — without the tap ever moving a close.
+//   `sounds` — how far the string goes on sounding over the fretting hand's stop, WHICHEVER hand
+//   made the onset. THE ONLY input to renewal and continuity: a tap over a member's stop ends that
+//   member's ring underneath with no hand lifting anywhere, so the sound was replaced, not
+//   silenced, and the statement chains straight through it — without the tap ever moving a close.
+//   A tap a pull-off plants on another stop sounds over that stop, so it extends nothing here.
 //
 // TWO QUERY WINDOWS over the one stop, named so they cannot be collapsed: the CONTRADICTION and
 // DISPLACEMENT witnesses read end-INCLUSIVELY (the same-string clamp puts a displaced ring's end
@@ -1457,11 +1458,20 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             }
             StringHand& string_hand = hand[*string_index];
             const Fraction ring = ring_end_of(note_at);
-            string_hand.sounds = std::max(string_hand.sounds, ring);
             if (rightHandOnset(member.attack))
             {
+                // Over the finger's own stop only: a tap a pull-off plants elsewhere proves that
+                // finger moved, and one with no plant rides whatever the hand holds.
+                const std::optional<int>& planted = planted_stops[note_at];
+                if (!planted.has_value() ||
+                    gripStatement(member, planted, covers_at(*string_index, slot.place))
+                        .has_value())
+                {
+                    string_hand.sounds = std::max(string_hand.sounds, ring);
+                }
                 continue;
             }
+            string_hand.sounds = std::max(string_hand.sounds, ring);
             string_hand.finger = note_at;
             // Decided here, against the grip that stood going in: the dispose above may have closed
             // that span, and everything downstream of the strike reads this verdict instead.
