@@ -1453,3 +1453,14 @@ against the tree on the date above.
   idea to sight is carrying that bracket along the fretboard with the hand through the landed
   spans, rather than leaving it at the departing front. Nothing is built; sight a figure with a
   bracketed shape that then slides before deciding.
+
+## Found while relinking the editor over a long session (2026-10-06)
+
+- **Incrementally linked PDBs outgrow the linker's limit.** `/INCREMENTAL` grows a target's PDB on
+  every relink until MSVC's ~4 GB default page limit refuses it with `LNK1201: error writing to
+  program database` (whose text blames disk space). Hit on the relwithdebinfo editor at 2.99 GB;
+  the debug editor-ui tests had reached 3.97 GB and editor-core tests 3.12 GB. Today's remedy is to
+  delete the target's `.pdb` and `.ilk` and relink (a fresh PDB is ~0.4 GB). The durable fix is a
+  linker setting, e.g. `/PDBPAGESIZE:8192` (an 8 GB ceiling) on the large targets, or no
+  incremental link for the test executables; it is a build-configuration change, so it needs the
+  user's sign-off before it lands.
