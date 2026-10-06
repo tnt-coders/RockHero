@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
@@ -45,17 +46,9 @@ struct CoverageGroup
     int struck{0};
 };
 
-// A plant's reach (rule 12): from its source's onset through its pull-off's.
-struct PlantSpan
-{
-    Fraction from{};
-    Fraction to{};
-    int fret{0};
-};
-
-// The plain rings' pins (rule 6), sorted by start: `reach[k]` is the latest end among the first
-// k + 1, so the latest end of every ring started before an instant is one search.
-struct RingPins
+// The holds' pins (rule 6), sorted by start: `reach[k]` is the latest end among the first k + 1,
+// so the latest end of every hold begun before an instant is one search.
+struct HoldPins
 {
     std::vector<Fraction> starts;
     std::vector<Fraction> reach;
@@ -105,15 +98,15 @@ void collectNoteDemands(
     }
 }
 
-// Rule 12: a pressed stop a pull-off plants beneath its source is a demand at the source's onset —
-// a tapped source included, which demands nothing of its own — that also widens every instant up
-// to the pull-off (the spans returned).
-[[nodiscard]] std::vector<PlantSpan> collectPlantDemands(
-    const ChartConnections& connections, std::vector<HandDemand>& demands,
-    FretHandDerivationTally& tally)
+// Rule 12: a pressed stop a pull-off plants beneath its source, demanded from the source's onset —
+// a tapped source included, which demands nothing of its own — up to the pull-off, which itself
+// demands that stop. A demand and no hold (\ref fretHandHolds): the pull-off proves the finger
+// down at the release alone, so it pins nothing.
+[[nodiscard]] std::vector<FretHandHold> plantSpansOf(
+    const ChartConnections& connections, FretHandDerivationTally& tally)
 {
     const std::vector<std::optional<int>> planted = chartPlantedStops(connections);
-    std::vector<PlantSpan> spans;
+    std::vector<FretHandHold> spans;
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
         // A note's one same-string successor is the only note that can plant beneath it, so a
@@ -130,10 +123,8 @@ void collectNoteDemands(
             continue;
         }
         ++tally.pressed_plants;
-        demands.push_back(
-            HandDemand{.place = connections.places[source], .fret = *stop, .struck = false});
         spans.push_back(
-            PlantSpan{
+            FretHandHold{
                 .from = connections.places[source],
                 .to = connections.places[index],
                 .fret = *stop,
@@ -142,14 +133,60 @@ void collectNoteDemands(
     return spans;
 }
 
+// A ring's hold (\ref fretHandHolds): from its last pitched stop to its pitched ring's end.
+[[nodiscard]] std::optional<FretHandHold> ringHoldOf(
+    const ChartConnections& connections, const std::size_t index)
+{
+    const ChartNote& note = connections.saved_notes[index];
+    if (note.fret <= 0 || rightHandOnset(note.attack) || note.dead)
+    {
+        return std::nullopt;
+    }
+    const Keyframe* const slide_out = slideOutKeyframe(note, connections.arrives_into[index]);
+    Fraction from{};
+    Fraction to = note.sustain;
+    int fret = note.fret;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& stated = keyframe.fret;
+        if (!stated.has_value() || &keyframe == slide_out)
+        {
+            continue;
+        }
+        if (*stated != fret)
+        {
+            fret = *stated;
+            from = keyframe.offset;
+        }
+    }
+    if (slide_out != nullptr)
+    {
+        to = offsetBeforeEnd(note);
+    }
+    if (!(from < to))
+    {
+        return std::nullopt;
+    }
+    const Fraction place = connections.places[index];
+    return FretHandHold{.from = place + from, .to = place + to, .fret = fret};
+}
+
 // The instants the hand covers, ascending: every demand merged by instant, then every instant a
-// plant reaches widened to it.
+// stop is held at — a plant or a hold — widened to it. A held stop is a demand where it begins, so
+// a span fronting where nothing fretted is struck is still an instant the hand covers.
 [[nodiscard]] std::vector<CoverageGroup> coverageGroupsOf(
-    const ChartConnections& connections, const TempoMap& tempo_map, FretHandDerivationTally& tally)
+    const ChartConnections& connections, const std::vector<FretHandHold>& holds,
+    const TempoMap& tempo_map, FretHandDerivationTally& tally)
 {
     std::vector<HandDemand> demands;
     collectNoteDemands(connections, demands, tally);
-    const std::vector<PlantSpan> spans = collectPlantDemands(connections, demands, tally);
+    std::vector<FretHandHold> spans = plantSpansOf(connections, tally);
+    spans.insert(spans.end(), holds.begin(), holds.end());
+    for (const FretHandHold& span : spans)
+    {
+        demands.push_back(HandDemand{.place = span.from, .fret = span.fret, .struck = false});
+    }
     std::ranges::stable_sort(demands, std::ranges::less{}, &HandDemand::place);
 
     std::vector<CoverageGroup> groups;
@@ -174,10 +211,10 @@ void collectNoteDemands(
             ++group.struck;
         }
     }
-    for (const PlantSpan& span : spans)
+    for (const FretHandHold& span : spans)
     {
         for (auto group = std::ranges::lower_bound(groups, span.from, {}, &CoverageGroup::place);
-             group != groups.end() && group->place <= span.to;
+             group != groups.end() && group->place < span.to;
              ++group)
         {
             group->lowest = std::min(group->lowest, span.fret);
@@ -243,31 +280,26 @@ struct HandRun
     return run;
 }
 
-// Rule 6's plain rings: each held ring (\ref heldRingOf) PINS the hand for as long as it holds.
-[[nodiscard]] RingPins plainRingPinsOf(const ChartConnections& connections)
+// Rule 6: each hold PINS the hand for as long as it holds.
+[[nodiscard]] HoldPins holdPinsOf(const std::vector<FretHandHold>& holds)
 {
     std::vector<std::pair<Fraction, Fraction>> pins;
-    for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
+    pins.reserve(holds.size());
+    for (const FretHandHold& hold : holds)
     {
-        if (const std::optional<HeldRing> held =
-                heldRingOf(connections.saved_notes[index], connections.arrives_into[index]);
-            held.has_value())
-        {
-            const Fraction place = connections.places[index];
-            pins.emplace_back(place + held->from, place + held->to);
-        }
+        pins.emplace_back(hold.from, hold.to);
     }
     std::ranges::sort(pins);
-    RingPins ring_pins;
-    ring_pins.starts.reserve(pins.size());
-    ring_pins.reach.reserve(pins.size());
+    HoldPins hold_pins;
+    hold_pins.starts.reserve(pins.size());
+    hold_pins.reach.reserve(pins.size());
     for (const auto& [from, to] : pins)
     {
-        ring_pins.starts.push_back(from);
-        ring_pins.reach.push_back(
-            ring_pins.reach.empty() ? to : std::max(ring_pins.reach.back(), to));
+        hold_pins.starts.push_back(from);
+        hold_pins.reach.push_back(
+            hold_pins.reach.empty() ? to : std::max(hold_pins.reach.back(), to));
     }
-    return ring_pins;
+    return hold_pins;
 }
 
 // One slide-out the window may ride: its segment on the whole-note axis and the fret it exits to.
@@ -334,49 +366,49 @@ std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset
     return g_behind_the_nut_fret;
 }
 
-std::optional<HeldRing> heldRingOf(const ChartNote& note, const bool arrives_into)
+std::vector<FretHandHold> fretHandHolds(
+    const ChartConnections& connections, const ChartShapes& shapes)
 {
-    if (note.fret <= 0 || rightHandOnset(note.attack) || note.dead)
+    std::vector<FretHandHold> holds;
+    for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
-        return std::nullopt;
-    }
-    const Keyframe* const slide_out = slideOutKeyframe(note, arrives_into);
-    HeldRing held{.from = Fraction{}, .to = note.sustain, .fret = note.fret};
-    for (const Keyframe& keyframe : note.keyframes)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value() || &keyframe == slide_out)
+        if (const std::optional<FretHandHold> ring = ringHoldOf(connections, index);
+            ring.has_value())
         {
-            continue;
-        }
-        if (*fret != held.fret)
-        {
-            held.fret = *fret;
-            held.from = keyframe.offset;
+            holds.push_back(*ring);
         }
     }
-    if (slide_out != nullptr)
+    for (const ChartShape& shape : shapes.shapes)
     {
-        held.to = offsetBeforeEnd(note);
+        for (const std::optional<ChartStop>& stop : shapes.postures[shape.posture].stops)
+        {
+            // A node stop presses fret 0 by construction, so only a pressed fret is held.
+            if (stop.has_value() && pressedFret(stop->fret).has_value())
+            {
+                holds.push_back(
+                    FretHandHold{
+                        .from = shape.place,
+                        .to = shape.place + shape.sustain,
+                        .fret = stop->fret,
+                    });
+            }
+        }
     }
-    if (!(held.from < held.to))
-    {
-        return std::nullopt;
-    }
-    return held;
+    return holds;
 }
 
 std::vector<FretHandEvent> deriveFretHandEvents(
-    const ChartConnections& connections, const TempoMap& tempo_map, const int capo,
-    const std::vector<FretHandPosition>& authored, FretHandDerivationTally* const tally)
+    const ChartConnections& connections, const std::vector<FretHandHold>& holds,
+    const TempoMap& tempo_map, const int capo, const std::vector<FretHandPosition>& authored,
+    FretHandDerivationTally* const tally)
 {
     // Counted into the caller's tally, or into one nobody reads.
     FretHandDerivationTally unread;
     FretHandDerivationTally& counts = tally != nullptr ? *tally : unread;
-    const std::vector<CoverageGroup> groups = coverageGroupsOf(connections, tempo_map, counts);
-    const RingPins ring_pins = plainRingPinsOf(connections);
-    counts.ring_pins += static_cast<long long>(ring_pins.starts.size());
+    const std::vector<CoverageGroup> groups =
+        coverageGroupsOf(connections, holds, tempo_map, counts);
+    const HoldPins hold_pins = holdPinsOf(holds);
+    counts.hold_pins += static_cast<long long>(hold_pins.starts.size());
     const std::vector<Fraction>& onsets = connections.places;
 
     // Where each authored position stands on the whole-note axis; ascending, as the list is.
@@ -443,16 +475,16 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         const HandRun run = runFrom(groups, head, limit);
         ++counts.runs;
         const Fraction run_head = groups[head].place;
-        const std::optional<Fraction> ring_end = ring_pins.latestEndBefore(run_head);
+        const std::optional<Fraction> hold_end = hold_pins.latestEndBefore(run_head);
 
         // Rules 5 and 6 only ever remove motion, and only from an UNFORCED run, one the standing
-        // window already covers: a one-fret run restates nothing, and nothing moves while a plain
-        // ring struck earlier still sounds.
+        // window already covers: a one-fret run restates nothing, and nothing moves while a stop
+        // held from earlier still holds.
         const bool unforced =
             standing.has_value() && standing->covers(run.lowest) && standing->covers(run.highest);
-        if (unforced && ring_end.has_value() && run_head < *ring_end)
+        if (unforced && hold_end.has_value() && run_head < *hold_end)
         {
-            ++counts.held_by_ring;
+            ++counts.held_by_hold;
             head = run.next;
             continue;
         }
@@ -475,14 +507,14 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         }
 
         // Rule 10: the front is the first onset after the latest of the previous run's last
-        // instant, the latest end among the plain rings struck before this run, and the bar line
+        // instant, the latest end among the holds begun before this run, and the bar line
         // that broke the run — never later than the run's own head. The first run therefore
         // reaches back to the chart's first note. It never reaches back to the event before it:
         // an authored position over silence keeps every onset up to its own instant.
         Fraction bound{};
-        if (ring_end.has_value())
+        if (hold_end.has_value())
         {
-            bound = std::max(bound, *ring_end);
+            bound = std::max(bound, *hold_end);
         }
         if (breaksAtBar(groups, head))
         {
@@ -521,8 +553,8 @@ std::vector<FretHandEvent>::const_iterator firstFretHandEventAfter(
 // Keeps the slide-outs with room before the next demand, shifts the standing window over each
 // instant's exits, and adds the way back where no hand event fronts first.
 std::vector<FretHandEvent> deriveFretHandRides(
-    const ChartConnections& connections, const TempoMap& tempo_map,
-    const std::vector<FretHandEvent>& events)
+    const ChartConnections& connections, const std::vector<FretHandHold>& holds,
+    const TempoMap& tempo_map, const std::vector<FretHandEvent>& events)
 {
     std::vector<SlideOutRide> slide_outs = slideOutRidesOf(connections, events);
     if (slide_outs.empty())
@@ -531,7 +563,8 @@ std::vector<FretHandEvent> deriveFretHandRides(
     }
     // The instants the hand derivation covers; what it met on the way is no concern of a ride.
     FretHandDerivationTally unread;
-    const std::vector<CoverageGroup> demands = coverageGroupsOf(connections, tempo_map, unread);
+    const std::vector<CoverageGroup> demands =
+        coverageGroupsOf(connections, holds, tempo_map, unread);
     const auto next_demand_after = [&demands](const Fraction place) {
         return std::ranges::upper_bound(demands, place, std::ranges::less{}, &CoverageGroup::place);
     };

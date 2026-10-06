@@ -1653,17 +1653,19 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // notes, and two spellings of "where is this finger" would be free to disagree. The answer is the
 // chart's own (fretHandStopAt); this only moves the instant onto the note's ring.
 //
-// No held stop is supplied: the stop a pull-off lands on beneath a tap is a derivation, and it
-// states a grip only where the figure already holds it (gripStatementAt), exactly as it does
-// beneath a fretting-hand source. So an imported plain tap states a grip only that way, while a
-// tapped harmonic states the stop its fretting hand presses, which is its own fret.
+// A tap's fretting-hand stop is the stop its pull-off plants beneath it, as it is in the chart's
+// own held table (chartHeldStops): so a tap over the gripped stop rides it (gripStatementAt) and a
+// tap over other ground states that ground and closes the figure AT ITSELF, exactly as a fretting
+// source sounding over other ground does. A bare tap, with no plant, states nothing; a tapped
+// harmonic states the stop its fretting hand presses, which is its own fret.
 [[nodiscard]] std::optional<common::core::ChartStop> statedStopAt(
-    const std::vector<BuiltNote>& built, const std::size_t index, const Fraction instant)
+    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& planted_stops,
+    const std::size_t index, const Fraction instant)
 {
     const BuiltNote& entry = built[index];
     // fretHandStopAt rather than heldFretAt: an open note is a statement here, one a grip can
     // contradict.
-    return common::core::fretHandStopAt(entry.note, std::nullopt, instant - entry.place);
+    return common::core::fretHandStopAt(entry.note, planted_stops[index], instant - entry.place);
 }
 
 // A note's GRIP STATEMENT for the let-ring figure law below: the stop it states at the asked
@@ -1682,7 +1684,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 {
     const std::optional<common::core::ChartStop> beneath =
         common::core::gripStatement(built[index].note, planted_stops[index], gripped);
-    return beneath.has_value() ? beneath : statedStopAt(built, index, onset);
+    return beneath.has_value() ? beneath : statedStopAt(built, planted_stops, index, onset);
 }
 
 // THE LET-RING FIGURE LAW. Three rules, held in one breath: a marked tail rings to the first onset
@@ -1751,8 +1753,10 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     // A grip is string -> the note that last stated it, so a slid finger carries its statement
     // forward: the stop is re-asked of that note at the instant under judgment.
     using Grip = std::map<int, std::size_t>;
-    const auto gripped_at = [&built](const Grip& grip, const int string, const Fraction instant)
-        -> std::optional<common::core::ChartStop> {
+    const auto gripped_at = [&built, &planted_stops](
+                                const Grip& grip,
+                                const int string,
+                                const Fraction instant) -> std::optional<common::core::ChartStop> {
         const auto held = grip.find(string);
         if (held == grip.end())
         {
@@ -1760,7 +1764,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         }
         // Never before the gripping note began: the donation asks a LATER figure's grip about an
         // earlier note, and a note states nothing ahead of its own onset.
-        return statedStopAt(built, held->second, std::max(instant, built[held->second].place));
+        return statedStopAt(
+            built, planted_stops, held->second, std::max(instant, built[held->second].place));
     };
     // Writes one note into a grip as its string's latest statement — unless it rides above the
     // stop already gripped there (\ref gripStatementAt), which it restates WITHOUT rewriting: the
@@ -1773,7 +1778,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
             common::core::gripStatement(
                 built[index].note, planted_stops[index], gripped_at(grip, string, instant))
                 .has_value();
-        if (!rides_above && statedStopAt(built, index, instant).has_value())
+        if (!rides_above && statedStopAt(built, planted_stops, index, instant).has_value())
         {
             grip[string] = index;
         }
@@ -3014,10 +3019,18 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
     // to exactly the gap, so the arrivals the derivation merges at their landings already hold
     // before the same-string clamp runs. THE FIRST OF THREE WALKS, each after a pass that MOVED a
     // ring: none can be shared, and every one says below it what changed since the last.
+    //
+    // The rings are its only holds: the spans measure their margins from places on the tick
+    // lattice, which the stream reaches only at the commit point below, so no span is known yet.
     const common::core::ChartConnections slide_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
     const std::vector<common::core::FretHandEvent> natural_hand =
-        common::core::deriveFretHandEvents(slide_connections, tempo_map, chart.tuning.capo, {});
+        common::core::deriveFretHandEvents(
+            slide_connections,
+            common::core::fretHandHolds(slide_connections, common::core::ChartShapes{}),
+            tempo_map,
+            chart.tuning.capo,
+            {});
     resolveSlideIns(built, natural_hand, tempo_map, notes, chart.tuning.capo);
 
     // THE LET-RING FIGURE LAW's application: every marked note rings to its FIGURE's end —

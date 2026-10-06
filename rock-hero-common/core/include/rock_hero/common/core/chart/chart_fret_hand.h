@@ -9,6 +9,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -39,14 +40,14 @@ struct FretHandDerivationTally
     /*! \brief Of those, the plants on a pressed fret: the rule-12 demands. */
     long long pressed_plants{0};
 
-    /*! \brief Plain rings that pin the hand for some time (rule 6). */
-    long long ring_pins{0};
+    /*! \brief Holds that pin the hand for some time (rule 6, \ref fretHandHolds). */
+    long long hold_pins{0};
 
     /*! \brief Figures the walk cut. */
     long long runs{0};
 
-    /*! \brief Covered figures held still because a plain ring sounds (rule 6). */
-    long long held_by_ring{0};
+    /*! \brief Covered figures held still because a stop is still held (rule 6). */
+    long long held_by_hold{0};
 
     /*! \brief Covered one-fret figures held still (rule 5); a ring hold is counted first. */
     long long held_on_one_fret{0};
@@ -74,13 +75,13 @@ hand at fret 1 (rule 13).
 */
 [[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset);
 
-/*! \brief The stretch of a note's ring over which the fretting hand provably holds one stop. */
-struct HeldRing
+/*! \brief A stop the fretting hand provably holds over `[from, to)` on the whole-note axis. */
+struct FretHandHold
 {
-    /*! \brief Whole notes from the onset where the hold begins. */
+    /*! \brief Where the hold begins. */
     Fraction from{};
 
-    /*! \brief Whole notes from the onset where the hold ends, exclusive. */
+    /*! \brief Where the hold ends, exclusive: an event exactly here finds the stop released. */
     Fraction to{};
 
     /*! \brief The fret held. */
@@ -88,22 +89,25 @@ struct HeldRing
 };
 
 /*!
-\brief RULE 6, stated once: the stop a ringing note provably holds, and for how long.
+\brief RULE 6, stated once: every stop the fretting hand provably holds, and for how long — what
+the derivation keeps covered and what pins it (\ref deriveFretHandEvents), and what an authored
+position must cover (\ref validateFretHandCoverage).
 
-A note the fretting hand stops at a fret, not dead, holds from its last pitched stop — where its
-fret channel last arrived somewhere new — to the end of its pitched ring, where a slide-out's
-departure ends it. So a slide-then-hold holds its destination, an arrival into the next head holds
-nothing, and bends and vibrato, which state no fret, keep holding. An open string holds nothing, so
-neither does a natural harmonic's ring: its node is demanded at the onset only.
+Two sources. A RING: a note the fretting hand stops at a fret, not dead, holds from its last pitched
+stop — where its fret channel last arrived somewhere new — to the end of its pitched ring, where a
+slide-out's departure ends it. So a slide-then-hold holds its destination, an arrival into the next
+head holds nothing, and bends and vibrato, which state no fret, keep holding. A GRIP: every pressed
+stop of a span's posture holds across the whole span (\ref deriveChartShapes), from its front to its
+close, a member struck after the front included. An open string holds nothing, and neither does a
+natural harmonic's ring or node: its node is demanded at the onset only.
 
-\param note Note whose ring is read.
-\param arrives_into Whether the note's ring ends in the next head on its string
-       (\ref ChartConnections::arrives_into), which makes its end statement an arrival rather than a
-       slide-out.
+\param connections The resolved connections (\ref chartConnections).
+\param shapes The spans and postures derived from the same connections (\ref deriveChartShapes).
 
-\return The held stretch, or nothing where the ring holds no stop.
+\return Every hold, in no promised order.
 */
-[[nodiscard]] std::optional<HeldRing> heldRingOf(const ChartNote& note, bool arrives_into);
+[[nodiscard]] std::vector<FretHandHold> fretHandHolds(
+    const ChartConnections& connections, const ChartShapes& shapes);
 
 /*!
 \brief Derives where the fret hand sits from the notes and the positions the charter authored — THE
@@ -119,9 +123,12 @@ standing window already covers does not move it.
 What a note DEMANDS of the hand (\ref fretHandDemandAt) is asked at its onset and at every pitched
 keyframe fret statement but a slide-out; a pull-off source's onset also demands the stop the
 pull-off plants beneath it (\ref chartPlantedStops), which widens every instant up to the pull-off.
+Every stop the hand provably holds (\ref fretHandHolds) is demanded the same way, from where its
+hold begins up to, not including, its end, so no window drops a ringing stop or a held grip — the
+direction is notes, then grips, then positions — and each also pins the hand while it holds.
 
 Each event's front is the first onset after the latest of the previous figure's last instant, the
-latest end among the plain rings struck before the figure, and the bar line that broke the figure;
+latest end among the holds begun before the figure, and the bar line that broke the figure;
 the window before the first front is the reader's question. A derived event is emitted only where
 the window changes.
 
@@ -138,6 +145,7 @@ consecutive instants.
 
 \param connections The resolved connections (\ref chartConnections): the saved notes, their places,
        the same-string relation and the pull-offs.
+\param holds The stops the hand holds (\ref fretHandHolds), derived from the same connections.
 \param tempo_map Tempo map the connections were resolved against, placing each instant in its
        measure. A parameter rather than part of the connections, which are a value and could only
        carry a reference that might dangle.
@@ -150,8 +158,9 @@ consecutive instants.
 \return The hand events, strictly ascending by front.
 */
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandEvents(
-    const ChartConnections& connections, const TempoMap& tempo_map, int capo,
-    const std::vector<FretHandPosition>& authored, FretHandDerivationTally* tally = nullptr);
+    const ChartConnections& connections, const std::vector<FretHandHold>& holds,
+    const TempoMap& tempo_map, int capo, const std::vector<FretHandPosition>& authored,
+    FretHandDerivationTally* tally = nullptr);
 
 /*!
 \brief The first event fronting strictly AFTER a place: the event before it is the window standing
@@ -183,13 +192,14 @@ The board's hand track merges these arrivals with the hand events and eases each
 arrival, so the ride takes the slide's own segment and unpitched ease. Nothing else reads them.
 
 \param connections The resolved connections the events were derived from.
+\param holds The holds the events were derived from (\ref fretHandHolds).
 \param tempo_map Tempo map the connections were resolved against.
 \param events The hand events (\ref deriveFretHandEvents).
 
 \return The ride arrivals, strictly ascending by front, none fronting where a hand event does.
 */
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandRides(
-    const ChartConnections& connections, const TempoMap& tempo_map,
-    const std::vector<FretHandEvent>& events);
+    const ChartConnections& connections, const std::vector<FretHandHold>& holds,
+    const TempoMap& tempo_map, const std::vector<FretHandEvent>& events);
 
 } // namespace rock_hero::common::core

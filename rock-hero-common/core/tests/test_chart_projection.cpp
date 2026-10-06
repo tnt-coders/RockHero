@@ -1500,9 +1500,10 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     };
 
     // The window the 2:1 strum derives comes first, then the two authored positions; the fixture's
-    // later figures derive windows of their own after them.
+    // later figures derive one window of their own after them, reaching down to the 5 still ringing
+    // under the 3:1+1/2 strum.
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
-    REQUIRE(state.fret_hand_positions.size() == 5);
+    REQUIRE(state.fret_hand_positions.size() == 4);
     CHECK(state.fret_hand_positions[1].position == GridPosition{.measure = 2, .beat = 4});
     CHECK(state.fret_hand_positions[2].position == GridPosition{.measure = 3, .beat = 1});
 

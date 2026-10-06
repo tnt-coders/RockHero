@@ -608,23 +608,17 @@ struct DerivationCounters
     // violations; the rule promises zero.
     long long overlapping_spans{0};
 
-    // THE FHP CONVERGENCE INVARIANT: FHP is the POSITION story and spans are the GRIP story,
-    // never merged — so where they disagree, one of them is describing a hand that cannot exist.
-    // Every FRETTED stop a span's posture holds should lie inside the reach of the fret-hand
-    // window covering that span's start ([fret, fret + width - 1], the width derived from the
-    // notes as every surface derives it). Open strings are excluded: a 0 is a voicing member no
-    // finger holds.
+    // THE FHP CONVERGENCE INVARIANT: every FRETTED stop a span's posture holds lies inside the
+    // reach of the fret-hand window covering that span's start ([fret, fret + width - 1], the width
+    // derived from the notes as every surface derives it). Open strings are excluded: a 0 is a
+    // voicing member no finger holds.
     //
-    // PINNED WHERE IT STANDS, NEVER RULED TO ZERO. The two derivations are independent by design
-    // and this is the instrument that says whether they agree; ruling the disagreement to zero
-    // would give one of them authority over the other, which is exactly the merge the two stories
-    // refuse. Holding the count at its signed figure says something weaker and true: either
-    // derivation moving the disagreement is a finding a reader has to see.
+    // ZERO BY CONSTRUCTION. The positions are derived after the spans, and every pressed stop of a
+    // span's grip is a hold the derivation demands across the whole span (\ref fretHandHolds), so
+    // any count here is a hold the derivation dropped.
     //
-    // `fhp_unwindowed_spans` is the instrument's own PRECONDITION rather than a convergence
-    // figure: a span no window stands before cannot be compared at all, and the derivation fronts
-    // its first window at the chart's first note, so the promise is zero. Counting the comparable
-    // spans instead would only restate the span total.
+    // `fhp_unwindowed_spans` is the instrument's own PRECONDITION: a span no window stands before
+    // cannot be compared at all, and a hold demands where it begins, so the promise is zero.
     long long fhp_unwindowed_spans{0};
     long long fhp_out_of_reach_spans{0};
     long long fhp_out_of_reach_stops{0};
@@ -640,6 +634,8 @@ struct DerivationCounters
     // matters.
     long long spans_crossed_by_fhp_shift{0};
     long long fhp_shifts_inside_spans{0};
+    // Of those, the spans whose every interior window keeps the whole window before it.
+    long long spans_crossed_by_widening{0};
     long long fhp_placements{0};
     long long fhp_placements_unfretted{0};
 
@@ -998,10 +994,23 @@ void countDerivation(
             {
                 ++out.spans_crossed_by_fhp_shift;
                 out.fhp_shifts_inside_spans += static_cast<long long>(inside);
+                // A WIDENING: every interior window keeps the whole window before it, so the hand
+                // only reaches further. Every other crossing is a shift that still covers the grip,
+                // since the grip is a hold (\ref fretHandHolds) the derivation never leaves.
+                bool widens_only = first_inside != hand_events.begin();
+                for (auto at = first_inside; widens_only && at != past_run; ++at)
+                {
+                    const common::core::FretWindow& before = std::prev(at)->window;
+                    widens_only = at->window.covers(before.fret) && at->window.covers(before.top());
+                }
+                if (widens_only)
+                {
+                    ++out.spans_crossed_by_widening;
+                }
             }
         }
 
-        // THE FHP CONVERGENCE INVARIANT: pinned where it stands, never ruled to zero.
+        // THE FHP CONVERGENCE INVARIANT: zero by construction, since a span's grip is a hold.
         // Bound once so the presence test and the read are provably the same object.
         if (const std::optional<std::size_t> window = window_covering(start); !window.has_value())
         {
@@ -2315,7 +2324,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 built->tempo_map,
                 census.derivation);
             static_cast<void>(common::core::deriveFretHandEvents(
-                resolutions.connections, built->tempo_map, chart.tuning.capo, {}, &census.hand));
+                resolutions.connections,
+                common::core::fretHandHolds(
+                    resolutions.connections,
+                    common::core::ChartShapes{
+                        .shapes = resolutions.shapes,
+                        .postures = resolutions.postures,
+                    }),
+                built->tempo_map,
+                chart.tuning.capo,
+                {},
+                &census.hand));
         }
     }
 
@@ -2426,10 +2445,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  ... whose front states a LONE record", census.derivation.strikeless_front_lone_record);
     std::cout << "  --- the dating rule's invariant (the ruled promise is ZERO) ---\n";
     row("spans starting inside a preceding span", census.derivation.overlapping_spans);
-    std::cout << "  --- THE FHP CONVERGENCE, pinned where it stands, never ruled to zero ---\n"
-                 "  (FHP is the POSITION story, spans are the GRIP story; this says whether the\n"
-                 "   two independent derivations describe one hand. Open members are excluded —\n"
-                 "   a 0 is a voicing member no finger holds.)\n";
+    std::cout
+        << "  --- THE FHP CONVERGENCE (ZERO: a span's grip is a hold the positions keep) ---\n"
+           "  (Open members are excluded — a 0 is a voicing member no finger holds.)\n";
     row("spans with NO window to compare (ZERO)", census.derivation.fhp_unwindowed_spans);
     row("spans holding a stop outside its reach", census.derivation.fhp_out_of_reach_spans);
     row("  those stops", census.derivation.fhp_out_of_reach_stops);
@@ -2441,6 +2459,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                  "   coupling's readiness and the derivation's error signal) ---\n";
     row("spans crossed by an FHP shift", census.derivation.spans_crossed_by_fhp_shift);
     row("  those interior shifts", census.derivation.fhp_shifts_inside_spans);
+    row("  spans whose crossings only widen", census.derivation.spans_crossed_by_widening);
     row("fret-hand windows placed", census.derivation.fhp_placements);
     row("  ... arriving where nothing fretted sounds", census.derivation.fhp_placements_unfretted);
     std::cout << "  --- THE PINNED-FINGER CERTAINTY (only wrongness is certain: a sounding\n"
@@ -2677,9 +2696,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the span that results. An expectation copied off this rig's own output would
                 // check nothing, so the pin is a figure a reader signed and the row is left to
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
+                // Re-signed 2026-10-05 with the three span rows below (22386 / 1082 / 76 / 2769
+                // before): the drift stood before the hold derivation landed, which reads the spans
+                // and moves none, and a tap's let-ring seam moved none either.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22386.0,
+                .expected = 22316.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
@@ -2689,7 +2711,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // own members sound apart.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1082.0,
+                .expected = 1041.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2700,7 +2722,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // a tail, not a member to fold in, and is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 76.0,
+                .expected = 77.0,
             },
             CrossCheck{
                 // The spans holding at least one LONE re-pick: a single sounding member restriking
@@ -2712,7 +2734,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2769.0,
+                .expected = 2773.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
@@ -2765,37 +2787,29 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             },
             CrossCheck{
                 // THE FHP CONVERGENCE INSTRUMENT'S PRECONDITION: a span no fret-hand window
-                // stands before is a span the convergence rows cannot judge at all. The derivation
-                // fronts its first window at the chart's first note, so every span is comparable
-                // and the shortfall is exact-zero. Pinning the comparable spans instead would only
-                // restate the span total.
+                // stands before is a span the convergence rows cannot judge at all. ZERO BY
+                // CONSTRUCTION: a span's grip is a hold, and a hold demands where it begins, so
+                // a window always stands at every span's front.
                 .label = "spans with NO fret-hand window (ZERO)",
                 .rig = static_cast<double>(census.derivation.fhp_unwindowed_spans),
                 .expected = 0.0,
             },
             CrossCheck{
-                // THE FHP CONVERGENCE itself, held at its measured figure rather than ruled to
-                // zero. The position story and the grip story are derived independently, and this
-                // is the instrument that says whether they describe one hand; ruling the
-                // disagreement away would hand one of them authority over the other. What the pin
-                // buys is that either derivation moving the disagreement FLAGS, which is the
-                // finding a reader needs. The stop row beside it is the same population counted
-                // per STOP, since one span can hold several out-of-reach fingers.
-                //
-                // The pin reads the derived hand events, each window the one its figure states:
-                // its floor, spanning max(4, the figure's own frets), never widened for a ring
-                // carried into it. Re-signed 2026-10-05 for plan 60a Phase 2 (74 / 114 before,
-                // when a width fold widened each stored placement for every stop held while it
-                // stood, carried rings included; the fold over these same events measures 74 /
-                // 114 again, so the rise is that rule alone).
+                // THE FHP CONVERGENCE: whether the position story and the grip story describe one
+                // hand. The positions are derived AFTER the spans, and every pressed stop of a
+                // span's grip is a hold the derivation demands across the whole span
+                // (\ref fretHandHolds), so ZERO BY CONSTRUCTION: no window can stand inside a span
+                // without its grip. Exact-match, so a single span the hand leaves FLAGS. The stop
+                // row beside it counts the same population per STOP (88 / 128 before the grips
+                // became holds).
                 .label = "spans holding a stop outside the window",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
-                .expected = 88.0,
+                .expected = 0.0,
             },
             CrossCheck{
                 .label = "  those out-of-reach stops",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_stops),
-                .expected = 128.0,
+                .expected = 0.0,
             },
             CrossCheck{
                 // THE HAND-COUPLING GATE's ceiling: spans a window arrives strictly inside. Each
@@ -2805,18 +2819,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // one long span can be crossed more than once.
                 //
                 // The pin reads the derived hand events, an event wherever the window changes, its
-                // width alone included. Re-signed 2026-10-05 for plan 60a Phase 2 (402 / 447
-                // before, over the placements the import stored: the derivation's fronts with the
-                // slide passes' fabricated windows laid over them and the width-only changes
-                // dropped).
+                // width alone included. Every crossing keeps the span's grip (a grip is a hold), so
+                // what is left is a window widening or sliding over a grip it still covers.
+                // Re-signed 2026-10-05 when the grips became holds (394 / 435 before).
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 394.0,
+                .expected = 258.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 435.0,
+                .expected = 258.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window
@@ -2825,20 +2838,18 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open string is unfretted.
                 //
                 // The pin reads the derived hand events, an event wherever the window changes, its
-                // width alone included. Re-signed 2026-10-05 for plan 60a Phase 2 (16014 and 2224
-                // before, over the placements the import stored, which dropped the width-only
-                // changes and carried the slide passes' fabricated windows). The lone-open class
-                // is no hand moved for nothing: a window takes over at the first onset after the
-                // previous figure, so a figure's leading open strings carry it — the authored
-                // charts' own habit.
+                // width alone included. Re-signed 2026-10-05 when the grips became holds (16034
+                // and 2155 before). The lone-open class is no hand moved for nothing: a window
+                // takes over at the first onset after the previous figure, so a figure's leading
+                // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 16034.0,
+                .expected = 15871.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
-                .expected = 2155.0,
+                .expected = 2184.0,
             },
             CrossCheck{
                 // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a
@@ -2849,20 +2860,18 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 //
                 // The pin reads the derived hand events. The rig counts rings sounding at a
                 // window's arrival whose fretting-hand stop (heldFretAt) the window does not
-                // cover. The ring rule holds the window still while a written ring sounds, so only
-                // a FORCED move arrives over one, and its window spans its own figure, never the
-                // ring. Re-signed 2026-10-05 for plan 60a Phase 2 (64 / 98 before, when a width
-                // fold widened each stored placement over every ring held while it stood, so only
-                // a finger below the index finger could pin; the fold over these same events
-                // measures 65 / 99, so the rise is that rule alone).
+                // cover. Every held ring is a hold the derivation keeps covered (\ref
+                // fretHandHolds), so what remains is what heldFretAt reads and no hold states: 9
+                // natural-harmonic chimes, which hold nothing, and 6 slide notes read mid-slide.
+                // Re-signed 2026-10-05 when the grips became holds (118 / 157 before).
                 .label = "windows arriving over a pinned finger",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
-                .expected = 118.0,
+                .expected = 15.0,
             },
             CrossCheck{
                 .label = "  those pinned rings",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_rings),
-                .expected = 157.0,
+                .expected = 15.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING that this rig's own fret-channel reading
@@ -2996,11 +3005,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             },
             CrossCheck{
                 // RULE 6 UNDER DENSE DURATIONS, reported until the user signs a figure (plan 60
-                // §9 Q3): the figures the ring rule held still, beside every figure the hand
-                // derivation cut and the plain rings that pin. The dataset's reference held 1,811
-                // of 1,313,322 runs on its sparse sustains.
-                .label = "hand figures held by a ring (rule 6)",
-                .rig = static_cast<double>(census.hand.held_by_ring),
+                // §9 Q3): the figures a hold kept still (\ref fretHandHolds: a held ring or a
+                // span's grip), beside every figure the hand derivation cut and the holds that pin.
+                .label = "hand figures held by a hold (rule 6)",
+                .rig = static_cast<double>(census.hand.held_by_hold),
                 .expected = std::nullopt,
             },
             CrossCheck{
@@ -3009,8 +3017,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = std::nullopt,
             },
             CrossCheck{
-                .label = "  plain rings pinning",
-                .rig = static_cast<double>(census.hand.ring_pins),
+                .label = "  holds pinning",
+                .rig = static_cast<double>(census.hand.hold_pins),
                 .expected = std::nullopt,
             },
             CrossCheck{

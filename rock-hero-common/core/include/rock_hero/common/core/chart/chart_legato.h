@@ -478,7 +478,7 @@ struct ChartResolutions
 };
 
 /*!
-\brief Resolves a whole chart once: connections, hand events, ink ends, spans, holds.
+\brief Resolves a whole chart once: connections, spans, hand events, ink ends, holds.
 
 The connections come from \ref chartConnections, so the walk that answers them is stated once for
 both the callers that want the whole picture and the callers that want a claim.

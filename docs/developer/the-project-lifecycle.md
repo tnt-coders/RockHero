@@ -135,7 +135,9 @@ where its audibility horizon runs out; written is the floor and the same-string 
 Each transcription VOICE accumulates a **grip** — the stop last stated on each string SINCE THE
 FIGURE BEGAN, both halves of every comparison read through the one statement authority
 (`statedStopAt`), so a slid finger carries its statement forward instead of manufacturing a
-conflict and a tap states no grip of its own. A first-time string GROWS the grip and a
+conflict and a tap states the stop its pull-off plants beneath it (nothing, for a bare tap): over
+the gripped stop it rides the grip, over other ground it is a grip seam at the tap itself, as a
+fretted note sounding there would be. A first-time string GROWS the grip and a
 same-stop statement CONFIRMS it, so a chug can never split anything and a repetition of a figure
 can never be divided — with no retreat mechanism in the law, that invariant is structural rather
 than satisfied. An onset stating a different stop on a gripped string is the **grip seam**: it
@@ -295,7 +297,8 @@ matching the chart model's own sustain unit.
 
 **Fret-hand position derivation** — not an import rule at all. GP has no hand-position concept and
 the import authors none, so every position is derived at read, once per chart revision inside
-`chartResolutions`, by the 13-rule figure-segmented floor tracker,
+`chartResolutions` and AFTER the spans (notes, then grips, then positions: the spans never read the
+hand), by the 13-rule figure-segmented floor tracker,
 `common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`); the measured algorithm and the
 rulings it is built to are in `docs/plans/in-progress/fhp-derivation-algorithm.md` and plan 60 §9.
 The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
@@ -333,19 +336,24 @@ spec:
    instants — a section always starts on one), and where the next instant would stretch the hand
    past four frets or the figure's own span if wider. Every pitched keyframe fret statement is an
    instant of its own, demanding its fret but never counting toward a chord (a shift slide's arrival
-   merges with its landing's instant); a slide-out demands nothing. There is no rest rule: a rest is
+   merges with its landing's instant); a slide-out demands nothing. Every stop the hand provably
+   holds (`fretHandHolds`) is a demand from where its hold begins up to, not including, its end, so
+   no window arrives that drops it: a plain ring (rule 8), and every pressed stop of a span's grip
+   across the whole span, a member struck after the span's front included — so an arpeggiated grip
+   gets one window from its first strike. There is no rest rule: a rest is
    where a move lands, not what triggers one. A window takes over at the first onset after the
-   latest of the previous figure's last instant, the latest end among the plain rings (rule 8)
-   struck before the figure, and the bar line that broke the figure — so a figure's leading open strings
+   latest of the previous figure's last instant, the latest end among the holds begun before the
+   figure, and the bar line that broke the figure — so a figure's leading open strings
    carry its window, an open-string pickup before the bar line keeps the old one, and the first
    figure's window stands from the chart's first note.
 8. **Floor, width, and the two exceptions.** The window sits on the figure's lowest fretted fret,
    spans the figure's frets but never fewer than four, and fits on the board — above the capo and
    ending by the last fret, the floor winning (`fittedWindowFret`). A figure the standing window
-   already covers moves nothing while a plain written ring struck earlier still sounds — a pressed,
-   not-dead note the fretting hand makes, which pins from its last pitched stop to where its pitched
-   ring ends (a slide-out's departure ends it; bends and vibrato keep pinning) — and moves nothing
-   when it lies on a single fret. Any other figure is forced and moves, ring or no ring. A window
+   already covers moves nothing while a stop held from earlier still holds — a plain written ring,
+   a pressed, not-dead note the fretting hand makes, which pins from its last pitched stop to where
+   its pitched ring ends (a slide-out's departure ends it; bends and vibrato keep pinning), or a
+   span's grip, which pins from the span's front to its close — and moves nothing when it lies on a
+   single fret. Any other figure is forced and moves, ring or no ring. A window
    equal to the standing one is not stated again.
 9. **Pitched slides are ordinary coverage; unpitched slides demand nothing.** A pitched slide's
    keyframe is a demand at its own place like any onset (rule 7), so a glide the window covers moves

@@ -1,12 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
+#include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -61,6 +64,14 @@ namespace
     return note;
 }
 
+// The holds one stream derives, through the spans it implies, as the resolutions derive them.
+[[nodiscard]] std::vector<FretHandHold> holdsOf(
+    const ChartConnections& connections, const TempoMap& tempo_map)
+{
+    return fretHandHolds(
+        connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}));
+}
+
 // The hand events the 13 rules derive from one stream, under a capo where a case names one and
 // around the authored positions where a case states any.
 [[nodiscard]] std::vector<FretHandEvent> eventsOf(
@@ -68,7 +79,9 @@ namespace
     const std::vector<FretHandPosition>& authored = {})
 {
     const TempoMap tempo_map = makeTempoMap();
-    return deriveFretHandEvents(chartConnections(notes, tempo_map), tempo_map, capo, authored);
+    const ChartConnections connections = chartConnections(notes, tempo_map);
+    return deriveFretHandEvents(
+        connections, holdsOf(connections, tempo_map), tempo_map, capo, authored);
 }
 
 // An authored position at a measure and beat, with an end fret where a case states one.
@@ -114,8 +127,12 @@ namespace
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartConnections connections = chartConnections(notes, tempo_map);
+    const std::vector<FretHandHold> holds = holdsOf(connections, tempo_map);
     return deriveFretHandRides(
-        connections, tempo_map, deriveFretHandEvents(connections, tempo_map, 0, authored));
+        connections,
+        holds,
+        tempo_map,
+        deriveFretHandEvents(connections, holds, tempo_map, 0, authored));
 }
 
 // An expected ride arrival: its front in whole notes, and its window.
@@ -300,18 +317,118 @@ TEST_CASE("Hand derivation keeps a covered one-fret run in place", "[core][chart
 }
 
 // Rule 6: nothing moves unforced while a plain ring struck earlier sounds; a forced run still
-// moves, and the next run after the ring ends re-derives.
+// moves — keeping the ring it is forced over — and the next run after the ring ends re-derives.
+// A chord struck over the ring accumulates a span with it, whose grip is held from the ring's
+// onset.
 TEST_CASE("Hand derivation holds still while a written ring sounds", "[core][chart]")
 {
     const ChartNote ring = noteAt(1, 1, 1, 5, Fraction{3, 4});
     CHECK(
         eventsOf({ring, noteAt(1, 2, 2, 6), noteAt(1, 2, 3, 7)}) == std::vector{eventAt(1, 1, 5)});
     CHECK(
+        eventsOf({ring, noteAt(1, 2, 2, 10)}) ==
+        std::vector{eventAt(1, 1, 5), eventAt(1, 2, 5, 6)});
+    CHECK(
         eventsOf({ring, noteAt(1, 2, 2, 9), noteAt(1, 2, 3, 10)}) ==
-        std::vector{eventAt(1, 1, 5), eventAt(1, 2, 9)});
+        std::vector{eventAt(1, 1, 5, 6)});
     CHECK(
         eventsOf({ring, noteAt(1, 4, 2, 6), noteAt(1, 4, 3, 7)}) ==
         std::vector{eventAt(1, 1, 5), eventAt(1, 4, 6)});
+}
+
+// A held ring is a demand for as long as it holds: a window arriving while it sounds reaches it,
+// and a ring ending exactly where the next note is struck is no longer there.
+TEST_CASE("Hand derivation covers every held ring sounding at an instant", "[core][chart]")
+{
+    CHECK(
+        eventsOf({noteAt(1, 1, 1, 3, Fraction{1, 2}), noteAt(1, 2, 2, 8)}) ==
+        std::vector{eventAt(1, 1, 3), eventAt(1, 2, 3, 6)});
+    CHECK(
+        eventsOf({noteAt(1, 1, 1, 3), noteAt(1, 2, 2, 8)}) ==
+        std::vector{eventAt(1, 1, 3), eventAt(1, 2, 8)});
+}
+
+// A span's grip is held from the span's front to its close, so an arpeggiated five-fret grip gets
+// one window from its first strike, reaching the stops not yet struck there.
+TEST_CASE("Hand derivation covers an arpeggiated grip from the span's front", "[core][chart]")
+{
+    const std::vector<ChartNote> arpeggio{
+        noteAt(1, 1, 3, 11, Fraction{3, 4}),
+        noteAt(1, 2, 2, 7, Fraction{1, 2}),
+        noteAt(1, 3, 4, 9, Fraction{1, 4}),
+    };
+    CHECK(eventsOf(arpeggio) == std::vector{eventAt(1, 1, 7, 5)});
+    CHECK_FALSE(coveredBy(arpeggio, positionAt(1, 1, 11)));
+    CHECK(coveredBy(arpeggio, positionAt(1, 1, 7, 11)));
+}
+
+// A chord span's grip likewise: a stop the grip grows by later is held from the chord.
+TEST_CASE("Hand derivation covers a chord span's grown grip from the chord", "[core][chart]")
+{
+    const std::vector<ChartNote> chord{
+        noteAt(1, 1, 1, 5, Fraction{1, 1}),
+        noteAt(1, 1, 2, 7, Fraction{1, 1}),
+        noteAt(1, 3, 3, 9, Fraction{1, 2}),
+    };
+    CHECK(eventsOf(chord) == std::vector{eventAt(1, 1, 5, 5)});
+    CHECK_FALSE(coveredBy(chord, positionAt(1, 1, 5, 8)));
+}
+
+// THE INVARIANT, with nothing authored: every derived window covers every hold (\ref fretHandHolds)
+// at every onset inside it, and every window, read as a position stating its fret and its top,
+// passes the chart rule (\ref validateFretHandCoverage), which reads the same holds. A pull-off
+// planted under a tap while lower rings still sound is the figure that once left them out.
+TEST_CASE("Every derived window covers every hold standing under it", "[core][chart]")
+{
+    ChartNote tap = noteAt(2, 3, 3, 16);
+    tap.attack = NoteAttack::Tap;
+    const std::vector<std::vector<ChartNote>> figures{
+        {noteAt(1, 1, 1, 5, Fraction{3, 4}), noteAt(1, 2, 2, 9), noteAt(1, 2, 3, 10)},
+        {noteAt(1, 2, 2, 4, Fraction{3, 2}),
+         noteAt(1, 3, 4, 4, Fraction{5, 4}),
+         tap,
+         legatoAt(2, 4, 3, 11),
+         noteAt(3, 1, 2, 7, Fraction{3, 4})},
+        {noteAt(1, 1, 3, 11, Fraction{3, 4}),
+         noteAt(1, 2, 2, 7, Fraction{1, 2}),
+         noteAt(1, 3, 4, 9, Fraction{1, 4}),
+         noteAt(2, 1, 1, 2),
+         noteAt(2, 2, 1, 14)},
+        {noteAt(1, 1, 1, 5, Fraction{1, 1}),
+         noteAt(1, 1, 2, 7, Fraction{1, 1}),
+         noteAt(1, 3, 3, 9, Fraction{1, 2}),
+         noteAt(1, 4, 4, 12)},
+    };
+    const TempoMap tempo_map = makeTempoMap();
+    for (const std::vector<ChartNote>& figure : figures)
+    {
+        const ChartConnections connections = chartConnections(figure, tempo_map);
+        const std::vector<FretHandHold> holds = holdsOf(connections, tempo_map);
+        const std::vector<FretHandEvent> events =
+            deriveFretHandEvents(connections, holds, tempo_map, 0, {});
+        for (const FretHandHold& hold : holds)
+        {
+            for (const Fraction onset : connections.places)
+            {
+                if (onset < hold.from || !(onset < hold.to))
+                {
+                    continue;
+                }
+                const auto past = firstFretHandEventAfter(events, onset);
+                REQUIRE(past != events.begin());
+                CHECK(std::prev(past)->window.covers(hold.fret));
+            }
+        }
+        for (const FretHandEvent& event : events)
+        {
+            const FretHandPosition stated{
+                .position = tempo_map.gridPositionAtWholeNote(event.front),
+                .fret = event.window.fret,
+                .end_fret = event.window.top(),
+            };
+            CHECK(validateFretHandCoverage(figure, {stated}, tempo_map).has_value());
+        }
+    }
 }
 
 // Rule 6's plain ring is any pressed stop: a pinch harmonic pins, a natural harmonic (fret 0) does
@@ -332,17 +449,18 @@ TEST_CASE("Hand derivation pins a pinch harmonic's ring but not a natural's", "[
 }
 
 // Rule 6's pin runs from the last pitched stop: a slide-then-hold pins at its destination, while a
-// slide-out departing straight from its arrival leaves nothing pinned.
+// slide-out departing straight from its arrival leaves nothing pinned. The run the bar line cuts
+// under it never has three notes sounding together, so no span holds anything.
 TEST_CASE("Hand derivation pins a slide-then-hold at its destination", "[core][chart]")
 {
-    const ChartNote held = withFretAt(noteAt(1, 1, 1, 5, Fraction{1}), Fraction{1, 4}, 7);
+    const ChartNote held = withFretAt(noteAt(1, 1, 1, 5, Fraction{3, 2}), Fraction{1, 4}, 7);
     CHECK(
-        eventsOf({held, noteAt(1, 3, 2, 6), noteAt(1, 3, 3, 8)}) == std::vector{eventAt(1, 1, 5)});
+        eventsOf({held, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) == std::vector{eventAt(1, 1, 5)});
 
-    const ChartNote slid_out = withFretAt(held, Fraction{1}, 3);
+    const ChartNote slid_out = withFretAt(held, Fraction{3, 2}, 3);
     CHECK(
-        eventsOf({slid_out, noteAt(1, 3, 2, 6), noteAt(1, 3, 3, 8)}) ==
-        std::vector{eventAt(1, 1, 5), eventAt(1, 3, 6)});
+        eventsOf({slid_out, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) ==
+        std::vector{eventAt(1, 1, 5), eventAt(2, 1, 6)});
 }
 
 // Rule 7: the window sits on the run's lowest fret, wherever in the run it falls.
@@ -417,16 +535,17 @@ TEST_CASE("Hand derivation emits only where the window changes", "[core][chart]"
 }
 
 // Rule 12: a pull-off's plant is a demand at its source's onset — a tap's included, which demands
-// nothing itself — so the hand arrives there rather than at the pull-off.
+// nothing itself — so the hand arrives there rather than at the pull-off, still covering the 7
+// ringing through it.
 TEST_CASE("Hand derivation covers a plant from its tapped source's onset", "[core][chart]")
 {
     CHECK(
         eventsOf({noteAt(1, 1, 2, 7, Fraction{1, 2}), tapAt(1, 2, 1, 15), legatoAt(1, 3, 1, 3)}) ==
-        std::vector{eventAt(1, 1, 7), eventAt(1, 2, 3)});
+        std::vector{eventAt(1, 1, 7), eventAt(1, 2, 3, 5)});
 }
 
-// Rule 12: the plant also widens every instant up to its pull-off, so a chord struck over the
-// waiting finger takes a window that still covers it.
+// Rule 12: the plant also widens every instant up to its pull-off, so the window over the span the
+// chord accumulates with the source, held from the source's onset, still covers the waiting finger.
 TEST_CASE("Hand derivation widens the instants a plant waits under", "[core][chart]")
 {
     CHECK(
@@ -434,7 +553,7 @@ TEST_CASE("Hand derivation widens the instants a plant waits under", "[core][cha
             {noteAt(1, 3, 1, 7, Fraction{1, 2}),
              noteAt(1, 4, 2, 8),
              noteAt(1, 4, 3, 9),
-             legatoAt(2, 1, 1, 5)}) == std::vector{eventAt(1, 3, 5), eventAt(1, 4, 5, 5)});
+             legatoAt(2, 1, 1, 5)}) == std::vector{eventAt(1, 3, 5, 5)});
 }
 
 // Rule 13: an open string bent anywhere along its ring is bent behind the nut, so the hand is at

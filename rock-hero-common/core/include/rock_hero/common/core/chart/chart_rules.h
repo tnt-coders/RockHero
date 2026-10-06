@@ -711,19 +711,20 @@ applies.
 \brief Validates the one rule between the notes and the authored positions: AN AUTHORED POSITION
 COVERS EVERY FRETTED NOTE SOUNDING AT ITS INSTANT.
 
-A note sounds from its onset up to, but not including, its ring's end, so a ring reaching exactly
-to a position's instant is not there. At its onset a note demands \ref fretHandDemandAt — nothing
-for an open string or a picking-hand onset; after it, only the stop its ring provably holds
-(\ref heldRingOf, the rule the derivation's ring pins read), so a natural harmonic's node is
-demanded at its strike and its chime holds nothing. The position covers a demand at or above its
-fret and, where an end fret is stated, at or below that end. Only what the position STATES is read:
-nothing derived (the figure's top, the four-fret floor) enters the test.
+A note struck at a position's instant demands \ref fretHandDemandAt there — nothing for an open
+string or a picking-hand onset. Every stop the hand provably holds (\ref fretHandHolds, the holds
+the derivation keeps covered and pinned by: rings and span grips) is demanded at every position
+standing inside its hold, which ends exclusively, so a ring reaching exactly to a position's instant
+is not there and a natural harmonic's node is demanded at its strike alone. The position covers a
+demand at or above its fret and, where an end fret is stated, at or below that end. Only what the
+position STATES is read: nothing derived (the figure's top, the four-fret floor) enters the test.
 
 \param notes Note stream, each ring already bounded by the next strike on its string
        (\ref normalizeSustainOverlaps).
 \param positions Authored positions, strictly ascending (\ref validateFretHandPositions).
 \param tempo_map Song tempo map placing the notes and the positions.
-\return Empty success, or the first uncovered note, placed at the position and the note.
+\return Empty success, or the first uncovered demand, placed at the position and where the demand
+        was struck or began holding.
 */
 [[nodiscard]] std::expected<void, ChartError> validateFretHandCoverage(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,

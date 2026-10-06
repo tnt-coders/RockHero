@@ -326,19 +326,20 @@ ChartResolutions chartResolutions(const Chart& chart, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(chart.notes, tempo_map);
-    // WHERE THE HAND SITS, and its place in the pipeline is part of the rule: positions come before
-    // spans (the one-arrow order), so the derivation reads the connections and the plants they
-    // state, and never the held table below, which is read out of the spans.
-    resolutions.hand_events = deriveFretHandEvents(
-        resolutions.connections, tempo_map, chart.tuning.capo, chart.fret_hand_positions);
-    resolutions.hand_rides =
-        deriveFretHandRides(resolutions.connections, tempo_map, resolutions.hand_events);
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
     resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel.
     ChartShapes derived = deriveChartShapes(resolutions.connections, resolutions.margins);
+    // WHERE THE HAND SITS, and its place in the pipeline is part of the rule: notes, then grips,
+    // then positions, so a span's grip is a hold the hand never leaves (\ref fretHandHolds). The
+    // spans never read the hand.
+    const std::vector<FretHandHold> holds = fretHandHolds(resolutions.connections, derived);
+    resolutions.hand_events = deriveFretHandEvents(
+        resolutions.connections, holds, tempo_map, chart.tuning.capo, chart.fret_hand_positions);
+    resolutions.hand_rides =
+        deriveFretHandRides(resolutions.connections, holds, tempo_map, resolutions.hand_events);
     // THE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
     // DEFAULT held stop is the grip the covering span holds, so it reads the postures just derived.
     // It therefore runs AFTER the derivation and feeds nothing that runs before it. Handed the

@@ -227,9 +227,11 @@ answers). These are the current reading wherever the older text below disagrees.
 - **The refusal — RULED 2026-10-05 (user), and it is ONE rule.** A note occupies the time from its
   onset up to, but not including, its ring's end, so a ring that reaches exactly to the next note
   or to a position's start is not there: there is no "carried-in" class to tolerate and no case
-  analysis. The rule: AN AUTHORED POSITION COVERS EVERY FRETTED NOTE SOUNDING AT ITS INSTANT,
-  where covering is read against what the position states — its fret, and its end fret where it
-  has one. It is a chart rule like any other: one predicate, and an edit that would break it is
+  analysis. The rule: AN AUTHORED POSITION COVERS EVERY FRETTED NOTE GRIPPED AT ITS INSTANT —
+  struck there, held by a ring sounding through it, or a stop of a grip whose span stands there,
+  sounding or not (user, later the same day: "GRIPPED at its instant, not just sounding"; a
+  natural harmonic's ring holds nothing) — where covering is read against what the position
+  states — its fret, and its end fret where it has one. It is a chart rule like any other: one predicate, and an edit that would break it is
   refused, whichever side the edit is on. (An earlier draft of this entry enforced it at the edit
   only and judged each edit on what it touched; the user rejected that as machinery for a simple
   problem.) Owed before it is switched on: how many converted packages, and whether the user's
@@ -257,6 +259,19 @@ answers). These are the current reading wherever the older text below disagrees.
   undo step; Delete and `Alt`+arrows on a derived position are refused with the red glow; clearing
   an end it never stated does nothing. "Prune Hand Positions" (no default chord, Edit menu) removes
   every stored position whose removal leaves the derived events unchanged.
+- **HOLDS ARE DEMANDS — RULED 2026-10-05 (user), found on a fresh import of a tapped arpeggio:**
+  "Frethand positions MUST cover rings too… they are provably held", and "held grips must also
+  always be contained within the FHP window". So at read the order is notes → spans → positions
+  (REVERSING the order the text below gives, and the 2026-09-04 planned coupling that would cut a
+  span at a hand shift: the hand never leaves a held grip instead). One function,
+  `fretHandHolds`, states which fingers are provably down and from when to when — each held ring,
+  and every pressed stop of every span's grip for the span's whole extent — and the demand, rule
+  6's pins and the coverage rule all read it. A hold demands its stop at every covered instant
+  inside it, half-open. Where a stored ring and the next grip cannot share a hand, THE RING IS
+  WRONG and is fixed where it is stored: the importer's let-ring figure law now ends a figure at
+  a tap that plants off its grip. Measured: scorer 88.213% → 88.190% (3,894,283 of 4,415,805);
+  spans holding a stop outside the window 88 → 0. The import pipeline's own arrow (written
+  durations → positions → ring extension) is unchanged.
 - **Converted songs KEEP the source's positions as authored** (user). They are what a charter
   placed, they behave the same under "stands until contradicted" (the next one ends each), and the
   scorer needs them as its ground truth. This reverses the converter note below: the converter

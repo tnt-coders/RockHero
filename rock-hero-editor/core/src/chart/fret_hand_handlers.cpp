@@ -11,8 +11,10 @@
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
@@ -110,9 +112,13 @@ namespace
 {
     const common::core::ChartConnections connections =
         common::core::chartConnections(chart.notes, tempo_map);
+    const std::vector<common::core::FretHandHold> holds = common::core::fretHandHolds(
+        connections,
+        common::core::deriveChartShapes(
+            connections, common::core::HeadMargins{connections.places, tempo_map}));
     const auto derive = [&](const std::vector<common::core::FretHandPosition>& authored) {
         return common::core::deriveFretHandEvents(
-            connections, tempo_map, chart.tuning.capo, authored);
+            connections, holds, tempo_map, chart.tuning.capo, authored);
     };
     const std::vector<common::core::FretHandEvent> events = derive(chart.fret_hand_positions);
     std::vector<common::core::FretHandPosition> kept = chart.fret_hand_positions;

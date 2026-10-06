@@ -8357,6 +8357,52 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
     }
 }
 
+// A tap's fretting-hand statement is the stop its pull-off plants beneath it. Planted on the
+// gripped stop, the tap rides the grip and the figure runs on through it; planted on other ground,
+// the hand has moved, and the figure closes AT THE TAP, as it would were the tap a fretted note
+// sounding there — never at the pull-off a beat later, which would ring every tail of the figure
+// past the hand's move.
+TEST_CASE(
+    "Guitar Pro import seams a let-ring figure at a tap planting off the grip", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    constexpr Fraction eighth{1, 8};
+    // Five on the lowest string and seven on the next, marked; a marked tap at twelve on the
+    // second string pulling off to `landing`; an unmarked note on a fourth string answering it.
+    const auto opening_ring = [&](const int landing) {
+        GpScore score = makeLinearScore(2, syncs);
+        GpBeat chord;
+        chord.duration_whole = eighth;
+        chord.notes = {
+            GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+            GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""},
+        };
+        GpBeat tap = letRingBeat(eighth, 12, 1);
+        tap.notes.front().tapped = true;
+        GpBeat pull = letRingBeat(eighth, landing, 1);
+        pull.notes.front().hopo_destination = true;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{chord, tap, pull, noteBeat(eighth, 2, 3), restBeat(Fraction{1, 2})}}
+            });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 4}, 5, 0)}}});
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::ChartNote* const opening =
+            noteOnChartString(built->arrangements.front().chart.notes, 1);
+        REQUIRE(opening != nullptr);
+        return opening->sustain;
+    };
+
+    // Planted on the gripped seven: one figure, whose last mark is the pull-off, answered by the
+    // unmarked note.
+    CHECK(opening_ring(7) == Fraction{3, 8});
+    // Planted on nine: the figure closes at the tap, which answers the chord's marks there.
+    CHECK(opening_ring(9) == eighth);
+}
+
 // THE HORIZON SEAM. The grip seam above is blind to TIME: silence states nothing, so a rest of any
 // length closes no figure, and material re-entering bars later that merely CONFIRMS the held grip —
 // or grows fresh strings, which contradicts nothing either — joins the same figure. One corpus
@@ -9096,9 +9142,9 @@ TEST_CASE("Guitar Pro import reproduces the sighted let-ring ledger", "[core][gp
     }
 }
 
-// A ring never widens a window: rule 8 spans the figure's own frets. A figure the standing window
-// does not cover is FORCED, so it moves the hand even while an earlier ring still sounds — the
-// pinned-finger class the corpus census counts — and its window is the figure's alone.
+// A held ring is a demand for as long as it sounds. A figure the standing window does not cover is
+// FORCED, so it moves the hand even while an earlier ring still sounds — the pinned-finger class
+// the corpus census counts — and its window reaches the ring as well as the figure.
 TEST_CASE("Guitar Pro import derives a forced window over a sounding ring", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -9127,11 +9173,11 @@ TEST_CASE("Guitar Pro import derives a forced window over a sounding ring", "[co
     const std::vector<DerivedHand> hands = handsOf(chart, built->tempo_map);
     REQUIRE(hands.size() == 2);
     // The opening window sits on the 10; the beat-2 figure lies outside it, so the window moves to
-    // the 2 and spans the four frets of the figure alone, though the 10 still sounds. The beat-3
-    // restrike changes nothing: the 2 already fits the standing window.
+    // the 2 and reaches up to the 10 still sounding there. The beat-3 restrike changes nothing:
+    // the 2 already fits the standing window.
     CHECK(hands[0].fret == 10);
     CHECK(hands[1].fret == 2);
-    CHECK(hands[1].width == 4);
+    CHECK(hands[1].width == 9);
 }
 
 } // namespace rock_hero::editor::core

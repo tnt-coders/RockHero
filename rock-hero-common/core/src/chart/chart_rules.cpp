@@ -9,8 +9,10 @@
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
@@ -137,21 +139,11 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
     };
 }
 
-// What a sounding note demands of the hand at an offset along its ring: rule 1's demand at the
-// onset, and after it only the stop the ring provably holds (rule 6), so a natural harmonic's node
-// is demanded at its strike and its chime holds nothing.
-[[nodiscard]] std::optional<int> soundingDemandAt(
-    const ChartNote& note, const std::optional<HeldRing>& held, const Fraction offset)
+// Whether an authored position covers a demanded fret: at or above its fret, and at or below its
+// end where it states one.
+[[nodiscard]] bool positionCovers(const FretHandPosition& position, const int fret)
 {
-    if (offset == Fraction{})
-    {
-        return fretHandDemandAt(note, offset);
-    }
-    if (held.has_value() && !(offset < held->from) && offset < held->to)
-    {
-        return held->fret;
-    }
-    return std::nullopt;
+    return position.fret <= fret && fret <= position.end_fret.value_or(fret);
 }
 
 } // namespace
@@ -272,10 +264,9 @@ std::expected<void, ChartError> validateFretHandPositions(
     return {};
 }
 
-// Walked from the notes' side: each ring meets the positions standing inside it, found by one
-// search from its onset. The stored ring is the actual one — a re-strike already ended it — so no
-// note sounds past the next note on its string. The connections are rule 6's own input, so a ring
-// holds here exactly what it pins in the derivation.
+// Walked from the demands' side: each onset meets the positions standing exactly at it, and each
+// hold the positions standing inside it, each found by one search. The holds are the derivation's
+// own (\ref fretHandHolds), so a stop is demanded here exactly where the derivation keeps it.
 std::expected<void, ChartError> validateFretHandCoverage(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
@@ -290,30 +281,50 @@ std::expected<void, ChartError> validateFretHandCoverage(
     {
         instants.push_back(tempo_map.wholeNotePositionAt(position.position));
     }
+    // The positions standing inside `[from, to)`, as indices.
+    const auto positions_inside = [&instants](const Fraction from, const Fraction to) {
+        const auto first = std::ranges::lower_bound(instants, from);
+        const auto past = std::ranges::lower_bound(first, instants.end(), to);
+        return std::views::iota(
+            static_cast<std::size_t>(std::distance(instants.begin(), first)),
+            static_cast<std::size_t>(std::distance(instants.begin(), past)));
+    };
     const ChartConnections connections = chartConnections(notes, tempo_map);
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
-        const Fraction onset = connections.places[index];
-        const Fraction ring_end = onset + note.sustain;
-        const std::optional<HeldRing> held = heldRingOf(note, connections.arrives_into[index]);
-        // Half-open: the onset's own instant is inside the ring, the ring's end is not.
-        auto at = static_cast<std::size_t>(
-            std::distance(instants.begin(), std::ranges::lower_bound(instants, onset)));
-        for (; at < instants.size() && instants[at] < ring_end; ++at)
+        const std::optional<int> demand = fretHandDemandAt(note, Fraction{});
+        const auto at = std::ranges::lower_bound(instants, connections.places[index]);
+        if (!demand.has_value() || at == instants.end() || *at != connections.places[index])
         {
-            const FretHandPosition& position = positions[at];
-            const std::optional<int> demand = soundingDemandAt(note, held, instants[at] - onset);
-            // Read against what the position states: its fret, and its end where one is stated.
-            if (demand.has_value() &&
-                (*demand < position.fret || *demand > position.end_fret.value_or(*demand)))
+            continue;
+        }
+        const FretHandPosition& position =
+            positions[static_cast<std::size_t>(std::distance(instants.begin(), at))];
+        if (!positionCovers(position, *demand))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidFretHandPosition,
+                .message = formatHandPositionToken(position.position) + " does not cover fret " +
+                           std::to_string(*demand) + " struck at " +
+                           formatChartPlaceToken(note.position, note.string),
+            }};
+        }
+    }
+    const ChartShapes shapes =
+        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map});
+    for (const FretHandHold& hold : fretHandHolds(connections, shapes))
+    {
+        for (const std::size_t at : positions_inside(hold.from, hold.to))
+        {
+            if (!positionCovers(positions[at], hold.fret))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidFretHandPosition,
-                    .message = formatHandPositionToken(position.position) +
-                               " does not cover fret " + std::to_string(*demand) +
-                               " sounding from " +
-                               formatChartPlaceToken(note.position, note.string),
+                    .message =
+                        formatHandPositionToken(positions[at].position) + " does not cover fret " +
+                        std::to_string(hold.fret) + " held from " +
+                        formatGridPositionToken(tempo_map.gridPositionAtWholeNote(hold.from)),
                 }};
             }
         }

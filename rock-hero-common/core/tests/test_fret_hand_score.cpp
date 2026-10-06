@@ -25,6 +25,8 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -95,8 +97,10 @@ void scoreChart(const Chart& chart, const TempoMap& tempo_map, PartScore& part, 
     const ChartConnections connections = chartConnections(chart.notes, tempo_map);
     // The stored positions are the truth this scores AGAINST, so none of them is handed in: the
     // derivation is asked what the notes alone say.
+    const std::vector<FretHandHold> holds = fretHandHolds(
+        connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}));
     const std::vector<FretHandEvent> events =
-        deriveFretHandEvents(connections, tempo_map, chart.tuning.capo, {}, &score.tally);
+        deriveFretHandEvents(connections, holds, tempo_map, chart.tuning.capo, {}, &score.tally);
     if (events.empty())
     {
         ++score.arrangements_skipped;
@@ -287,9 +291,9 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
     printRow("  on a pressed fret", tally.pressed_plants);
     printRow("    from a tapped source", score.pressed_plant_sources.tapped);
     printRow("    from a slid source", score.pressed_plant_sources.slid);
-    printRow("plain rings pinning", tally.ring_pins);
+    printRow("holds pinning", tally.hold_pins);
     printRow("runs", tally.runs);
-    printRow("  held by a ring (rule 6)", tally.held_by_ring);
+    printRow("  held by a hold (rule 6)", tally.held_by_hold);
     printRow("  held on one fret (rule 5)", tally.held_on_one_fret);
     printRow("  restating the window (rule 11)", tally.restated);
     printRow("  emitted", all.emissions);
