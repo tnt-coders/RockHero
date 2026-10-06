@@ -77,6 +77,12 @@ MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor
         // `Alt+7`, `Alt+6` composes `L` and would toggle legato.
         m_composed_character_filter = std::make_unique<ComposedCharacterFilter>();
         addKeyListener(m_composed_character_filter.get());
+        // The restore begins before anything below can show the window, so a window the startup
+        // state asks for (the device-lost notice, the settings window) meets the busy gate on the
+        // first presentable frame instead of opening over plugin construction that holds the
+        // message thread. setVisible is not the first show: on Windows setFullScreen's
+        // ShowWindow sends WM_SHOWWINDOW, which JUCE answers with setVisible(true).
+        m_editor->restoreLastOpenProject();
     }
     setResizable(true, false);
     const juce::Rectangle<int> restore_bounds = restoredMainWindowBounds();
@@ -98,13 +104,6 @@ MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor
     if (juce::ComponentPeer* const peer = getPeer())
     {
         peer->setNonFullScreenBounds(restore_bounds);
-    }
-    // The restore begins before the window first shows, so a window the startup state asks for
-    // (the device-lost notice, the settings window) already meets the busy gate on the first
-    // presentable frame, instead of opening over plugin construction that holds the message thread.
-    if (m_editor != nullptr)
-    {
-        m_editor->restoreLastOpenProject();
     }
     setVisible(true);
 
