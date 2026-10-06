@@ -92,6 +92,17 @@ configure_file(
 
 - Every project-owned function or method definition in a `.cpp` file gets a regular comment
   immediately above it unless it is explicitly trivial.
+- When the function is already documented in its header, the definition's comment is a short
+  summary of what the function does, so a reader of the `.cpp` need not open the header to follow
+  it. It is not a copy of the header's contract, which would drift from it, and not a pointer such
+  as "Documented in foo.h", which tells the reader nothing. Implementation reasons the header does
+  not carry follow in the body, where they apply.
+
+\code{.cpp}
+// Rebuilds the visible note list for the current scroll window.
+void HighwayView::rebuildVisibleNotes()
+\endcode
+
 - Every class or struct defined entirely inside a `.cpp` file gets a regular class-level comment
   immediately above the definition unless it is explicitly trivial.
 - Trivial exceptions are defaulted or empty special members with no meaningful behavior, obvious
@@ -144,10 +155,36 @@ What still does not deserve a comment:
 - References to the current task, ticket, PR, or recent change. Those belong in commit messages.
 - Defensive narration of straightforward control flow.
 
-When the call is close, write the comment. The cost of a comment that later becomes stale is
-small; the cost of a missing comment that costs someone a debugging session, or that invites a
-plausible-looking but wrong refactor, is large. Bias toward commenting whenever clarity is not
-certain.
+When the call is close, write the comment: a missing comment that costs someone a debugging
+session, or that invites a plausible-looking but wrong refactor, is expensive. Keep it as short as
+its meaning allows, and rewrite it when the code it describes changes (see the next section).
+
+# Comments State the Current Truth
+
+The section above decides whether a comment exists; this one decides what it says.
+
+- **Rewrite, never append.** When a change leaves a comment wrong or incomplete, rewrite it so it
+  reads as if written today by someone who knows the current code. Never add the new reason beside
+  the old one; that is how comments grow into essays.
+- **History belongs in git.** No dates, rulings, plan, phase or review IDs, attributions, or
+  narration of change ("used to", "now", "no longer", "the old X"). The exception is history
+  without which the shape of the code cannot be understood, such as a workaround for a framework
+  defect or a constraint a shipped format imposes; state it as the reason, undated. References to
+  numbered rules stay, because they name rules, not events.
+- **A reason sits where it applies.** A reason about one line belongs on that line, not in the
+  comment above the function.
+- **Every claim is true of the code as it is.** Check a comment against the code before keeping
+  or editing it.
+- **Length follows meaning.** There is no line quota in either direction. A comment never grows to
+  look thorough, never restates the code, and is never cut short of a reason the reader needs.
+- **Header Doxygen describes the contract; `.cpp` comments describe the implementation.** Doxygen
+  says what the entity is, its units, ranges and edge cases, its threading and ownership rules, and
+  why it is shaped as it is when a caller needs to know. How the body achieves that belongs in the
+  `.cpp`.
+
+These rules are applied as code is touched: a change brings the comments in the code it edits up
+to this standard. `scripts/verify-project-conventions.py` carries a pending check that rejects a
+date inside a comment.
 
 # Doxygen Block Format
 
@@ -162,9 +199,7 @@ within the 100-character line limit:
 The one-line form is only available when the entity needs no other tag, so in practice it is for
 `void` functions, data members, types, and enumerators. A function that RETURNS something always
 needs a `\return` (see Required Fields below), which means it always needs the multi-line form — a
-brief-only one-liner on a value-returning function is wrong however well it fits. This paragraph
-exists because the example here used to be exactly that, and the two sections contradicted each
-other for long enough that eleven declarations followed the wrong one.
+brief-only one-liner on a value-returning function is wrong however well it fits.
 
 The full Doxygen block must be indented to the same level as the declaration it documents. Every
 line inside the block uses that same indentation, including `\brief`, body paragraphs, tags, and
@@ -190,7 +225,7 @@ Example for an indented member declaration:
 
 \code{.cpp}
     /*!
-\brief Creates the concrete editor view and installs the thumbnail factory.
+    \brief Creates the concrete editor view and installs the thumbnail factory.
 
     \param controller Controller that receives all user intents emitted by this view.
     \param audio_ports Required audio ports consumed directly by this view.
@@ -228,6 +263,10 @@ Document all applicable fields.
   implementation shims.
 
 If a field does not apply, omit it.
+
+A field says what the signature cannot: units, the valid range, ownership or lifetime, what an
+empty or null value means, the sentinel or empty-result case. When a parameter's name and type
+already say everything, its field stays and stays short; it is never padded to look thorough.
 
 # Blank-Line Rules
 

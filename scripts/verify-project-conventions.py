@@ -10,8 +10,12 @@ Current checks:
 - Function-local constants do not wear the g_ prefix (.clang-tidy).
 - Comment lines fit the 100-column limit (documentation-conventions.md).
 
-PENDING_CHECKS is empty: nothing is written-but-parked today. Pass --pending to run whatever it
-holds, which is how to inventory what a sweep must fix before a check moves into CHECKS.
+Pending checks, parked until the tree is clean of them:
+
+- No date inside a comment (documentation-conventions.md, "Comments State the Current Truth").
+
+Pass --pending to run them, which is how to inventory what must be fixed before a check moves into
+CHECKS.
 
 Known gap, deliberate: the comment-column check covers comment LINES, not trailing comments on
 code lines (none violate today; the compound parse was not worth it until one does).
@@ -34,6 +38,10 @@ EXEMPT = {'placeholder.cpp'}
 # trees, excluding external/, generated, and vendored content.
 PRODUCT_ROOTS = tuple(f'rock-hero-{product}/' for product in PRODUCTS)
 COLUMN_LIMIT = 100
+
+# An ISO date, which is history and belongs in a commit message, never in a comment. A date
+# followed by a hyphen is part of a file name (docs/tracking/2026-10-01-....md), not a date.
+COMMENT_DATE = re.compile(r'(?<!\d)\d{4}-\d{2}-\d{2}(?![\d-])')
 
 # Every C0 control character except tab and newline. Newline is the line split, so it can never
 # appear inside a line; tab is legal in the fixtures and tool files that need it.
@@ -228,6 +236,23 @@ def checkCommentLineLength(sources: Sources) -> list[str]:
     return violations
 
 
+def checkNoDateInComment(sources: Sources) -> list[str]:
+    """No comment line in project-owned C++ carries a date.
+
+    A dated comment is history, and history drifts back into the tree with every change that
+    appends a reason instead of rewriting one.
+    """
+    violations: list[str] = []
+    for file in sources.text_files:
+        if not isProjectCppFile(file.path):
+            continue
+        for number in commentLineNumbers(file.lines):
+            line = file.lines[number - 1]
+            if COMMENT_DATE.search(line):
+                violations.append(f'{file.path}:{number}: {line.strip()}')
+    return violations
+
+
 def checkLocalConstantPrefix(sources: Sources) -> list[str]:
     """No function-local constant in project-owned C++ wears the g_ prefix.
 
@@ -297,10 +322,19 @@ CHECKS = (
     ),
 )
 
-# No check is parked today. A check belongs here only while the tree still carries pre-existing
-# violations of it, so that adding it to CHECKS would fail every commit until a sweep lands; move
-# it into CHECKS in the same change as that sweep.
-PENDING_CHECKS: tuple[Check, ...] = ()
+# A check belongs here only while the tree still carries pre-existing violations of it, so that
+# adding it to CHECKS would fail every commit until they are fixed; move it into CHECKS in the
+# same change that fixes the last of them.
+PENDING_CHECKS: tuple[Check, ...] = (
+    Check(
+        find=checkNoDateInComment,
+        heading='Dates inside comments (see docs/design/documentation-conventions.md):',
+        remedy=(
+            'Rewrite the comment as the current truth. History belongs in git; a reason that\n'
+            'needs history states it undated.'
+        ),
+    ),
+)
 
 
 def main() -> int:
