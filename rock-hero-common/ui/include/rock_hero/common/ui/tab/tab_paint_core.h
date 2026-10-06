@@ -57,7 +57,7 @@ the paint core's JUCE conversion of the shared palette authority.
 \brief Returns the ink of a span's rails and of its label chip.
 
 The Charter hand-shape base, scaled along its own hue to a shade light enough to read as the
-lane's span color and dark enough to carry the lane chips' white text. The span chip
+lane's span color and dark enough to carry the span chip's white label. The span chip
 (\ref drawTabSpanChip) fills in this ink too, so the chip and the rails it stands on read as one
 object, and prints its label in that white text over it.
 
@@ -595,7 +595,7 @@ bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
 (\ref g_lane_chip_corner_radius), filled in the rails' ink (\ref tabShapeMarkColor).
 
 The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
-centred in the lane chips' white text color. It is sized as a
+centred in opaque white. It is sized as a
 fret-hand-position chip in the same font (\ref tabFhpChipBounds): blank, as wide as a one-figure
 fret-hand chip; labelled, as wide as its label boxed the way a fret-hand chip boxes its text, never
 narrower than the blank chip. The chip stands as tall as the font's ink, rounded up to whole pixels,

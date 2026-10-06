@@ -648,8 +648,8 @@ largest font the chip stands clear below it.
 
 The chip's label is its span's name, the chord name of the span's grip template. A span is
 complete only once it carries a template, so the drawer itself prints "?" for a span given no
-name; spans carry no template yet, so every chip prints "?". The label prints in the lane chips'
-white text where the room holds the whole labelled chip and the chip stands its own height, and is
+name; spans carry no template yet, so every chip prints "?". The label prints in opaque
+white where the room holds the whole labelled chip and the chip stands its own height, and is
 dropped whole otherwise, leaving the chip blank. The rails' ink (`common::ui::tabShapeMarkColor`)
 is each hand-shape color scaled along its own hue, set by eye between reading as the span's color
 and carrying that white text.

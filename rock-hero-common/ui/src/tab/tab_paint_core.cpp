@@ -165,9 +165,8 @@ constexpr float g_floating_chip_padding{3.0f};
 }
 
 // Each hand-shape base's scale for the span marks, set by eye between a mark bright enough to read
-// as the lane's own color and one dark enough to carry the lane chips' white text, the purple's
-// matched to the blue's so the label reads alike on both: about 3.65:1 on each, short of the 4.5:1
-// a fully dark fill reaches.
+// as the lane's own color and one dark enough to carry the span chip's white label, the purple's
+// matched to the blue's so the label reads alike on both: about 4.45:1 on each.
 constexpr double g_shape_mark_scale{1.33};
 constexpr double g_arpeggio_mark_scale{1.09};
 // The square-bracket pair marking an arpeggio posture note reads as "[ fret ]" and stays much
@@ -2748,8 +2747,9 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
 
     if (printed.isNotEmpty())
     {
-        // The lane chips' own text color, so every chip in the lane prints its label alike.
-        g.setColour(g_lane_chip_text);
+        // Opaque white, not the lane chips' softened white: over the span's mid-bright fill a
+        // translucent label lets the fill through and loses the contrast it needs.
+        g.setColour(juce::Colours::white);
         font.draw(g, printed, box);
     }
 }
