@@ -649,8 +649,9 @@ largest font the chip stands clear below it.
 The chip's label is its span's name, the chord name of the span's grip template. A span is
 complete only once it carries a template, so the drawer itself prints "?" for a span given no
 name; spans carry no template yet, so every chip prints "?". The label prints in the lane chips'
-white text where the room holds the whole labelled chip and the chip stands its own height, and is
-dropped whole otherwise, leaving the chip blank.
+white text, edged by a thin outline in the chip ground (`TabLaneFont::drawOutlined`), where the
+room holds the whole labelled chip and the chip stands its own height, and is dropped whole
+otherwise, leaving the chip blank.
 
 A chip never reaches past where its span's rails stop (`common::ui::tabSpanStopX`, the one statement
 of the rails' parting); squeezed by that stop, it narrows to the room, down to a single pixel.

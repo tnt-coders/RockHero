@@ -1486,11 +1486,11 @@ TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-pai
     const TabLaneMetrics metrics = spanChipLaneMetrics();
     const juce::Colour ink = tabShapeMarkColor(false);
 
-    // With room, the named chip runs past a blank chip's right edge: probed on its bottom row, in
-    // the padding no glyph reaches.
+    // With room, the named chip runs past a blank chip's right edge: probed on its bottom row for
+    // the chip's opaque body, since the label's outline may reach into the padding there.
     const int blank_end = 20 + static_cast<int>(oneFigureFhpChip(metrics).getWidth());
     const juce::Image named = renderSpanChip(metrics, 1000.0f, false, juce::String{"Am7"});
-    CHECK(named.getPixelAt(blank_end + 2, 29) == ink);
+    CHECK(named.getPixelAt(blank_end + 2, 29).getAlpha() == 0xff);
 
     // The name prints at the lane's own size inside the chip's height: label ink inside the chip,
     // and nothing on the row above its top.

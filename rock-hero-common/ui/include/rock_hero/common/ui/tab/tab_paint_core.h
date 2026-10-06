@@ -186,6 +186,20 @@ public:
     void draw(juce::Graphics& g, const juce::String& text, juce::Rectangle<float> box) const;
 
     /*!
+    \brief Draws one line of text centred in `box` by its ink, exactly as \ref draw places it, with
+    a thin outline around every glyph, for text over a fill too light to carry it alone.
+
+    \param g Graphics context to draw into.
+    \param text Text to draw; an empty string draws nothing.
+    \param box Box the text is centred in, in the context's coordinate space.
+    \param fill Color of the glyphs.
+    \param outline Color of the outline, a stroke one pixel wide centred on each glyph's edge.
+    */
+    void drawOutlined(
+        juce::Graphics& g, const juce::String& text, juce::Rectangle<float> box, juce::Colour fill,
+        juce::Colour outline) const;
+
+    /*!
     \brief Compares two lane fonts by the face they draw with, which the measured ink derives from.
     \param lhs Left-hand font.
     \param rhs Right-hand font.
@@ -594,7 +608,8 @@ bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
 (\ref g_lane_chip_corner_radius), filled in the rails' ink (\ref tabShapeMarkColor).
 
 The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
-centred in the lane chips' white text color. It is sized as a
+centred in the lane chips' white text color, outlined in the chip ground (\ref
+TabLaneFont::drawOutlined). It is sized as a
 fret-hand-position chip in the same font (\ref tabFhpChipBounds): blank, as wide as a one-figure
 fret-hand chip; labelled, as wide as its label boxed the way a fret-hand chip boxes its text, never
 narrower than the blank chip. The chip stands as tall as the font's ink, rounded up to whole pixels,

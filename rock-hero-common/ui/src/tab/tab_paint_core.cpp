@@ -2363,6 +2363,33 @@ void TabLaneFont::draw(
     g.drawText(text, box.translated(0.0f, ink_offset), juce::Justification::centred);
 }
 
+// Rationale lives on the declaration in tab_paint_core.h. Laid out as drawText lays out a single
+// centred line, then painted as a path so the stroke can sit under the fill.
+void TabLaneFont::drawOutlined(
+    juce::Graphics& g, const juce::String& text, const juce::Rectangle<float> box,
+    const juce::Colour fill, const juce::Colour outline) const
+{
+    const float ink_offset =
+        -m_reference_ink.getCentreY() - ((m_font.getAscent() - m_font.getDescent()) / 2.0f);
+    const juce::Rectangle<float> line = box.translated(0.0f, ink_offset);
+    juce::GlyphArrangement arrangement;
+    arrangement.addCurtailedLineOfText(m_font, text, 0.0f, 0.0f, line.getWidth(), false);
+    arrangement.justifyGlyphs(
+        0,
+        arrangement.getNumGlyphs(),
+        line.getX(),
+        line.getY(),
+        line.getWidth(),
+        line.getHeight(),
+        juce::Justification::centred);
+    juce::Path glyphs;
+    arrangement.createPath(glyphs);
+    g.setColour(outline);
+    g.strokePath(glyphs, juce::PathStrokeType{1.0f});
+    g.setColour(fill);
+    g.fillPath(glyphs);
+}
+
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
 // lane-window logic lives with the palette (string_color_palette.h).
 juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
@@ -2746,9 +2773,9 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
 
     if (printed.isNotEmpty())
     {
-        // The lane chips' own text color, so every chip in the lane prints its label alike.
-        g.setColour(g_lane_chip_text);
-        font.draw(g, printed, box);
+        // The lane chips' own text color, so every chip in the lane prints its label alike, edged
+        // in the chip ground because white alone is too faint against the light rail ink.
+        font.drawOutlined(g, printed, box, g_lane_chip_text, g_lane_chip_ground);
     }
 }
 
