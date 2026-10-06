@@ -633,8 +633,8 @@ scanning the whole chart. It draws each hand-shape span's rails and, for an arpe
 Where one span's rails meet the next span's start they stop one screen pixel short, so two spans
 that meet read as two; that parting is paint-time only, and the drawn extent stays rule 12a's.
 
-Each span also wears a **label chip** at its start: a trapezoid filled in the rails' ink, its
-bottom-left corner on the span's start
+Each span also wears a **label chip** at its start: a short trapezoid with rounded top corners,
+filled in the rails' ink, its bottom-left corner on the span's start and its square base on the rail
 (`common::ui::drawTabSpanChip`). The lane has no room above its fret-hand chips, so the chip stands
 on the RULER's bottom edge, directly on the lane's top rail: `EditorView` pushes every span's start
 (re-timed to the content map, as the sections are) through `TrackViewport::setSpanStarts`, and

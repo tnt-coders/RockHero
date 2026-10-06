@@ -422,15 +422,17 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 401px maps seconds * 100: the chord chip's corner at x = 100, the
-    // arpeggio's at x = 200, both probed at their middles, clear of the beat ticks they cover.
+    // One measure across 401px maps seconds * 100: the chord chip's foot at x = 100, the
+    // arpeggio's at x = 200, both probed at their middles (a blank chip runs half again as wide as
+    // it is tall), clear of the beat ticks they cover.
     const int height =
         juce::roundToInt(common::ui::tabSpanChipHeight(common::ui::tabSpanChipFont()));
+    const int middle_x = height * 3 / 4;
     const int middle_y = g_timeline_ruler_height - (height / 2);
-    CHECK(image.getPixelAt(100 + (height / 2), middle_y) == common::ui::tabShapeMarkColor(false));
-    CHECK(image.getPixelAt(200 + (height / 2), middle_y) == common::ui::tabShapeMarkColor(true));
+    CHECK(image.getPixelAt(100 + middle_x, middle_y) == common::ui::tabShapeMarkColor(false));
+    CHECK(image.getPixelAt(200 + middle_x, middle_y) == common::ui::tabShapeMarkColor(true));
     CHECK(
-        image.getPixelAt(100 + (height / 2), g_timeline_ruler_height - height - 1) ==
+        image.getPixelAt(100 + middle_x, g_timeline_ruler_height - height - 1) ==
         editorTheme().timeline_ruler_background);
 }
 

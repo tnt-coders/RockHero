@@ -420,10 +420,10 @@ constexpr int g_digit_window = 4;
 }
 
 // A blank span chip's full width: a top edge as long as the chip is tall, and each side leaning
-// out a third of the height below it.
+// out a quarter of the height below it.
 [[nodiscard]] float blankSpanChipWidth(const int height)
 {
-    return static_cast<float>(height) * 5.0f / 3.0f;
+    return static_cast<float>(height) * 3.0f / 2.0f;
 }
 
 } // namespace
@@ -1298,11 +1298,13 @@ TEST_CASE("Tab span chip stands at its span's start in the span's colors", "[ui]
         }
         const int middle_x = 20 + static_cast<int>(blankSpanChipWidth(height) / 2.0f);
         CHECK(image.getPixelAt(middle_x, 30 - (height / 2)) == tabShapeMarkColor(arpeggio));
-        // The bottom and top rows, and nothing beyond either or left of the start.
+        // The bottom and top rows, and nothing beyond either.
         CHECK(image.getPixelAt(middle_x, 29) == tabShapeMarkColor(arpeggio));
         CHECK(image.getPixelAt(middle_x, 30 - height) == tabShapeMarkColor(arpeggio));
         CHECK(image.getPixelAt(middle_x, 30).getARGB() == 0);
         CHECK(image.getPixelAt(middle_x, 29 - height).getARGB() == 0);
+        // The left foot: the start's column lit on the bottom row, the column before it empty.
+        CHECK(image.getPixelAt(20, 29).getAlpha() > 0);
         CHECK(image.getPixelAt(19, 29).getARGB() == 0);
     }
 }
@@ -1338,20 +1340,25 @@ TEST_CASE("Tab span chip draws blank at its height and yields to the next span",
     const juce::Image blank = render_blank(std::nullopt);
     CHECK(blank.getPixelAt(20 + static_cast<int>(std::floor(width)) - 1, 29).getAlpha() > 0);
     CHECK(blank.getPixelAt(20 + static_cast<int>(std::ceil(width)), 29).getARGB() == 0);
-    // The top edge is flat, not a point: the top row is solid a quarter and three quarters across.
+    // The top edge is flat, not a point: the top row is solid at both ends of its straight run,
+    // inside the leans and the rounded corners.
     const int top_y = 30 - height;
+    const float inset = (static_cast<float>(height) / 4.0f) + g_lane_chip_corner_radius;
     CHECK(
-        blank.getPixelAt(20 + static_cast<int>(std::ceil(width / 4.0f)), top_y) ==
+        blank.getPixelAt(20 + static_cast<int>(std::ceil(inset)), top_y) ==
         tabShapeMarkColor(false));
     CHECK(
-        blank.getPixelAt(20 + static_cast<int>(std::floor(width * 3.0f / 4.0f)) - 1, top_y) ==
+        blank.getPixelAt(20 + static_cast<int>(std::floor(width - inset)) - 1, top_y) ==
         tabShapeMarkColor(false));
 
-    // The next span six pixels on leaves five, square to the top: the parting pixel stays empty.
+    // The next span six pixels on leaves five: an upright block, solid down both of its sides,
+    // with the parting pixel left empty.
     const juce::Image narrowed = render_blank(26.0f);
-    CHECK(narrowed.getPixelAt(20, top_y) == tabShapeMarkColor(false));
-    CHECK(narrowed.getPixelAt(24, top_y) == tabShapeMarkColor(false));
-    CHECK(narrowed.getPixelAt(24, 29).getAlpha() > 0);
+    const int middle_y = 30 - (height / 2);
+    CHECK(narrowed.getPixelAt(20, middle_y) == tabShapeMarkColor(false));
+    CHECK(narrowed.getPixelAt(24, middle_y) == tabShapeMarkColor(false));
+    CHECK(narrowed.getPixelAt(22, top_y) == tabShapeMarkColor(false));
+    CHECK(narrowed.getPixelAt(24, 29) == tabShapeMarkColor(false));
     CHECK(narrowed.getPixelAt(25, 29).getARGB() == 0);
 
     const juce::Image crowded = render_blank(20.5f);

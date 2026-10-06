@@ -84,11 +84,12 @@ constexpr float g_shape_rail_height{3.0f};
 // two: the rails keep it at their end and the label chip at its right edge.
 constexpr float g_span_parting{1.0f};
 
-// A span chip's sides lean in by this much per pixel of its height.
-constexpr float g_span_chip_lean{1.0f / 3.0f};
+// The room a span chip leaves around its name: above and below the font's ink, and either side
+// of the name's measured width.
+constexpr float g_span_chip_padding{1.0f};
 
-// The clearance between a span chip's edges and the name's ink.
-constexpr float g_span_chip_padding{2.0f};
+// A span chip's sides lean in by this much per pixel of its height.
+constexpr float g_span_chip_lean{1.0f / 4.0f};
 
 // The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — with its
 // text. Every chip in the lane, boxed or floating, shares the corner rounding
@@ -2693,6 +2694,7 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
     const float lean = height * g_span_chip_lean;
     const float left = chip.base_left.x;
     const float bottom = chip.base_left.y;
+    const float top = bottom - height;
     const std::optional<float>& next_start_x = chip.next_start_x;
     const float room = next_start_x.has_value() ? *next_start_x - g_span_parting - left
                                                 : std::numeric_limits<float>::infinity();
@@ -2720,12 +2722,22 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
     // A chip squeezed by the next span gives up its leans before its top edge, so it narrows into
     // an upright block rather than a point.
     const float slant = std::clamp((width - height) / 2.0f, 0.0f, lean);
-    const float right = left + width;
+    const float top_left = left + slant;
+    const float top_right = left + width - slant;
+
+    // Only the top corners round, each cut back along both of its edges by the radius, held to half
+    // the top edge so a squeezed chip's two curves never cross; the base meets the line square.
+    const float side = std::hypot(slant, height);
+    const float radius = std::min(g_lane_chip_corner_radius, (top_right - top_left) / 2.0f);
+    const float cut_x = radius * slant / side;
+    const float cut_y = radius * height / side;
     juce::Path outline;
     outline.startNewSubPath(left, bottom);
-    outline.lineTo(left + slant, bottom - height);
-    outline.lineTo(right - slant, bottom - height);
-    outline.lineTo(right, bottom);
+    outline.lineTo(top_left - cut_x, top + cut_y);
+    outline.quadraticTo(top_left, top, top_left + radius, top);
+    outline.lineTo(top_right - radius, top);
+    outline.quadraticTo(top_right, top, top_right + cut_x, top + cut_y);
+    outline.lineTo(left + width, bottom);
     outline.closeSubPath();
     g.setColour(tabShapeMarkColor(chip.arpeggio));
     g.fillPath(outline);
@@ -2734,10 +2746,7 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
     {
         // The dark chip ground, since white falls short of legible contrast on the light rail ink.
         g.setColour(g_lane_chip_ground);
-        font.draw(
-            g,
-            printed,
-            juce::Rectangle<float>{left + slant, bottom - height, width - (2.0f * slant), height});
+        font.draw(g, printed, juce::Rectangle<float>{top_left, top, top_right - top_left, height});
     }
 }
 

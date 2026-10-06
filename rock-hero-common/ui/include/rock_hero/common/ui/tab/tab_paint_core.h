@@ -560,24 +560,26 @@ glyph outline, so a host builds it once rather than per paint.
 [[nodiscard]] TabLaneFont tabSpanChipFont();
 
 /*!
-\brief A span chip's height: the font's ink with two pixels of padding above and below.
+\brief A span chip's height: the font's ink, rounded up to whole pixels, with a pixel of padding
+above and below.
 \param font The chip font (\ref tabSpanChipFont).
 \return Chip height in pixels.
 */
 [[nodiscard]] float tabSpanChipHeight(const TabLaneFont& font);
 
 /*!
-\brief Draws one span's label chip: a steep trapezoid standing on the chip's base line, its
-bottom-left corner on the span's start, filled in the rails' ink (\ref tabShapeMarkColor).
+\brief Draws one span's label chip: a trapezoid standing square on the chip's base line, its
+bottom-left corner on the span's start, its top corners rounded (\ref g_lane_chip_corner_radius),
+filled in the rails' ink (\ref tabShapeMarkColor).
 
-A blank chip's top edge is as long as the chip is tall, its sides leaning out from there. A named
-one's top edge is as long as its name needs, never shorter, the name printed inside it in the dark
-chip ground for contrast against the light fill. Either way the chip stops a pixel short of the next
-span's start, the same parting the rails keep (\ref paintTabLaneFurniture), and draws nothing when
-that leaves it under a pixel. A chip narrower than its full shape gives up its leans before its top
-edge, narrowing into an upright block, never a point. A name prints only where the room holds the
-chip's whole named width; otherwise the name is dropped entire, never clipped or shrunk, and the
-chip draws blank.
+Each side leans in by a quarter of the chip's height. A blank chip's top edge is as long as the
+chip is tall. A named one's top edge is as long as its name needs with a pixel either side, never
+shorter, the name printed inside it in the dark chip ground for contrast against the light fill.
+Either way the chip stops a pixel short of the next span's start, the same parting the rails keep
+(\ref paintTabLaneFurniture), and draws nothing when that leaves it under a pixel. A chip narrower
+than its full shape gives up its leans before its top edge, narrowing into an upright block, never
+a point. A name prints only where the room holds the chip's whole named width; otherwise the name
+is dropped entire, never clipped or shrunk, and the chip draws blank.
 
 \param g Graphics context to draw into.
 \param font The chip font (\ref tabSpanChipFont).
