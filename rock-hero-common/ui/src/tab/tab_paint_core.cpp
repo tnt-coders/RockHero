@@ -82,11 +82,11 @@ constexpr float g_shape_rail_height{3.0f};
 // The pixel a span's marks stop short of the next span's start (tabSpanStopX).
 constexpr float g_span_parting{1.0f};
 
-// The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — with its
-// text. Every chip in the lane, boxed or floating, shares the corner rounding
-// (g_lane_chip_corner_radius, in the header).
+// The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — and the
+// opaque white every lane chip prints its label in, the span chip's included. Every chip in the
+// lane, boxed or floating, shares the corner rounding (g_lane_chip_corner_radius, in the header).
 const juce::Colour g_lane_chip_ground{0xff2a2f36};
-const juce::Colour g_lane_chip_text{juce::Colours::white.withAlpha(0.85f)};
+const juce::Colour g_lane_chip_text{juce::Colours::white};
 
 // A bend amount's vulgar-fraction glyph against the chip text. The glyph's own digits are about
 // 0.63 of a figure's height and 0.74 of its stroke; at 1.30 they reach 0.81 of the height and 0.97
@@ -2747,9 +2747,7 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
 
     if (printed.isNotEmpty())
     {
-        // Opaque white, not the lane chips' softened white: over the span's mid-bright fill a
-        // translucent label lets the fill through and loses the contrast it needs.
-        g.setColour(juce::Colours::white);
+        g.setColour(g_lane_chip_text);
         font.draw(g, printed, box);
     }
 }
