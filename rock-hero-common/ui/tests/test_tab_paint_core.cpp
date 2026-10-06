@@ -1071,8 +1071,8 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     CHECK(image.getPixelAt(150, 238).getARGB() == 0);
 
     // The arpeggio span's rails are the hand-shape purple at its own scale (base x0.955).
-    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff9664ce});
-    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff9664ce});
+    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff9061c7});
+    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff9061c7});
 
     // Span chips stand above the lane, on the host's ruler, so nothing but the rails and the FHP
     // marker touches the lane's top edge here.
