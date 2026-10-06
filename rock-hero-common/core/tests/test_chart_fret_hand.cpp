@@ -242,6 +242,39 @@ TEST_CASE("Fret-hand coverage leaves what the hand does not hold alone", "[core]
     CHECK(coveredBy({noteAt(1, 1, 1, 20)}, positionAt(1, 1, 5)));
 }
 
+// A dead note's stored ring proves its finger held the stop exactly as a live note's does; only
+// its tail's display differs.
+TEST_CASE("Fret-hand coverage holds a dead note's ring like any other", "[core][chart]")
+{
+    ChartNote dead = noteAt(1, 1, 1, 3, Fraction{1, 2});
+    dead.dead = true;
+
+    const TempoMap tempo_map = makeTempoMap();
+    const std::vector<FretHandHold> holds = holdsOf(chartConnections({dead}, tempo_map), tempo_map);
+    REQUIRE(holds.size() == 1);
+    CHECK(holds[0].from == Fraction{});
+    CHECK(holds[0].to == Fraction{1, 2});
+    CHECK(holds[0].fret == 3);
+    CHECK_FALSE(coveredBy({dead}, positionAt(1, 2, 5)));
+}
+
+// A slide-out's finger stays pressed while it slides, so the stop it slides from is held, and
+// demanded, until the ring ends.
+TEST_CASE("Fret-hand coverage holds a slide-out's stop to its ring end", "[core][chart]")
+{
+    const ChartNote sliding_out = slideOutAt(1, 1, 1, 5, 1, Fraction{1, 2});
+
+    const TempoMap tempo_map = makeTempoMap();
+    const std::vector<FretHandHold> holds =
+        holdsOf(chartConnections({sliding_out}, tempo_map), tempo_map);
+    REQUIRE(holds.size() == 1);
+    CHECK(holds[0].from == Fraction{});
+    CHECK(holds[0].to == Fraction{1, 2});
+    CHECK(holds[0].fret == 5);
+    CHECK_FALSE(coveredBy({sliding_out}, positionAt(1, 2, 7)));
+    CHECK(coveredBy({sliding_out}, positionAt(1, 3, 7)));
+}
+
 // A natural harmonic's node is demanded at its strike, and its chime holds nothing after it,
 // exactly as the hand derivation's ring pins read it.
 TEST_CASE("Fret-hand coverage demands a natural harmonic's node only", "[core][chart]")
@@ -448,9 +481,9 @@ TEST_CASE("Hand derivation pins a pinch harmonic's ring but not a natural's", "[
         std::vector{eventAt(1, 1, 5), eventAt(1, 2, 6)});
 }
 
-// Rule 6's pin runs from the last pitched stop: a slide-then-hold pins at its destination, while a
-// slide-out departing straight from its arrival leaves nothing pinned. The run the bar line cuts
-// under it never has three notes sounding together, so no span holds anything.
+// Rule 6's pin runs from the last pitched stop: a slide-then-hold pins at its destination, and so
+// does one that then slides out, since the finger stays pressed until the ring ends. The run the
+// bar line cuts under it never has three notes sounding together, so no span holds anything.
 TEST_CASE("Hand derivation pins a slide-then-hold at its destination", "[core][chart]")
 {
     const ChartNote held = withFretAt(noteAt(1, 1, 1, 5, Fraction{3, 2}), Fraction{1, 4}, 7);
@@ -460,7 +493,7 @@ TEST_CASE("Hand derivation pins a slide-then-hold at its destination", "[core][c
     const ChartNote slid_out = withFretAt(held, Fraction{3, 2}, 3);
     CHECK(
         eventsOf({slid_out, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) ==
-        std::vector{eventAt(1, 1, 5), eventAt(2, 1, 6)});
+        std::vector{eventAt(1, 1, 5)});
 }
 
 // Rule 7: the window sits on the run's lowest fret, wherever in the run it falls.

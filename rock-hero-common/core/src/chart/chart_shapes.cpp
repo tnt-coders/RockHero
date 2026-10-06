@@ -90,11 +90,12 @@ struct StatedStop
     Fraction held{};
     Fraction stop_from{};
     std::optional<FretTravel> travel;
-    // The SLIDE-OUT is no statement about where the finger IS: pressure is off, and the fret the
-    // pitch slides out toward is a grip the hand never takes. The channel simply stops stating
-    // there, which is what the slide-out ring's own law reads (a released string is a member of
-    // nothing). An ARRIVAL is the opposite and is READ: the finger glides onto that stop and the
-    // next strike takes it, so the channel's last landing is the end (\ref arrivesIntoNextHead).
+    // The SLIDE-OUT is no statement about where the finger IS: the fret the pitch slides out
+    // toward is a grip the hand never takes, and the finger leaves the string at the ring's end.
+    // So the channel goes on stating the stop it slides from until then, exactly as the ring hold
+    // reads it (\ref fretHandHolds). An ARRIVAL is the opposite and is READ: the finger glides onto
+    // that stop and the next strike takes it, so the channel's last landing is the end
+    // (\ref arrivesIntoNextHead).
     const Keyframe* const slide_out = slideOutKeyframe(note, arrives_into_next_head);
     for (const Keyframe& keyframe : note.keyframes)
     {

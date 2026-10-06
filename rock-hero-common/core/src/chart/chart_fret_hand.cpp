@@ -133,18 +133,19 @@ void collectNoteDemands(
     return spans;
 }
 
-// A ring's hold (\ref fretHandHolds): from its last pitched stop to its pitched ring's end.
+// A ring's hold (\ref fretHandHolds): from its last pitched stop to the ring's end. A slide-out's
+// fret is no stop the hand takes, so the stop it slides from holds to the end.
 [[nodiscard]] std::optional<FretHandHold> ringHoldOf(
     const ChartConnections& connections, const std::size_t index)
 {
     const ChartNote& note = connections.saved_notes[index];
-    if (note.fret <= 0 || rightHandOnset(note.attack) || note.dead)
+    if (note.fret <= 0 || rightHandOnset(note.attack))
     {
         return std::nullopt;
     }
     const Keyframe* const slide_out = slideOutKeyframe(note, connections.arrives_into[index]);
     Fraction from{};
-    Fraction to = note.sustain;
+    const Fraction to = note.sustain;
     int fret = note.fret;
     for (const Keyframe& keyframe : note.keyframes)
     {
@@ -159,10 +160,6 @@ void collectNoteDemands(
             fret = *stated;
             from = keyframe.offset;
         }
-    }
-    if (slide_out != nullptr)
-    {
-        to = offsetBeforeEnd(note);
     }
     if (!(from < to))
     {

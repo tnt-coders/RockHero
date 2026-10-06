@@ -93,13 +93,15 @@ struct FretHandHold
 the derivation keeps covered and what pins it (\ref deriveFretHandEvents), and what an authored
 position must cover (\ref validateFretHandCoverage).
 
-Two sources. A RING: a note the fretting hand stops at a fret, not dead, holds from its last pitched
-stop — where its fret channel last arrived somewhere new — to the end of its pitched ring, where a
-slide-out's departure ends it. So a slide-then-hold holds its destination, an arrival into the next
-head holds nothing, and bends and vibrato, which state no fret, keep holding. A GRIP: every pressed
-stop of a span's posture holds across the whole span (\ref deriveChartShapes), from its front to its
-close, a member struck after the front included. An open string holds nothing, and neither does a
-natural harmonic's ring or node: its node is demanded at the onset only.
+Two sources. A RING: a note the fretting hand stops at a fret holds from its last pitched stop —
+where its fret channel last arrived somewhere new — to the end of its stored ring, the same end the
+span derivation reads. So a slide-then-hold holds its destination, an arrival into the next head
+holds nothing, a slide-out holds the stop it slides from until the ring ends (the finger stays
+pressed while it slides), and bends and vibrato, which state no fret, keep holding. A dead note
+holds like any other: its stored ring is the proof, and only its tail's display differs. A GRIP:
+every pressed stop of a span's posture holds across the whole span (\ref deriveChartShapes), from
+its front to its close, a member struck after the front included. An open string holds nothing,
+and neither does a natural harmonic's ring or node: its node is demanded at the onset only.
 
 \param connections The resolved connections (\ref chartConnections).
 \param shapes The spans and postures derived from the same connections (\ref deriveChartShapes).

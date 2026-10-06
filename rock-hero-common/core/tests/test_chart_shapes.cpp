@@ -5472,4 +5472,21 @@ TEST_CASE("A tap planted on a new stop does not keep the old stop sounding", "[c
     CHECK(grip->place == Fraction{1});
 }
 
+// A slide-out's finger stays pressed while it slides, so a chord sliding out from its strike keeps
+// its span and grip to the slide-out keyframe at the ring's end.
+TEST_CASE("A span's grip holds to a slide-out's keyframe", "[core][chart]")
+{
+    const auto sliding_out = [](const int string, const int fret) {
+        ChartNote note = noteAt(1, {}, string, fret, Fraction{1, 4});
+        setSlideOut(note, fret - 3);
+        return note;
+    };
+    const ChartShapes derived = deriveFrom({sliding_out(1, 5), sliding_out(2, 7)});
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{});
+    CHECK(derived.shapes[0].sustain == Fraction{1, 4});
+    CHECK(derivedStops(derived, 0)[0] == std::optional{frettedStop(5)});
+    CHECK(derivedStops(derived, 0)[1] == std::optional{frettedStop(7)});
+}
+
 } // namespace rock_hero::common::core
