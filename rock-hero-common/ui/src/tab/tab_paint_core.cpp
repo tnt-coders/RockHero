@@ -164,10 +164,12 @@ constexpr float g_floating_chip_padding{3.0f};
     return label;
 }
 
-// Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
-// blue channel reads too loud next to the blue, so the arpeggio tier sits darker.
-constexpr double g_shape_mark_brightness{1.5};
-constexpr double g_arpeggio_mark_brightness{1.3};
+// Each hand-shape base's scale for the span marks: the lightest shade of its hue on which the lane
+// chips' white text, composited over it, keeps a 4.5:1 contrast (WCAG AA): 4.54:1 on the chord
+// blue, 4.51:1 on the arpeggio purple. The purple base is the lighter of the two, so it scales
+// below one where the blue scales above it.
+constexpr double g_shape_mark_scale{1.16};
+constexpr double g_arpeggio_mark_scale{0.955};
 // The square-bracket pair marking an arpeggio posture note reads as "[ fret ]" and stays much
 // lighter than the note rings it wraps. Its SIZE lives on the lane geometry
 // (TabLaneGeometry::bracketGeometry) rather than here, because the layout manifest places the
@@ -2363,33 +2365,6 @@ void TabLaneFont::draw(
     g.drawText(text, box.translated(0.0f, ink_offset), juce::Justification::centred);
 }
 
-// Rationale lives on the declaration in tab_paint_core.h. Laid out as drawText lays out a single
-// centred line, then painted as a path so the stroke can sit under the fill.
-void TabLaneFont::drawOutlined(
-    juce::Graphics& g, const juce::String& text, const juce::Rectangle<float> box,
-    const juce::Colour fill, const juce::Colour outline) const
-{
-    const float ink_offset =
-        -m_reference_ink.getCentreY() - ((m_font.getAscent() - m_font.getDescent()) / 2.0f);
-    const juce::Rectangle<float> line = box.translated(0.0f, ink_offset);
-    juce::GlyphArrangement arrangement;
-    arrangement.addCurtailedLineOfText(m_font, text, 0.0f, 0.0f, line.getWidth(), false);
-    arrangement.justifyGlyphs(
-        0,
-        arrangement.getNumGlyphs(),
-        line.getX(),
-        line.getY(),
-        line.getWidth(),
-        line.getHeight(),
-        juce::Justification::centred);
-    juce::Path glyphs;
-    arrangement.createPath(glyphs);
-    g.setColour(outline);
-    g.strokePath(glyphs, juce::PathStrokeType{1.0f});
-    g.setColour(fill);
-    g.fillPath(glyphs);
-}
-
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
 // lane-window logic lives with the palette (string_color_palette.h).
 juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
@@ -2529,11 +2504,11 @@ juce::String tabNoteHeadText(const common::core::NoteViewState& note, const int 
         common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_head))};
 }
 
-// The Charter hand-shape bases brightened for the rails, which the span chip's fill shares.
+// Rationale lives on the declaration in tab_paint_core.h.
 juce::Colour tabShapeMarkColor(bool arpeggio)
 {
-    return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_brightness)
-                    : charterMultiply(g_hand_shape_color, g_shape_mark_brightness);
+    return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_scale)
+                    : charterMultiply(g_hand_shape_color, g_shape_mark_scale);
 }
 
 // Base color for a chart string, accounting for extra user lanes below the chart.
@@ -2773,9 +2748,9 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
 
     if (printed.isNotEmpty())
     {
-        // The lane chips' own text color, so every chip in the lane prints its label alike, edged
-        // in the chip ground because white alone is too faint against the light rail ink.
-        font.drawOutlined(g, printed, box, g_lane_chip_text, g_lane_chip_ground);
+        // The lane chips' own text color, so every chip in the lane prints its label alike.
+        g.setColour(g_lane_chip_text);
+        font.draw(g, printed, box);
     }
 }
 

@@ -490,7 +490,7 @@ constexpr float g_span_chip_headroom{30.0f};
 
 // The pixels of a span chip render nearer the white label text than the chord span's saturated
 // fill: a printed label's ink, classified by saturation to the nearer of the two colors rather
-// than matched exactly, since the fill and white are both near full brightness.
+// than matched exactly, since a glyph is antialiased into the fill.
 [[nodiscard]] int spanChipLabelInk(const juce::Image& image)
 {
     const float midpoint = tabShapeMarkColor(false).getSaturation() / 2.0f;
@@ -1061,19 +1061,18 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     // with the content pass unless it has chrome to interleave between the two layers.
     paintTabLaneFurniture(graphics, metrics, state);
 
-    // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
-    // blue (base x1.5) inside its range and not outside it, and does not tint the lane
-    // interior. The probe column sits at 4.5s, inside the span.
-    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff4982fa});
-    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff4982fa});
+    // The strummed A5 span rails the lane's top and bottom edges in the hand-shape blue (base
+    // x1.16) inside its range and not outside it, and does not tint the lane interior. The probe
+    // column sits at 4.5s, inside the span.
+    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff3864c1});
+    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff3864c1});
     CHECK(image.getPixelAt(90, 5).getARGB() == 0);
     CHECK(image.getPixelAt(150, 1).getARGB() == 0);
     CHECK(image.getPixelAt(150, 238).getARGB() == 0);
 
-    // The arpeggio span's rails are the purple at its own gentler brightness (base x1.3, tuned
-    // darker than the chord blue's x1.5).
-    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffac73ed});
-    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffac73ed});
+    // The arpeggio span's rails are the hand-shape purple at its own scale (base x0.955).
+    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff7f54ae});
+    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff7f54ae});
 
     // Span chips stand above the lane, on the host's ruler, so nothing but the rails and the FHP
     // marker touches the lane's top edge here.
@@ -1455,8 +1454,8 @@ TEST_CASE("Tab span chip drops its label under its ceiling", "[ui][tab-paint]")
     CHECK(sameSpanChipImage(named, lowered));
 }
 
-// A chip given no name prints "?", exactly as a chip named "?" would, its ink nearer the dark chip
-// ground than the fill.
+// A chip given no name prints "?", exactly as a chip named "?" would, its ink nearer the white
+// label text than the fill.
 TEST_CASE("Tab span chip prints a question mark for a span with no name", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1486,11 +1485,11 @@ TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-pai
     const TabLaneMetrics metrics = spanChipLaneMetrics();
     const juce::Colour ink = tabShapeMarkColor(false);
 
-    // With room, the named chip runs past a blank chip's right edge: probed on its bottom row for
-    // the chip's opaque body, since the label's outline may reach into the padding there.
+    // With room, the named chip runs past a blank chip's right edge: probed on its bottom row, in
+    // the padding no glyph reaches.
     const int blank_end = 20 + static_cast<int>(oneFigureFhpChip(metrics).getWidth());
     const juce::Image named = renderSpanChip(metrics, 1000.0f, false, juce::String{"Am7"});
-    CHECK(named.getPixelAt(blank_end + 2, 29).getAlpha() == 0xff);
+    CHECK(named.getPixelAt(blank_end + 2, 29) == ink);
 
     // The name prints at the lane's own size inside the chip's height: label ink inside the chip,
     // and nothing on the row above its top.
