@@ -1019,9 +1019,9 @@ TEST_CASE("EditorController deletes the selected fret-hand position", "[core][ma
     CHECK_FALSE(sole.selectedHandIndex().has_value());
 }
 
-// Delete selects the marker before the one it removed as a chip click selects it, seeking nothing
-// (user ruling 2026-10-03): on every marker row the cursor stays where the charter was working,
-// however far back that marker stands. Tab still steps from the selected chip, because the column
+// Delete selects the marker before the one it removed as a chip click selects it, seeking nothing:
+// on every marker row the cursor stays where the charter was working, however far back that marker
+// stands. Tab still steps from the selected chip, because the column
 // rule brings the cursor into it first. The tone row's case lives with the tone-region tests, whose
 // fixture carries the tones a region delete needs.
 TEST_CASE(

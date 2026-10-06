@@ -354,7 +354,7 @@ void clampStrikePops(
 //
 // Whether a cluster is boxed is the projection's answer (box_treatment), not a member count here.
 // Only the STRIKE's own box counts: a lone note opening an arpeggio pops its own fret, not the
-// sides of the mark standing over it, because the pop shows what was struck (sighted 2026-10-04).
+// sides of the mark standing over it, because the pop shows what was struck.
 //
 // A fretted pop skips fret 0, which is a natural harmonic's stop (its finger is on the node and
 // presses nothing) as much as a true open string's, so no node reaches the wires and the

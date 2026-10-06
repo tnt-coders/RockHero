@@ -183,8 +183,8 @@ The section above decides whether a comment exists; this one decides what it say
   `.cpp`.
 
 These rules are applied as code is touched: a change brings the comments in the code it edits up
-to this standard. `scripts/verify-project-conventions.py` carries a pending check that rejects a
-date inside a comment.
+to this standard. `scripts/verify-project-conventions.py`, which runs in pre-commit, rejects a date
+inside a comment.
 
 # Doxygen Block Format
 

@@ -1573,9 +1573,9 @@ TEST_CASE("EditorView wheel zoom centers an offscreen cursor", "[ui][editor-view
 }
 
 // Delete is kept in sight AFTER it lands, as undo is, and only when the core asks (focus_count). A
-// marker's Delete asks for nothing (user ruling 2026-10-03): the walk back along a row leaves the
-// previous chip pinned off screen, and the last delete of the walk used to centre on the song's
-// start. A Delete that asks — notes under the caret — still brings what it left into view.
+// marker's Delete asks for nothing, so the view stays put while the charter walks back along a row,
+// even past chips that stand off screen. A Delete that asks — notes under the caret — still brings
+// what it left into view.
 TEST_CASE("EditorView keeps a Delete in sight only when the core asks", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

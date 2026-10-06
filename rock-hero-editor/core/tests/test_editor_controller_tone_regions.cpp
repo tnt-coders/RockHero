@@ -635,8 +635,8 @@ TEST_CASE(
     CHECK(editor.regions().front().id == g_region_a);
 }
 
-// Delete on a selected region selects the previous region as a chip click would, seeking nothing
-// (user ruling 2026-10-03): the cursor stays inside the span the deleted region handed back.
+// Delete on a selected region selects the previous region as a chip click would, seeking nothing:
+// the cursor stays inside the span the deleted region handed back.
 TEST_CASE(
     "Deleting a selected tone region selects the previous one without moving the cursor",
     "[core][editor-controller]")

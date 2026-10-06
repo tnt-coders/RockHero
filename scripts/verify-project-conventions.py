@@ -9,13 +9,10 @@ Current checks:
 - No stray C0 control byte in a tracked text file.
 - Function-local constants do not wear the g_ prefix (.clang-tidy).
 - Comment lines fit the 100-column limit (documentation-conventions.md).
-
-Pending checks, parked until the tree is clean of them:
-
 - No date inside a comment (documentation-conventions.md, "Comments State the Current Truth").
 
-Pass --pending to run them, which is how to inventory what must be fixed before a check moves into
-CHECKS.
+PENDING_CHECKS is empty: nothing is written-but-parked today. Pass --pending to run whatever it
+holds, which is how to inventory what a sweep must fix before a check moves into CHECKS.
 
 Known gap, deliberate: the comment-column check covers comment LINES, not trailing comments on
 code lines (none violate today; the compound parse was not worth it until one does).
@@ -320,12 +317,6 @@ CHECKS = (
             'will not do it, and the limit covers indentation and comment markers.'
         ),
     ),
-)
-
-# A check belongs here only while the tree still carries pre-existing violations of it, so that
-# adding it to CHECKS would fail every commit until they are fixed; move it into CHECKS in the
-# same change that fixes the last of them.
-PENDING_CHECKS: tuple[Check, ...] = (
     Check(
         find=checkNoDateInComment,
         heading='Dates inside comments (see docs/design/documentation-conventions.md):',
@@ -335,6 +326,11 @@ PENDING_CHECKS: tuple[Check, ...] = (
         ),
     ),
 )
+
+# No check is parked today. A check belongs here only while the tree still carries pre-existing
+# violations of it, so that adding it to CHECKS would fail every commit until a sweep lands; move
+# it into CHECKS in the same change as that sweep.
+PENDING_CHECKS: tuple[Check, ...] = ()
 
 
 def main() -> int:

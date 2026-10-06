@@ -2696,9 +2696,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the span that results. An expectation copied off this rig's own output would
                 // check nothing, so the pin is a figure a reader signed and the row is left to
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
-                // Re-signed 2026-10-05 with the three span rows below (22386 / 1082 / 76 / 2769
-                // before): the drift stood before the hold derivation landed, which reads the spans
-                // and moves none, and a tap's let-ring seam moved none either.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
                 .expected = 22316.0,
@@ -2821,7 +2818,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // The pin reads the derived hand events, an event wherever the window changes, its
                 // width alone included. Every crossing keeps the span's grip (a grip is a hold), so
                 // what is left is a window widening or sliding over a grip it still covers.
-                // Re-signed 2026-10-05 when the grips became holds (394 / 435 before).
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
                 .expected = 258.0,
@@ -2838,8 +2834,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open string is unfretted.
                 //
                 // The pin reads the derived hand events, an event wherever the window changes, its
-                // width alone included. Re-signed 2026-10-05 when the grips became holds (16034
-                // and 2155 before). The lone-open class is no hand moved for nothing: a window
+                // width alone included. The lone-open class is no hand moved for nothing: a window
                 // takes over at the first onset after the previous figure, so a figure's leading
                 // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
@@ -2863,7 +2858,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // cover. Every held ring is a hold the derivation keeps covered (\ref
                 // fretHandHolds), so what remains is what heldFretAt reads and no hold states: 9
                 // natural-harmonic chimes, which hold nothing, and 6 slide notes read mid-slide.
-                // Re-signed 2026-10-05 when the grips became holds (118 / 157 before).
                 .label = "windows arriving over a pinned finger",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
                 .expected = 15.0,
