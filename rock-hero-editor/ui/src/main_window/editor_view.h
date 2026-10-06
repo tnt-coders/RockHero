@@ -412,8 +412,9 @@ private:
     // startup hierarchy hook run.
     void presentTopLevelWindowsFromState();
 
-    // True once the main window has shown, so a new top-level window opens in front of it.
-    [[nodiscard]] bool canOwnTopLevelWindows() const;
+    // True once the main window has shown and no busy operation holds the message thread, so a
+    // new top-level window opens in front of the editor and can answer its input.
+    [[nodiscard]] bool canPresentTopLevelWindows() const;
 
     // Defers settings-window destruction until the current close callback stack unwinds.
     void scheduleAudioDeviceSettingsWindowReset();

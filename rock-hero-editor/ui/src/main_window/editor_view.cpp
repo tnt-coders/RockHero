@@ -1142,7 +1142,7 @@ void EditorView::parentHierarchyChanged()
 }
 
 // setState() and parentHierarchyChanged() both call this: a window asked for before the main
-// window showed is opened once the editor is on screen to own it.
+// window showed, or while a busy operation ran, is opened once the editor can present it.
 void EditorView::presentTopLevelWindowsFromState()
 {
     presentAudioDeviceLostPromptIfNeeded(m_state.audio_device_lost_prompt);
@@ -1151,11 +1151,14 @@ void EditorView::presentTopLevelWindowsFromState()
 }
 
 // A top-level window opened before the main window shows sits behind it. A minimised main window
-// still owns one, which is why this is not isShowing().
-bool EditorView::canOwnTopLevelWindows() const
+// still owns one, which is why this is not isShowing(). A window opened during a busy operation
+// would stand over the overlay unable to answer: plugin construction holds the message thread, so
+// its input lands only between plugins. A window already open stays open.
+bool EditorView::canPresentTopLevelWindows() const
 {
     const juce::Component* const top = getTopLevelComponent();
-    return isVisible() && top->isVisible() && top->getPeer() != nullptr;
+    return isVisible() && top->isVisible() && top->getPeer() != nullptr &&
+           !m_state.busy.has_value();
 }
 
 // Shows or hides the undo-history inspector, bringing it to the front when revealed.
@@ -3252,7 +3255,7 @@ void EditorView::presentAudioDeviceLostPromptIfNeeded(
         return;
     }
 
-    if (m_last_presented_audio_device_lost_prompt == prompt || !canOwnTopLevelWindows())
+    if (m_last_presented_audio_device_lost_prompt == prompt || !canPresentTopLevelWindows())
     {
         return;
     }
@@ -3334,7 +3337,7 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
         return;
     }
 
-    if (!prompt.has_value() || !canOwnTopLevelWindows())
+    if (!prompt.has_value() || !canPresentTopLevelWindows())
     {
         return;
     }
@@ -3459,7 +3462,7 @@ void EditorView::refreshTimeDisplay()
 // state current once it is gone.
 void EditorView::presentAudioDeviceSettingsIfNeeded(bool open)
 {
-    if (!open || m_audio_device_settings_window != nullptr || !canOwnTopLevelWindows())
+    if (!open || m_audio_device_settings_window != nullptr || !canPresentTopLevelWindows())
     {
         return;
     }

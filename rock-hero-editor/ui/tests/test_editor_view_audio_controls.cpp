@@ -350,6 +350,35 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
             .isVisible());
 }
 
+// A window asked for during a busy operation waits for it to clear, since plugin construction
+// holds the message thread and a window over the overlay could not answer its input.
+TEST_CASE("Audio settings window waits for a busy operation to clear", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    view.setBounds(0, 0, 1280, 800);
+    showOnScreen(view);
+
+    core::EditorViewState state;
+    state.audio_device_settings_open = true;
+    state.busy = core::BusyViewState{
+        .operation = core::BusyOperation::LoadingLiveRig,
+        .message = "Loading live rig...",
+    };
+    view.setState(state);
+    CHECK_THROWS(
+        findRequiredTopLevelComponent<juce::DocumentWindow>("audio_device_settings_window"));
+
+    state.busy.reset();
+    view.setState(state);
+    CHECK(
+        findRequiredTopLevelComponent<juce::DocumentWindow>("audio_device_settings_window")
+            .isVisible());
+}
+
 // The pickup chooser lists the five kinds, opens on humbuckers and offers the chosen kind's
 // description on hover; "Measure" then measures the chosen pickups.
 TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-view]")
