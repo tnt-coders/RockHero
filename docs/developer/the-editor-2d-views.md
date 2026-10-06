@@ -633,24 +633,28 @@ scanning the whole chart. It draws each hand-shape span's rails and, for an arpe
 Where one span's rails meet the next span's start they stop one screen pixel short, so two spans
 that meet read as two; that parting is paint-time only, and the drawn extent stays rule 12a's.
 
-Each span also wears a **label chip** at its start: a rectangle with rounded top corners, filled in
-the rails' ink, its left edge on the span's start and its square base on the rail
-(`common::ui::drawTabSpanChip`). It is sized as a fret-hand chip in the lane's own font: blank, it is
-exactly a one-figure fret-hand chip, and a name widens it the way a fret-hand chip's text does. The
-lane has no room above its fret-hand chips, so the chip stands on the RULER's bottom edge, directly
-on the lane's top rail: `EditorView` pushes every span's start and drawn end (re-timed to the
-content map, as the sections are) through `TrackViewport::setSpans`, which adds the lane's font
-(`TabView::labelFont`), and `TimelineRuler` places and paints the chips over its tick band. Where a
-fret-hand chip's height would reach the measure numbers' ink, the ruler's ceiling lowers the chip
-to keep a clear row between the two, while a blank chip keeps the fret-hand chip's full width so
-the two chips stacked at a span's start share their right edge. The chip is blank because a span carries no name;
-the drawer takes an optional name and prints it in the dark chip ground where the room holds the
-whole named chip, and drops it whole otherwise.
+Each span also wears a **label chip** at its start: a trapezoid filled in the rails' ink, its
+bottom-left corner on the span's start, its square base on the rail, each side leaning in by a
+quarter of its height (`common::ui::tabSpanChipLean`), and its top corners rounded
+(`common::ui::drawTabSpanChip`). Its flat top is sized as a fret-hand chip in the lane's own font:
+blank, it is a one-figure fret-hand chip's width, and a name widens it the way a fret-hand chip's
+text does. The lane has no room above its fret-hand chips, so the chip stands on the RULER's bottom
+edge, directly on the lane's top rail: `EditorView` pushes every span's start and drawn end
+(re-timed to the content map, as the sections are) through `TrackViewport::setSpans`, which adds
+the lane's font (`TabView::labelFont`), and `TimelineRuler` places and paints the chips over its
+tick band. Where a fret-hand chip's height would reach the measure numbers' ink, the ruler's
+ceiling lowers the chip to keep a clear row between the two, while a blank top keeps the fret-hand
+chip's full width. The chip is blank because a span carries no name; the drawer takes an optional
+name and prints it in the dark chip ground where the room holds the whole named chip, and drops it
+whole otherwise.
 
 A chip never reaches past where its span's rails stop (`common::ui::tabSpanStopX`, the one statement
-of the rails' parting). Once a span's start scrolls off the left, its chip holds at the ruler's left
-edge by the same `stickyLabelLeft` rule the tone-region names follow: it narrows as the span's end
-comes in and leaves with it.
+of the rails' parting); squeezed by that stop, it gives up its leans before its top edge, so it
+narrows into an upright block rather than a point. Once a span's start scrolls far enough left that
+the chip's top-left corner meets the ruler's left edge, the chip holds there by the same
+`stickyLabelLeft` rule the tone-region names follow, with the window edge passed a lean to the left
+so the held chip's left lean lies off-screen and its visible left side reads as a vertical cut
+topped by the rounded corner. It narrows as the span's end comes in and leaves with it.
 
 String colors come from the **shared palette** in
 `rock-hero-common/ui/.../string_colors/string_color_palette.h` — a JUCE-free authority (colors are

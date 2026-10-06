@@ -40,7 +40,7 @@ const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 // a dotted leader line down to the ruler body so its exact position stays readable. The ruler
 // body below them holds the measure-number row above the tick band; measure ticks run the
 // body's full height so the numbers stay attached to their downbeats. The tab lane's span chips
-// stand on the ruler's bottom edge over the tick band, the size of the lane's fret-hand chips but
+// stand on the ruler's bottom edge over the tick band, as tall as the lane's fret-hand chips but
 // never taller than the room below the measure numbers' ink (spanChipMaxHeight). The heights fold
 // into g_timeline_ruler_height; change them together.
 constexpr int g_section_row_y{2};
@@ -902,8 +902,9 @@ std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) co
 }
 
 // Each chip rides its span by the pinned-label rule every scrolling label obeys: at the span's
-// start, or at the ruler's left edge (local x 0) while the start has scrolled past it, never past
-// where the span's rails stop. Starts ascend, so the walk stops at the first start past the edge.
+// start, or held with its top-left corner on the ruler's left edge once it scrolls that far,
+// never past where the span's rails stop. Starts ascend, so the walk stops at the first start
+// past the edge.
 void TimelineRuler::refreshSpanChips()
 {
     m_span_chips.clear();
@@ -914,6 +915,10 @@ void TimelineRuler::refreshSpanChips()
 
     const auto width = static_cast<float>(getWidth());
     const float max_height = spanChipMaxHeight();
+    // The edge a chip's BASE holds at: a lean left of local x 0, so a held chip's top-left corner
+    // stays on the ruler's edge with its left lean scrolled past it, and a chip reaches that hold
+    // by scrolling there rather than jumping.
+    const float held_base_left = -common::ui::tabSpanChipLean(*m_span_chip_font, max_height);
     for (std::size_t index = 0; index < m_spans.size(); ++index)
     {
         const RulerSpan& span = m_spans[index];
@@ -934,7 +939,7 @@ void TimelineRuler::refreshSpanChips()
             index + 1 < m_spans.size() ? unboundedLocalXForSeconds(m_spans[index + 1].start_seconds)
                                        : std::nullopt;
         const float stop_x = common::ui::tabSpanStopX(*end_x, next_start_x);
-        const std::optional<float> left = stickyLabelLeft(*start_x, stop_x, 0.0f);
+        const std::optional<float> left = stickyLabelLeft(*start_x, stop_x, held_base_left);
         if (!left.has_value())
         {
             continue;

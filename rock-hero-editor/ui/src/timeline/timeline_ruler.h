@@ -357,9 +357,10 @@ public:
     \brief Stores the tab lane's spans, each drawn as a blank label chip standing on the ruler's
     bottom edge, directly above the lane's top rail (\ref common::ui::drawTabSpanChip).
 
-    A chip stands at its span's start; once that start has scrolled off the left, it holds at the
-    ruler's left edge while its span still shows, narrowing as the span's end comes in and leaving
-    with it (\ref stickyLabelLeft). The chip is the size of the lane's fret-hand chips, scaled down
+    A chip stands at its span's start; once it has scrolled far enough left that its top-left
+    corner meets the ruler's left edge, it holds there while its span still shows, its left lean
+    past the edge, narrowing as the span's end comes in and leaving with it (\ref stickyLabelLeft).
+    The chip's top edge is the width of the lane's fret-hand chips and the chip is as tall, lowered
     whole where that would reach the measure numbers' ink, so it always keeps a clear row below
     them. An unchanged list and font return early because every controller state push repeats
     them.
