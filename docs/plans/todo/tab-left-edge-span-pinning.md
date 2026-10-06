@@ -12,7 +12,9 @@ therefore pins in the ruler (which already owns pinned-row machinery), not in `T
 While a chord/arpeggio span, a sustained note, or an arpeggio posture crosses the **visible left
 edge**, keep its identity readable at that edge instead of letting it scroll away:
 
-1. **Chord/arpeggio name chips** — the active span's name chip holds at the left edge and slides
+1. **DONE 2026-10-06 (`0926795b`):** the span label chip holds at the ruler's left edge through
+   `stickyLabelLeft`, narrowing as the span's end comes in. Original item: **Chord/arpeggio name
+   chips** — the active span's name chip holds at the left edge and slides
    off only as the span itself ends (exactly the tone-region label rule in
    `ToneTrackView::paint`, rock-hero-editor/ui/src/tone/tone_track_view.cpp).
 2. **Sustained notes** — a note whose head is off-screen left but whose tail still crosses the
