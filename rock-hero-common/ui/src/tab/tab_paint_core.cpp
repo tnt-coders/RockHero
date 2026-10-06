@@ -82,11 +82,10 @@ constexpr float g_shape_rail_height{3.0f};
 // The pixel a span's marks stop short of the next span's start (tabSpanStopX).
 constexpr float g_span_parting{1.0f};
 
-// The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — and the
-// opaque white every lane chip prints its label in, the span chip's included. Every chip in the
-// lane, boxed or floating, shares the corner rounding (g_lane_chip_corner_radius, in the header).
+// The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip. Every chip
+// in the lane, boxed or floating, shares the corner rounding (g_lane_chip_corner_radius, in the
+// header).
 const juce::Colour g_lane_chip_ground{0xff2a2f36};
-const juce::Colour g_lane_chip_text{juce::Colours::white};
 
 // A bend amount's vulgar-fraction glyph against the chip text. The glyph's own digits are about
 // 0.63 of a figure's height and 0.74 of its stroke; at 1.30 they reach 0.81 of the height and 0.97
@@ -94,18 +93,10 @@ const juce::Colour g_lane_chip_text{juce::Colours::white};
 // glyph's whole ink box, about a figure's height, still clears the chip's border.
 constexpr float g_bend_fraction_scale{1.30f};
 
-// A lane chip's height: one line of its text with a pixel above and below, the same for the boxed
-// chips seated at the lane's top edge and the floating ones riding the tails. Every chip prints in
-// the lane's fret font, so chips scale with the lane exactly as the digits on the heads do.
-[[nodiscard]] float laneChipHeight(const TabLaneFont& font)
-{
-    return font.height() + 2.0f;
-}
-
 // The room a boxed lane chip leaves either side of its text.
 constexpr float g_boxed_chip_padding{3.0f};
 
-// A boxed lane chip's width: its text in the lane's font, padded either side. The one width rule
+// A boxed lane chip's width: its text in the chip font, padded either side. The one width rule
 // for the chips that box a label — the fret-hand chip, the capo chip and the span chip — so a span
 // chip sized as a fret-hand chip stays that size.
 [[nodiscard]] float boxedChipWidth(const TabLaneFont& font, const juce::String& text)
@@ -113,22 +104,15 @@ constexpr float g_boxed_chip_padding{3.0f};
     return static_cast<float>(font.width(text)) + (2.0f * g_boxed_chip_padding);
 }
 
-// A span chip's own height: the fret font's ink in whole pixels with a pixel above and below, so a
-// name printed in that font fits it as drawn.
-[[nodiscard]] float spanChipOwnHeight(const TabLaneFont& font)
-{
-    return std::ceil(font.inkHeight()) + 2.0f;
-}
-
-// A span chip's height: its own, lowered to the host's ceiling where that is lower.
+// A span chip's height: every chip's, lowered to the host's ceiling where that is lower.
 [[nodiscard]] float spanChipHeight(const TabLaneFont& font, const float max_height)
 {
-    return std::min(spanChipOwnHeight(font), max_height);
+    return std::min(chipHeight(font), max_height);
 }
 
-// The lane's one face, bold, at a text height: the fret digits, the fractions and every chip print
-// in it.
-[[nodiscard]] TabLaneFont laneFont(const float text_height)
+// One face, bold, at a text height: the lane's fret digits and fractions print in it at the lane's
+// size, and every chip at the chip label size.
+[[nodiscard]] TabLaneFont boldFont(const float text_height)
 {
     return TabLaneFont{juce::Font{juce::FontOptions{text_height}.withStyle("Bold")}};
 }
@@ -137,9 +121,9 @@ constexpr float g_boxed_chip_padding{3.0f};
 constexpr float g_floating_chip_padding{3.0f};
 
 // THE ONE measure of a floating chip's plate: its text in the fret font and any fraction in the
-// fraction font, padded either side, centred on the chip's layout box. The painter fills it, and a
-// host's repaint of a selected chip fills it again and rings it (paintTabBendChip,
-// paintTabSlideChip).
+// fraction font, padded either side, one line of the fret font tall with a pixel above and below,
+// centred on the chip's layout box. The painter fills it, and a host's repaint of a selected chip
+// fills it again and rings it (paintTabBendChip, paintTabSlideChip).
 [[nodiscard]] juce::Rectangle<float> floatingChipPlate(
     const TabLaneMetrics& metrics, const TabLayoutRect& box, const juce::String& text,
     const juce::String& fraction)
@@ -152,7 +136,7 @@ constexpr float g_floating_chip_padding{3.0f};
         box.x + box.width / 2.0f - width / 2.0f,
         box.y + box.height / 2.0f - metrics.fret_font.height() / 2.0f - 1.0f,
         width,
-        laneChipHeight(metrics.fret_font)
+        metrics.fret_font.height() + 2.0f
     };
 }
 
@@ -2142,13 +2126,13 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     const juce::Rectangle<float> box{
         static_cast<float>(metrics.bounds.getX()) + 2.0f,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
-        boxedChipWidth(metrics.fret_font, text),
-        laneChipHeight(metrics.fret_font)
+        boxedChipWidth(metrics.chip_font, text),
+        chipHeight(metrics.chip_font)
     };
     g.setColour(g_lane_chip_ground);
     g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
-    g.setColour(g_lane_chip_text);
-    metrics.fret_font.draw(g, text, box);
+    g.setColour(g_chip_label_color);
+    metrics.chip_font.draw(g, text, box);
 }
 
 // The visible time span one paint call can show: the clip, held to the lane's own bounds and
@@ -2317,7 +2301,7 @@ constexpr float g_legend_scrim_opacity = 0.5f;
 TabLaneFont::TabLaneFont() = default;
 
 // Rationale lives on the declaration in tab_paint_core.h. The measurement happens HERE, once per
-// metrics build, because a glyph outline is real work and the per-frame path draws hundreds of
+// font built, because a glyph outline is real work and the per-frame path draws hundreds of
 // numbers: what the drawing path needs is one rectangle, and this is where it is found. The ink
 // initializes from `m_font` rather than from the parameter because the parameter has already been
 // moved from by then; the two members are declared in that order for exactly this reason.
@@ -2356,12 +2340,41 @@ int TabLaneFont::width(const juce::String& text) const
 // computed baseline so every caller's own horizontal justification and ellipsis behaviour is
 // exactly JUCE's, untouched.
 void TabLaneFont::draw(
-    juce::Graphics& g, const juce::String& text, const juce::Rectangle<float> box) const
+    juce::Graphics& g, const juce::String& text, const juce::Rectangle<float> box,
+    const juce::Justification horizontal) const
 {
     const float ink_offset =
         -m_reference_ink.getCentreY() - ((m_font.getAscent() - m_font.getDescent()) / 2.0f);
     g.setFont(m_font);
-    g.drawText(text, box.translated(0.0f, ink_offset), juce::Justification::centred);
+    g.drawText(
+        text,
+        box.translated(0.0f, ink_offset),
+        juce::Justification{
+            horizontal.getOnlyHorizontalFlags() | juce::Justification::verticallyCentred
+        });
+}
+
+namespace
+{
+
+// The chip label size: a shade under the editor lane's fret digits (fretTextHeight at the
+// note-height cap), so a chip never reads as a note.
+constexpr float g_chip_label_text_height{12.0f};
+
+} // namespace
+
+// Rationale lives on the declaration in tab_paint_core.h.
+TabLaneFont chipLabelFont()
+{
+    return boldFont(g_chip_label_text_height);
+}
+
+// Rationale lives on the declaration in tab_paint_core.h. The renderer rounds a line's baseline to
+// a whole row (see TabLaneFont), so ink of a fractional height can land across one row more than
+// it rounds up to; the extra row is what keeps both padding rows clear wherever it lands.
+float chipHeight(const TabLaneFont& label_font)
+{
+    return std::ceil(label_font.inkHeight()) + 1.0f + 2.0f;
 }
 
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
@@ -2542,8 +2555,9 @@ TabLaneMetrics makeTabLaneMetrics(
     // The text height comes off the geometry, which is also what the framework-free satellite slot
     // is sized from — so the column a digit is drawn in and the column a click lands in derive from
     // one number rather than two that happen to agree.
-    metrics.fret_font = laneFont(metrics.fretTextHeight());
-    metrics.fraction_font = laneFont(metrics.fretTextHeight() * g_bend_fraction_scale);
+    metrics.fret_font = boldFont(metrics.fretTextHeight());
+    metrics.fraction_font = boldFont(metrics.fretTextHeight() * g_bend_fraction_scale);
+    metrics.chip_font = chipLabelFont();
     return metrics;
 }
 
@@ -2624,8 +2638,8 @@ juce::Rectangle<float> tabFhpChipBounds(
     return juce::Rectangle<float>{
         left_x,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
-        boxedChipWidth(metrics.fret_font, tabFhpChipText(fhp)),
-        laneChipHeight(metrics.fret_font)
+        boxedChipWidth(metrics.chip_font, tabFhpChipText(fhp)),
+        chipHeight(metrics.chip_font)
     };
 }
 
@@ -2684,8 +2698,8 @@ void drawTabFhpChip(
     }
     g.setColour(g_lane_chip_ground);
     g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
-    g.setColour(g_lane_chip_text);
-    metrics.fret_font.draw(g, tabFhpChipText(fhp), box);
+    g.setColour(g_chip_label_color);
+    metrics.chip_font.draw(g, tabFhpChipText(fhp), box);
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
@@ -2712,7 +2726,7 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
     const juce::String label = chip.name.value_or(g_unnamed_span_text);
     float natural_width = boxedChipWidth(font, g_reference_figure);
     juce::String printed;
-    if (chip.max_height >= spanChipOwnHeight(font))
+    if (chip.max_height >= chipHeight(font))
     {
         const float labelled_width = std::max(natural_width, boxedChipWidth(font, label));
         if (labelled_width <= room)
@@ -2747,7 +2761,7 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
 
     if (printed.isNotEmpty())
     {
-        g.setColour(g_lane_chip_text);
+        g.setColour(g_chip_label_color);
         font.draw(g, printed, box);
     }
 }

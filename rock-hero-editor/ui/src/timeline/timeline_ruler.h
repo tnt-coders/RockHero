@@ -360,17 +360,15 @@ public:
 
     A chip stands at its span's start; once its left edge reaches the ruler's left edge, it holds
     there while its span still shows, narrowing as the span's end comes in and leaving with it
-    (\ref stickyLabelLeft). The chip is the width of the lane's one-figure fret-hand chip and as
-    tall as the lane's fret ink with a pixel of padding, lowered whole where that would reach the
-    measure numbers' ink, so it always keeps a clear row below them. An unchanged list and font
-    return early because every controller state push repeats them.
+    (\ref stickyLabelLeft). The chip is the width of the lane's one-figure fret-hand chip and every
+    chip's height (\ref common::ui::chipHeight), lowered whole where that would reach the measure
+    numbers' ink, so it always keeps a clear row below them. An unchanged list returns early
+    because every controller state push repeats it.
 
-    \param spans Every span in ascending start order, re-timed to the content's map; empty clears
-    the chips.
-    \param font The lane's fret font (\ref common::ui::TabLaneMetrics::fret_font), or empty while
-    the lane prints no text, which draws no chips, as the lane then draws no fret-hand chips.
+    \param spans The spans to chip in ascending start order, re-timed to the content's map; empty
+    clears the chips.
     */
-    void setSpans(std::vector<RulerSpan> spans, std::optional<common::ui::TabLaneFont> font);
+    void setSpans(std::vector<RulerSpan> spans);
 
     /*!
     \brief Stores which tempo and time-signature chips are selected.
@@ -579,11 +577,10 @@ private:
     // marker's chip is placed before any other, so density suppresses its neighbours instead of
     // it, and as the pin it never yields; a selection the keyboard walked onto is always drawn.
     // Text is formatted and measured only for a chip that could still be placed, since dense maps
-    // offer far more candidates than survive. extra_width is room ahead of the text (the tempo
-    // glyph).
+    // offer far more candidates than survive.
     template <typename SecondsAt, typename TextAt>
     [[nodiscard]] ChipRow placeChipRow(
-        std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at, int extra_width,
+        std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at,
         std::optional<double> pinned_left_seconds, std::optional<std::size_t> selected) const;
 
     // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
@@ -601,26 +598,28 @@ private:
     void drawMeasureLabels(juce::Graphics& g);
 
     // Draws one chip's rounded fill, outlined when it stands for the selected marker, and leaves
-    // the text color set; returns the chip's bounds for the text the row draws into it.
-    static juce::Rectangle<float> drawChipFrame(
-        juce::Graphics& g, const RulerChip& chip, int row_y, juce::Colour fill);
+    // the label color set; returns the chip's bounds for the label drawn into it.
+    [[nodiscard]] juce::Rectangle<float> drawChipFrame(
+        juce::Graphics& g, const RulerChip& chip, int row_y, juce::Colour fill) const;
 
-    // Draws one cached chip row with its text centered. The chips must have been measured with the
-    // chip font.
-    static void drawChipRow(
-        juce::Graphics& g, const std::vector<RulerChip>& chips, juce::Colour fill, int row_y);
+    // Draws one cached chip row with its labels centered.
+    void drawChipRow(
+        juce::Graphics& g, const std::vector<RulerChip>& chips, juce::Colour fill, int row_y) const;
 
-    // Draws the tempo chip row: each chip's glyph and digits in their own fonts, and the refusal
-    // glow around the refused anchor's chip while its flash runs.
+    // Draws the tempo chip row, and the refusal glow around the refused anchor's chip while its
+    // flash runs.
     void drawTempoChips(juce::Graphics& g);
 
     // Retires the tempo refusal flash and the renumber flash once their pulses have run, and
     // repaints what each lights while it runs.
     void stepFlashes();
 
+    // Whether a point lies in a chip row's band, where its chips are drawn.
+    [[nodiscard]] bool chipRowContains(int row_y, juce::Point<int> point) const noexcept;
+
     // Resolves a point to the chip under it in one row, or null when the point misses them all.
-    [[nodiscard]] static const RulerChip* chipAt(
-        const std::vector<RulerChip>& chips, int row_y, juce::Point<int> point);
+    [[nodiscard]] const RulerChip* chipAt(
+        const std::vector<RulerChip>& chips, int row_y, juce::Point<int> point) const;
 
     // One row of a ruler marker menu: its text and the verb choosing it runs.
     struct MarkerMenuRow
@@ -734,10 +733,13 @@ private:
     // positions resolve via localXForSeconds when the chip row rebuilds.
     std::vector<RulerSectionLabel> m_section_source{};
 
-    // The tab lane's spans and fret font, pushed by the owning view whenever the displayed chart
-    // changes.
+    // The face every chip on the ruler prints its label in, the span chips' included, and the
+    // height every chip row's chips stand, both from the one chip authority and measured once.
+    const common::ui::TabLaneFont m_chip_font{common::ui::chipLabelFont()};
+    const int m_chip_height{static_cast<int>(common::ui::chipHeight(m_chip_font))};
+
+    // The tab lane's spans, pushed by the owning view whenever the displayed chart changes.
     std::vector<RulerSpan> m_spans{};
-    std::optional<common::ui::TabLaneFont> m_span_chip_font{};
 
     // The span chips the ruler shows, placed when the geometry rebuilds.
     std::vector<common::ui::TabSpanChip> m_span_chips{};
@@ -752,10 +754,6 @@ private:
     ChipRow m_section_row{};
     ChipRow m_tempo_row{};
     ChipRow m_signature_row{};
-
-    // Width the quarter-note glyph takes ahead of every tempo chip's digits, measured with the
-    // tempo rows so paint() never measures it.
-    int m_tempo_glyph_width{0};
 
     // The tempo refusal flash while it runs: every refused anchor it has joined, named by position
     // because a chip row rebuild reassigns chips, and its pulse.

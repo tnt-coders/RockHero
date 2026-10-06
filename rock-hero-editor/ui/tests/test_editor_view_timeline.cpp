@@ -151,7 +151,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     };
 }
 
-// A tab lane at the editor's density, whose fret font the ruler's span chips print in.
+// A tab lane at the editor's density, whose one-figure fret-hand chip a blank span chip matches.
 [[nodiscard]] common::ui::TabLaneMetrics spanChipLaneMetrics()
 {
     return common::ui::makeTabLaneMetrics(
@@ -171,6 +171,12 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         common::ui::tabFhpChipBounds(
             lane, common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 4}, 0.0f)
             .getWidth());
+}
+
+// Every chip's height, which a span chip stands under any ceiling at least this tall.
+[[nodiscard]] int chipHeight()
+{
+    return static_cast<int>(common::ui::chipHeight(common::ui::chipLabelFont()));
 }
 
 // A chart carrying one bare note head on the lowest string at a time: at the very first beat, the
@@ -441,8 +447,7 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
         std::vector<RulerSpan>{
             RulerSpan{.start_seconds = 1.0, .end_seconds = 2.0, .arpeggio = false},
             RulerSpan{.start_seconds = 2.0, .end_seconds = 3.0, .arpeggio = true},
-        },
-        lane.fret_font);
+        });
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
@@ -458,7 +463,7 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     // The chord chip's centre is not its fill alone: the "?" prints there. Read coarsely, since
     // the label is a glyph.
     const int width = spanChipBlankWidth(lane);
-    const auto height = static_cast<int>(std::ceil(lane.fret_font.inkHeight())) + 2;
+    const int height = chipHeight();
     const juce::Rectangle<int> centre{
         100 + 3, g_timeline_ruler_height - height + 1, width - 6, height - 2
     };
@@ -476,8 +481,8 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     CHECK(label_pixels > 0);
 }
 
-// A chip under a measure number stands its own height, the fret font's ink with a pixel above and
-// below, which leaves clear rows between its top and the number's ink.
+// A chip under a measure number stands every chip's height, which leaves clear rows between its top
+// and the number's ink.
 TEST_CASE(
     "TimelineRuler keeps span chips a row clear of the measure numbers", "[ui][timeline-ruler]")
 {
@@ -503,7 +508,7 @@ TEST_CASE(
                 0,
                 ruler.getWidth()));
         ruler.setProjectLoaded(true);
-        ruler.setSpans(spans, lane.fret_font);
+        ruler.setSpans(spans);
         return ruler.createComponentSnapshot(ruler.getLocalBounds());
     };
     const juce::Image bare = render({});
@@ -537,8 +542,7 @@ TEST_CASE(
     }
     REQUIRE(ink_bottom >= 0);
     REQUIRE(chip_top < g_timeline_ruler_height);
-    const auto own_height = static_cast<int>(std::ceil(lane.fret_font.inkHeight())) + 2;
-    CHECK(chip_top == g_timeline_ruler_height - own_height);
+    CHECK(chip_top == g_timeline_ruler_height - chipHeight());
     CHECK(chip_top >= ink_bottom + 2);
 }
 
@@ -559,7 +563,7 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
 
     // Eight seconds across 801px maps seconds * 100; scrolled 150px in, the ruler's left edge is
     // 1.5 s. Each case is one chord span starting at `start` and ending at `end`.
-    const auto render = [&lane](const double start, const double end) {
+    const auto render = [](const double start, const double end) {
         TimelineRuler ruler;
         ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
         ruler.setTimelineView(
@@ -574,8 +578,7 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
         ruler.setSpans(
             std::vector<RulerSpan>{
                 RulerSpan{.start_seconds = start, .end_seconds = end, .arpeggio = false},
-            },
-            lane.fret_font);
+            });
         return ruler.createComponentSnapshot(ruler.getLocalBounds());
     };
 
@@ -589,7 +592,7 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
     // Started at 1 s, ending at 3 s: held at the left edge, the same chip pixel for pixel, label
     // and all, as the one standing at its own start, and nothing past it.
     const juce::Image held = render(1.0, 3.0);
-    const auto chip_height = static_cast<int>(std::ceil(lane.fret_font.inkHeight())) + 2;
+    const int chip_height = chipHeight();
     int differing_pixels = 0;
     for (int y = g_timeline_ruler_height - chip_height; y < g_timeline_ruler_height; ++y)
     {

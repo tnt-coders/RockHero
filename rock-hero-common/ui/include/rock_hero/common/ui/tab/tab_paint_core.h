@@ -174,17 +174,22 @@ public:
     [[nodiscard]] int width(const juce::String& text) const;
 
     /*!
-    \brief Draws one line of text centred in `box`, by its INK rather than by its line box.
+    \brief Draws one line of text vertically centred in `box` by its INK rather than by its line
+    box, placed horizontally as `horizontal` says.
 
     The box is the one the caller would centre the text in geometrically; whatever that box is
     centred on — a string line, a plate, a chip — is what the glyphs' ink ends up centred on.
-    Drawing is in the graphics context's current color.
+    Text too wide for the box is shortened with an ellipsis. Drawing is in the graphics context's
+    current color.
 
     \param g Graphics context to draw into.
     \param text Text to draw; an empty string draws nothing.
     \param box Box the text is centred in, in the context's coordinate space.
+    \param horizontal Horizontal placement in the box; any vertical flags in it are ignored.
     */
-    void draw(juce::Graphics& g, const juce::String& text, juce::Rectangle<float> box) const;
+    void draw(
+        juce::Graphics& g, const juce::String& text, juce::Rectangle<float> box,
+        juce::Justification horizontal = juce::Justification::horizontallyCentred) const;
 
     /*!
     \brief Compares two lane fonts by the face they draw with, which the measured ink derives from.
@@ -207,6 +212,32 @@ private:
 };
 
 /*!
+\brief Returns the face every chip prints its label in, on the tab lane and off it:
+12 px bold, a shade under the lane's fret digits at their full size, so a chip reads as a label
+beside the notes rather than as one of them.
+
+The bend and slide labels riding the tails are not chips in this sense: they label notes, so they
+print in the lane's fret font (\ref TabLaneMetrics::fret_font). Each call measures the face's ink,
+so a host builds it beside its other fonts, never once per label drawn.
+
+\return The chip label font.
+*/
+[[nodiscard]] TabLaneFont chipLabelFont();
+
+/*!
+\brief Returns the height every chip stands, from its label's ink: the ink's whole pixels, one more
+because the renderer snaps a line to a whole row and can spread the ink across it, and a clear row
+above and below.
+
+\param label_font The chip label font (\ref chipLabelFont).
+\return Chip height in whole pixels.
+*/
+[[nodiscard]] float chipHeight(const TabLaneFont& label_font);
+
+/*! \brief The opaque white every chip prints its label in. */
+inline const juce::Colour g_chip_label_color{0xffffffff};
+
+/*!
 \brief Lane geometry plus the JUCE-only facts one paint call needs.
 
 Extends the framework-free TabLaneGeometry (which layout-manifest consumers share) with the
@@ -220,10 +251,13 @@ struct TabLaneMetrics : TabLaneGeometry
     // The placeholder fonts are replaced by makeTabLaneMetrics before any drawing.
 
     /*!
-    \brief Bold fret-number font derived from the note height, and the text of every lane chip —
-    fret-hand, capo, slide label and bend amount — so chips scale with the lane as the digits do.
+    \brief Bold fret-number font derived from the note height, and the text of the slide and bend
+    labels riding the tails, so those scale with the lane as the digits do.
     */
     TabLaneFont fret_font;
+
+    /*! \brief The fret-hand and capo chips' label font (\ref chipLabelFont). */
+    TabLaneFont chip_font;
 
     /*!
     \brief The fret font scaled up for a bend amount's vulgar-fraction glyph, whose own digits are
@@ -324,7 +358,7 @@ plate-flip design established. The border and inks are the host's, because pendi
 state and this core owns no editor colors.
 
 The box and font are the caller's, because they are the MARK's: a head's digit plate in the fret
-font (\ref paintTabPendingEntryBox), or a fret-hand chip's box, which prints in the fret font too
+font (\ref paintTabPendingEntryBox), or a fret-hand chip's box in the chip font
 (\ref tabFhpChipBounds), so the provisional value sits exactly where the committed one prints.
 
 \param g Graphics context to draw into.
@@ -466,7 +500,8 @@ void drawTabStringLegend(
 The chip's geometry, exported for the same reason the legend panel's is: a host that PINS a chip
 needs its width before it draws it — the pin yields to an incoming marker that comes within a
 label's clearance of it — and a host measuring the text itself would be a second authority on a
-width derived from this lane's own label font.
+width derived from the chip font (\ref TabLaneMetrics::chip_font). The chip stands
+\ref chipHeight tall.
 
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
 \param fhp The placement the chip states.
@@ -595,20 +630,18 @@ bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
 (\ref g_lane_chip_corner_radius), filled in the rails' ink (\ref tabShapeMarkColor).
 
 The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
-centred in opaque white. It is sized as a
-fret-hand-position chip in the same font (\ref tabFhpChipBounds): blank, as wide as a one-figure
-fret-hand chip; labelled, as wide as its label boxed the way a fret-hand chip boxes its text, never
-narrower than the blank chip. The chip stands as tall as the font's ink, rounded up to whole pixels,
-with a pixel above and below, so a label prints in the lane's own font; where that exceeds
-\ref TabSpanChip::max_height, the chip stands exactly that tall. The chip is held to
+centred in \ref g_chip_label_color. It is sized as a fret-hand-position chip in the same font
+(\ref tabFhpChipBounds): blank, as wide as a one-figure fret-hand chip; labelled, as wide as its
+label boxed the way a fret-hand chip boxes its text, never narrower than the blank chip. The chip
+stands \ref chipHeight tall; where that exceeds \ref TabSpanChip::max_height, the chip stands
+exactly that tall. The chip is held to
 \ref TabSpanChip::stop_x, narrowing to the room left before it and drawing nothing when that leaves
 it under a pixel. A label prints only where the room holds the chip's whole labelled width and the
 ceiling leaves the chip its own height; otherwise the label is dropped entire, never clipped or
 shrunk, and the chip draws blank.
 
 \param g Graphics context to draw into.
-\param font The fret font of the lane the chip labels (\ref TabLaneMetrics::fret_font), so the chip
-       scales with the lane exactly as its fret-hand chips do.
+\param font The chip label font (\ref chipLabelFont).
 \param chip The chip and the column it stops at.
 */
 void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanChip& chip);

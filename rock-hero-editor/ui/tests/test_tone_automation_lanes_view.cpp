@@ -391,7 +391,7 @@ TEST_CASE(
 {
     LanesHarness harness;
 
-    // (10, 11) is inside lane 0's pinned name chip (x from 6, the lane's rows 4..20) and over
+    // (10, 11) is inside lane 0's pinned name chip (x from 6, the lane's rows 4..14) and over
     // nothing else: the lane's authored points sit at (0, 35) and (200, 15), and its anchor gives
     // way to the point already on the lane start. So this pixel is the chip's, and a plain press
     // there opens the lane menu — the chip's only job, and the lane menu's only home.

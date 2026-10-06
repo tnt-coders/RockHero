@@ -359,11 +359,12 @@ public:
 
     /*!
     \brief Forwards the tab lane's spans to the pinned ruler, which draws each span's label chip on
-    its bottom edge, directly above the lane's top rail, together with the lane's own font, so the
-    chips print at the size the lane's fret-hand chips do.
+    its bottom edge, directly above the lane's top rail, wherever the lane prints its fret-hand
+    chips.
 
-    The font is read from the lane here, so the caller pushes the spans after the lane's state and
-    its displayed lane count (\ref setTabDisplayedStrings), the only facts that font follows.
+    Whether the lane prints them is read from the lane here, so the caller pushes the spans after
+    the lane's state and its displayed lane count (\ref setTabDisplayedStrings), the only facts that
+    follows.
 
     \param spans Every span in ascending start order, re-timed to the content's map; empty clears
     the chips.

@@ -40,9 +40,9 @@ const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 // a dotted leader line down to the ruler body so its exact position stays readable. The ruler
 // body below them holds the measure-number row above the tick band; measure ticks run the
 // body's full height so the numbers stay attached to their downbeats. The tab lane's span chips
-// stand on the ruler's bottom edge over the tick band, as tall as the lane's fret ink with a pixel
-// of padding but never taller than the room below the measure numbers' ink (spanChipMaxHeight).
-// The heights fold into g_timeline_ruler_height; change them together.
+// stand on the ruler's bottom edge over the tick band, every chip's height but never taller than
+// the room below the measure numbers' ink (spanChipMaxHeight). The heights fold into
+// g_timeline_ruler_height; change them together.
 constexpr int g_section_row_y{2};
 constexpr int g_tempo_row_y{16};
 constexpr int g_signature_row_y{30};
@@ -51,8 +51,6 @@ constexpr int g_measure_row_y{45};
 constexpr int g_label_row_height{12};
 constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
-// Chip height shared by every ruler chip row so they read as one family.
-constexpr int g_chip_height{11};
 // Corner radius of every chip's rounded fill, and of the outlines that trace it.
 constexpr float g_chip_corner_radius{2.0f};
 // The play-from-here flag: a filled triangle at the ruler body's top pointing down the cursor
@@ -83,20 +81,6 @@ constexpr FlashTrain g_renumber_flash_train{.pulses = 1.0, .seconds = 0.8};
                            ((static_cast<float>(g_label_row_height) - font.getHeight()) / 2.0f) +
                            font.getAscent();
     return static_cast<float>(g_timeline_ruler_height) - (std::ceil(baseline) + 1.0f);
-}
-
-// Chip text face, sized so a chip row reads as a label band rather than as content.
-[[nodiscard]] juce::Font chipFont()
-{
-    return juce::Font{juce::FontOptions{10.0f}.withStyle("Bold")};
-}
-
-// Enlarged bold face used only for the quarter-note glyph of tempo markings: the symbol needs
-// more size and weight than the digits to stay legible inside the chip, while bolding or
-// enlarging the whole marking only makes it muddier.
-[[nodiscard]] juce::Font noteGlyphFont()
-{
-    return juce::Font{juce::FontOptions{13.0f, juce::Font::bold}};
 }
 
 // Shared label layout policy for every ruler row: labels sit g_label_inset right of the column
@@ -185,16 +169,11 @@ private:
 
 // The quarter-note glyph that opens every tempo marking: U+2669, supplied as escaped UTF-8 so
 // source-file encoding cannot corrupt it; text shaping falls back to a symbol font when the UI
-// font lacks the glyph.
+// font lacks the glyph. It prints in the chip face with the digits: at that size its stem already
+// reaches the chip's top edge, so a larger glyph would not fit.
 [[nodiscard]] juce::String quarterNoteGlyph()
 {
     return juce::String::fromUTF8("\xE2\x99\xA9");
-}
-
-// Whether a point lies in a chip row's band, where its chips are drawn.
-[[nodiscard]] bool chipRowContains(const int row_y, const juce::Point<int> point) noexcept
-{
-    return point.y >= row_y && point.y < row_y + g_chip_height;
 }
 
 // The measure-number row's band across a ruler of the given width: what the renumber flash
@@ -330,12 +309,9 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     drawBeatTicks(g);
     drawMeasureLabels(g);
-    if (m_span_chip_font.has_value())
+    for (const common::ui::TabSpanChip& chip : m_span_chips)
     {
-        for (const common::ui::TabSpanChip& chip : m_span_chips)
-        {
-            common::ui::drawTabSpanChip(g, *m_span_chip_font, chip);
-        }
+        common::ui::drawTabSpanChip(g, m_chip_font, chip);
     }
 
     drawChipRow(g, m_section_row.chips, editorTheme().section_chip, g_section_row_y);
@@ -354,15 +330,15 @@ void TimelineRuler::resized()
 std::optional<juce::Rectangle<int>> TimelineRuler::selectedChipBounds() const
 {
     // One selection editor-wide, so at most one row holds a selected chip.
-    const auto in_row = [](const ChipRow& row,
-                           const int row_y) -> std::optional<juce::Rectangle<int>> {
+    const auto in_row =
+        [this](const ChipRow& row, const int row_y) -> std::optional<juce::Rectangle<int>> {
         const auto selected =
             std::ranges::find_if(row.chips, [](const RulerChip& chip) { return chip.selected; });
         if (selected == row.chips.end() || selected->pinned)
         {
             return std::nullopt;
         }
-        return juce::Rectangle<int>{selected->label.x, row_y, selected->label.width, g_chip_height};
+        return juce::Rectangle<int>{selected->label.x, row_y, selected->label.width, m_chip_height};
     };
     if (const auto chip = in_row(m_section_row, g_section_row_y); chip.has_value())
     {
@@ -538,10 +514,16 @@ void TimelineRuler::setListener(Listener& listener)
     m_listener = &listener;
 }
 
+// Rationale lives on the declaration in timeline_ruler.h.
+bool TimelineRuler::chipRowContains(const int row_y, const juce::Point<int> point) const noexcept
+{
+    return point.y >= row_y && point.y < row_y + m_chip_height;
+}
+
 // Resolves a point to the chip under it in one row. Chips never overlap within a row (the row-wide
 // placement guarantees it), so the first containing chip is the only one.
 const TimelineRuler::RulerChip* TimelineRuler::chipAt(
-    const std::vector<RulerChip>& chips, const int row_y, const juce::Point<int> point)
+    const std::vector<RulerChip>& chips, const int row_y, const juce::Point<int> point) const
 {
     if (!chipRowContains(row_y, point))
     {
@@ -800,17 +782,15 @@ void TimelineRuler::setSectionLabels(std::vector<RulerSectionLabel> labels)
     repaint();
 }
 
-// Stores the spans and the lane's font. Only the span chips depend on them, so only those rebuild.
-void TimelineRuler::setSpans(
-    std::vector<RulerSpan> spans, std::optional<common::ui::TabLaneFont> font)
+// Stores the spans. Only the span chips depend on them, so only those rebuild.
+void TimelineRuler::setSpans(std::vector<RulerSpan> spans)
 {
-    if (m_spans == spans && m_span_chip_font == font)
+    if (m_spans == spans)
     {
         return;
     }
 
     m_spans = std::move(spans);
-    m_span_chip_font = std::move(font);
     refreshSpanChips();
     repaint();
 }
@@ -907,11 +887,6 @@ std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) co
 void TimelineRuler::refreshSpanChips()
 {
     m_span_chips.clear();
-    if (!m_span_chip_font.has_value())
-    {
-        return;
-    }
-
     const auto width = static_cast<float>(getWidth());
     const float max_height = spanChipMaxHeight();
     for (std::size_t index = 0; index < m_spans.size(); ++index)
@@ -1057,11 +1032,10 @@ void TimelineRuler::refreshRulerGeometry()
 template <typename SecondsAt, typename TextAt>
 TimelineRuler::ChipRow TimelineRuler::placeChipRow(
     const std::size_t count, const SecondsAt& seconds_at, const TextAt& text_at,
-    const int extra_width, const std::optional<double> pinned_left_seconds,
+    const std::optional<double> pinned_left_seconds,
     const std::optional<std::size_t> selected) const
 {
     ChipRow row;
-    const juce::Font font = chipFont();
     const auto anchor_x_at = [this, &seconds_at](const std::size_t index) -> std::optional<int> {
         const std::optional<float> local_x = localXForSeconds(seconds_at(index));
         if (!local_x.has_value())
@@ -1070,8 +1044,8 @@ TimelineRuler::ChipRow TimelineRuler::placeChipRow(
         }
         return static_cast<int>(std::round(*local_x));
     };
-    const auto width_of = [&font, extra_width](const juce::String& text) {
-        return extra_width + textWidth(font, text) + g_label_width_pad;
+    const auto width_of = [this](const juce::String& text) {
+        return m_chip_font.width(text) + g_label_width_pad;
     };
     const auto chip_of = [&selected](int label_x, juce::String text, int width, std::size_t index) {
         return RulerChip{
@@ -1194,7 +1168,6 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
         m_section_source.size(),
         [this](const std::size_t index) { return m_section_source[index].seconds; },
         [this](const std::size_t index) { return m_section_source[index].name; },
-        0,
         pinned_left_seconds,
         first_index_where(m_section_source.size(), [this](const std::size_t index) {
             return m_section_source[index].selected;
@@ -1204,14 +1177,13 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
     // span i, printed as the tempo prompt prefills it.
     const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
     const std::size_t marking_count = anchors.empty() ? 0 : anchors.size() - 1;
-    m_tempo_glyph_width = textWidth(noteGlyphFont(), quarterNoteGlyph()) + 1;
     m_tempo_row = placeChipRow(
         marking_count,
         [&anchors](const std::size_t index) { return anchors[index].seconds(); },
         [this](const std::size_t index) {
-            return "=" + juce::String{core::tempoSpanBpmText(m_tempo_map, index)};
+            return quarterNoteGlyph() + "=" +
+                   juce::String{core::tempoSpanBpmText(m_tempo_map, index)};
         },
-        m_tempo_glyph_width,
         pinned_left_seconds,
         first_index_where(marking_count, [this, &anchors](const std::size_t index) {
             return m_selected_tempo_anchor == anchors[index].position;
@@ -1226,7 +1198,6 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
         [&changes](const std::size_t index) {
             return juce::String{core::timeSignatureText(changes[index].meter)};
         },
-        0,
         pinned_left_seconds,
         first_index_where(changes.size(), [this, &changes](const std::size_t index) {
             return m_selected_signature_measure == changes[index].measure;
@@ -1261,7 +1232,7 @@ void TimelineRuler::drawChipLeaders(
     juce::RectangleList<float> dots;
     for (const int x : anchor_xs)
     {
-        for (int y = row_y + g_chip_height; y < g_ruler_body_top - 1; y += 2)
+        for (int y = row_y + m_chip_height; y < g_ruler_body_top - 1; y += 2)
         {
             dots.addWithoutMerging(juce::Rectangle<int>{x, y, 1, 1}.toFloat());
         }
@@ -1302,16 +1273,16 @@ void TimelineRuler::drawMeasureLabels(juce::Graphics& g)
 
 // Draws one chip's rounded fill, then outlines it in the theme accent when it stands for the
 // selected marker — the same token the tone strip's selected region uses, so a selection reads the
-// same on every surface. A 1px stroke on the chip's own bounds, because the chip is 11px tall and
-// a heavier ring would swallow the fill it sits on.
+// same on every surface. A 1px stroke on the chip's own bounds, because the chip is only a label's
+// height and a heavier ring would swallow the fill it sits on.
 juce::Rectangle<float> TimelineRuler::drawChipFrame(
-    juce::Graphics& g, const RulerChip& chip, const int row_y, const juce::Colour fill)
+    juce::Graphics& g, const RulerChip& chip, const int row_y, const juce::Colour fill) const
 {
     const juce::Rectangle<float> bounds{
         static_cast<float>(chip.label.x),
         static_cast<float>(row_y),
         static_cast<float>(chip.label.width),
-        static_cast<float>(g_chip_height)
+        static_cast<float>(m_chip_height)
     };
     g.setColour(fill);
     g.fillRoundedRectangle(bounds, g_chip_corner_radius);
@@ -1320,32 +1291,24 @@ juce::Rectangle<float> TimelineRuler::drawChipFrame(
         g.setColour(editorTheme().accent);
         g.drawRoundedRectangle(bounds, g_chip_corner_radius, 1.0f);
     }
-    g.setColour(juce::Colours::white);
+    g.setColour(common::ui::g_chip_label_color);
     return bounds;
 }
 
-// Draws one cached chip row — rounded fill, white centered text. The chips must have been measured
-// with the chip font.
+// Draws one cached chip row — rounded fill, centered label.
 void TimelineRuler::drawChipRow(
     juce::Graphics& g, const std::vector<RulerChip>& chips, const juce::Colour fill,
-    const int row_y)
+    const int row_y) const
 {
-    g.setFont(chipFont());
     for (const RulerChip& chip : chips)
     {
-        g.drawText(
-            chip.label.text, drawChipFrame(g, chip, row_y, fill), juce::Justification::centred);
+        m_chip_font.draw(g, chip.label.text, drawChipFrame(g, chip, row_y, fill));
     }
 }
 
-// Draws the tempo chip row: the glyph and digits in their own fonts because one text draw cannot
-// mix fonts. The enlarged glyph centers on the chip so its extra size hangs evenly.
+// Draws the tempo chip row, each chip glowing while a refusal of its anchor runs.
 void TimelineRuler::drawTempoChips(juce::Graphics& g)
 {
-    const juce::Font digits_font = chipFont();
-    const juce::Font glyph_font = noteGlyphFont();
-    const juce::String glyph = quarterNoteGlyph();
-    const auto glyph_width = static_cast<float>(m_tempo_glyph_width);
     // Read once ahead of the loop, so the loop never reaches into the optional flash.
     std::span<const common::core::GridPosition> refused_anchors;
     float refusal_level{0.0f};
@@ -1368,16 +1331,7 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
             outline.addRoundedRectangle(bounds, g_chip_corner_radius);
             paintRefusalGlow(g, outline, bounds.getHeight(), refusal_level);
         }
-        g.setFont(glyph_font);
-        g.drawText(
-            glyph,
-            bounds.withWidth(glyph_width).translated(3.0f, 0.0f),
-            juce::Justification::centredLeft);
-        g.setFont(digits_font);
-        g.drawText(
-            chip.label.text,
-            bounds.withTrimmedLeft(glyph_width + 3.0f),
-            juce::Justification::centredLeft);
+        m_chip_font.draw(g, chip.label.text, bounds);
     }
 }
 

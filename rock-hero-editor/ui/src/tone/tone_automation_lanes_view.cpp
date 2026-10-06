@@ -54,13 +54,13 @@ constexpr float g_anchor_ring_stroke_width = 1.5f;
 constexpr float g_anchor_alpha = 0.7f;
 
 // Chip metrics. Where the column pins is ToneAutomationLanesView::pinnedChipLeft's rule; these are
-// its air, its corner, its type, and the "+" chip's own width — the one chip whose width is a
-// constant rather than a measured label, because its text never changes.
+// its air, its corner, and the "+" chip's own width — the one chip whose width is a constant rather
+// than a measured label, because its text never changes. A name chip stands g_chip_inset_y below
+// its lane's top; the "+" chip centres in its own short lane.
 constexpr int g_chip_inset_x = 6;
 constexpr int g_plus_chip_width = 22;
 constexpr int g_chip_inset_y = 4;
 constexpr float g_chip_corner_radius = 3.0f;
-constexpr float g_chip_font_height = 12.0f;
 
 // The value-readout chip drawn next to the cursor: padded for legibility and offset off the
 // pointer so it never sits directly under the dragged point.
@@ -77,7 +77,7 @@ const juce::Colour g_lane_separator{juce::Colours::black.withAlpha(0.45f)};
 // without jumping in size; the "+" chip holding keyboard focus wears the same ring.
 const juce::Colour g_selection_ring{juce::Colours::white};
 const juce::Colour g_chip_fill{juce::Colours::black.withAlpha(0.55f)};
-const juce::Colour g_chip_text{juce::Colours::white.withAlpha(0.92f)};
+const juce::Colour g_readout_text{juce::Colours::white.withAlpha(0.92f)};
 const juce::Colour g_dim_overlay{juce::Colours::black.withAlpha(0.35f)};
 
 // Alpha applied to a lane whose plugin or parameter no longer resolves.
@@ -481,13 +481,12 @@ juce::String ToneAutomationLanesView::laneChipText(const core::ToneAutomationLan
 // otherwise run for every lane on every paint AND on every pointer hover hit-test.
 void ToneAutomationLanesView::refreshLaneChips()
 {
-    const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
     m_lane_chips.clear();
     m_lane_chips.reserve(m_state.lanes.size());
     for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
     {
         juce::String text = laneChipText(lane);
-        const int width = textWidth(chip_font, text) + (2 * g_chip_inset_x);
+        const int width = m_chip_font.width(text) + (2 * g_chip_inset_x);
         m_lane_chips.push_back(LaneChip{.text = std::move(text), .width = width});
     }
 }
@@ -543,7 +542,7 @@ std::optional<juce::Rectangle<int>> ToneAutomationLanesView::laneChipBounds(
         return std::nullopt;
     }
     return juce::Rectangle<int>{
-        *chip_left, extent.top + g_chip_inset_y, m_lane_chips[lane_index].width, 17
+        *chip_left, extent.top + g_chip_inset_y, m_lane_chips[lane_index].width, m_chip_height
     };
 }
 
@@ -559,9 +558,9 @@ std::optional<juce::Rectangle<int>> ToneAutomationLanesView::plusChipBounds(
     }
     return juce::Rectangle<int>{
         *chip_left,
-        plus_extent.top + g_chip_inset_y,
+        plus_extent.top + ((plus_extent.height - m_chip_height) / 2),
         g_plus_chip_width,
-        plus_extent.height - (2 * g_chip_inset_y)
+        m_chip_height
     };
 }
 
@@ -1169,11 +1168,11 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         if (const std::optional<juce::Rectangle<int>> chip = laneChipBounds(lane_index, extent);
             chip.has_value())
         {
-            graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height}});
             graphics.setColour(g_chip_fill);
             graphics.fillRoundedRectangle(chip->toFloat(), g_chip_corner_radius);
-            graphics.setColour(g_chip_text.withMultipliedAlpha(lane.resolved ? 1.0f : 0.75f));
-            graphics.drawText(m_lane_chips[lane_index].text, *chip, juce::Justification::centred);
+            graphics.setColour(
+                common::ui::g_chip_label_color.withMultipliedAlpha(lane.resolved ? 1.0f : 0.75f));
+            m_chip_font.draw(graphics, m_lane_chips[lane_index].text, chip->toFloat());
         }
     }
 
@@ -1193,9 +1192,9 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         {
             graphics.setColour(g_chip_fill.withMultipliedAlpha(has_offer ? 1.0f : 0.7f));
             graphics.fillRoundedRectangle(chip->toFloat(), g_chip_corner_radius);
-            graphics.setColour(g_chip_text.withMultipliedAlpha(has_offer ? 1.0f : 0.55f));
-            graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height + 2.0f}});
-            graphics.drawText("+", *chip, juce::Justification::centred);
+            graphics.setColour(
+                common::ui::g_chip_label_color.withMultipliedAlpha(has_offer ? 1.0f : 0.55f));
+            m_chip_font.draw(graphics, "+", chip->toFloat());
             if (m_state.add_lane_row_selected)
             {
                 graphics.setColour(g_selection_ring);
@@ -2146,7 +2145,7 @@ void ToneAutomationLanesView::paintValueReadout(juce::Graphics& graphics) const
     const juce::Rectangle<int> bounds = readoutBounds(*readout);
     graphics.setColour(g_chip_fill);
     graphics.fillRoundedRectangle(bounds.toFloat(), g_chip_corner_radius);
-    graphics.setColour(g_chip_text);
+    graphics.setColour(g_readout_text);
     graphics.setFont(juce::Font{juce::FontOptions{g_readout_font_height}});
     graphics.drawText(readout->text, bounds, juce::Justification::centred);
 }

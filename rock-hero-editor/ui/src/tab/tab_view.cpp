@@ -1010,7 +1010,7 @@ void TabView::paint(juce::Graphics& g)
                 common::ui::paintTabPendingEntryPlate(
                     g,
                     metrics,
-                    metrics.fret_font,
+                    metrics.chip_font,
                     chip->box,
                     common::ui::tabFhpChipText(pending_refused ? hand->typed : *chip->fhp),
                     pending_refused,
@@ -1145,15 +1145,11 @@ juce::Rectangle<int> TabView::legendBounds() const
 }
 
 // Rationale lives on the declaration in tab_view.h.
-std::optional<common::ui::TabLaneFont> TabView::labelFont() const
+bool TabView::printsText() const
 {
     // Bound to a local so the presence test and the read are provably one object.
     const std::optional<DrawableLane> lane = laneMetrics();
-    if (!lane.has_value() || !lane->metrics.draw_text)
-    {
-        return std::nullopt;
-    }
-    return lane->metrics.fret_font;
+    return lane.has_value() && lane->metrics.draw_text;
 }
 
 // The pinned chrome's local rectangle at the current pin: the panel plus whatever the pinned chip

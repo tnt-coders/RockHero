@@ -31,7 +31,6 @@ const juce::Colour g_tone_region_active_fill{juce::Colour{0xff35597a}};
 // The formally selected region (a deliberate click, the Delete target) adds a distinct white
 // outline on top of the active highlight so it is unmistakable.
 const juce::Colour g_tone_region_selection_outline{juce::Colours::white};
-const juce::Colour g_tone_region_label{juce::Colours::white.withAlpha(0.92f)};
 
 // Region names may be empty in the data model; the row still labels every region.
 [[nodiscard]] juce::String regionLabel(const core::ToneRegionViewState& region)
@@ -291,10 +290,9 @@ void ToneTrackView::paint(juce::Graphics& g)
                 label_area.reduced(static_cast<float>(g_region_label_inset), 0.0f).toNearestInt();
             if (label_bounds.getWidth() > 0)
             {
-                g.setColour(g_tone_region_label);
-                g.setFont(juce::FontOptions{13.0f});
-                g.drawText(
-                    regionLabel(region), label_bounds, juce::Justification::centredLeft, true);
+                g.setColour(common::ui::g_chip_label_color);
+                m_label_font.draw(
+                    g, regionLabel(region), label_bounds.toFloat(), juce::Justification::left);
             }
         }
     }

@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <string>
@@ -377,6 +378,10 @@ private:
 
     // Content x of the visible viewport's left edge; region labels pin here as the row scrolls.
     int m_visible_content_left{0};
+
+    // The face region names print in: every chip's label face (common::ui::chipLabelFont), so a
+    // tone's name reads as the same kind of label as the chips around it. Measured once.
+    const common::ui::TabLaneFont m_label_font{common::ui::chipLabelFont()};
 
     // Last render state pushed by the editor controller.
     core::ToneTrackViewState m_state{};

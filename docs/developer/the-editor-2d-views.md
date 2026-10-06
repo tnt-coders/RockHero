@@ -607,7 +607,7 @@ playing. It is never an entry gesture: a press CREATES NOTHING on this lane unde
 With no chart the lane is pointer-transparent. One column of the claimed band answers
 nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see "The
 pinned chrome is INERT" below). A press on a SCROLLING fret-hand chip is the one press the lane
-resolves itself: the chip is the position row's marker, measured in the lane's own fret font
+resolves itself: the chip is the position row's marker, measured in the chip label font
 (`tabFhpChipBounds`), so `TabView::fretHandChipAt` hit-tests it and the press goes to the chip sink
 (`setFretHandChipCallback` → `onFretHandPositionSelected(index)`) instead of reaching the chart as a
 press on the top string. The chips are every hand event, derived and authored, and they ARE the
@@ -635,16 +635,21 @@ that meet read as two; that parting is paint-time only, and the drawn extent sta
 
 Each span also wears a **label chip** at its start (`common::ui::drawTabSpanChip`): a rectangle
 filled in the rails' ink, its left edge on the span's start, its square base on the rail and its
-top corners rounded. It is sized as a fret-hand chip in the lane's own font: blank, it is a
-one-figure fret-hand chip's width, and a label widens it the way a fret-hand chip's text does. It
-stands as tall as the font's ink, rounded up to whole pixels, with a pixel above and below, so a
-label prints in the lane's own font. The lane has no room above its fret-hand chips, so the chip
-stands on the RULER's bottom edge, directly on the lane's top rail: `EditorView` pushes every
-span's start and drawn end (re-timed to the content map, as the sections are) through
-`TrackViewport::setSpans`, which adds the lane's font (`TabView::labelFont`), and `TimelineRuler`
-places and paints the chips over its tick band. The ruler's ceiling keeps a clear row between a
-chip and the measure numbers' ink, lowering any chip that would reach it, though at the lane's
-largest font the chip stands clear below it.
+top corners rounded. It is sized as a fret-hand chip: blank, it is a one-figure fret-hand chip's
+width, and a label widens it the way a fret-hand chip's text does. The lane has no room above its
+fret-hand chips, so the chip stands on the RULER's bottom edge, directly on the lane's top rail:
+`EditorView` pushes every span's start and drawn end (re-timed to the content map, as the sections
+are) through `TrackViewport::setSpans`, which passes them on only while the lane prints its text
+(`TabView::printsText`), and `TimelineRuler` places and paints the chips over its tick band. The
+ruler's ceiling keeps a clear row between a chip and the measure numbers' ink, lowering any chip
+that would reach it, though at the chip height the chip stands clear below it.
+
+Every chip in the editor — the ruler's section, tempo and time-signature chips, the fret-hand,
+capo and span chips, and the automation lanes' name and "+" chips — prints its label in ONE face
+and stands ONE height, from `common::ui::chipLabelFont` and `common::ui::chipHeight`
+(`tab_paint_core.h`), in `common::ui::g_chip_label_color`; the tone regions print their names in
+that face too. The bend and slide labels riding the tails are notation, not chips: they print in
+the lane's fret font and scale with the lane.
 
 The chip's label is its span's name, the chord name of the span's grip template. A span is
 complete only once it carries a template, so the drawer itself prints "?" for a span given no

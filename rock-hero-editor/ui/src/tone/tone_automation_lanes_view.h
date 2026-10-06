@@ -34,6 +34,7 @@ out, so the cursor overlay and content height stay authoritative.
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
+#include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/tone/tone_automation_curve.h>
 #include <rock_hero/editor/core/tone/tone_automation_pointer.h>
@@ -734,6 +735,11 @@ private:
 
     // Chip label and measured width per lane in m_state.lanes, rebuilt whenever the lanes change.
     std::vector<LaneChip> m_lane_chips{};
+
+    // The face every chip in the column prints its label in, and the height every one stands, both
+    // from the one chip authority (common::ui::chipLabelFont) and measured once.
+    const common::ui::TabLaneFont m_chip_font{common::ui::chipLabelFont()};
+    const int m_chip_height{static_cast<int>(common::ui::chipHeight(m_chip_font))};
 
     // Selected region's span; edits clamp inside it and outside content draws dimmed.
     common::core::TimeRange m_editable_window{};

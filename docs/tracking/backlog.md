@@ -1464,3 +1464,13 @@ against the tree on the date above.
   linker setting, e.g. `/PDBPAGESIZE:8192` (an 8 GB ceiling) on the large targets, or no
   incremental link for the test executables; it is a build-configuration change, so it needs the
   user's sign-off before it lands.
+
+## Found while standardizing the chip font (2026-10-06)
+
+- **`TabLaneFont` now names more than the tab lane.** The one chip font (`chipLabelFont`) is a
+  `TabLaneFont`, and the ruler and both tone views hold one, so the type's name no longer says
+  what it is: an ink-centred font any editor chip or lane label draws with. Rename it (and its
+  header home, if a neutral `common/ui` header fits better) in a change of its own.
+- **Chip rows now carry spare height.** With every chip 11 px tall, an automation lane has 6 px it
+  no longer needs, the "+" lane 7 px, and the tab lane's top 3.5 px. Reclaim them once the chip
+  size has been sighted.

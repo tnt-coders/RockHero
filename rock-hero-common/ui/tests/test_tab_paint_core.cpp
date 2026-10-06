@@ -440,10 +440,10 @@ constexpr int g_digit_window = 4;
         metrics, common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 4}, 0.0f);
 }
 
-// A span chip's height in that lane: the fret font's ink in whole pixels, a pixel above and below.
+// A span chip's height in that lane: every chip's.
 [[nodiscard]] float spanChipHeight(const TabLaneMetrics& metrics)
 {
-    return std::ceil(metrics.fret_font.inkHeight()) + 2.0f;
+    return chipHeight(metrics.chip_font);
 }
 
 // A span chip's ceiling above any lane chip's height, so the chip stands at its full height.
@@ -460,7 +460,7 @@ constexpr float g_span_chip_headroom{30.0f};
         juce::Graphics graphics{image};
         drawTabSpanChip(
             graphics,
-            metrics.fret_font,
+            metrics.chip_font,
             TabSpanChip{
                 .base_left = {20.0f, 30.0f},
                 .stop_x = stop_x,
@@ -1325,6 +1325,32 @@ TEST_CASE("Tab FHP chip text prints an authored end as a range", "[ui][tab-paint
             }) == "5-3");
 }
 
+// Every chip prints in the one chip label face, 12 px bold, at every lane size, so a fret-hand chip
+// keeps one box whatever the lane's fret digits measure, and stands every chip's height.
+TEST_CASE("Tab FHP chip keeps the chip size at every lane size", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const auto chip_in_lane = [](const int lane_height) {
+        const TabLaneMetrics metrics = makeTabLaneMetrics(
+            juce::Rectangle<int>{0, 0, 200, lane_height},
+            common::core::TimeRange{
+                .start = common::core::TimePosition{},
+                .end = common::core::TimePosition{10.0},
+            },
+            6,
+            6);
+        return tabFhpChipBounds(
+            metrics, common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 6}, 0.0f);
+    };
+    const TabLaneFont chip_font = chipLabelFont();
+    CHECK(chip_font.height() == Catch::Approx(12.0f));
+    const juce::Rectangle<float> small = chip_in_lane(120);
+    const juce::Rectangle<float> large = chip_in_lane(240);
+    CHECK(small.getHeight() == Catch::Approx(chipHeight(chip_font)));
+    CHECK(large.getHeight() == Catch::Approx(small.getHeight()));
+    CHECK(large.getWidth() == Catch::Approx(small.getWidth()));
+}
+
 // A derived position's chip is a ghost of the authored one: the same ground, at partial coverage,
 // so the charter tells what the chart stores from what the notes derive.
 TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
@@ -1357,7 +1383,7 @@ TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
 }
 
 // A blank span chip is a rectangle standing on the given line with its left edge at the chip's x:
-// as wide as a one-figure fret-hand chip, as tall as the fret font's ink with a pixel of padding,
+// as wide as a one-figure fret-hand chip, every chip's height,
 // its top corners rounded and its base square, filled wholly in the rails' ink, chord and arpeggio
 // alike. A name the room cannot hold leaves the chip blank, which keeps every probe off a glyph.
 TEST_CASE("Tab span chip is a rectangle with a rounded top in the span's colors", "[ui][tab-paint]")
@@ -1491,8 +1517,8 @@ TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-pai
     const juce::Image named = renderSpanChip(metrics, 1000.0f, false, juce::String{"Am7"});
     CHECK(named.getPixelAt(blank_end + 2, 29) == ink);
 
-    // The name prints at the lane's own size inside the chip's height: label ink inside the chip,
-    // and nothing on the row above its top.
+    // The name prints inside the chip's height: label ink inside the chip, and nothing on the row
+    // above its top.
     const int top_row = 30 - static_cast<int>(spanChipHeight(metrics));
     int above_top_pixels = 0;
     for (int x = 0; x < named.getWidth(); ++x)
@@ -2271,9 +2297,8 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
     // The chip's box fills the FHP-chip chrome color behind its centered letters; the probe sits
     // inside the box near its left edge, clear of the text.
     CHECK(image.getPixelAt(4, 7) == juce::Colour{0xff2a2f36});
-    // And its letters ink somewhere inside the box. The text is white at 0.85 alpha over the
-    // chrome, so its solid pixels blend to roughly (223, 224, 225) — far above anything the box
-    // or the empty lane can produce, but below the pure-white isWhiteInk floor.
+    // And its letters ink somewhere inside the box: light pixels far above anything the box or the
+    // empty lane can produce, read coarsely because the letters are glyphs.
     bool found_ink = false;
     for (int y = 2; y <= 12 && !found_ink; ++y)
     {
