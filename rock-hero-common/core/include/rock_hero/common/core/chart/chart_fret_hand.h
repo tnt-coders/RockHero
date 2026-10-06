@@ -57,6 +57,15 @@ struct FretHandDerivationTally
 
     /*! \brief Emitted fronts that reach back before their figure's first instant (rule 10). */
     long long fronts_reaching_back{0};
+
+    /*! \brief Instants a fretting finger slides into (the slide rule). */
+    long long slide_arrivals{0};
+
+    /*! \brief Of those, the instants whose sliding fingers travel different distances. */
+    long long slide_arrivals_disagreeing{0};
+
+    /*! \brief Slide arrivals that shifted the standing window by the travel. */
+    long long slide_shifts{0};
 };
 
 /*!
@@ -93,15 +102,15 @@ struct FretHandHold
 the derivation keeps covered and what pins it (\ref deriveFretHandEvents), and what an authored
 position must cover (\ref validateFretHandCoverage).
 
-Two sources. A RING: a note the fretting hand stops at a fret holds from its last pitched stop —
-where its fret channel last arrived somewhere new — to the end of its stored ring, the same end the
-span derivation reads. So a slide-then-hold holds its destination, an arrival into the next head
-holds nothing, a slide-out holds the stop it slides from until the ring ends (the finger stays
-pressed while it slides), and bends and vibrato, which state no fret, keep holding. A dead note
-holds like any other: its stored ring is the proof, and only its tail's display differs. A GRIP:
-every pressed stop of a span's posture holds across the whole span (\ref deriveChartShapes), from
-its front to its close, a member struck after the front included. An open string holds nothing,
-and neither does a natural harmonic's ring or node: its node is demanded at the onset only.
+Two sources. A RING: a note holds each pressed stop its fret channel states, from that statement
+up to the next — a slide holds the stop it leaves up to its arrival, half-open, and the stop it
+arrives at from there — and the last to the end of its stored ring. So an arrival into the next head
+holds nothing past the ring, a slide-out holds the stop it slides from until the ring ends (the
+finger stays pressed while it slides), and bends and vibrato, which state no fret, keep holding. A
+dead note holds like any other: its stored ring is the proof, and only its tail's display differs.
+A GRIP: a span's member struck after its front (\ref deriveChartShapes) holds its pressed stop from
+the front up to its strike, after which its ring holds what it states. An open string holds
+nothing, and neither does a natural harmonic's ring or node: its node is demanded at the onset only.
 
 \param connections The resolved connections (\ref chartConnections).
 \param shapes The spans and postures derived from the same connections (\ref deriveChartShapes).
@@ -125,9 +134,10 @@ standing window already covers does not move it.
 What a note DEMANDS of the hand (\ref fretHandDemandAt) is asked at its onset and at every pitched
 keyframe fret statement but a slide-out; a pull-off source's onset also demands the stop the
 pull-off plants beneath it (\ref chartPlantedStops), which widens every instant up to the pull-off.
-Every stop the hand provably holds (\ref fretHandHolds) is demanded the same way, from where its
-hold begins up to, not including, its end, so no window drops a ringing stop or a held grip — the
-direction is notes, then grips, then positions — and each also pins the hand while it holds.
+Every stop the hand provably holds (\ref fretHandHolds) — each note's stops in turn, and a span
+member's from the span's front — is demanded the same way, from where its hold begins up to, not
+including, its end, so no window drops a ringing stop or a held grip — the direction is notes,
+then grips, then positions — and each also pins the hand while it holds.
 
 Each event's front is the first onset after the latest of the previous figure's last instant, the
 latest end among the holds begun before the figure, and the bar line that broke the figure;
@@ -141,6 +151,17 @@ the top of the figure it heads, never under four frets. It stands until the char
 it takes its own instant whatever sounds there, and every later instant whose demands fit inside
 the window, up to the next authored position. The 13 rules resume at the first instant that does
 not fit, and their fronts never reach back to an authored position.
+
+A SLIDE MOVES THE HAND. A fretting finger's pitched slide from one pressed stop to another — a
+keyframe glide, or a glide arriving into the next head — proves the hand moved with it and kept the
+finger's place in it: the window at the slide's arrival is the standing one shifted by the travel,
+fret and top together. The arrival is a forced boundary like an authored position: no figure and no
+authored tenure runs across it, and rules 5, 6 and 10 neither hold the old window over it nor reach
+back across it. The shift stands only where the shifted window still covers everything demanded and
+held at the arrival — a finger held outside it proves the hand stayed — and an instant where
+fingers slide different distances proves no single shift; either way the window is placed by the
+ordinary rules there. A slide-out's fret is no stop, so it shifts nothing here
+(\ref deriveFretHandRides).
 
 Memoryless per figure and never reads seconds: the bar test is the measure number changing between
 consecutive instants.

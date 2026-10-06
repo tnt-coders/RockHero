@@ -320,8 +320,44 @@ TEST_CASE("Hand derivation follows a pitched keyframe but not a slide-out", "[co
 // the run keeps the single note and grows to cover both.
 TEST_CASE("Hand derivation never counts a keyframe demand toward a chord", "[core][chart]")
 {
-    const ChartNote slid = withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 2}), Fraction{1, 4}, 6);
-    CHECK(eventsOf({slid, noteAt(1, 2, 2, 3)}) == std::vector{eventAt(1, 1, 3)});
+    const ChartNote held = withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 2}), Fraction{1, 4}, 5);
+    CHECK(eventsOf({held, noteAt(1, 2, 2, 3)}) == std::vector{eventAt(1, 1, 3)});
+}
+
+// The slide rule: a finger sliding from one pressed stop to another carries the hand with it, so
+// the window at the arrival is the standing one shifted by the travel — over an authored position,
+// over a derived window, and over one that already covers the arrival.
+TEST_CASE("Hand derivation shifts the window by a slide's travel", "[core][chart]")
+{
+    const ChartNote slid = withFretAt(noteAt(1, 1, 2, 5, Fraction{1, 2}), Fraction{1, 4}, 7);
+    CHECK(
+        eventsOf({slid}, 0, {positionAt(1, 1, 4)}) ==
+        std::vector{eventAt(1, 1, 4), eventAt(1, 2, 6)});
+    CHECK(eventsOf({slid}) == std::vector{eventAt(1, 1, 5), eventAt(1, 2, 7)});
+
+    const ChartNote nudged = withFretAt(noteAt(1, 1, 2, 5, Fraction{1, 2}), Fraction{1, 4}, 6);
+    CHECK(eventsOf({nudged}) == std::vector{eventAt(1, 1, 5), eventAt(1, 2, 6)});
+}
+
+// A chord whose two fretted strings glide 5 to 7 and back over the open strings: the grip's span
+// holds no 5 while the fingers are on 7, so the hand goes up by the travel and comes back down.
+TEST_CASE("Hand derivation follows a chord gliding up and back", "[core][chart]")
+{
+    const auto gliding = [](const int string) {
+        return withFretAt(
+            withFretAt(noteAt(1, 1, string, 5, Fraction{3, 8}), Fraction{1, 8}, 7),
+            Fraction{1, 4},
+            5);
+    };
+    const std::vector<ChartNote> notes{
+        noteAt(1, 1, 1, 0, Fraction{3, 8}),
+        gliding(2),
+        gliding(4),
+        noteAt(1, 1, 5, 0, Fraction{3, 8})
+    };
+    CHECK(
+        eventsOf(notes, 0, {positionAt(1, 1, 4)}) ==
+        std::vector{eventAt(1, 1, 4), rideAt(Fraction{1, 8}, 6), rideAt(Fraction{1, 4}, 4)});
 }
 
 // Rule 3: a run closes at a chord, at a bar line, and where the grip outgrows the hand.
@@ -482,18 +518,18 @@ TEST_CASE("Hand derivation pins a pinch harmonic's ring but not a natural's", "[
 }
 
 // Rule 6's pin runs from the last pitched stop: a slide-then-hold pins at its destination, and so
-// does one that then slides out, since the finger stays pressed until the ring ends. The run the
-// bar line cuts under it never has three notes sounding together, so no span holds anything.
+// does one that then slides out, since the finger stays pressed until the ring ends. The slide
+// carries the window to 7, and the figure the bar line cuts under the held 7 widens it down to the
+// 6 at once, its front unable to reach back past the hold. That figure never has three notes
+// sounding together, so no span holds anything.
 TEST_CASE("Hand derivation pins a slide-then-hold at its destination", "[core][chart]")
 {
+    const std::vector expected{eventAt(1, 1, 5), eventAt(1, 2, 7), eventAt(2, 1, 6)};
     const ChartNote held = withFretAt(noteAt(1, 1, 1, 5, Fraction{3, 2}), Fraction{1, 4}, 7);
-    CHECK(
-        eventsOf({held, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) == std::vector{eventAt(1, 1, 5)});
+    CHECK(eventsOf({held, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) == expected);
 
     const ChartNote slid_out = withFretAt(held, Fraction{3, 2}, 3);
-    CHECK(
-        eventsOf({slid_out, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) ==
-        std::vector{eventAt(1, 1, 5)});
+    CHECK(eventsOf({slid_out, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) == expected);
 }
 
 // Rule 7: the window sits on the run's lowest fret, wherever in the run it falls.

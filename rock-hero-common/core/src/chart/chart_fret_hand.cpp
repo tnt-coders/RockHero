@@ -32,6 +32,16 @@ struct HandDemand
     int fret{0};
     // True for a fretted note struck here; a keyframe or a plant only widens the hull.
     bool struck{false};
+    // The frets a fretting finger travelled to state this demand, where it slid here from another
+    // pressed stop (the slide rule).
+    std::optional<int> travel{};
+};
+
+// Fingers sliding into one instant: how far the hand travels with them, empty where they travel
+// different distances, which proves no single shift.
+struct SlideInto
+{
+    std::optional<int> travel{};
 };
 
 // One instant the hand must cover: the hull of every demand stated there, and how many fretted
@@ -44,6 +54,8 @@ struct CoverageGroup
     int lowest{0};
     int highest{0};
     int struck{0};
+    // Present where a fretting finger slides into this instant.
+    std::optional<SlideInto> slide{};
 };
 
 // The holds' pins (rule 6), sorted by start: `reach[k]` is the latest end among the first k + 1,
@@ -64,36 +76,88 @@ struct HoldPins
     }
 };
 
-// Rule 2: every note's demands — its onset (\ref fretHandDemandAt), and every pitched keyframe fret
-// statement but the slide-out, where pressure is already off. An arrival is a statement like any
-// other and lands on the next head's instant, merging there.
+// One stretch of a note's ring over which its fret channel states one stop, as offsets from the
+// onset: the onset's stop up to the first fret statement, each statement's up to the next, and the
+// last to the ring's end. A slide-out's fret is no stop the hand takes, so the stop it slides from
+// lasts to the end; an arrival into the next head is a stretch of no length on that head's instant.
+struct ChannelStretch
+{
+    Fraction from{};
+    Fraction to{};
+    // What the stop demands of the hand (rule 1), or nothing.
+    std::optional<int> demand{};
+    // Whether a fretting finger presses the stop, which is what makes the stretch a hold: an open
+    // string, a natural harmonic's node and a picking-hand onset press nothing.
+    bool pressed{false};
+};
+
+// THE ONE WALK of a note's fret channel over time: where its finger is and for how long, each
+// stop read through the rule-1 authority (\ref fretHandDemandAt, \ref fretHandStopAt). Rule 2's
+// demands start the stretches and the ring holds are the pressed ones (\ref fretHandHolds).
+[[nodiscard]] std::vector<ChannelStretch> channelStretchesOf(
+    const ChartNote& note, const bool arrives_into_next_head)
+{
+    const auto stretch_from = [&note](const Fraction from) {
+        const std::optional<ChartStop> stop = fretHandStopAt(note, std::nullopt, from);
+        const std::optional<int> demand = fretHandDemandAt(note, from);
+        return ChannelStretch{
+            .from = from,
+            .to = note.sustain,
+            .demand = demand,
+            .pressed =
+                demand.has_value() && stop.has_value() && pressedFret(stop->fret).has_value(),
+        };
+    };
+    std::vector<ChannelStretch> stretches{stretch_from(Fraction{})};
+    const Keyframe* const slide_out = slideOutKeyframe(note, arrives_into_next_head);
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        if (keyframe.fret.has_value() && &keyframe != slide_out)
+        {
+            stretches.back().to = keyframe.offset;
+            stretches.push_back(stretch_from(keyframe.offset));
+        }
+    }
+    return stretches;
+}
+
+// Rule 2: every note's demands — the start of every stretch of its fret channel
+// (\ref channelStretchesOf), the onset's struck. An arrival lands on the next head's instant,
+// merging there. A stretch reached from a different demanded fret is a slide, and carries the
+// hand's travel (the slide rule).
 void collectNoteDemands(
     const ChartConnections& connections, std::vector<HandDemand>& demands,
     FretHandDerivationTally& tally)
 {
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
-        const ChartNote& note = connections.saved_notes[index];
         const Fraction place = connections.places[index];
-        if (const std::optional<int> onset = fretHandDemandAt(note, Fraction{}); onset.has_value())
+        std::optional<int> previous;
+        bool onset = true;
+        for (const ChannelStretch& stretch :
+             channelStretchesOf(connections.saved_notes[index], connections.arrives_into[index]))
         {
-            demands.push_back(HandDemand{.place = place, .fret = *onset, .struck = true});
-        }
-        const Keyframe* const slide_out = slideOutKeyframe(note, connections.arrives_into[index]);
-        for (const Keyframe& keyframe : note.keyframes)
-        {
-            if (!keyframe.fret.has_value() || &keyframe == slide_out)
-            {
-                continue;
-            }
-            const std::optional<int> stop = fretHandDemandAt(note, keyframe.offset);
+            // The fret this stretch is reached from: the one the channel demanded before it.
+            const std::optional<int> from = std::exchange(previous, stretch.demand);
+            const bool struck = std::exchange(onset, false);
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<int>& stop = stretch.demand;
             if (!stop.has_value())
             {
                 continue;
             }
-            ++tally.keyframe_demands;
+            if (!struck)
+            {
+                ++tally.keyframe_demands;
+            }
             demands.push_back(
-                HandDemand{.place = place + keyframe.offset, .fret = *stop, .struck = false});
+                HandDemand{
+                    .place = place + stretch.from,
+                    .fret = *stop,
+                    .struck = struck,
+                    .travel = from.has_value() && *from != *stop ? std::optional<int>{*stop - *from}
+                                                                 : std::nullopt,
+                });
         }
     }
 }
@@ -133,42 +197,6 @@ void collectNoteDemands(
     return spans;
 }
 
-// A ring's hold (\ref fretHandHolds): from its last pitched stop to the ring's end. A slide-out's
-// fret is no stop the hand takes, so the stop it slides from holds to the end.
-[[nodiscard]] std::optional<FretHandHold> ringHoldOf(
-    const ChartConnections& connections, const std::size_t index)
-{
-    const ChartNote& note = connections.saved_notes[index];
-    if (note.fret <= 0 || rightHandOnset(note.attack))
-    {
-        return std::nullopt;
-    }
-    const Keyframe* const slide_out = slideOutKeyframe(note, connections.arrives_into[index]);
-    Fraction from{};
-    const Fraction to = note.sustain;
-    int fret = note.fret;
-    for (const Keyframe& keyframe : note.keyframes)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& stated = keyframe.fret;
-        if (!stated.has_value() || &keyframe == slide_out)
-        {
-            continue;
-        }
-        if (*stated != fret)
-        {
-            fret = *stated;
-            from = keyframe.offset;
-        }
-    }
-    if (!(from < to))
-    {
-        return std::nullopt;
-    }
-    const Fraction place = connections.places[index];
-    return FretHandHold{.from = place + from, .to = place + to, .fret = fret};
-}
-
 // The instants the hand covers, ascending: every demand merged by instant, then every instant a
 // stop is held at — a plant or a hold — widened to it. A held stop is a demand where it begins, so
 // a span fronting where nothing fretted is struck is still an instant the hand covers.
@@ -182,7 +210,8 @@ void collectNoteDemands(
     spans.insert(spans.end(), holds.begin(), holds.end());
     for (const FretHandHold& span : spans)
     {
-        demands.push_back(HandDemand{.place = span.from, .fret = span.fret, .struck = false});
+        demands.push_back(
+            HandDemand{.place = span.from, .fret = span.fret, .struck = false, .travel = {}});
     }
     std::ranges::stable_sort(demands, std::ranges::less{}, &HandDemand::place);
 
@@ -198,6 +227,7 @@ void collectNoteDemands(
                     .lowest = demand.fret,
                     .highest = demand.fret,
                     .struck = 0,
+                    .slide = std::nullopt,
                 });
         }
         CoverageGroup& group = groups.back();
@@ -206,6 +236,20 @@ void collectNoteDemands(
         if (demand.struck)
         {
             ++group.struck;
+        }
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<int>& travel = demand.travel;
+        if (!travel.has_value())
+        {
+            continue;
+        }
+        if (!group.slide.has_value())
+        {
+            group.slide = SlideInto{.travel = travel};
+        }
+        else if (group.slide->travel != travel)
+        {
+            group.slide->travel.reset();
         }
     }
     for (const FretHandHold& span : spans)
@@ -221,6 +265,19 @@ void collectNoteDemands(
     tally.groups += static_cast<long long>(groups.size());
     tally.struck_groups +=
         std::ranges::count_if(groups, [](const CoverageGroup& group) { return group.struck > 0; });
+    for (const CoverageGroup& group : groups)
+    {
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<SlideInto>& slide = group.slide;
+        if (slide.has_value())
+        {
+            ++tally.slide_arrivals;
+            if (!slide->travel.has_value())
+            {
+                ++tally.slide_arrivals_disagreeing;
+            }
+        }
+    }
     return groups;
 }
 
@@ -247,8 +304,8 @@ struct HandRun
 
 // Rule 3: the run from `head` closes at a bar line, at a chord, or where the grip would outgrow the
 // hand's capacity, max(4, hull) — the reach test keeps the four-fret floor. It also closes at
-// `limit`, the first group an authored position takes, since that position states its own window
-// from there. `head` must lie before `limit`.
+// `limit`: the first group an authored position takes, since that position states its own window
+// from there, or the next a slide arrives into (the slide rule). `head` must lie before `limit`.
 [[nodiscard]] HandRun runFrom(
     const std::vector<CoverageGroup>& groups, const std::size_t head, const std::size_t limit)
 {
@@ -366,29 +423,109 @@ std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset
 std::vector<FretHandHold> fretHandHolds(
     const ChartConnections& connections, const ChartShapes& shapes)
 {
+    const std::vector<ChartNote>& notes = connections.saved_notes;
+    const std::vector<Fraction>& places = connections.places;
     std::vector<FretHandHold> holds;
-    for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
+    // The fretting hand's own notes per string, ascending: the grip's members.
+    std::vector<std::vector<std::size_t>> strings(static_cast<std::size_t>(g_max_chart_strings));
+    for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        if (const std::optional<FretHandHold> ring = ringHoldOf(connections, index);
-            ring.has_value())
+        const Fraction place = places[index];
+        for (const ChannelStretch& stretch :
+             channelStretchesOf(notes[index], connections.arrives_into[index]))
         {
-            holds.push_back(*ring);
-        }
-    }
-    for (const ChartShape& shape : shapes.shapes)
-    {
-        for (const std::optional<ChartStop>& stop : shapes.postures[shape.posture].stops)
-        {
-            // A node stop presses fret 0 by construction, so only a pressed fret is held.
-            if (stop.has_value() && pressedFret(stop->fret).has_value())
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<int>& fret = stretch.demand;
+            if (stretch.pressed && fret.has_value() && stretch.from < stretch.to)
             {
                 holds.push_back(
                     FretHandHold{
-                        .from = shape.place,
-                        .to = shape.place + shape.sustain,
-                        .fret = stop->fret,
+                        .from = place + stretch.from, .to = place + stretch.to, .fret = *fret
                     });
             }
+        }
+        const std::optional<std::size_t> string_index = chartStringIndex(notes[index]);
+        if (string_index.has_value() && !rightHandOnset(notes[index].attack))
+        {
+            strings[*string_index].push_back(index);
+        }
+    }
+    // A span's member holds through the span what its string's notes state, stop by stop, as one
+    // hold for as long as the stop stays the same — a restrike of the stop the finger is on lifts
+    // nothing — and a member struck after the front holds its stop from the front up to its strike.
+    // A ring sounding at the front is the member only where it is on the grip's stop there: one
+    // struck before the span on another stop is a tail (A RING BELONGS ONLY TO THE SPAN IT WAS
+    // STRUCK IN), and the grip's stop is held over it.
+    const auto flush = [&holds](const std::optional<FretHandHold>& hold) {
+        if (hold.has_value() && hold->from < hold->to)
+        {
+            holds.push_back(*hold);
+        }
+    };
+    for (const ChartShape& shape : shapes.shapes)
+    {
+        const Fraction close = shape.place + shape.sustain;
+        const std::vector<std::optional<ChartStop>>& stops = shapes.postures[shape.posture].stops;
+        for (std::size_t string_index = 0; string_index < stops.size(); ++string_index)
+        {
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<ChartStop>& stop = stops[string_index];
+            if (!stop.has_value() || !pressedFret(stop->fret).has_value())
+            {
+                continue;
+            }
+            const std::vector<std::size_t>& members = strings[string_index];
+            auto member = std::ranges::lower_bound(
+                members, shape.place, {}, [&places](const std::size_t index) {
+                    return places[index];
+                });
+            std::optional<FretHandHold> hold;
+            const auto ringing_member = [&](const std::size_t index) {
+                return shape.place < places[index] + notes[index].sustain &&
+                       fretHandDemandAt(notes[index], shape.place - places[index]) == stop->fret;
+            };
+            if (member != members.begin() && ringing_member(*std::prev(member)))
+            {
+                --member;
+            }
+            else if (member != members.end())
+            {
+                hold = FretHandHold{
+                    .from = shape.place,
+                    .to = std::min(places[*member], close),
+                    .fret = stop->fret,
+                };
+            }
+            for (; member != members.end() && places[*member] < close; ++member)
+            {
+                const Fraction place = places[*member];
+                for (const ChannelStretch& stretch :
+                     channelStretchesOf(notes[*member], connections.arrives_into[*member]))
+                {
+                    const Fraction from = std::max(place + stretch.from, shape.place);
+                    const Fraction to = std::min(place + stretch.to, close);
+                    // Bound once so the presence test and the read are provably the same object.
+                    const std::optional<int>& fret = stretch.demand;
+                    if (!(from < to))
+                    {
+                        continue;
+                    }
+                    if (!stretch.pressed || !fret.has_value())
+                    {
+                        flush(hold);
+                        hold.reset();
+                        continue;
+                    }
+                    if (hold.has_value() && hold->fret == *fret && hold->to == from)
+                    {
+                        hold->to = to;
+                        continue;
+                    }
+                    flush(hold);
+                    hold = FretHandHold{.from = from, .to = to, .fret = *fret};
+                }
+            }
+            flush(hold);
         }
     }
     return holds;
@@ -427,25 +564,37 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             std::ranges::lower_bound(groups, authored_places[index], {}, &CoverageGroup::place)));
     };
 
+    // THE SLIDE RULE's boundaries: `next_slide[k]` is the first group at or after `k` that a
+    // fretting finger slides into, or every group where none remains. No figure and no authored
+    // position's tenure runs across one.
+    std::vector<std::size_t> next_slide(groups.size() + 1, groups.size());
+    for (std::size_t index = groups.size(); index > 0; --index)
+    {
+        next_slide[index - 1] = groups[index - 1].slide.has_value() ? index - 1 : next_slide[index];
+    }
+
     std::vector<FretHandEvent> events;
     std::optional<FretWindow> standing;
     std::size_t head = 0;
     std::size_t stated = 0;
     while (head < groups.size() || stated < authored.size())
     {
-        const std::size_t limit = first_group_at(stated);
-        if (head == limit)
+        const std::size_t authored_group = first_group_at(stated);
+        if (head == authored_group)
         {
             // AN AUTHORED POSITION, standing where it is stated and always an event of its own.
             // Its window is `[fret, end fret]` where the end is stated; else the floor is pinned
             // and rule 8 gives the top: the top of the run it heads, never under four frets. It
             // then stands until the chart contradicts it: it takes its own instant whatever
-            // sounds there, and every later group that fits inside the window, up to the next
-            // authored position. The derivation resumes at the first group that does not fit.
+            // sounds there — a slide arriving there included — and every later group that fits
+            // inside the window, up to the next authored position or slide arrival. The derivation
+            // resumes at the first group that does not fit.
             const FretHandPosition& position = authored[stated];
             const Fraction place = authored_places[stated];
             ++stated;
-            const std::size_t reach = first_group_at(stated);
+            const std::size_t own =
+                head < groups.size() && groups[head].place == place ? head + 1 : head;
+            const std::size_t reach = std::min(first_group_at(stated), next_slide[own]);
             int top = position.fret + g_min_fret_hand_width - 1;
             // Bound once so the presence test and the read are provably one object.
             const std::optional<int>& end_fret = position.end_fret;
@@ -469,16 +618,47 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             continue;
         }
 
-        const HandRun run = runFrom(groups, head, limit);
+        // THE SLIDE RULE: a fretting finger sliding from one pressed stop to another proves the
+        // hand moved with it, keeping the finger's place in the hand, so the window at the arrival
+        // is the standing one shifted by the travel. The arrival's group carries every demand and
+        // every hold standing there, so a shifted window that does not cover it — a finger held
+        // outside it proves the hand stayed — cuts as usual, and fingers sliding different
+        // distances prove no single shift; either way the arrival stays a forced boundary that
+        // rules 5, 6 and 10 cannot hold or reach back across.
+        const CoverageGroup& arriving = groups[head];
+        // Each bound once so the presence tests and the reads are provably the same objects.
+        const std::optional<SlideInto>& slide = arriving.slide;
+        const bool slid = slide.has_value();
+        const std::optional<int> travel = slide.has_value() ? slide->travel : std::nullopt;
+        if (travel.has_value() && standing.has_value())
+        {
+            const FretWindow shifted{
+                .fret = fittedWindowFret(standing->fret + *travel, standing->width, capo),
+                .width = standing->width,
+            };
+            if (shifted.covers(arriving.lowest) && shifted.covers(arriving.highest))
+            {
+                ++counts.slide_shifts;
+                if (standing != shifted)
+                {
+                    events.push_back(FretHandEvent{.front = arriving.place, .window = shifted});
+                    standing = shifted;
+                }
+                ++head;
+                continue;
+            }
+        }
+
+        const HandRun run = runFrom(groups, head, std::min(authored_group, next_slide[head + 1]));
         ++counts.runs;
-        const Fraction run_head = groups[head].place;
+        const Fraction run_head = arriving.place;
         const std::optional<Fraction> hold_end = hold_pins.latestEndBefore(run_head);
 
         // Rules 5 and 6 only ever remove motion, and only from an UNFORCED run, one the standing
         // window already covers: a one-fret run restates nothing, and nothing moves while a stop
         // held from earlier still holds.
-        const bool unforced =
-            standing.has_value() && standing->covers(run.lowest) && standing->covers(run.highest);
+        const bool unforced = !slid && standing.has_value() && standing->covers(run.lowest) &&
+                              standing->covers(run.highest);
         if (unforced && hold_end.has_value() && run_head < *hold_end)
         {
             ++counts.held_by_hold;
@@ -526,8 +706,9 @@ std::vector<FretHandEvent> deriveFretHandEvents(
                 std::max(after_previous, std::ranges::upper_bound(onsets, events.back().front));
         }
         const auto first_onset = std::ranges::lower_bound(after_previous, onsets.end(), bound);
-        const Fraction front =
-            first_onset != onsets.end() && *first_onset < run_head ? *first_onset : run_head;
+        const Fraction front = !slid && first_onset != onsets.end() && *first_onset < run_head
+                                   ? *first_onset
+                                   : run_head;
         if (front < run_head)
         {
             ++counts.fronts_reaching_back;

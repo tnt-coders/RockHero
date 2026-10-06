@@ -41,8 +41,10 @@ namespace rock_hero::common::core
 namespace
 {
 
-// The reference's exact agreement and the band Q12 allows around it, in percent.
-constexpr double g_reference_exact_percent{88.213};
+// The exact agreement the derivation is held to and the band Q12 allows around it, in percent. The
+// slide rule moved the derivation off the reference harness's 88.213, so this is the signed figure
+// the derivation now makes.
+constexpr double g_reference_exact_percent{88.509};
 constexpr double g_pass_band_percent{0.05};
 
 // One part's agreement: how many fretted notes were judged and how they fared.
@@ -298,6 +300,9 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
     printRow("  restating the window (rule 11)", tally.restated);
     printRow("  emitted", all.emissions);
     printRow("fronts reaching back (rule 10)", tally.fronts_reaching_back);
+    printRow("slide arrivals", tally.slide_arrivals);
+    printRow("  travelling different distances", tally.slide_arrivals_disagreeing);
+    printRow("  shifting the window", tally.slide_shifts);
 
     const double exact = percentOf(all.exact, all.scored);
     INFO(

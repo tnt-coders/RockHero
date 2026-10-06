@@ -338,9 +338,10 @@ spec:
    instant of its own, demanding its fret but never counting toward a chord (a shift slide's arrival
    merges with its landing's instant); a slide-out demands nothing. Every stop the hand provably
    holds (`fretHandHolds`) is a demand from where its hold begins up to, not including, its end, so
-   no window arrives that drops it: a plain ring (rule 8), and every pressed stop of a span's grip
-   across the whole span, a member struck after the span's front included — so an arpeggiated grip
-   gets one window from its first strike. There is no rest rule: a rest is
+   no window arrives that drops it: a ring (rule 8), and a span's members through the span — each
+   holding what its own string states, stop by stop, and a member struck after the span's front
+   holding its stop from the front — so an arpeggiated grip gets one window from its first strike.
+   There is no rest rule: a rest is
    where a move lands, not what triggers one. A window takes over at the first onset after the
    latest of the previous figure's last instant, the latest end among the holds begun before the
    figure, and the bar line that broke the figure — so a figure's leading open strings
@@ -349,16 +350,20 @@ spec:
 8. **Floor, width, and the two exceptions.** The window sits on the figure's lowest fretted fret,
    spans the figure's frets but never fewer than four, and fits on the board — above the capo and
    ending by the last fret, the floor winning (`fittedWindowFret`). A figure the standing window
-   already covers moves nothing while a stop held from earlier still holds — a plain written ring,
-   a pressed, not-dead note the fretting hand makes, which pins from its last pitched stop to where
-   its pitched ring ends (a slide-out's departure ends it; bends and vibrato keep pinning), or a
-   span's grip, which pins from the span's front to its close — and moves nothing when it lies on a
-   single fret. Any other figure is forced and moves, ring or no ring. A window
-   equal to the standing one is not stated again.
-9. **Pitched slides are ordinary coverage; unpitched slides demand nothing.** A pitched slide's
-   keyframe is a demand at its own place like any onset (rule 7), so a glide the window covers moves
-   nothing and one that escapes starts a figure on its own floor. No drag rule exists: the floor is
-   where the hand goes, however it got there.
+   already covers moves nothing while a stop held from earlier still holds — a ring, which pins
+   each pressed stop its fret channel states from that statement up to the next and the last to the
+   ring's end (a slide holds the stop it leaves up to its arrival; a slide-out holds it to the end;
+   bends and vibrato keep pinning; a dead note pins like any other), or a span member's hold — and
+   moves nothing when it lies on a single fret. Any other figure is forced and moves, ring or no
+   ring. A window equal to the standing one is not stated again.
+9. **A pitched slide moves the hand; unpitched slides demand nothing.** A pitched slide's keyframe
+   is a demand at its own place like any onset (rule 7), and a fretting finger sliding from one
+   pressed stop to another proves the hand moved with it: at the arrival the window is the standing
+   one shifted by the travel, fret and top together, so the finger keeps its place in the hand. The
+   arrival is a boundary like an authored position — no figure or authored tenure runs across it,
+   and the two exceptions of rule 8 cannot hold the old window over it. The shift stands only where
+   the shifted window still covers everything demanded and held there; otherwise, and where fingers
+   slide different distances at one instant, the window is placed by the ordinary rules.
 
    A slide-out places no window of its own. A window that fronts exactly where a slide-out ends —
    the next strike's — rides the slide-out's OWN segment and eases with the unpitched curve, so it

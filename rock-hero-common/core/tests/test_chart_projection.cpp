@@ -302,14 +302,16 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
         ShapeStringViewState{.string = 5, .stop = frettedStop(8), .digit = StopMarkSlot::Bracket});
 
     // The authored position at 2:1 stands through its own chord and no further: the fret 5 at the
-    // next bar line lies outside its window, so the derivation resumes there, and every later
-    // figure fits the window it states.
-    REQUIRE(state.fret_hand_positions.size() == 2);
+    // next bar line lies outside its window, so the derivation resumes there. The shift slide from
+    // 5 into the 8 at 4:2 carries that window three frets up (the slide rule).
+    REQUIRE(state.fret_hand_positions.size() == 3);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
     CHECK(state.fret_hand_positions[0].position == GridPosition{.measure = 2, .beat = 1});
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(8.0 * beat));
     CHECK(state.fret_hand_positions[1].position == GridPosition{.measure = 3, .beat = 1});
     CHECK(state.fret_hand_positions[1].fret == 5);
+    CHECK(state.fret_hand_positions[2].position == GridPosition{.measure = 4, .beat = 2});
+    CHECK(state.fret_hand_positions[2].fret == 8);
 }
 
 // Each note carries its two lengths: the ring the string really sounds for, which a reveal draws
@@ -1501,9 +1503,9 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
 
     // The window the 2:1 strum derives comes first, then the two authored positions; the fixture's
     // later figures derive one window of their own after them, reaching down to the 5 still ringing
-    // under the 3:1+1/2 strum.
+    // under the 3:1+1/2 strum, and the shift slide into 4:2 carries it up (the slide rule).
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
-    REQUIRE(state.fret_hand_positions.size() == 4);
+    REQUIRE(state.fret_hand_positions.size() == 5);
     CHECK(state.fret_hand_positions[1].position == GridPosition{.measure = 2, .beat = 4});
     CHECK(state.fret_hand_positions[2].position == GridPosition{.measure = 3, .beat = 1});
 

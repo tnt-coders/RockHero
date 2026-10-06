@@ -2820,12 +2820,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // what is left is a window widening or sliding over a grip it still covers.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 258.0,
+                .expected = 317.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 258.0,
+                .expected = 342.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window
@@ -2839,12 +2839,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 15864.0,
+                .expected = 17650.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
-                .expected = 2184.0,
+                .expected = 2220.0,
             },
             CrossCheck{
                 // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a
@@ -2856,16 +2856,16 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // The pin reads the derived hand events. The rig counts rings sounding at a
                 // window's arrival whose fretting-hand stop (heldFretAt) the window does not
                 // cover. Every held ring is a hold the derivation keeps covered (\ref
-                // fretHandHolds), so what remains is what heldFretAt reads and no hold states: 9
-                // natural-harmonic chimes, which hold nothing, and 6 slide notes read mid-slide.
+                // fretHandHolds), so what remains is what heldFretAt reads and no hold states: the
+                // natural-harmonic chimes, which hold nothing.
                 .label = "windows arriving over a pinned finger",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
-                .expected = 15.0,
+                .expected = 9.0,
             },
             CrossCheck{
                 .label = "  those pinned rings",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_rings),
-                .expected = 15.0,
+                .expected = 9.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING that this rig's own fret-channel reading

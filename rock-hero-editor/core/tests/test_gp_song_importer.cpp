@@ -468,18 +468,17 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
 
     // The import authors no fret-hand position: every one is derived at read.
     CHECK(chart.fret_hand_positions.empty());
-    // The derived fret-hand track opens on the fret-5 palm mute; the seven-to-nine shift glide's
-    // arrival then outgrows that hand (5 to 9 is five frets), so a new run starts where the ARRIVAL
-    // stands — the landing's own onset, the landing head's instant too, so the two demands merge
-    // into one — and the window sits on that run's floor, 9. (The full track shape is the
-    // derivation's own concern, so this asserts the slide-driven move, not the whole sequence.)
+    // The derived fret-hand track opens on the fret-5 palm mute; the seven-to-nine shift glide then
+    // carries that hand two frets up where the ARRIVAL stands — the landing's own onset — so the
+    // window there is 7 (the slide rule). (The full track shape is the derivation's own concern, so
+    // this asserts the slide-driven move, not the whole sequence.)
     CHECK(hands.front().fret == 5);
     const std::optional<std::size_t> shift_glide =
         fretHandPositionAt(hands, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(shift_glide.has_value());
     if (shift_glide.has_value())
     {
-        CHECK(hands[*shift_glide].fret == 9);
+        CHECK(hands[*shift_glide].fret == 7);
         CHECK(hands[*shift_glide].width == 4);
     }
 
@@ -611,15 +610,15 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(origin.keyframes[0].fret == 9);
     CHECK(common::core::endStatedFretOrNull(origin) == nullptr);
 
-    // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: its
-    // demand at the keyframe's mid-sustain place outgrows the opening hand, so the run it starts
-    // fronts there, on its own floor, 9.
+    // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: the
+    // seven-to-nine glide carries the opening hand two frets up where it arrives, mid-sustain
+    // (the slide rule).
     const std::optional<std::size_t> legato_glide =
         fretHandPositionAt(hands, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(legato_glide.has_value());
     if (legato_glide.has_value())
     {
-        CHECK(hands[*legato_glide].fret == 9);
+        CHECK(hands[*legato_glide].fret == 7);
         CHECK(hands[*legato_glide].width == 4);
     }
 
@@ -787,10 +786,10 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// A pitched glide is an ordinary demand at its arrival, so one whose target the standing window
-// already covers moves nothing: with the landing lowered, the one-fret glide's target sits inside
-// the opening 5-8 window, and the hand stays there through it.
-TEST_CASE("Guitar Pro import holds the hand through an in-window glide", "[core][gp-import]")
+// A pitched glide moves the hand even where the standing window already covers its target: with
+// the landing lowered, the one-fret glide from 7 to 8 sits inside the opening 5-8 window and still
+// carries it a fret up where it arrives (the slide rule).
+TEST_CASE("Guitar Pro import moves the hand through an in-window glide", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_in_window_slide_fhp_test";
@@ -815,12 +814,14 @@ TEST_CASE("Guitar Pro import holds the hand through an in-window glide", "[core]
     REQUIRE(chart.notes[1].keyframes.size() == 1);
     CHECK(chart.notes[1].keyframes[0].fret == 8);
 
-    // The run 5-7-8 fits one hand, so the window stays 5-8 through the glide and the landing;
-    // nothing is placed where the arrival stands.
     CHECK(hands.front().fret == 5);
-    CHECK_FALSE(
-        fretHandPositionAt(hands, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}})
-            .has_value());
+    const std::optional<std::size_t> glide =
+        fretHandPositionAt(hands, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+    REQUIRE(glide.has_value());
+    if (glide.has_value())
+    {
+        CHECK(hands[*glide].fret == 6);
+    }
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -889,8 +890,7 @@ constexpr const char* g_held_slide_gpif = R"(<?xml version="1.0" encoding="utf-8
 </GPIF>
 )";
 
-TEST_CASE(
-    "Guitar Pro import moves the hand where a chord member's slide escapes", "[core][gp-import]")
+TEST_CASE("Guitar Pro import moves the hand where a chord member slides", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_held_slide_test";
@@ -902,7 +902,7 @@ TEST_CASE(
     // The arrival stands ON the beat-2 landing, which is where the hand window moves.
     const GridPosition keyframe{.measure = 1, .beat = 2};
 
-    SECTION("a lower note sliding inward stays inside the chord's window")
+    SECTION("a lower note sliding inward carries the chord's window with it")
     {
         const std::filesystem::path archive = writeFixtureArchive(scratch, g_held_slide_gpif);
         GpSongImporter importer;
@@ -917,10 +917,16 @@ TEST_CASE(
         CHECK(hands.front().fret == 2);
         CHECK(hands[0].width == 4);
 
-        // The sliding 2->3 lands inside the [2,5] window the chord's run already holds, so the
-        // landing joins that run and no window is placed there.
-        CHECK(hands.size() == 1);
-        CHECK_FALSE(fretHandPositionAt(hands, keyframe).has_value());
+        // The sliding 2->3 lands inside the [2,5] window the chord's run already holds, and still
+        // carries the hand a fret up where it arrives (the slide rule).
+        CHECK(hands.size() == 2);
+        const std::optional<std::size_t> slid = fretHandPositionAt(hands, keyframe);
+        REQUIRE(slid.has_value());
+        if (slid.has_value())
+        {
+            CHECK(hands[*slid].fret == 3);
+            CHECK(hands[*slid].width == 4);
+        }
     }
 
     SECTION("a lower note sliding outward escapes to its own floor")
