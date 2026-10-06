@@ -638,15 +638,16 @@ bottom-left corner on the span's start, its square base on the rail, each side l
 quarter of its height (`common::ui::tabSpanChipLean`), and its top corners rounded
 (`common::ui::drawTabSpanChip`). Its flat top is sized as a fret-hand chip in the lane's own font:
 blank, it is a one-figure fret-hand chip's width, and a name widens it the way a fret-hand chip's
-text does. The lane has no room above its fret-hand chips, so the chip stands on the RULER's bottom
-edge, directly on the lane's top rail: `EditorView` pushes every span's start and drawn end
-(re-timed to the content map, as the sections are) through `TrackViewport::setSpans`, which adds
-the lane's font (`TabView::labelFont`), and `TimelineRuler` places and paints the chips over its
-tick band. Where a fret-hand chip's height would reach the measure numbers' ink, the ruler's
-ceiling lowers the chip to keep a clear row between the two, while a blank top keeps the fret-hand
-chip's full width. The chip is blank because a span carries no name; the drawer takes an optional
-name and prints it in the dark chip ground where the room holds the whole named chip, and drops it
-whole otherwise.
+text does. It stands as tall as the font's ink, rounded up to whole pixels, with a pixel above and
+below, so a name prints in the lane's own font. The lane has no room above its fret-hand chips, so
+the chip stands on the RULER's bottom edge, directly on the lane's top rail: `EditorView` pushes
+every span's start and drawn end (re-timed to the content map, as the sections are) through
+`TrackViewport::setSpans`, which adds the lane's font (`TabView::labelFont`), and `TimelineRuler`
+places and paints the chips over its tick band. The ruler's ceiling keeps a clear row between a
+chip and the measure numbers' ink, lowering any chip that would reach it, though at the lane's
+largest font the chip stands clear below it. The chip is blank because a span carries no name; the
+drawer takes an optional name and prints it in the dark chip ground where the room holds the whole
+named chip and the chip stands its own height, and drops it whole otherwise.
 
 A chip never reaches past where its span's rails stop (`common::ui::tabSpanStopX`, the one statement
 of the rails' parting); squeezed by that stop, it gives up its leans before its top edge, so it

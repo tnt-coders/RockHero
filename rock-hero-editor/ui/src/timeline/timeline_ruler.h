@@ -360,10 +360,10 @@ public:
     A chip stands at its span's start; once it has scrolled far enough left that its top-left
     corner meets the ruler's left edge, it holds there while its span still shows, its left lean
     past the edge, narrowing as the span's end comes in and leaving with it (\ref stickyLabelLeft).
-    The chip's top edge is the width of the lane's fret-hand chips and the chip is as tall, lowered
-    whole where that would reach the measure numbers' ink, so it always keeps a clear row below
-    them. An unchanged list and font return early because every controller state push repeats
-    them.
+    The chip's top edge is the width of the lane's fret-hand chips and the chip is as tall as the
+    lane's fret ink with a pixel of padding, lowered whole where that would reach the measure
+    numbers' ink, so it always keeps a clear row below them. An unchanged list and font return
+    early because every controller state push repeats them.
 
     \param spans Every span in ascending start order, re-timed to the content's map; empty clears
     the chips.

@@ -571,7 +571,8 @@ struct TabSpanChip
 
     /*!
     \brief The tallest the chip may stand where its host places it, in pixels. A chip taller than
-    this at the lane's size stands exactly this tall, its name scaled to match.
+    this at the lane's size stands exactly this tall and draws blank, its name's ink no longer
+    fitting.
     */
     float max_height{};
 
@@ -604,13 +605,14 @@ its top corners rounded (\ref g_lane_chip_corner_radius), filled in the rails' i
 Its flat top edge is sized as a fret-hand-position chip in the same font (\ref tabFhpChipBounds):
 blank, as wide as a one-figure fret-hand chip; named, as wide as its name boxed the way a fret-hand
 chip boxes its text, never narrower than the blank top, the name printed in the dark chip ground for
-contrast against the light fill. The chip stands as tall as a fret-hand chip; where that exceeds
-\ref TabSpanChip::max_height, it stands exactly that tall and its name scales down to match, while
-a blank top keeps the fret-hand chip's full width. The chip is held to \ref TabSpanChip::stop_x,
-narrowing to the room left before it, giving up its leans before its top edge so it narrows into an
-upright block rather than a point, and drawing nothing when that leaves it under a pixel. A name
-prints only where the room holds the chip's whole named width; otherwise the name is dropped
-entire, never clipped or shrunk, and the chip draws blank.
+contrast against the light fill. The chip stands as tall as the font's ink, rounded up to whole
+pixels, with a pixel above and below, so a name prints in the lane's own font; where that exceeds
+\ref TabSpanChip::max_height, the chip stands exactly that tall with the same top edge. The chip is
+held to \ref TabSpanChip::stop_x, narrowing to the room left before it, giving up its leans before
+its top edge so it narrows into an upright block rather than a point, and drawing nothing when that
+leaves it under a pixel. A name prints only where the room holds the chip's whole named width and
+the ceiling leaves the chip its own height; otherwise the name is dropped entire, never clipped or
+shrunk, and the chip draws blank.
 
 \param g Graphics context to draw into.
 \param font The fret font of the lane the chip labels (\ref TabLaneMetrics::fret_font), so the chip

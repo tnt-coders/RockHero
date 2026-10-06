@@ -116,10 +116,17 @@ constexpr float g_boxed_chip_padding{3.0f};
     return static_cast<float>(font.width(text)) + (2.0f * g_boxed_chip_padding);
 }
 
-// A span chip's height: a lane chip's, lowered to the host's ceiling where that is lower.
+// A span chip's own height: the fret font's ink in whole pixels with a pixel above and below, so a
+// name printed in that font fits it as drawn.
+[[nodiscard]] float spanChipOwnHeight(const TabLaneFont& font)
+{
+    return std::ceil(font.inkHeight()) + 2.0f;
+}
+
+// A span chip's height: its own, lowered to the host's ceiling where that is lower.
 [[nodiscard]] float spanChipHeight(const TabLaneFont& font, const float max_height)
 {
-    return std::min(laneChipHeight(font), max_height);
+    return std::min(spanChipOwnHeight(font), max_height);
 }
 
 // The lane's one face, bold, at a text height: the fret digits, the fractions and every chip print
@@ -2703,17 +2710,17 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
     const float room = chip.stop_x - left;
     const float height = spanChipHeight(font, chip.max_height);
     const float top = bottom - height;
-    const float full_height = laneChipHeight(font);
-    const float scale = height / full_height;
     const float lean = tabSpanChipLean(font, chip.max_height);
 
-    // Blank, the top edge is a one-figure fret-hand chip's full width even where the height is
-    // scaled; a name widens it, and prints only where the room holds the whole named chip.
+    // Blank, the top edge is a one-figure fret-hand chip's width; a name widens it, and prints only
+    // where the room holds the whole named chip and no ceiling has cut the chip below its name's
+    // ink.
     float top_width = boxedChipWidth(font, g_reference_figure);
     juce::String printed;
-    if (const std::optional<juce::String>& name = chip.name; name.has_value())
+    if (const std::optional<juce::String>& name = chip.name;
+        name.has_value() && chip.max_height >= spanChipOwnHeight(font))
     {
-        const float named_top_width = std::max(top_width, boxedChipWidth(font, *name) * scale);
+        const float named_top_width = std::max(top_width, boxedChipWidth(font, *name));
         if (named_top_width + (2.0f * lean) <= room)
         {
             top_width = named_top_width;
@@ -2752,16 +2759,8 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
     if (printed.isNotEmpty())
     {
         // The dark chip ground, since white falls short of legible contrast on the light rail ink.
-        // The name prints at the lane's size over the unscaled top edge, scaled about the base
-        // point below that edge's left end, so it shrinks with the chip instead of being measured
-        // in a second font.
-        const juce::Graphics::ScopedSaveState saved{g};
-        g.addTransform(juce::AffineTransform::scale(scale, scale, top_left, bottom));
         g.setColour(g_lane_chip_ground);
-        font.draw(
-            g,
-            printed,
-            juce::Rectangle<float>{top_left, bottom - full_height, top_width / scale, full_height});
+        font.draw(g, printed, juce::Rectangle<float>{top_left, top, top_width, height});
     }
 }
 

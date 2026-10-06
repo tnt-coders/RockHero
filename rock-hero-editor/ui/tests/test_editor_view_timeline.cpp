@@ -470,8 +470,8 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     CHECK(image.getPixelAt(204, inside_y) == common::ui::tabShapeMarkColor(true));
 }
 
-// A chip under a measure number never reaches the number's ink: a clear row always parts them,
-// whatever the lane's chip size asks for.
+// A chip under a measure number stands its own height, the fret font's ink with a pixel above and
+// below, which leaves clear rows between its top and the number's ink.
 TEST_CASE(
     "TimelineRuler keeps span chips a row clear of the measure numbers", "[ui][timeline-ruler]")
 {
@@ -531,6 +531,8 @@ TEST_CASE(
     }
     REQUIRE(ink_bottom >= 0);
     REQUIRE(chip_top < g_timeline_ruler_height);
+    const auto own_height = static_cast<int>(std::ceil(lane.fret_font.inkHeight())) + 2;
+    CHECK(chip_top == g_timeline_ruler_height - own_height);
     CHECK(chip_top >= ink_bottom + 2);
 }
 

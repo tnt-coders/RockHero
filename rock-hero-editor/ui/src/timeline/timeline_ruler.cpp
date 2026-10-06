@@ -40,9 +40,9 @@ const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 // a dotted leader line down to the ruler body so its exact position stays readable. The ruler
 // body below them holds the measure-number row above the tick band; measure ticks run the
 // body's full height so the numbers stay attached to their downbeats. The tab lane's span chips
-// stand on the ruler's bottom edge over the tick band, as tall as the lane's fret-hand chips but
-// never taller than the room below the measure numbers' ink (spanChipMaxHeight). The heights fold
-// into g_timeline_ruler_height; change them together.
+// stand on the ruler's bottom edge over the tick band, as tall as the lane's fret ink with a pixel
+// of padding but never taller than the room below the measure numbers' ink (spanChipMaxHeight).
+// The heights fold into g_timeline_ruler_height; change them together.
 constexpr int g_section_row_y{2};
 constexpr int g_tempo_row_y{16};
 constexpr int g_signature_row_y{30};
