@@ -92,8 +92,8 @@ classification, the beat grid, and the camera framing zones. Build once per char
 share the result immutably: the camera and every drawer are pure functions of the returned state
 plus per-frame time.
 
-\param scene The arrangement's chart scene, `makeChartViewState(arrangement, tempo_map)`; moved
-       into the returned state. Each note's margin rise is read off it, and the scene of an absent
+\param scene The arrangement's chart scene (\ref makeChartViewState); moved into the returned
+       state. Each note's margin rise is read off it, and the scene of an absent
        chart yields no board structure beyond the sections.
 \param tempo_map Tempo map resolving musical positions to seconds.
 \param sections Song-structure section markers, resolved into the state's section list even when

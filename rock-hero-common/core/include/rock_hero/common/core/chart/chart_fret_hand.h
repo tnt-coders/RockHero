@@ -1,7 +1,8 @@
 /*!
 \file chart_fret_hand.h
 \brief The fret hand derived from the notes and the authored positions: where the hand sits
-(\ref deriveFretHandEvents), and how its window rides a slide-out (\ref deriveFretHandRides).
+(\ref deriveFretHandEvents), how its window rides a slide-out (\ref deriveFretHandRides), and the
+two together as a chart revision's hand layer (\ref fretHandResolutions).
 */
 
 #pragma once
@@ -89,19 +90,6 @@ demands the first playable fret, and a node nearest a fret at or below the capo.
 \return The demanded fret, at or above the first playable fret, or nothing.
 */
 [[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset, int capo);
-
-/*! \brief A stop the fretting hand provably holds over `[from, to)` on the whole-note axis. */
-struct FretHandHold
-{
-    /*! \brief Where the hold begins. */
-    Fraction from{};
-
-    /*! \brief Where the hold ends, exclusive: an event exactly here finds the stop released. */
-    Fraction to{};
-
-    /*! \brief The fret held. */
-    int fret{0};
-};
 
 /*!
 \brief RULE 6, stated once: every stop the fretting hand provably holds, and for how long — what
@@ -232,5 +220,43 @@ arrival, so the ride takes the slide's own segment and unpitched ease. Nothing e
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandRides(
     const ChartConnections& connections, const std::vector<FretHandHold>& holds,
     const TempoMap& tempo_map, int capo, const std::vector<FretHandEvent>& events);
+
+/*!
+\brief The hand layer of a chart revision: where the hand sits and how its window rides, derived
+from the notes layer (\ref ChartResolutions) and the authored positions.
+
+A layer of its own because the positions are the one input the notes layer never reads: a position
+edit re-derives this and leaves the notes layer standing.
+*/
+struct FretHandResolutions
+{
+    /*!
+    \brief The hand events (\ref deriveFretHandEvents), authored positions among them, strictly
+    ascending by front. Not index-parallel to the notes.
+    */
+    std::vector<FretHandEvent> events;
+
+    /*!
+    \brief How the window rides the unpitched slide-outs (\ref deriveFretHandRides): motion beside
+    \ref events, read by the board's hand track alone, so it is no chip and no position.
+    */
+    std::vector<FretHandEvent> rides;
+};
+
+/*!
+\brief Derives the hand layer from a chart's notes layer and its authored positions.
+
+The pipeline's last stage — notes, then grips, then positions — so it reads the holds the notes
+layer already derived (\ref ChartResolutions::hand_holds) rather than deriving them again.
+
+\param chart The notes layer (\ref chartResolutions); its capo is the one the hand is derived under.
+\param authored The chart's authored positions, valid and strictly ascending.
+\param tempo_map Tempo map the notes layer was derived against.
+
+\return The hand events and the slide-out rides.
+*/
+[[nodiscard]] FretHandResolutions fretHandResolutions(
+    const ChartResolutions& chart, const std::vector<FretHandPosition>& authored,
+    const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

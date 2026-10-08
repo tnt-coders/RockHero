@@ -790,4 +790,18 @@ std::vector<FretHandEvent> deriveFretHandRides(
     return rides;
 }
 
+// The pipeline's last stage over the notes layer's own holds: the events first, because the rides
+// stand only where no event fronts.
+FretHandResolutions fretHandResolutions(
+    const ChartResolutions& chart, const std::vector<FretHandPosition>& authored,
+    const TempoMap& tempo_map)
+{
+    FretHandResolutions hand;
+    hand.events =
+        deriveFretHandEvents(chart.connections, chart.hand_holds, tempo_map, chart.capo, authored);
+    hand.rides = deriveFretHandRides(
+        chart.connections, chart.hand_holds, tempo_map, chart.capo, hand.events);
+    return hand;
+}
+
 } // namespace rock_hero::common::core

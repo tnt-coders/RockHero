@@ -32,11 +32,10 @@ void SongSectionsSnapshot::normalize()
 // Every section rule lives in common core, where the package reader asks the same question, so this
 // only carries the diagnostic across: the commit funnel logs a refusal rather than branching on the
 // reason, which is what the stable code is there for elsewhere.
-std::optional<std::string> SongSectionsSnapshot::validate(
-    const common::core::Session& session) const
+std::optional<std::string> SongSectionsSnapshot::validate(const MarkerJudgeContext& context) const
 {
     if (const auto valid =
-            common::core::validateSongSectionRules(sections, session.song().tempo_map);
+            common::core::validateSongSectionRules(sections, context.session.song().tempo_map);
         !valid.has_value())
     {
         return valid.error().message;

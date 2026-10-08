@@ -296,9 +296,10 @@ Durations in these rules are note values in whole notes — a quarter is `1/4` i
 matching the chart model's own sustain unit.
 
 **Fret-hand position derivation** — not an import rule at all. GP has no hand-position concept and
-the import authors none, so every position is derived at read, once per chart revision inside
-`chartResolutions` and AFTER the spans (notes, then grips, then positions: the spans never read the
-hand), by the 13-rule figure-segmented floor tracker,
+the import authors none, so every position is derived at read, once per chart revision by
+`fretHandResolutions` over the notes layer `chartResolutions` derives, so AFTER the spans and the
+holds (notes, then grips, then positions: the spans never read the hand), by the 13-rule
+figure-segmented floor tracker,
 `common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`); the measured algorithm and the
 rulings it is built to are in `docs/plans/in-progress/fhp-derivation-algorithm.md` and plan 60 §9.
 The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
@@ -373,7 +374,7 @@ spec:
    follows the drawn rail instead of sprinting to catch up after a margin morph.
 
    The hand still TRAVELS with a slide-out, so the window does — as derived MOTION, never a
-   position (`deriveFretHandRides`, `ChartResolutions::hand_rides`). Where the fretting hand holds
+   position (`deriveFretHandRides`, `FretHandResolutions::rides`). Where the fretting hand holds
    the stop the slide leaves, the window arrives at the slide-out's end covering the exit fret,
    shifted the least distance that does so with its width kept (one window for strings sliding out
    together; a window already covering the exit does not move), riding the slide's own segment with

@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -44,20 +46,38 @@ template <typename Extent>
 }
 
 /*!
-\brief Projects an arrangement's chart into the seconds-resolved scene both surfaces draw.
+\brief Projects a chart into the seconds-resolved scene both surfaces draw, from its two derived
+layers.
 
 Every musical position resolves through the tempo map exactly once here, and every per-note fact
-comes from the one resolutions pass (\ref chartResolutions): the stored note with its keyframes at
-their stored instants, where its ink stops (\ref chartPresentation), each note's connection
-claim resolved, and each note's hold in seconds. There is ONE form: a surface draws every note to
-its ink end, and a reveal draws it on to its ring end — the same note, more of it. The 2D lane
-renders the result as is; the 3D highway composes it and adds board-only structure
-(\ref makeHighwayViewState). An arrangement without a chart projects an empty state (no strings
-named), which renders nothing.
+comes from the notes layer (\ref chartResolutions): the stored note with its keyframes at their
+stored instants, where its ink stops (\ref chartPresentation), each note's connection claim
+resolved, and each note's hold in seconds. Every hand chip and ride comes from the hand layer
+(\ref fretHandResolutions). There is ONE form: a surface draws every note to its ink end, and a
+reveal draws it on to its ring end — the same note, more of it. The 2D lane renders the result as
+is; the 3D highway composes it and adds board-only structure (\ref makeHighwayViewState).
 
-**Scored = drawn** is a property of this state, not a rule to remember: the ink end is what both
-surfaces stop at and what the scorer will judge to (`docs/plans/in-progress/note-sustain-model.md`,
-ruling 4).
+The layers are taken, never derived, so a caller that keeps them (the editor's memo) pays for each
+once per revision. **Scored = drawn** is a property of this state, not a rule to remember: the ink
+end is what both surfaces stop at and what the scorer will judge to
+(`docs/plans/in-progress/note-sustain-model.md`, ruling 4).
+
+\param chart Chart to display.
+\param resolutions The chart's notes layer, derived from its notes, capo and `tempo_map`.
+\param hand The chart's hand layer, derived from `resolutions` and its authored positions.
+\param tempo_map Tempo map used to resolve musical positions to seconds.
+\return The chart's shared view state.
+*/
+[[nodiscard]] ChartViewState makeChartViewState(
+    const Chart& chart, const ChartResolutions& resolutions, const FretHandResolutions& hand,
+    const TempoMap& tempo_map);
+
+/*!
+\brief Projects an arrangement's chart into its scene, deriving both layers on the way.
+
+For a caller that keeps no layers: the game's dev session builds each arrangement's scene once at
+load, and tests build a scene from a chart in one call. An arrangement without a chart projects an
+empty state (no strings named), which renders nothing.
 
 \param arrangement Arrangement whose chart should be displayed.
 \param tempo_map Tempo map used to resolve musical positions to seconds.

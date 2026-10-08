@@ -2245,7 +2245,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             }
 
             const common::core::ChartResolutions resolutions =
-                common::core::chartResolutions(chart, built->tempo_map);
+                common::core::chartResolutions(chart.notes, chart.tuning.capo, built->tempo_map);
 
             // DERIVED HELD's population, read off the production derivation rather than restated:
             // a PLANT under a note the picking hand stops the string for is exactly a pull-off
@@ -2299,19 +2299,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 resolutions.shapes,
                 resolutions.postures,
                 resolutions.arrivals,
-                resolutions.hand_events,
+                common::core::fretHandResolutions(
+                    resolutions, chart.fret_hand_positions, built->tempo_map)
+                    .events,
                 resolutions.held_stops,
                 built->tempo_map,
                 census.derivation);
             static_cast<void>(common::core::deriveFretHandEvents(
                 resolutions.connections,
-                common::core::fretHandHolds(
-                    resolutions.connections,
-                    common::core::ChartShapes{
-                        .shapes = resolutions.shapes,
-                        .postures = resolutions.postures,
-                    },
-                    chart.tuning.capo),
+                resolutions.hand_holds,
                 built->tempo_map,
                 chart.tuning.capo,
                 {},

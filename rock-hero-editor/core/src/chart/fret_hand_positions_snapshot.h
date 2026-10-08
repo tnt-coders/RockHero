@@ -7,6 +7,7 @@ funnel.
 #pragma once
 
 #include "controller/edit_focus.h"
+#include "controller/marker_judge_context.h"
 
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -40,6 +41,9 @@ struct FretHandPositionsSnapshot
     /*!
     \brief Writes this stream onto the current arrangement's chart.
 
+    Through the session's position surface, which leaves the notes revision alone, so the notes
+    layer the controller keeps survives a placement edit and its undo.
+
     \param session Session whose current arrangement owns the chart.
     \return False when no chart is loaded to carry the stream.
     */
@@ -51,11 +55,11 @@ struct FretHandPositionsSnapshot
     /*!
     \brief Reports the first rule this stream breaks: its own, or its coverage of the chart's notes.
 
-    \param session Session supplying the chart's tuning and notes and the tempo map the positions
-           address.
+    \param context The funnel's context: its session supplies the chart's tuning and the tempo map
+           the positions address, and its notes layer the notes the positions must cover.
     \return The violation to report, or empty when the stream satisfies every rule.
     */
-    [[nodiscard]] std::optional<std::string> validate(const common::core::Session& session) const;
+    [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;
 
     /*!
     \brief The placement an undo or redo landing on this stream brings into focus.

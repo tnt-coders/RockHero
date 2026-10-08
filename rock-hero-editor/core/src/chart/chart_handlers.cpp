@@ -947,7 +947,7 @@ bool EditorController::Impl::applyChartEditPlan(
 // subject the caller planned it over: a caller that wants to distinguish NoChange from Invalid for
 // its own behavior still branches before handing the plan over.
 bool EditorController::Impl::applyChartEditPlan(
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
     std::optional<std::vector<ChartSelectionKey>> select_exactly)
 {
     if (!plan.has_value())
@@ -959,14 +959,15 @@ bool EditorController::Impl::applyChartEditPlan(
 }
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
-// so every projection rebuilds) and records it as one undo entry.
+// so every projection rebuilds), seeds the notes-layer memo with the gate's own derivation of the
+// stream it landed, and records it as one undo entry.
 bool EditorController::Impl::applyChartEditPlan(
-    ChartEditPlan plan, std::optional<std::vector<ChartSelectionKey>> select_exactly)
+    JudgedChartPlan plan, std::optional<std::vector<ChartSelectionKey>> select_exactly)
 {
     // Where the charter stands before anything moves, which is exactly where undo returns them.
     std::optional<ChartEditFocus> before = chartEditFocusOf(chartSelection().keys());
     const std::optional<std::expected<void, EditorUndoFailureCode>> applied = m_session.writeChart(
-        [&plan](common::core::Chart& chart) { return applyChartChange(chart, plan); });
+        [&plan](common::core::Chart& chart) { return applyChartChange(chart, plan.plan); });
     if (!applied.has_value())
     {
         return false;
@@ -975,9 +976,11 @@ bool EditorController::Impl::applyChartEditPlan(
     {
         // The plan was computed against this exact chart, so a precondition failure means a
         // logic error rather than user input; surface it instead of silently dropping the edit.
-        reportError("Could not apply chart edit: " + plan.label);
+        reportError("Could not apply chart edit: " + plan.plan.label);
         return false;
     }
+    // Before anything below reads a projection, so nothing derives what the gate already did.
+    seedChartResolutions(std::move(plan.resolved));
 
     // Any chart edit closes the technique toggle windows unless the caller re-arms them. The
     // pending fret entry is normally ALREADY settled by the caller's prologue when another verb
@@ -1003,33 +1006,33 @@ bool EditorController::Impl::applyChartEditPlan(
             return std::ranges::any_of(
                 side, [&key](const auto& record) { return chartSlotKeyOf(record) == key; });
         };
-        const auto follow =
-            [&next_selection, &in_side, &plan](const std::vector<ChartSlotKey>& selected) {
-                for (const ChartSlotKey& key : selected)
+        const auto follow = [&next_selection, &in_side, &plan](
+                                const std::vector<ChartSlotKey>& selected) {
+            for (const ChartSlotKey& key : selected)
+            {
+                if (!in_side(plan.plan.removed, key))
                 {
-                    if (!in_side(plan.removed, key))
-                    {
-                        next_selection.emplace_back(ChartNoteKey{.slot = key});
-                    }
-                }
-                for (const common::core::ChartNote& note : plan.inserted)
-                {
-                    const ChartSlotKey key = chartSlotKeyOf(note);
-                    // A note rewritten IN PLACE that the user had not selected is something
-                    // the plan carried, not the edit's subject — the legato assist grows a
-                    // predecessor's tail inside the same plan, and the finalize's overlap pass
-                    // can retrim a same-string neighbour — so it must not join the selection.
-                    // Selecting it would break the armed-caret invariant (armed means the
-                    // selection is exactly what sits under the caret) and would silently widen
-                    // the next keystroke's scope. A note inserted at a NEW key is the edit's own
-                    // product (a moved or created object) and follows.
-                    if (in_side(plan.removed, key) && !std::ranges::binary_search(selected, key))
-                    {
-                        continue;
-                    }
                     next_selection.emplace_back(ChartNoteKey{.slot = key});
                 }
-            };
+            }
+            for (const common::core::ChartNote& note : plan.plan.inserted)
+            {
+                const ChartSlotKey key = chartSlotKeyOf(note);
+                // A note rewritten IN PLACE that the user had not selected is something
+                // the plan carried, not the edit's subject — the legato assist grows a
+                // predecessor's tail inside the same plan, and the finalize's overlap pass
+                // can retrim a same-string neighbour — so it must not join the selection.
+                // Selecting it would break the armed-caret invariant (armed means the
+                // selection is exactly what sits under the caret) and would silently widen
+                // the next keystroke's scope. A note inserted at a NEW key is the edit's own
+                // product (a moved or created object) and follows.
+                if (in_side(plan.plan.removed, key) && !std::ranges::binary_search(selected, key))
+                {
+                    continue;
+                }
+                next_selection.emplace_back(ChartNoteKey{.slot = key});
+            }
+        };
         follow(chartSelection().notes());
         // A keyframe key rides an edit that rewrote its note IN PLACE, which is every keyframe
         // verb there is. A note the plan MOVED or DELETED takes its keyframes' keys with it,
@@ -1037,7 +1040,8 @@ bool EditorController::Impl::applyChartEditPlan(
         // new one.
         for (const ChartKeyframeKey& keyframe : chartSelection().keyframes())
         {
-            if (!in_side(plan.removed, keyframe.note) || in_side(plan.inserted, keyframe.note))
+            if (!in_side(plan.plan.removed, keyframe.note) ||
+                in_side(plan.plan.inserted, keyframe.note))
             {
                 next_selection.emplace_back(keyframe);
             }
@@ -1060,13 +1064,13 @@ bool EditorController::Impl::applyChartEditPlan(
     // push resets the history, which is the same reason.) The accepted consequence: a run whose
     // early steps write nothing and whose later step writes does not coalesce across that boundary,
     // which is correct — the early steps are authoring state no entry may hold.
-    ChartEditPlan written = writtenChartPlan(plan);
+    ChartEditPlan written = writtenChartPlan(plan.plan);
     std::optional<ChartEditFocus> after = chartEditFocusOf(chartSelection().keys());
     if (!written.empty() &&
         pushUndoEntry(std::make_unique<ChartEdit>(std::move(written), before, after)))
     {
         m_chart_notes_top = ChartNotesTopEntry{
-            .plan = std::move(plan),
+            .plan = std::move(plan.plan),
             .history_position = m_undo_history.snapshot().position,
             .before = std::move(before),
             .after = std::move(after),
@@ -2495,7 +2499,7 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
 {
     using Planned = std::expected<ChartFretEntryPlan, ChartPlanRefusal>;
     // Pairs a note-stream plan, or its refusal, with the selection its settle leaves.
-    const auto selecting = [](std::expected<ChartEditPlan, ChartPlanRefusal> plan,
+    const auto selecting = [](std::expected<JudgedChartPlan, ChartPlanRefusal> plan,
                               std::vector<ChartSelectionKey>
                                   select) -> Planned {
         if (!plan.has_value())
@@ -3218,7 +3222,7 @@ bool EditorController::Impl::commitChartGestureStep(
     {
         select_exactly = landing(*pre_gesture);
     }
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan = replan(*pre_gesture);
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan = replan(*pre_gesture);
     if (!plan.has_value())
     {
         // Invalid is the gate refusing the result, so this step never happened: it is not recorded
@@ -3261,8 +3265,8 @@ bool EditorController::Impl::commitChartGestureStep(
     // authority is the one place holding it. It is what makes a clamp safe to coalesce — the move
     // verb's slide-out parks on the next head on its string, so every further press that way is a
     // no-op that must cost nothing to come back from.
-    if (burst != nullptr && plan->removed == burst->plan.removed &&
-        plan->inserted == burst->plan.inserted)
+    if (burst != nullptr && plan->plan.removed == burst->plan.removed &&
+        plan->plan.inserted == burst->plan.inserted)
     {
         return false;
     }
@@ -3272,7 +3276,7 @@ bool EditorController::Impl::commitChartGestureStep(
     // (applyChartEditPlan), and a running one RETIRES its entry and then applies the same way, so
     // the chart moves while the history stays where the run found it. The record goes with the
     // retire, so `burst` is not read past it.
-    ChartEditPlan written = writtenChartPlan(*plan);
+    ChartEditPlan written = writtenChartPlan(plan->plan);
     const bool retired = burst != nullptr && written.empty();
     if (retired)
     {
@@ -3294,13 +3298,16 @@ bool EditorController::Impl::commitChartGestureStep(
         const std::optional<bool> walked =
             m_session.writeChart([&burst, &plan](common::core::Chart& chart) {
                 return applyChartChange(chart, burst->plan.reversed()).has_value() &&
-                       applyChartChange(chart, *plan).has_value();
+                       applyChartChange(chart, plan->plan).has_value();
             });
         if (!walked.value_or(false))
         {
-            reportError("Could not apply chart edit: " + plan->label);
+            reportError("Could not apply chart edit: " + plan->plan.label);
             return false;
         }
+        // The walk landed the re-planned stream, whose derivation the gate already made: seeded
+        // before the selection lands, since landing reads the projection.
+        seedChartResolutions(std::move(plan->resolved));
         // The replace path has no plan-driven selection follow of its own (that lives in
         // applyChartEditPlan, which only the first step runs), so a verb whose step re-keys its
         // objects states the landing here or leaves the next press holding keys naming nothing.
@@ -3311,7 +3318,7 @@ bool EditorController::Impl::commitChartGestureStep(
         {
             // The burst record follows the entry it names, or the next step would reverse a plan
             // the history no longer holds.
-            burst->plan = std::move(*plan);
+            burst->plan = std::move(plan->plan);
             burst->after = std::move(after);
         }
         else

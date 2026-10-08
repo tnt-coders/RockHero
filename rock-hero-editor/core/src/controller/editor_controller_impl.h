@@ -56,6 +56,8 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
@@ -238,7 +240,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The plan one step of a coalescing gesture produces: the WHOLE run replayed over the chart
     // state that run started from.
-    using ChartGestureReplan = std::function<std::expected<ChartEditPlan, ChartPlanRefusal>(
+    using ChartGestureReplan = std::function<std::expected<JudgedChartPlan, ChartPlanRefusal>(
         const common::core::Chart& pre_gesture)>;
 
     // Where a run's objects have LANDED, for a verb whose steps re-key them. Asked of the same
@@ -277,7 +279,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // settle never reads the target again.
     struct ChartFretNotePlan
     {
-        ChartEditPlan plan;
+        JudgedChartPlan plan;
         std::vector<ChartSelectionKey> select;
     };
     // A pending entry's placement-stream change, carrying which fret it types so the settle names
@@ -418,9 +420,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // went.
     bool dissolveSilentKeyframes(std::span<const ChartSlotKey> focus);
     [[nodiscard]] const common::core::ChartViewState* currentTabProjection() const;
-    // Rebuilds the memoized tab and highway projections when the displayed arrangement or the
-    // chart revision moved on, and clears them while no arrangement is displayed.
+    // Rebuilds the memoized chart layers and the tab and highway projections built from them when
+    // the displayed arrangement or the revision each is keyed on moved on, and clears them while no
+    // arrangement is displayed. The ONE builder of all four.
     void refreshChartProjections() const;
+    // Seeds the notes-layer memo with the derivation a judged plan carries, right after the write
+    // that landed that plan: the memo then never derives what the gate already derived. Builds
+    // nothing; refreshChartProjections stays the builder. Asserts the derivation is of the very
+    // notes the chart now holds, which is the one precondition a seed rests on.
+    void seedChartResolutions(common::core::ChartResolutions resolved);
+    // The displayed chart's notes layer and hand layer, current with the session (each refreshes
+    // the memo first, as currentTabProjection does); empty with no chart displayed. The references
+    // live until the next refresh that finds a key moved on.
+    [[nodiscard]] const common::core::ChartResolutions& chartResolutions() const;
+    [[nodiscard]] const common::core::FretHandResolutions& fretHandResolutions() const;
 
     // The reveal's grounds resolved against the displayed projection — the selection as indices,
     // and the armed caret — the ONE resolver behind the published overlay (ChartEditViewState)
@@ -519,15 +532,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::core::Fraction placementQuantum() const noexcept;
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
-    // A plan the caller already holds as valid, which therefore names no subject.
+    // A plan the caller already holds as valid, which therefore names no subject. Once the write
+    // has landed it seeds the notes-layer memo with the plan's own derivation.
     bool applyChartEditPlan(
-        ChartEditPlan plan,
+        JudgedChartPlan plan,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
     // A planner's answer, which may be a refusal: `subject` is what the verb planned over — the
     // selection, or the operand a modifying key took from the caret — and is what a refusal names
     // in the log and flashes.
     bool applyChartEditPlan(
-        std::expected<ChartEditPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
+        std::expected<JudgedChartPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
     // The same apply for a per-note verb's outcome, whose notes refused one by one are reported
     // whether or not the rest applied.
@@ -2068,6 +2082,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     mutable std::shared_ptr<const common::core::HighwayViewState> m_highway_view_state{};
     mutable std::string m_tab_arrangement_id{};
     mutable std::uint64_t m_tab_chart_revision{0};
+
+    // The two derived layers the scene is built from, memoized beside it. The notes layer is keyed
+    // by the displayed arrangement (m_tab_arrangement_id, shared with the scene) and the session's
+    // NOTES revision, so a position edit or a section edit leaves it standing, and a commit seeds
+    // it with its gate's own derivation (seedChartResolutions); the hand layer reads the authored
+    // positions too, so it rides the scene's own (arrangement id, chart revision) key and is
+    // rebuilt with the scene.
+    mutable common::core::ChartResolutions m_chart_resolutions{};
+    mutable std::uint64_t m_chart_resolutions_revision{0};
+    mutable common::core::FretHandResolutions m_fret_hand_resolutions{};
 
     // App-wide display preferences for the tablature lane, restored from settings at construction
     // and persisted on change; never part of project content.

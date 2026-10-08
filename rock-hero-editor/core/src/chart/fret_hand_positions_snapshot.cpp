@@ -22,12 +22,12 @@ FretHandPositionsSnapshot FretHandPositionsSnapshot::capture(const common::core:
 
 // Reports failure rather than silently doing nothing when no chart owns a stream, which is what
 // lets an undo of a hand edit fault the transition instead of appearing to succeed. The write goes
-// through the session's one chart write, which advances the chart revision the tab and highway
-// projections are keyed on, so no cached projection can draw the stream it replaced.
+// through the session's position surface, which advances the chart revision the tab and highway
+// projections are keyed on, so no cached projection can draw the stream it replaced, and leaves
+// the notes revision, so the notes layer derived before the edit stands.
 bool FretHandPositionsSnapshot::applyTo(common::core::Session& session) const
 {
-    return session.writeChart(
-        [this](common::core::Chart& chart) { chart.fret_hand_positions = placements; });
+    return session.writeFretHandPositions(placements);
 }
 
 // A sort rather than a sorted insert, so an insert and a move can each just place their placement
@@ -39,26 +39,27 @@ void FretHandPositionsSnapshot::normalize()
 
 // Every placement rule lives in common core, where the package reader asks the same questions of
 // the same stream, so this only carries the diagnostic across: the stream's own rules, then its
-// coverage of the chart's notes. With no chart there is nothing to validate against and nothing to
-// apply onto; the apply reports that.
+// coverage of the chart's notes, read from the notes layer the context carries rather than derived
+// again. With no chart there is nothing to validate against and nothing to apply onto; the apply
+// reports that.
 std::optional<std::string> FretHandPositionsSnapshot::validate(
-    const common::core::Session& session) const
+    const MarkerJudgeContext& context) const
 {
-    const common::core::Arrangement* const arrangement = session.currentArrangement();
+    const common::core::Arrangement* const arrangement = context.session.currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
         return std::nullopt;
     }
     const common::core::Chart& chart = *arrangement->chart;
-    const common::core::TempoMap& tempo_map = session.song().tempo_map;
+    const common::core::TempoMap& tempo_map = context.session.song().tempo_map;
     if (const auto valid =
             common::core::validateFretHandPositions(placements, chart.tuning, tempo_map);
         !valid.has_value())
     {
         return valid.error().message;
     }
-    if (const auto covered = common::core::validateFretHandCoverage(
-            chart.notes, placements, tempo_map, chart.tuning.capo);
+    if (const auto covered =
+            common::core::validateFretHandCoverage(context.chart, placements, tempo_map);
         !covered.has_value())
     {
         return covered.error().message;

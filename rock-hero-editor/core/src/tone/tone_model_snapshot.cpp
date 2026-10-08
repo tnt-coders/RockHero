@@ -54,10 +54,10 @@ void ToneModelSnapshot::normalize()
 // it references. Tone-name uniqueness is deliberately NOT here: a typed name is input the charter
 // can retype, so the verbs that take one report it to them rather than refusing a structurally
 // sound model.
-std::optional<std::string> ToneModelSnapshot::validate(const common::core::Session& session) const
+std::optional<std::string> ToneModelSnapshot::validate(const MarkerJudgeContext& context) const
 {
     if (const auto valid =
-            common::core::validateToneTrackRules(tone_track, session.song().tempo_map);
+            common::core::validateToneTrackRules(tone_track, context.session.song().tempo_map);
         !valid.has_value())
     {
         return valid.error().message;

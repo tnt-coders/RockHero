@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
@@ -160,23 +161,38 @@ struct SlideRamp
 
 } // namespace
 
+// Derives both layers and hands them to the projection proper; a chartless arrangement projects
+// the empty state.
 ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap& tempo_map)
 {
-    ChartViewState state;
     if (!arrangement.chart.has_value())
     {
-        return state;
+        return {};
     }
-
     const Chart& chart = *arrangement.chart;
+    const ChartResolutions resolutions =
+        chartResolutions(chart.notes, chart.tuning.capo, tempo_map);
+    return makeChartViewState(
+        chart,
+        resolutions,
+        fretHandResolutions(resolutions, chart.fret_hand_positions, tempo_map),
+        tempo_map);
+}
+
+// Resolves every musical position of the two layers to seconds, once, into the scene both
+// surfaces draw.
+ChartViewState makeChartViewState(
+    const Chart& chart, const ChartResolutions& resolutions, const FretHandResolutions& hand,
+    const TempoMap& tempo_map)
+{
+    ChartViewState state;
     state.open_strings = chart.tuning.strings;
     state.capo = chart.tuning.capo;
 
-    // Every per-note fact this projection derives comes from the one resolutions pass: the stored
-    // stream it draws, where each ring's ink stops, each note's resolved connection motion, and
-    // each note's hold. It is derived from the saved form, so a pick slide's in-memory overrides
-    // (chart.h) are already stripped and the scrape draws as the scrape it is.
-    const ChartResolutions resolutions = chartResolutions(chart, tempo_map);
+    // Every per-note fact this projection reads comes from the notes layer: the stored stream it
+    // draws, where each ring's ink stops, each note's resolved connection motion, and each note's
+    // hold. It is derived from the saved form, so a pick slide's in-memory overrides (chart.h) are
+    // already stripped and the scrape draws as the scrape it is.
     const std::vector<ChartNote>& notes = resolutions.connections.saved_notes;
 
     // Where each fret-hand placement's approach ramp begins; asked once for the whole chart and
@@ -491,9 +507,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // minimum-sustain-distance margin before the arrival, and crowded transitions shorten against
     // the previous arrival rather than overlapping it. The synthetic pre-first nut window
     // counts as arriving at the chart origin. One chip per hand event, derived and authored alike
-    // (ChartResolutions::hand_events); a position's identity is its grid position, so the authored
+    // (FretHandResolutions::events); a position's identity is its grid position, so the authored
     // position standing at a chip, if any, is the one stored at the chip's own. The slide-out rides
-    // (ChartResolutions::hand_rides) are arrivals like any other, so they ramp by the same rule and
+    // (FretHandResolutions::rides) are arrivals like any other, so they ramp by the same rule and
     // crowd the arrivals beside them, but they are published apart, where no chip reads them.
     const std::vector<FretHandPosition>& authored = chart.fret_hand_positions;
     double previous_arrival_seconds = tempo_map.secondsAtBeat(1, 1);
@@ -543,18 +559,18 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         };
     };
     // Walked in one ascending order: no ride fronts where a hand event does.
-    state.fret_hand_positions.reserve(resolutions.hand_events.size());
-    state.fret_hand_rides.reserve(resolutions.hand_rides.size());
-    auto ride = resolutions.hand_rides.begin();
-    for (const FretHandEvent& event : resolutions.hand_events)
+    state.fret_hand_positions.reserve(hand.events.size());
+    state.fret_hand_rides.reserve(hand.rides.size());
+    auto ride = hand.rides.begin();
+    for (const FretHandEvent& event : hand.events)
     {
-        for (; ride != resolutions.hand_rides.end() && ride->front < event.front; ++ride)
+        for (; ride != hand.rides.end() && ride->front < event.front; ++ride)
         {
             state.fret_hand_rides.push_back(arrival_of(*ride));
         }
         state.fret_hand_positions.push_back(arrival_of(event));
     }
-    for (; ride != resolutions.hand_rides.end(); ++ride)
+    for (; ride != hand.rides.end(); ++ride)
     {
         state.fret_hand_rides.push_back(arrival_of(*ride));
     }

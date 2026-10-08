@@ -37,7 +37,9 @@ in, so a failed precondition part way through leaves the chart entirely untouche
 `marker_model_edit.h` (ONE `MarkerModelEdit<Snapshot>` behind every timeline-marker verb of every
 kind, carrying that kind's whole model before and after; every marker verb commits through one
 funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the produced model,
-validates it, refuses it whole, records nothing when nothing changed, releases a selection naming a
+validates it against one `MarkerJudgeContext` (`marker_judge_context.h`: the session and the
+displayed chart's memoized notes layer, the same for every snapshot kind, so the funnel names no
+kind), refuses it whole, records nothing when nothing changed, releases a selection naming a
 marker that is gone, resyncs the audible tone and the engine's tempo-derived caches
 (`syncTempoDerivedAudio`) and publishes once. Verbs build their result on a
 COPY and hand both sides over, so a refusal leaves the live model untouched by construction —
@@ -70,8 +72,10 @@ positions behind the fret-hand position's add, move, fret entries, end clear, de
 Prune Hand Positions command — a stating verb on a DERIVED position authors it inside the same
 entry, and a prune that finds nothing redundant records none; its `normalize` sorts by position,
 its `validate` is the chart gate's own `validateFretHandPositions` plus `validateFretHandCoverage`
-(each authored position covers every fretted note gripped at its instant), and its apply writes
-through `Session::writeChart()` so the chart revision the projections are keyed on advances), and
+(each authored position covers every fretted note gripped at its instant), read against the notes
+layer the controller already holds, and its apply writes through
+`Session::writeFretHandPositions()`, which advances the chart revision the projections are keyed on
+and leaves the notes revision, so the notes layer survives), and
 `SongTimelineSnapshot` (`timeline/song_timeline_snapshot.h` — the song's WHOLE timeline, the
 common-core `SongTimeline`: the map, the sections and every arrangement's chart, tone track and
 automation, behind the time-signature verbs, Scale Tempo and every tempo edit made with the

@@ -972,8 +972,8 @@ enum class FhpAuthored : std::uint8_t
 };
 
 /*!
-\brief One fret-hand position — a hand event (\ref ChartResolutions::hand_events), derived or
-authored — or one slide-out ride (\ref ChartResolutions::hand_rides), resolved to a timeline second,
+\brief One fret-hand position — a hand event (\ref FretHandResolutions::events), derived or
+authored — or one slide-out ride (\ref FretHandResolutions::rides), resolved to a timeline second,
 with its eased approach.
 */
 struct FhpViewState
@@ -1155,13 +1155,13 @@ struct ChartViewState
 
     /*!
     \brief Fret-hand positions in ascending arrival order: one per hand event, derived and authored
-    alike (\ref ChartResolutions::hand_events).
+    alike (\ref FretHandResolutions::events).
     */
     std::vector<FhpViewState> fret_hand_positions;
 
     /*!
     \brief The window's slide-out rides in ascending arrival order
-    (\ref ChartResolutions::hand_rides), resolved as \ref fret_hand_positions are and read by the
+    (\ref FretHandResolutions::rides), resolved as \ref fret_hand_positions are and read by the
     board's hand track alone: motion, so no surface draws a chip or a number for one.
     */
     std::vector<FhpViewState> fret_hand_rides;

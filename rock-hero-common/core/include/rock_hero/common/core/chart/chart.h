@@ -2244,7 +2244,7 @@ struct FretWindow
 \brief One hand event: where the hand arrives at a window, standing until the next event.
 
 Derived from the notes and the authored positions (\ref deriveFretHandEvents) and carried once per
-chart revision in \ref ChartResolutions::hand_events; an authored position is one of them, fronting
+chart revision in \ref FretHandResolutions::events; an authored position is one of them, fronting
 exactly where it stands.
 */
 struct FretHandEvent
@@ -2269,6 +2269,25 @@ struct FretHandEvent
     */
     friend constexpr bool operator==(const FretHandEvent& lhs, const FretHandEvent& rhs) noexcept =
         default;
+};
+
+/*!
+\brief A stop the fretting hand provably holds over `[from, to)` on the whole-note axis
+(\ref fretHandHolds).
+
+Here rather than beside the rule that derives it because \ref ChartResolutions carries the holds,
+and `chart_fret_hand.h` includes `chart_legato.h`.
+*/
+struct FretHandHold
+{
+    /*! \brief Where the hold begins. */
+    Fraction from{};
+
+    /*! \brief Where the hold ends, exclusive: an event exactly here finds the stop released. */
+    Fraction to{};
+
+    /*! \brief The fret held. */
+    int fret{0};
 };
 
 /*!

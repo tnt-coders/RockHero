@@ -37,6 +37,7 @@ add_executable(
     test_chart_keyframe_editing.cpp
     test_chart_edits.cpp
     test_chart_plan_gate.cpp
+    test_chart_projection_memo.cpp
     test_chart_refusal_log.cpp
     test_chart_hit_testing.cpp
     test_chart_navigation.cpp

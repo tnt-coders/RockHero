@@ -382,25 +382,33 @@ edit that reflows the spans re-derives every default.
     const ChartConnections& connections, const ChartShapes& shapes);
 
 /*!
-\brief Everything a chart revision derives per note, resolved once for every consumer.
+\brief The notes layer of a chart revision: everything derived from the notes, resolved once for
+every consumer.
 
-The per-note facts each surface needs and none may restate: the connections the saved stream
-justifies, where each note's ink stops — how far every surface DRAWS the stored note and the
-scorer will judge it — and how long each note is held — plus the hand-posture spans the notes
-imply, which are not per-note but are derived from the same stream and are what the holds are
-answered against.
+A function of the notes, the capo and the tempo map alone — the authored positions are the hand
+layer's input (\ref FretHandResolutions), never this one's. The per-note facts each surface needs
+and none may restate: the connections the saved stream justifies, where each note's ink stops — how
+far every surface DRAWS the stored note and the scorer will judge it — and how long each note is
+held — plus the hand-posture spans the notes imply and the stops the fretting hand holds, which are
+not per-note but are derived from the same stream.
 
 What is added here over \ref ChartConnections travels together because it is computed together —
 the holds need the saved stream, the ink ends, the tail law's verdict AND the spans to be answered
 at all — and because computing them separately would let the tab lane, the highway, the gameplay
-build, and the reader disagree about the same chart. The connections are carried rather than
-restated, so a consumer of the whole picture still reads them from one place.
+build, the coverage gate and the reader disagree about the same chart. The connections are carried
+rather than restated, so a consumer of the whole picture still reads them from one place.
 
 Every per-note vector is index-parallel to the note stream it was built from. Consumed once per
 chart revision, never per frame.
 */
 struct ChartResolutions
 {
+    /*!
+    \brief The capo the layer was derived under: an input carried so every reader asks the layer
+    instead of agreeing with it by hand.
+    */
+    int capo{0};
+
     /*! \brief The saved stream and the connections it justifies (\ref chartConnections). */
     ChartConnections connections;
 
@@ -414,17 +422,13 @@ struct ChartResolutions
     HeadMargins margins;
 
     /*!
-    \brief Where the fret hand sits: the hand events the notes and the authored positions derive
-    (\ref deriveFretHandEvents), authored positions among them, strictly ascending by front. Not
-    index-parallel to the notes.
-    */
-    std::vector<FretHandEvent> hand_events;
+    \brief Every stop the fretting hand provably holds (\ref fretHandHolds), in no promised order.
+    Not index-parallel to the notes.
 
-    /*!
-    \brief How the window rides the unpitched slide-outs (\ref deriveFretHandRides): motion beside
-    \ref hand_events, read by the board's hand track alone, so it is no chip and no position.
+    Derived once here for its three readers: the hand layer (\ref fretHandResolutions), the
+    coverage gate (\ref uncoveringFretHandPositions) and the editor's redundancy walk.
     */
-    std::vector<FretHandEvent> hand_rides;
+    std::vector<FretHandHold> hand_holds;
 
     /*!
     \brief Where each note's ink stops, as a note-relative offset: \ref ChartPresentation::ink_end,
@@ -478,24 +482,26 @@ struct ChartResolutions
 };
 
 /*!
-\brief Resolves a whole chart once: connections, spans, hand events, ink ends, holds.
+\brief Resolves a chart's notes layer once: connections, spans, hand holds, ink ends, held lengths.
 
-The connections come from \ref chartConnections, so the walk that answers them is stated once for
-both the callers that want the whole picture and the callers that want a claim.
+A function of the notes, the capo and the tempo map. The connections come from
+\ref chartConnections, so the walk that answers them is stated once for both the callers that want
+the whole picture and the callers that want a claim. The spans, the held stops and the hand holds
+come from the same stream rather than from a caller, so there is no second posture input a caller
+could forget to hand over.
 
-The spans come from the same stream rather than from a caller, which is what makes them impossible
-to disagree with it: a caller holding a stale span list has nowhere to pass it. The held stops ride
-in that one stream too, so there is no second posture input a caller could forget to hand over.
-The hand events read the chart's authored positions and its capo, which is why the pass takes the
-whole chart.
+The editor keeps one per revision in its controller memo, keyed by the notes it was derived from,
+and a commit that seeds that memo asserts it was derived from the very notes it landed: that memo
+and that assertion are the coherence rule between a derivation and its chart.
 
-\param chart Chart to resolve: its notes, sorted by (position, string), its authored positions and
-       its tuning's capo.
+\param notes Note stream to resolve, sorted by (position, string) and valid.
+\param capo The tuning's capo fret; 0 for none.
 \param tempo_map Song tempo map supplying the meter every place is measured in.
 
-\return The resolutions; every per-note vector is index-parallel to the chart's notes.
+\return The resolutions; every per-note vector is index-parallel to `notes`.
 */
-[[nodiscard]] ChartResolutions chartResolutions(const Chart& chart, const TempoMap& tempo_map);
+[[nodiscard]] ChartResolutions chartResolutions(
+    const std::vector<ChartNote>& notes, int capo, const TempoMap& tempo_map);
 
 /*!
 \brief Flattens the named legato claims to plain picks — THE statement of what a rejected claim

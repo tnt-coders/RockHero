@@ -101,7 +101,9 @@ namespace
 // Whether one authored position covers every fretted note of a stream sounding at its instant.
 [[nodiscard]] bool coveredBy(const std::vector<ChartNote>& notes, const FretHandPosition& position)
 {
-    return validateFretHandCoverage(notes, {position}, makeTempoMap(), 0).has_value();
+    const TempoMap tempo_map = makeTempoMap();
+    return validateFretHandCoverage(chartResolutions(notes, 0, tempo_map), {position}, tempo_map)
+        .has_value();
 }
 
 // An expected event: its front at a measure and beat of 4/4, and its window.
@@ -317,8 +319,10 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
     const std::vector<FretHandPosition> positions = {
         positionAt(1, 2, 5), positionAt(1, 3, 5), positionAt(2, 1, 5, 8)
     };
+    const TempoMap tempo_map = makeTempoMap();
+    const ChartResolutions resolved = chartResolutions(notes, 0, tempo_map);
     const std::vector<UncoveringFretHandPosition> uncovering =
-        uncoveringFretHandPositions(notes, positions, makeTempoMap(), 0);
+        uncoveringFretHandPositions(resolved, positions, tempo_map);
     REQUIRE(uncovering.size() == 2);
     CHECK(uncovering[0].position == 0);
     CHECK(uncovering[0].fret == 3);
@@ -327,7 +331,7 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
     CHECK(uncovering[1].fret == 9);
 
     // Without the breaking positions, the one left still passes.
-    CHECK(uncoveringFretHandPositions(notes, {positions[1]}, makeTempoMap(), 0).empty());
+    CHECK(uncoveringFretHandPositions(resolved, {positions[1]}, tempo_map).empty());
 }
 
 // Rule 1: an open string and a tap constrain nothing; the window is the fretted notes' alone.
@@ -531,6 +535,7 @@ TEST_CASE("Every derived window covers every hold standing under it", "[core][ch
                 CHECK(std::prev(past)->window.covers(hold.fret));
             }
         }
+        const ChartResolutions resolved = chartResolutions(figure, 0, tempo_map);
         for (const FretHandEvent& event : events)
         {
             const FretHandPosition stated{
@@ -538,7 +543,7 @@ TEST_CASE("Every derived window covers every hold standing under it", "[core][ch
                 .fret = event.window.fret,
                 .end_fret = event.window.top(),
             };
-            CHECK(validateFretHandCoverage(figure, {stated}, tempo_map, 0).has_value());
+            CHECK(validateFretHandCoverage(resolved, {stated}, tempo_map).has_value());
         }
     }
 }
@@ -699,8 +704,12 @@ TEST_CASE("The hand's demand never lies at or below the capo", "[core][chart]")
     CHECK(fretHandDemandAt(chime, Fraction{}, 3) == std::optional{4});
 
     const TempoMap tempo_map = makeTempoMap();
-    CHECK(validateFretHandCoverage({bent}, {positionAt(1, 1, 3)}, tempo_map, 2).has_value());
-    CHECK(validateFretHandCoverage({chime}, {positionAt(1, 1, 4)}, tempo_map, 3).has_value());
+    CHECK(validateFretHandCoverage(
+              chartResolutions({bent}, 2, tempo_map), {positionAt(1, 1, 3)}, tempo_map)
+              .has_value());
+    CHECK(validateFretHandCoverage(
+              chartResolutions({chime}, 3, tempo_map), {positionAt(1, 1, 4)}, tempo_map)
+              .has_value());
 }
 
 // An authored position is a row object of its own, so it is emitted even where the window it

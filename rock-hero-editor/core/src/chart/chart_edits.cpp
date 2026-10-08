@@ -260,7 +260,7 @@ enum class StrandedStrikeRepair : std::uint8_t
 
 } // namespace
 
-std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
+std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
     std::vector<common::core::ChartNote> candidate, const std::string_view label)
@@ -300,21 +300,26 @@ std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     {
         return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
     }
-    // Whole-stream rather than over the affected notes: a hold is derived from its whole figure, so
-    // an edit can change what the hand grips far from the notes it touched.
-    if (std::expected<void, common::core::ChartError> covered =
-            common::core::validateFretHandCoverage(
-                candidate, chart.fret_hand_positions, tempo_map, chart.tuning.capo);
-        !covered.has_value())
-    {
-        return std::unexpected{ChartPlanInvalid{std::move(covered.error().message)}};
-    }
+    // An empty diff lands `base`, which already passed the coverage rule (it is the live chart, or
+    // the stream a gesture started from), so it is NoChange before any derivation is paid for.
     ChartEditPlan plan = diffNotes(base, candidate, label);
     if (plan.empty())
     {
         return std::unexpected{ChartPlanNoChange{}};
     }
-    return plan;
+    // Whole-stream rather than over the affected notes: a hold is derived from its whole figure, so
+    // an edit can change what the hand grips far from the notes it touched. Derived only now,
+    // because the derivation assumes the valid, slot-ordered stream the checks above just proved,
+    // and kept: it is the notes layer of the stream this plan lands, which the commit seeds.
+    common::core::ChartResolutions resolved =
+        common::core::chartResolutions(candidate, chart.tuning.capo, tempo_map);
+    if (std::expected<void, common::core::ChartError> covered =
+            common::core::validateFretHandCoverage(resolved, chart.fret_hand_positions, tempo_map);
+        !covered.has_value())
+    {
+        return std::unexpected{ChartPlanInvalid{std::move(covered.error().message)}};
+    }
+    return JudgedChartPlan{.plan = std::move(plan), .resolved = std::move(resolved)};
 }
 
 namespace
@@ -633,7 +638,7 @@ struct AddressedStop
 
 } // namespace
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
+std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note, const common::core::Fraction grid_note_value)
 {
@@ -678,7 +683,7 @@ std::optional<ChartPathTail> chartPathTailAt(
     };
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
+std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
 {
@@ -706,7 +711,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planCutRing(
+std::expected<JudgedChartPlan, ChartPlanRefusal> planCutRing(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
 {
@@ -781,7 +786,7 @@ int chartFretInForceAt(
     return latest != nullptr ? common::core::fretBeforeEnd(*latest) : 0;
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
+std::expected<JudgedChartPlan, ChartPlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
 {
@@ -962,7 +967,7 @@ common::core::Fraction chartSteppedKeyframeOffset(
     return common::core::ringEndWithinBound(chart.notes, *note, tempo_map, stepped);
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
+std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     common::core::Fraction whole_note_delta, int string_delta, std::string_view label)
@@ -1106,7 +1111,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
+std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
     const std::vector<ChartKeyframeKey>& keyframe_keys, const ChartFretWrite write)
@@ -1254,7 +1259,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
+std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps)
@@ -1781,7 +1786,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
     // selection actually ran.
     const std::string_view label =
         split_any ? (join_any ? "Split and Join" : "Split Note") : "Join Notes";
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan =
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
         finalizePlan(chart, tempo_map, chart.notes, std::move(joined), label);
     if (!plan.has_value())
     {

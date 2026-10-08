@@ -40,8 +40,10 @@ target_sources(
             src/controller/editor_selection.h
             src/controller/editor_undo_history.cpp
             src/controller/editor_undo_history.h
-            # Private headers: the one marker commit funnel and the one whole-snapshot undo entry
-            # every marker verb (tone regions, song sections, fret-hand positions) shares.
+            # Private headers: the one marker commit funnel, the context it judges every snapshot
+            # against, and the one whole-snapshot undo entry every marker verb (tone regions, song
+            # sections, fret-hand positions) shares.
+            src/controller/marker_judge_context.h
             src/controller/marker_model_commit.h
             src/controller/marker_model_edit.h
             src/controller/playback_unavailable_text.cpp

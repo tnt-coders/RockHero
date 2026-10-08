@@ -6,6 +6,7 @@
 #pragma once
 
 #include "controller/edit_focus.h"
+#include "controller/marker_judge_context.h"
 
 #include <optional>
 #include <rock_hero/common/core/session/session.h>
@@ -55,10 +56,10 @@ struct SongTimelineSnapshot
     /*!
     \brief Reports the first structural rule this timeline breaks, in any of its slices
     (\ref common::core::validateSongTimelineRules).
-    \param session Unused; every rule reads the timeline's own map.
+    \param context Unused; every rule reads the timeline's own map.
     \return The violation to report, or empty when the timeline satisfies every rule.
     */
-    [[nodiscard]] std::optional<std::string> validate(const common::core::Session& session) const;
+    [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;
 
     /*!
     \brief The time signature an undo or redo landing on this timeline brings into focus: the first

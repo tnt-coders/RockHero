@@ -11,10 +11,8 @@
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
-#include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
@@ -60,32 +58,31 @@ namespace
 }
 
 // The placement an insert at a position makes: it states the fret of the window already standing
-// there — the last hand event fronting at or before it, derived or authored, resolved exactly as
-// the projection resolves it — so inserting moves no hand. Where nothing stands yet it
-// states the nut window, the first fret the capo leaves playable. Either fret is already one the
-// normalizer leaves alone: every event's window is fitted onto the board, and so is the nut window.
+// there — the last hand event fronting at or before it, derived or authored, read from the hand
+// layer the projection draws — so inserting moves no hand. Where nothing stands yet it states the
+// nut window, the first fret the capo leaves playable. Either fret is already one the normalizer
+// leaves alone: every event's window is fitted onto the board, and so is the nut window.
 [[nodiscard]] common::core::FretHandPosition defaultedPlacement(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const common::core::GridPosition& position)
+    const std::vector<common::core::FretHandEvent>& events, const int capo,
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
 {
-    const std::vector<common::core::FretHandEvent> events =
-        common::core::chartResolutions(chart, tempo_map).hand_events;
     const auto past =
         common::core::firstFretHandEventAfter(events, tempo_map.wholeNotePositionAt(position));
     return common::core::FretHandPosition{
         .position = position,
-        .fret = past == events.begin() ? common::core::firstPlayableFret(chart.tuning.capo)
+        .fret = past == events.begin() ? common::core::firstPlayableFret(capo)
                                        : std::prev(past)->window.fret,
         .end_fret = std::nullopt,
     };
 }
 
 // The placement a STATING edit at `position` writes into: the authored one standing there, else —
-// a derived position stores nothing — the one Ctrl+P makes at that place (defaultedPlacement),
-// appended for the funnel's normalize to order. The edit then applies to it exactly as to an
-// authored one, the authoring and the edit one commit. Nothing without a chart.
+// a derived position stores nothing — the one Ctrl+P makes at that place (defaultedPlacement over
+// the chart's hand events), appended for the funnel's normalize to order. The edit then applies to
+// it exactly as to an authored one, the authoring and the edit one commit. Nothing without a chart.
 [[nodiscard]] std::vector<common::core::FretHandPosition>::iterator statedPlacement(
     std::vector<common::core::FretHandPosition>& placements, const common::core::Session& session,
+    const std::vector<common::core::FretHandEvent>& events,
     const common::core::GridPosition& position)
 {
     if (const auto match = findPlacement(placements, position); match != placements.end())
@@ -97,8 +94,8 @@ namespace
     {
         return placements.end();
     }
-    placements.push_back(
-        defaultedPlacement(*arrangement->chart, session.song().tempo_map, position));
+    placements.push_back(defaultedPlacement(
+        events, arrangement->chart->tuning.capo, session.song().tempo_map, position));
     return std::prev(placements.end());
 }
 
@@ -106,23 +103,17 @@ namespace
 // dropped where the events derived without it equal the events derived with it, and the walk goes
 // on against the reduced list, so each verdict is judged against what is actually kept. Dropping
 // one leaves the events unchanged, so the events every later verdict compares against are those
-// the walk began with.
+// the walk began with. Every derivation reads the chart's notes layer, which no position changes.
 [[nodiscard]] std::vector<common::core::FretHandPosition> withoutRedundantPositions(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
+    const std::vector<common::core::FretHandPosition>& stored,
+    const common::core::ChartResolutions& resolved, const common::core::TempoMap& tempo_map)
 {
-    const common::core::ChartConnections connections =
-        common::core::chartConnections(chart.notes, tempo_map);
-    const std::vector<common::core::FretHandHold> holds = common::core::fretHandHolds(
-        connections,
-        common::core::deriveChartShapes(
-            connections, common::core::HeadMargins{connections.places, tempo_map}),
-        chart.tuning.capo);
     const auto derive = [&](const std::vector<common::core::FretHandPosition>& authored) {
         return common::core::deriveFretHandEvents(
-            connections, holds, tempo_map, chart.tuning.capo, authored);
+            resolved.connections, resolved.hand_holds, tempo_map, resolved.capo, authored);
     };
-    const std::vector<common::core::FretHandEvent> events = derive(chart.fret_hand_positions);
-    std::vector<common::core::FretHandPosition> kept = chart.fret_hand_positions;
+    const std::vector<common::core::FretHandEvent> events = derive(stored);
+    std::vector<common::core::FretHandPosition> kept = stored;
     std::size_t index = 0;
     while (index < kept.size())
     {
@@ -158,12 +149,13 @@ using FretHandPositionChordTarget = std::variant<std::monostate, RestateAt, Inse
 // THE fret-hand position chord's precedence, stated once: it authors at the cursor and never reads
 // the selection. A placement arriving exactly there is restated, which is what keeps a second
 // press from inserting a second placement on the first one's start; anywhere else a marker may
-// start, the verb is an insert. Nothing without a chart, without a cursor (playing, no song), or on
-// the closing barline, so the chord is inert exactly where the commit would refuse it.
+// start, the verb is an insert, defaulted from the chart's hand events. Nothing without a chart,
+// without a cursor (playing, no song), or on the closing barline, so the chord is inert exactly
+// where the commit would refuse it.
 [[nodiscard]] FretHandPositionChordTarget fretHandPositionChordTarget(
     const common::core::Arrangement* const arrangement,
     const std::optional<common::core::GridPosition>& cursor,
-    const common::core::TempoMap& tempo_map)
+    const std::vector<common::core::FretHandEvent>& events, const common::core::TempoMap& tempo_map)
 {
     if (arrangement == nullptr || !arrangement->chart.has_value() || !cursor.has_value())
     {
@@ -180,7 +172,9 @@ using FretHandPositionChordTarget = std::variant<std::monostate, RestateAt, Inse
     {
         return {};
     }
-    return InsertAt{.placement = defaultedPlacement(chart, tempo_map, position)};
+    return InsertAt{
+        .placement = defaultedPlacement(events, chart.tuning.capo, tempo_map, position)
+    };
 }
 
 } // namespace
@@ -222,6 +216,7 @@ void EditorController::Impl::performActionImpl(
     const FretHandPositionChordTarget target = fretHandPositionChordTarget(
         session().currentArrangement(),
         cursorPosition(placementQuantum()),
+        fretHandResolutions().events,
         session().song().tempo_map);
     if (const auto* const restate = std::get_if<RestateAt>(&target))
     {
@@ -325,7 +320,8 @@ std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> Edito
 {
     const FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
-    const auto match = statedPlacement(after.placements, session(), position);
+    const auto match =
+        statedPlacement(after.placements, session(), fretHandResolutions().events, position);
     if (match == after.placements.end())
     {
         return std::unexpected{ChartPlanNoChange{}};
@@ -357,7 +353,8 @@ common::core::FhpViewState EditorController::Impl::fretHandEntryChip(
     const common::core::GridPosition& position, const FretHandEdge edge, const int value) const
 {
     FretHandPositionsSnapshot placements = FretHandPositionsSnapshot::capture(session());
-    const auto match = statedPlacement(placements.placements, session(), position);
+    const auto match =
+        statedPlacement(placements.placements, session(), fretHandResolutions().events, position);
     const common::core::FretHandPosition typed =
         match == placements.placements.end()
             ? common::core::FretHandPosition{.position = position, .fret = value}
@@ -435,7 +432,8 @@ void EditorController::Impl::performActionImpl(EditorAction::PruneFretHandPositi
     const std::string label = markerVerbLabel(MarkerVerb::PruneHandPositions);
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after{
-        .placements = withoutRedundantPositions(*arrangement->chart, session().song().tempo_map),
+        .placements = withoutRedundantPositions(
+            before.placements, chartResolutions(), session().song().tempo_map),
     };
     if (after == before)
     {

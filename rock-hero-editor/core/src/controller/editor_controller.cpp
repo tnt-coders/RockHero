@@ -2006,11 +2006,17 @@ void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
 
 // The chart projection resolves thousands of positions to seconds, so it is memoized per displayed
 // arrangement and chart revision: the arrangement id keys which chart is shown, and the session's
-// chart revision (bumped by every chart write, tempo-map replacement and section replacement) keys
-// its edit state, so those edits invalidate without any explicit notification path. The 3D highway
-// projection rides the same rule: one shared scene-model snapshot per displayed arrangement,
-// consumed by the preview window exactly as the game consumes it. One refresh for both, because
-// they share the key: a refresh of one alone would advance the key past the other.
+// chart revision (bumped by every chart write, position write, tempo-map replacement and section
+// replacement) keys its edit state, so those edits invalidate without any explicit notification
+// path. The 3D highway projection rides the same rule: one shared scene-model snapshot per
+// displayed arrangement, consumed by the preview window exactly as the game consumes it. One
+// refresh for both, because they share the key: a refresh of one alone would advance the key past
+// the other.
+//
+// The scene is built from two memoized layers. The notes layer is the expensive one and reads
+// only the notes, the capo and the tempo map, so it is keyed by the session's NOTES revision and
+// survives a position or section edit; a commit may have seeded it already. The hand layer reads
+// the authored positions, so it is rebuilt exactly when the scene is.
 void EditorController::Impl::refreshChartProjections() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -2018,29 +2024,85 @@ void EditorController::Impl::refreshChartProjections() const
     {
         m_tab_view_state.reset();
         m_highway_view_state.reset();
+        m_chart_resolutions = {};
+        m_fret_hand_resolutions = {};
         m_tab_arrangement_id.clear();
         return;
     }
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    const bool arrangement_changed = m_tab_arrangement_id != arrangement->id ||
-                                     m_tab_chart_revision != session().chartRevision();
+    const bool arrangement_changed = m_tab_arrangement_id != arrangement->id;
+    const bool notes_stale =
+        arrangement_changed || m_chart_resolutions_revision != session().chartNotesRevision();
+    const bool scene_stale =
+        arrangement_changed || m_tab_chart_revision != session().chartRevision();
+    const std::optional<common::core::Chart>& chart = arrangement->chart;
+    if (notes_stale)
+    {
+        m_chart_resolutions =
+            chart.has_value()
+                ? common::core::chartResolutions(chart->notes, chart->tuning.capo, tempo_map)
+                : common::core::ChartResolutions{};
+    }
     // ONE publication: the highway state composes the scene, and the tab's pointer aliases that
     // very member, sharing the board's ownership, so both surfaces read one build with no copy
     // and neither can outlive the other's scene. Its display options are the preview renderer's
     // own setting (the displayed-string minimum rides the view state's
     // tab_minimum_displayed_strings), so a display change never republishes it.
-    if (arrangement_changed)
+    if (scene_stale)
     {
+        common::core::ChartViewState scene;
+        if (chart.has_value())
+        {
+            m_fret_hand_resolutions = common::core::fretHandResolutions(
+                m_chart_resolutions, chart->fret_hand_positions, tempo_map);
+            scene = common::core::makeChartViewState(
+                *chart, m_chart_resolutions, m_fret_hand_resolutions, tempo_map);
+        }
+        else
+        {
+            m_fret_hand_resolutions = {};
+        }
         m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
             common::core::makeHighwayViewState(
-                common::core::makeChartViewState(*arrangement, tempo_map),
-                tempo_map,
-                session().song().sections));
+                std::move(scene), tempo_map, session().song().sections));
         m_tab_view_state = std::shared_ptr<const common::core::ChartViewState>(
             m_highway_view_state, &m_highway_view_state->chart);
     }
     m_tab_arrangement_id = arrangement->id;
     m_tab_chart_revision = session().chartRevision();
+    m_chart_resolutions_revision = session().chartNotesRevision();
+}
+
+// Takes the gate's derivation as the notes layer of the revision the write just made.
+void EditorController::Impl::seedChartResolutions(common::core::ChartResolutions resolved)
+{
+    // Called only right after a write to this chart landed, so the arrangement and its chart are
+    // there; the chart is read by the assertion alone.
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    assert(arrangement != nullptr && "seeded with no arrangement");
+    [[maybe_unused]] const std::optional<common::core::Chart>& chart = arrangement->chart;
+    assert(
+        chart.has_value() &&
+        std::ranges::equal(
+            chart->notes, resolved.connections.saved_notes, {}, common::core::savedChartNote) &&
+        "projection seeded with a derivation of other notes");
+    m_chart_resolutions = std::move(resolved);
+    m_tab_arrangement_id = arrangement->id;
+    m_chart_resolutions_revision = session().chartNotesRevision();
+}
+
+// The memo's notes layer, refreshed first like the published projections.
+const common::core::ChartResolutions& EditorController::Impl::chartResolutions() const
+{
+    refreshChartProjections();
+    return m_chart_resolutions;
+}
+
+// The memo's hand layer, refreshed first like the published projections.
+const common::core::FretHandResolutions& EditorController::Impl::fretHandResolutions() const
+{
+    refreshChartProjections();
+    return m_fret_hand_resolutions;
 }
 
 void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
@@ -2853,12 +2915,21 @@ EditorViewState EditorController::Impl::deriveViewState() const
         // only its red box, and discarding the entry drops this one-push projection. Clicks are
         // unaffected: a press settles the entry before the controller hit-tests it, and a settle
         // stores exactly this plan.
+        // Neither preview derives a notes layer: a note-stream plan carries the derivation of the
+        // stream it lands, and a placement retype leaves the notes, so the memo's layer stands.
         if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value())
         {
             const Impl::ChartFretEntryPlan& plan = *m_chart_fret_entry->plan;
-            const auto project = [&state](const common::core::Arrangement& preview) {
+            const auto project = [&state](
+                                     const common::core::Chart& preview,
+                                     const common::core::ChartResolutions& notes_layer) {
                 state.tab = std::make_shared<const common::core::ChartViewState>(
-                    common::core::makeChartViewState(preview, state.tempo_map));
+                    common::core::makeChartViewState(
+                        preview,
+                        notes_layer,
+                        common::core::fretHandResolutions(
+                            notes_layer, preview.fret_hand_positions, state.tempo_map),
+                        state.tempo_map));
             };
             if (const auto* const notes = std::get_if<Impl::ChartFretNotePlan>(&plan);
                 notes != nullptr &&
@@ -2866,9 +2937,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
             {
                 common::core::Arrangement preview = *arrangement;
                 if (preview.chart.has_value() &&
-                    applyChartChange(*preview.chart, notes->plan).has_value())
+                    applyChartChange(*preview.chart, notes->plan.plan).has_value())
                 {
-                    project(preview);
+                    project(*preview.chart, notes->plan.resolved);
                 }
             }
             else if (const auto* const hand = std::get_if<Impl::ChartFretHandPlan>(&plan))
@@ -2877,7 +2948,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 if (preview.chart.has_value())
                 {
                     preview.chart->fret_hand_positions = hand->placements.placements;
-                    project(preview);
+                    project(*preview.chart, chartResolutions());
                 }
             }
         }

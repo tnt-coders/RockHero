@@ -9,6 +9,7 @@ member template needs its body where every marker handler translation unit can s
 #pragma once
 
 #include "controller/editor_controller_impl.h"
+#include "controller/marker_judge_context.h"
 #include "controller/marker_model_edit.h"
 #include "timeline/timeline_readdress.h"
 
@@ -33,7 +34,9 @@ std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerMod
     const Snapshot& before, Snapshot after) const
 {
     after.normalize();
-    if (std::optional<std::string> violation = after.validate(session()); violation.has_value())
+    if (std::optional<std::string> violation =
+            after.validate(MarkerJudgeContext{.session = session(), .chart = chartResolutions()});
+        violation.has_value())
     {
         return std::unexpected{ChartPlanInvalid{std::move(*violation)}};
     }

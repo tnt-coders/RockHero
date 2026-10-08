@@ -169,7 +169,7 @@ void requireSameAnswer(
 {
     const std::expected<std::vector<ChartNote>, ChartPlanRefusal> whole =
         wholeStreamGate(chart, tempo_map, base, candidate);
-    const std::expected<ChartEditPlan, ChartPlanRefusal> touched =
+    const std::expected<JudgedChartPlan, ChartPlanRefusal> touched =
         finalizePlan(chart, tempo_map, base, candidate, "Gate");
     REQUIRE(touched.has_value() == whole.has_value());
     if (!whole.has_value())
@@ -199,10 +199,10 @@ void requireSameAnswer(
     {
         return;
     }
-    CHECK(touched->label == "Gate");
+    CHECK(touched->plan.label == "Gate");
     Chart replayed = chart;
     replayed.notes = base;
-    REQUIRE(applyChartChange(replayed, *touched).has_value());
+    REQUIRE(applyChartChange(replayed, touched->plan).has_value());
     CHECK(replayed.notes == *whole);
     ++outcomes.plans;
 }

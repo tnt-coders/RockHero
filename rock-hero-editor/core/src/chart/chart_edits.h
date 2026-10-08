@@ -21,6 +21,7 @@ construction.
 #include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
@@ -97,6 +98,24 @@ reason goes to the log, and what the screen shows is the refusal flash.
 */
 using ChartPlanRefusal = std::variant<ChartPlanNoChange, ChartPlanInvalid>;
 
+/*!
+\brief A plan the gate passed (\ref finalizePlan), with the derivation of the stream it lands.
+
+The gate derives the candidate's notes layer to judge the authored positions' coverage of it, so
+that derivation travels with the diff rather than being thrown away: once the write has landed
+`plan`, the commit seeds the controller's memo with `resolved`, and the projection never derives
+what the gate already did. Apart from the plan rather than inside it, because the plan is compared,
+reversed and stored by the history, none of which a derivation belongs in.
+*/
+struct [[nodiscard]] JudgedChartPlan
+{
+    /*! \brief The diff to apply. */
+    ChartEditPlan plan;
+
+    /*! \brief The notes layer of the stream `plan` lands, derived under the chart's capo. */
+    common::core::ChartResolutions resolved;
+};
+
 /*! \brief Writes one fret at every addressed stop: the typed digit. */
 struct ChartFretSet
 {
@@ -140,8 +159,9 @@ TOUCHED, which the diff against `chart.notes` finds, and the same-string predece
 touched onset on a new slot may shorten (the locality rule at \ref common::core::sustainBoundOf).
 It asks them the stream validator's own questions in stream order, so its first refusal is the
 whole stream's. The one rule it asks of the whole candidate is the chart's authored positions'
-coverage of it (\ref common::core::validateFretHandCoverage). A verb that re-addresses or re-meters
-the chart must leave it a fixpoint too.
+coverage of it (\ref common::core::validateFretHandCoverage), which reads the candidate's notes
+layer: derived once here and returned with the plan (\ref JudgedChartPlan). A verb that re-addresses
+or re-meters the chart must leave it a fixpoint too.
 
 `base` is the stream the plan is expressed against, which is `chart.notes` for every verb that edits
 from what it finds. The duration gesture is why it is a parameter: its plan describes the whole
@@ -158,10 +178,10 @@ would carry a point onto the ring's end (\ref planMoveSelection).
        (at `lower_bound`, beside any note already there, so a duplicate meets the order rule's
        refusal) and never re-sorts the whole stream.
 \param label User-visible undo label.
-\return The plan; NoChange when the normalized candidate equals `base`, Invalid with the rule's own
-        message when the gate refuses it.
+\return The plan with the notes layer of the stream it lands; NoChange when the normalized
+        candidate equals `base`, Invalid with the rule's own message when the gate refuses it.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
     std::vector<common::core::ChartNote> candidate, std::string_view label);
@@ -188,7 +208,7 @@ never the placement quantum: snap decides where things go, never how long they a
 tick-long default ring would be absurd.
 \return The plan; NoChange when the placement changes nothing, Invalid when the gate refuses it.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note, common::core::Fraction grid_note_value);
 
@@ -270,7 +290,7 @@ no scrape.
 \param fret Fret the point states.
 \return The plan; Invalid when the gate refuses it.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, common::core::Fraction offset, int fret);
 
@@ -300,7 +320,7 @@ adjacent (\ref planInsertNote).
 \param fret Fret the new head is struck at.
 \return The plan; Invalid when the walk or the gate refuses it.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planCutRing(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planCutRing(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, common::core::Fraction offset, int fret);
 
@@ -349,7 +369,7 @@ binary-search this precondition); keys with no matching note are skipped.
 keyframe are skipped.
 \return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys);
 
@@ -542,7 +562,7 @@ so a note carried across a meter change keeps its real length and stays on the t
 \return The plan; NoChange when nothing moves or changes, Invalid when a destination leaves the
         neck, collides, or fails the gate.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     common::core::Fraction whole_note_delta, int string_delta, std::string_view label);
@@ -607,7 +627,7 @@ naming no keyframe, or one stating no fret, are skipped.
         The split is what lets the pending entry paint a refused value red without painting a valid
         no-op red.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
     const std::vector<ChartKeyframeKey>& keyframe_keys, ChartFretWrite write);
@@ -725,7 +745,7 @@ binary-search this precondition).
         with one that describes nothing; Invalid when the gate refuses the result. A step that moved
         no ring returns the PLAN the step before it returned, which is how the caller recognises it.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps);
@@ -756,7 +776,7 @@ second pass, and no count in a corner could name them.
 struct [[nodiscard]] ChartSelectionPlan
 {
     /*! \brief The planned change, or why there is none. */
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan;
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan;
 
     /*! \brief The selected notes refused one by one, in the planner's walk order. */
     std::vector<ChartRefusedNote> refused;
@@ -1153,7 +1173,7 @@ toggle the user can feel: what a press leaves selected is exactly what the next 
 struct [[nodiscard]] ChartJunctionPlan
 {
     /*! \brief The stream change, one compound entry across every junction the press touched. */
-    ChartEditPlan plan;
+    JudgedChartPlan plan;
 
     /*! \brief What the edit leaves selected: each split's new heads, each join's new point. */
     std::vector<ChartSelectionKey> selection;

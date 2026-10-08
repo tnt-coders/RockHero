@@ -233,7 +233,9 @@ fixpoint of the gate, so it judges only the notes the candidate touched plus the
 their new onsets can shorten (the locality rule beside `sustainBoundOf`), in stream order: a
 keystroke costs what the edit touches rather than the song, and the first refusal is the whole
 walk's. Coverage is the one whole-stream question, because a grip is derived from its whole figure
-and an edit can change what the hand holds far from the notes it touched. A new planner must end at the funnel too; skipping it is how a verb authors a chart the
+and an edit can change what the hand holds far from the notes it touched; it reads the candidate's
+notes layer (`chartResolutions`), which the funnel returns with the diff (`JudgedChartPlan`) so the
+commit seeds the controller's memo with it rather than the projection deriving it again. A new planner must end at the funnel too; skipping it is how a verb authors a chart the
 document reader would reject. Relational truths deliberately do NOT repair in the funnel:
 a connection claim the chart cannot justify plays as the pick it sounds like until the settle sweep
 (`planSettleChart`) flattens it in one batch at the burst's end, which is what keeps a burst one

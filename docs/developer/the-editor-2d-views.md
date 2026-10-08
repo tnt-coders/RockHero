@@ -625,9 +625,19 @@ component is the *cursor overlay*, whose `hitTest` returns false wherever a pass
 predicate — installed in `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the
 point. Its data is a seconds-resolved projection
 built once per edit in **common/core** (`chart/chart_projection.cpp`,
-`common::core::makeChartViewState(arrangement, tempo_map)` — the ONE chart scene both surfaces draw,
-which is why it lives in common rather than editor core: the game's 2D tab view shares the same
-scene model), so painting never queries musical positions. Because sustains overlap, it keeps a
+`common::core::makeChartViewState(chart, resolutions, hand, tempo_map)` — the ONE chart
+scene both surfaces draw, which is why it lives in common rather than editor core: the game's 2D
+tab view shares the same scene model), so painting never queries musical positions. The scene is built from
+the chart's two derived layers, and the controller memoizes both beside it
+(`EditorController::Impl::refreshChartProjections`, the one builder): the NOTES layer
+(`chartResolutions`, a function of the notes, the capo and the tempo map) keyed by the arrangement
+and `Session::chartNotesRevision()`, so a position or section edit leaves it standing; the HAND
+layer (`fretHandResolutions`, the notes layer plus the authored positions) rebuilt with the scene on
+`Session::chartRevision()`. A judged note edit SEEDS the notes layer with its gate's own derivation
+once the write lands (`seedChartResolutions`, which asserts the derivation is of the notes the chart
+now holds), so an edit derives the notes once; every other write takes the lazy path. A caller that
+keeps no layers uses the two-argument `makeChartViewState(arrangement, tempo_map)`, which derives
+both. Because sustains overlap, it keeps a
 prefix-max index of note end times and binary-searches the visible note range each paint instead of
 scanning the whole chart. It draws each hand-shape span's rails and, for an arpeggio, its brackets.
 Where one span's rails meet the next span's start they stop one screen pixel short, so two spans

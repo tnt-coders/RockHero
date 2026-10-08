@@ -383,14 +383,18 @@ column, walk / reach / Tab / jump, chip and pinned-chip selection, the outline, 
 grid-quantum move, fret entry, the end fret, the reveal of an acted-on selection. What remains:
 
 1. **The row's objects become the derived hand events** (60-H3): `markerStarts(MarkerRow::Hand)`
-   and `markerSelectionAt` read `ChartResolutions`' events instead of the stored stream, so a
+   and `markerSelectionAt` read `FretHandResolutions`' events instead of the stored stream, so a
    fresh import with no markers still has a row. Identity stays the front position
    (`FretHandPositionSelection {position}` survives; its name is re-asked under H2). Pinned events
    are the ones a marker stands at. **How the events reach the controller (verified 2026-10-04):**
    `markerStarts` returns `GridPosition`s while the events' fronts are whole-note `Fraction`
-   places, and the controller holds no `ChartResolutions` — it caches only the scene
-   (`editor_controller.cpp:2027`). Either the scene carries the event fronts or the controller
-   keeps the resolutions; this phase decides which, by the one-authority test.
+   places. **Decided: the controller keeps the resolutions**, as a two-layer memo beside the
+   scene: the notes layer (`chartResolutions`, keyed by the arrangement and
+   `Session::chartNotesRevision()`, seeded by a judged note edit with its gate's own derivation)
+   and the hand layer (`fretHandResolutions`, keyed by `Session::chartRevision()` with the scene).
+   The scene is built from the two
+   (`makeChartViewState(chart, resolutions, hand, tempo_map)`), and the row's verbs read the
+   hand events from the memo (`fretHandResolutions().events`).
 2. **The authored tell** (law 7): a mark on the chip (or the event) where a marker stands;
    absence is the derived tell. Strength is the sighting's call.
 6. **"Drop markers that state nothing"** (§9 item 5): a verb over the current format that

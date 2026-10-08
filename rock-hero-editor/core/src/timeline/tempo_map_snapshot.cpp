@@ -22,8 +22,7 @@ void TempoMapSnapshot::normalize()
 
 // Every tempo-map rule lives in common core, where the package reader asks the same question, so
 // this only carries the diagnostic across for the funnel's refusal log.
-std::optional<std::string> TempoMapSnapshot::validate(
-    const common::core::Session& /*session*/) const
+std::optional<std::string> TempoMapSnapshot::validate(const MarkerJudgeContext& /*context*/) const
 {
     if (const auto valid = common::core::validateTempoMapRules(tempo_map); !valid.has_value())
     {

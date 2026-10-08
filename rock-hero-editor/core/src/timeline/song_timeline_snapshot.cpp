@@ -36,7 +36,7 @@ void SongTimelineSnapshot::normalize()
 // Every rule lives in common core, where the package reader asks the same questions, so this only
 // carries the first diagnostic across for the funnel's refusal log.
 std::optional<std::string> SongTimelineSnapshot::validate(
-    const common::core::Session& /*session*/) const
+    const MarkerJudgeContext& /*context*/) const
 {
     if (const auto valid = common::core::validateSongTimelineRules(timeline); !valid.has_value())
     {

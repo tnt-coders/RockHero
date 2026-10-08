@@ -322,25 +322,24 @@ std::vector<std::optional<int>> chartHeldStops(
     return held;
 }
 
-ChartResolutions chartResolutions(const Chart& chart, const TempoMap& tempo_map)
+// The notes layer in pipeline order: connections, margins, spans, holds, held stops, classes, then
+// the one presentation pass that owns every tail decision.
+ChartResolutions chartResolutions(
+    const std::vector<ChartNote>& notes, const int capo, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
-    resolutions.connections = chartConnections(chart.notes, tempo_map);
+    resolutions.capo = capo;
+    resolutions.connections = chartConnections(notes, tempo_map);
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
     resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel.
     ChartShapes derived = deriveChartShapes(resolutions.connections, resolutions.margins);
-    // WHERE THE HAND SITS, and its place in the pipeline is part of the rule: notes, then grips,
+    // WHAT THE HAND HOLDS, and its place in the pipeline is part of the rule: notes, then grips,
     // then positions, so a span's grip is a hold the hand never leaves (\ref fretHandHolds). The
-    // spans never read the hand.
-    const int capo = chart.tuning.capo;
-    const std::vector<FretHandHold> holds = fretHandHolds(resolutions.connections, derived, capo);
-    resolutions.hand_events = deriveFretHandEvents(
-        resolutions.connections, holds, tempo_map, capo, chart.fret_hand_positions);
-    resolutions.hand_rides = deriveFretHandRides(
-        resolutions.connections, holds, tempo_map, capo, resolutions.hand_events);
+    // spans never read the hand, and the positions come after this layer (fretHandResolutions).
+    resolutions.hand_holds = fretHandHolds(resolutions.connections, derived, capo);
     // THE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
     // DEFAULT held stop is the grip the covering span holds, so it reads the postures just derived.
     // It therefore runs AFTER the derivation and feeds nothing that runs before it. Handed the

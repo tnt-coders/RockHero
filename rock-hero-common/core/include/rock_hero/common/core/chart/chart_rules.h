@@ -22,6 +22,14 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief The notes layer the coverage rule reads (`chart_legato.h`).
+
+Declared rather than included: `chart_legato.h` includes this header, so the include runs one way
+only and a reference needs no more than the name.
+*/
+struct ChartResolutions;
+
+/*!
 \brief Largest string count a chart tuning may declare.
 
 Shared with display code so lane-count controls and validation agree on one authority. Capped at
@@ -744,18 +752,20 @@ below that end. Only what the position STATES is read: nothing derived (the figu
 four-fret floor) enters the test.
 
 The demands come from the notes alone, so one position's verdict never depends on another's: a
-caller dropping every position found here leaves a stream that passes in one pass.
+caller dropping every position found here leaves a stream that passes in one pass. The notes arrive
+as their derivation rather than as a stream, so a caller that has already derived them — the
+editor's plan gate, its memo — pays for no second derivation here.
 
-\param notes Note stream, each ring already bounded by the next strike on its string
-       (\ref normalizeSustainOverlaps).
+\param chart The notes layer (\ref chartResolutions) of a stream whose every ring is already bounded
+       by the next strike on its string (\ref normalizeSustainOverlaps); its capo is the one the
+       demands are read under.
 \param positions Authored positions, strictly ascending (\ref validateFretHandPositions).
 \param tempo_map Song tempo map placing the notes and the positions.
-\param capo The tuning's capo fret; 0 for none.
 \return Each breaking position once, ascending by index; empty when every position covers.
 */
 [[nodiscard]] std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
-    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
-    const TempoMap& tempo_map, int capo);
+    const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Validates the coverage rule (\ref uncoveringFretHandPositions) as a chart rule.
@@ -765,16 +775,16 @@ stream they edit against the other one, so an edit from either side is refused e
 writer would refuse the result. A load never meets it: \ref normalizeChart drops every breaking
 position first.
 
-\param notes Note stream, each ring already bounded by the next strike on its string.
+\param chart The notes layer of a stream whose every ring is already bounded by the next strike on
+       its string; its capo is the one the demands are read under.
 \param positions Authored positions, strictly ascending.
 \param tempo_map Song tempo map placing the notes and the positions.
-\param capo The tuning's capo fret; 0 for none.
 \return Empty success, or the earliest breaking position, placed with the fret it misses and where
         that demand was struck or began holding.
 */
 [[nodiscard]] std::expected<void, ChartError> validateFretHandCoverage(
-    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
-    const TempoMap& tempo_map, int capo);
+    const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Validates the chart's structural rules against the song's tempo map.

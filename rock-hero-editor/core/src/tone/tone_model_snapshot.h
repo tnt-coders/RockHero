@@ -6,6 +6,7 @@
 #pragma once
 
 #include "controller/edit_focus.h"
+#include "controller/marker_judge_context.h"
 
 #include <optional>
 #include <rock_hero/common/core/session/session.h>
@@ -63,10 +64,11 @@ struct ToneModelSnapshot
     /*!
     \brief Reports the first structural rule this model breaks.
 
-    \param session Session supplying the tempo map the region starts address.
+    \param context The funnel's context; its session supplies the tempo map the region starts
+           address.
     \return The violation to report, or empty when the model satisfies every rule.
     */
-    [[nodiscard]] std::optional<std::string> validate(const common::core::Session& session) const;
+    [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;
 
     /*!
     \brief The region an undo or redo landing on this model brings into focus.
