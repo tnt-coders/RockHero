@@ -22,9 +22,9 @@ namespace rock_hero::editor::core
 \brief The current arrangement's whole fret-hand placement stream.
 
 Arrangement-scoped, like the tone model: the placements are part of the chart the arrangement
-owns. A placement is two small fields and a chart carries at most a few hundred of them, so the
-whole stream is cheaper to carry than a diff would be to compute, and the round trip is exact by
-assignment.
+owns. A position is three small fields — where it stands, its fret and an optional `end_fret` — and
+a chart carries at most a few hundred of them, so the whole stream is cheaper to carry than a diff
+would be to compute, and the round trip is exact by assignment.
 */
 struct FretHandPositionsSnapshot
 {

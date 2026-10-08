@@ -34,8 +34,8 @@ std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerMod
     const Snapshot& before, Snapshot after) const
 {
     after.normalize();
-    if (std::optional<std::string> violation =
-            after.validate(MarkerJudgeContext{.session = session(), .chart = chartResolutions()});
+    if (std::optional<std::string> violation = after.validate(
+            MarkerJudgeContext{.session = session(), .notes_layer = chartResolutions()});
         violation.has_value())
     {
         return std::unexpected{ChartPlanInvalid{std::move(*violation)}};

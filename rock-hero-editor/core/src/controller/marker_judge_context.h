@@ -27,7 +27,7 @@ struct MarkerJudgeContext
     const common::core::Session& session;
 
     /*! \brief The current arrangement's notes layer; empty when no chart is displayed. */
-    const common::core::ChartResolutions& chart;
+    const common::core::ChartResolutions& notes_layer;
 };
 
 } // namespace rock_hero::editor::core

@@ -757,15 +757,15 @@ caller dropping every position found here leaves a stream that passes in one pas
 as their derivation rather than as a stream, so a caller that has already derived them — the
 editor's plan gate, its memo — pays for no second derivation here.
 
-\param chart The notes layer (\ref chartResolutions) of a stream whose every ring is already bounded
-       by the next strike on its string (\ref normalizeSustainOverlaps); its capo is the one the
-       demands are read under.
+\param notes_layer The notes layer (\ref chartResolutions) of a stream whose every ring is already
+       bounded by the next strike on its string (\ref normalizeSustainOverlaps); its capo is the one
+       the demands are read under.
 \param positions Authored positions, strictly ascending (\ref validateFretHandPositions).
 \param tempo_map Song tempo map placing the notes and the positions.
 \return Each breaking position once, ascending by index; empty when every position covers.
 */
 [[nodiscard]] std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
-    const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
+    const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map);
 
 /*!
@@ -776,15 +776,15 @@ stream they edit against the other one, so an edit from either side is refused e
 writer would refuse the result. A load never meets it: \ref normalizeChart drops every breaking
 position first.
 
-\param chart The notes layer of a stream whose every ring is already bounded by the next strike on
-       its string; its capo is the one the demands are read under.
+\param notes_layer The notes layer of a stream whose every ring is already bounded by the next
+       strike on its string; its capo is the one the demands are read under.
 \param positions Authored positions, strictly ascending.
 \param tempo_map Song tempo map placing the notes and the positions.
 \return Empty success, or the earliest breaking position, placed with the fret it misses and where
         that demand was struck or began holding.
 */
 [[nodiscard]] std::expected<void, ChartError> validateFretHandCoverage(
-    const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
+    const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map);
 
 /*!

@@ -22,9 +22,7 @@ std::string loadConversionNoticeText(
     {
         return {};
     }
-    // Arrangement, then rule, each in first-seen order: std::map keeps the enum's declaration
-    // order for rules, and arrangements are visited in index order because the reader emits them
-    // that way.
+    // Arrangement by index, then rule in the enum's declaration order: std::map keeps both.
     std::map<std::size_t, std::map<common::core::ChartRepair, std::size_t>> counts;
     for (const common::core::SongPackageConversion& entry : conversions)
     {

@@ -1,9 +1,8 @@
-// PLAN 60 PHASE 1 ACCEPTANCE (b): the fret-hand derivation scored against professionally authored
-// hand positions. The corpus is the custom-song converter's scored `.rock` output, read through the
-// production package reader with no adapter of its own; each chart's stored fret-hand positions are
-// the ground truth, and the derivation reads only the notes (its connections), so the two never
-// mix. The reference is the Python harness's `reference.py` over the same packages, and the pass
-// bar is its exact agreement to within 0.05 points (plan 60 §9 Q12). Every line printed is an
+// The fret-hand derivation scored against professionally authored hand positions. The corpus is
+// the custom-song converter's scored `.rock` output, read through the production package reader
+// with no adapter of its own; each chart's stored fret-hand positions are the ground truth, and the
+// derivation reads only the notes (its connections), so the two never mix. The pass bar is the
+// derivation's own signed exact agreement, to within 0.05 points. Every line printed is an
 // aggregate, so nothing of the corpus ever reaches the repository.
 //
 // Hidden and local-only: the corpus lives in local scratch and is found through
@@ -41,7 +40,7 @@ namespace rock_hero::common::core
 namespace
 {
 
-// The exact agreement the derivation is held to and the band Q12 allows around it, in percent: the
+// The exact agreement the derivation is held to and the band allowed around it, in percent: the
 // figure it makes over every package as the reader loads it, which drops each authored position
 // that breaks the coverage rule. Its rules have departed from the reference harness's (88.213), so
 // this is the derivation's own signed figure.
@@ -91,7 +90,7 @@ struct Score
 
 // Scores one chart: every note with a pressed stored fret, judged once a derived and an authored
 // window both stand at its onset, against the authored fret in force there. Coverage reads the
-// derivation's own width (Q10), never the projection's fold.
+// derivation's own window width, never the projection's fold.
 //
 // The reference skips a chart deriving nothing; such a chart demands nothing at all, so the only
 // count it can add to the tally first is a pull-off onto an open string from a tap.
@@ -276,7 +275,7 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
         all.emissions += part.emissions;
     }
 
-    std::cout << "\nFRET-HAND DERIVATION against the authored positions (plan 60 Phase 1 (b))\n";
+    std::cout << "\nFRET-HAND DERIVATION against the authored positions\n";
     printRow("packages read", score.packages);
     printRow("packages unreadable", score.packages_unreadable);
     printRow("arrangements scored", all.arrangements);
@@ -291,9 +290,9 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
 
     const FretHandDerivationTally& tally = score.tally;
     std::cout << "\n  --- the derivation's own counts ---\n";
-    printRow("groups", tally.groups);
-    printRow("  struck", tally.struck_groups);
-    printRow("  demand-only", tally.groups - tally.struck_groups);
+    printRow("instants", tally.instants);
+    printRow("  struck", tally.struck_instants);
+    printRow("  demand-only", tally.instants - tally.struck_instants);
     printRow("keyframe demands", tally.keyframe_demands);
     printRow("plants", tally.plants);
     printRow("  on a pressed fret", tally.pressed_plants);

@@ -272,7 +272,7 @@ std::expected<void, ChartError> validateFretHandPositions(
 // authored window with, so a stop is demanded here exactly where the derivation keeps it. Each
 // position keeps the first stop it misses.
 std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
-    const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
+    const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
 {
     std::vector<UncoveringFretHandPosition> uncovering;
@@ -281,8 +281,8 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
         const FretHandPosition& position = positions[index];
         std::optional<UncoveringFretHandPosition> missed;
         forEachGrippedStop(
-            chart.connections,
-            chart.hand_demands,
+            notes_layer.connections,
+            notes_layer.hand_demands,
             tempo_map.wholeNotePositionAt(position.position),
             [&](const int fret, const Fraction from) {
                 if (!missed.has_value() && !positionCovers(position, fret))
@@ -303,11 +303,11 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
 }
 
 std::expected<void, ChartError> validateFretHandCoverage(
-    const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
+    const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
 {
     const std::vector<UncoveringFretHandPosition> uncovering =
-        uncoveringFretHandPositions(chart, positions, tempo_map);
+        uncoveringFretHandPositions(notes_layer, positions, tempo_map);
     if (uncovering.empty())
     {
         return {};

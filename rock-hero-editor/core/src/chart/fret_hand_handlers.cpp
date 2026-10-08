@@ -208,8 +208,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectFretHan
 // The fret-hand position chord runs its own target: the verb has nothing to prompt for, so the
 // precedence is decided and performed here, at the press, rather than published for a surface to
 // hand back. The cursor is read at the placement quantum — the slot an arrow press would arm on,
-// as the tone chord reads it. A restate only selects, since a placement's fret has no entry to
-// re-open yet; an insert that lands is left SELECTED, so Delete and Alt+arrows act on it next.
+// as the tone chord reads it. A restate only selects it, and a digit then retypes its fret; an
+// insert that lands is left SELECTED, so Delete and Alt+arrows act on it next.
 void EditorController::Impl::performActionImpl(
     EditorAction::AuthorFretHandPositionAtCursor /*action*/)
 {
@@ -348,7 +348,8 @@ void EditorController::Impl::commitFretHandFret(ChartFretHandPlan plan)
                                            : MarkerVerb::SetHandPositionStartFret)));
 }
 
-// Rationale lives on the declaration in editor_controller_impl.h.
+// The chip a pending fret entry draws: the position with the typed value at its edge, at the
+// narrowest window where no end is stated.
 common::core::FhpViewState EditorController::Impl::fretHandEntryChip(
     const common::core::GridPosition& position, const FretHandEdge edge, const int value) const
 {

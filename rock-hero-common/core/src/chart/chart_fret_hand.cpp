@@ -21,7 +21,7 @@ namespace rock_hero::common::core
 namespace
 {
 
-// One demand on the hand at one instant, before the instants are merged into groups.
+// One demand on the hand at one place, before the demands are merged by instant.
 struct HandDemand
 {
     Fraction place{};
@@ -48,8 +48,8 @@ struct ChannelStretch
     bool pressed{false};
 };
 
-// THE ONE WALK of a note's fret channel over time: visits, in order, where its finger is and for
-// how long, each stop read through the rule-1 authority (\ref fretHandDemandAt,
+// The fret hand's walk of a note's fret channel over time: visits, in order, where its finger is
+// and for how long, each stop read through the rule-1 authority (\ref fretHandDemandAt,
 // \ref fretHandStopAt). Rule 2's demands start the stretches and the ring holds are the pressed
 // ones (\ref fretHandHolds). A stretch's end is known only once the next statement is reached, so
 // one stretch is held pending and visited then.
@@ -126,15 +126,24 @@ void collectNoteDemands(
     }
 }
 
+// A stop demanded over `[from, to)`: a demand where it begins, widening every instant up to its
+// end. Every hold is one, and so is every plant, which is no hold.
+struct Widening
+{
+    Fraction from{};
+    Fraction to{};
+    int fret{0};
+};
+
 // Rule 12: a pressed stop a pull-off plants beneath its source, demanded from the source's onset —
 // a tapped source included, which demands nothing of its own — up to the pull-off, which itself
 // demands that stop. A demand and no hold (\ref fretHandHolds): the pull-off proves the finger
 // down at the release alone, so it pins nothing.
-[[nodiscard]] std::vector<FretHandHold> plantSpansOf(
+[[nodiscard]] std::vector<Widening> plantWideningsOf(
     const ChartConnections& connections, FretHandDerivationTally& tally)
 {
     const std::vector<std::optional<int>> planted = chartPlantedStops(connections);
-    std::vector<FretHandHold> spans;
+    std::vector<Widening> widenings;
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
         // A note's one same-string successor is the only note that can plant beneath it, so a
@@ -151,20 +160,21 @@ void collectNoteDemands(
             continue;
         }
         ++tally.pressed_plants;
-        spans.push_back(
-            FretHandHold{
+        widenings.push_back(
+            Widening{
                 .from = connections.places[source],
                 .to = connections.places[index],
                 .fret = *stop,
             });
     }
-    return spans;
+    return widenings;
 }
 
-// Rule 3's bar test: the measure changes between group `index` and the group before it.
-[[nodiscard]] bool breaksAtBar(const std::vector<FretHandInstant>& groups, const std::size_t index)
+// Rule 3's bar test: the measure changes between instant `index` and the instant before it.
+[[nodiscard]] bool breaksAtBar(
+    const std::vector<FretHandInstant>& instants, const std::size_t index)
 {
-    return index > 0 && groups[index].measure != groups[index - 1].measure;
+    return index > 0 && instants[index].measure != instants[index - 1].measure;
 }
 
 // Rule 8: a run's width, its frets but never fewer than four — also the capacity rule 3 tests
@@ -174,7 +184,7 @@ void collectNoteDemands(
     return std::max(g_min_fret_hand_width, FretWindow::through(lowest, highest).width);
 }
 
-// One run of groups, `[head, next)`, and the hull of what it demands.
+// One run of instants, `[head, next)`, and the hull of what it demands.
 struct HandRun
 {
     std::size_t next{0};
@@ -184,25 +194,25 @@ struct HandRun
 
 // Rule 3: the run from `head` closes at a bar line, at a chord, or where the grip would outgrow the
 // hand's capacity, max(4, hull) — the reach test keeps the four-fret floor. It also closes at
-// `limit`: the first group an authored position takes, since that position states its own window
+// `limit`: the first instant an authored position takes, since that position states its own window
 // from there, or the next a slide arrives into (the slide rule). `head` must lie before `limit`.
 [[nodiscard]] HandRun runFrom(
-    const std::vector<FretHandInstant>& groups, const std::size_t head, const std::size_t limit)
+    const std::vector<FretHandInstant>& instants, const std::size_t head, const std::size_t limit)
 {
     HandRun run{
         .next = head + 1,
-        .lowest = groups[head].lowest,
-        .highest = groups[head].highest,
+        .lowest = instants[head].lowest,
+        .highest = instants[head].highest,
     };
     for (; run.next < limit; ++run.next)
     {
-        const FretHandInstant& group = groups[run.next];
-        if (breaksAtBar(groups, run.next) || group.struck > 1)
+        const FretHandInstant& instant = instants[run.next];
+        if (breaksAtBar(instants, run.next) || instant.struck > 1)
         {
             break;
         }
-        const int joined_lowest = std::min(run.lowest, group.lowest);
-        const int joined_highest = std::max(run.highest, group.highest);
+        const int joined_lowest = std::min(run.lowest, instant.lowest);
+        const int joined_highest = std::max(run.highest, instant.highest);
         if (FretWindow::through(joined_lowest, joined_highest).width >
             runWidth(run.lowest, run.highest))
         {
@@ -441,15 +451,20 @@ FretHandDemands fretHandDemands(
 
     std::vector<HandDemand> demands;
     collectNoteDemands(connections, capo, demands, counts);
-    std::vector<FretHandHold> spans = plantSpansOf(connections, counts);
-    spans.insert(spans.end(), hand_demands.holds.begin(), hand_demands.holds.end());
+    std::vector<Widening> widenings = plantWideningsOf(connections, counts);
+    for (const FretHandHold& hold : hand_demands.holds)
+    {
+        widenings.push_back(Widening{.from = hold.from, .to = hold.to, .fret = hold.fret});
+    }
     // Sorted by start so one cursor below widens every instant they cover. Their order among equal
     // starts changes nothing: their demands carry no travel, and a hull is order-independent.
-    std::ranges::sort(spans, std::ranges::less{}, &FretHandHold::from);
-    for (const FretHandHold& span : spans)
+    std::ranges::sort(widenings, std::ranges::less{}, &Widening::from);
+    for (const Widening& widening : widenings)
     {
         demands.push_back(
-            HandDemand{.place = span.from, .fret = span.fret, .struck = false, .travel = {}});
+            HandDemand{
+                .place = widening.from, .fret = widening.fret, .struck = false, .travel = {}
+            });
     }
     std::ranges::stable_sort(demands, std::ranges::less{}, &HandDemand::place);
 
@@ -490,22 +505,27 @@ FretHandDemands fretHandDemands(
             instant.slide->travel.reset();
         }
     }
-    // The spans ascend by start, so the first instant each covers is searched for from where the
-    // previous one's search landed.
+    // The widenings ascend by start, so the first instant each covers is searched for from where
+    // the previous one's search landed.
     auto first_covered = instants.begin();
-    for (const FretHandHold& span : spans)
+    for (const Widening& widening : widenings)
     {
         first_covered = std::ranges::lower_bound(
-            first_covered, instants.end(), span.from, std::ranges::less{}, &FretHandInstant::place);
-        for (auto covered = first_covered; covered != instants.end() && covered->place < span.to;
+            first_covered,
+            instants.end(),
+            widening.from,
+            std::ranges::less{},
+            &FretHandInstant::place);
+        for (auto covered = first_covered;
+             covered != instants.end() && covered->place < widening.to;
              ++covered)
         {
-            covered->lowest = std::min(covered->lowest, span.fret);
-            covered->highest = std::max(covered->highest, span.fret);
+            covered->lowest = std::min(covered->lowest, widening.fret);
+            covered->highest = std::max(covered->highest, widening.fret);
         }
     }
-    counts.groups += static_cast<long long>(instants.size());
-    counts.struck_groups += std::ranges::count_if(
+    counts.instants += static_cast<long long>(instants.size());
+    counts.struck_instants += std::ranges::count_if(
         instants, [](const FretHandInstant& instant) { return instant.struck > 0; });
     for (const FretHandInstant& instant : instants)
     {
@@ -564,7 +584,7 @@ std::vector<FretHandEvent> deriveFretHandEvents(
     // Counted into the caller's tally, or into one nobody reads.
     FretHandDerivationTally unread;
     FretHandDerivationTally& counts = tally != nullptr ? *tally : unread;
-    const std::vector<FretHandInstant>& groups = demands.instants;
+    const std::vector<FretHandInstant>& instants = demands.instants;
     const int capo = demands.capo;
     counts.hold_pins += static_cast<long long>(demands.holds.size());
     const std::vector<Fraction>& onsets = connections.places;
@@ -576,35 +596,37 @@ std::vector<FretHandEvent> deriveFretHandEvents(
     {
         authored_places.push_back(tempo_map.wholeNotePositionAt(position.position));
     }
-    // The first group at or after authored position `index`, which that position takes; every
-    // group where no such position remains.
-    const auto first_group_at = [&](const std::size_t index) {
+    // The first instant at or after authored position `index`, which that position takes; every
+    // instant where no such position remains.
+    const auto first_instant_at = [&](const std::size_t index) {
         if (index == authored_places.size())
         {
-            return groups.size();
+            return instants.size();
         }
         return static_cast<std::size_t>(std::distance(
-            groups.begin(),
-            std::ranges::lower_bound(groups, authored_places[index], {}, &FretHandInstant::place)));
+            instants.begin(),
+            std::ranges::lower_bound(
+                instants, authored_places[index], {}, &FretHandInstant::place)));
     };
 
-    // THE SLIDE RULE's boundaries: `next_slide[k]` is the first group at or after `k` that a
-    // fretting finger slides into, or every group where none remains. No figure and no authored
+    // THE SLIDE RULE's boundaries: `next_slide[k]` is the first instant at or after `k` that a
+    // fretting finger slides into, or every instant where none remains. No figure and no authored
     // position's tenure runs across one.
-    std::vector<std::size_t> next_slide(groups.size() + 1, groups.size());
-    for (std::size_t index = groups.size(); index > 0; --index)
+    std::vector<std::size_t> next_slide(instants.size() + 1, instants.size());
+    for (std::size_t index = instants.size(); index > 0; --index)
     {
-        next_slide[index - 1] = groups[index - 1].slide.has_value() ? index - 1 : next_slide[index];
+        next_slide[index - 1] =
+            instants[index - 1].slide.has_value() ? index - 1 : next_slide[index];
     }
 
     std::vector<FretHandEvent> events;
     std::optional<FretWindow> standing;
     std::size_t head = 0;
     std::size_t stated = 0;
-    while (head < groups.size() || stated < authored.size())
+    while (head < instants.size() || stated < authored.size())
     {
-        const std::size_t authored_group = first_group_at(stated);
-        if (head == authored_group)
+        const std::size_t authored_instant = first_instant_at(stated);
+        if (head == authored_instant)
         {
             // AN AUTHORED POSITION, standing where it is stated and always an event of its own.
             // Its window is `[fret, end fret]` where the end is stated; else the floor is pinned
@@ -612,15 +634,15 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             // at its place, never under four frets. A hold standing there but ending before the
             // next instant enters no instant the run reads, so only the gripped stops keep it. The
             // position then stands until the chart contradicts it: it takes its own instant
-            // whatever sounds there — a slide arriving there included — and every later group that
-            // fits inside the window, up to the next authored position or slide arrival. The
-            // derivation resumes at the first group that does not fit.
+            // whatever sounds there — a slide arriving there included — and every later instant
+            // that fits inside the window, up to the next authored position or slide arrival. The
+            // derivation resumes at the first instant that does not fit.
             const FretHandPosition& position = authored[stated];
             const Fraction place = authored_places[stated];
             ++stated;
             const std::size_t own =
-                head < groups.size() && groups[head].place == place ? head + 1 : head;
-            const std::size_t reach = std::min(first_group_at(stated), next_slide[own]);
+                head < instants.size() && instants[head].place == place ? head + 1 : head;
+            const std::size_t reach = std::min(first_instant_at(stated), next_slide[own]);
             FretWindow window{};
             // Bound once so the presence test and the read are provably one object.
             const std::optional<int>& end_fret = position.end_fret;
@@ -637,15 +659,15 @@ std::vector<FretHandEvent> deriveFretHandEvents(
                     });
                 if (head < reach)
                 {
-                    top = std::max(top, runFrom(groups, head, reach).highest);
+                    top = std::max(top, runFrom(instants, head, reach).highest);
                 }
                 window = FretWindow{.fret = position.fret, .width = runWidth(position.fret, top)};
             }
             events.push_back(FretHandEvent{.front = place, .window = window});
             standing = window;
             while (head < reach &&
-                   (groups[head].place == place ||
-                    (window.covers(groups[head].lowest) && window.covers(groups[head].highest))))
+                   (instants[head].place == place || (window.covers(instants[head].lowest) &&
+                                                      window.covers(instants[head].highest))))
             {
                 ++head;
             }
@@ -654,12 +676,12 @@ std::vector<FretHandEvent> deriveFretHandEvents(
 
         // THE SLIDE RULE: a fretting finger sliding from one pressed stop to another proves the
         // hand moved with it, keeping the finger's place in the hand, so the window at the arrival
-        // is the standing one shifted by the travel. The arrival's group carries every demand and
+        // is the standing one shifted by the travel. The arrival's instant carries every demand and
         // every hold standing there, so a shifted window that does not cover it — a finger held
         // outside it proves the hand stayed — cuts as usual, and fingers sliding different
         // distances prove no single shift; either way the arrival stays a forced boundary that
         // rules 5, 6 and 10 cannot hold or reach back across.
-        const FretHandInstant& arriving = groups[head];
+        const FretHandInstant& arriving = instants[head];
         // Each bound once so the presence tests and the reads are provably the same objects.
         const std::optional<FretHandSlideIn>& slide = arriving.slide;
         const bool slid = slide.has_value();
@@ -683,7 +705,8 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             }
         }
 
-        const HandRun run = runFrom(groups, head, std::min(authored_group, next_slide[head + 1]));
+        const HandRun run =
+            runFrom(instants, head, std::min(authored_instant, next_slide[head + 1]));
         ++counts.runs;
         const Fraction run_head = arriving.place;
         const std::optional<Fraction> hold_end = latestHoldEndBefore(demands, run_head);
@@ -727,13 +750,13 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         {
             bound = std::max(bound, *hold_end);
         }
-        if (breaksAtBar(groups, head))
+        if (breaksAtBar(instants, head))
         {
             bound = std::max(
-                bound, tempo_map.wholeNotePositionAt(measureDownbeat(groups[head].measure)));
+                bound, tempo_map.wholeNotePositionAt(measureDownbeat(instants[head].measure)));
         }
         auto after_previous =
-            head == 0 ? onsets.begin() : std::ranges::upper_bound(onsets, groups[head - 1].place);
+            head == 0 ? onsets.begin() : std::ranges::upper_bound(onsets, instants[head - 1].place);
         if (!events.empty())
         {
             after_previous =
@@ -825,12 +848,14 @@ std::vector<FretHandEvent> deriveFretHandRides(
 // The pipeline's last stage over the notes layer's own demands: the events first, because the
 // rides stand only where no event fronts.
 FretHandResolutions fretHandResolutions(
-    const ChartResolutions& chart, const std::vector<FretHandPosition>& authored,
+    const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& authored,
     const TempoMap& tempo_map)
 {
     FretHandResolutions hand;
-    hand.events = deriveFretHandEvents(chart.connections, chart.hand_demands, tempo_map, authored);
-    hand.rides = deriveFretHandRides(chart.connections, chart.hand_demands, hand.events);
+    hand.events = deriveFretHandEvents(
+        notes_layer.connections, notes_layer.hand_demands, tempo_map, authored);
+    hand.rides =
+        deriveFretHandRides(notes_layer.connections, notes_layer.hand_demands, hand.events);
     return hand;
 }
 

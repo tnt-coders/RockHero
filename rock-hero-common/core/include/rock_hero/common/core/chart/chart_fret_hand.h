@@ -46,10 +46,10 @@ struct FretHandDerivationTally
     // Filled by \ref fretHandDemands.
 
     /*! \brief Instants the hand covers. */
-    long long groups{0};
+    long long instants{0};
 
     /*! \brief Of those, the instants where at least one fretted note is struck. */
-    long long struck_groups{0};
+    long long struck_instants{0};
 
     /*! \brief Pitched keyframe fret statements demanding their fret (rule 2). */
     long long keyframe_demands{0};
@@ -117,8 +117,8 @@ struct FretHandSlideIn
 };
 
 /*!
-\brief One instant the hand must cover (the plan's "coverage group"): the hull of every demand
-stated there and of every stop held across it, and how many fretted notes are struck there.
+\brief One instant the hand must cover: the hull of every demand stated there and of every stop
+held across it, and how many fretted notes are struck there.
 
 Only a strike counts toward a chord, so a demand never makes one.
 */
@@ -271,9 +271,8 @@ void forEachGrippedStop(
     const std::function<void(int fret, Fraction from)>& visit);
 
 /*!
-\brief Derives where the fret hand sits from the notes and the positions the charter authored — THE
-13-rule figure-segmented floor tracker (`docs/plans/in-progress/fhp-derivation-algorithm.md`, with
-plan 60's Phase 1 rulings), superseded wherever an authored position stands.
+\brief Derives where the fret hand sits from the notes and the positions the charter authored: the
+13-rule figure-segmented floor tracker, superseded wherever an authored position stands.
 
 THE LAW, in the three sentences a charter is taught: cut the song into figures at boundaries you can
 see — a chord being struck, a bar line, or the grip outgrowing the hand; put the hand at each
@@ -400,15 +399,15 @@ struct FretHandResolutions
 The pipeline's last stage — notes, then grips, then positions — so it reads the demands the notes
 layer already derived (\ref ChartResolutions::hand_demands) rather than deriving them again.
 
-\param chart The notes layer (\ref chartResolutions); its demands' capo is the one the hand is
-       derived under.
+\param notes_layer The notes layer (\ref chartResolutions); its demands' capo is the one the hand
+       is derived under.
 \param authored The chart's authored positions, valid and strictly ascending.
 \param tempo_map Tempo map the notes layer was derived against.
 
 \return The hand events and the slide-out rides.
 */
 [[nodiscard]] FretHandResolutions fretHandResolutions(
-    const ChartResolutions& chart, const std::vector<FretHandPosition>& authored,
+    const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& authored,
     const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core
