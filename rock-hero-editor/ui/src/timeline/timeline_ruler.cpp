@@ -167,30 +167,43 @@ private:
     std::optional<Interval> m_claimed{};
 };
 
+// How far the quarter note's outline is thickened, in pixels at the chip's size. The symbol font
+// that draws U+2669 has no bold cut (Segoe UI Symbol on Windows), so the outline is taken at the
+// regular weight everywhere, whose stem measures 0.64 px against the bold chip digits' 1.8 px; a
+// stroke this wide brings the note's stem to the digits'.
+constexpr float g_quarter_note_stroke_width{1.25f};
+
 // The quarter-note glyph that opens every tempo marking, as an outline whose ink stands
 // `ink_height` tall with its top-left corner at the origin; empty where no font draws the glyph.
 // U+2669 is supplied as escaped UTF-8 so source-file encoding cannot corrupt it, and text shaping
 // falls back to a symbol font when the UI font lacks it. Measured at the face's default size and
-// scaled, because an outline scales exactly as a larger font size would, and drawn as a path
-// because a text draw snaps its baseline to a whole row, which would cost the glyph a row of size.
+// scaled, because an outline scales exactly as a larger font size would, then thickened once here
+// rather than stroked on every paint; the scale leaves room for the stroke so the ink still stands
+// `ink_height` tall. Drawn as a path because a text draw snaps its baseline to a whole row, which
+// would cost the glyph a row of size.
 [[nodiscard]] juce::Path quarterNoteOutline(const float ink_height)
 {
     juce::GlyphArrangement glyph;
     glyph.addLineOfText(
-        juce::Font{juce::FontOptions{}.withStyle("Bold")},
-        juce::String::fromUTF8("\xE2\x99\xA9"),
-        0.0f,
-        0.0f);
+        juce::Font{juce::FontOptions{}}, juce::String::fromUTF8("\xE2\x99\xA9"), 0.0f, 0.0f);
     juce::Path outline;
     glyph.createPath(outline);
-    const juce::Rectangle<float> ink = outline.getBounds();
-    if (ink.isEmpty())
+    const juce::Rectangle<float> regular_ink = outline.getBounds();
+    if (regular_ink.isEmpty())
     {
         return outline;
     }
     outline.applyTransform(
-        juce::AffineTransform::translation(-ink.getX(), -ink.getY())
-            .scaled(ink_height / ink.getHeight()));
+        juce::AffineTransform::translation(-regular_ink.getX(), -regular_ink.getY())
+            .scaled((ink_height - g_quarter_note_stroke_width) / regular_ink.getHeight()));
+    juce::Path stroke;
+    juce::PathStrokeType{
+        g_quarter_note_stroke_width, juce::PathStrokeType::curved, juce::PathStrokeType::rounded
+    }
+        .createStrokedPath(stroke, outline);
+    outline.addPath(stroke);
+    const juce::Rectangle<float> ink = outline.getBounds();
+    outline.applyTransform(juce::AffineTransform::translation(-ink.getX(), -ink.getY()));
     return outline;
 }
 
