@@ -238,7 +238,9 @@ answers). These are the current reading wherever the older text below disagrees.
   as a load notice (user, 2026-10-07), because a converter cannot apply the rule — it would need
   the whole hold derivation — and the notes alone already derive a window there. Measured before
   the switch: 3,336 of 389,463 positions in 324 of 1,301 converted packages broke it; the user's
-  four projects, none. Built as step 5.
+  four projects, none. About 2,720 of those sit mid-slide, moved early because the source game
+  had no window motion to carry the hand with the slide. The slide rule stands (user, 2026-10-07):
+  the window here moves with the slide itself, so those positions are dropped. Built as step 5.
 - **The dips are DROPPED** (user). They cannot be rebuilt from stored data — a scoop is an
   ordinary slide once imported — and rules 1 and 2 already demand the approach fret and the
   arrival.
