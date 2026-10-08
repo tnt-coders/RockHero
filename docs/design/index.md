@@ -6,6 +6,7 @@ This section contains the canonical design and documentation guidance for Rock H
 - \subpage design_architectural_principles
 - \subpage design_coding_conventions
 - \subpage design_documentation_conventions
+- \subpage design_rulesets
 
 Read these documents together:
 
@@ -14,6 +15,8 @@ Read these documents together:
   maintainable as it grows.
 - `Coding Conventions` defines C++ rules that are not fully captured by clang-format or clang-tidy.
 - `Documentation Conventions` defines the comment and Doxygen conventions for project-owned code.
+- `Rulesets` holds the numbered domain rules that code cites by name and number, such as the
+  hand-position rules.
 
 For plain-language introductions to these concepts and step-by-step checklists for common
 changes, see the \ref guide — the procedural companion to these rule documents.

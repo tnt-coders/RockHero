@@ -220,6 +220,10 @@ Consult these documents per the [Bootstrap Rules](#bootstrap-rules) above:
   format, required fields, backslash vs. at-sign commands, and blank-line rules. Follow this when
   writing or reviewing any documentation in public headers.
 
+- **`docs/design/rulesets/`** — The numbered domain rules code cites by ruleset name and number
+  ("hand-position rule 8"), one document per ruleset. Read the ruleset before changing code that
+  implements or cites it.
+
 `docs/design/index.md` is a table of contents that links the above.
 
 Separately, **`docs/developer/`** is the developer guide: plain-language concept introductions, area

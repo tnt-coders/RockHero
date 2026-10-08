@@ -170,7 +170,7 @@ The section above decides whether a comment exists; this one decides what it say
   narration of change ("used to", "now", "no longer", "the old X"). The exception is history
   without which the shape of the code cannot be understood, such as a workaround for a framework
   defect or a constraint a shipped format imposes; state it as the reason, undated. References to
-  numbered rules stay, because they name rules, not events.
+  numbered rules stay, because they name rules, not events (see [Citing Rules](#citing-rules)).
 - **A reason sits where it applies.** A reason about one line belongs on that line, not in the
   comment above the function.
 - **Every claim is true of the code as it is.** Check a comment against the code before keeping
@@ -185,6 +185,25 @@ The section above decides whether a comment exists; this one decides what it say
 These rules are applied as code is touched: a change brings the comments in the code it edits up
 to this standard. `scripts/verify-project-conventions.py`, which runs in pre-commit, rejects a date
 inside a comment.
+
+# Citing Rules
+
+A bare "rule 8" means nothing to a reader who does not already know which list it counts in. A
+numbered list of domain rules that more than one place cites is a **ruleset**, written once in
+`docs/design/rulesets/` (\ref design_rulesets), and a comment cites it by the ruleset's name and the
+rule's number:
+
+\code{.cpp}
+// Hand-position rules 5 and 6 only ever remove motion, and only from an unforced run.
+\endcode
+
+- Every citation names its ruleset; a list shares one name ("hand-position rules 5, 6 and 10").
+- A rule the ruleset names rather than numbers is cited by that name with the ruleset's
+  ("the hand-position slide rule").
+- The header Doxygen of the function that implements a ruleset links its document once
+  (`\ref design_rulesets_hand_positions`), so a reader of the code has one hop to the list.
+- A test asserting one rule names it the same way in its comment.
+- Rule numbers are stable; a ruleset's document never renumbers them.
 
 # Doxygen Block Format
 

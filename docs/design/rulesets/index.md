@@ -1,0 +1,11 @@
+\page design_rulesets Rulesets
+
+A ruleset is a numbered list of domain rules that several files implement and cite. Each ruleset is
+one document here, and code cites its rules by the ruleset's name and the rule's number —
+"hand-position rule 8" — never by a bare "rule 8" (see the Documentation Conventions).
+
+- \subpage design_rulesets_hand_positions — where the fretting hand sits: the derived hand events,
+  authored positions and their coverage.
+
+Rule numbers are stable. A rule is never renumbered; a retired rule keeps its number, marked
+retired, and a new rule takes the next number.
