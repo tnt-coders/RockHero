@@ -41,50 +41,11 @@ constexpr std::size_t g_span_member_threshold = 2;
 // and a landing opens at the statement threshold above.
 constexpr std::size_t g_accumulation_member_minimum = 3;
 
-// One note's fret channel read for the law's two moments, measured from an offset inside the
-// note's own ring. The channel is an ordered run of statements — the onset, then every
-// fret-stating keyframe — so both moments come off one walk of it: `departure` is the last offset
-// at which the channel still states the stop it holds there, and `arrival` is the offset at which
-// it next LANDS — comes to rest or turns back — with `fret` the stop it lands on: where the new
-// statement is established and where the span hands over (rule 10).
-struct FretTravel
-{
-    Fraction departure{};
-    Fraction arrival{};
-    int fret{0};
-};
+} // namespace
 
-// The whole of what a fret channel says from one offset onward (\ref statedStopFrom): which stop
-// the finger is on there, and the travel it makes away from it. One answer rather than two
-// queries, because a caller that had to name the stop itself would be a second statement of this
-// very fact, free to disagree with the channel.
-struct StatedStop
-{
-    // The stop the channel states at the queried offset — a fret pressed, the open string, or a
-    // node touched (\ref ChartStop); empty exactly where it is MID-TRAVEL — a finger between stops
-    // is on no stop at all, so a string caught there is a member of nothing.
-    std::optional<ChartStop> stop{};
-
-    // The travel the channel is on, or is about to make; absent where it never leaves this stop.
-    std::optional<FretTravel> travel{};
-
-    // The offset at which the stated stop's own statement BEGAN inside this channel: zero where
-    // the channel never left the onset's stop, and the travel's arrival where a glide landed on
-    // it — a landing is where a new statement is established (rule 10). Mid-travel it names
-    // where the statement being travelled into will begin, the only honest answer while the finger
-    // is on no stop at all. Read together with \ref StringHand::stated_since this is what dates a
-    // slid string's grip with no second record of the landing kept anywhere, exactly as the same
-    // re-ask caps that string's coverage there.
-    Fraction stated_from{};
-};
-
-// THE channel reader: the one authority on where a finger is. A copy of this fact kept anywhere
-// else is where defects of this kind come from, never from this reader. A travel goes on only
-// while each fret it states lies further in its direction: a fret it glides PAST is a point on the
-// path, so a continuous multi-fret glide stays one travel to its end. Anything else LANDS it — a
-// restated fret is a rest, and a fret back the way it came is a TURN, where the listener hears the
-// chord the glide turned on as the chord landed on even though the finger holds it for no time.
-[[nodiscard]] StatedStop statedStopFrom(
+// One walk of the channel's statements: each travel goes on while its frets lie further in its
+// direction, and the first travel landing after `from` ends the walk.
+StatedStop statedStopFrom(
     const ChartNote& note, const Fraction from, const bool arrives_into_next_head)
 {
     int stop = note.fret;
@@ -156,6 +117,9 @@ struct StatedStop
         .stop = states(leaves->fret), .travel = std::nullopt, .stated_from = leaves->arrival
     };
 }
+
+namespace
+{
 
 // What one string of the fretting hand is demonstrably doing, as the strings testify — owned by
 // the walk and outliving every span. ONE table rather than several partial copies of the same

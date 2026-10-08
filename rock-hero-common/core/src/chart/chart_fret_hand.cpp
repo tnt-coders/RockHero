@@ -287,14 +287,17 @@ std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset
     {
         return std::nullopt;
     }
-    const std::optional<int> held = heldFretAt(note, std::nullopt, offset);
-    if (!held.has_value() && !noteIsBent(note))
+    // The fret slot the finger occupies, pressing a fret or touching a natural harmonic's node;
+    // nothing for the open string.
+    const std::optional<int> occupied =
+        fretHandStopAt(note, std::nullopt, offset).transform(handFretOf).and_then(pressedFret);
+    if (!occupied.has_value() && !noteIsBent(note))
     {
         return std::nullopt;
     }
     // A pressed fret already lies above the capo; what the lift moves is a bent open string and a
     // node nearest a fret at or below the capo.
-    return std::max(held.value_or(0), firstPlayableFret(capo));
+    return std::max(occupied.value_or(0), firstPlayableFret(capo));
 }
 
 std::vector<FretHandHold> fretHandHolds(

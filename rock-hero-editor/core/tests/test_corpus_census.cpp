@@ -642,74 +642,35 @@ struct DerivationCounters
     // THE PINNED-FINGER CERTAINTY. FHPs are partly the charter's OPINION — placed to match an
     // artist's playing style — so there is no hard rule for what is CORRECT and evaluation can
     // only be certain of what is WRONG. This is the strongest wrongness class the model admits: a
-    // fretted note still SOUNDING at a window's arrival pins a finger to its fret — lifting it
-    // would end the ring — so a window whose reach excludes that fret describes a hand that cannot
-    // exist. The rows above it (crossings, unfretted arrivals) are SUSPICION, mixed with opinion;
-    // these two are certainty. The fret is read AT the arrival, so a slid finger pins with the
-    // fret it is sounding rather than the one it was struck at.
+    // stop the fretting hand still HOLDS at a window's arrival pins a finger to its fret — lifting
+    // it would end the ring or drop the grip — so a window whose reach excludes that fret
+    // describes a hand that cannot exist. The rows above it (crossings, unfretted arrivals) are
+    // SUSPICION, mixed with opinion; these two are certainty. The holds are the derivation's own,
+    // so a slid finger pins with the fret it is sounding rather than the one it was struck at.
     long long fhp_pinned_finger_windows{0};
-    long long fhp_pinned_finger_rings{0};
+    long long fhp_pinned_finger_holds{0};
 };
 
 // The offsets at which a note's fret channel LANDS, in order — [D2]'s landings, read from the
-// SOURCE side. This is the model's own reading of the channel: a travel goes on while each fret
-// lies further in its direction, so a fret a glide passes is a point on the path, and a restated
-// fret (a rest) or a fret back the way it came (a turn) lands it. A landing's statement covers its
-// hold and the glide out of it, so it runs to the next landing, or to the ring's end after the
-// last one.
+// SOURCE side through the channel reader itself (\ref common::core::statedStopFrom): asked again
+// from each landing, it answers the travel after it. A landing's statement covers its hold and the
+// glide out of it, so it runs to the next landing, or to the ring's end after the last one.
 //
-// Spelled here rather than approximated, for the reason the lone-re-pick member test is: the
-// finished spans record which landings OPENED and never which ones were suppressed, so a rig that
+// Read per note rather than off the finished spans, for the reason the lone-re-pick member test
+// is: the spans record which landings OPENED and never which ones were suppressed, so a rig that
 // cannot read the channel cannot attribute the movement to an edge. The derivation's own
-// `successor_spans` stands beside these as the authority, and a disagreement between the two is a
-// finding rather than a defect in either.
-[[nodiscard]] std::vector<Fraction> sourceLandings(
+// `successor_spans` stands beside these as the authority.
+[[nodiscard]] std::vector<Fraction> landingsOf(
     const ChartNote& note, const bool arrives_into_next_head)
 {
-    // The SLIDE-OUT states where the hand LEAVES toward as the sound stops, which is the one fret
-    // statement that is no grip at all: it is skipped below, so a slide-out never reads as a
-    // landing and never ends one. An ARRIVAL is a landing like any other — the finger comes to
-    // rest on the stop the next head takes — so the RESOLVED relation is what this skips by
-    // (\ref common::core::arrivesIntoNextHead), never position alone.
-    const common::core::Keyframe* const slide_out =
-        common::core::slideOutKeyframe(note, arrives_into_next_head);
     std::vector<Fraction> landings;
-    // The stop the channel last stood on; while a travel away from it is under way, the furthest
-    // fret it has reached and the offset it reached it at.
-    int standing = note.fret;
-    int furthest = note.fret;
-    std::optional<Fraction> reached_at;
-    for (const common::core::Keyframe& keyframe : note.keyframes)
+    std::optional<common::core::FretTravel> travel =
+        common::core::statedStopFrom(note, Fraction{}, arrives_into_next_head).travel;
+    while (travel.has_value())
     {
-        // Bound to a local so the presence test and the read are provably the same object.
-        const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value() || &keyframe == slide_out)
-        {
-            continue;
-        }
-        // Bound once so the presence test and the read are provably the same object.
-        const std::optional<Fraction>& travelling = reached_at;
-        if (travelling.has_value())
-        {
-            if (furthest > standing ? *fret > furthest : *fret < furthest)
-            {
-                furthest = *fret;
-                reached_at = keyframe.offset;
-                continue;
-            }
-            landings.push_back(*travelling);
-            standing = furthest;
-            reached_at.reset();
-        }
-        if (*fret != standing)
-        {
-            furthest = *fret;
-            reached_at = keyframe.offset;
-        }
-    }
-    if (reached_at.has_value())
-    {
-        landings.push_back(*reached_at);
+        const Fraction arrival = travel->arrival;
+        landings.push_back(arrival);
+        travel = common::core::statedStopFrom(note, arrival, arrives_into_next_head).travel;
     }
     return landings;
 }
@@ -820,7 +781,7 @@ void countDerivation(
     const std::vector<bool>& arrives_into, const std::vector<ChartShape>& shapes,
     const std::vector<ChartPosture>& postures, const std::vector<bool>& arrivals,
     const std::vector<common::core::FretHandEvent>& hand_events,
-    const std::vector<std::optional<int>>& held_frets, const TempoMap& tempo_map,
+    const std::vector<common::core::FretHandHold>& holds, const TempoMap& tempo_map,
     DerivationCounters& out)
 {
     const StreamIndex index = makeStreamIndex(saved, tempo_map);
@@ -828,21 +789,6 @@ void countDerivation(
 
     out.natural_harmonic_notes += std::ranges::count_if(
         saved, [](const ChartNote& note) { return common::core::frettingFingerOnNode(note); });
-
-    // The fret-hand windows front on the same whole-note axis the spans are read on, so the
-    // convergence invariant compares two derivations rather than two coordinate systems. Strictly
-    // ascending by front (the derivation's own promise), so the window covering an instant is the
-    // last one at or before it.
-    const auto window_covering =
-        [&hand_events](const Fraction place) -> std::optional<std::size_t> {
-        const auto after = std::ranges::upper_bound(
-            hand_events, place, std::ranges::less{}, &common::core::FretHandEvent::front);
-        if (after == hand_events.begin())
-        {
-            return std::nullopt;
-        }
-        return static_cast<std::size_t>(std::distance(hand_events.begin(), after) - 1);
-    };
 
     // THE HAND-COUPLING GATE's placement classes, read once per track: which windows arrive
     // where nothing fretted sounds. FRETTED is the HAND's fret (`fretFor`), the same answer the
@@ -869,46 +815,21 @@ void countDerivation(
             }
         }
 
-        // THE PINNED-FINGER CERTAINTY: rings struck strictly BEFORE a window's arrival and still
-        // sounding at it (end-exclusive: a ring ending exactly there released in time), whose
-        // fretting-hand stop lies outside the window's reach. A note struck AT the arrival belongs
-        // to the new window and is the convergence invariant's business, not a pin. The finger is
-        // read AT the arrival through heldFretAt, the one "is a finger down, and where" authority,
-        // so a slid ring pins with the fret it is sounding, not the fret it was struck at, a tap
-        // pins with its held stop, and an open string pins nothing.
-        struct SoundingRing
-        {
-            Fraction onset;
-            Fraction end;
-            const ChartNote* note;
-            const std::optional<int>* held;
-        };
-        std::vector<SoundingRing> rings;
-        for (std::size_t note = 0; note < saved.size(); ++note)
-        {
-            const Fraction place = tempo_map.wholeNotePositionAt(saved[note].position);
-            rings.push_back(
-                SoundingRing{
-                    .onset = place,
-                    .end = place + saved[note].sustain,
-                    .note = &saved[note],
-                    .held = &held_frets[note],
-                });
-        }
+        // THE PINNED-FINGER CERTAINTY: holds begun strictly BEFORE a window's arrival and still
+        // holding at it (end-exclusive: a hold ending exactly there released in time), whose fret
+        // lies outside the window's reach. A hold beginning AT the arrival belongs to the new
+        // window and is the convergence invariant's business, not a pin. The holds are the
+        // derivation's own (\ref common::core::fretHandHolds), the one "is a finger down, and
+        // where" authority, so a slid ring pins with the fret it is sounding, a span grip pins
+        // from the span's front, and an open string or a natural harmonic's chime pins nothing.
         for (const common::core::FretHandEvent& event : hand_events)
         {
             const Fraction& arrival = event.front;
             const common::core::FretWindow& window = event.window;
             long long pinned = 0;
-            for (const SoundingRing& ring : rings)
+            for (const common::core::FretHandHold& hold : holds)
             {
-                if (!(ring.onset < arrival && arrival < ring.end))
-                {
-                    continue;
-                }
-                const std::optional<int> held =
-                    common::core::heldFretAt(*ring.note, *ring.held, arrival - ring.onset);
-                if (held.has_value() && !window.covers(*held))
+                if (hold.from < arrival && arrival < hold.to && !window.covers(hold.fret))
                 {
                     ++pinned;
                 }
@@ -916,7 +837,7 @@ void countDerivation(
             if (pinned > 0)
             {
                 ++out.fhp_pinned_finger_windows;
-                out.fhp_pinned_finger_rings += pinned;
+                out.fhp_pinned_finger_holds += pinned;
             }
         }
     }
@@ -993,15 +914,17 @@ void countDerivation(
             }
         }
 
-        // THE FHP CONVERGENCE INVARIANT: zero by construction, since a span's grip is a hold.
-        // Bound once so the presence test and the read are provably the same object.
-        if (const std::optional<std::size_t> window = window_covering(start); !window.has_value())
+        // THE FHP CONVERGENCE INVARIANT: zero by construction, since a span's grip is a hold. The
+        // windows front on the same whole-note axis the spans are read on, so it compares two
+        // derivations rather than two coordinate systems.
+        if (const auto past = common::core::firstFretHandEventAfter(hand_events, start);
+            past == hand_events.begin())
         {
             ++out.fhp_unwindowed_spans;
         }
         else
         {
-            const common::core::FretWindow reach = hand_events[*window].window;
+            const common::core::FretWindow reach = std::prev(past)->window;
             long long out_of_reach = 0;
             for (const std::optional<ChartStop>& stop : posture)
             {
@@ -1104,7 +1027,7 @@ void countDerivation(
                     continue;
                 }
                 landing_here = std::ranges::any_of(
-                    sourceLandings(saved[ringing], arrives_into[ringing]),
+                    landingsOf(saved[ringing], arrives_into[ringing]),
                     [&](const Fraction landed) { return index.onset[ringing] + landed == start; });
             }
             if (landing_here)
@@ -1413,8 +1336,7 @@ void countDerivation(
         bool travels = false;
         for (const std::size_t member : struck_at_start)
         {
-            const std::vector<Fraction> landings =
-                sourceLandings(saved[member], arrives_into[member]);
+            const std::vector<Fraction> landings = landingsOf(saved[member], arrives_into[member]);
             if (landings.empty())
             {
                 continue;
@@ -1452,7 +1374,7 @@ void countDerivation(
                 for (const std::size_t member : struck_at_start)
                 {
                     const std::vector<Fraction> landings =
-                        sourceLandings(saved[member], arrives_into[member]);
+                        landingsOf(saved[member], arrives_into[member]);
                     // The first landing's statement runs to the next landing or the ring's end.
                     const Fraction ends =
                         index.onset[member] +
@@ -1484,30 +1406,17 @@ void countDerivation(
         for (const std::size_t member : struck_at_start)
         {
             const ChartNote& note = saved[member];
-            // The SLIDE-OUT is where pressure comes OFF, not a stop the string sounds, so the
-            // travel this measures is read from the statements before it. An ARRIVAL is a stop, so
-            // the resolved relation is what this skips by.
-            const common::core::Keyframe* const slide_out =
-                common::core::slideOutKeyframe(note, arrives_into[member]);
-            std::optional<Fraction> landing;
-            bool differs = false;
-            for (const common::core::Keyframe& keyframe : note.keyframes)
-            {
-                const std::optional<int>& fret = keyframe.fret;
-                if (!fret.has_value() || &keyframe == slide_out)
-                {
-                    continue;
-                }
-                differs = differs || *fret != note.fret;
-                landing = keyframe.offset;
-            }
-            if (!differs || !landing.has_value())
+            const std::vector<Fraction> landings = landingsOf(note, arrives_into[member]);
+            if (landings.empty())
             {
                 every_member_travels = false;
                 break;
             }
-            const Fraction arrival = *landing;
-            if (slide_out != nullptr || arrival >= note.sustain)
+            const Fraction arrival = landings.back();
+            // A slide-out is where pressure comes OFF, so a member sliding out never comes to rest
+            // inside its ring.
+            if (common::core::slideOutKeyframe(note, arrives_into[member]) != nullptr ||
+                arrival >= note.sustain)
             {
                 every_travel_lands = false;
             }
@@ -2292,20 +2201,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 census.hidden_strokes += stroke_hidden ? 1 : 0;
             }
 
-            countDerivation(
-                resolutions.connections.saved_notes,
-                resolutions.ink_end,
-                resolutions.connections.arrives_into,
-                resolutions.shapes,
-                resolutions.postures,
-                resolutions.arrivals,
-                common::core::fretHandResolutions(
-                    resolutions, chart.fret_hand_positions, built->tempo_map)
-                    .events,
-                resolutions.held_stops,
-                built->tempo_map,
-                census.derivation);
-            // The layer's demands carry no tally, so the census derives them again to count them.
+            // The layer's demands carry no tally, so the census derives them again to count them,
+            // and walks the hand over them once, counted too.
             const common::core::FretHandDemands demands = common::core::fretHandDemands(
                 resolutions.connections,
                 common::core::ChartShapes{
@@ -2315,8 +2212,24 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 chart.tuning.capo,
                 built->tempo_map,
                 &census.hand);
-            static_cast<void>(common::core::deriveFretHandEvents(
-                resolutions.connections, demands, built->tempo_map, {}, &census.hand));
+            const std::vector<common::core::FretHandEvent> hand_events =
+                common::core::deriveFretHandEvents(
+                    resolutions.connections,
+                    demands,
+                    built->tempo_map,
+                    chart.fret_hand_positions,
+                    &census.hand);
+            countDerivation(
+                resolutions.connections.saved_notes,
+                resolutions.ink_end,
+                resolutions.connections.arrives_into,
+                resolutions.shapes,
+                resolutions.postures,
+                resolutions.arrivals,
+                hand_events,
+                demands.holds,
+                built->tempo_map,
+                census.derivation);
         }
     }
 
@@ -2444,11 +2357,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  spans whose crossings only widen", census.derivation.spans_crossed_by_widening);
     row("fret-hand windows placed", census.derivation.fhp_placements);
     row("  ... arriving where nothing fretted sounds", census.derivation.fhp_placements_unfretted);
-    std::cout << "  --- THE PINNED-FINGER CERTAINTY (only wrongness is certain: a sounding\n"
-                 "   fretted ring pins its finger, so a window excluding that fret describes a\n"
-                 "   hand that cannot exist) ---\n";
-    row("windows arriving over a pinned finger", census.derivation.fhp_pinned_finger_windows);
-    row("  those pinned rings", census.derivation.fhp_pinned_finger_rings);
+    std::cout << "  --- THE PINNED-FINGER CERTAINTY (only wrongness is certain: a held stop\n"
+                 "   pins its finger, so a window excluding that fret describes a hand that\n"
+                 "   cannot exist) ---\n";
+    row("windows arriving over a pinned finger (ZERO)",
+        census.derivation.fhp_pinned_finger_windows);
+    row("  those pinned holds (ZERO)", census.derivation.fhp_pinned_finger_holds);
 
     std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP — THE OPENING-CAUSE CENSUS\n";
     std::cout << "  (keyed on `landing_opened`, the one opening-cause datum the walk publishes\n"
@@ -2829,34 +2743,29 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             },
             CrossCheck{
                 // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a
-                // fretted ring still sounding at a window's arrival pins its finger, so a window
-                // whose reach excludes that fret describes a hand that cannot exist. Pinned as a
-                // count and not ruled to zero for the same reason as the convergence row above —
-                // the number is evidence about the derivation, and it has to be free to be read.
+                // stop still held at a window's arrival pins its finger, so a window whose reach
+                // excludes that fret describes a hand that cannot exist.
                 //
-                // The pin reads the derived hand events. The rig counts rings sounding at a
-                // window's arrival whose fretting-hand stop (heldFretAt) the window does not
-                // cover. Every held ring is a hold the derivation keeps covered (\ref
-                // fretHandHolds), so what remains is what heldFretAt reads and no hold states: the
-                // natural-harmonic chimes, which hold nothing.
-                .label = "windows arriving over a pinned finger",
+                // The pin reads the hand events the chart's positions derive, and the holds the
+                // derivation keeps covered (\ref fretHandHolds), so ZERO BY CONSTRUCTION: every
+                // hold widens each instant it stands over, an authored window reaches every stop
+                // gripped at its place, and a front reaching back never crosses a hold's end.
+                .label = "windows arriving over a pinned finger (ZERO)",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
-                .expected = 9.0,
+                .expected = 0.0,
             },
             CrossCheck{
-                .label = "  those pinned rings",
-                .rig = static_cast<double>(census.derivation.fhp_pinned_finger_rings),
-                .expected = 9.0,
+                .label = "  those pinned holds (ZERO)",
+                .rig = static_cast<double>(census.derivation.fhp_pinned_finger_holds),
+                .expected = 0.0,
             },
             CrossCheck{
-                // The spans the walk opened at a LANDING that this rig's own fret-channel reading
-                // cannot stand an arrival on. The two readings are genuinely separate code over
-                // the same source: the walk caps a member's coverage at the arrival
-                // `statedStopFrom` reports, and this rig re-reads the keyframes itself
-                // (\ref sourceLandings) and asks whether any instant it finds is the span's own
-                // start. THE AGREEMENT IS THE PINNED EXPECTATION, exact-match: a shortfall means
-                // one of the two readings of the fret channel has moved under the other, which is
-                // the finding this second opinion exists to raise and has no acceptable band.
+                // The spans the walk opened at a LANDING that no member still ringing there lands
+                // on. The walk caps a member's coverage at the arrival `statedStopFrom` reports,
+                // and this rig asks the same reader for every landing of each ringing member
+                // (\ref landingsOf) and whether any is the span's own start. THE AGREEMENT IS THE
+                // PINNED EXPECTATION, exact-match: a shortfall is a successor the walk opened
+                // where no ringing string's channel lands, which has no acceptable band.
                 .label = "landings the source side misses (ZERO)",
                 .rig = static_cast<double>(
                     census.derivation.successor_spans - census.derivation.successor_spans_landing),

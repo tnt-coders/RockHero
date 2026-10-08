@@ -178,10 +178,10 @@ struct FretHandDemands
 \brief RULE 1, stated once: the fret a note demands of the fretting hand at an offset along its
 ring, or nothing.
 
-The fret its fretting finger occupies there (\ref heldFretAt), so a natural harmonic demands its
-node's fret. An onset the PICKING hand makes (\ref rightHandOnset) demands nothing, and neither does
-an open string — save one bent anywhere along its ring, which is bent behind the nut, or behind the
-capo under one (rule 13).
+The fret slot its fretting finger occupies there (\ref fretHandStopAt), pressing a fret or touching
+a node, so a natural harmonic demands its node's fret. An onset the PICKING hand makes
+(\ref rightHandOnset) demands nothing, and neither does an open string — save one bent anywhere
+along its ring, which is bent behind the nut, or behind the capo under one (rule 13).
 
 THE DEMAND IS A PLAYABLE FRET: one below \ref firstPlayableFret is lifted to it, exactly as every
 window is fitted (\ref fittedWindowFret), so the derivation and the coverage rule read one number. A

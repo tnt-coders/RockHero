@@ -360,6 +360,82 @@ it, so what the test governs is a charter's own crowded landing.
     const ChartConnections& connections, const HeadMargins& margins);
 
 /*!
+\brief One travel of a note's fret channel: where it leaves a stop and where it next LANDS.
+
+Both moments come off one walk of the channel's statements — the onset, then every fret-stating
+keyframe — and are offsets from the note's onset. The landing is where a new statement is
+established and where a span hands over (rule 10).
+*/
+struct FretTravel
+{
+    /*! \brief The last offset at which the channel still states the stop it leaves. */
+    Fraction departure{};
+
+    /*! \brief The offset at which the channel lands: comes to rest or turns back. */
+    Fraction arrival{};
+
+    /*! \brief The stop it lands on. */
+    int fret{0};
+};
+
+/*!
+\brief The whole of what a fret channel says from one offset onward (\ref statedStopFrom): which
+stop the finger is on there, and the travel it makes away from it.
+
+One answer rather than two queries, because a caller that had to name the stop itself would be a
+second statement of this very fact, free to disagree with the channel.
+*/
+struct StatedStop
+{
+    /*!
+    \brief The stop the channel states at the queried offset — a fret pressed, the open string, or a
+    node touched (\ref ChartStop); empty exactly where it is MID-TRAVEL, since a finger between
+    stops is on no stop at all, so a string caught there is a member of nothing.
+    */
+    std::optional<ChartStop> stop{};
+
+    /*! \brief The travel the channel is on, or is about to make; absent where it never leaves. */
+    std::optional<FretTravel> travel{};
+
+    /*!
+    \brief The offset at which the stated stop's own statement BEGAN inside the channel: zero where
+    the channel never left the onset's stop, and the travel's arrival where a glide landed on it.
+
+    Mid-travel it names where the statement being travelled into will begin, the only honest answer
+    while the finger is on no stop at all. The span walk dates a slid string's grip by it, with no
+    second record of the landing kept anywhere, exactly as the same re-ask caps that string's
+    coverage there.
+    */
+    Fraction stated_from{};
+};
+
+/*!
+\brief THE channel reader: the stop a note's fret channel states from an offset onward, and the
+travel it makes next — the one authority on where a fret channel lands.
+
+A travel goes on only while each fret it states lies further in its direction: a fret it glides PAST
+is a point on the path, so a continuous multi-fret glide stays one travel to its end. Anything else
+LANDS it — a restated fret is a rest, and a fret back the way it came is a TURN, where the listener
+hears the chord the glide turned on as the chord landed on even though the finger holds it for no
+time. The slide-out (\ref slideOutKeyframe) is no statement about where the finger is: the channel
+goes on stating the stop it slides from. An arrival into the next head is read like any landing.
+A fretting-hand harmonic states its node, never the fret 0 beneath it (\ref frettingStopAt).
+
+Asked from a landing's own offset, it answers the travel after it, so every landing of a channel is
+read by asking again from the last one.
+
+\param note Note whose fret channel is read.
+\param from Whole notes from the note's onset.
+\param arrives_into_next_head Whether the note's last keyframe arrives into the next head on its
+       string (\ref arrivesIntoNextHead) rather than sliding out.
+
+\return The stop stated at \p from, the travel the channel is on or makes next, and where the
+        stated stop's statement began.
+*/
+[[nodiscard]] StatedStop statedStopFrom(
+    const ChartNote& note, Fraction from, bool arrives_into_next_head);
+
+/*!
 \brief The grip a pull-off source states beneath the fret it sounds, where it states one.
 
 THE ONE AUTHORITY for the hold-under law, shared by the span derivation and the importer's let-ring

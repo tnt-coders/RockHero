@@ -2045,8 +2045,7 @@ hand on.
 
 \return The stop the note states at that instant; nothing only where the picking hand stops the
         string and no held stop is known. An open string answers `frettedStop(0)` — a statement
-        that no finger is down, which a reader asking whether a finger IS down reads through
-        \ref heldFretAt.
+        that no finger is down, which \ref pressedFret reads as nothing.
 */
 [[nodiscard]] inline std::optional<ChartStop> fretHandStopAt(
     const ChartNote& note, const std::optional<int>& held, const Fraction offset)
@@ -2068,28 +2067,6 @@ hand on.
 [[nodiscard]] constexpr std::optional<int> pressedFret(const int fret) noexcept
 {
     return fret > 0 ? std::optional{fret} : std::nullopt;
-}
-
-/*!
-\brief THE FINGER-DOWN READING of \ref fretHandStopAt: the fret slot a fretting finger occupies at
-an instant, or nothing where no finger is down — an open string, or a picking-hand onset with no
-held stop.
-
-\param note Note whose ring is read.
-\param held The held stop beside a picking-hand onset, as \ref fretHandStopAt takes it.
-\param offset Whole notes from the note's onset.
-
-\return The occupied fret (\ref handFretOf), or nothing where no finger is down.
-*/
-[[nodiscard]] inline std::optional<int> heldFretAt(
-    const ChartNote& note, const std::optional<int>& held, const Fraction offset)
-{
-    const std::optional<ChartStop> stop = fretHandStopAt(note, held, offset);
-    if (!stop.has_value())
-    {
-        return std::nullopt;
-    }
-    return pressedFret(handFretOf(*stop));
 }
 
 /*!
