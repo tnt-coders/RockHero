@@ -81,7 +81,7 @@ Two implementations, dispatched by extension:
   plays each bar's stated `TripletFeel` — the swing Guitar Pro leaves off the page (rule 20c) —
   resolves the score's gestures and clamps each ring at its own string's next onset. Neither
   fret-hand positions nor chord spans are stored: both are derived from the finished notes wherever
-  they are read (rules 5–9 and 10–12a), so an import authors no position at all.
+  they are read (the hand-position rules and rules 10–12a), so an import authors no position.
 
 An import produces an **unsaved** project: no path, `save_requires_destination` set, so the first
 save is forced to Save As — which is also the moment per-project view state starts persisting.
@@ -91,10 +91,10 @@ save is forced to Save As — which is also the moment per-project view state st
 The plain-English specification of what the builder does to a Guitar Pro chart beyond literal
 conversion. This section is deliberately written as numbered rules so a behavior tweak can be
 made by editing a rule here and re-aligning the code
-(`gp_chart_builder.cpp` — `resolveSlideIns` (rule 16's scoops), `resolveSlideOutExits` (rule 9's
-exit fret), and the one chart normalizer `normalizeChart` (rule 26); the fret-hand derivation
-`deriveFretHandEvents` (rules 5–9) runs at read, in common/core; all covered by
-`test_gp_song_importer.cpp`). Rules
+(`gp_chart_builder.cpp` — `resolveSlideIns` (rule 16's scoops), `resolveSlideOutExits` (the
+slide-out exit fret, under the fret-hand position derivation below), and the one chart normalizer
+`normalizeChart` (rule 26); all covered by `test_gp_song_importer.cpp`). The numbers skip 5 to 9:
+those rules are the hand-position rules, now stated in \ref design_rulesets_hand_positions. Rules
 1–25 apply to GP import only; rule 26 is the normalizer every load path runs — `.rock` imports
 and saved projects go through exactly the same function, so a chart written under older rules is
 repaired and reported rather than refused.
@@ -115,7 +115,7 @@ that lengthen. And a **re-strike stops the ring**: the same-string clamp (40-Q2-
 `normalizeSustainOverlaps`) ends every tail at the next onset on its own string. The clamp runs
 after every pass that can lengthen a ring — the let-ring figure walk below is the last of them —
 and before the passes that read the settled rings — the chord spans (rules 10–12), the
-slide-out hand exits (rule 9) and the stored fret-hand stream, derived last of all; slide-in
+slide-out hand exits and the stored fret-hand stream, derived last of all; slide-in
 resolution, and the derivation over the natural stream it asks, run ahead of it, because the
 resolver's scoops are one of the passes that lengthen. Payload is trimmed to the ring
 ONCE, straight after that clamp, because that is where the ring stops moving: the imported bend is
@@ -298,101 +298,39 @@ matching the chart model's own sustain unit.
 **Fret-hand position derivation** — not an import rule at all. GP has no hand-position concept and
 the import authors none, so every position is derived at read, once per chart revision by
 `fretHandResolutions` over the notes layer `chartResolutions` derives, so AFTER the spans and the
-holds (notes, then grips, then positions: the spans never read the hand), by the 13-rule
-figure-segmented floor tracker,
-`common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`); the measured algorithm and the
-rulings it is built to are in `docs/plans/completed/fhp-derivation-algorithm.md` and plan 60 §9.
+holds (notes, then grips, then positions: the spans never read the hand), by
+`common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`). Its rules are stated once, in
+\ref design_rulesets_hand_positions, and code cites them from there ("hand-position rule 8"). In
+one breath: the song is cut into figures at chords, bar lines and a grip outgrowing the hand; the
+hand sits at each figure's floor spanning its grip, never narrower than four frets; and it never
+moves while a stop it holds still rings, nor for a one-fret figure the standing window covers.
+
 The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
 statement: it stands until the chart contradicts it. A project whose stored positions predate the
 derivation keeps them all as authored; the editor's Prune Hand Positions command removes each one
-whose removal leaves the derived events unchanged. Rules 5–9 are the derivation's plain-English
-spec:
+whose removal leaves the derived events unchanged.
 
-5. **The law.** Cut the song into figures at boundaries you can see — a chord being struck, a bar
-   line, or the grip outgrowing the hand. Put the hand at each figure's floor, spanning the grip,
-   never narrower than four. Two exceptions, both of which only ever REMOVE motion: the hand never
-   moves while a written note still rings, and a one-fret figure the standing window already covers
-   does not move it. A window is stated only where it changes. An authored position is always a
-   window of its own, fronting where it stands: `[fret, endFret]` where the end is stated, else its
-   fret up to the top of the figure it heads, never under four. It owns its own instant and stands
-   through every later instant that fits inside it, up to the next authored position; the rules
-   resume at the first instant that does not fit, and their fronts never reach back to it.
-6. **Open strings never constrain, and taps float above.** Fret-zero notes are playable from
-   anywhere and neither place nor move the window — save an open string BENT anywhere along its
-   ring, which is bent behind the nut (behind the capo, under one) and puts the hand at the first
-   playable fret. No demand lies below that fret: a natural harmonic whose node is nearest a fret
-   at or below the capo is demanded just above it, the floor every window and every authored
-   position is fitted to (`fretHandDemandAt`). A *tapped* note is likewise not
-   a coverage event: two-hand taps sit far above the fretting hand (a median seven frets in the
-   corpus), so the window tracks the fretted / left-hand notes while the tap floats above it. The
-   stop a pull-off plants beneath its source IS one, whichever hand struck the source: it demands
-   its fret from the source's onset, and every instant up to the pull-off is widened to cover it.
-   Only Guitar Pro's *Tapped* (two-hand) articulation becomes a chart tap; a *LeftHandTapped* note
-   is the fretting hand striking the note from nowhere and imports as the `LeftTap` attack verbatim
-   — so every tap rule in this policy refers to two-hand taps only, and left-hand taps anchor the
-   window like any fretted note. A note carrying both marks imports as the left-hand tap: left-hand
-   is the specialization, the generic tap mark adds nothing to it. The 3D-highway camera frames such
-   a tap on its own — it scans the notes, not only the hand windows — so the tap stays on screen
-   even though the window light stays low on the left hand. (A held chord under tapping renders as
-   an arpeggio, rule 12.)
-7. **Figures, and where a window takes over.** A figure closes at a chord (two or more fretted
-   notes struck at one instant), at a bar line (the measure number changing between consecutive
-   instants — a section always starts on one), and where the next instant would stretch the hand
-   past four frets or the figure's own span if wider. Every pitched keyframe fret statement is an
-   instant of its own, demanding its fret but never counting toward a chord (a shift slide's arrival
-   merges with its landing's instant); a slide-out demands nothing. Every stop the hand provably
-   holds (`fretHandHolds`) is a demand from where its hold begins up to, not including, its end, so
-   no window arrives that drops it: a ring (rule 8), and a span's members through the span — each
-   holding what its own string states, stop by stop, and a member struck after the span's front
-   holding its stop from the front — so an arpeggiated grip gets one window from its first strike.
-   There is no rest rule: a rest is
-   where a move lands, not what triggers one. A window takes over at the first onset after the
-   latest of the previous figure's last instant, the latest end among the holds begun before the
-   figure, and the bar line that broke the figure — so a figure's leading open strings
-   carry its window, an open-string pickup before the bar line keeps the old one, and the first
-   figure's window stands from the chart's first note.
-8. **Floor, width, and the two exceptions.** The window sits on the figure's lowest fretted fret,
-   spans the figure's frets but never fewer than four, and fits on the board — above the capo and
-   ending by the last fret, the floor winning (`fittedWindowFret`). A figure the standing window
-   already covers moves nothing while a stop held from earlier still holds — a ring, which pins
-   each pressed stop its fret channel states from that statement up to the next and the last to the
-   ring's end (a slide holds the stop it leaves up to its arrival; a slide-out holds it to the end;
-   bends and vibrato keep pinning; a dead note pins like any other), or a span member's hold — and
-   moves nothing when it lies on a single fret. Any other figure is forced and moves, ring or no
-   ring. A window equal to the standing one is not stated again.
-9. **A pitched slide moves the hand; unpitched slides demand nothing.** A pitched slide's keyframe
-   is a demand at its own place like any onset (rule 7), and a fretting finger sliding from one
-   pressed stop to another proves the hand moved with it: at the arrival the window is the standing
-   one shifted by the travel, fret and top together, so the finger keeps its place in the hand. The
-   arrival is a boundary like an authored position — no figure or authored tenure runs across it,
-   and the two exceptions of rule 8 cannot hold the old window over it. The shift stands only where
-   the shifted window still covers everything demanded and held there; otherwise, and where fingers
-   slide different distances at one instant, the window is placed by the ordinary rules.
+Three facts about the hand live in the import and the views rather than in the ruleset:
 
-   A slide-out places no window of its own. A window that fronts exactly where a slide-out ends —
-   the next strike's — rides the slide-out's OWN segment and eases with the unpitched curve, so it
-   follows the drawn rail instead of sprinting to catch up after a margin morph.
-
-   The hand still TRAVELS with a slide-out, so the window does — as derived MOTION, never a
-   position (`deriveFretHandRides`, `FretHandResolutions::rides`). Where the fretting hand holds
-   the stop the slide leaves, the window arrives at the slide-out's end covering the exit fret,
-   shifted the least distance that does so with its width kept (one window for strings sliding out
-   together; a window already covering the exit does not move), riding the slide's own segment with
-   the unpitched ease. At the next instant the hand covers it is back at whatever the positions
-   state there; where a position fronts first, that position is the way back. A slide-out stays
-   planted where the next demand comes before its end or exactly at it (a ring is half-open), and
-   where a position fronts while it travels — that position is the hand moving on, so nothing draws
-   a departure. A tap's slide-out is the picking hand's and never moves the fretting hand. The rides
-   are published beside the positions (`ChartViewState::fret_hand_rides`) and read by the board's
-   hand track alone: no chip, no click, no floor number, and the positions the scorer and the census
-   read are untouched.
-
-   The import reads the positions derived before the rings settle for a bare slide-out's EXIT FRET
-   (`resolveSlideOutExits`), as it does for a scoop's start fret (rule 16). When the next
-   window departs in the slide-out's direction AND arrives by the very next onset, the gesture IS
-   the departure: the exit fret rides that travel (widened to the slide-in rule's two-fret minimum).
-   Otherwise the slide-out keeps the fixed four-fret gesture, as does one running past the next
-   onset or past the end of the score.
+- Only Guitar Pro's *Tapped* (two-hand) articulation becomes a chart tap, which demands nothing of
+  the fretting hand; every tap rule in this policy means a two-hand tap. A *LeftHandTapped* note is
+  the fretting hand striking the note from nowhere and imports as the `LeftTap` attack verbatim, so
+  it anchors the window like any fretted note, and a note carrying both marks imports as the
+  left-hand tap. The 3D-highway camera frames a two-hand tap on its own — it scans the notes, not
+  only the hand windows — so the tap stays on screen while the window stays low on the left hand.
+- A slide-out places no window of its own; the hand rides it as derived MOTION
+  (`deriveFretHandRides`, `FretHandResolutions::rides`). The
+  rides are published beside the positions (`ChartViewState::fret_hand_rides`) and read by the
+  board's hand track alone: no chip, no click, no floor number, and the positions the scorer and the
+  census read are untouched. A ride, and a window fronting exactly where a slide-out ends, travel
+  the slide-out's own segment with the unpitched ease, so the hand follows the drawn rail instead
+  of sprinting to catch up after a margin morph.
+- The import reads the positions derived before the rings settle for a bare slide-out's EXIT FRET
+  (`resolveSlideOutExits`), as it does for a scoop's start fret (rule 16). When the next window
+  departs in the slide-out's direction AND arrives by the very next onset, the gesture IS the
+  departure: the exit fret rides that travel (widened to the slide-in rule's two-fret minimum).
+  Otherwise the slide-out keeps the fixed four-fret gesture, as does one running past the next onset
+  or past the end of the score.
 
 **Posture and shape derivation** — not an import rule at all. GP scores in practice carry no
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
@@ -1174,7 +1112,8 @@ clamped and then drawn like any other):
     gestured fret; no landing note exists, so there is nothing to desync from — and where a later
     head binds the ring, its ink stops at the crop like any tail while the slide-out keeps its
     stored instant. The gestured fret defaults to four frets out in the flag's direction and rides
-    the hand's next anchor travel instead when it agrees (rule 9's departure case).
+    the hand's next anchor travel instead when it agrees (the departure case under the fret-hand
+    position derivation).
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
     becomes a note: it folds into the origin as a pitched keyframe at the junction — the
     sustain extends through the landing's notated end, the landing's sustain techniques
@@ -1208,12 +1147,12 @@ clamped and then drawn like any other):
     while it travels. Anticipation — approach before the beat, target landing on it — is what a
     before-beat grace with a slide notates, and that path already resolves through the ordinary
     chain; a bare slide-in never fabricates an early onset. The fret-hand positions supply the start
-    fret: the delta arriving at the note in a derivation over the NATURAL stream (rules 5–9, run
+    fret: the delta arriving at the note in a derivation over the NATURAL stream (the hand-position rules, run
     before the rings settle, since the start fret must be chosen before they do), the flag's stated
     direction winning over a still hand or a contradicting delta (two frets out in the flag's
     direction), an agreeing one-fret delta widening to the same two-fret minimum.
     The scoop moves no window of its own: the stored scoop is struck at its approach fret and states
-    the notated fret at its arrival, so the positions a reader derives cover both (rules 5–9). An
+    the notated fret at its arrival, so the positions a reader derives cover both (hand-position rule 2). An
     open-string landing or a start that would leave the neck (into fret 1 from below) stays a plain
     note with a conversion note. The transformed note is a slide before
     anything reads it, so a slide-in into a held landing keeps its hold like any notated slide,

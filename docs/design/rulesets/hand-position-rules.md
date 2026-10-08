@@ -115,5 +115,6 @@ the derivation takes over where they do not fit. (`validateFretHandCoverage`, wh
 A slide-out's exit is motion, not a position. The window rides the slide: it shifts the least
 distance that covers the exit frets ending at that instant, keeping its width, and returns to the
 window the hand events state at the next instant the hand covers. A slide-out with no room — the
-next demand at or before its end, or a hand event fronting during it — does not ride. Rides are not
-hand events and change none. (`deriveFretHandRides`)
+next demand at or before its end, or a hand event fronting during it — does not ride, and neither
+does a tap's slide-out, which the picking hand makes. Rides are not hand events and change none.
+(`deriveFretHandRides`)
