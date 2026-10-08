@@ -270,8 +270,9 @@ std::expected<void, ChartError> validateFretHandPositions(
 
 // Walked from the demands' side: each onset meets the positions standing exactly at it, and each
 // hold the positions standing inside it, each found by one search. The holds are the derivation's
-// own (\ref ChartResolutions::hand_holds), so a stop is demanded here exactly where the derivation
-// keeps it. Every uncovered demand is collected, then each position keeps its earliest-found one.
+// own (\ref ChartResolutions::hand_demands), so a stop is demanded here exactly where the
+// derivation keeps it. Every uncovered demand is collected, then each position keeps its
+// earliest-found one.
 std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
@@ -299,7 +300,8 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
-        const std::optional<int> demand = fretHandDemandAt(note, Fraction{}, chart.capo);
+        const std::optional<int> demand =
+            fretHandDemandAt(note, Fraction{}, chart.hand_demands.capo);
         const auto at = std::ranges::lower_bound(instants, connections.places[index]);
         if (!demand.has_value() || at == instants.end() || *at != connections.places[index])
         {
@@ -314,7 +316,7 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
                 });
         }
     }
-    for (const FretHandHold& hold : chart.hand_holds)
+    for (const FretHandHold& hold : chart.hand_demands.holds)
     {
         for (const std::size_t at : positions_inside(hold.from, hold.to))
         {

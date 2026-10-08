@@ -110,7 +110,7 @@ namespace
 {
     const auto derive = [&](const std::vector<common::core::FretHandPosition>& authored) {
         return common::core::deriveFretHandEvents(
-            resolved.connections, resolved.hand_holds, tempo_map, resolved.capo, authored);
+            resolved.connections, resolved.hand_demands, tempo_map, authored);
     };
     const std::vector<common::core::FretHandEvent> events = derive(stored);
     std::vector<common::core::FretHandPosition> kept = stored;

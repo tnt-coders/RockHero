@@ -3027,10 +3027,9 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
     const std::vector<common::core::FretHandEvent> natural_hand =
         common::core::deriveFretHandEvents(
             slide_connections,
-            common::core::fretHandHolds(
-                slide_connections, common::core::ChartShapes{}, chart.tuning.capo),
+            common::core::fretHandDemands(
+                slide_connections, common::core::ChartShapes{}, chart.tuning.capo, tempo_map),
             tempo_map,
-            chart.tuning.capo,
             {});
     resolveSlideIns(built, natural_hand, tempo_map, notes, chart.tuning.capo);
 

@@ -2272,25 +2272,6 @@ struct FretHandEvent
 };
 
 /*!
-\brief A stop the fretting hand provably holds over `[from, to)` on the whole-note axis
-(\ref fretHandHolds).
-
-Here rather than beside the rule that derives it because \ref ChartResolutions carries the holds,
-and `chart_fret_hand.h` includes `chart_legato.h`.
-*/
-struct FretHandHold
-{
-    /*! \brief Where the hold begins. */
-    Fraction from{};
-
-    /*! \brief Where the hold ends, exclusive: an event exactly here finds the stop released. */
-    Fraction to{};
-
-    /*! \brief The fret held. */
-    int fret{0};
-};
-
-/*!
 \brief An authored fret-hand position: where the charter states the hand sits from this point on.
 
 The chart stores only what the charter authored; every other position is derived from the notes

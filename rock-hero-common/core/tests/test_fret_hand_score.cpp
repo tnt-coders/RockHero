@@ -100,12 +100,15 @@ void scoreChart(const Chart& chart, const TempoMap& tempo_map, PartScore& part, 
     const ChartConnections connections = chartConnections(chart.notes, tempo_map);
     // The stored positions are the truth this scores AGAINST, so none of them is handed in: the
     // derivation is asked what the notes alone say.
-    const std::vector<FretHandHold> holds = fretHandHolds(
+    // Both derivations add to the one tally, the demands their counts and the walk its own.
+    const FretHandDemands demands = fretHandDemands(
         connections,
         deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}),
-        chart.tuning.capo);
+        chart.tuning.capo,
+        tempo_map,
+        &score.tally);
     const std::vector<FretHandEvent> events =
-        deriveFretHandEvents(connections, holds, tempo_map, chart.tuning.capo, {}, &score.tally);
+        deriveFretHandEvents(connections, demands, tempo_map, {}, &score.tally);
     if (events.empty())
     {
         ++score.arrangements_skipped;

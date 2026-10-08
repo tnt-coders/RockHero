@@ -9,6 +9,7 @@
 #include <limits>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/head_margins.h>
@@ -389,8 +390,8 @@ A function of the notes, the capo and the tempo map alone — the authored posit
 layer's input (\ref FretHandResolutions), never this one's. The per-note facts each surface needs
 and none may restate: the connections the saved stream justifies, where each note's ink stops — how
 far every surface DRAWS the stored note and the scorer will judge it — and how long each note is
-held — plus the hand-posture spans the notes imply and the stops the fretting hand holds, which are
-not per-note but are derived from the same stream.
+held — plus the hand-posture spans the notes imply and what they demand of the fretting hand, which
+are not per-note but are derived from the same stream.
 
 What is added here over \ref ChartConnections travels together because it is computed together —
 the holds need the saved stream, the ink ends, the tail law's verdict AND the spans to be answered
@@ -403,12 +404,6 @@ chart revision, never per frame.
 */
 struct ChartResolutions
 {
-    /*!
-    \brief The capo the layer was derived under: an input carried so every reader asks the layer
-    instead of agreeing with it by hand.
-    */
-    int capo{0};
-
     /*! \brief The saved stream and the connections it justifies (\ref chartConnections). */
     ChartConnections connections;
 
@@ -422,13 +417,16 @@ struct ChartResolutions
     HeadMargins margins;
 
     /*!
-    \brief Every stop the fretting hand provably holds (\ref fretHandHolds), in no promised order.
-    Not index-parallel to the notes.
+    \brief What the notes demand of the fretting hand (\ref fretHandDemands): the stops it holds,
+    the instants it covers, and the capo the layer was derived under. Not index-parallel to the
+    notes.
 
-    Derived once here for its three readers: the hand layer (\ref fretHandResolutions), the
-    coverage gate (\ref uncoveringFretHandPositions) and the editor's redundancy walk.
+    Derived after the spans — notes, then grips, then positions — as the one statement of what the
+    notes demand of the hand, read by the hand layer (\ref fretHandResolutions), the coverage gate
+    (\ref uncoveringFretHandPositions) and the editor's redundancy walk. The capo is carried here
+    so every reader asks the layer instead of agreeing with it by hand.
     */
-    std::vector<FretHandHold> hand_holds;
+    FretHandDemands hand_demands;
 
     /*!
     \brief Where each note's ink stops, as a note-relative offset: \ref ChartPresentation::ink_end,
@@ -482,11 +480,12 @@ struct ChartResolutions
 };
 
 /*!
-\brief Resolves a chart's notes layer once: connections, spans, hand holds, ink ends, held lengths.
+\brief Resolves a chart's notes layer once: connections, spans, hand demands, ink ends, held
+lengths.
 
 A function of the notes, the capo and the tempo map. The connections come from
 \ref chartConnections, so the walk that answers them is stated once for both the callers that want
-the whole picture and the callers that want a claim. The spans, the held stops and the hand holds
+the whole picture and the callers that want a claim. The spans, the held stops and the hand demands
 come from the same stream rather than from a caller, so there is no second posture input a caller
 could forget to hand over.
 

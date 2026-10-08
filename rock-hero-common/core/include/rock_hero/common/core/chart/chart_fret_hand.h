@@ -1,16 +1,15 @@
 /*!
 \file chart_fret_hand.h
-\brief The fret hand derived from the notes and the authored positions: where the hand sits
-(\ref deriveFretHandEvents), how its window rides a slide-out (\ref deriveFretHandRides), and the
-two together as a chart revision's hand layer (\ref fretHandResolutions).
+\brief The fret hand derived from the notes and the authored positions: what the notes demand of
+the hand (\ref fretHandDemands), where the hand sits (\ref deriveFretHandEvents), how its window
+rides a slide-out (\ref deriveFretHandRides), and the two together as a chart revision's hand layer
+(\ref fretHandResolutions).
 */
 
 #pragma once
 
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
-#include <rock_hero/common/core/chart/chart_legato.h>
-#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -19,13 +18,32 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief The resolved connections the hand derivation reads (`chart_legato.h`).
+
+Declared rather than included, as are \ref ChartShapes and \ref ChartResolutions below:
+`chart_legato.h` includes this header for \ref FretHandDemands, so the include runs one way only,
+and every signature here takes them by reference, which needs no more than the name.
+*/
+struct ChartConnections;
+
+/*! \brief The spans and postures \ref fretHandHolds reads (`chart_shapes.h`). */
+struct ChartShapes;
+
+/*! \brief The notes layer \ref fretHandResolutions reads (`chart_legato.h`). */
+struct ChartResolutions;
+
+/*!
 \brief What a hand derivation met on its way, counted for the instruments that measure it — the
 dataset scorer and the corpus census — and for nothing the product reads.
 
-Every derivation handed a tally ADDS to the counts already in it, so one tally sums a corpus.
+Two derivations fill it, each its own counts: the notes' demands (\ref fretHandDemands) and the
+walk over them (\ref deriveFretHandEvents). Every derivation handed a tally ADDS to the counts
+already in it, so one tally sums a corpus.
 */
 struct FretHandDerivationTally
 {
+    // Filled by \ref fretHandDemands.
+
     /*! \brief Instants the hand covers. */
     long long groups{0};
 
@@ -40,6 +58,14 @@ struct FretHandDerivationTally
 
     /*! \brief Of those, the plants on a pressed fret: the rule-12 demands. */
     long long pressed_plants{0};
+
+    /*! \brief Instants a fretting finger slides into (the slide rule). */
+    long long slide_arrivals{0};
+
+    /*! \brief Of those, the instants whose sliding fingers travel different distances. */
+    long long slide_arrivals_disagreeing{0};
+
+    // Filled by \ref deriveFretHandEvents.
 
     /*! \brief Holds that pin the hand for some time (rule 6, \ref fretHandHolds). */
     long long hold_pins{0};
@@ -59,14 +85,83 @@ struct FretHandDerivationTally
     /*! \brief Emitted fronts that reach back before their figure's first instant (rule 10). */
     long long fronts_reaching_back{0};
 
-    /*! \brief Instants a fretting finger slides into (the slide rule). */
-    long long slide_arrivals{0};
-
-    /*! \brief Of those, the instants whose sliding fingers travel different distances. */
-    long long slide_arrivals_disagreeing{0};
-
     /*! \brief Slide arrivals that shifted the standing window by the travel. */
     long long slide_shifts{0};
+};
+
+/*!
+\brief A stop the fretting hand provably holds over `[from, to)` on the whole-note axis
+(\ref fretHandHolds).
+*/
+struct FretHandHold
+{
+    /*! \brief Where the hold begins. */
+    Fraction from{};
+
+    /*! \brief Where the hold ends, exclusive: an event exactly here finds the stop released. */
+    Fraction to{};
+
+    /*! \brief The fret held. */
+    int fret{0};
+};
+
+/*! \brief Fretting fingers sliding into one instant: how far the hand travels with them. */
+struct FretHandSlideIn
+{
+    /*!
+    \brief The frets the hand travels with the sliding fingers; empty where they travel different
+    distances, which proves no single shift.
+    */
+    std::optional<int> travel{};
+};
+
+/*!
+\brief One instant the hand must cover (the plan's "coverage group"): the hull of every demand
+stated there and of every stop held across it, and how many fretted notes are struck there.
+
+Only a strike counts toward a chord, so a demand never makes one.
+*/
+struct FretHandInstant
+{
+    /*! \brief The instant, on the whole-note axis (\ref ChartConnections::places). */
+    Fraction place{};
+
+    /*! \brief The bar the instant lies in, read once from its place (rule 3's bar test). */
+    int measure{1};
+
+    /*! \brief The lowest fret demanded or held at the instant. */
+    int lowest{0};
+
+    /*! \brief The highest fret demanded or held at the instant. */
+    int highest{0};
+
+    /*! \brief How many fretted notes are struck at the instant. */
+    int struck{0};
+
+    /*! \brief Present where a fretting finger slides into this instant (the slide rule). */
+    std::optional<FretHandSlideIn> slide{};
+};
+
+/*!
+\brief The notes' statement to the fretting hand: every stop it holds, every instant it must cover,
+and the capo both were read under.
+
+Derived once per notes layer (\ref ChartResolutions::hand_demands) and read by the hand walk
+(\ref deriveFretHandEvents), the slide-out rides (\ref deriveFretHandRides), the coverage gate
+(\ref uncoveringFretHandPositions) and the editor's redundancy walk. A function of the notes, the
+spans, the capo and the tempo map — never of the authored positions, which is why a position edit
+leaves it standing.
+*/
+struct FretHandDemands
+{
+    /*! \brief The tuning's capo fret the demands were derived under; 0 for none. */
+    int capo{0};
+
+    /*! \brief Every stop the fretting hand provably holds (\ref fretHandHolds), unordered. */
+    std::vector<FretHandHold> holds;
+
+    /*! \brief Every instant the hand covers, strictly ascending by place. */
+    std::vector<FretHandInstant> instants;
 };
 
 /*!
@@ -116,6 +211,34 @@ nothing, and neither does a natural harmonic's ring or node: its node is demande
     const ChartConnections& connections, const ChartShapes& shapes, int capo);
 
 /*!
+\brief Derives what the notes demand of the fretting hand: the stops it holds (\ref fretHandHolds)
+and every instant it must cover.
+
+What a note DEMANDS of the hand (\ref fretHandDemandAt) is asked at its onset and at every pitched
+keyframe fret statement but a slide-out (rule 2); a pull-off source's onset also demands the stop
+the pull-off plants beneath it (\ref chartPlantedStops), which widens every instant up to the
+pull-off (rule 12). Every stop the hand provably holds — each note's stops in turn, and a span
+member's from the span's front — is demanded the same way, from where its hold begins up to, not
+including, its end. The demands are merged by instant into the hull each one states, so a held stop
+fronting where nothing fretted is struck is still an instant the hand covers. A demand reached by
+a fretting finger sliding from a different pressed stop marks its instant a slide arrival, carrying
+the travel where every sliding finger agrees on it (the slide rule).
+
+\param connections The resolved connections (\ref chartConnections).
+\param shapes The spans and postures derived from the same connections (\ref deriveChartShapes);
+       empty where no span is known, so the rings are the only holds.
+\param capo The tuning's capo fret; 0 for none.
+\param tempo_map Tempo map the connections were resolved against, placing each instant in its
+       measure.
+\param tally Counts to add what this derivation met to, or null where nobody measures it.
+
+\return The holds, the instants, and the capo they were derived under.
+*/
+[[nodiscard]] FretHandDemands fretHandDemands(
+    const ChartConnections& connections, const ChartShapes& shapes, int capo,
+    const TempoMap& tempo_map, FretHandDerivationTally* tally = nullptr);
+
+/*!
 \brief Derives where the fret hand sits from the notes and the positions the charter authored — THE
 13-rule figure-segmented floor tracker (`docs/plans/in-progress/fhp-derivation-algorithm.md`, with
 plan 60's Phase 1 rulings), superseded wherever an authored position stands.
@@ -126,13 +249,10 @@ figure's floor, spanning the grip, never narrower than four; and two exceptions,
 ever REMOVE motion: the hand never moves while a written note still rings, and a one-fret figure the
 standing window already covers does not move it.
 
-What a note DEMANDS of the hand (\ref fretHandDemandAt) is asked at its onset and at every pitched
-keyframe fret statement but a slide-out; a pull-off source's onset also demands the stop the
-pull-off plants beneath it (\ref chartPlantedStops), which widens every instant up to the pull-off.
-Every stop the hand provably holds (\ref fretHandHolds) — each note's stops in turn, and a span
-member's from the span's front — is demanded the same way, from where its hold begins up to, not
-including, its end, so no window drops a ringing stop or a held grip — the direction is notes,
-then grips, then positions — and each also pins the hand while it holds.
+What the notes demand of the hand is their own statement (\ref fretHandDemands): the walk covers
+every instant it names, a held stop among them from where its hold begins, so no window drops a
+ringing stop or a held grip — the direction is notes, then grips, then positions — and each hold
+also pins the hand while it holds.
 
 Each event's front is the first onset after the latest of the previous figure's last instant, the
 latest end among the holds begun before the figure, and the bar line that broke the figure;
@@ -161,13 +281,13 @@ ordinary rules there. A slide-out's fret is no stop, so it shifts nothing here
 Memoryless per figure and never reads seconds: the bar test is the measure number changing between
 consecutive instants.
 
-\param connections The resolved connections (\ref chartConnections): the saved notes, their places,
-       the same-string relation and the pull-offs.
-\param holds The stops the hand holds (\ref fretHandHolds), derived from the same connections.
-\param tempo_map Tempo map the connections were resolved against, placing each instant in its
-       measure. A parameter rather than part of the connections, which are a value and could only
-       carry a reference that might dangle.
-\param capo The tuning's capo fret; 0 for none.
+\param connections The resolved connections (\ref chartConnections): the saved notes and their
+       places, whose onsets the fronts land on.
+\param demands What the notes demand of the hand (\ref fretHandDemands), derived from the same
+       connections; its capo is the one every window is fitted under.
+\param tempo_map Tempo map the connections were resolved against, placing each authored position
+       and bar line. A parameter rather than part of the connections, which are a value and could
+       only carry a reference that might dangle.
 \param authored The chart's authored positions, valid and strictly ascending
        (\ref validateFretHandPositions); empty to ask what the notes alone derive, as an instrument
        scoring the derivation against stored positions must.
@@ -176,9 +296,8 @@ consecutive instants.
 \return The hand events, strictly ascending by front.
 */
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandEvents(
-    const ChartConnections& connections, const std::vector<FretHandHold>& holds,
-    const TempoMap& tempo_map, int capo, const std::vector<FretHandPosition>& authored,
-    FretHandDerivationTally* tally = nullptr);
+    const ChartConnections& connections, const FretHandDemands& demands, const TempoMap& tempo_map,
+    const std::vector<FretHandPosition>& authored, FretHandDerivationTally* tally = nullptr);
 
 /*!
 \brief The first event fronting strictly AFTER a place: the event before it is the window standing
@@ -210,16 +329,15 @@ The board's hand track merges these arrivals with the hand events and eases each
 arrival, so the ride takes the slide's own segment and unpitched ease. Nothing else reads them.
 
 \param connections The resolved connections the events were derived from.
-\param holds The holds the events were derived from (\ref fretHandHolds).
-\param tempo_map Tempo map the connections were resolved against.
-\param capo The tuning's capo fret the events were derived under; 0 for none.
+\param demands The demands the events were derived from (\ref fretHandDemands): the instants a
+       ride needs room before, and the capo.
 \param events The hand events (\ref deriveFretHandEvents).
 
 \return The ride arrivals, strictly ascending by front, none fronting where a hand event does.
 */
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandRides(
-    const ChartConnections& connections, const std::vector<FretHandHold>& holds,
-    const TempoMap& tempo_map, int capo, const std::vector<FretHandEvent>& events);
+    const ChartConnections& connections, const FretHandDemands& demands,
+    const std::vector<FretHandEvent>& events);
 
 /*!
 \brief The hand layer of a chart revision: where the hand sits and how its window rides, derived
@@ -246,10 +364,11 @@ struct FretHandResolutions
 /*!
 \brief Derives the hand layer from a chart's notes layer and its authored positions.
 
-The pipeline's last stage — notes, then grips, then positions — so it reads the holds the notes
-layer already derived (\ref ChartResolutions::hand_holds) rather than deriving them again.
+The pipeline's last stage — notes, then grips, then positions — so it reads the demands the notes
+layer already derived (\ref ChartResolutions::hand_demands) rather than deriving them again.
 
-\param chart The notes layer (\ref chartResolutions); its capo is the one the hand is derived under.
+\param chart The notes layer (\ref chartResolutions); its demands' capo is the one the hand is
+       derived under.
 \param authored The chart's authored positions, valid and strictly ascending.
 \param tempo_map Tempo map the notes layer was derived against.
 

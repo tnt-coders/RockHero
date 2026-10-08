@@ -64,15 +64,24 @@ namespace
     return note;
 }
 
-// The holds one stream derives, through the spans it implies, as the resolutions derive them,
+// What one stream demands of the hand, through the spans it implies, as the resolutions derive it,
 // under a capo where a case names one.
-[[nodiscard]] std::vector<FretHandHold> holdsOf(
+[[nodiscard]] FretHandDemands demandsOf(
     const ChartConnections& connections, const TempoMap& tempo_map, const int capo = 0)
 {
-    return fretHandHolds(
+    return fretHandDemands(
         connections,
         deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}),
-        capo);
+        capo,
+        tempo_map);
+}
+
+// The holds one stream derives, through the spans it implies, as the resolutions derive them.
+[[nodiscard]] std::vector<FretHandHold> holdsOf(
+    const ChartConnections& connections, const TempoMap& tempo_map)
+{
+    return fretHandHolds(
+        connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}), 0);
 }
 
 // The hand events the 13 rules derive from one stream, under a capo where a case names one and
@@ -84,7 +93,7 @@ namespace
     const TempoMap tempo_map = makeTempoMap();
     const ChartConnections connections = chartConnections(notes, tempo_map);
     return deriveFretHandEvents(
-        connections, holdsOf(connections, tempo_map, capo), tempo_map, capo, authored);
+        connections, demandsOf(connections, tempo_map, capo), tempo_map, authored);
 }
 
 // An authored position at a measure and beat, with an end fret where a case states one.
@@ -132,13 +141,9 @@ namespace
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartConnections connections = chartConnections(notes, tempo_map);
-    const std::vector<FretHandHold> holds = holdsOf(connections, tempo_map);
+    const FretHandDemands demands = demandsOf(connections, tempo_map);
     return deriveFretHandRides(
-        connections,
-        holds,
-        tempo_map,
-        0,
-        deriveFretHandEvents(connections, holds, tempo_map, 0, authored));
+        connections, demands, deriveFretHandEvents(connections, demands, tempo_map, authored));
 }
 
 // An expected ride arrival: its front in whole notes, and its window.
@@ -519,10 +524,10 @@ TEST_CASE("Every derived window covers every hold standing under it", "[core][ch
     for (const std::vector<ChartNote>& figure : figures)
     {
         const ChartConnections connections = chartConnections(figure, tempo_map);
-        const std::vector<FretHandHold> holds = holdsOf(connections, tempo_map);
+        const FretHandDemands demands = demandsOf(connections, tempo_map);
         const std::vector<FretHandEvent> events =
-            deriveFretHandEvents(connections, holds, tempo_map, 0, {});
-        for (const FretHandHold& hold : holds)
+            deriveFretHandEvents(connections, demands, tempo_map, {});
+        for (const FretHandHold& hold : demands.holds)
         {
             for (const Fraction onset : connections.places)
             {

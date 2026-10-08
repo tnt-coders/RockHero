@@ -2305,13 +2305,18 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 resolutions.held_stops,
                 built->tempo_map,
                 census.derivation);
-            static_cast<void>(common::core::deriveFretHandEvents(
+            // The layer's demands carry no tally, so the census derives them again to count them.
+            const common::core::FretHandDemands demands = common::core::fretHandDemands(
                 resolutions.connections,
-                resolutions.hand_holds,
-                built->tempo_map,
+                common::core::ChartShapes{
+                    .shapes = resolutions.shapes,
+                    .postures = resolutions.postures,
+                },
                 chart.tuning.capo,
-                {},
-                &census.hand));
+                built->tempo_map,
+                &census.hand);
+            static_cast<void>(common::core::deriveFretHandEvents(
+                resolutions.connections, demands, built->tempo_map, {}, &census.hand));
         }
     }
 
