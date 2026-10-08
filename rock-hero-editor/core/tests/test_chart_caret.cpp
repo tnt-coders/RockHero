@@ -1,4 +1,5 @@
 #include <catch2/catch_approx.hpp>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -181,11 +182,14 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     }
     CHECK(state->selection_start_seconds == std::optional{6.0});
 
-    // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM; Left steps back.
+    // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM; Left steps back. A step is a
+    // keyboard move, which the view keeps in sight (keyboard_move_count).
+    const std::uint64_t moves = state->keyboard_move_count;
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);
     CHECK(caret->seconds == Catch::Approx(6.5));
+    CHECK(state->keyboard_move_count == moves + 1);
     controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);

@@ -1893,6 +1893,56 @@ TEST_CASE("EditorView keeps a Delete in sight only when the core asks", "[ui][ed
     }
 }
 
+// The window fits the keyboard's measure only when the core says the keyboard MOVED
+// (keyboard_move_count), never because its published time changed. A re-address such as Scale
+// Tempo leaves the keyboard on its music while its seconds and its measure's span change, and the
+// window must stay where the charter left it; a step that moves the keyboard still glides to it.
+TEST_CASE("EditorView fits the keyboard's measure only when the core moves it", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    view.setBounds(0, 0, 1280, 800);
+    auto state = makeLoadedEditorState(20.0);
+    state.keyboard_position = core::KeyboardPositionViewState{
+        .seconds = 1.0,
+        .measure_start_seconds = 0.0,
+        .measure_end_seconds = 2.0,
+    };
+    view.setState(state);
+
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    viewport.setViewPosition(2800, 0);
+    REQUIRE(
+        canvasXForTime(track_viewport, track_content, 2.0) <
+        static_cast<float>(viewport.getViewPositionX()));
+
+    // The same music under a scaled grid: a hair later, in a measure twice as long.
+    state.keyboard_position = core::KeyboardPositionViewState{
+        .seconds = 1.0004,
+        .measure_start_seconds = 0.0,
+        .measure_end_seconds = 4.0,
+    };
+
+    SECTION("a re-address, which the core does not count as a move")
+    {
+        view.setState(state);
+        CHECK(track_viewport.settledViewPositionX() == 2800);
+    }
+
+    SECTION("a move")
+    {
+        ++state.keyboard_move_count;
+        view.setState(state);
+        CHECK(track_viewport.settledViewPositionX() < 2800);
+    }
+}
+
 // Verifies Ctrl composes NOTHING on a timeline seek: the grid-snap mode is the only thing that
 // moves the placement quantum, so a Ctrl-click lands exactly where the same plain click does.
 TEST_CASE("EditorView Ctrl-click seeks the same slot as a plain click", "[ui][editor-view]")

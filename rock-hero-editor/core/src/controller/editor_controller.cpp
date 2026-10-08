@@ -3155,9 +3155,23 @@ void EditorController::Impl::clearActiveArrangementBestEffort(std::string_view c
 // Caches the derived state as the seed for future attachView() pushes and forwards it to the
 // currently attached view if any. The null branch covers construction and any other work that
 // publishes before the host attaches a view.
+//
+// Counts a keyboard move here, once for every path that can move the keyboard: one standing at a
+// new time since the last publish has moved, unless there was nothing to move from.
 void EditorController::Impl::updateView()
 {
-    m_last_state = deriveViewState();
+    EditorViewState state = deriveViewState();
+    const std::optional<double> keyboard_seconds = state.keyboard_position.transform(
+        [](const KeyboardPositionViewState& position) { return position.seconds; });
+    if (const std::optional<double> published =
+            std::exchange(m_published_keyboard_seconds, keyboard_seconds);
+        published.has_value() && keyboard_seconds.has_value() &&
+        std::is_neq(*published <=> *keyboard_seconds))
+    {
+        ++m_keyboard_move_count;
+    }
+    state.keyboard_move_count = m_keyboard_move_count;
+    m_last_state = std::move(state);
     if (m_view != nullptr)
     {
         m_view->setState(m_last_state);

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -382,7 +383,8 @@ TEST_CASE("A meter edit moves no resolved time in either arrangement", "[core][m
 
 // The cursor keeps its TIME, armed or passive: the caret armed at 6:1 (10 s) dissolves into the
 // selected meter, and the cursor stands where it stood, which under 3/4 from measure 3 is 7:1. The
-// transport already stands there, so nothing seeks, and the commit publishes once.
+// transport already stands there, so nothing seeks, and the commit publishes once and is no
+// keyboard move.
 TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][meters]")
 {
     MeterEditor editor;
@@ -391,12 +393,14 @@ TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][
     REQUIRE(caretOrNull(editor.state().chart_edit) != nullptr);
     const int seeks = editor.transport.seek_call_count;
     const int publishes = editor.view.set_state_call_count;
+    const std::uint64_t moves = editor.state().keyboard_move_count;
 
     editor.set(3, "3/4");
     CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
     CHECK(editor.transport.seek_call_count == seeks);
     CHECK_THAT(editor.transport.position().seconds, WithinULP(10.0, 0));
     CHECK(editor.view.set_state_call_count == publishes + 1);
+    CHECK(editor.state().keyboard_move_count == moves);
     const std::optional<KeyboardPositionViewState>& position = editor.state().keyboard_position;
     REQUIRE(position.has_value());
     if (position.has_value())

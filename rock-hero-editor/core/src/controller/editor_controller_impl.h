@@ -1142,6 +1142,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // each one in sight (EditorViewState::focus_count).
     std::uint64_t m_focus_count{0};
 
+    // Moves of the keyboard to a new time, counted at each publish
+    // (EditorViewState::keyboard_move_count) against where the keyboard stood at the last one,
+    // m_published_keyboard_seconds. Nothing there means there is nothing to move from: the keyboard
+    // was absent, or a whole-grid commit carried it, which keeps it on its music however its
+    // seconds change (commitGridModel).
+    std::uint64_t m_keyboard_move_count{0};
+    std::optional<double> m_published_keyboard_seconds;
+
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     common::audio::ToneOutput m_tone_output{};
 

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/song.h>
@@ -128,8 +129,9 @@ TEST_CASE("Scale Tempo refuses bad text and records nothing for no change", "[co
 
 // Scale Tempo holds every time, so the transport is left exactly where it stood — no seek, even for
 // a cursor between two ticks, whose place rounds onto the new lattice by less than the cursor's
-// trust tolerance. It publishes once, after the commit has settled. The selection is released:
-// every address it held now names other music, even the anchor at 1:1, which still stands at 1:1.
+// trust tolerance — and the commit is no keyboard move, so the window has nothing to follow. It
+// publishes once, after the commit has settled. The selection is released: every address it held
+// now names other music, even the anchor at 1:1, which still stands at 1:1.
 TEST_CASE("Scale Tempo leaves the cursor's time alone and selects nothing", "[core][scale-tempo]")
 {
     for (const char* const factor : {"2", "1/2", "3/2"})
@@ -141,6 +143,7 @@ TEST_CASE("Scale Tempo leaves the cursor's time alone and selects nothing", "[co
         REQUIRE(editor.state().selected_tempo_anchor == std::optional{beatAt(1, 1)});
         const int seeks = editor.transport.seek_call_count;
         const int publishes = editor.view.set_state_call_count;
+        const std::uint64_t moves = editor.state().keyboard_move_count;
 
         editor.scale(factor);
         REQUIRE(editor.undoEntryCount() == 1);
@@ -148,6 +151,7 @@ TEST_CASE("Scale Tempo leaves the cursor's time alone and selects nothing", "[co
         CHECK(editor.transport.seek_call_count == seeks);
         CHECK_THAT(editor.transport.position().seconds, WithinULP(5.0003, 0));
         CHECK(editor.view.set_state_call_count == publishes + 1);
+        CHECK(editor.state().keyboard_move_count == moves);
     }
 }
 
@@ -166,12 +170,14 @@ TEST_CASE("Scale Tempo dissolves an armed caret onto its own time", "[core][scal
     REQUIRE(caret_seconds - editor.transport.position().seconds > 0.1);
     const int seeks = editor.transport.seek_call_count;
     const int publishes = editor.view.set_state_call_count;
+    const std::uint64_t moves = editor.state().keyboard_move_count;
 
     editor.scale("1/2");
     CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
     CHECK(editor.transport.seek_call_count == seeks + 1);
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(caret_seconds, 1e-9));
     CHECK(editor.view.set_state_call_count == publishes + 1);
+    CHECK(editor.state().keyboard_move_count == moves);
 }
 
 // The cursor is carried as one more slice, so the marker verbs author on the note it stood on even

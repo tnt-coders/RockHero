@@ -53,9 +53,12 @@ chords. Everything else is plumbing that keeps focus in the right place:
   view.* The controller publishes where the keyboard stands (`EditorViewState::keyboard_position`:
   the armed caret's slot, else a time selection's moving edge, else the paused cursor, with its
   measure's span; nothing while playing) and `EditorView::setState` fits that measure into view
-  whenever the position's time changes — a step, a click that arms, Tab onto the next marker, an
-  extend — through `TrackViewport::ensureMeasureVisible`, the minimal shift in either direction, as
-  Guitar Pro does. (2) *A verb on a selection centres it if it is not fully on screen.*
+  whenever the controller counts a move (`EditorViewState::keyboard_move_count`, bumped in
+  `Impl::updateView` when the position's time changed since the last publish) — a step, a click
+  that arms, Tab onto the next marker, an extend — through `TrackViewport::ensureMeasureVisible`,
+  the minimal shift in either direction, as Guitar Pro does. A whole-grid commit is never a move:
+  `commitGridModel` clears the baseline the count compares against, so a re-address that changes
+  the position's seconds while the keyboard stays on its music leaves the window alone. (2) *A verb on a selection centres it if it is not fully on screen.*
   `EditorView::perform` is the one funnel for chords, menu items and presses forwarded from the 3D
   preview; for a command `editorCommandActsOnSelection` classifies (read off the registry
   category: the selection, authoring, value-entry and marker verbs; not navigation, file, history,

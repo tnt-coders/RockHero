@@ -841,16 +841,13 @@ void EditorView::setState(const core::EditorViewState& state)
         : m_state.tone_automation.lane_caret.has_value()
             ? std::optional<double>{m_state.tone_automation.lane_caret->seconds}
             : std::nullopt);
-    // The keyboard position keeps its measure in view: whenever it MOVES to a new time — a step,
-    // a click that arms, Tab onto the next marker, an extend, the walk's column rule seeking the
+    // The keyboard position keeps its measure in view: whenever the core counts a MOVE — a step, a
+    // click that arms, Tab onto the next marker, an extend, the walk's column rule seeking the
     // cursor into a marker selected far from it — the window fits the whole measure it landed in,
-    // both directions, as Guitar Pro does. Only a move counts: the position appearing (pause,
-    // project load) is not one, and would otherwise glide the window right after playback follow
-    // or the load focus placed it. Selecting alone changes no position, so a chip click, a click
-    // on an existing note and a walk whose marker already holds the cursor never move the window.
-    if (previous_state.keyboard_position.has_value() && m_state.keyboard_position.has_value() &&
-        std::is_neq(
-            previous_state.keyboard_position->seconds <=> m_state.keyboard_position->seconds))
+    // both directions, as Guitar Pro does. The count, not the position's seconds, is the cue,
+    // because a whole-grid commit changes those seconds while the keyboard stays on its music.
+    if (m_state.keyboard_move_count != previous_state.keyboard_move_count &&
+        m_state.keyboard_position.has_value())
     {
         m_track_viewport->ensureMeasureVisible(
             m_state.keyboard_position->measure_start_seconds,

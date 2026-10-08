@@ -181,8 +181,10 @@ bool EditorController::Impl::commitMarkerMove(
 // a select dissolves a caret by seeking to its address, and its OLD address under the new grid is
 // other music. The landed marker is selected next, only where it still stands, since normalization
 // may have dropped it, and otherwise nothing is: where every address moved, the old selection would
-// name other music. Everything settles before the commit's one publish, which follows the funnel's
-// publish rule: only when the model landed or a marker was selected.
+// name other music. The carry is no keyboard move, so nothing the commit does to where the keyboard
+// stands asks the window to follow (m_published_keyboard_seconds). Everything settles before the
+// commit's one publish, which follows the funnel's publish rule: only when the model landed or a
+// marker was selected.
 template <typename Snapshot>
 void EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
@@ -197,10 +199,15 @@ void EditorController::Impl::commitGridModel(
     {
         return;
     }
-    // Absent only while the transport plays, when no caret can be armed.
-    if (committed == MarkerCommit::Landed && place.has_value())
+    if (committed == MarkerCommit::Landed)
     {
-        carryCursorTo(readdressedPosition(old_map, session().song().tempo_map, content, *place));
+        // Absent only while the transport plays, when no caret can be armed.
+        if (place.has_value())
+        {
+            carryCursorTo(
+                readdressedPosition(old_map, session().song().tempo_map, content, *place));
+        }
+        m_published_keyboard_seconds.reset();
     }
     const bool selected = landed.has_value() && selectMarkerStartingAt(landed_row, *landed);
     if (committed == MarkerCommit::Landed && !selected)

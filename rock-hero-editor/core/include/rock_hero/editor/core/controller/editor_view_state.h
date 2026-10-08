@@ -384,8 +384,8 @@ struct ChartCaretViewState
 \brief Where the keyboard stands on the timeline, with the measure it stands in.
 
 The armed caret's slot; else the moving edge of a time selection; else the paused cursor. The
-view keeps this position's measure in view: whenever it changes on a push — a step, a click that
-arms, Tab onto the next marker, an extend — the window fits the whole measure it landed in, the
+view keeps this position's measure in view: whenever the core counts a move
+(\ref EditorViewState::keyboard_move_count) the window fits the whole measure it landed in, the
 minimal shift in either direction, as Guitar Pro does. Absent while the transport plays, when
 playback follow owns the view, and with no arrangement. Carries the measure's span so the view
 never re-derives measure bounds from the tempo map.
@@ -1173,6 +1173,18 @@ struct EditorViewState
     so two edits in a row each register.
     */
     std::uint64_t focus_count{0};
+
+    /*!
+    \brief How many times the keyboard has moved to a new time, the view's cue to fit
+    \ref keyboard_position's measure.
+
+    Counted by the core, which knows what moved it: a step, a click that arms, Tab onto the next
+    marker, an extend, a seek. A whole-grid commit is never a move, though it can change the
+    position's seconds and its measure's span: the keyboard stays on the music it stood on, and the
+    window stays where the charter left it. Neither is the position appearing, at a pause or a
+    load. Counted, not flagged, so two moves in a row each register.
+    */
+    std::uint64_t keyboard_move_count{0};
 
     /*!
     \brief What the section chord (`Ctrl+M`) would do at the cursor right now.
