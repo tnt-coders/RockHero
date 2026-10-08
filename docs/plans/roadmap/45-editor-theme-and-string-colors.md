@@ -484,7 +484,7 @@ change), plus the local corpus smoke (local-only, never CI).
 
 Phase 6 originally proposed file-based user presets (an `EditorTheme` schema and a string-palette
 schema). The user's direction (2026-08-02) is to consolidate on plan 54; the full two-half
-disposition — string-palette files into plan 54 Phase 4, `EditorTheme` chrome files dropped —
+disposition — string-palette files into plan 54 Phase 2, `EditorTheme` chrome files dropped —
 lives in plan 54's "Supersedes plan 45 Phase 6 entirely" Dependencies bullet, which is the single
 owner of that scope text. This plan keeps ownership of the `stringColorPalettes()` registry
 itself; only file loading moved.

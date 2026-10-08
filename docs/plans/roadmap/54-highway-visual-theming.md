@@ -1,685 +1,451 @@
 # Plan 54 — Highway Visual Theming
 
-**Status**: Not started; all four open questions answered 2026-08-02 (54-Q1: C, 54-Q2: A, 54-Q3: A
-with B promoted to its own phase, 54-Q4: B) — **no decision gates remain, Phases 1–6 are
-executable**. Date 2026-08-02; baseline `master @ 182faedb`, clean working tree. The inventory
-below was first taken against `cffd8572` plus uncommitted box-mute hunks, then **re-verified
-against `182faedb`** after that work landed across four commits — the color-constant block did not
-move, the renderer API is unchanged, and the shaders still carry no color literals.
-
-**Amendment 2026-08-05 — decision 3 narrowed, and the box-mute art converted ahead of this plan.**
-`chords.png` used to author the palm mark's rim in the chord-box frame's literal color, duplicating
-`g_chord_box_color` in pixels, and the full mark in a steel blue that existed in no constant at
-all. Under the original decision 3 a colors-only theme — which 54-Q1's answer makes first-class —
-would have retinted the boxes while the marks kept the base theme's hue, meeting as a hard seam at
-the frame's inner edge. `chords.png` now carries structure in the same channel scheme `notes.png`
-uses — R tint weight, G achromatic lift, B coverage — while the renderer supplies hue and opacity
-as vertex color, so the marks follow a retint for free. Dropping the alpha channel is part of the
-fix rather than incidental: JUCE premultiplies an alpha-bearing PNG at decode, and that round trip
-had already corrupted the shipped asset's near-transparent band into values brighter than the frame
-color itself, silently. A PNG with no alpha chunk decodes bit-exact at every level.
-What this changes here: decision 3 below is narrowed, the
-color inventory gains a sixteenth role (`full_mute_mark`), `frameFadeModulation()` is deleted so a
-plain grep of the constants is now accurate, and Phase 5 no longer needs a per-theme mark repaint
-to change mark color. Phases and gates are otherwise unaffected.
+**Status**: Revised 2026-10-07 against `master @ 6f87951f`. Not started. **Phase 0 is
+decision-gated** (54-Q5 to 54-Q17 below, each with a recommendation); Phase 1 needs only the role
+names Phase 0 fixes. This revision replaces the 2026-08-02 plan (baseline `182faedb`): its
+mechanism survives, but its inventory was two months stale, and its goal changed from "make
+today's look one selectable theme" to "make the look data, and ship RockHero's own looks in place
+of today's".
 
 ## Goal
 
-The 3D highway's visual identity becomes data instead of compile-time constants and a fixed asset
-set. A `HighwayTheme` value carries every non-functional color the renderer draws with; the texture
-set becomes themed content behind a validated authoring contract; both products select a theme by
-stable id and persist it; and a theme can be delivered as a file the user drops in, not only as a
-built-in.
+The 3D highway's look becomes data: a **theme** of 23 color roles plus three validated texture
+assets, resolved from theme directories through one loader. The built-in themes are original
+RockHero designs. Today's look leaves the shipped tree with them: its chrome colors are Charter's
+values (the renderer's comments say so at `highway_renderer.cpp:199`, `:415`, `:1595`), its
+`notes.png` and `inlays.png` are adapted from Charter, and its chord box reproduces Charter's
+holder model. A user can select a theme in either product, tweak one, or drop in their own.
 
-Two things this buys that nothing else does:
+The technique marks are notation, not styling. Players already read their shape-to-meaning
+pairings, so the pairings stay where they read well at distance. Every mark is redrawn from a
+RockHero brief and drawn the same in every theme (S3).
 
-1. **Accessibility completeness.** `docs/plans/roadmap/45-editor-theme-and-string-colors.md`
-   Phase 4 ships a colorblind-safe *string* palette, but string color is not the only information
-   channel on the highway. The arpeggio color, the three fret-number states, the chord-box teal,
-   and the hit glow are fixed hex constants today, and a colorblind-safe string palette rendered
-   against a fixed purple arpeggio marker or cyan active fret number is half a solution. Those
-   colors must move into the same selectable layer or the guarantee plan 45 makes is not one.
-2. **Art/engine separation.** `chords.png` already demonstrates the pattern — art is the source of
-   truth for *structure* and the renderer measures it (`box_mute_profile.h` authoring contract),
-   while hue arrives per draw from a color role. Generalizing that lets the look change without
-   touching the renderer, and keeps a color change a color change rather than an art task.
+What a theme may change is decided once, below, by four tiers. The design rule behind them:
+**a theme changes what the notation is painted with, never what the notation says.**
 
 ## Non-goals
 
-- **Geometry and layout.** Lane widths, camera framing, fade distances, perspective, note-head
-  world sizes — the 39 `constexpr float/double` constants in `highway_renderer.cpp` — stay fixed.
-  They are the functional layer: they encode readability and timing legibility, they are tuned
-  against real charts, and a theme that can move them can make the highway unplayable. Revisit
-  only if a concrete need appears.
-- **String-color palettes.** Owned by plan 45 (data in `common/ui` `string_colors/`). This plan
-  consumes that registry and never redefines lane colors.
-- **Editor chrome (`EditorTheme`).** Editor-private, owned by plan 45 Phase 2. A highway theme and
-  an editor theme are independent selections.
-- **Shader authoring.** Themes supply colors and textures, never shader source. The `.sc` programs
-  stay repo-owned and compiled through `rock_hero_stage_highway_shaders`.
-- **2D tab lane theming.** `docs/plans/roadmap/30-game-2d-tab-view.md` owns the strip renderer; it
-  shares the string palette already. If it later wants themed non-string colors, it extends this
-  plan's struct rather than growing its own.
-- **A theme marketplace, discovery, or any network delivery.** Local files only.
+- Everything in the SHOULD NOT and COULD tiers below: geometry (`HighwayMetrics`), camera, timing,
+  tail and light laws, the emphasis alphas, the atlas layout and what each cell means, shaders,
+  fonts, backdrop art, inlay patterns (plan 58), the 2D lane's own chrome.
+- **String palettes.** Owned by `docs/plans/roadmap/45-editor-theme-and-string-colors.md`; a theme
+  may suggest a palette id and never override the user's choice (decision 7).
+- **String orientation.** A player setting, never a theme key (54-Q5).
+- **Editor chrome (`EditorTheme`).** Plan 45 Phase 2; independent of the highway theme.
+- A marketplace or any network delivery. Packaged export/import moves to `docs/plans/todo/`
+  (54-Q12).
 
 ## Constraints
 
-Applicable subset of the roadmap's non-negotiable block (see `docs/plans/roadmap/00-roadmap.md`):
+Applicable subset of the roadmap's non-negotiable block (`docs/plans/roadmap/00-roadmap.md`):
+(a) layering — the theme type, registry, contracts and loader live in `rock-hero-common/ui`, only
+persistence and the picker are per product; (b) public-header minimalism; (h) builds through
+`.agents/rockhero-build.ps1`.
 
-- (a) **Layering**: `common` never depends on editor or game code. The theme type, the registry,
-  and the file loader all live in `rock-hero-common/ui` so both products share one implementation;
-  only persistence and the picker UI are per-product.
-- (b) **Public-header minimalism**: the theme struct is public (both products construct and pass
-  it); the loader's internals are not. Ports-and-adapters per
-  `docs/design/architectural-principles.md`.
-- (h) **Builds**: everything through `.agents/rockhero-build.ps1`. Intermediate phases run only the
-  checks their changes warrant; the final acceptance phase runs the sanctioned bundle as separate
-  invocations.
+Plan-specific rules:
 
-Plan-specific hard rules:
+- **No JUCE in the theme's public header.** Colors are `common::ui::ArgbColor`; the loader may use
+  `juce_core` JSON and `juce::Image` decoding, as `box_mute_profile.cpp` already does.
+- **Hex-literal-only color construction** at static or namespace scope (plan 45 decision 2).
+- **Built-in themes fail loudly; user themes fall back.** A built-in that does not load is a broken
+  install (`highway_renderer.h:46-51, 113-121`); a user file is untrusted input and is dropped
+  with a logged, typed error.
+- **Formats change in place** — no version field, no migration ladder.
+- **The tree's git history is never rewritten.** Today's art and values leave the tree going
+  forward only.
+- Identifiers use US "color"; JUCE keeps "colour" at its boundary.
 
-- **No JUCE in the theme's public header.** Same rule plan 45 applies to the palette header, same
-  reason: the game render stack consumes it without dragging `juce_graphics` in. Colors are
-  `common::ui::ArgbColor`. The *loader* may use `juce_core` JSON and `juce::Image` decoding, which
-  `common/ui` already depends on for `box_mute_profile.cpp`.
-- **Hex-literal-only color construction** at static or namespace scope (plan 45 decision 2; the
-  function-local-static rationale comment in `editor_theme.h` records the MSVC cross-TU
-  init-order hazard).
-- **A missing or invalid themed asset fails loudly.** Matches the decision already recorded in
-  `highway_renderer.h:78–79` — required textures fail `HighwayRenderer::create` with a typed
-  `TextureAssetInvalid` rather than falling back procedurally, because a missing asset means a
-  broken install, not a degradable state. A *user theme file* is different: it is untrusted input,
-  so it falls back to the built-in default with a logged warning and never crashes.
-- **The theme file schema changes in place.** No version ladder, no migration path, no
-  compatibility shims — consistent with the project's standing rule that formats change in place
-  at this stage. A schema change invalidates existing theme files by design.
-- Identifiers use US "color"; the JUCE API keeps "colour" at its boundary.
+## The theming surface, by tier
 
-## Current state inventory
+Every knob the highway's look depends on was enumerated from the code at `6f87951f` and placed in
+exactly one tier. Line numbers are `rock-hero-common/ui/src/highway/highway_renderer.cpp` unless
+another file is named.
 
-Verified against code 2026-08-02 (`master @ cffd8572` plus the then-uncommitted box-mute work);
-re-verified against `182faedb` after that work landed.
+| Tier | Meaning | Contents |
+|---|---|---|
+| **MUST** | Must change for RockHero to own its look: carries a Charter-derived value, shape or cell | the board chrome colors, the chord-box colors, the arpeggio color, the head cells of `notes.png`, the drawing of every technique mark (S3), the chord-box shape (S1) |
+| **SHOULD** | Not required for that, but a theme that could not change it would be incomplete or leave a visible seam | backdrop, strike pops, mute mark, capo, picking-hand furniture, label and inlay tints, `inlays.png`, `chords.png`, the 2D consumers of shared roles |
+| **SHOULD NOT** | Structure, timing or notation: changing it could misread notation, misalign notes and lanes, or make a chart unplayable | `HighwayMetrics`, camera, ~51 renderer numerics, core tail/light/vibrato laws, emphasis alphas, atlas layout and cell meaning, the technique marks (S3), shaders, string palette, display options |
+| **COULD** | Harmless, but nothing needs it at v1 | glyph font, backdrop art, inlay patterns, tail shade depth, rolling flip as a player option |
 
-- **Renderer entry point** —
-  `rock-hero-common/ui/include/rock_hero/common/ui/highway/highway_renderer.h`:
-  `HighwayRenderer::create(const HighwayShaderSet&, const HighwayTextureSet&)` returning
-  `std::expected<HighwayRenderer, HighwayRendererError>`; `setViewState(...)`;
-  `draw(now, dt, width, height)`; bgfx behind `struct Impl; std::unique_ptr<Impl> m_impl`.
-- **Texture seam already exists and is already the right shape.** `HighwayTextureSet` holds four
-  `std::vector<std::byte>` PNG payloads (`note_atlas_png`, `inlay_atlas_png`, `fingering_png`,
-  `chord_marks_png`). The renderer never touches the filesystem; each product resolves bytes its
-  own way (`highway_shader_loader.cpp` / the editor preview resources). **Swapping texture content
-  needs zero renderer change** — the work is in the loaders and in validating what arrives.
-- **Shaders carry no baked colors.** All 15 `.sc` files under `rock-hero-common/ui/shaders/`
-  contain no numeric `vec3`/`vec4` color literals; colors arrive as vertex colors and uniforms.
-  Shader work is not on this plan's critical path.
-- **The 16 hard-coded highway colors, which are not 16 of a kind.** Line numbers re-verified
-  2026-08-05 after the box-mute conversion. All sit at file scope in the anonymous namespace of
-  `rock-hero-common/ui/src/highway/highway_renderer.cpp`:
-  - **Fifteen `constexpr ArgbColor`**: `g_beat_bar_color` (47), `g_lit_lane_color` (60),
-    `g_lit_lane_dotted_color` (61), `g_lane_border_color` (123), `g_fret_inactive_color` (124),
-    `g_fret_active_color` (125), `g_fret_number_active_color` (130), `g_fret_number_dim_color`
-    (131), `g_fret_number_fhp_color` (132), `g_hit_glow_color` (147), `g_chord_box_color` (252),
-    `g_chord_box_dark_color` (253), `g_full_mute_mark_color` (264), `g_chord_name_color` (267),
-    `g_arpeggio_color` (271).
-  - `g_full_mute_mark_color` is new as of the 2026-08-05 amendment: the full-mute mark's hue used
-    to exist only inside `chords.png`, reachable by no seam at all. It is a color role like any
-    other now, and the palm mark reuses `chord_box` rather than carrying a hue of its own.
-  - **One `constexpr std::uint32_t`**: `g_backdrop_color` (44) `= 0x000000ff`. It is *not*
-    `ArgbColor` and must not be treated as one — it is handed straight to `bgfx::setViewClear` as
-    a packed RGBA clear value, a different channel order from the project's 0xAARRGGBB. Phase 1
-    carries it in the theme as an `ArgbColor` like every other role and converts at the
-    `setViewClear` call, so theme authors never meet two color formats.
-  - Grepping `constexpr ArgbColor` is an accurate count now, though it was not when this plan was
-    drafted: `frameFadeModulation()` was a *function* with that return type and it inflated the
-    first draft's count. The 2026-08-05 amendment deleted it — the marks no longer need a derived
-    dark/box ratio to turn frame-colored art into the frame's dark middle, because the renderer
-    now passes both frame colors directly to achromatic art.
-- **Alpha is encoded in several of these constants** and varied at use sites
-  (`g_lane_border_color = 0x0007928F` with "alpha varies", `g_lit_lane_color = 0x402590E8`,
-  `g_fret_number_dim_color = 0x8007928F`). The extraction must preserve each constant's alpha
-  byte exactly, not normalize to opaque — several use sites re-pack alpha via `packAbgr(color,
-  alpha)` and some OR in `0xFF000000U` explicitly. Treat every one as load-bearing; a normalized
-  alpha is the failure mode that survives a casual visual check.
-- **String palette** — `rock-hero-common/ui/include/rock_hero/common/ui/string_colors/
-  string_color_palette.h`: `ArgbColor`, `StringColorPalette` (stable `id`, `standard[6]`,
-  `extended[g_max_chart_strings - 6]`), `stringLaneColor(...)`, the Charter-exact
-  `darkerColor`/`brighterColor`/`multiplyColor` chain, `StringLaneStyle` (seven derived surfaces),
-  and `charterClassicPalette()`. **The multi-preset registry was deliberately collapsed** after
-  plan 45 Phase 1 (see that plan's "Registry collapse" note) — `stringColorPalettes()`,
-  `display_name`, and `colorblind_safe` were removed pending a real second preset and a picker.
-  This plan restores them as part of Phase 2 rather than inventing a parallel registry.
-- **Texture assets and their licensing** — `rock-hero-common/ui/resources/textures/`:
-  `notes.png`, `fingering.png`, `inlays.png` adapted from Charter and redistributed under BSD
-  3-Clause (`LICENSE.txt` covers exactly those three and must accompany source and binary
-  distributions); `chords.png` is original Rock Hero art under the repository's own license. A
-  themed asset pipeline must keep that notice correct — a shipped theme that replaces the Charter
-  three still ships the notice while those files remain in the tree, and any new built-in theme's
-  art needs its own provenance line.
-- **Implicit atlas contracts, currently unvalidated as a format**: `notes.png` 4x4 grid with the
-  channel scheme (texture R multiplies the tint color, G adds white highlight, B is the alpha
-  mask — one atlas serves every string color); `inlays.png` 8x4 grid, one 256x512 cell per fret;
-  `fingering.png` 4x4 grid; `chords.png` two stacked cells, sharing that same channel scheme since
-  the 2026-08-05 amendment — and, unlike the other three, measured on the CPU into a ramp rather
-  than sampled on the GPU. `HighwayAtlas` (`src/highway/highway_atlas.h`) holds the grid math.
-- **`chords.png` is measured, not merely sampled.** `box_mute_profile.h` defines the authoring
-  contract (two equal stacked cells, palm mute above full mute, the **structural channel scheme
-  with no alpha channel**, arms corner to corner, stroke edge at half the glyph's peak coverage)
-  and `measureBoxMuteProfiles` returns `std::expected<BoxMuteProfiles, BoxMuteProfileError>` with
-  `UndecodableImage` / `UnanalyzableGlyph` / `AlphaBearingImage`. The renderer converts any failure
-  into `TextureAssetInvalid`. Neither hue nor opacity is in the art: coverage is normalized so each
-  rim plateau reaches full, and the renderer applies `g_chord_box_frame_alpha` — the same constant
-  the frame bars use — so the palm mark's rim and the border it meets are one expression rather
-  than two values that happen to agree. **This is the exemplar to follow for every other themed
-  asset**: a declared authoring contract, a measurement or validation step, and a typed failure.
-  The alpha-channel check is part of that exemplar; it is what keeps a premultiplied decode from
-  silently scaling all three signals instead of being rejected.
-- **Why box marks are measured rather than drawn** (relevant because it bounds what a theme may
-  change): `pushChordBoxPanel` takes `x0..x1` from
-  `highwayFretLineX(fret_low - 1)..highwayFretLineX(fret_high)` and `y1` from
-  `string_grid_base_y + string_count * string_distance`, halved for a repeat box. Box aspect
-  therefore varies with both the chord's fret span and the instrument's string count, and the X's
-  arm angle varies with aspect — recorded in the comment at `highway_renderer.cpp:281` along with
-  the measured finding that bitmap stretching distorts line weight.
-- **Renderer recreation is an already-supported path.** `docs/developer/the-3d-highway.md`
-  documents that bgfx cannot be re-initialized in-process, so the *device* is created once and
-  survives window hides, while `bringUpRenderer()` deliberately keeps the device alive on renderer
-  failure and retries only the renderer later. Live theme switching therefore recreates the
-  renderer, never the device — no process restart, and the failure path already exists.
-- **Per-product settings ports** — `IEditorSettings`
-  (`rock-hero-editor/core/include/rock_hero/editor/core/settings/i_editor_settings.h`, the
-  `tabMinimumDisplayedStrings` pattern) and the game's `IGameSettings`
-  (`docs/plans/roadmap/27-in-song-flow-results-profiles.md` Phase 1, complete 2026-07-12). Plan
-  45 decision 7: both
-  products persist a preset id string from the same common registry; the ids match, the stores do
-  not. This plan follows it exactly.
+### Color roles (MUST and SHOULD) — the theme's 23 keys
 
-### Color-reachability audit (2026-08-05)
+A role's name is the theme file's key, so names describe what the color does, not where it is
+drawn. "Alpha read" records whether the constant's own alpha byte reaches the GPU; a role whose
+alpha is overwritten in code is stored opaque.
 
-Taken while converting the box-mute art, then re-verified against the post-conversion tree (the
-`chords.png` findings from the same audit are already fixed — see the Amendment). Everything below
-is a color a user-selected theme cannot currently reach, and this plan has to absorb all of it.
+| Role | Today | Value | Alpha read | Tier |
+|---|---|---|---|---|
+| `backdrop` | `g_backdrop_color` :64 (packed RGBA, converted at the `bgfx::setViewClear` call :2764) | 0x000000ff | n/a | SHOULD |
+| `beat_bar` | `g_beat_bar_color` :67 | 0xFF0F3B5E | yes | MUST |
+| `attack_line` | drawn in `g_chord_box_color` today: downbeat line :5849, fret-span lines :4867, keyframe lines :4904 | (chord box) | — | MUST — split from `chord_box` |
+| `lit_lane` | `g_lit_lane_color` :87 | 0x402590E8 | yes (:5785) | MUST |
+| `lit_lane_dotted` | `g_lit_lane_dotted_color` :88 | 0x40185C94 | yes | MUST |
+| `lane_border` | `g_lane_border_color` :195, forced opaque at :709 and :5638 | 0x0007928F | **no** — store opaque, drop the two `\| 0xFF000000U` | MUST |
+| `fret_line` | `g_fret_inactive_color` :196 | 0xFF202020 | yes | MUST |
+| `fret_line_lit` | `g_fret_active_color` :197 | 0xFFC0C0C0 | yes | MUST |
+| `fret_number_lit` | `g_fret_number_active_color` :202 | 0xFF87DDF6 | yes | MUST |
+| `fret_number_dim` | `g_fret_number_dim_color` :203 | 0x8007928F | yes | MUST |
+| `fret_number_target` | `g_fret_number_fhp_color` :204; also node series :3727, targets :3811, pinned numbers :3924 | 0xFFFFA821 | yes | MUST — renamed: it marks every hand-position target |
+| `strike_fretting` | `g_hit_glow_color` :227 via `HandLightStyle::mark_color` :706 | 0xFFFFB040 | yes | SHOULD |
+| `strike_picking` | literal :713 | 0xFFFFFFFF | yes | SHOULD |
+| `chord_box` | `g_chord_box_color` :417; palm mark :3325 | 0xFF00D2D5 | yes | MUST |
+| `chord_box_dark` | `g_chord_box_dark_color` :418 | 0xFF003C3D | yes | MUST |
+| `pick_furniture` | `g_picking_furniture_white` :680 | 0xFFC0C7D8 | yes | SHOULD |
+| `full_mute_mark` | `g_full_mute_mark_color` :435 | 0xFF52798A | yes | SHOULD |
+| `arpeggio` | `g_arpeggio_color` :445, used only at :5950 | 0xFFC040FF | yes | MUST |
+| `capo_shade` | `g_capo_dead_zone_color` :210 | 0xB4000000 | yes (:6141) | SHOULD |
+| `capo_bar` | `g_capo_bar_color` :211 | 0xFFB9BEC6 | yes | SHOULD |
+| `capo_bar_rim` | `g_capo_bar_rim_color` :212 | 0xFF14161A | yes | SHOULD |
+| `inlay_tint` | literal white vertex color :6074 (`fs_texture.sc:13` multiplies it) | 0xFFFFFFFF | yes | SHOULD |
+| `label_text` | section labels, literal white at 0.85 :6240 | 0xFFFFFFFF | yes | SHOULD |
 
-- **The renderer takes no color input at all. This, not the constants, is the real blocker.**
-  `HighwayRenderer::create` accepts only shaders and textures, and the string palette is fetched
-  internally — `const StringColorPalette& palette = charterClassicPalette();` at
-  `highway_renderer.cpp:1243` and `:1317`. Phase 1 threads a `HighwayTheme` in, but a picker still
-  changes no *string* color on the highway until that fetch becomes a parameter. The 2D side has
-  the identical hardcoded call at `rock-hero-common/ui/src/tab/tab_paint_core.cpp:930`. Plan 45
-  Phase 3 owns the selection chain; **Phase 1 here must not ship without palette injection landing
-  beside it**, or the feature is visibly inert exactly where users will look first.
-- **`chord_box` is misnamed as a role — it also paints rhythm furniture.** Besides the chord panel
-  (`:752-757`) and the palm mute mark (`:2565`), `g_chord_box_color` draws the measure-downbeat
-  attack line and the per-note fret-span lines (`:1869`, `:3609`, `:3643`, all at
-  `g_attack_line_alpha`). A control labelled "chord box" would silently retint rhythm cues. Phase 1
-  must split the role or name it for what it actually does; deciding late is expensive because role
-  names are the theme file's keys and therefore a compatibility surface.
-- **Three colors are near-duplicate families, and splitting one is a visible regression.** The
-  extraction must record which roles are meant to move together:
-  - *Board blue*: `g_beat_bar_color` (47), `g_lit_lane_color` (60), `g_lit_lane_dotted_color` (61),
-    `g_fret_number_active_color` (130) — mutually within ~8 degrees of hue, and all near the default
-    palette's blue string. The lit-lane quads are the largest area of color on screen, so a warm
-    theme that misses them leaves a cold blue board under warm notes.
-  - *Board teal*: `g_lane_border_color` (123) and `g_fret_number_dim_color` (131) carry identical
-    RGB; `g_chord_box_color` (252) and `g_chord_box_dark_color` (253) sit ~2 degrees away.
-  - *Warm cue*: `g_fret_number_fhp_color` (132) and `g_hit_glow_color` (147) are ~1 degree apart,
-    and the FHP orange is mixed into the tapping-hand floor light — so a "fret number color" control
-    also changes floor lighting unless the roles are separated deliberately.
-- **Arpeggio-vs-held is encoded in hue alone, and that hue duplicates a string color.**
-  `highway_renderer.cpp:1903` distinguishes arpeggio rails from held-shape rails by picking
-  `g_arpeggio_color` or the lane-border teal, and `g_arpeggio_color` (277) is ~9 degrees from the
-  palette's 6th-string purple. A theme can therefore collapse a real notation distinction into
-  invisibility. Treat it as a constraint on the theme schema alongside plan 45 Phase 4's colorblind
-  guarantee, not as something theme authors are trusted to avoid.
-- **Two textures have no tint path at all.** The fretboard skin (`inlays.png`) and the fingering
-  panel (`fingering.png`) are submitted with a hardcoded white vertex color
-  (`highway_renderer.cpp:4225`, `:4298`), so their display color is whatever grayscale the PNG
-  holds. Phase 3 must state explicitly, per asset, whether it gains a tint role or is declared
-  image-owned art — because "textures as themed content" currently implies a tinting that does not
-  exist for either of them.
-- **A second background color lives outside the highway's own.** `g_backdrop_color`
-  (`highway_renderer.cpp:44`) is in this plan's inventory, but `render_device.cpp:17` carries an
-  independent `g_clear_color = 0x1a1a22ff` used by the default view. Phase 1 must either bring it
-  into the theme or scope it out in writing; a 16-role extraction that leaves a second clear color
-  behind still shows an unthemed surface.
-- **Known ceiling, not a defect:** the note atlas's specular highlight is the G channel added as
-  unmodulated white in the shader, so no theme can tint the highlight. That is inherent to the
-  structural channel scheme (see the Amendment) — document it in the theme authoring notes rather
-  than chase it.
+**Derived in code, never roles** — each is an intended coupling, so it is computed rather than
+authored twice: the picking box dark (`hueless(chord_box_dark)` :715), the picking rail alpha
+(0xBA :681), the tap-light lean (0.3 toward `fret_number_target`, :194, :5770-5775), and every
+tier, frame and fill alpha (frame 128/255 :423, fill 32/255 :1591, ribbon tiers :5637-5646,
+attack 0.85 :74). The comment at :670-679 records that `g_picking_furniture_white` was derived
+offline from the teal and must be re-derived by hand whenever the teal moves — a rule kept in two
+places. As a role checked by the guardrails below, that hand-kept coupling disappears.
 
-## Dependencies
+### Texture assets (MUST and SHOULD)
 
-- **Upstream (blocking)**:
-  - `docs/plans/roadmap/45-editor-theme-and-string-colors.md` Phase 1 — **complete**; supplies
-    `ArgbColor` and the palette types this plan's struct sits beside.
-  - Plan 45 Phase 3 (string-color preset selection) for the editor selection chain this plan's
-    picker mirrors. Phase 1 and Phase 2 here can execute before it; Phase 2's editor picker should
-    land after 45 Phase 3 so both submenus share one shape rather than inventing two.
-  - `docs/plans/roadmap/27-in-song-flow-results-profiles.md` Phase 1 (`IGameSettings`) for
-    game-side persistence only — **complete 2026-07-12**, so nothing here is actually blocked.
-- **Supersedes plan 45 Phase 6 entirely** (withdrawn there 2026-08-02, user direction; 45-Q3
-  resolved A by consequence). That phase proposed two file schemas — one for `EditorTheme` values,
-  one for string palettes — with palette loading "beside the registry in common/ui so the game can
-  share it". Keeping it would mean two schemas and two loaders for one job. Disposition:
-  - **String-palette files move here**, into Phase 4's scan as a sibling schema registering into
-    plan 45's `stringColorPalettes()`. Plan 45 keeps ownership of the registry and of what a
-    palette *means*; this plan owns only how one arrives from disk.
-  - **`EditorTheme` chrome files are dropped**, not relocated — editor chrome is this plan's
-    non-goal and plan 45 Phase 2's built-in presets cover the need. If they are ever wanted they
-    follow this plan's loader pattern rather than reviving a second schema.
-- **Downstream consumers**:
-  - `docs/plans/roadmap/25-note-highway-3d.md` — Phases 4–5 add technique and feedback visuals;
-    every new color they introduce should enter the theme struct rather than becoming a sixteenth
-    file-scope constant. Coordinate if 25 is executing concurrently.
-  - `docs/plans/roadmap/44-editor-3d-preview.md` — picks up theming with no work; it constructs
-    the same renderer.
-  - `docs/plans/roadmap/26-game-startup-menus-library.md` — game-side picker surface.
+The texture set is already data (`HighwayTextureSet`, `highway_renderer.h:53-54`, an array
+indexed by `HighwayTexture` in `common/core/highway/highway_resources.h:80-100`), so these need
+no renderer change, only new art and the contracts in Phase 2.
 
-## Decisions already made
+| Asset | Today | Tier |
+|---|---|---|
+| `notes.png` head cells 0, 1, 2, 4, 5 (`highway_atlas.h:134-140, 262-271`) | 256x320 RGB, 4x5 grid of 64 px cells; adapted from Charter (`textures/LICENSE.txt`) | MUST — new art from a written brief (54-Q6) |
+| `notes.png` mark cells 8-19 (`highway_atlas.h:153-248`): arpeggio brackets, legato triangle, bend caret, wide palm X, compact mute X, ring harmonic, ellipse pinch, slap, pop, V tap, pick slide | same file | Not themed — each redrawn once and moved to a fixed sheet (S3, 54-Q8, 54-Q17) |
+| `inlays.png` | 256x256 RGBA single dot (`053814d9`); adapted from Charter | SHOULD — own dot; retires `LICENSE.txt` |
+| `chords.png` | 128x128 RGB, two stacked X cells, original; measured by `box_mute_profile.h` | SHOULD — restyle only if the chord device (S1) changes the repeat box |
 
-Restated with sources; do not re-litigate.
+The head art is measured at load (`head_art_profile.h:22-39, 80-96`: technique coverage identical
+to standard, node cell a diamond, rect fitted to a rounded box), and both measured assets report
+through the shared `StructuralArtError` (`structural_art.h:23-38`). A new head stays inside that
+rect family, or the contract is revisited in the same change.
 
-1. **Required assets fail loudly; user files fall back.** The distinction is deliberate: shipped
-   content missing means a broken install (`highway_renderer.h:78–79`, user decision 2026-08-01,
-   replacing procedural fallbacks that silently masked failures); a user theme file is untrusted
-   input and gets typed-error handling with a fallback.
-2. **Preset ids are stable strings, persisted per product, resolved through one common registry**
-   (plan 45 decision 7).
-3. **Art owns structure; the theme owns color — including where the renderer measures the art**
-   (`box_mute_profile.h`; narrowed by the 2026-08-05 amendment). A measured asset's geometry, line
-   weighting, and opacity come from its pixels, so changing those still means repainting it and
-   themes get no numeric overrides for them. Hue is not in that set: the art is achromatic and the
-   renderer multiplies in `chord_box` and `full_mute_mark` per draw, so a theme retints the marks
-   with no art work at all. The wording this replaces — "repaint the asset instead" — assumed baked
-   color, and under it any colors-only theme would have left the marks at their base theme's hue.
-4. **Formats change in place.** No theme-file version field, no migration ladder.
-5. **Geometry is not themeable** (this plan's non-goals). The 39 layout constants encode
-   playability.
-6. **Built-in themes are always complete; only user themes may be partial** (54-Q1 resolution
-   detail). Every theme this repository ships declares all 16 colors and supplies all four
-   atlases. This bounds the one real hazard partials introduce — a partial theme silently changes
-   appearance when the theme it inherits from changes — to third-party files, and guarantees the
-   registry always holds at least two fully-specified reference points. A shipped partial theme
-   would make a routine default retune an invisible visual regression in content we own.
-7. **The user's explicit string-palette selection always wins** over a theme file's preferred
-   palette (54-Q2). A theme names a palette as a starting suggestion applied when the user has no
-   stored choice; it can never override one. Silently retargeting an accessibility setting from a
-   cosmetic file is exactly the class of behavior "no code that lies about intent" forbids.
+### Redesigned once in code, not themed
 
-## Open questions — ALL ANSWERED 2026-08-02
+A theme cannot vary procedurally drawn geometry without code variants. One shape, RockHero's own,
+is the simple model, so these change once for every theme:
 
-Mirror into `docs/plans/roadmap/00-roadmap.md` Decisions-needed as answered.
+- **S1 — the chord device.** The corner-holder fans (:1599-1606, "Charter's ChordBoxHolderModel"
+  :1595), the end-to-middle gradient bars (`pushMiddleFadedQuads` :1034-1054) and the panel
+  (`chordBoxFrame` :1559-1570, `pushChordBoxPanel` :1572-1706) are replaced by a RockHero device
+  (54-Q7). Recoloring alone keeps the holder shape. Its sides from the hand window
+  (`highwayBoxSidesAt` :3442), top at the grid top (:2988) and frame thickness `string_grid_base_y`
+  (:3456) stay.
+- **S2 — the open-bar L posts** (:4917-5004) reproduce the holders standalone. They change with S1
+  in the same commit.
+- **Provenance comments.** The comments naming Charter's values or models (:199, :361, :373, :400,
+  :415, :1595; `highway_metrics.h:49-53, 92-97, 121, 194-206, 215-227`) are rewritten to state
+  RockHero's own reasons when their code changes. Whether `note_half_width` moves is the head
+  brief's call (54-Q14).
+- **S3 — the technique marks.** A mark is notation, so it is RockHero's and the same in every
+  theme. A theme still colors marks through their structural tint, but it never supplies their
+  cells. Each mark is redrawn once from the 54-Q8 brief. The cells move off the theme's head sheet
+  per 54-Q17, so no theme directory can carry them. `highwayHeadMarks` stays the one stacking
+  authority.
 
-- **54-Q1 — theme scope at v1. ANSWERED: C** — colors + textures, with partial themes allowed.
-  The user's stated intent is stronger than "omitted fields fall back to the built-in default":
-  *"users should be able to start with a theme and then tweak just what they want without building
-  a whole new theme."* That is inheritance from **any** registered theme, not only the default, so
-  the manifest carries a named base (`inherits`). Phase 4 specifies the resolution rules and the
-  failure modes this adds.
-- **54-Q2 — one theme object or two. ANSWERED: A** — highway theme and string palette stay
-  independent selections. A theme file may *name* a preferred palette id; the user's explicit
-  palette choice always wins. String color is the accessibility control and must never be
-  reachable only through a cosmetic one.
-- **54-Q3 — import surface. ANSWERED: A now, B explicitly planned** — Phase 4 ships the
-  themes-folder scan; the file-picker import is **Phase 6**, recorded as intended work rather than
-  a maybe (user: "that seems cleaner"). Phase 6 is sequenced after the second built-in theme
-  because the scan path must be proven by real content first.
-- **54-Q4 — how many built-in themes ship. ANSWERED: B** — two. The registry collapse recorded in
-  plan 45 is direct evidence that a single-entry registry with no production consumer gets deleted
-  as dead scaffolding; a second theme is also the only way to discover anything Phase 1 failed to
-  extract, since a missed constant still looks correct in a one-theme world.
+### SHOULD NOT — not representable in the schema
+
+No key for any of these exists; they are unrepresentable rather than validated.
+
+- **Geometry and camera**: every `HighwayMetrics` field (`highway_metrics.h:45-245` — spacing,
+  note size, `z_per_second`, visibility window, far fade, camera, frustum), `g_highway_fret_count`,
+  camera zones and glide (`highway_projection.cpp:28`, `highway_window.cpp:80-82`).
+- **Renderer numerics** (~51 `double`s and 3 `int`s): attack geometry :72-74, light timing and
+  falloff :80-117, tail shading and sampling :124-134 and :378-413, head and marker timing
+  :143-359, open-note prism :364-371, posts :400-408, accent light :268-329 and :735, rails
+  :447-453, chord-box alphas, capo fractions :215-219, inlay spacing :751, and the inline
+  numerics for ribbon tiers, bar heights, line widths and glyph heights.
+- **Core laws**: `highway_light.h`, `highway_hit_glow.h`, `highway_tail.h` (vibrato, tremolo,
+  taper — ruled display laws), `g_open_tail_margin`, `g_unpitched_slide_end_alpha`.
+- **Emphasis**: ghost 0.5, accent 1.5 (`highway_emphasis_styles.h:43, 82, 91`); the 2D lane uses
+  the same ghost alpha.
+- **Atlas layout and cell meaning**: grid size and cell indices (`highway_atlas.h:131-282`), glyph
+  atlas (`highway_atlas.cpp:17-18`). A theme supplies head art that satisfies the layout, never
+  mark cells (S3); a cell is a meaning, and `highwayHeadMarks` is the one stacking authority.
+- **Shaders** (17 `.sc` plus `highway_fade.sh`, eight programs; no color literals). The G channel
+  adds unmodulated white (`fs_texture_tint.sc:13`), so no theme can tint the highlight — inherent
+  to the structural channel scheme; recorded in the authoring notes.
+- **String palette and its derivation** (plan 45) and **display options** (`HighwayDisplayOptions`:
+  mirror, orientation, lane minimum).
+
+### COULD — out of v1
+
+Glyph font (`highway_atlas.cpp:163-165`; a `font.ttf` in the theme directory later); backdrop art
+(`makeHighwayBackgroundWorldToClip`, `highway_camera.cpp:383`, and the three `background_*`
+metrics are defined but never called — a dormant seam); inlay patterns (plan 58); tail slope-shade
+depth; the rolling flip as a player option.
+
+### Schema guardrails
+
+Four notation distinctions are carried by hue alone. The loader enforces them with one
+`distinct(a, b)` check (a minimum CIELAB ΔE, value fixed in Phase 2 by sighting), so a theme
+cannot collapse a distinction:
+
+- `chord_box` vs `pick_furniture` — fretting vs tapped chord box (:664-668);
+- `arpeggio` vs `lane_border` — arpeggio vs held-shape rails (:5944-5951);
+- `fret_number_lit`, `fret_number_dim`, `fret_number_target` — pairwise;
+- `strike_fretting` vs `strike_picking` — the two hands' pops;
+- plus one order check: luma(`fret_line_lit`) exceeds luma(`fret_line`) by a margin, since the hand
+  window is read from it.
+
+Texture contracts: the two existing measurements (`measureHeadArtProfile`,
+`measureBoxMuteProfiles`) plus a grid-dimension check per asset.
+
+## Current state (verified at `6f87951f`)
+
+- **Renderer**: `HighwayRenderer::create(const HighwayShaderSet&, const HighwayTextureSet&)`,
+  `setViewState`, `draw`, plus `resetCamera`, `cameraPose`, `setDisplayOptions`
+  (`highway_renderer.h:122-216`). Two construction sites: `RockHeroGame::onInit`
+  (`rock_hero_game.cpp:154`) and `PreviewSurface::bringUpRenderer` (`preview_surface.cpp:193`),
+  which keeps the bgfx device alive on renderer failure, so a live theme switch recreates the
+  renderer, never the device.
+- **Metrics**: `HighwayMetrics` is a default-constructed renderer member (:2098); nothing sets it
+  from outside.
+- **Textures**: three (`fingering.png` was deleted in `bdc8ebf4`). Deployed by
+  `cmake/RockHeroProductResources.cmake`. `textures/LICENSE.txt` covers exactly `notes.png` and
+  `inlays.png`.
+- **String palette**: still the single `charterClassicPalette()`; no registry. Fetched internally at
+  :2709, :2778 and `rock-hero-common/ui/src/tab/tab_paint_core.cpp:2385`, so a palette picker
+  changes nothing on either surface until those take the palette as a parameter. The default
+  palette's six hexes are Charter's values (`string_color_palette.cpp:40-41`).
+- **Orientation**: both products hard-code `invert_string_order = true`, lowest string on top
+  (`rock-hero-game/ui/src/game/game.cpp:193-199`, "until a per-player setting exists";
+  `rock-hero-editor/ui/src/preview/preview_surface.h:157`). The type's default, `false`, stacks it
+  at the bottom as printed tablature does.
+- **2D lane**: its own fixed colors for the same distinctions (`tab_paint_core.cpp:37-42`, commented
+  "Charter modern-theme fixed colors").
+- **Settings ports**: `IEditorSettings` (`i_editor_settings.h:158`, the `tabMinimumDisplayedStrings`
+  pattern) and `IGameSettings` (`i_game_settings.h:34-111`).
+- **Tests that exist**: `test_render_device.cpp`, `test_highway_renderer_smoke.cpp`,
+  `test_box_mute_profile.cpp`, `test_head_art_profile.cpp`, `test_highway_atlas.cpp`,
+  `test_editor_settings.cpp`, `test_editor_controller_state.cpp`.
+- **New since the 2026-08-02 plan and inside this one's scope**: the two-hand light model
+  (`HandLightStyle` :686-717), the floor light and rails as light, capo (`ac75d633`), the
+  accent/ghost axis with the load-measured head silhouette (`7e4896de`), section labels, harmonic
+  node marks, the pick-slide cell, the 4x5 marks-final atlas (`1333163f`), the single-dot inlay
+  and plan 58's user fretboard art (whose natural home is the theme directory), display options
+  in the renderer (`90447b24`), one shared highway state for both surfaces (`dcb28d22`).
+
+## Decisions carried from the 2026-08-02 plan
+
+- **Kept**: built-ins fail loudly, user files fall back; preset ids are stable strings persisted
+  per product through one registry (plan 45 decision 7); art owns structure and the theme owns
+  color, now covering `notes.png` through `head_art_profile`; formats change in place; geometry is
+  not themeable (now the tiers above); the user's palette choice always wins over a theme's
+  suggestion (54-Q2 A); themes are found by scanning a folder (54-Q3 A); two built-in themes
+  (54-Q4 B).
+- **Changed**: "built-in themes are complete" now means a complete theme directory; 54-Q1 C
+  (inheritance from any theme) narrows if 54-Q11 is taken; the byte-identical extraction holds for
+  Phase 1 only, since the product goal is a new look; the 2D non-goal narrows to the 2D lane's own
+  chrome; the schedule risk is Phases 0 and 4 (design and art), not engineering.
+- **Dropped**: a `constexpr` default theme as the lasting authority (Phase 1 scaffolding only —
+  after Phase 4 the default theme's `theme.json` is the one authority), the 16-role list,
+  `chord_name`, every `fingering.png` and 8x4-inlay sentence, and export/import as a roadmap phase.
+
+## Open questions (Phase 0 gate)
+
+Each carries a recommendation; none is decided until the user rules.
+
+- **54-Q5 — orientation default.** Ship `invert_string_order = false` (lowest string at the
+  bottom, as printed tablature) as the default, behind a sighting in both products, and make it
+  the per-player setting `game.cpp:193` says is owed. *Recommended.* Never a theme key.
+- **54-Q6 — head brief.** A solid rounded plate with one highlight band and no inset ring; a
+  capsule; or a number-in-head. *Recommended: the plate* — it stays inside the rect-family
+  contract, and a number-in-head would duplicate the floor numbers and need a 2D answer.
+- **54-Q7 — chord device.** Settled by trying candidates, not by picking one on paper.
+  - Every candidate drops the corner holders and the end-to-middle gradient.
+  - The repeat boxes (S1) and the open-bar posts (S2) follow whichever device wins.
+  - Phase 0 renders stills of each candidate; Phase 3 prototypes the shortlist in motion and the
+    user settles one.
+  - Starting candidate: a floor bracket or understroke with short ticks, with repeats as the same
+    device ghosted at half height carrying the X.
+- **54-Q8 — the technique marks.** Two tests decide each mark, in this order:
+  1. Its silhouette must read at the far end of the visibility window, where a mark is a few
+     pixels tall.
+  2. It should carry over to printed tablature.
+
+  Letters such as T and P.M. fail the first test. *Recommended:* keep each shape-to-meaning
+  pairing players already read on a 3D highway:
+  - the wide palm X and the compact mute X;
+  - the flipped triangle pair for legato;
+  - the bend caret and the V tap;
+  - the ring harmonic over the diamond base, and the ellipse pinch;
+  - the arpeggio brackets.
+
+  Slap and pop are the two marks whose shapes are drawings rather than simple geometry, so they
+  get new shapes, or S and P if those pass the distance test. Each mark is chosen from rendered
+  candidates, sighted at distance.
+
+  Every mark is redrawn from a written brief in RockHero's own rendering: stroke, fill, highlight
+  and proportions. Nothing is measured from reference images. The brief also sets the mark
+  family's size law (`highway_atlas.h:210, 238`, 1.07 x the string pitch) from far-end
+  legibility, and decides whether two splits stay:
+  - the light-fill fretting-hand / dark-fill picking-hand split (`highway_atlas.h:115-120`);
+  - the wide / compact X split.
+
+  *Recommended: keep both.* Each encodes notation that has to read at distance.
+- **54-Q9 — accent pairs.** The chrome hue family for each built-in, chosen clear of the six
+  string hues; exact values by sighting.
+- **54-Q10 — today's look after it leaves the tree.** It is kept only as an unpublished local
+  user theme, for the user's own use and A/B sighting. It is never committed or distributed in any
+  form, because the repository is public. *Recommended.*
+  - **What it can hold:** today's 23 colors, `notes.png`, `inlays.png` and `chords.png`.
+  - **What it cannot hold:** the code-drawn parts (S1, S2) and the fixed mark sheet (S3). It
+    draws those with the universal RockHero designs.
+  - **When it is made:** Phase 4 exports it before anything is deleted.
+- **54-Q11 — inheritance scope.** `inherits` may name only a built-in theme id at v1. Deletes the
+  cycle, two-pass-load, cascading-drop and depth-cap failure modes. *Recommended.*
+- **54-Q12 — export/import.** Moves to `docs/plans/todo/highway-theme-packaging.md`; with 54-Q11 a
+  copied theme folder is already self-contained apart from a built-in base every install has.
+  *Recommended.*
+- **54-Q13 — the default palette's shades.** An owned retune of each of the six hues, keeping the
+  order. Belongs to plan 45 Phase 2. *Recommended: add it there.*
+- **54-Q14 — proportions.** Whether `note_half_width` and related metrics move with the new head.
+  *Recommended: the head brief decides*; the provenance comments are rewritten either way.
+- **54-Q15 — the inlay dot.** Redraw it in the same bake and delete `textures/LICENSE.txt`.
+  *Recommended.*
+- **54-Q16 — game-side picker.** Plan 26's settings surface, or a launch flag at v1. *Recommended:
+  plan 26.*
+- **54-Q17 — where the marks live (S3).** Two options:
+  - **Split the sheet.** The mark cells become a fixed `marks.png`, a fourth `HighwayTexture` that
+    no theme directory may carry, beside a heads-only `notes.png` that themes may replace.
+  - **One sheet, never themed.** `notes.png` keeps both heads and marks, and themes lose custom
+    heads.
+
+  *Recommended: split.* Themes keep custom heads, and the head contract measures only heads. The
+  cost is a second texture in the head pass, measured on `relwithdebinfo` in Phase 3.
 
 ## Phased implementation
 
-Phase 1 is independent. Phase 2 needs 1. Phase 3 needs 1. Phase 4 needs 2 and 3. Phase 5 needs 4.
-Phase 6 needs 4 only. No phase is decision-gated.
+Dependencies: 1 ← 0 (role names); 2 ← 1; 3 ← 0, 1; 4 ← 2, 3; 5 ← 4.
 
-**Sequencing note (5 before 6, or 6 before 5).** Phase 5 is authoring work and will be the long
-pole; Phase 6 is small, code-only, and carries the guarantee that makes shared themes
-self-contained. Running 6 before 5 lands the complete mechanism sooner and shortens the window in
-which the Phase 4 id-stability constraint applies; running 5 first proves the seam against real
-content before the packaging path is built on top of it. Either order works — pick based on
-whether the art is ready when Phase 4 lands.
+### Phase 0 — Design brief and decisions
 
-### Phase 1 — `HighwayTheme` value struct
+Phase 0 produces:
+- the written head brief and mark brief (54-Q8);
+- chord-device candidate stills (54-Q7);
+- two accent pairs;
+- several rendered candidates for every redesigned item (heads, marks, chord device), made through
+  the `texture-author` agent, so each settles by comparison rather than on paper;
+- the user's rulings on 54-Q5 to Q17.
 
-**Scope.** Turn the 16 file-scope color constants into a public value struct with semantic role
-names, threaded through the renderer. Zero visual change.
+**STOP: user sign-off on the brief before Phase 3 or 4 begins.** Phase 1 may start once the role
+names are fixed.
 
-- New feature folder `highway_theme/`:
-  `rock-hero-common/ui/include/rock_hero/common/ui/highway_theme/highway_theme.h` and
-  `src/highway_theme/highway_theme.cpp`. `HighwayTheme` carries one `ArgbColor` per role, with
-  each member's Doxygen naming what draws with it. Roles keep the current constants' alpha bytes
-  verbatim — several are non-opaque and load-bearing.
-- Naming: semantic roles, not sites. `backdrop`, `beat_bar`, `lit_lane`, `lit_lane_dotted`,
-  `lane_border`, `fret_inactive`, `fret_active`, `fret_number_active`, `fret_number_dim`,
-  `fret_number_hand_position`, `hit_glow`, `chord_box`, `chord_box_dark`, `full_mute_mark`,
-  `chord_name`, `arpeggio`. A role's *name* is the theme file's key, so it is a compatibility
-  surface — pick names that survive a renderer refactor.
-- `backdrop` is the one role whose storage format differs from its use: the theme holds
-  `ArgbColor` like every other role, and the `bgfx::setViewClear` call site converts to bgfx's
-  packed RGBA. Keep the conversion at that one call, not in the theme — a theme author who has to
-  know two channel orders is a bug in the seam, not in their file.
-- `defaultHighwayTheme()` returns today's values as `constexpr` data; the struct is default-
-  constructible to it so nothing downstream must pass one to keep current behavior.
-- Renderer: add a `HighwayTheme` parameter to `create(...)` and a `setTheme(HighwayTheme)` for
-  live switching (colors are per-draw vertex data, so a color-only switch needs no GPU
-  reallocation — this is exactly why colors and textures split across Phases 1 and 3). Replace
-  every `g_*` read with a theme member read. This is the wide mechanical edit; do it in one pass
-  so the diff is reviewable as a rename.
-- Two call sites construct the renderer today (`RockHeroGame::onInit` and the editor's
-  `bringUpRenderer()`); both pass `defaultHighwayTheme()` at this phase.
+### Phase 1 — Color roles and palette injection
 
-**Public-header impact.** New public header in `common/ui`. `highway_renderer.h` gains a
-constructor parameter and one setter — both products recompile.
+- New feature folder `highway_theme/` in `rock-hero-common/ui` (public header plus source):
+  `HighwayTheme` with the 23 roles, each member's Doxygen naming what draws with it.
+- `HighwayRenderer::create(shaders, textures, theme)` and `setTheme(HighwayTheme)`; every `g_*`
+  color read becomes a theme read in one mechanical pass. `attack_line` splits from `chord_box`;
+  `lane_border` is stored opaque; `pick_furniture` replaces the offline-derived white; the
+  derived colors listed above are computed from their roles.
+- **Palette injection**: the two renderer fetches and `tab_paint_core.cpp:2385` take the palette as
+  a parameter (plan 45 Phase 3's seam, landed here so a picker is never inert).
+- The backdrop converts ARGB to bgfx's packed RGBA at the one `setViewClear` call.
+- Both construction sites pass today's values. **Zero visual change.**
 
-**Testing plan.** `rock-hero-common/ui/tests/test_highway_theme.cpp`: `defaultHighwayTheme()`
-values match the constants they replace exactly, **including alpha bytes** (pin all 16 roles as
-literal expectations — this is the byte-identity proof); role names are unique; the backdrop
-ARGB→bgfx-RGBA conversion round-trips the current `0x000000ff` clear value exactly, since that one
-is a channel reorder rather than a copy and a silent swap would render as a wrong clear color
-nothing else would catch. Existing Noop-backend renderer tests (`test_render_device.cpp`) prove
-the renderer still comes up.
+**Tests**: `test_highway_theme.cpp` pins all 23 roles' current values including alpha; the
+backdrop conversion round-trips `0x000000ff`; the smoke and render-device tests still bring the
+renderer up. **Verification**: configure (new sources), build, touched tests.
 
-**Exit criteria.** Highway renders identically in game and editor preview; the 16 constants no
-longer exist in `highway_renderer.cpp`; no JUCE include in the new public header.
+### Phase 2 — Theme directories, contracts and selection
 
-**Verification** (configure needed — new target sources):
+- A theme is a directory: `theme.json` (`id`, `display_name`, optional `inherits`, optional
+  `string_palette` suggestion, `colors` keyed by role) plus any of the three PNGs.
+- **One loader** for built-in and user themes. Built-ins deploy as directories under
+  `resources/themes/<id>/` through `cmake/RockHeroProductResources.cmake` and fail loudly; user
+  themes are scanned from per-user app data and dropped with a logged typed error.
+- Contract validation as one entry point: grid dimensions per asset plus the two existing
+  measurements, each error naming the asset and the violated expectation (including
+  `AlphaBearingImage`, the likeliest user mistake). The guardrails above as `distinct()` and the
+  luma order.
+- Inheritance per 54-Q11. A user theme whose id matches a built-in shadows it, logged.
+- Registry, `IEditorSettings`/`IGameSettings` theme id, the editor View submenu (mirroring plan 45
+  Phase 3's shape), and the game picker per 54-Q16. An unknown id falls back to the default.
+- A color-only switch calls `setTheme`; a texture switch recreates the renderer through the
+  existing bring-up path, so a bad user atlas leaves the preview usable with the device intact.
+- User string-palette files (the schema absorbed from plan 45's withdrawn Phase 6) register into
+  plan 45's restored registry; a user file can never claim `colorblind_safe`, and an extended tier
+  of the wrong length is dropped with the expected count in the error.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Configure -Targets all
-powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
-```
+**Tests**: `test_highway_texture_contract.cpp`, `test_highway_theme_file.cpp` over fixture
+directories — full, colors-only, assets-only, inheriting a built-in; malformed JSON, unknown role
+key, missing id, unknown base, contract-violating asset, every guardrail violation; each failure
+drops only the offender and leaves the registry usable. Settings round-trip and controller state.
+**Verification**: configure, build, touched tests.
 
-### Phase 2 — Theme registry and per-product selection
+### Phase 3 — Redesign once in code
 
-**Scope.** Named built-in themes, selectable and persisted, plus restoration of plan 45's
-collapsed palette registry so both live behind one shape.
+- **S1 and S2 per 54-Q7.** The shortlisted chord devices are prototyped in motion and the user
+  settles one. The losing prototypes are deleted before commit.
+- **The 2D paint core** reads `chord_box`, `arpeggio` and `full_mute_mark` from the active theme
+  instead of `tab_paint_core.cpp:37-42`, so a distinction both surfaces draw has one authority.
+- **S3's sheet split** per 54-Q17 moves today's mark cells unchanged, which is zero visual change,
+  and measures the second texture's cost.
 
-- `highwayThemes()` returning built-in `HighwayThemePreset` entries (stable `id`, `display_name`,
-  `HighwayTheme` value). Restore `stringColorPalettes()`, `display_name`, and `colorblind_safe` on
-  `StringColorPalette` at the same time — this plan is the production consumer whose absence
-  caused the collapse.
-- Editor: `IEditorSettings::highwayThemePreset()/setHighwayThemePreset(std::string)` +
-  `EditorSettings` + `NullEditorSettings`; controller handler + intent + `EditorViewState` field;
-  View menu submenu with radio checkmarks, mirroring plan 45 Phase 3's shape. Unknown or missing
-  ids fall back to the default, never an error.
-- Preview applies a change by calling `setTheme(...)` and requesting a frame — no device work.
-- Game: the same id persisted through the existing `IGameSettings` (plan 27 Phase 1, complete
-  2026-07-12).
+**STOP: sighting in motion in both products.** **Verification**: build, touched tests.
 
-**Public-header impact.** Editor-core public headers gain members (product-internal). Common gains
-the registry functions.
+### Phase 4 — The default theme lands
 
-**Testing plan.** Settings round-trip and absent-default (`test_editor_settings.cpp`); controller
-state test that selection updates view state and that an unknown id falls back
-(`test_editor_controller_state.cpp`); registry test that every id is unique and non-empty. UI
-wiring stays untested beyond compile per "Selective UI Wiring Tests".
+- First, export today's look to the user's local theme folder (54-Q10) and confirm it loads.
+  This happens outside the repository and before anything below is deleted.
+- Generator-baked `notes.png`, `chords.png` and `inlays.png` from the Phase 0 brief, plus the
+  redrawn fixed mark sheet (S3), with the generator committed; the default `theme.json`.
+- **STOP: the theme rendered in motion in the game and the editor preview; user sign-off before
+  commit.**
+- Then, in the same change set: delete the old color values and the Charter-adapted art, delete or
+  shrink `textures/LICENSE.txt` (54-Q15), rewrite the provenance comments, update
+  `docs/plans/in-progress/highway-note-art-state.md`'s provenance lines and the developer guide.
 
-**Exit criteria.** Selecting a theme in the View menu restyles the editor's 3D preview live and
-survives restart.
+**Verification**: build, touched tests, and the local corpus smoke (local only) so no chart shape
+breaks under the new asset set.
 
-**Verification.** Build, touched tests.
+### Phase 5 — The second built-in theme
 
-### Phase 3 — Textures as themed content with validated contracts
+A second complete directory differing from the default in its accent pair and at least one
+texture, so a role Phase 1 missed shows up as a wrong color rather than hiding in a one-theme
+world. Passes the same contracts. **STOP: sighting and sign-off.**
 
-**Scope.** Make the texture set nameable and swappable, and turn the four implicit atlas contracts
-into validated ones with typed failures.
+## Final acceptance
 
-- `HighwayTextureSet` stays the renderer's input — it is already correct. What changes is upstream:
-  a `HighwayTextureContract` validation step in `common/ui` that checks each PNG's decoded
-  dimensions against its declared grid before the renderer sees it, returning a typed error naming
-  *which* asset and *which* expectation failed. Today an atlas of the wrong shape either renders
-  garbage or fails deep inside `HighwayRenderer::create` with an undifferentiated
-  `TextureAssetInvalid`.
-- Document each contract where it is enforced, in the style `box_mute_profile.h` already sets:
-  grid dimensions, cell size where fixed, channel semantics for the tinted atlas, and — for
-  `chords.png` — a pointer to the existing measurement contract rather than a restatement.
-- `chords.png` already carries one validation this phase should surface rather than rebuild:
-  `measureBoxMuteProfiles` rejects an alpha-bearing image with `AlphaBearingImage`. The check lives
-  in the byte overload, not the image one — macOS decodes every PNG to ARGB whatever its color type,
-  so only the undecoded file still knows whether the art carried alpha. That is the
-  likeliest user-theme mistake by a wide margin, because image editors export RGBA by default and
-  a premultiplied decode would silently scale all three structural channels. Route the error
-  through this phase's per-asset reporting so the message names the asset and the reason instead of
-  surfacing as an undifferentiated `TextureAssetInvalid`.
-  - Be honest about what is *not* detectable: under the structural scheme any RGB triple is a
-    legal (weight, lift, coverage), so a user who paints a literally colored X gets it
-    misinterpreted rather than rejected. That is the same class as any wrong art — wrong shape,
-    wrong stroke weight — and the contract documentation is the only guard. Do not invent a
-    heuristic that guesses whether art "looks like a color".
-- Both loaders gain a themed-asset path: resolve `<theme-dir>/<asset>.png` when the active theme
-  provides one, else the built-in bytes. Keep the game's enum-driven and the editor's string-keyed
-  loaders as they are; the asymmetry is recorded in `docs/developer/the-3d-highway.md` and is not
-  this plan's to fix.
-- Texture changes require renderer recreation (GPU upload at `create`). Route it through the
-  existing bring-up path so the editor preview's device-survives-failure invariant is preserved —
-  a theme with a bad atlas must leave the preview usable, exactly as a stale shader deploy does.
-
-**Public-header impact.** New validation entry point in `common/ui`; `HighwayRendererErrorCode`
-may gain differentiated codes.
-
-**Testing plan.** `test_highway_texture_contract.cpp`: each contract accepts its shipped asset and
-rejects wrong dimensions, wrong aspect, and undecodable bytes, with the error naming the asset.
-Extend the existing box-mute profile tests only if the contract wording changes.
-
-**Exit criteria.** A deliberately malformed atlas produces a typed error naming the asset and the
-violated expectation; the editor preview survives it with the device intact; shipped assets pass
-unchanged.
-
-**Verification.** Build, touched tests.
-
-### Phase 4 — Theme files
-
-**Scope.** A theme is a directory: one `theme.json` manifest plus any subset of the asset PNGs.
-A user string palette is a small separate JSON file in a sibling folder. Both load through one
-implementation in `common/ui` so both products share it.
-
-- Manifest: `id`, `display_name`, optional `inherits` (the id of the theme this one starts from),
-  optional `string_palette` (a registry id this theme prefers), and an optional `colors` object
-  keyed by the Phase 1 role names. Every field except `id` is optional.
-- **Inheritance (54-Q1: C).** `inherits` names any registered theme — built-in or user — and
-  absent means the default built-in. Resolution walks the chain and applies each level's overrides
-  over its base, for **both colors and assets**: a theme inheriting `warm-dusk` gets warm-dusk's
-  atlases unless it supplies its own. This is what makes "start from a theme and tweak one thing"
-  work rather than only "tweak the default".
-- Resolution order and its failure modes — all new with inheritance, all typed:
-  - **Unknown base**: the named theme is not registered → drop this theme, log the missing id.
-  - **Cycle**: A inherits B inherits A → drop every theme in the cycle, log the chain. Detect
-    explicitly; do not rely on a depth cap to catch it.
-  - **Depth cap**: bound the chain (suggest 8) so a long legitimate chain fails loudly rather than
-    resolving slowly.
-  - **Cascading drop**: a theme whose base was itself dropped is dropped too, logged with the
-    root cause rather than a second "unknown base" that hides why.
-  - Themes must therefore resolve in dependency order, not directory order. Registration is a
-    two-pass load: parse all manifests, then resolve.
-- Assets: any of `notes.png`, `inlays.png`, `fingering.png`, `chords.png` present in the directory
-  overrides the resolved base. Each override runs Phase 3's contract validation.
-- Discovery: scan a `themes/` folder under per-user app data at startup (54-Q3 A; packaged
-  export/import is Phase 6). A user theme whose id collides with a built-in shadows it, logged.
-- **User string-palette files (absorbed from withdrawn plan 45 Phase 6).** A sibling `palettes/`
-  folder scanned by the same loader, carrying a separate and much smaller schema: `id`,
-  `display_name`, `standard[6]`, `extended[]`. They register into plan 45's
-  `stringColorPalettes()` and appear in the same picker as built-in palettes. Deliberately **not**
-  folded into `theme.json`: 54-Q2 keeps palette selection independent of theme selection, and a
-  palette defined inside a theme file would only be reachable by adopting that theme — collapsing
-  an accessibility control into a cosmetic one through the back door. A theme's `string_palette`
-  key may *name* a user palette; it still cannot define one, and still cannot override a stored
-  user choice (decision 7).
-  - `colorblind_safe` is never asserted for a user-authored palette. The flag is a claim this
-    repository makes about presets it has run the Phase 4 CVD test against; a user file cannot set
-    it true.
-  - Extended-tier length must match `g_max_chart_strings - 6` exactly, or the palette is dropped
-    with a typed error naming the expected count — the compiler-enforced coupling plan 45 Phase 1
-    built for built-ins has no compile step for file input, so the check moves to load time.
-- Failure handling: typed errors per "Typed Boundary Errors"; a malformed manifest, an unknown
-  role key, a contract-violating asset, or any inheritance failure above drops that theme from the
-  registry with a logged warning naming the file and reason. Never a crash, never a partially
-  applied theme, and never a partially resolved inheritance chain.
-- Provenance: the loader writes nothing and reads only the themes folder. Built-in theme art keeps
-  its license line in `resources/textures/LICENSE.txt`; a user theme's licensing is the user's.
-
-**Public-header impact.** Loader entry point public in `common/ui`; parsing internals private.
-
-**Testing plan.** `test_highway_theme_file.cpp` over fixture directories. Well-formed cases: full
-theme; colors-only; assets-only; a theme inheriting a built-in; a theme inheriting another user
-theme; a three-level chain; a theme overriding only assets of its base; a theme naming a preferred
-palette (and the assertion that a stored user palette choice still wins, per decision 7). Failure
-cases: unknown role key, malformed JSON, missing `id`, contract-violating asset, id collision with
-a built-in, unknown base, two-theme cycle, three-theme cycle, depth-cap overflow, and a theme
-whose base was dropped for its own error. Every failure asserts the typed error, that the offender
-is the only theme dropped (except cycles and cascades, where the assertion is the exact drop set),
-and that the registry stays usable.
-
-Palette files, in the same fixture harness: a well-formed palette registers and is selectable; a
-wrong-length `extended` tier is dropped with the expected count in the error; a file claiming
-`colorblind_safe` loads with the flag forced false rather than being rejected (the claim is
-ignored, not fatal); a palette id colliding with a built-in shadows it, logged; a malformed
-palette drops without affecting themes, and a malformed theme drops without affecting palettes —
-the two schemas fail independently.
-
-**Exit criteria.** A well-formed theme directory appears in the picker and applies live; a theme
-inheriting another resolves both colors and assets correctly; a user palette appears alongside
-built-in palettes and is selectable independently of the active theme; each malformed case logs,
-drops exactly the affected entries, and leaves the rest working.
-
-**Verification.** Build, touched tests.
-
-### Phase 5 — A second built-in theme
-
-**Scope.** Author one complete alternate theme — colors and the four atlases — proving the seam
-end to end with a real consumer rather than fixtures.
-
-- This is an art task, not an engineering one, and it is the schedule risk in this plan. The code
-  is done at Phase 4; what remains is authoring note heads, a fretboard skin, a fingering panel,
-  and — only if the second theme wants different mark *structure* — the two mute marks, all
-  satisfying the contracts and reading well in motion.
-- **The mute marks may need no art at all.** Since the 2026-08-05 amendment their hue comes from
-  the `chord_box` and `full_mute_mark` roles, so a theme that only wants differently colored marks
-  gets them from its `colors` block. Re-author `chords.png` only to change stroke weight, rim and
-  core structure, or opacity.
-- If they are re-authored, they must satisfy `box_mute_profile.h`'s authoring contract, which is
-  stricter than "an X" — the structural channel scheme, no alpha channel, coverage normalized so
-  each rim plateau reaches full, arms corner to corner — so measure the result rather than
-  eyeballing it.
-- New art needs a provenance line in `resources/textures/LICENSE.txt` (or its own notice) stating
-  authorship, keeping the existing BSD 3-Clause notice for the Charter-derived three correct.
-- **STOP — present both themes rendered in motion (game and editor preview) and get sign-off
-  before commit.** Colors that read well in a screenshot can fail against scrolling notes.
-
-**Public-header impact.** None — data and assets only.
-
-**Testing plan.** Registry test extends to two themes with unique ids; both pass Phase 3's
-contract validation.
-
-**Exit criteria.** Both themes selectable, both render correctly in both products, user signed off
-on the rendered result.
-
-**Verification.** Build, touched tests, plus the local corpus smoke (local-only, never CI) to
-confirm no chart shape breaks under the second asset set.
-
-### Phase 6 — Theme export and import (54-Q3 B)
-
-**Scope.** Packaged themes in both directions, so receiving one does not require finding a
-per-user app-data folder by hand and sending one does not require the recipient to already own
-whatever it was built from. Planned work, not a maybe — Phase 4's drop-in scan is the mechanism,
-this is the ergonomics on top of it.
-
-**The governing rule: partial themes are an authoring convenience, never a distribution format.**
-Locally a theme may inherit — that is the whole point of 54-Q1's answer. The moment a theme
-crosses a machine boundary it is complete. Export is what enforces that, and it is why export
-exists at all rather than leaving users to zip a folder by hand.
-
-- **Export flattens.** Picking a theme and exporting resolves its entire inheritance chain and
-  writes one complete theme into the archive: all 16 colors, all four atlases, no `inherits` key.
-  What the recipient sees is exactly what the author saw, frozen at export — the same reason
-  decision 6 requires built-in themes to be complete.
-- **Flattening removes the failure mode instead of handling it.** An exported theme cannot fail on
-  a missing base, because it has no base. Unknown-base refusal survives in the import path only as
-  the backstop for hand-authored archives, where it becomes rare rather than routine.
-- **It also narrows the compatibility surface.** Because `inherits` never crosses a machine
-  boundary through the supported path, a theme id is a contract between files on *one* machine.
-  Renaming a shipped theme's id breaks local authoring files, not other people's themes. Keep
-  shipped ids stable anyway — it is nearly free — but this is no longer a one-way door.
-- **The size cost is accepted at v1.** A color-only tweak still exports all four atlases, and
-  `inlays.png` alone is an 8x4 grid of 256x512 cells. If archive size ever draws a complaint, the
-  escape hatch is to let an exported theme reference *built-in* theme ids (guaranteed present on
-  every install, and already append-only) while still flattening everything user-authored. Do not
-  build that until someone complains — it trades a guarantee for bytes.
-- **Import validates before installing, not after.** Parse the manifest, resolve inheritance
-  against the live registry, and run every Phase 3 asset contract on the archive's contents
-  *before* anything is written to the themes folder. A theme that would be dropped at scan time
-  must be refused at import with the same typed error — installing a file guaranteed to fail on
-  next startup is the "no code that lies about intent" failure mode.
-- Id collision with an installed theme prompts before overwriting; collision with a built-in is
-  allowed (it shadows, per Phase 4) but says so.
-- **Archive format**: `common/core` already carries JUCE-backed ZIP handling for package behavior,
-  so both directions reuse proven machinery rather than inventing a transfer format.
-- Per product: the editor gets File or View menu actions; the game surfaces them through
-  `docs/plans/roadmap/26-game-startup-menus-library.md`'s settings. A "reveal themes folder"
-  action is a cheap companion — add it if the platform seam is trivial, skip it if not.
-
-**Public-header impact.** Export and import entry points are public in `common/ui` (both products
-call them); archive handling stays private.
-
-**Testing plan.** `test_highway_theme_package.cpp`. Export: a theme inheriting a built-in exports
-complete and carries no `inherits` key; a three-level chain flattens to one theme; an exported
-archive re-imports into a registry that has *none* of its ancestors and renders identically —
-this round-trip through an ancestor-free registry is the assertion the whole design rests on.
-Import: every Phase 4 failure class refuses with the same typed error **and leaves the themes
-folder byte-unchanged** (a refused import must not partially write); a hand-authored archive with
-an unknown base refuses naming the base; id collision with an installed theme reports rather than
-silently overwriting.
-
-**Exit criteria.** A theme built by inheriting another exports as a self-contained archive and
-imports correctly on a machine that has never seen its ancestors; every archive that would be
-dropped at scan time is refused at import with a message naming the reason; a refused import
-leaves no trace on disk.
-
-**Verification.** Build, touched tests.
-
-## Final acceptance phase
-
-After the last executed phase, run the sanctioned bundle as separate invocations from the repo
-root, then commit per CLAUDE.md conventions:
+From the repository root, as separate invocations:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets all
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
-powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets clang-tidy
 pre-commit run --all-files
 ```
 
-## Rollback/abort notes
+clang-tidy only when the user asks for it.
 
-- **Phase 1** is a mechanical extraction pinned byte-identical by literal-value tests; rollback is
-  one revert. The risk is a dropped or normalized alpha byte, which is why the tests pin all 16
-  including alpha rather than sampling.
-- **Phase 2** is additive; a revert loses the setting, and `EditorSettings` tolerates unknown keys.
-  Fallback-on-unknown-id means a removed theme never bricks startup.
-- **Phase 3** hardens an existing failure path; the risk is over-strict validation rejecting a
-  shipped asset, caught immediately by the acceptance test that the shipped set passes.
-- **Phase 4** is the only phase creating an external compatibility surface. Once users author
-  themes, renaming a role key or changing the manifest shape invalidates their files — and per
-  this plan's constraints that is accepted rather than mitigated. The lever if it goes wrong is
-  that the theme folder is user data: dropping the feature leaves built-ins working and orphans
-  only files the user can delete. Inheritance widens that surface while Phase 4 stands alone:
-  `inherits` makes a theme id a contract between *files*, and a hand-zipped partial theme carries
-  that contract onto someone else's machine. **Phase 6's flatten-on-export closes this** — through
-  the supported path a theme id never crosses a machine boundary, so the contract is local and
-  renaming a shipped id costs only local authoring files. Between Phase 4 and Phase 6, treat
-  shipped theme ids as append-only; after Phase 6 it is good hygiene rather than a one-way door.
-- **Phase 5 is revertible as data**, but the sign-off STOP exists because a second theme is also
-  a public statement about what the product looks like.
-- **Phase 6 is not merely ergonomics** — export is what makes inheritance safe to share, so
-  dropping it leaves 54-Q1's authoring convenience as a distribution hazard rather than a
-  feature. It remains individually revertible (the drop-in folder keeps working), but reverting it
-  reinstates the Phase 4 id-stability constraint above. Its one hazard is writing a broken theme
-  to disk on a failed import, which the byte-unchanged assertion in its tests exists to prevent.
+## Rollback and abort notes
+
+- **Phase 1** is a pinned extraction; one revert. The risk is a normalized alpha byte, which is why
+  the test pins every role including alpha.
+- **Phase 2** creates the one external compatibility surface — role names and the manifest shape.
+  Formats change in place, so a later rename invalidates user files by design; the themes folder
+  is user data, and dropping the feature leaves built-ins working.
+- **Phase 3** is a code redesign behind a sighting; revertible per commit.
+- **Phase 4** deletes the old art and values. They remain in git history; a revert restores them.
+- **Phase 5** is data; the sign-off exists because a built-in is a public statement of the look.
 
 ## Documentation impact
 
-`docs/developer/the-3d-highway.md` names the texture and shader fan-out lists this plan changes —
-its "silent steps" for adding a textured element gains the theme-override and contract-validation
-steps, and the sharing-mechanics table gains a theme row. Update it in the same change set as the
-phase that invalidates it, per the developer-guide maintenance rule.
+- `docs/plans/roadmap/00-roadmap.md` — item 26a and the 54 decisions block (this revision).
+- `docs/developer/the-3d-highway.md` — the sharing table (:174-192) gains a theme row; the
+  textured-element fan-out (:699-709) gains the theme-directory contract step. Updated in the phase
+  that changes them.
+- `docs/plans/roadmap/45-editor-theme-and-string-colors.md` — palette injection lands in 54
+  Phase 1; 54-Q13's shade retune if ruled.
+- `docs/plans/roadmap/58-user-fretboard-art.md` — the theme directory is its home.
+- `docs/plans/roadmap/56-head-atlas-mipmapping.md` — the atlas edge convention is stated by the
+  Phase 2 contract.
+- `docs/plans/roadmap/25-note-highway-3d.md` — new highway colors enter the theme, never new
+  file-scope constants.
