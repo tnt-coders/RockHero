@@ -410,4 +410,73 @@ TEST_CASE("Session setSongTimeline writes every arrangement at once", "[core][se
     CHECK(session.chartRevision() == loaded + 1);
 }
 
+// The notes revision keys the notes layer, so it advances on everything that can change the notes,
+// the capo or the tempo map — a chart write, a tempo map, a whole timeline, an accepted load — and
+// the chart revision advances beside it on each.
+TEST_CASE("Session notes revision advances on every write the notes layer reads", "[core][session]")
+{
+    Session session;
+    Song song = makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0});
+    song.arrangements.front().chart = Chart{};
+    REQUIRE(session.loadSong(song, 0));
+    CHECK(session.chartNotesRevision() == 1);
+    CHECK(session.chartRevision() == 1);
+
+    CHECK(session.writeChart([](Chart&) {}));
+    CHECK(session.chartNotesRevision() == 2);
+    CHECK(session.chartRevision() == 2);
+
+    session.setTempoMap(TempoMap{});
+    CHECK(session.chartNotesRevision() == 3);
+    CHECK(session.chartRevision() == 3);
+
+    REQUIRE(session.setSongTimeline(makeSongTimeline(session.song())));
+    CHECK(session.chartNotesRevision() == 4);
+    CHECK(session.chartRevision() == 4);
+
+    REQUIRE(session.loadSong(song, 0));
+    CHECK(session.chartNotesRevision() == 5);
+    CHECK(session.chartRevision() == 5);
+}
+
+// A section replacement and a position write leave the notes untouched, so the notes layer derived
+// from them survives: the notes revision stays while the chart revision, which keys the scene,
+// advances. The position write replaces the current chart's positions, and with no chart to write
+// it writes nothing and advances neither.
+TEST_CASE("Session sections and position writes keep the notes revision", "[core][session]")
+{
+    Session session;
+    CHECK_FALSE(session.writeFretHandPositions({}));
+    CHECK(session.chartRevision() == 0);
+    CHECK(session.chartNotesRevision() == 0);
+
+    Song song = makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0});
+    song.arrangements.front().chart = Chart{};
+    // Move outside the assertion macro: REQUIRE re-mentions its expression textually, which
+    // bugprone-use-after-move reads as a use of the moved-from song.
+    const bool loaded = session.loadSong(std::move(song), 0);
+    REQUIRE(loaded);
+    const std::uint64_t notes = session.chartNotesRevision();
+    const std::uint64_t chart = session.chartRevision();
+
+    session.setSongSections({SongSection{.position = {}, .name = "verse"}});
+    CHECK(session.chartNotesRevision() == notes);
+    CHECK(session.chartRevision() == chart + 1);
+
+    const std::vector<FretHandPosition> positions{
+        FretHandPosition{.position = {}, .fret = 5, .end_fret = std::nullopt},
+    };
+    CHECK(session.writeFretHandPositions(positions));
+    const Arrangement* const arrangement = session.currentArrangement();
+    REQUIRE(arrangement != nullptr);
+    const std::optional<Chart>& written = arrangement->chart;
+    REQUIRE(written.has_value());
+    if (written.has_value())
+    {
+        CHECK(written->fret_hand_positions == positions);
+    }
+    CHECK(session.chartNotesRevision() == notes);
+    CHECK(session.chartRevision() == chart + 2);
+}
+
 } // namespace rock_hero::common::core

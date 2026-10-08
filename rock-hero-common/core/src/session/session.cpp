@@ -98,6 +98,7 @@ bool Session::loadSong(Song song, std::size_t selected_arrangement)
     const TimeRange timeline = calculateTimeline(arrangement);
     m_song = std::move(song);
     ++m_chart_revision;
+    ++m_chart_notes_revision;
     m_current_arrangement_index = selected_arrangement;
     m_timeline = timeline;
     return true;
@@ -161,18 +162,35 @@ void Session::setSongSections(std::vector<SongSection> sections)
     ++m_chart_revision;
 }
 
+// The tempo map places every note, so it advances the notes key as well as the projection key.
 void Session::setTempoMap(TempoMap tempo_map)
 {
     m_song.tempo_map = std::move(tempo_map);
     ++m_chart_revision;
+    ++m_chart_notes_revision;
 }
 
+// Rewrites every arrangement's chart and the tempo map together, so both keys advance once.
 bool Session::setSongTimeline(SongTimeline timeline)
 {
     if (!writeSongTimeline(m_song, std::move(timeline)))
     {
         return false;
     }
+    ++m_chart_revision;
+    ++m_chart_notes_revision;
+    return true;
+}
+
+// The positions alone: the notes key stays, so the notes layer derived from them survives.
+bool Session::writeFretHandPositions(std::vector<FretHandPosition> positions)
+{
+    Chart* const chart = loadedChart();
+    if (chart == nullptr)
+    {
+        return false;
+    }
+    chart->fret_hand_positions = std::move(positions);
     ++m_chart_revision;
     return true;
 }
@@ -181,6 +199,12 @@ bool Session::setSongTimeline(SongTimeline timeline)
 std::uint64_t Session::chartRevision() const noexcept
 {
     return m_chart_revision;
+}
+
+// Returns the monotonic write count that keys the notes layer.
+std::uint64_t Session::chartNotesRevision() const noexcept
+{
+    return m_chart_notes_revision;
 }
 
 } // namespace rock_hero::common::core

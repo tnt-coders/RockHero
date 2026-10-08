@@ -92,14 +92,15 @@ public:
     [[nodiscard]] std::vector<ToneParameterAutomation>* currentToneAutomation() noexcept;
 
     /*!
-    \brief Writes the current arrangement's chart through `write`, then advances chartRevision().
+    \brief Writes the current arrangement's chart through `write`, then advances chartRevision()
+    and chartNotesRevision().
 
     The fourth narrow mutation surface: chart editing mutates through this scope while broader
     arrangement fields stay read-only through this session. A SCOPE rather than a handed-out
-    pointer, so the revision the projection caches key on advances exactly when the write has
-    ended: no read can fall between the revision advancing and the chart it names being written,
+    pointer, so the revisions the projection caches key on advance exactly when the write has
+    ended: no read can fall between a revision advancing and the chart it names being written,
     and a cache can never memoize a chart under the revision of its successor. Every write
-    advances it, whether or not it changed anything, which costs at most one lazy rebuild.
+    advances both, whether or not it changed anything, which costs at most one lazy rebuild.
 
     \tparam Write Callable taking the chart by reference.
     \param write The write.
@@ -119,6 +120,7 @@ public:
             }
             write(*chart);
             ++m_chart_revision;
+            ++m_chart_notes_revision;
             return true;
         }
         else
@@ -129,9 +131,24 @@ public:
             }
             std::optional<Result> result{write(*chart)};
             ++m_chart_revision;
+            ++m_chart_notes_revision;
             return result;
         }
     }
+
+    /*!
+    \brief Replaces the current arrangement's authored fret-hand positions, then advances
+    chartRevision() alone.
+
+    The eighth narrow mutation surface. Separate from writeChart() because it is the one chart
+    write that leaves the notes untouched, and the notes are what chartNotesRevision() keys: a
+    position edit must not invalidate the notes layer derived from them, so it cannot go through
+    the scope that advances that key.
+
+    \param positions Positions the caller has already validated, strictly ascending.
+    \return False, writing nothing, when no arrangement or no chart is loaded.
+    */
+    [[nodiscard]] bool writeFretHandPositions(std::vector<FretHandPosition> positions);
 
     /*!
     \brief Replaces the song's structure sections, then advances chartRevision().
@@ -140,25 +157,27 @@ public:
     structure rather than one arrangement's tab, so section authoring reaches them here while
     every other song field stays read-only through this session. Sections feed the highway
     projection's labels and camera zones, so a section change IS a projection change: it advances
-    the same revision a chart write does rather than keying the caches on a second counter.
+    the same revision a chart write does. The notes layer reads no section, so
+    chartNotesRevision() stays where it was.
 
     \param sections Section markers the caller has already validated, in ascending position order.
     */
     void setSongSections(std::vector<SongSection> sections);
 
     /*!
-    \brief Replaces the song's tempo map, then advances chartRevision().
+    \brief Replaces the song's tempo map, then advances chartRevision() and chartNotesRevision().
 
     The sixth narrow mutation surface, song-level like the sections. The tempo map places every
-    chart note in time, so a tempo change IS a change to every chart projection: it advances the
-    same revision a chart write does rather than keying the caches on a second counter.
+    chart note in time, so a tempo change IS a change to every chart projection and to the notes
+    layer: it advances both revisions a chart write does.
 
     \param tempo_map Tempo map the caller has already validated.
     */
     void setTempoMap(TempoMap tempo_map);
 
     /*!
-    \brief Replaces the song's whole timeline at once, then advances chartRevision() once.
+    \brief Replaces the song's whole timeline at once, then advances chartRevision() and
+    chartNotesRevision() once.
 
     The seventh narrow mutation surface, and the only one that reaches a NON-current arrangement: a
     meter edit re-addresses every arrangement, and its undo restores them all, so the map, the
@@ -174,16 +193,31 @@ public:
     /*!
     \brief Returns the chart revision counter that keys chart-projection caches.
 
-    Advances every time a writeChart() write ends, every time the tempo map, the song sections or
-    the whole timeline is replaced, and every accepted loadSong(). View-state caches pair it
-    with the arrangement id so chart, tempo and section edits invalidate memoized projections
-    without any explicit notification path that could be forgotten; the load advance keeps a
-    re-opened project whose persisted arrangement ids match from reusing the edited projection.
+    Advances every time a writeChart() or writeFretHandPositions() write ends, every time the tempo
+    map, the song sections or the whole timeline is replaced, and every accepted loadSong().
+    View-state caches pair it with the arrangement id so chart, tempo and section edits invalidate
+    memoized projections without any explicit notification path that could be forgotten; the load
+    advance keeps a re-opened project whose persisted arrangement ids match from reusing the edited
+    projection.
 
-    \return Monotonic count of chart writes, tempo-map, section and timeline replacements and
-            accepted song loads.
+    \return Monotonic count of chart and position writes, tempo-map, section and timeline
+            replacements and accepted song loads.
     */
     [[nodiscard]] std::uint64_t chartRevision() const noexcept;
+
+    /*!
+    \brief Returns the revision counter of the current chart's NOTES, the key of the notes layer
+    derived from them (\ref chartResolutions).
+
+    Advances on every writeChart() write, every tempo-map and whole-timeline replacement, and every
+    accepted loadSong(): everything that can change the notes, the capo or the tempo map they are
+    placed by. It does not advance on a section replacement or writeFretHandPositions(), neither of
+    which the notes layer reads, so a cache keyed on it survives them. Paired with the arrangement
+    id, like chartRevision().
+
+    \return Monotonic count of the writes and replacements above.
+    */
+    [[nodiscard]] std::uint64_t chartNotesRevision() const noexcept;
 
     /*!
     \brief Replaces the current session song.
@@ -215,6 +249,10 @@ private:
     // can never repeat a value a cache might still hold. Projection caches pair it with the
     // arrangement id.
     std::uint64_t m_chart_revision{0};
+
+    // Monotonic count of the writes that can change the notes layer; survives loadSong/reset for
+    // the same reason as m_chart_revision.
+    std::uint64_t m_chart_notes_revision{0};
 };
 
 } // namespace rock_hero::common::core
