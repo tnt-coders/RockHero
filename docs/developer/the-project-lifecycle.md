@@ -93,11 +93,12 @@ conversion. This section is deliberately written as numbered rules so a behavior
 made by editing a rule here and re-aligning the code
 (`gp_chart_builder.cpp` — `resolveSlideIns` (rule 16's scoops), `resolveSlideOutExits` (the
 slide-out exit fret, under the fret-hand position derivation below), and the one chart normalizer
-`normalizeChart` (rule 26); all covered by `test_gp_song_importer.cpp`). The numbers skip 5 to 9:
-those rules are the hand-position rules, now stated in \ref design_rulesets_hand_positions. Rules
-1–25 apply to GP import only; rule 26 is the normalizer every load path runs — `.rock` imports
-and saved projects go through exactly the same function, so a chart written under older rules is
-repaired and reported rather than refused.
+`normalizeChart` (rule 26); all covered by `test_gp_song_importer.cpp`). The numbers start at 10:
+rules 1 to 4 became the tail rules (\ref design_rulesets_tails) and 5 to 9 the hand-position rules
+(\ref design_rulesets_hand_positions). Rules 10 to 12c are the shape derivation every reader runs,
+rules 13 to 25 apply to GP import only, and rule 26 is the normalizer every load path runs — `.rock`
+imports and saved projects go through exactly the same function, so a chart written under older
+rules is repaired and reported rather than refused.
 
 **Ring policy — what the chart STORES.** `ChartNote::sustain` is the actual duration the string
 rings: Guitar Pro's notated duration, lengthened where the source says one sounding continues (tie
@@ -224,76 +225,20 @@ is the next section, and it is drawn, not stored.
 
 **Tail policy — what a surface DRAWS** (GP notates every note at its full duration, and the chart
 now *stores* that duration; a chart only *shows* deliberate sustains, so the shortening is a
-read-side derivation rather than an import-time edit). Rules 1–4 below are the presentation rules,
-implemented once in `chartPresentation` (`chart_presentation.h` in common/core, covered by
-`test_chart_presentation.cpp`) and applied in the order written. They move nothing: every surface
-draws the stored note, and presentation publishes only where each ring's INK stops. They are not
-import policy at all any more: every surface derives them from the stored stream, so the same chart
-drawn from a `.rock` file and from a fresh import shows the same tails, and the model behind the
-split is `docs/plans/in-progress/note-sustain-model.md`.
+read-side derivation rather than an import-time edit). The four tail rules are stated once, in
+\ref design_rulesets_tails, implemented once in `chartPresentation` (`chart_presentation.h` in
+common/core, covered by `test_chart_presentation.cpp`), and applied in the order written: crop each
+tail's ink a minimum-sustain-distance margin before the next onset it does not ring past, drop the
+tails of a strum that is short and effect-free, draw no tail on a dead note that makes no noise,
+and rest every tail that shows no technique. They move nothing: every surface draws the stored note,
+and presentation publishes only where each ring's INK stops. They are not import policy at all any
+more, so the same chart drawn from a `.rock` file and from a fresh import shows the same tails, and
+the model behind the split is `docs/plans/in-progress/note-sustain-model.md`.
 
-1. **Crop to the minimum sustain distance.** A note's ink stops at least the
-   minimum-sustain-distance margin — the shared constant in
-   `grid_arithmetic.h`, measured back from the onset being protected through the tempo map and
-   floored onto the chart's tick lattice, so slow and fast songs keep the same visible gap —
-   before the next binding onset, which is the first later note at a different grid position on
-   *any* string, and never before the note's own onset. The
-   margin bounds sustain *tails* only, never note onsets: a run of 32nds imports every onset as
-   notated, with tails cropped toward zero and then dropped by the rule below, so dense passages
-   render as plain heads. Notes sharing a position — chord members — never bind each other. The
-   binding onset is the first later
-   onset the ring does not *pass*: a ring running *strictly past* an onset — merged from a tie or
-   notated across voices — keeps looking and binds on the first onset it reaches without passing,
-   cropping there like any other tail, and a ring ending exactly *on* an onset passes nothing and
-   binds there too. Passing is a deliberate hold and earns the group its tails under the drop rule
-   below; what it does NOT do is switch the crop off, which would leave a ring-through dying on a
-   later head with no gap at all. What the arpeggio class reads is the STORED ring, never the ink
-   (rule 12), so a dead string draws no tail (E25) and still reads as carried under a strum: the
-   finger is down either way. A ring that merely *reaches* the next binding onset crops like any
-   other, ties included. Binding is decided on the SOUNDING position, because that is what the
-   stored chart has, so a grace lead is a real onset here. Repeated chords crop too: their
-   held-to-the-restrike reading lives in the merged shape span (rule 11), which is derived from the
-   stored rings and already runs through every restrike — the box continues while the tails keep the
-   minimum gap. The margin is a presentation rule and not an authoring clamp: the editor's duration
-   verb stops at exact adjacency with the next onset on the note's own string (`sustainBoundOf`),
-   not here.
-
-   The crop is the ink's alone, and no payload floors it. Every keyframe keeps its stored instant:
-   one standing between the crop and the ring's end — a slide-out, a bend's last value, a shift
-   slide's arrival ON the next head — is in the ring's ENDING ZONE, neither drawn nor judged except
-   under a reveal, and the leg crossing the crop is drawn on its true path and stops there. So the
-   stored chart may end a slide-out or a bend exactly ON the next head of its own string, because
-   the store holds what the hands did (user ruling, 2026-09-21).
-2. **Drop short effect-free tails, per strum.** A strum that carries no sustain technique
-   (bend, slide, vibrato, tremolo) on any string and no member *ringing* longer than the
-   kept-sustain bound (`g_minimum_kept_sustain_seconds` in grid_arithmetic.h, which is the ONE place
-   the bound's value is stated — it is headed for a user-tunable option, so nothing else repeats it.
-   The bound is a DURATION: the rule reads each note's ring in seconds through the tempo map, so the
-   same written note value earns a tail below a crossover tempo and drops it above, and the meter
-   never enters. It is shared with the legato hold test, which relies on this rule to read a missing
-   tail as a proven release) draws no tail on any member. The comparison reads the STORED ring,
-   never the ink end: a note held past the bound keeps its drawn tail even though the margin can
-   leave it shorter than the bound — a chugged riff of slow quarter notes keeps its tails, while a
-   run of notes ringing inside the bound still renders as plain heads. The decision
-   belongs to the **strum**, not the single string: every string of a chord rings from one stroke,
-   so a tail any member earned — a technique on it, a ring past the bound, or rule 1's deliberate
-   hold — keeps every member's tail. Deciding per string draws a lone tail on a short double stop's
-   bent note while its unbent partner, effect-free and inside the bound, loses its tail entirely and
-   reads as unsounded. Grouping is the sounding position, the same identity rule 1's binding scan
-   uses, so cross-voice simultaneities count as one stroke here too. Each member still keeps its
-   *own* cropped ink end (rule 1 decides length per string; only the keep-or-drop verdict is
-   shared). Vibrato and tremolo protect a tail from *dropping* but not from *cropping* — in dense
-   passages such a tail can shrink to nothing, and where the margin leaves a partner no room at all
-   it still shows no tail.
-3. **A dead note draws no tail** unless tremolo or a slide payload keeps it making noise or
-   travelling (E25). The stored ring is untouched — it is the timing the legato adjacency test
-   reads.
-4. **The tail law.** A tail that shows no technique information RESTS: the verdict marks where the
-   curtain takes over and moves no ink end, and the 3D board draws a resting remainder only inside
-   its sliding reveal window (see the posture section below and `chartPresentation`).
-
-Durations in these rules are note values in whole notes — a quarter is `1/4` in every meter —
-matching the chart model's own sustain unit.
+Two of their consequences matter to the import. A run of 32nds imports every onset as notated and
+renders as plain heads, its tails cropped toward zero and then dropped: the margin bounds tails,
+never onsets. And what the arpeggio class reads is the STORED ring, never the ink (rule 12), so a
+dead string draws no tail and still reads as carried under a strum: the finger is down either way.
 
 **Fret-hand position derivation** — not an import rule at all. GP has no hand-position concept and
 the import authors none, so every position is derived at read, once per chart revision by
@@ -552,14 +497,14 @@ neighbours.
     needed on one and why the long Travis-picked and washed figures are honest at any scale.
 
     **THE TAIL LAW, and it follows from the sentence above rather than adding to it** (the last
-    pass inside `common::core::chartPresentation`, its rule 4). A span's extent IS
+    pass inside `common::core::chartPresentation`, tail rule 4). A span's extent IS
     the minimum of its members' reaches, so wherever furniture is drawn over that stretch it is
     what states how long the hand stays down — which is why the rule could not exist before the
     break law did.
     **THE LAW MAY HIDE A TAIL, NEVER SHORTEN ONE.** It is VERDICT-ONLY: it reads the STORED
-    rings, judges, and MARKS where each tail rests, skipping any tail rules 2 and 3 already
-    emptied. It assigns no length, invents no endpoint, reads no span CLASS, and introduces no
-    threshold or constant of its own — so no ribbon's length ever depends on it, and authoring or
+    rings, judges, and MARKS where each tail rests, skipping any tail that tail rules 2 and 3
+    already emptied. It assigns no length, invents no endpoint, reads no span CLASS, and introduces
+    no threshold or constant of its own — so no ribbon's length ever depends on it, and authoring or
     deleting a span leaves every ribbon at its exact stored extent.
 
     **THE CURTAIN IS UNIVERSAL.** EVERY fretting-hand tail rests, from its own last always-visible
@@ -992,7 +937,7 @@ neighbours.
     figure merging the tail law does cannot have. The trim is applied ONCE, where the view state is
     built (`makeChartViewState`), and it is the whole of rule 12a.
 
-    The drawn extent keeps at least the minimum-sustain-distance margin (rule 1's shared constant)
+    The drawn extent keeps at least the minimum-sustain-distance margin (tail rule 1's constant)
     before the head that closed the span — the same rule sustains follow, so consecutive shapes keep
     the same visible gap as everything else instead of butting exactly. Three published facts feed
     it, and each answers a case
@@ -1152,9 +1097,9 @@ clamped and then drawn like any other):
     direction winning over a still hand or a contradicting delta (two frets out in the flag's
     direction), an agreeing one-fret delta widening to the same two-fret minimum.
     The scoop moves no window of its own: the stored scoop is struck at its approach fret and states
-    the notated fret at its arrival, so the positions a reader derives cover both (hand-position rule 2). An
-    open-string landing or a start that would leave the neck (into fret 1 from below) stays a plain
-    note with a conversion note. The transformed note is a slide before
+    the notated fret at its arrival, so the positions a reader derives cover both (hand-position
+    rule 2). An open-string landing or a start that would leave the neck (into fret 1 from below)
+    stays a plain note with a conversion note. The transformed note is a slide before
     anything reads it, so a slide-in into a held landing keeps its hold like any notated slide,
     cropped like every tail but never dropped as effect-free. A grace note
     sliding into its principal already carries its explicit start fret and resolves through the
@@ -1357,7 +1302,7 @@ differently):
     its node lies off the neck), a tap harmonic drops its tremolo, a fret-hand harmonic drops its
     payload, an open string drops its slide; a strike with nowhere to land becomes a pick; and
     last, a scrape that no longer travels becomes the pick it sounds like. A dead note's tail is
-    NOT trimmed here — E25 is a presentation rule (tail rule 3 above), and the stored ring is the
+    NOT trimmed here — E25 is a presentation rule (tail rule 3), and the stored ring is the
     timing a legato claim after the cluck reads. Then the one stream-level note rule bounds every
     ring at its own string's next onset (40-Q2-B, `normalizeSustainOverlaps`, reported as
     `OverlappingTail`), and hand windows fit onto the board. E4's strike

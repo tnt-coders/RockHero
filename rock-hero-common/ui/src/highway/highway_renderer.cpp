@@ -4130,11 +4130,11 @@ void HighwayRenderer::Impl::draw(
         // clamped to nothing at the horizon all report the same empty span.
         //
         // The note's ink end is the whole of what bounds it, on this board and on the 2D lane's
-        // plain paint alike: one drawn length (the rules-1-to-4 execution form) with the tail law's
-        // verdict published beside it, never a second length. This board draws no reveal, so it
-        // never draws on toward the stored ring end. WHERE THE VERDICT BINDS is here: a ribbon the
-        // law marked RESTING draws its resting remainder only inside the CURTAIN, which exists in
-        // two coinciding forms: the FIXED curtain at the fretboard — one published lead deep
+        // plain paint alike: one drawn length (the tail-rules-1-to-4 execution form) with the tail
+        // law's verdict published beside it, never a second length. This board draws no reveal, so
+        // it never draws on toward the stored ring end. WHERE THE VERDICT BINDS is here: a ribbon
+        // the law marked RESTING draws its resting remainder only inside the CURTAIN, which exists
+        // in two coinciding forms: the FIXED curtain at the fretboard — one published lead deep
         // (g_tail_reveal_lead_whole_note at the note's own meter and tempo), full at the hit line,
         // fading to nothing at its outer edge — and, for a note still in flight, a LOCAL curtain
         // IDENTICAL to the fixed one, anchored at the note's RESTING LANDMARK (its head for a

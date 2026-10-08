@@ -153,14 +153,14 @@ armed caret) or where an entry recorded no focus. Re-check which of those reach
 ## Found by the 2026-09-07 curtain session
 
 - **Make the kept-sustain bound a user option.** `g_minimum_kept_sustain_seconds`
-  (grid_arithmetic.h) is the ring duration that earns a drawn tail on both surfaces, read by rule 2
-  of `chartPresentation` and nothing else. The value is a taste, not a law, and belongs beside the
-  other user options when those land (`docs/plans/todo/`, the user-color customization family) —
-  the option exposes that duration in seconds. The plumbing is small: a presentation options value
-  carrying the bound, threaded `chartPresentation` → `chartResolutions` → the two callers (the
-  editor controller's resolve and the game's chart load), read from the per-app settings store;
-  tests and the census keep the default. Until then every comment and doc names the bound
-  generically and states its value only at the constant — keep it that way.
+  (grid_arithmetic.h) is the ring duration that earns a drawn tail on both surfaces, read by
+  tail rule 2 (`chartPresentation`) and nothing else. The value is a taste, not a law, and belongs
+  beside the other user options when those land (`docs/plans/todo/`, the user-color customization
+  family) — the option exposes that duration in seconds. The plumbing is small: a presentation
+  options value carrying the bound, threaded `chartPresentation` → `chartResolutions` → the two
+  callers (the editor controller's resolve and the game's chart load), read from the per-app
+  settings store; tests and the census keep the default. Until then every comment and doc names
+  the bound generically and states its value only at the constant — keep it that way.
   **2026-09-08: owned by docs/plans/roadmap/62-kept-sustain-bound-per-song.md** — the user chose a
   PER-SONG value carried in `song.json` (62-Q1 option A) with this per-app option as a compatible
   later layer (option B); the constant stays the default. That plan is superseded pending the
@@ -790,10 +790,9 @@ Each re-verified against the code before being written down.
   and free to drift, and the third is a validation rule where drift would be silent. Fix shape: a
   `ChartNote` overload beside the existing one, with both call sites moved onto it.
 
-- **Rule 1's forward margin scan is superlinear on let-ring-heavy charts** (pre-existing).
-  `chart_presentation.cpp` (~:351) scans forward from each note's own group for the binding onset,
-  and the scan does not stop at the first onset it finds: an onset the ring PASSES continues the
-  walk. So a chart where many long rings run past many onsets does O(notes x onsets-passed) work.
+- **Tail rule 1's forward margin scan is superlinear on let-ring-heavy charts** (pre-existing).
+  `chart_presentation.cpp` (~:49) scans forward from each note's own group for the binding onset,
+  and an onset the ring PASSES continues the walk. So a chart where many long rings run past many onsets does O(notes x onsets-passed) work.
   Bounded in practice by the early `break` at the first binding onset — an ordinary tail reads a
   single onset and only a ring reaching past a head walks further — so this is recorded, not
   urgent. Measure before reshaping it; the cost is a function of the corpus, not of the code.

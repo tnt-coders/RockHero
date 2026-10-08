@@ -2889,8 +2889,7 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
             // position and a pick (\ref common::core::arrivesIntoNextHead). Guitar Pro states no
             // arrival time, and none is synthesized: the arrival's instant is the head's own, which
             // is what the hands did. The landing keeps its own onset and head; the arrival stays
-            // at its stored instant and the ink stops one margin before the head
-            // (`chartPresentation` rule 1).
+            // at its stored instant and the ink stops one margin before the head (tail rule 1).
             //
             // A slide-out the chain resolved earlier cannot outlive the gesture it slides out of:
             // its fret would become an interior stop once the ring grows past it, so the end's

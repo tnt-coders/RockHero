@@ -1072,8 +1072,8 @@ TEST_CASE(
     // pins fret 6 until the chord where the sliding segment was notated, then the glide states its
     // landing AT the ring's end, exactly on the landing pair's onset (rule 13). The string rings
     // until that landing re-picks it, so two quarters are stored; the ring passes the chord it
-    // crosses but ends exactly ON the landing pair, so rule 1 binds it there (the crop binds on the
-    // first onset a ring does not pass) and the DRAWN tail stops at 19/40.
+    // crosses but ends exactly ON the landing pair, so tail rule 1 binds it there (the crop binds
+    // on the first onset a ring does not pass) and the DRAWN tail stops at 19/40.
     const common::core::ChartNote& tied = chart.notes[0];
     const std::vector<Fraction> ink_end = inkEndsOf(chart, song->tempo_map);
     CHECK(tied.position == GridPosition{.measure = 1, .beat = 1});
@@ -5109,7 +5109,7 @@ TEST_CASE(
 
 // What the importer STORES for a note carrying a technique: the whole notated ring and the whole
 // curve mapped onto it, nothing clipped. The ink ends beside them are where the drawn tail stops —
-// rule 1's crop, which core owns and tests on its own; the point here is that the import's
+// tail rule 1's crop, which core owns and tests on its own; the point here is that the import's
 // synthesized geometry is stored intact on either side of it, nothing moved. Runs in 4/4 at
 // 120 BPM, where the margin is a tenth of a quarter.
 TEST_CASE("Guitar Pro import stores whole payloads that presentation crops", "[core][gp-import]")
@@ -5228,7 +5228,7 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation crops", "[c
         // The scrape's terminal is the statement at its ring's end, so the stored ring keeps its
         // whole half beat — nothing on another string bounds a stored ring — while its ink stops a
         // margin before the head that binds it, exactly as every other drawn tail is spaced
-        // (presentation rule 1). The terminal keeps its stored instant past the ink end.
+        // (tail rule 1). The terminal keeps its stored instant past the ink end.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -5254,8 +5254,8 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation crops", "[c
 
 // A scrape crowded by a head on ANOTHER string keeps its whole STORED span — nothing on another
 // string bounds a stored ring — terminal included at its stored instant, and its ink is cropped
-// before that head like every other tail's (presentation rule 1). Runs in 4/4, across the spans
-// the squish was measured on.
+// before that head like every other tail's (tail rule 1). Runs in 4/4, across the spans the squish
+// was measured on.
 TEST_CASE("Guitar Pro import spaces a scrape crowded by another string", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -6015,7 +6015,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 4);
         // The half-note chord rings strictly past the taps' notated beats — a deliberate
-        // cross-voice hold (rule 1) — so its tails survive under the tapping.
+        // cross-voice hold (tail rule 1) — so its tails survive under the tapping.
         CHECK(chart.notes[0].sustain == Fraction{1, 2});
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
         // One span from the strum through its notated ring: the taps neither close nor trim it,

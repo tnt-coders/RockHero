@@ -6,6 +6,8 @@ one document here, and code cites its rules by the ruleset's name and the rule's
 
 - \subpage design_rulesets_hand_positions — where the fretting hand sits: the derived hand events,
   authored positions and their coverage.
+- \subpage design_rulesets_tails — what a surface draws of each stored ring: where its ink stops,
+  and where its tail rests.
 
 Rule numbers are stable. A rule is never renumbered; a retired rule keeps its number, marked
 retired, and a new rule takes the next number.

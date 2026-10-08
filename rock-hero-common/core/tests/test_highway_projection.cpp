@@ -413,8 +413,9 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.chart.notes[0].ring_end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.chart.notes[1].start_seconds == Catch::Approx(4.0 * beat));
-    // Rule 2's verdict is the GROUP's: its chord partner's quarter-note ring runs longer than the
-    // kept-sustain bound, so this member draws its own thirty-second-note tail rather than none.
+    // Tail rule 2's verdict is the GROUP's: its chord partner's quarter-note ring runs longer than
+    // the kept-sustain bound, so this member draws its own thirty-second-note tail rather than
+    // none.
     CHECK(state.chart.notes[1].ink_end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.chart.notes[3];
@@ -874,8 +875,8 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .string = string,
             .fret = 5,
             // An eighth, which at this tempo lasts exactly the kept-sustain bound and no longer,
-            // so rule 2 drops it. The pair presents no tail, and the span rule is what answers how
-            // long the hand stays down.
+            // so tail rule 2 drops it. The pair presents no tail, and the span rule is what answers
+            // how long the hand stays down.
             .sustain = Fraction{1, 8},
             .bend = {},
             .keyframes = {},
@@ -963,10 +964,10 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
 // SURFACES MUST NOT DIVERGE, and the tail law is what makes that structural for a tail: there is
 // one end per note and one verdict per note, and both surfaces can only read them — no second
 // length anywhere. The law empties nothing: a taken member's ink_end_seconds is still its
-// rules-1-to-3 end, and `rested` is what tells the board to REST that ribbon at distance while the
-// lane draws it. The law's own arithmetic is pinned in the core presentation suite; what is pinned
-// here is that the board and the lane resolve the same seconds, and the same verdict, from one
-// derivation.
+// tail-rules-1-to-3 end, and `rested` is what tells the board to REST that ribbon at distance while
+// the lane draws it. The law's own arithmetic is pinned in the core presentation suite; what is
+// pinned here is that the board and the lane resolve the same seconds, and the same verdict, from
+// one derivation.
 TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -1020,8 +1021,9 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     REQUIRE(state.chart.notes.size() == 4);
     // The carry runs from the span's front to its close, so the span accounts for the whole of it
     // and the board RESTS the ribbon. The verdict empties no tail: the ink end stays the
-    // rules-1-to-3 end rather than collapsing onto the onset. The carry passes both strum heads
-    // and nothing binds it after, so its whole note runs from 0.0 s to 2.0 s at this map's 120 BPM.
+    // tail-rules-1-to-3 end rather than collapsing onto the onset. The carry passes both strum
+    // heads and nothing binds it after, so its whole note runs from 0.0 s to 2.0 s at this map's
+    // 120 BPM.
     CHECK(state.chart.notes[0].rested);
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(2.0));
     // The strum's own rings die at that same close, so they go with it: a span that accounts for a
@@ -1032,7 +1034,7 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     CHECK(state.chart.notes[2].ink_end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.notes[3].ink_end_seconds == Catch::Approx(2.0));
     // And the member that OUTLIVES the span rests too, its whole ring the reveal's to show: the
-    // resting remainder starts at its own head, and the ink end stays the rules-1-to-3 end —
+    // resting remainder starts at its own head, and the ink end stays the tail-rules-1-to-3 end —
     // nothing shortened.
     CHECK(state.chart.notes[1].rested);
     CHECK(state.chart.notes[1].reveal_from_seconds == Catch::Approx(0.5));
@@ -1051,8 +1053,8 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
         CHECK(lane.notes[index].rested == state.chart.notes[index].rested);
     }
 
-    // And the reveal reads the same note: rule 1 binds none of these rings, so each ink end IS the
-    // ring end the reveal draws to — the carry's stored four quarters — and the verdict is the
+    // And the reveal reads the same note: tail rule 1 binds none of these rings, so each ink end IS
+    // the ring end the reveal draws to — the carry's stored four quarters — and the verdict is the
     // whole of what differs between a plain paint and a reveal here.
     CHECK_THAT(
         state.chart.notes[0].ring_end_seconds,
@@ -1152,17 +1154,17 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // strum RESTS RIBBONLESS. That is what grip tenure buys — at distance the box states the tenure
     // and no tail duplicates it.
     CHECK(state.chart.notes[6].rested);
-    // The verdict empties no tail: the ink end stays the rules-1-to-3 end rather than collapsing
-    // onto the onset. Nothing is struck after this chord, so rule 1 binds it nowhere and its two
-    // beats run from 2.0 s out to 3.0 s — the ribbon the board reveals as the head nears the line,
-    // and the one the lane draws throughout.
+    // The verdict empties no tail: the ink end stays the tail-rules-1-to-3 end rather than
+    // collapsing onto the onset. Nothing is struck after this chord, so tail rule 1 binds it
+    // nowhere and its two beats run from 2.0 s out to 3.0 s — the ribbon the board reveals as the
+    // head nears the line, and the one the lane draws throughout.
     CHECK(state.chart.notes[6].ink_end_seconds == Catch::Approx(3.0));
     // It is still the control arm this chain needs, because the two emptinesses remain different
-    // things: the chain's members were emptied by RULE 2 before the law could look at them, so they
-    // carry no verdict at all, while this chord's tail was judged and left standing. The hold and
-    // the ribbon happen to agree here — a RESTED member holds its own stored ring — so the board
-    // pins these heads for the whole two quarters, while the chain's are held by the span rule
-    // instead.
+    // things: the chain's members were emptied by TAIL RULE 2 before the law could look at them, so
+    // they carry no verdict at all, while this chord's tail was judged and left standing. The hold
+    // and the ribbon happen to agree here — a RESTED member holds its own stored ring — so the
+    // board pins these heads for the whole two quarters, while the chain's are held by the span
+    // rule instead.
     CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
     CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
     CHECK_FALSE(state.chart.notes[0].rested);

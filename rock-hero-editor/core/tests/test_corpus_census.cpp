@@ -1494,9 +1494,9 @@ struct Census
     // (`ChartResolutions::rested_from` against the ink end, through `hasRestingRemainder`)
     // rather than re-derived — the census measures the shipped law, it never re-implements it. A
     // ring is HIDDEN where the curtain owns part of it; a resting ring whose landmark is its own
-    // end shows every pixel and counts as standing. The denominator is every tail rules 1 through
-    // 4 left standing, since those are exactly the tails the law is offered; a tail rule 3 or rule
-    // 4 emptied is never hidden and never counted here.
+    // end shows every pixel and counts as standing. The denominator is every tail that tail rules
+    // 1 to 3 left standing, since those are exactly the tails the law (tail rule 4) is offered; a
+    // tail that tail rule 2 or 3 emptied is never hidden and never counted here.
     //
     // Beats accumulate as double because a corpus-wide Fraction sum would overflow its int terms.
     long long tails_after_rules{0};
@@ -2264,10 +2264,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
               << "\n";
     std::cout << "  ... marks left at exactly written       : " << census.letring_marks_at_written
               << "\n";
-    // THE TAIL LAW, figure-scoped. The denominator is every tail rules 1 through 4 left standing;
-    // the law is offered exactly those and can only empty them, so the second row is its whole
-    // reach and the third is how much ring the figures are carrying in place of ribbon.
-    std::cout << "  tails standing after rules 1-4          : " << census.tails_after_rules << "\n";
+    // THE TAIL LAW, figure-scoped. The denominator is every tail that tail rules 1 to 3 left
+    // standing; the law is offered exactly those and only marks where they rest, so the second row
+    // is its whole reach and the third is how much ring the figures carry in place of ribbon.
+    std::cout << "  tails standing after tail rules 1-3     : " << census.tails_after_rules << "\n";
     std::cout << "  ... hidden: the curtain owns part of it : " << census.hidden_rings << "\n";
     std::cout << "  ... strokes with a hidden member        : " << census.hidden_strokes << "\n";
     std::cout << "  ... whole notes of stored ring they hold: " << census.hidden_ring_whole_notes

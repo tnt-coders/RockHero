@@ -490,8 +490,8 @@ at its end carries that statement with the end (\ref endStatement, \ref clipPayl
 whatever it states, since its moment IS the end), a ring lengthened past it leaves the statement
 where it was as the pitched stop it has become — the ribbon runs on and the slide-out is a regular
 slide — and a ring pulled back exactly onto its last stated fret makes that fret a slide-out.
-Presentation never moves the end's statement: it only stops the ink (\ref chartPresentation
-rule 1), so an end statement past the ink end stays at its stored instant, shown only under a
+Presentation never moves the end's statement: it only stops the ink (\ref chartPresentation,
+tail rule 1), so an end statement past the ink end stays at its stored instant, shown only under a
 reveal. The slide-out's own length is the end statement's to change: moving it moves the ring's
 end with it, and no OTHER point becomes one by moving — an interior point lives strictly inside the
 ring at both ends, so the only verb that changes a point's kind is the one that moves the ring's
@@ -500,9 +500,9 @@ end onto it.
 A KEYFRAME MAY SIT EXACTLY ON A LATER ONSET OF ITS OWN STRING: the stored chart holds the truth,
 and a slide-out or a bend that completes as the next note is struck is what the hands did. Nothing
 in the store spaces it, and presentation does not move it either: the ink stops one margin before
-the binding onset (\ref chartPresentation rule 1), leaving such a keyframe in the ring's ending
-zone, drawn only under a reveal. Both surfaces and scoring read the same ink end, so what is drawn
-is what is judged.
+the binding onset (\ref chartPresentation, tail rule 1), leaving such a keyframe in the ring's
+ending zone, drawn only under a reveal. Both surfaces and scoring read the same ink end, so what
+is drawn is what is judged.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
@@ -1114,7 +1114,7 @@ within the sustain (\ref validateChartNoteAlone), so at most one keyframe can si
 is the last: the question is one comparison, asked here rather than restated by every rule that
 moves an end. The end's statement belongs to the END — a ring resized under it carries it along
 (\ref clipPayloadsToSustain), while presentation leaves it at its stored instant and only stops
-the ink (\ref chartPresentation rule 1) — so what it STATES is a separate question: a fret
+the ink (\ref chartPresentation, tail rule 1) — so what it STATES is a separate question: a fret
 there is the SLIDE-OUT or the shift slide's pitched ARRIVAL, which the chart PROVES rather than
 stores (\ref slideOutKeyframe, \ref arrivesIntoNextHead); a bend value there is the curve's last
 value.
@@ -1715,11 +1715,10 @@ it: with the point gone that leg would cover the stretch at the same width, so n
 while a point beginning an UNVIBRATED leg after a vibrated one says something whatever else it
 states — so a keyframe carrying no channel at all is the stored form of vibrato ending where
 nothing else changes, and a bare keyframe after an unvibrated leg is silent like any other silent
-point. What this buys every reader: a stored
-note's LAST keyframe is always a statement, so "the last keyframe" and "the last thing the tail
-says" are one offset (\ref chartPresentation rule 4). Such a point is AUTHORING STATE, never
-document: the editor plants one as the start of a
-slide before the landing exists and a charter gives it its meaning second, while the document
+point. What this buys every reader: a stored note's LAST keyframe is always a statement, so "the
+last keyframe" and "the last thing the tail says" are one offset (\ref chartPresentation,
+tail rule 4). Such a point is AUTHORING STATE, never document: the editor plants one as the start
+of a slide before the landing exists and a charter gives it its meaning second, while the document
 writer sheds it (\ref documentChart) and the load repair sheds one that arrives
 (\ref stripSilentKeyframes), so the all-equal junk path is unrepresentable in every saved chart.
 How long it lives in memory is the editor's own rule — no undo entry ever records one, and it

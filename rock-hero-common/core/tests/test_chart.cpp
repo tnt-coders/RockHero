@@ -2829,8 +2829,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
     {
         // E25 lives outside the stored form: a dead note's damped stroke has a duration like any
         // other, and that duration is the timing the legato adjacency test reads. What it does NOT
-        // have is a drawn tail — that is chartPresentation rule 4, covered in
-        // test_chart_presentation.cpp — so nothing here refuses or trims one.
+        // have is a drawn tail — that is tail rule 3, covered in test_chart_presentation.cpp — so
+        // nothing here refuses or trims one.
         ChartNote plain_tail = make_note(1, 1, 5);
         plain_tail.dead = true;
         plain_tail.sustain = Fraction{1, 4};
@@ -3918,9 +3918,9 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         CHECK(memory_resolutions.holds[0] == Fraction{});
         CHECK(memory_resolutions.holds[2] == Fraction{});
         // The scrape holds exactly what it draws: its quarter-note gesture, spaced a margin before
-        // the head a quarter later like every other drawn tail — its terminal is the statement at
-        // its ring's end, and rule 2 carries that with the drawn end. A number of its own is what
-        // says the two zeros above are the mute rather than a span that failed to cover the onset.
+        // the head a quarter later like every other drawn tail (tail rule 1), its terminal keeping
+        // its stored instant past the crop. A number of its own is what says the two zeros above
+        // are the mute rather than a span that failed to cover the onset.
         CHECK(memory_resolutions.holds[1] == Fraction{9, 40});
         CHECK(memory_resolutions.holds[0] == saved_resolutions.holds[0]);
         CHECK(memory_resolutions.holds[1] == saved_resolutions.holds[1]);

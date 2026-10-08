@@ -455,8 +455,7 @@ bool clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     // survives, whatever it states — and the end's own statement, arriving back on top of it,
     // overlays it (setEndStatement). Where that end is a head of the note's own string the
     // statement STANDS on it, which is what the store says the hands did; presentation only stops
-    // the ink one margin before that head (chartPresentation rule 1). Heads are no business of a
-    // clip.
+    // the ink one margin before that head (tail rule 1). Heads are no business of a clip.
     bool lost = std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
                     return note.sustain < keyframe.offset;
                 }) != 0;

@@ -19,9 +19,9 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Rule 1 for one note whose ring the onset `gap` whole notes ahead binds: the ink stops one margin
-// before that onset and never before the note's own onset. The margin belongs to the BINDING
-// ONSET, not to the ringing note: it is that head's spacing being kept, and the margin is a
+// Tail rule 1 for one note whose ring the onset `gap` whole notes ahead binds: the ink stops one
+// margin before that onset and never before the note's own onset. The margin belongs to the
+// BINDING ONSET, not to the ringing note: it is that head's spacing being kept, and the margin is a
 // duration, so a tempo change between the two would otherwise measure it at the wrong rate. A ring
 // that ends at or before the crop is free and keeps its whole length.
 [[nodiscard]] Fraction croppedInkEnd(
@@ -31,12 +31,13 @@ namespace
     return std::min(note.sustain, std::max(gap - margins.length(binding_onset), Fraction{}));
 }
 
-// Rule 1 for one note: the binding onset is the first later onset the ring does not run STRICTLY
-// past, so a ring ending exactly on an onset binds there — the ordinary let-ring collision. The
-// scan starts where the note's own onset group ends and stops at the first onset that binds, so an
-// ordinary tail reads a single onset and only a ring reaching past a head walks further. Passing
-// an onset at all — a tie merged across a neighbour, a cross-voice hold — is reported through
-// `deliberate_hold`, which rule 2 reads as a statement without switching the crop off.
+// Tail rule 1 for one note: the binding onset is the first later onset the ring does not run
+// STRICTLY past, so a ring ending exactly on an onset binds there — the ordinary let-ring
+// collision. The scan starts where the note's own onset group ends and stops at the first onset
+// that binds, so an ordinary tail reads a single onset and only a ring reaching past a head walks
+// further. Passing an onset at all — a tie merged across a neighbour, a cross-voice hold — is
+// reported through `deliberate_hold`, which tail rule 2 reads as a statement without switching the
+// crop off.
 [[nodiscard]] Fraction inkEndOf(
     const ChartConnections& connections, const std::size_t index, const std::size_t group_end,
     const HeadMargins& margins, bool& deliberate_hold)
@@ -57,8 +58,8 @@ namespace
     return note.sustain;
 }
 
-// Rule 2's per-member earning: any keyframe at all, whichever channel it states — a mid-ring curl
-// and delayed vibrato ride the tail exactly as a glide does — or a ring longer than the
+// Tail rule 2's per-member earning: any keyframe at all, whichever channel it states — a mid-ring
+// curl and delayed vibrato ride the tail exactly as a glide does — or a ring longer than the
 // kept-sustain bound. The ring is measured in SECONDS through the tempo map, because the bound is
 // a duration: the same written value earns at a slow tempo and not at a fast one. Whole-note
 // techniques (muting, emphasis, harmonics) are deliberately absent: they say the same thing with or
@@ -71,7 +72,7 @@ namespace
            note.tremolo || end - onset > g_minimum_kept_sustain_seconds;
 }
 
-// Rule 3 (E25): a dead note rings nothing, so a plain tail on one is silence pretending to be
+// Tail rule 3 (E25): a dead note rings nothing, so a plain tail on one is silence pretending to be
 // sound. Repeated raking (a chug) or a dragged mute keeps a dead string making noise or
 // travelling, and keeps its tail; a scrape always carries a slide-out, so a dead scrape keeps its
 // gesture.
@@ -121,11 +122,11 @@ namespace
 } // namespace
 
 // One walk over the onset groups — every note at one grid position, contiguous in the sorted
-// stream — because rule 2's verdict is the GROUP's: every string of a chord rings from one stroke,
-// so a tail any member earned keeps every member's and a group that earned none draws none. Rules
-// 1 and 3 are per member and need no order; THE TAIL LAW (rule 4) reads each member's final ink end
-// and only ever MARKS what the first three left standing. THE CURTAIN IS UNIVERSAL: a chart with
-// no furniture at all rests exactly the same tails as one full of it.
+// stream — because tail rule 2's verdict is the GROUP's: every string of a chord rings from one
+// stroke, so a tail any member earned keeps every member's and a group that earned none draws none.
+// Tail rules 1 and 3 are per member and need no order; THE TAIL LAW (tail rule 4) reads each
+// member's final ink end and only ever MARKS what the first three left standing. THE CURTAIN IS
+// UNIVERSAL: a chart with no furniture at all rests exactly the same tails as one full of it.
 ChartPresentation chartPresentation(
     const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map)
 {
@@ -160,8 +161,9 @@ ChartPresentation chartPresentation(
             }
             // The tail law's SCOPE: judged of fretting-hand members alone — a right-hand onset
             // joins no posture and extends no ring (\ref deriveChartShapes), so it is no member of
-            // what a grip states — and of tails that still draw, so a tail rules 2 and 3 emptied
-            // never rests and the hold channel never claims a length those rules judged away.
+            // what a grip states — and of tails that still draw, so a tail that tail rules 2 and 3
+            // emptied never rests and the hold channel never claims a length those rules judged
+            // away.
             const Fraction ink_end = presentation.ink_end[index];
             presentation.rested_from.push_back(
                 rightHandOnset(notes[index].attack) || ink_end.numerator <= 0
@@ -252,8 +254,8 @@ std::vector<Fraction> chartHolds(
                 // THE RESTING member's own floor, and it lives HERE because span coverage is what
                 // earns it: a covered resting member holds at least its own stored ring, which
                 // MAY exceed the span's reach — the honest hold, because the string genuinely
-                // rings there. A rule-2 or rule-3 emptied member carries no verdict and takes the
-                // reach alone.
+                // rings there. A member tail rule 2 emptied carries no verdict and takes the reach
+                // alone; a dead one was skipped above.
                 if (rests && held[member] < note.sustain)
                 {
                     held[member] = note.sustain;

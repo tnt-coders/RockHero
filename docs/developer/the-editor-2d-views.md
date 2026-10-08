@@ -404,7 +404,7 @@ Four consequences worth knowing before touching this:
   (`chartSteppedKeyframeOffset` and the duration verb both ask `ringEndWithinBound`). Every other
   point is bounded by its own ring's END instead, and a step that would reach it is refused, so a
   move never turns a point into the slide-out. Presentation moves no keyframe: the ink stops one
-  minimum sustain distance before the onset that binds the tail (presentation rule 1), and a
+  minimum sustain distance before the onset that binds the tail (tail rule 1), and a
   statement standing past that crop — an end statement on the next head included — is in the
   ring's ENDING ZONE, drawn at its stored instant only under the reveal. A drawn chip is keyed by
   the offset the chart states (`KeyframeViewState::offset`), so click, caret and the accent ring
@@ -1028,8 +1028,8 @@ ease.
 
 **The ring reveal** is how the length you cannot see becomes visible while you author it. The lane
 stops every tail at its ink end, so the ring a note actually sounds for — what `Alt`+wheel edits —
-is invisible past that crop, and wherever rules 2 and 3 emptied a tail. One rule decides how far
-the lane draws (`core::chartPresence`): a note draws on to its **ring end** while the
+is invisible past that crop, and wherever tail rules 2 and 3 emptied a tail. One rule decides how
+far the lane draws (`core::chartPresence`): a note draws on to its **ring end** while the
 whole-lane `Alt` reveal is held, while it is selected, or while the caret stands on it, and to its
 ink end otherwise.
 
@@ -1067,10 +1067,10 @@ picture, such as a hairline outline at tail height, could not be. There is one r
 style choice.
 
 One glyph consequence follows from drawing past every presentation rule, and it is accepted: a
-**dead note grows a tail** (rule 3 is a presentation rule, and the reveal draws the stored ring),
-which reads as how long the mute is held. Every keyframe stands at its stored instant in both
-states; one in the ring's ending zone simply appears under the reveal, so a shift-slide's arrival
-on the next head draws its **linked continuation head** there (`linkedKeyframe`).
+**dead note grows a tail** (tail rule 3 is a presentation rule, and the reveal draws the stored
+ring), which reads as how long the mute is held. Every keyframe stands at its stored instant in
+both states; one in the ring's ending zone simply appears under the reveal, so a shift-slide's
+arrival on the next head draws its **linked continuation head** there (`linkedKeyframe`).
 
 Six things about it are deliberate:
 

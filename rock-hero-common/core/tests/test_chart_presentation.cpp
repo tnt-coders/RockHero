@@ -145,8 +145,8 @@ struct SpanFigure
     return figure;
 }
 
-// Where each stored note's ink stops: rules 1 through 3, which the tail law never moves. There is
-// no furniture argument — the curtain is universal and presentation reads no spans at all — so
+// Where each stored note's ink stops: tail rules 1 through 3, which the tail law never moves. There
+// is no furniture argument — the curtain is universal and presentation reads no spans at all — so
 // every case below asks presentation one way, and only \ref holdsUnderSpans names a span.
 [[nodiscard]] std::vector<Fraction> inkEndsOf(
     const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
@@ -154,8 +154,9 @@ struct SpanFigure
     return presentationOf(chartConnections(saved, tempo_map), tempo_map).ink_end;
 }
 
-// The ink end of a note standing entirely alone. No later onset binds it, so rule 1 crops nothing:
-// the value returned is rule 2's verdict by itself, which is what the bound's own case reads.
+// The ink end of a note standing entirely alone. No later onset binds it, so tail rule 1 crops
+// nothing: the value returned is tail rule 2's verdict by itself, which is what the bound's own
+// case reads.
 [[nodiscard]] Fraction loneTail(const ChartNote& lone, const TempoMap& tempo_map)
 {
     // One ink end per input note is \ref chartPresentation's contract, so the element is there
@@ -203,10 +204,10 @@ struct SpanFigure
 
 } // namespace
 
-// Rule 1: a tail reaching its next binding onset ends one minimum sustain distance before it, and
-// the margin is the same duration wherever it is taken — at this map's one quarter per second it
-// keeps an eightieth of a whole note clear in 4/4 and in 6/8 alike, the meter never entering it.
-TEST_CASE("Rule 1 crops a tail to the margin at its own tempo", "[core][chart]")
+// Tail rule 1: a tail reaching its next binding onset ends one minimum sustain distance before it,
+// and the margin is the same duration wherever it is taken — at this map's one quarter per second
+// it keeps an eightieth of a whole note clear in 4/4 and in 6/8 alike, the meter never entering it.
+TEST_CASE("Tail rule 1 crops a tail to the margin at its own tempo", "[core][chart]")
 {
     const TempoMap map = meterChangeMap();
     const std::vector<ChartNote> saved = {
@@ -233,12 +234,12 @@ TEST_CASE("Rule 1 crops a tail to the margin at its own tempo", "[core][chart]")
     CHECK(saved[2].sustain == Fraction{3, 8});
 }
 
-// Rule 1's binding onset is the first SOUNDING onset the ring does not PASS, passing meaning
+// Tail rule 1's binding onset is the first SOUNDING onset the ring does not PASS, passing meaning
 // running strictly past it. So a ring-through keeps looking rather than escaping the crop: it
 // binds on the first onset it merely reaches, and only a ring nothing binds inks whole. An
 // exemption switching clipping off for every ring-through would let a tail die on a later head
 // with no gap at all.
-TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]")
+TEST_CASE("Tail rule 1 binds on the first onset a ring does not pass", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
 
@@ -306,8 +307,8 @@ TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]
             note(at(1, 1, Fraction{1, 2}), 2, Fraction{1, 4}),
             note(at(1, 2), 3, Fraction{1, 4}),
         };
-        // A whole-note technique states no keyframe, so it only earns the group its tail (rule 2)
-        // and leaves rule 1's arithmetic to speak for itself.
+        // A whole-note technique states no keyframe, so it only earns the group its tail (tail
+        // rule 2) and leaves tail rule 1's arithmetic to speak for itself.
         saved[0].vibrato = VibratoState::Narrow;
 
         const std::vector<Fraction> ink = inkEndsOf(saved, map);
@@ -319,10 +320,10 @@ TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]
     }
 }
 
-// Rule 1 crops a ring-through exactly as it crops any other bound tail, because the crop is the
-// same one call: nothing about passing an earlier onset changes where the ink stops at the end
+// Tail rule 1 crops a ring-through exactly as it crops any other bound tail, because the crop is
+// the same one call: nothing about passing an earlier onset changes where the ink stops at the end
 // that binds, and no keyframe the ring carries moves that end.
-TEST_CASE("Rule 1's crop reaches a ring-through", "[core][chart]")
+TEST_CASE("Tail rule 1's crop reaches a ring-through", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // Two quarters of ring over an onset a quarter in and another two quarters in: the ring passes
@@ -388,8 +389,9 @@ TEST_CASE("Rule 1's crop reaches a ring-through", "[core][chart]")
     }
 }
 
-// Rule 2's earning input: a ring that passes an onset is still a statement — a tie merged across a
-// neighbour, a cross-voice hold — so it earns its group's tails even though the ring itself crops.
+// Tail rule 2's earning input: a ring that passes an onset is still a statement — a tie merged
+// across a neighbour, a cross-voice hold — so it earns its group's tails even though the ring
+// itself crops.
 TEST_CASE("A cropped ring-through still earns its group's tails", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -418,13 +420,13 @@ TEST_CASE("A cropped ring-through still earns its group's tails", "[core][chart]
     CHECK(ink[3] == Fraction{1, 4});
 }
 
-// Rule 1 crops at the margin and reads NO keyframe to do it. A head on ANOTHER string does not stop
-// the stored ring, so no chart law touches it — but it does bind the DRAWN tail, and a statement
-// standing past the crop is in the ring's ENDING ZONE, where it keeps its stored instant and a
-// reveal shows it. No statement — a point or an interval, interior or at the ring's end, a
+// Tail rule 1 crops at the margin and reads NO keyframe to do it. A head on ANOTHER string does not
+// stop the stored ring, so no chart law touches it — but it does bind the DRAWN tail, and a
+// statement standing past the crop is in the ring's ENDING ZONE, where it keeps its stored instant
+// and a reveal shows it. No statement — a point or an interval, interior or at the ring's end, a
 // slide-out, a bend or vibrato — moves or floors the ink past the crop, so every tail below keeps
 // the spacing a bare tail keeps.
-TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
+TEST_CASE("Tail rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // Two quarters of ring against a head two quarters away on ANOTHER string: the ring reaches
@@ -564,8 +566,8 @@ TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
 
 // A slide-out's ring may END EXACTLY ON the next head of its OWN string — the store holds what the
 // hands did — and PRESENTATION is the only thing that spaces it. So the stored ring survives the
-// load path untouched and the drawn one stops at rule 1's crop, the slide-out keeping its stored
-// instant at the ring's end, in the ending zone.
+// load path untouched and the drawn one stops at tail rule 1's crop, the slide-out keeping its
+// stored instant at the ring's end, in the ending zone.
 TEST_CASE("A slide-out's ring abuts the next head and its ink stops at the crop", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -699,9 +701,9 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
     CHECK_FALSE(rests[2].has_value());
 }
 
-// Rule 3's drop, with a statement standing in the dropped tail. A dead note that states only a
+// Tail rule 3's drop, with a statement standing in the dropped tail. A dead note that states only a
 // bend makes no noise and travels nowhere, so its ink is zero and the tail law skips it; the
-// stored ring and its statement are untouched, since rule 3 is presentation and nothing else.
+// stored ring and its statement are untouched, since tail rule 3 is presentation and nothing else.
 TEST_CASE("A dropped tail's ink is zero and rests nothing", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -715,17 +717,17 @@ TEST_CASE("A dropped tail's ink is zero and rests nothing", "[core][chart]")
     REQUIRE(rests.size() == saved.size());
     CHECK(ink[0] == Fraction{});
     CHECK_FALSE(rests[0].has_value());
-    // The stored ring and its statement survive the rule, as rule 3's whole point is.
+    // The stored ring and its statement survive the rule, as tail rule 3's whole point is.
     CHECK(saved[0].sustain == Fraction{1, 2});
     CHECK(saved[0].keyframes.size() == 1);
 }
 
-// Rule 2 is the only rule with a group verdict: every string of a chord rings from one stroke, so
-// a tail any member earns keeps every member's, and a group where nobody earns one presents none.
-// A tail is earned by a sustain technique, by a deliberate hold, or by an ACTUAL ring running
+// Tail rule 2 is the only rule with a group verdict: every string of a chord rings from one stroke,
+// so a tail any member earns keeps every member's, and a group where nobody earns one presents
+// none. A tail is earned by a sustain technique, by a deliberate hold, or by an ACTUAL ring running
 // LONGER than the kept-sustain bound — the actual ring, never the cropped one, because the crop is
 // presentation and the question is what the chart states.
-TEST_CASE("Rule 2 decides one tail verdict for a whole onset group", "[core][chart]")
+TEST_CASE("Tail rule 2 decides one tail verdict for a whole onset group", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     std::vector<ChartNote> saved = {
@@ -750,7 +752,7 @@ TEST_CASE("Rule 2 decides one tail verdict for a whole onset group", "[core][cha
     CHECK(ink[1] == Fraction{1, 8});
     // The identical group with no technique anywhere and no member running past the bound is a
     // chug, not a sustain, and presents no tail at all. Both members ring exactly ON the bound,
-    // which rule 2's strict comparison drops.
+    // which tail rule 2's strict comparison drops.
     CHECK(ink[2] == Fraction{});
     CHECK(ink[3] == Fraction{});
     // One member notated the shortest step past the bound earns the group's tails, and its
@@ -769,13 +771,13 @@ TEST_CASE("Rule 2 decides one tail verdict for a whole onset group", "[core][cha
 // `g_minimum_kept_sustain_seconds` has exactly one place to answer to when it moves — which it
 // will, since the bound is headed for a user-tunable option. The tempos here sit well clear of the
 // boundary, so the verdicts read the rule and not a rounding.
-TEST_CASE("Rule 2 earns a tail only for a ring past the kept-sustain bound", "[core][chart]")
+TEST_CASE("Tail rule 2 earns a tail only for a ring past the kept-sustain bound", "[core][chart]")
 {
     SECTION("the same eighth earns at a slow tempo and not at a fast one")
     {
         // At 100 BPM an eighth-note ring lasts 300 ms, past the bound; at 150 BPM the same written
         // eighth lasts 200 ms and reads as a struck note. Nothing stands after either, so the
-        // value returned is rule 2's verdict alone.
+        // value returned is tail rule 2's verdict alone.
         CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 8}), fourFourMapAt(100.0)) == Fraction{1, 8});
         CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 8}), fourFourMapAt(150.0)) == Fraction{});
         // A quarter at 150 BPM lasts 400 ms and earns: the bound is about the ring's time, never
@@ -801,8 +803,8 @@ TEST_CASE("Rule 2 earns a tail only for a ring past the kept-sustain bound", "[c
     SECTION("one earning member keeps every member's tail")
     {
         const TempoMap map = fourFourMapAt(150.0);
-        // Rule 2's atom is the onset group, so a quarter's earning carries its eighth stackmate:
-        // the verdict is the strum's, never the string's, and each keeps its own length.
+        // Tail rule 2's atom is the onset group, so a quarter's earning carries its eighth
+        // stackmate: the verdict is the strum's, never the string's, and each keeps its own length.
         const std::vector<Fraction> earned = inkEndsOf(
             {note(at(1, 1), 1, Fraction{1, 4}), note(at(1, 1), 2, Fraction{1, 8}, 7)}, map);
         REQUIRE(earned.size() == 2);
@@ -829,9 +831,9 @@ TEST_CASE("Rule 2 earns a tail only for a ring past the kept-sustain bound", "[c
     }
 }
 
-// Rules 2 and 3 meet on one strum: the keep-or-drop verdict is the GROUP's, the length is each
-// string's own. Without this pairing a double stop whose bent string earns the tail would either
-// show a lone tail beside an unsounded-looking partner (verdict per string) or stretch the
+// Tail rules 1 and 2 meet on one strum: the keep-or-drop verdict is the GROUP's, the length is
+// each string's own. Without this pairing a double stop whose bent string earns the tail would
+// either show a lone tail beside an unsounded-looking partner (verdict per string) or stretch the
 // partner's tail to the bent one's length (length shared).
 TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][chart]")
 {
@@ -848,19 +850,19 @@ TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][ch
 
     const std::vector<Fraction> ink = inkEndsOf(saved, map);
     REQUIRE(ink.size() == saved.size());
-    // An eighth sits exactly ON the kept-sustain bound and is dropped by rule 2's strict
+    // An eighth sits exactly ON the kept-sustain bound and is dropped by tail rule 2's strict
     // comparison, so only the bend earns this strum its tails — and it earns them for the plain
-    // partner too. The bent string's own length is rule 1's crop before the next onset; its curve's
-    // peak at 7/64 stands past it, in the ending zone.
+    // partner too. The bent string's own length is tail rule 1's crop before the next onset; its
+    // curve's peak at 7/64 stands past it, in the ending zone.
     CHECK(ink[0] == Fraction{1, 10});
     // The partner's own length is its whole sixteenth-note ring, not the bent string's crop.
     CHECK(ink[1] == Fraction{1, 16});
 }
 
-// Rule 3 (E25) reads the note as the earlier rules leave it: a dead string rings nothing, so a
+// Tail rule 3 (E25) reads the note as the earlier rules leave it: a dead string rings nothing, so a
 // plain tail on one is silence pretending to be sound — while tremolo (a chug) or a slide payload
 // (a dragged mute) keeps it making noise or travelling and keeps its tail.
-TEST_CASE("Rule 3 draws no tail on a dead note that makes no noise", "[core][chart]")
+TEST_CASE("Tail rule 3 draws no tail on a dead note that makes no noise", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     std::vector<ChartNote> saved = {
@@ -916,8 +918,8 @@ TEST_CASE("Ink ends reproduce the import policy's pinned crops", "[core][chart]"
             note(at(1, 1, Fraction{7, 8}), 2, Fraction{1, 32}, 7),
             note(at(1, 2), 2, Fraction{1, 4}, 8),
         };
-        // Vibrato only earns the group's tail (rule 2); it states no keyframe, so the 31/160
-        // is rule 1's arithmetic alone: 7/8 to the ornament's sounding onset, less the margin.
+        // Vibrato only earns the group's tail (tail rule 2); it states no keyframe, so the 31/160
+        // is tail rule 1's arithmetic alone: 7/8 to the ornament's sounding onset, less the margin.
         saved[0].vibrato = VibratoState::Narrow;
 
         const std::vector<Fraction> ink = inkEndsOf(saved, map);
@@ -973,8 +975,8 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
 
     const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
     REQUIRE(holds.size() == saved.size());
-    // Every chug is an eighth-note effect-free ring, so rule 2 presents no tail on any of them —
-    // and the tail law never sees one, because it skips a tail that is already empty.
+    // Every chug is an eighth-note effect-free ring, so tail rule 2 presents no tail on any of them
+    // — and the tail law never sees one, because it skips a tail that is already empty.
     for (const Fraction shown : inkEndsOf(saved, map))
     {
         CHECK(shown == Fraction{});
@@ -1089,7 +1091,7 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
 
         const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
         REQUIRE(holds.size() == saved.size());
-        // Every ring here is an effect-free eighth, so rule 2 empties all four tails and the
+        // Every ring here is an effect-free eighth, so tail rule 2 empties all four tails and the
         // span rule is the only thing left that can answer.
         for (const Fraction shown : inkEndsOf(saved, map))
         {
@@ -1124,10 +1126,10 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
     }
 }
 
-// A DEAD member of a live strum is CHOKED, never held. Rule 3 empties a dead note's plain tail, so
-// an emptiness gate alone would hand the span's whole reach to a percussive choke — the one hold
-// in the chart that would say the finger stayed down where the chart says the string was killed.
-// There is no strum count for the dead string to feed; the skip is per member, and its live
+// A DEAD member of a live strum is CHOKED, never held. Tail rule 3 empties a dead note's plain
+// tail, so an emptiness gate alone would hand the span's whole reach to a percussive choke — the
+// one hold in the chart that would say the finger stayed down where the chart says the string was
+// killed. There is no strum count for the dead string to feed; the skip is per member, and its live
 // partner is what the span pins.
 TEST_CASE("A dead member of a live strum is choked while its partners pin", "[core][chart]")
 {
@@ -1169,11 +1171,11 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
         CHECK(holds[1] == Fraction{});
     }
 
-    SECTION("a dead member whose partner keeps its ribbon is choked by rule 3 alone")
+    SECTION("a dead member whose partner keeps its ribbon is choked by tail rule 3 alone")
     {
         // A live ring OUTLIVING the span (so the tail law takes nothing and the ribbon genuinely
-        // draws), beside a dead one whose only zero is the one rule 3 makes. This is the lie in
-        // its purest form: the dead member's emptiness has nothing to do with the kept-sustain
+        // draws), beside a dead one whose only zero is the one tail rule 3 makes. This is the lie
+        // in its purest form: the dead member's emptiness has nothing to do with the kept-sustain
         // bound, and handing it the span's reach would pin a choke as a held finger.
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{9, 8}),
@@ -1199,8 +1201,8 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
 // strum just as well — but a single cursor remembering the latest STARTING span would let a short
 // one beginning inside a long one shadow it, so the strum would read as released and every
 // hammer-on or pull-off it justified would be repaired away. Every note here rings an eighth:
-// effect-free and exactly ON the kept-sustain bound, which rule 2's strict comparison drops, so no
-// tail is presented and the span rule is what answers.
+// effect-free and exactly ON the kept-sustain bound, which tail rule 2's strict comparison drops,
+// so no tail is presented and the span rule is what answers.
 TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1261,10 +1263,10 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
     }
 }
 
-// THE TAIL LAW (rule 4 of chartPresentation, the one authority; THE CURTAIN IS UNIVERSAL): a
+// THE TAIL LAW (tail rule 4 in chartPresentation, the one authority; THE CURTAIN IS UNIVERSAL): a
 // tail that shows no technique information RESTS, and the law PUBLISHES the verdict while EMPTYING
-// NOTHING. Each case below pins its resting tails at the bare rules-1-to-3 form, and reads verdicts
-// off the published offsets rather than off emptied tails.
+// NOTHING. Each case below pins its resting tails at the bare tail-rules-1-to-3 form, and reads
+// verdicts off the published offsets rather than off emptied tails.
 //
 // NO CASE HERE STATES A SPAN, and that absence is the law: coverage is no part of it, so a chart
 // with no furniture at all rests exactly the tails a bracketed one does. `holdsUnderSpans` is where
@@ -1311,8 +1313,8 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
         // same: coverage is no part of the verdict.
         CHECK(hidden[0]);
         CHECK(rests[0] == std::optional{Fraction{}});
-        // The 2D-facing length is untouched by any of it: rule 1's margin crop against the filler
-        // a measure on, and nothing else.
+        // The 2D-facing length is untouched by any of it: tail rule 1's margin crop against the
+        // filler a measure on, and nothing else.
         CHECK(shown[0] == Fraction{39, 40});
         // THE HOLD DECISION, and the two candidate answers sit strictly apart: the ink end 39/40
         // is what a lone resting note holds, NOT the stored four quarters a resting-keyed floor
@@ -1339,8 +1341,8 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
         const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(saved, map);
         REQUIRE(ink.size() == 2);
         REQUIRE(rests.size() == 2);
-        // Rule 1 binds the source at its successor's head, a margin short; the landmark is that
-        // very end.
+        // Tail rule 1 binds the source at its successor's head, a margin short; the landmark is
+        // that very end.
         CHECK(ink[0] == Fraction{19, 40});
         CHECK(rests[0] == std::optional{Fraction{19, 40}});
         CHECK_FALSE(hasRestingRemainder(rests[0], ink[0]));
@@ -1383,8 +1385,8 @@ TEST_CASE("A co-terminating let-ring figure rests ribbonless", "[core][chart]")
         CHECK(hidden[2]);
         // The verdict empties no tail: hidden means the BOARD rests it — suppressed at distance,
         // revealed as the head approaches the hit line — while the ink end keeps its
-        // rules-1-to-3 form. Rule 1 leaves all three whole, because each passes the onsets after
-        // it.
+        // tail-rules-1-to-3 form. Tail rule 1 leaves all three whole, because each passes the
+        // onsets after it.
         CHECK(shown == std::vector<Fraction>{Fraction{1}, Fraction{3, 4}, Fraction{1, 2}});
     }
 
@@ -1396,7 +1398,7 @@ TEST_CASE("A co-terminating let-ring figure rests ribbonless", "[core][chart]")
         // tenure.
         //
         // The whole of it lives in the VERDICT: the law empties no tail it hides, so both members
-        // present their rules-1-to-3 rings and only `hidden` says which one the board rests.
+        // present their tail-rules-1-to-3 rings and only `hidden` says which one the board rests.
         // Whether the pair co-terminates or the first outlives the second discriminates nothing —
         // that question only asks whether a member left a span's reach, and no span reaches
         // anything here — so the outliving twin of this figure is pinned once, on the co-struck
@@ -1414,16 +1416,16 @@ TEST_CASE("A co-terminating let-ring figure rests ribbonless", "[core][chart]")
         CHECK(hidden[0]);
         CHECK(hidden[1]);
         // The verdict empties no tail: hidden means the board rests it, and the value here is the
-        // rules-1-to-3 form, which rule 1 leaves whole on both members (each passes every onset
-        // after it).
+        // tail-rules-1-to-3 form, which tail rule 1 leaves whole on both members (each passes
+        // every onset after it).
         CHECK(shown == std::vector<Fraction>{Fraction{1}, Fraction{1, 2}});
     }
 }
 
 // A head standing INSIDE the ring is no part of the verdict: the law hides ALL tails except the
 // explicit exceptions, and "some later sounding head stands visibly within the ring" is not one of
-// them. `ringPassesHead` therefore carries no clearance parameter — rule 1 is the only caller, and
-// it asks for none.
+// them. `ringPassesHead` therefore carries no clearance parameter — tail rule 1 is the only caller,
+// and it asks for none.
 //
 // The pair below differs only in how far a head inside the ring sits from the ring's end, and both
 // halves answer the same way: where that head sits, and whether it clears the margin, buys the
@@ -1449,8 +1451,8 @@ TEST_CASE("A head inside the ring is no part of the verdict", "[core][chart]")
         REQUIRE(hidden.size() == 2);
         CHECK(hidden[0]);
         // The verdict empties no tail: hidden means the board rests it, and the value is the
-        // rules-1-to-3 form — the whole four quarters, since the ring passes that inner head by
-        // half a quarter and nothing binds it after.
+        // tail-rules-1-to-3 form — the whole four quarters, since the ring passes that inner head
+        // by half a quarter and nothing binds it after.
         CHECK(shown[0] == Fraction{1});
     }
 
@@ -1497,7 +1499,8 @@ TEST_CASE("A tap is no member the curtain may take", "[core][chart]")
         CHECK(hidden[0]);
         CHECK(hidden[1]);
         // The verdict empties no tail: hidden means the board rests it, and the value is the
-        // rules-1-to-3 form — the partner's notated three quarters, nothing being struck after it.
+        // tail-rules-1-to-3 form — the partner's notated three quarters, nothing being struck after
+        // it.
         CHECK(shown[1] == Fraction{3, 4});
     }
 
@@ -1515,8 +1518,8 @@ TEST_CASE("A tap is no member the curtain may take", "[core][chart]")
         CHECK(shown[1] == Fraction{3, 4});
         CHECK_FALSE(hidden[1]);
         // And the ring underneath it is judged on its own account — a head standing inside a ring
-        // is no part of the verdict. Rested, not shortened: rule 1 lets it pass the tap's head and
-        // nothing else binds, so its ribbon is four whole quarters.
+        // is no part of the verdict. Rested, not shortened: tail rule 1 lets it pass the tap's head
+        // and nothing else binds, so its ribbon is four whole quarters.
         CHECK(shown[0] == Fraction{1});
         CHECK(hidden[0]);
     }
@@ -1555,7 +1558,7 @@ TEST_CASE("Co-struck plain members each rest", "[core][chart]")
         CHECK(hidden[0]);
         CHECK(hidden[1]);
         // Rested, not shortened: both rings pass the head a quarter in and nothing binds them
-        // after, so each inks its notated four quarters — the rules-1-to-3 form.
+        // after, so each inks its notated four quarters — the tail-rules-1-to-3 form.
         CHECK(shown[0] == Fraction{1});
         CHECK(shown[1] == Fraction{1});
     }
@@ -1649,7 +1652,7 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
         CHECK(gliding_rests[0] == std::optional{Fraction{1, 2}});
         // The control differs by that one keyframe and by nothing else: the plain ring states
         // nothing, so it rests from its head. The law empties nothing either way — both present
-        // the same rules-1-to-3 four quarters.
+        // the same tail-rules-1-to-3 four quarters.
         CHECK(planted[0] == Fraction{1});
         CHECK(planted_rests[0] == std::optional{Fraction{}});
     }
@@ -1678,16 +1681,16 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
 
         REQUIRE(junction.size() == 3);
         REQUIRE(death.size() == 3);
-        // The handover keeps the ring, and rule 1 then binds it at the successor's own head — the
-        // ordinary trim, applied to the ring the chart states. Its statement finishes THERE, at
+        // The handover keeps the ring, and tail rule 1 then binds it at the successor's own head —
+        // the ordinary trim, applied to the ring the chart states. Its statement finishes THERE, at
         // the takeover, so it rests from its ribbon's own end: the whole 19/40 is stated portion
         // and the curtain owns none of it.
         CHECK(junction[0] == Fraction{19, 40});
         CHECK(junction_rests[0] == std::optional{Fraction{19, 40}});
         // The natural death states nothing of its own, so the board rests it from the head. The
         // verdict empties no tail, which is at its sharpest here: the released ring draws the
-        // very same rules-1-to-3 trim as the handover — 19/40, rule 1's margin short of the
-        // successor's head — and the whole of what the claim buys is the landmark.
+        // very same tail-rules-1-to-3 trim as the handover — 19/40, tail rule 1's margin short of
+        // the successor's head — and the whole of what the claim buys is the landmark.
         CHECK(death_rests[0] == std::optional{Fraction{}});
         CHECK(death[0] == Fraction{19, 40});
         CHECK(death[0] == junction[0]);
@@ -1698,15 +1701,15 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
     }
 }
 
-// VERDICT-ONLY, AND LAST. The law judges the tails rules 1 through 3 left standing — it empties
-// none of them — and skips every tail those rules already emptied, so a zero from rule 2 or rule 3
-// never enters the hidden set, which is what keeps a staccato eighth and a dead chug out of the
-// hold channel's span extension.
+// VERDICT-ONLY, AND LAST. The law judges the tails that tail rules 1 through 3 left standing — it
+// empties none of them — and skips every tail those rules already emptied, so a zero from tail
+// rule 2 or tail rule 3 never enters the hidden set, which is what keeps a staccato eighth and a
+// dead chug out of the hold channel's span extension.
 TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
 
-    SECTION("a dead member is emptied by rule 3, and its partner is judged alone")
+    SECTION("a dead member is emptied by tail rule 3, and its partner is judged alone")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1}),
@@ -1720,20 +1723,20 @@ TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[
 
         REQUIRE(shown.size() == 3);
         // Telling the two emptinesses apart is why the verdict is published, and only ONE of them
-        // is a zero: the law empties nothing, so the hidden member draws its rules-1-to-3 ink
-        // — four whole quarters, its ring passing the head a quarter in with nothing binding it
-        // after.
+        // is a zero: the law empties nothing, so the hidden member draws its tail-rules-1-to-3
+        // ink — four whole quarters, its ring passing the head a quarter in with nothing binding
+        // it after.
         CHECK(hidden[0]);
         CHECK(shown[0] == Fraction{1});
-        // Rule 3's zero, which the law never sees and never marks.
+        // Tail rule 3's zero, which the law never sees and never marks.
         CHECK_FALSE(hidden[1]);
         CHECK(shown[1] == Fraction{});
     }
 
-    SECTION("an effect-free member on the bound is dropped by rule 2, never hidden")
+    SECTION("an effect-free member on the bound is dropped by tail rule 2, never hidden")
     {
-        // Plucks ringing exactly the bound: rule 2 drops both, in a figure the law IS live in —
-        // the long member above them is hidden, so nothing here passes by the law being inert.
+        // Plucks ringing exactly the bound: tail rule 2 drops both, in a figure the law IS live in
+        // — the long member above them is hidden, so nothing here passes by the law being inert.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 2, Fraction{1}, 7),
             note(at(1, 3), 1, Fraction{1, 8}, 5),
@@ -1758,11 +1761,11 @@ TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[
 // THE HOLD IS THE TENURE: while the grip is held the board pins what is held, so a hidden member
 // under a span is held to that span's reach — the restrike interior included, whose own ring the
 // restrike replaced without the finger ever lifting. In this lone figure the two answers coincide
-// (the ring dies where the span closes), and one load-bearing pin is left: the rules-1-to-3 margin
-// trim, which is the ribbon the member actually presents and therefore the number the extension is
-// likeliest to pick up. The COVERAGE key is what the universal curtain leaves standing here:
-// resting does not imply a span, so the stored-ring floor lives inside the covered walk and a lone
-// resting note keeps its drawn tail instead.
+// (the ring dies where the span closes), and one load-bearing pin is left: the tail-rules-1-to-3
+// margin trim, which is the ribbon the member actually presents and therefore the number the
+// extension is likeliest to pick up. The COVERAGE key is what the universal curtain leaves
+// standing here: resting does not imply a span, so the stored-ring floor lives inside the covered
+// walk and a lone resting note keeps its drawn tail instead.
 TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1770,7 +1773,7 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
         ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
     };
     // A lone whole-note ring dying at the span's close, with the statement that closes it standing
-    // on the next downbeat: rule 1 binds the ribbon a margin short of that head, so the stored
+    // on the next downbeat: tail rule 1 binds the ribbon a margin short of that head, so the stored
     // ring and the drawn ribbon are two different numbers and the hold has to name the first.
     const std::vector<ChartNote> saved = {
         note(at(1, 1), 1, Fraction{1}),
@@ -1786,7 +1789,7 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
     REQUIRE(shown.size() == 2);
     CHECK(hidden[0]);
     // The verdict empties no tail: hidden means the board rests it, and the value is the
-    // rules-1-to-3 form — 39/40, one margin short of the closing statement's head.
+    // tail-rules-1-to-3 form — 39/40, one margin short of the closing statement's head.
     CHECK(shown[0] == Fraction{39, 40});
     // The span's reach from its onset: four quarters. NOT the 39/40 the margin crop leaves standing
     // on the ribbon, which is the whole of what the extension must not pick up.
@@ -1890,8 +1893,8 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
         CHECK(rests[1] == std::optional{Fraction{1, 10}});
         CHECK(rests[2] == std::optional{Fraction{}});
         // Rested, never shortened: the partner inks its notated two quarters, and the handover's
-        // ribbon is bound at the takeover by rule 1 — the margin short of the slide-out's head —
-        // which is exactly where its landmark sits.
+        // ribbon is bound at the takeover by tail rule 1 — the margin short of the slide-out's
+        // head — which is exactly where its landmark sits.
         CHECK(shown[0] == Fraction{1, 2});
         CHECK(shown[1] == Fraction{1, 10});
     }
@@ -1995,7 +1998,7 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
         {
             CHECK(figure.hidden[index]);
             // The verdict empties no tail: hidden means the board rests it, and the value is the
-            // rules-1-to-3 form — the picture with no furniture at all, member for member.
+            // tail-rules-1-to-3 form — the picture with no furniture at all, member for member.
             CHECK(figure.ink_end[index] == bare[index]);
         }
         // That form concretely: each strike but the last binds on the next one a quarter away and
@@ -2007,8 +2010,8 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
 
     SECTION("a chug under a box still shows nothing, because presentation emptied it")
     {
-        // The discrimination: what keeps a chugged riff clean under a box is rule 2's earning, not
-        // anything span-scoped, and the law never sees an empty tail.
+        // The discrimination: what keeps a chugged riff clean under a box is tail rule 2's earning,
+        // not anything span-scoped, and the law never sees an empty tail.
         const SpanFigure figure = spanFigure(
             {
                 note(at(1, 1), 1, Fraction{1, 16}),
@@ -2045,7 +2048,7 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
         CHECK(figure.hidden[1]);
         CHECK(figure.hidden[2]);
         // The verdict empties no tail: hidden means the board rests it, and the value is the
-        // rules-1-to-3 form. Nothing binds any of these three — the carry passes the strum's
+        // tail-rules-1-to-3 form. Nothing binds any of these three — the carry passes the strum's
         // heads, and the strum has nothing after it — so all three present their notated rings.
         CHECK(figure.ink_end[0] == bare[0]);
         CHECK(figure.ink_end[1] == bare[1]);
@@ -2090,8 +2093,8 @@ TEST_CASE("A founding strum grows in place and the whole figure goes ribbonless"
     // THE CLOSER GOES WITH THEM: every ring dies at the one close.
     CHECK(figure.hidden[3]);
     // The verdict empties no tail: hidden means the board rests it, and the value is the
-    // rules-1-to-3 form. Every ring here passes the heads after it, so the whole figure presents
-    // its notated lengths.
+    // tail-rules-1-to-3 form. Every ring here passes the heads after it, so the whole figure
+    // presents its notated lengths.
     for (std::size_t index = 0; index < 4; ++index)
     {
         CHECK(figure.ink_end[index] == bare[index]);
@@ -2135,7 +2138,7 @@ TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
         CHECK(hidden[index]);
         // The span's reach from each step's own onset — every finger stays down to the one close,
         // which is the discrimination against the quarter-note stored rings and, on the three steps
-        // rule 1 crops, against the drawn ribbons.
+        // tail rule 1 crops, against the drawn ribbons.
         CHECK(holds[index] == Fraction{static_cast<int>(4 - index), 4});
     }
     // The verdict empties no tail, so each step but the last binds on the next head a quarter away

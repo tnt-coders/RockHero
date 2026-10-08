@@ -447,9 +447,9 @@ struct NoteViewState
     is revealed. Equals \ref start_seconds where the note draws no tail at all.
 
     Within [\ref start_seconds, \ref ring_end_seconds]: the ring end for a free tail, one margin
-    before the binding head for a bound one (\ref chartPresentation rule 1), the onset for a
-    tail rules 2 and 3 emptied. This is the whole of what the 2D lane draws and the length scoring
-    judges to; the 3D board additionally pins a span-held strum's heads past it
+    before the binding head for a bound one (\ref chartPresentation, tail rule 1), the onset for a
+    tail emptied by tail rules 2 and 3. This is the whole of what the 2D lane draws and the length
+    scoring judges to; the 3D board additionally pins a span-held strum's heads past it
     (\ref ChartViewState::display_hold_ends). The tail law can only MARK this length (\ref rested),
     never move or empty it.
     */

@@ -286,11 +286,12 @@ and belongs to the user rather than to a patch.
 ### The kept-sustain bound is one duration for every song — trigger: a song whose tails read wrong at a quarter second
 
 The bound that earns a drawn tail is a real duration, `g_minimum_kept_sustain_seconds` in
-`grid_arithmetic.h`, read by rule 2 of `chartPresentation` against each ring's length through the
-tempo map. Signed on sighting at 250 ms: an eighth earns below 120 BPM and drops above, a quarter
-earns below 240, and the corpus census stood at 65,196 tails after the tail rules. The tempo map is
-constant between anchors, so a verdict can only change at an anchor. Perception literature puts the
-short-versus-held boundary at 200 to 300 ms, so the value has a band to move in.
+`grid_arithmetic.h`, read by tail rule 2 (`chartPresentation`) against each ring's length through
+the tempo map. Signed on sighting at 250 ms: an eighth earns below 120 BPM and drops above, a
+quarter earns below 240, and the corpus census stood at 65,196 tails after the tail rules. The
+tempo map is constant between anchors, so a verdict can only change at an anchor. Perception
+literature puts the short-versus-held boundary at 200 to 300 ms, so the value has a band to move
+in.
 
 **Trigger:** a sighted song reads too dense or too bare at this value, or a song with an internal
 tempo change flips its eighths at the anchor in a way that reads as a musical statement rather
@@ -418,10 +419,10 @@ reads off; that one is the FHP window motion (`docs/plans/completed/fhp-window-m
 ### A payload-driven sustain extension can still earn a chug group its tails — trigger: a sighting shows a short chug group keeping tails it never deserved
 
 RE-SCOPED 2026-08-29 (user: "rescope to that residual"). The dangerous half of this item is dead:
-rule 1's hold exemption was deleted outright (commit 71162316 — the trim now binds on the first
-onset a ring does not pass), so a manufactured "deliberate hold" can no longer draw a whole ring
-uncut through later heads. What survives is rule 2's EARNING only: `chartPresentation` still
-asks whether the stored ring passes the next onset to decide whether a group's tails draw at
+tail rule 1's hold exemption was deleted outright (commit 71162316 — the trim now binds on the
+first onset a ring does not pass), so a manufactured "deliberate hold" can no longer draw a whole
+ring uncut through later heads. What survives is tail rule 2's EARNING only: `chartPresentation`
+still asks whether the stored ring passes the next onset to decide whether a group's tails draw at
 all, and the importer's `resolveSlideIns` / slide-out synthesis can **extend** a stored ring,
 floored at the slide window (`minimumSlideWindow`, `g_minimum_slide_window_seconds`). If that
 extension is what carries the ring past the onset, importer-fabricated geometry earns a short chug

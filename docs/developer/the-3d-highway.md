@@ -367,9 +367,9 @@ re-admits, and it modulates alpha only, never length — the verdict is publishe
 surfaces, so neither decides tail suppression at its own draw site.
 
 **THE HOLD IS THE TENURE**: every live fretting-hand member covered by a span, whose tail rests or
-was never earned, is held to the span's reach — resting and rule-2-emptied members alike, because
-under grip tenure coverage past a member's ring IS the renewal record: a re-strike replaces the
-sound, never the finger, so the note's own ring never cuts the hold short. (Keying on the ring
+was never earned, is held to the span's reach — resting and tail-rule-2-emptied members alike,
+because under grip tenure coverage past a member's ring IS the renewal record: a re-strike replaces
+the sound, never the finger, so the note's own ring never cuts the hold short. (Keying on the ring
 instead releases the pins at every slow restrike while the faster chugs hold — a hold that works
 only sometimes.) A member whose tail STANDS — still stating at its own end — states its own hold,
 and so does one no span covers: every plain note outside any furniture rests, and it is held to its

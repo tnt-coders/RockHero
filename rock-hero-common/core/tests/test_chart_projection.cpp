@@ -95,9 +95,10 @@ namespace
         // Shift-slide pair, written the way the store holds it: the stop sits exactly AT the ring's
         // end, ON the re-picked landing's own onset, and what tells that statement from a slide-out
         // is the RELATION — it names the very stop the next head is struck at, at the same instant
-        // (arrivesIntoNextHead). Rule 1 then stops the ink one margin before the landing, so the
-        // arrival stands in the ending zone at its stored instant — LINKED, drawing its own head
-        // there under a reveal — and only the resolved relation says the slide-out flag is false.
+        // (arrivesIntoNextHead). Tail rule 1 then stops the ink one margin before the landing, so
+        // the arrival stands in the ending zone at its stored instant — LINKED, drawing its own
+        // head there under a reveal — and only the resolved relation says the slide-out flag is
+        // false.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
@@ -181,8 +182,8 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(state.notes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.notes[1].start_seconds == Catch::Approx(4.0 * beat));
     // Its own thirty-second-note ring is far under the kept-sustain bound, but its chord partner's
-    // whole quarter runs past it, and rule 2's verdict is the GROUP's — one stroke sounds every
-    // string, so a lone tail beside partners that look unsounded is a picture no strum makes.
+    // whole quarter runs past it, and tail rule 2's verdict is the GROUP's — one stroke sounds
+    // every string, so a lone tail beside partners that look unsounded is a picture no strum makes.
     CHECK(state.notes[1].ink_end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.notes[3];
@@ -213,8 +214,8 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK_FALSE(sliding.end_head.has_value());
 
     // The shift glide STATES its arrival on the landing, and the ink stops the minimum sustain
-    // distance before it, where rule 1 crops the tail. The arrival keeps its stored instant, in the
-    // ending zone. It is NOT the slide-out, and the only thing that says so is the resolved
+    // distance before it, where tail rule 1 crops the tail. The arrival keeps its stored instant,
+    // in the ending zone. It is NOT the slide-out, and the only thing that says so is the resolved
     // relation: the fret it names is the stop the next head is struck at, at the same instant. So
     // it is LINKED — under a reveal it draws its continuation head on the landing's own onset.
     const NoteViewState& shift_slider = state.notes[5];
@@ -326,9 +327,9 @@ TEST_CASE("Chart projection publishes each note's ring beside its ink", "[core][
 
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
 
-    // The fixture's last note is a lone eighth with no technique, so rule 2 draws it no tail at
-    // all — bit-exactly its own onset, the way the projection assigns it across — while its ring
-    // is the eighth it sounds for.
+    // The fixture's last note is a lone eighth with no technique, so tail rule 2 draws it no tail
+    // at all — bit-exactly its own onset, the way the projection assigns it across — while its
+    // ring is the eighth it sounds for.
     CHECK_THAT(
         state.notes[6].ink_end_seconds,
         Catch::Matchers::WithinULP(state.notes[6].start_seconds, 0));
@@ -349,7 +350,7 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // Four quarters of ring reaching exactly the next onset (so rule 1 crops to the margin
+        // Four quarters of ring reaching exactly the next onset (so tail rule 1 crops to the margin
         // rather than drawing it whole), with statements before the crop and one past it.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
@@ -429,8 +430,8 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
                     Keyframe{.offset = Fraction{1, 2}, .fret = 9},
                 },
         },
-        // A head on another string, exactly where the ring ends, so rule 1 binds on it and the ink
-        // stops one margin earlier.
+        // A head on another string, exactly where the ring ends, so tail rule 1 binds on it and the
+        // ink stops one margin earlier.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 2,

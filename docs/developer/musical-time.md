@@ -53,9 +53,9 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   span extents and each note's `margin_start_seconds` read one answer per head. The function stays
   the authority — the table only stops the build asking it again — and a fret-hand position, which
   is not a head, asks `minimumSustainDistance` directly.
-- `g_minimum_kept_sustain_seconds` — the kept-sustain bound presentation rule 2 drops a short
-  effect-free tail against, a **duration** for the same reason. Rule 2 reads each note's actual
-  ring in seconds through the tempo map, from onset time to ring-end time, and only a ring running
+- `g_minimum_kept_sustain_seconds` — the kept-sustain bound tail rule 2 drops a short effect-free
+  tail against, a **duration** for the same reason. Tail rule 2 reads each note's actual ring in
+  seconds through the tempo map, from onset time to ring-end time, and only a ring running
   *longer* than the bound earns a *drawn* tail. **The value
   itself is stated only at that constant** — it is headed for a user-tunable option, so read it
   there and never repeat it. Time is the reference because the player experiences the highway in
@@ -180,12 +180,12 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
 - `chartHolds(presentation, connections, shapes, tempo_map)` — how long the hand stays down, which
   is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS or was
   never earned, covered by a span, is held to the span's reach — while the grip is held, the board
-  pins what is held. Resting and rule-2/rule-3-emptied members take the same extension because they
-  are the same physical fact: under grip tenure a covered member's un-renewed death would have
-  BROKEN the grip, so coverage past a member's ring IS the record that the finger never lifted (a
-  re-strike replaces the sound, never the hand). There is no strum-size gate — a lone covered chug
-  is a grip member exactly as a strummed one is. A member whose tail STANDS states its own hold; the
-  other hand's onsets never inherit the reach; and a DEAD member is
+  pins what is held. Resting members and those tail rule 2 emptied take the same extension
+  because they are the same physical fact: under grip tenure a covered member's un-renewed death
+  would have BROKEN the grip, so coverage past a member's ring IS the record that the finger never
+  lifted (a re-strike replaces the sound, never the hand). There is no strum-size gate — a lone
+  covered chug is a grip member exactly as a strummed one is. A member whose tail STANDS states its
+  own hold; the other hand's onsets never inherit the reach; and a DEAD member is
   never held — a dead chug is percussion rather than a grip, which is also what chokes a wholly dead
   group without any unanimity rule stated anywhere. A COVERED resting member's stored ring is the
   floor its extension starts from, and that floor is keyed on COVERAGE rather than on the verdict:
@@ -197,14 +197,14 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   connection that extension justifies read as a plain pick. Scoring is RULED ("detection scores what
   the surface demands"), and the hold channel is a surface convention that ruling reads, not one it
   waits on.
-- **THE TAIL LAW**, rule 4 and the last pass inside `chartPresentation`. **A tail that shows no
-  technique information RESTS**, whether or not a span stands over it: THE CURTAIN IS UNIVERSAL. It
-  is VERDICT-ONLY: it reads the STORED rings, judges, and MARKS the tails it hides, emptying nothing
-  — every member keeps the ink end rules 1 to 3 gave it, the 2D lane draws to that ink end always,
-  and the 3D board rests hidden ribbons at distance, drawing each only inside its sliding reveal
-  window (the tunable `g_tail_reveal_lead_whole_note`). It computes no length, invents no endpoint
-  and introduces no threshold of its own (the reveal window is the board's, not the law's), so it
-  moves no ribbon's length whatever it decides.
+- **THE TAIL LAW**, tail rule 4 and the last pass inside `chartPresentation`. **A tail that shows
+  no technique information RESTS**, whether or not a span stands over it: THE CURTAIN IS UNIVERSAL.
+  It is VERDICT-ONLY: it reads the STORED rings, judges, and MARKS the tails it hides, emptying
+  nothing — every member keeps the ink end tail rules 1 to 3 gave it, the 2D lane draws to that ink
+  end always, and the 3D board rests hidden ribbons at distance, drawing each only inside its
+  sliding reveal window (the tunable `g_tail_reveal_lead_whole_note`). It computes no length,
+  invents no endpoint and introduces no threshold of its own (the reveal window is the board's, not
+  the law's), so it moves no ribbon's length whatever it decides.
   THE VERDICT IS AN OFFSET — where the curtain takes over, and the ring's last always-visible
   landmark: zero for a plain ring, the last statement's offset for a statement that finishes (held
   to the ink end where the statement stands past it), the ribbon's own ink end (an EMPTY remainder)
@@ -217,8 +217,8 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   entirely — a grip states where the fretting hand is, so a tap says nothing about whether that hand
   is still down, and the ring under a tap keeps its whole ribbon.
   **THE ATOM IS THE MEMBER**: each member is judged alone — a plain member rests, one still stating
-  at its end draws beside it. Rule 2's per-group atom is untouched, and each resting member keeps
-  its own landmark.
+  at its end draws beside it. Tail rule 2's per-group atom is untouched, and each resting member
+  keeps its own landmark.
   **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, vibrato that
   never stops, tremolo, a slide-out) and not handed over never rests. The curtain owns only what the
   ribbon has stopped saying anything with; it has no vocabulary for a statement in progress. There
@@ -260,7 +260,7 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   same way everywhere. It reads the note's ONE interval payload, its `keyframes` array, where each
   entry states any subset of the fret, bend and vibrato channels
   (`docs/plans/todo/unified-waypoint-model.md`). Presentation never calls it: it resizes no ring
-  and moves no statement, it only stops the ink (rule 1). A statement standing exactly AT the
+  and moves no statement, it only stops the ink (tail rule 1). A statement standing exactly AT the
   ring's end (`endStatement`) keeps its stored instant, drawn only under a reveal where it stands
   in the ending zone. So the stored chart may end a slide-out or a bend exactly on the next head of
   its own string, because the store holds what the hands did (user ruling, 2026-09-21), and the

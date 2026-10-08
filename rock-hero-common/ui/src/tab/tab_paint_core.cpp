@@ -2950,10 +2950,10 @@ void paintTabLane(
             group.emplace(g, group_bounds, note_opacity);
         }
 
-        // Every note's tail, unconditionally: the drawn extent is the whole answer. Where rules 2
-        // and 3 emptied a tail the ink end is the onset, so this draws nothing and no suppression
-        // is tested here — the one shape in which two surfaces could spend a hiding rule
-        // differently.
+        // Every note's tail, unconditionally: the drawn extent is the whole answer. Where tail
+        // rules 2 and 3 emptied a tail the ink end is the onset, so this draws nothing and no
+        // suppression is tested here — the one shape in which two surfaces could spend a hiding
+        // rule differently.
         drawNoteTail(g, metrics, style, note, onset_x, center_y, drawn_end, fade);
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —

@@ -92,17 +92,17 @@ length (through \ref HeadMargins inside a scene build) rather than composing a m
 \brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn
 sustain tail.
 
-The bound presentation rule 2 (\ref chartPresentation) drops a short effect-free tail against: a
-ring no longer than this reads as a struck note, not a deliberate sustain, so no surface draws a
-tail for it. It bounds only what is DRAWN — the legato hold test reads the stored ring and asks
-strict adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather
-than by any assumption about tails.
+The bound tail rule 2 (\ref chartPresentation) drops a short effect-free tail against: a ring no
+longer than this reads as a struck note, not a deliberate sustain, so no surface draws a tail for
+it. It bounds only what is DRAWN — the legato hold test reads the stored ring and asks strict
+adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather than
+by any assumption about tails.
 
 A DURATION, not a note value, because the player reads the highway in time: a note value lasts
 twice as long at half the tempo, so a note-value bound shows tails too often in fast songs and too
-rarely in slow ones. Rule 2 measures each ring through the tempo map, so the same written value
-earns at a slow tempo and not at a fast one — at a quarter second an eighth earns below 120 BPM and
-a quarter below 240. The meter never enters: seconds do not care about the signature's
+rarely in slow ones. Tail rule 2 measures each ring through the tempo map, so the same written
+value earns at a slow tempo and not at a fast one — at a quarter second an eighth earns below 120
+BPM and a quarter below 240. The meter never enters: seconds do not care about the signature's
 denominator. The verdict can change only at a tempo anchor, never inside a run, because the map's
 rate is constant between anchors.
 

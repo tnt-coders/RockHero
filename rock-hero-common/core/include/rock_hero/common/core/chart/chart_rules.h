@@ -388,7 +388,7 @@ bend point arriving there included — and the end's own statement, arriving bac
 overlays it rather than doubling the offset. Where the new end is a following onset on the note's
 string, that statement STANDS on the head, which is the truth the store holds: presentation stops
 the ink one margin before that head and leaves the statement where it stands
-(\ref chartPresentation rule 1), and this clip knows nothing about heads.
+(\ref chartPresentation, tail rule 1), and this clip knows nothing about heads.
 
 REPORTS AN AUTHORED STATEMENT LOST: a keyframe past the new end erased, a channel the ridden end
 statement overwrote with a different value on landing (\ref overlayKeyframe — a point at fret 9
@@ -459,8 +459,8 @@ would be the defect: \ref normalizeSustainOverlaps truncates a stored ring to it
 duration verb grows a ring toward it, and its move verb steps a slide-out toward it — so "a ring's
 end reaching the next head on its string" has ONE answer wherever it is asked. Exact adjacency is
 legal, which is what lets a slide reach its landing and a slide-out complete on the head it goes
-out on; the ink then stops one margin before that head (\ref chartPresentation rule 1), and the
-mark stays at its stored instant.
+out on; the ink then stops one margin before that head (\ref chartPresentation, tail rule 1), and
+the mark stays at its stored instant.
 
 A clamp rather than a refusal, and it needs no direction test: a ring already at its bound reports
 the bound for every target past it, and leaves it the moment the target falls back inside.
@@ -563,8 +563,8 @@ storing the moment once — and the point of it, since the alternative silently 
 that share an offset with the one a rule refused.
 
 A dead note's tail is deliberately NOT here (E25). It is a presentation rule
-(\ref chartPresentation rule 3): a dead note carries its actual ring like any other — that ring
-is the timing information the legato adjacency test reads — and no surface draws it.
+(\ref chartPresentation, tail rule 3): a dead note carries its actual ring like any other — that
+ring is the timing information the legato adjacency test reads — and no surface draws it.
 
 What it deliberately does NOT own stays a refusal in \ref validateChartNoteAlone, because no
 repair can express it without inventing data: a string the tuning lacks, a negative fret, a

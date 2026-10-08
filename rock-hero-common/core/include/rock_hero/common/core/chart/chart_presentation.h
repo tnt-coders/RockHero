@@ -24,9 +24,9 @@ tail rests. It publishes NO note of its own — the stored note is the one every
 Nothing presentation decides moves a statement. A ring is drawn from its onset toward its stored
 end and simply STOPS at \ref ink_end, so every keyframe keeps its stored instant and the one drawn
 past the ink end is one a reveal can show exactly where the charter wrote it. Two facts about one
-pass, published together because a tail-less note is not one fact: a tail rules 2 and 3 emptied was
-never earned, while a tail the tail law RESTED is a ring that really sounds and whose remaining
-story the furniture above it already tells.
+pass, published together because a tail-less note is not one fact: a tail emptied by tail rules 2
+and 3 was never earned, while a tail the tail law RESTED is a ring that really sounds and whose
+remaining story the furniture above it already tells.
 */
 struct ChartPresentation
 {
@@ -39,7 +39,7 @@ struct ChartPresentation
     is drawn, and nothing past it is judged. Equal to the stored ring for a FREE tail (one no later
     onset binds, or one that ends at or before the crop); the CROP for a BOUND tail — one margin
     before the binding onset, floored onto the tick lattice, never earlier than the onset; and zero
-    for a tail rules 2 and 3 emptied. Always within [0, sustain].
+    for a tail emptied by tail rules 2 and 3. Always within [0, sustain].
     */
     std::vector<Fraction> ink_end;
 
@@ -55,7 +55,7 @@ struct ChartPresentation
     stated portion. A present entry therefore always lies at or inside the ink end, and the board
     draws the resting remainder — where one exists (\ref hasRestingRemainder) — only inside the
     reveal window, to the ink end. An absent entry is a tail the law rests nothing of — a ring still
-    stating at its end — including every tail rules 2 and 3 emptied, which the law skips by
+    stating at its end — including every tail emptied by tail rules 2 and 3, which it skips by
     construction.
     */
     std::vector<std::optional<Fraction>> rested_from;
@@ -86,53 +86,15 @@ at import, what the editor's verbs author — and every surface draws that note,
 stored instants. What presentation adds is the INK END: the instant a surface stops drawing the
 ring, so no tail crowds the next head. The ink is cropped, never compressed, and nothing moves.
 
-The rules, in order:
-
-1. **Crop to the margin.** The *binding* onset is the first later sounding onset — a different
-   grid position, on any string — that the ring does not *pass*, passing meaning running *strictly*
-   past it. A ring ending exactly *on* an onset passes nothing and binds there, the common let-ring
-   collision. The ink stops one minimum sustain distance (\ref minimumSustainDistance, the
-   margin read at the binding onset, floored onto the tick lattice) before that onset, and never
-   before the note's own onset. A ring no later onset binds, or one that ends at or before that
-   crop, draws in full. Passing an onset — a tie merged across a neighbour, a cross-voice hold —
-   earns the group its tails under rule 2 but does not exempt the ring from the crop. The stretch
-   from the crop to the head is the ring's ENDING ZONE: keyframes standing there stay stored and
-   are neither drawn nor judged, and the leg crossing the crop is drawn on its true path toward the
-   zone's first keyframe and stops at the crop.
-2. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
-   whose members carry no sustain technique, no deliberate hold, and no *actual* ring lasting LONGER
-   than the kept-sustain bound (\ref g_minimum_kept_sustain_seconds, the ring measured in seconds
-   through the tempo map) draws no tail on any member: every string of a chord rings from one
-   stroke, so a lone tail beside partners that look unsounded is a picture no strum makes. Any
-   member earning a tail keeps every member's.
-3. **A dead note draws no tail** unless tremolo or a slide payload keeps it making noise or
-   travelling (E25). The stored ring is untouched — it is the timing the legato adjacency test
-   reads — so this is a presentation rule and nothing else applies it.
-4. **THE TAIL LAW — a tail that shows no technique information RESTS**: the curtain owns
-   everything past a note's last always-visible landmark. A verdict-only filter, LAST: it reads the
-   stored stream, judges, and MARKS where each tail rests (\ref ChartPresentation::rested_from),
-   skipping any tail already empty. THE CURTAIN IS UNIVERSAL: span furniture is no part of the
-   question — every fretting-hand tail in scope rests unless it is still stating at its own end,
-   over open board exactly as under a bracket. WHERE THE VERDICT BINDS: resting is the 3D board's
-   form — chug chains, dry arpeggios, plain sustained chords and lone plain notes rest ribbonless
-   there, with the rails, boxes and hold-pinned heads stating the tenure where furniture exists,
-   and each resting remainder drawing only inside the sliding reveal window at the hit line
-   (\ref g_tail_reveal_lead_whole_note). The 2D lane draws the execution form always.
-
-   SCOPE: a right-hand onset is neither a member nor a witness. THE ATOM IS THE MEMBER: a plain
-   member rests, a member still stating at its end draws. NEVER RESTS — still stating at its own
-   end AND NOT HANDED OVER: a ring whose final state is not plain (a bend held to the end, vibrato
-   that never stops, tremolo, a slide-out's travel). A HANDOVER FINISHES: a ring whose string a
-   later strike takes over (\ref ChartConnections::hands_over), or whose end arrives into the next
-   head, is a transfer that completes at the takeover, so it rests from its ink end with an empty
-   remainder and every pixel of its ribbon stated. IT WRITES NO LENGTH: every landmark it marks
-   lies at or inside the ink end.
+It applies tail rules 1 to 4, in order, as \ref design_rulesets_tails lists them: crop each ink
+end a margin before its binding onset, drop the tails of a short effect-free onset group, draw no
+tail on a dead note that makes no noise, and mark where each tail that shows no technique rests.
 
 \param connections The saved stream and the same-string relations the law reads
                    (\ref chartConnections).
-\param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins): rule
-               1's crop reads it at the binding onset.
-\param tempo_map Tempo map supplying the time axis rule 2 measures each ring on.
+\param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins): the
+               tail rule 1 crop reads it at the binding onset.
+\param tempo_map Tempo map supplying the time axis tail rule 2 measures each ring on.
 
 \return Per stored note, in the same order: the ink end and the law's verdict.
 */

@@ -3175,7 +3175,7 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     }
 
     // The other half of the same rule, so the pair is stated in one place: the ring survives the
-    // press and NOTHING draws it (E25 as rule 4 of the presentation).
+    // press and NOTHING draws it (E25 as tail rule 3).
     const common::core::ChartConnections connections =
         common::core::chartConnections(chart.notes, tempo_map);
     const std::vector<common::core::Fraction> ink_end =
