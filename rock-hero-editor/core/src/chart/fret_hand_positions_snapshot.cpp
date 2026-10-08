@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 
 namespace rock_hero::editor::core
 {
@@ -36,9 +37,10 @@ void FretHandPositionsSnapshot::normalize()
     std::ranges::sort(placements, std::ranges::less{}, &common::core::FretHandPosition::position);
 }
 
-// Every placement rule lives in common core, where the package reader asks the same question of the
-// same stream, so this only carries the diagnostic across. With no chart there is nothing to
-// validate against and nothing to apply onto; the apply reports that.
+// Every placement rule lives in common core, where the package reader asks the same questions of
+// the same stream, so this only carries the diagnostic across: the stream's own rules, then its
+// coverage of the chart's notes. With no chart there is nothing to validate against and nothing to
+// apply onto; the apply reports that.
 std::optional<std::string> FretHandPositionsSnapshot::validate(
     const common::core::Session& session) const
 {
@@ -47,11 +49,19 @@ std::optional<std::string> FretHandPositionsSnapshot::validate(
     {
         return std::nullopt;
     }
-    if (const auto valid = common::core::validateFretHandPositions(
-            placements, arrangement->chart->tuning, session.song().tempo_map);
+    const common::core::Chart& chart = *arrangement->chart;
+    const common::core::TempoMap& tempo_map = session.song().tempo_map;
+    if (const auto valid =
+            common::core::validateFretHandPositions(placements, chart.tuning, tempo_map);
         !valid.has_value())
     {
         return valid.error().message;
+    }
+    if (const auto covered =
+            common::core::validateFretHandCoverage(chart.notes, placements, tempo_map);
+        !covered.has_value())
+    {
+        return covered.error().message;
     }
     return std::nullopt;
 }

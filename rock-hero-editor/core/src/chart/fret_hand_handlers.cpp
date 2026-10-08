@@ -238,14 +238,16 @@ void EditorController::Impl::performActionImpl(
     FretHandPositionsSnapshot after = before;
     after.placements.push_back(insert->placement);
     if (commitMarkerModel(
-            std::move(before), std::move(after), markerVerbLabel(MarkerVerb::AddHandPosition)) !=
+            std::move(before), std::move(after), markerVerbLabel(MarkerVerb::AddHandPosition)) ==
         MarkerCommit::Refused)
     {
-        // The insert selects what it made, and a selection made after the commit publishes with
-        // this refresh: the commit's own publish ran before it existed.
-        selectMarker(FretHandPositionSelection{.position = insert->placement.position});
-        updateView();
+        flashFretHandChip(insert->placement.position);
+        return;
     }
+    // The insert selects what it made, and a selection made after the commit publishes with this
+    // refresh: the commit's own publish ran before it existed.
+    selectMarker(FretHandPositionSelection{.position = insert->placement.position});
+    updateView();
 }
 
 // Refuses a verb that needs a STORED position on a derived one, which stores nothing to delete or
@@ -257,8 +259,12 @@ void EditorController::Impl::refuseDerivedFretHandPosition(
         markerVerbLabel(verb),
         common::core::formatHandPositionToken(selection.position) +
             " is derived, so nothing is stored there");
-    if (const std::optional<std::size_t> chip =
-            markerIndex(MarkerRow::FretHandPosition, selection.position);
+    flashFretHandChip(selection.position);
+}
+
+void EditorController::Impl::flashFretHandChip(const common::core::GridPosition& position)
+{
+    if (const std::optional<std::size_t> chip = markerIndex(MarkerRow::FretHandPosition, position);
         chip.has_value() && m_view != nullptr)
     {
         m_view->flashChartRefusal(
@@ -267,10 +273,11 @@ void EditorController::Impl::refuseDerivedFretHandPosition(
 }
 
 // Steps the selected placement one placement-quantum line, the tone change's step. Refused rather
-// than clamped: onto a start another placement holds, and past the song's end, by the stream's
-// rules at the commit; off the chart's start here, because the grid step collapses onto the start
-// it came from there and the commit would record that as a move that changed nothing. A landed
-// move brings the paused cursor to the new start, as every selection move of a marker does.
+// than clamped, with the chip glowing red: onto a start another placement holds, past the song's
+// end, or onto a gripped note the window does not cover, by the stream's rules at the commit; off
+// the chart's start here, because the grid step collapses onto the start it came from there and the
+// commit would record that as a move that changed nothing. A landed move brings the paused cursor
+// to the new start, as every selection move of a marker does.
 void EditorController::Impl::moveSelectedFretHandPosition(
     const FretHandPositionSelection& selection, const ChartStepDirection direction)
 {
@@ -288,21 +295,23 @@ void EditorController::Impl::moveSelectedFretHandPosition(
     if (target == selection.position)
     {
         m_refusal_log.markerEdit(label, "fret-hand position would leave the chart");
+        flashFretHandChip(selection.position);
         return;
     }
 
     match->position = target;
-    if (commitMarkerMove(
+    if (!commitMarkerMove(
             std::move(before),
             std::move(after),
             label,
             FretHandPositionSelection{.position = target}))
     {
-        // The position IS the placement's identity, so the commit selects the moved placement
-        // under its new one; followMovedMarker publishes it together with the cursor it brings
-        // along.
-        followMovedMarker(target);
+        flashFretHandChip(selection.position);
+        return;
     }
+    // The position IS the placement's identity, so the commit selects the moved placement under its
+    // new one; followMovedMarker publishes it together with the cursor it brings along.
+    followMovedMarker(target);
 }
 
 // A placement's fret entry, planned the way the commit will judge it: the funnel's own front half

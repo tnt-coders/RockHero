@@ -49,9 +49,10 @@ struct FretHandPositionsSnapshot
     void normalize();
 
     /*!
-    \brief Reports the first structural rule this stream breaks.
+    \brief Reports the first rule this stream breaks: its own, or its coverage of the chart's notes.
 
-    \param session Session supplying the chart's tuning and the tempo map the positions address.
+    \param session Session supplying the chart's tuning and notes and the tempo map the positions
+           address.
     \return The violation to report, or empty when the stream satisfies every rule.
     */
     [[nodiscard]] std::optional<std::string> validate(const common::core::Session& session) const;

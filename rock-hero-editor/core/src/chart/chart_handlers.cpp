@@ -3222,8 +3222,9 @@ bool EditorController::Impl::commitChartGestureStep(
     if (!plan.has_value())
     {
         // Invalid is the gate refusing the result, so this step never happened: it is not recorded
-        // (the appended list is the caller's local until the window is armed below), and a running
-        // gesture keeps the entry and the steps it had.
+        // (the appended list is the caller's local until the window is armed below), a running
+        // gesture keeps the entry and the steps it had, and the refusal is reported like any
+        // verb's.
         //
         // NoChange is the gesture standing exactly where it started — every object already at its
         // bound on a first step, or a run that replayed back to its start — so it describes no edit
@@ -3243,6 +3244,7 @@ bool EditorController::Impl::commitChartGestureStep(
             // follow exactly as it follows any other: a caret riding the lone object rides it home.
             return true;
         }
+        reportChartPlanRefusal(plan.error(), chartSelection());
         return false;
     }
 

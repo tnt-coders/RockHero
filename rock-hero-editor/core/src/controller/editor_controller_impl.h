@@ -683,6 +683,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Refuses `verb`, which needs a stored position, on a selected DERIVED one: the refusal log's
     // record and the red glow on its chip, the selection left as it was.
     void refuseDerivedFretHandPosition(const FretHandPositionSelection& selection, MarkerVerb verb);
+    // The red glow on the hand chip fronting at `position`, where one does: a refused hand verb's
+    // half of the refusal beside its log record.
+    void flashFretHandChip(const common::core::GridPosition& position);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
     void deleteSelectedMarker();

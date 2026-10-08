@@ -139,7 +139,9 @@ undo replays the inverse of a plan that passed. So the gate judges only the note
 TOUCHED, which the diff against `chart.notes` finds, and the same-string predecessors whose rings a
 touched onset on a new slot may shorten (the locality rule at \ref common::core::sustainBoundOf).
 It asks them the stream validator's own questions in stream order, so its first refusal is the
-whole stream's. A verb that re-addresses or re-meters the chart must leave it a fixpoint too.
+whole stream's. The one rule it asks of the whole candidate is the chart's authored positions'
+coverage of it (\ref common::core::validateFretHandCoverage). A verb that re-addresses or re-meters
+the chart must leave it a fixpoint too.
 
 `base` is the stream the plan is expressed against, which is `chart.notes` for every verb that edits
 from what it finds. The duration gesture is why it is a parameter: its plan describes the whole

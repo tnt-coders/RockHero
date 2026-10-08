@@ -287,6 +287,30 @@ TEST_CASE("Fret-hand coverage demands a natural harmonic's node only", "[core][c
     CHECK(coveredBy({chime}, positionAt(1, 2, 1, 4)));
 }
 
+// The coverage authority reports every breaking position once, ascending, with the first demand it
+// misses; a position's verdict reads the notes alone, so its neighbours never change it.
+TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = {
+        noteAt(1, 1, 1, 3, Fraction{1, 2}),
+        noteAt(2, 1, 1, 9),
+    };
+    const std::vector<FretHandPosition> positions = {
+        positionAt(1, 2, 5), positionAt(1, 3, 5), positionAt(2, 1, 5, 8)
+    };
+    const std::vector<UncoveringFretHandPosition> uncovering =
+        uncoveringFretHandPositions(notes, positions, makeTempoMap());
+    REQUIRE(uncovering.size() == 2);
+    CHECK(uncovering[0].position == 0);
+    CHECK(uncovering[0].fret == 3);
+    CHECK(uncovering[0].gripped_from == GridPosition{.measure = 1, .beat = 1});
+    CHECK(uncovering[1].position == 2);
+    CHECK(uncovering[1].fret == 9);
+
+    // Without the breaking positions, the one left still passes.
+    CHECK(uncoveringFretHandPositions(notes, {positions[1]}, makeTempoMap()).empty());
+}
+
 // Rule 1: an open string and a tap constrain nothing; the window is the fretted notes' alone.
 TEST_CASE("Hand derivation ignores open strings and taps", "[core][chart]")
 {

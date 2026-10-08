@@ -69,8 +69,9 @@ delete; its `normalize` sorts by position and its `validate` is the shared
 positions behind the fret-hand position's add, move, fret entries, end clear, delete and the
 Prune Hand Positions command — a stating verb on a DERIVED position authors it inside the same
 entry, and a prune that finds nothing redundant records none; its `normalize` sorts by position,
-its `validate` is the chart gate's own `validateFretHandPositions`, and its apply writes through
-`Session::writeChart()` so the chart revision the projections are keyed on advances), and
+its `validate` is the chart gate's own `validateFretHandPositions` plus `validateFretHandCoverage`
+(each authored position covers every fretted note gripped at its instant), and its apply writes
+through `Session::writeChart()` so the chart revision the projections are keyed on advances), and
 `SongTimelineSnapshot` (`timeline/song_timeline_snapshot.h` — the song's WHOLE timeline, the
 common-core `SongTimeline`: the map, the sections and every arrangement's chart, tone track and
 automation, behind the time-signature verbs, Scale Tempo and every tempo edit made with the

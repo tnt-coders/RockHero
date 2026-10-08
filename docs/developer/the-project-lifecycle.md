@@ -1425,7 +1425,11 @@ differently):
     settle point runs, `sweepUnjustifiedLegato` — so a chart is never born carrying a statement its
     own notes contradict. It runs last because it reads the finished stream: released frets after
     the slide chains (rules 13-15), holds after the ring policy's clamp. The spans a reader derives
-    therefore describe the SETTLED stream (rules 10-12a).
+    therefore describe the SETTLED stream (rules 10-12a). After it, every authored hand position
+    that leaves a fretted note gripped at its instant uncovered is dropped
+    (`uncoveringFretHandPositions`, reported as `UncoveringHandPosition`): a converter cannot apply
+    that rule, and the notes derive a window there. An import authors no position, so only a load
+    meets it.
     The importer counts the repairs by rule in its log; the editor's open shows them once with
     positions. Guitar Pro's hammer-on/pull-off destinations import as the `Legato`
     claim and nothing more — the score says the notes connect but not which way, which is exactly

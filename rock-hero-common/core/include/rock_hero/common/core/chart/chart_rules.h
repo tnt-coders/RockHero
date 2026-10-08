@@ -12,6 +12,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 #include <string_view>
@@ -272,7 +273,14 @@ enum class ChartRepair : std::uint8_t
     \ref normalizeChart alone — never by the per-note normalizer, whose repairs the validator
     refuses, because such a point is legal in memory and only ever absent from a document.
     */
-    SilentKeyframe
+    SilentKeyframe,
+
+    /*!
+    \brief An authored hand position that did not cover a fretted note gripped at its instant was
+    dropped (\ref uncoveringFretHandPositions). Nothing says whether the position or the note is
+    wrong, and the notes alone already derive a window; a converter cannot apply the rule itself.
+    */
+    UncoveringHandPosition
 };
 
 /*!
@@ -601,9 +609,10 @@ Pro importer — calls this and nothing else, so the two cannot drift, and the v
 refuses only what no repair can express. It applies \ref normalizeChartNote to every note, bounds
 every ring at its own string's next onset with \ref normalizeSustainOverlaps (the one stream-level
 note rule), applies \ref normalizeFretHandPosition to every hand position, then settles the
-one relational truth — \ref sweepUnjustifiedLegato — last, because a truncated tail can be the hold
-a neighbour's legato claim depended on, and it must be judged against the stream as it will actually
-stand.
+relational truths against the stream as it will actually stand: \ref sweepUnjustifiedLegato,
+because a truncated tail can be the hold a neighbour's legato claim depended on, and last the drop
+of every authored hand position that breaks the coverage rule (\ref uncoveringFretHandPositions),
+because its demands read the bounded rings and its windows are the fitted ones.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer
@@ -695,8 +704,8 @@ already in its normal form (\ref normalizeFretHandPosition), and the stream stri
 unique by position.
 
 \ref validateChartRules asks this for the chart's own stream; the editor's fret-hand position
-commit asks it of the stream alone, so a placement edit is judged by exactly the rule a package load
-applies.
+commit asks it, then \ref validateFretHandCoverage, of the edited stream, so a placement edit is
+judged by exactly the rules a package load applies without re-judging every note.
 
 \param placements Placement stream to validate.
 \param tuning Tuning the placements sit under; supplies the capo floor.
@@ -707,9 +716,22 @@ applies.
     const std::vector<FretHandPosition>& placements, const ChartTuning& tuning,
     const TempoMap& tempo_map);
 
+/*! \brief An authored position that breaks the coverage rule, with the first demand it misses. */
+struct UncoveringFretHandPosition
+{
+    /*! \brief Index of the position in the stream it was found in. */
+    std::size_t position{};
+
+    /*! \brief The fret demanded at the position's instant that its window does not cover. */
+    int fret{};
+
+    /*! \brief Where the demand was struck or began holding. */
+    GridPosition gripped_from;
+};
+
 /*!
-\brief Validates the one rule between the notes and the authored positions: AN AUTHORED POSITION
-COVERS EVERY FRETTED NOTE SOUNDING AT ITS INSTANT.
+\brief THE coverage rule between the notes and the authored positions: AN AUTHORED POSITION COVERS
+EVERY FRETTED NOTE GRIPPED AT ITS INSTANT. Finds every position that breaks it.
 
 A note struck at a position's instant demands \ref fretHandDemandAt there — nothing for an open
 string or a picking-hand onset. Every stop the hand provably holds (\ref fretHandHolds, the holds
@@ -719,12 +741,32 @@ is not there and a natural harmonic's node is demanded at its strike alone. The 
 demand at or above its fret and, where an end fret is stated, at or below that end. Only what the
 position STATES is read: nothing derived (the figure's top, the four-fret floor) enters the test.
 
+The demands come from the notes alone, so one position's verdict never depends on another's: a
+caller dropping every position found here leaves a stream that passes in one pass.
+
 \param notes Note stream, each ring already bounded by the next strike on its string
        (\ref normalizeSustainOverlaps).
 \param positions Authored positions, strictly ascending (\ref validateFretHandPositions).
 \param tempo_map Song tempo map placing the notes and the positions.
-\return Empty success, or the first uncovered demand, placed at the position and where the demand
-        was struck or began holding.
+\return Each breaking position once, ascending by index; empty when every position covers.
+*/
+[[nodiscard]] std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
+    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
+    const TempoMap& tempo_map);
+
+/*!
+\brief Validates the coverage rule (\ref uncoveringFretHandPositions) as a chart rule.
+
+\ref validateChartRules asks it last, and the editor's note and placement commits ask it of the
+stream they edit against the other one, so an edit from either side is refused exactly where the
+writer would refuse the result. A load never meets it: \ref normalizeChart drops every breaking
+position first.
+
+\param notes Note stream, each ring already bounded by the next strike on its string.
+\param positions Authored positions, strictly ascending.
+\param tempo_map Song tempo map placing the notes and the positions.
+\return Empty success, or the earliest breaking position, placed with the fret it misses and where
+        that demand was struck or began holding.
 */
 [[nodiscard]] std::expected<void, ChartError> validateFretHandCoverage(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
@@ -734,8 +776,9 @@ position STATES is read: nothing derived (the figure's top, the four-fret floor)
 \brief Validates the chart's structural rules against the song's tempo map.
 
 The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
-the structural checks over the chart's own arrays and then delegates the per-note rules to
-\ref validateChartNotes, so the authoritative list is the two functions' code rather than this
+the structural checks over the chart's own arrays, delegates the per-note rules to
+\ref validateChartNotes, and last asks the one rule between the notes and the authored positions
+(\ref validateFretHandCoverage), so the authoritative list is those functions' code rather than this
 paragraph, which only summarizes it.
 
 Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by

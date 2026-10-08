@@ -291,6 +291,18 @@ struct MarkerRowEditor
         return chart->fret_hand_positions;
     }
 
+    // The loaded chart's notes as they now stand.
+    [[nodiscard]] std::vector<common::core::ChartNote> notes() const
+    {
+        const common::core::Chart* const chart = chartOrNull(controller);
+        REQUIRE(chart != nullptr);
+        if (chart == nullptr)
+        {
+            throw std::logic_error("no chart is loaded");
+        }
+        return chart->notes;
+    }
+
     // How many entries the undo history holds, so a refusal can be told from a recorded no-op.
     [[nodiscard]] std::size_t undoEntryCount() const
     {
@@ -1691,8 +1703,8 @@ TEST_CASE("Delete and the move refuse a derived position", "[core][marker-rows]"
 
 // The prune drops every stored position the derivation reproduces and keeps the rest, as one undo
 // entry; with nothing left to drop it records nothing. Measure 2's position states the very window
-// its notes derive, so it goes; measure 4's states fret 9 over a note the notes alone would put on
-// fret 1, so it stays.
+// its notes derive, so it goes; measure 4's states an end fret 5 over a note the notes alone would
+// give the narrowest window from fret 1, so it stays.
 TEST_CASE("The prune removes exactly the redundant stored positions", "[core][marker-rows]")
 {
     common::core::Chart chart = makeBareChart();
@@ -1701,7 +1713,8 @@ TEST_CASE("The prune removes exactly the redundant stored positions", "[core][ma
         makeTestNote({.measure = 3, .beat = 1}, 1, 4),
         makeTestNote({.measure = 4, .beat = 1}, 2, 1),
     };
-    chart.fret_hand_positions = {placementAt(downbeat(2), 3), placementAt(downbeat(4), 9)};
+    const common::core::FretHandPosition kept{.position = downbeat(4), .fret = 1, .end_fret = 5};
+    chart.fret_hand_positions = {placementAt(downbeat(2), 3), kept};
     const std::vector<common::core::FretHandPosition> stored = chart.fret_hand_positions;
     MarkerRowEditor editor{makeMarkerSections(), {}, std::move(chart)};
     const std::shared_ptr<const common::core::ChartViewState> before = editor.state().tab;
@@ -1709,7 +1722,7 @@ TEST_CASE("The prune removes exactly the redundant stored positions", "[core][ma
     const std::size_t entries_before = editor.undoEntryCount();
 
     editor.controller.onFretHandPositionsPruneRequested();
-    CHECK(editor.placements() == std::vector{placementAt(downbeat(4), 9)});
+    CHECK(editor.placements() == std::vector{kept});
     CHECK(editor.undoEntryCount() == entries_before + 1);
     CHECK(editor.state().undo_history.labels.back() == "Prune Hand Positions");
     // The hand is unchanged; the pruned position's chip simply draws derived now.
@@ -1725,14 +1738,128 @@ TEST_CASE("The prune removes exactly the redundant stored positions", "[core][ma
         CHECK(after->fret_hand_positions[index].width == before->fret_hand_positions[index].width);
     }
     CHECK(editor.chipAuthored(downbeat(2)) == common::core::FhpAuthored::Nothing);
-    CHECK(editor.chipAuthored(downbeat(4)) == common::core::FhpAuthored::Fret);
+    CHECK(editor.chipAuthored(downbeat(4)) == common::core::FhpAuthored::FretAndEnd);
 
     editor.controller.onFretHandPositionsPruneRequested();
-    CHECK(editor.placements() == std::vector{placementAt(downbeat(4), 9)});
+    CHECK(editor.placements() == std::vector{kept});
     CHECK(editor.undoEntryCount() == entries_before + 1);
 
     editor.controller.onUndoRequested();
     CHECK(editor.placements() == stored);
+}
+
+namespace
+{
+
+// The coverage chart: one fret-3 note on string 1 ringing from 2:1 to 3:1, and one placement on
+// fret 5 at 3:1, which the ring reaches exactly and therefore does not grip.
+[[nodiscard]] common::core::Chart makeCoverageChart()
+{
+    common::core::Chart chart = makeBareChart();
+    chart.notes = {makeTestNote(downbeat(2), 1, 3, common::core::Fraction{1})};
+    chart.fret_hand_positions = {placementAt(downbeat(3), 5)};
+    return chart;
+}
+
+} // namespace
+
+// AN AUTHORED POSITION COVERS EVERY FRETTED NOTE GRIPPED AT ITS INSTANT, asked by the placement
+// commit: a move into the ring, or a retyped fret above the note struck there, is refused whole and
+// the chip glows red; a move that keeps every gripped note covered lands.
+TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[core][marker-rows]")
+{
+    SECTION("a move into the ring")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeCoverageChart()};
+        editor.clickPlacement(0);
+        const std::optional<std::size_t> chip = editor.selectedChip();
+        const std::size_t entries_before = editor.undoEntryCount();
+        const std::size_t flashes_before = editor.view.refusal_flashes.size();
+
+        editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+        CHECK(editor.placements() == makeCoverageChart().fret_hand_positions);
+        CHECK(editor.undoEntryCount() == entries_before);
+        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
+        REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+        CHECK(editor.view.refusal_flashes.back().fret_hand_position == chip);
+    }
+
+    SECTION("a fret above the note struck at its instant")
+    {
+        common::core::Chart chart = makeCoverageChart();
+        chart.fret_hand_positions = {placementAt(downbeat(2), 3)};
+        MarkerRowEditor editor{makeMarkerSections(), {}, chart};
+        editor.clickPlacement(0);
+        const std::size_t entries_before = editor.undoEntryCount();
+
+        editor.controller.onChartFretDigitTyped(4);
+        const std::optional<ChartPendingFretViewState>& pending =
+            editor.state().chart_edit.pending_fret;
+        REQUIRE(pending.has_value());
+        if (pending.has_value())
+        {
+            CHECK_FALSE(pending->valid);
+        }
+        CHECK(editor.placements() == chart.fret_hand_positions);
+        CHECK(editor.undoEntryCount() == entries_before);
+    }
+
+    SECTION("a move that leaves the ring alone")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeCoverageChart()};
+        editor.clickPlacement(0);
+        const std::size_t entries_before = editor.undoEntryCount();
+
+        editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+        CHECK(
+            editor.placements() ==
+            std::vector{placementAt(GridPosition{.measure = 3, .beat = 2}, 5)});
+        CHECK(editor.undoEntryCount() == entries_before + 1);
+    }
+}
+
+// The same rule asked by the note commit: a note struck at a placement's instant below its fret,
+// or a ring lengthened through it, is refused whole and the note glows red; a note the placement
+// covers lands.
+TEST_CASE("A note edit refuses leaving an authored position uncovered", "[core][marker-rows]")
+{
+    SECTION("a note entered below the window")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeCoverageChart()};
+        editor.armAtMeasure(3);
+        const std::size_t entries_before = editor.undoEntryCount();
+
+        editor.controller.onChartFretDigitTyped(3);
+        CHECK(editor.notes() == makeCoverageChart().notes);
+        CHECK(editor.undoEntryCount() == entries_before);
+    }
+
+    SECTION("a ring lengthened through the position")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeCoverageChart()};
+        // The note's head: measure 2 on string 1 (makeGeometry).
+        click(editor.controller, 40.0f, 220.0f);
+        REQUIRE(editor.state().chart_edit.selected_notes == std::vector<std::size_t>{0});
+        const std::size_t entries_before = editor.undoEntryCount();
+        const std::size_t flashes_before = editor.view.refusal_flashes.size();
+
+        editor.controller.onChartSustainAdjustRequested(1);
+        CHECK(editor.notes() == makeCoverageChart().notes);
+        CHECK(editor.undoEntryCount() == entries_before);
+        REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+        CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0});
+    }
+
+    SECTION("a note the window covers")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeCoverageChart()};
+        editor.armAtMeasure(3);
+        const std::size_t entries_before = editor.undoEntryCount();
+
+        editor.controller.onChartFretDigitTyped(7);
+        CHECK(editor.notes().size() == 2);
+        CHECK(editor.undoEntryCount() == entries_before + 1);
+    }
 }
 
 } // namespace rock_hero::editor::core

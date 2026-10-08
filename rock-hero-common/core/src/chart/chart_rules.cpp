@@ -205,8 +205,13 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     {
         return std::unexpected{std::move(placements.error())};
     }
-
-    return validateChartNotes(chart.notes, chart.tuning, tempo_map);
+    if (auto notes = validateChartNotes(chart.notes, chart.tuning, tempo_map); !notes.has_value())
+    {
+        return std::unexpected{std::move(notes.error())};
+    }
+    // Last, because it derives the holds from the notes and searches the positions, so it needs
+    // both streams already valid.
+    return validateFretHandCoverage(chart.notes, chart.fret_hand_positions, tempo_map);
 }
 
 // Separate from validateChartRules so a placement edit can be judged without re-judging every note
@@ -266,14 +271,16 @@ std::expected<void, ChartError> validateFretHandPositions(
 
 // Walked from the demands' side: each onset meets the positions standing exactly at it, and each
 // hold the positions standing inside it, each found by one search. The holds are the derivation's
-// own (\ref fretHandHolds), so a stop is demanded here exactly where the derivation keeps it.
-std::expected<void, ChartError> validateFretHandCoverage(
+// own (\ref fretHandHolds), so a stop is demanded here exactly where the derivation keeps it. Every
+// uncovered demand is collected, then each position keeps its earliest-found one.
+std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
 {
+    std::vector<UncoveringFretHandPosition> uncovering;
     if (positions.empty())
     {
-        return {};
+        return uncovering;
     }
     std::vector<Fraction> instants;
     instants.reserve(positions.size());
@@ -299,16 +306,13 @@ std::expected<void, ChartError> validateFretHandCoverage(
         {
             continue;
         }
-        const FretHandPosition& position =
-            positions[static_cast<std::size_t>(std::distance(instants.begin(), at))];
-        if (!positionCovers(position, *demand))
+        const auto position = static_cast<std::size_t>(std::distance(instants.begin(), at));
+        if (!positionCovers(positions[position], *demand))
         {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidFretHandPosition,
-                .message = formatHandPositionToken(position.position) + " does not cover fret " +
-                           std::to_string(*demand) + " struck at " +
-                           formatChartPlaceToken(note.position, note.string),
-            }};
+            uncovering.push_back(
+                UncoveringFretHandPosition{
+                    .position = position, .fret = *demand, .gripped_from = note.position
+                });
         }
     }
     const ChartShapes shapes =
@@ -319,17 +323,39 @@ std::expected<void, ChartError> validateFretHandCoverage(
         {
             if (!positionCovers(positions[at], hold.fret))
             {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidFretHandPosition,
-                    .message =
-                        formatHandPositionToken(positions[at].position) + " does not cover fret " +
-                        std::to_string(hold.fret) + " held from " +
-                        formatGridPositionToken(tempo_map.gridPositionAtWholeNote(hold.from)),
-                }};
+                uncovering.push_back(
+                    UncoveringFretHandPosition{
+                        .position = at,
+                        .fret = hold.fret,
+                        .gripped_from = tempo_map.gridPositionAtWholeNote(hold.from),
+                    });
             }
         }
     }
-    return {};
+    std::ranges::stable_sort(uncovering, {}, &UncoveringFretHandPosition::position);
+    const auto repeated =
+        std::ranges::unique(uncovering, {}, &UncoveringFretHandPosition::position);
+    uncovering.erase(repeated.begin(), repeated.end());
+    return uncovering;
+}
+
+std::expected<void, ChartError> validateFretHandCoverage(
+    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
+    const TempoMap& tempo_map)
+{
+    const std::vector<UncoveringFretHandPosition> uncovering =
+        uncoveringFretHandPositions(notes, positions, tempo_map);
+    if (uncovering.empty())
+    {
+        return {};
+    }
+    const UncoveringFretHandPosition& first = uncovering.front();
+    return std::unexpected{ChartError{
+        .code = ChartErrorCode::InvalidFretHandPosition,
+        .message = formatHandPositionToken(positions[first.position].position) +
+                   " does not cover fret " + std::to_string(first.fret) + " gripped from " +
+                   formatGridPositionToken(first.gripped_from),
+    }};
 }
 
 std::string_view chartRepairText(const ChartRepair repair)
@@ -400,6 +426,11 @@ std::string_view chartRepairText(const ChartRepair repair)
         case ChartRepair::SilentKeyframe:
         {
             return "a keyframe stated nothing the path did not already say and was dropped";
+        }
+        case ChartRepair::UncoveringHandPosition:
+        {
+            return "a hand position did not cover a fretted note gripped at its instant and was "
+                   "dropped";
         }
     }
     return "chart repaired";
@@ -803,6 +834,24 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         conversions.end(),
         std::make_move_iterator(settled.begin()),
         std::make_move_iterator(settled.end()));
+    // The coverage rule last, against the notes and the fitted windows as they will stand. One pass
+    // is complete: a position's demands come from the notes alone, so dropping one never changes
+    // another's verdict.
+    const std::vector<UncoveringFretHandPosition> uncovering =
+        uncoveringFretHandPositions(chart.notes, chart.fret_hand_positions, tempo_map);
+    for (const UncoveringFretHandPosition& uncovered : uncovering)
+    {
+        record(
+            {ChartRepair::UncoveringHandPosition},
+            formatHandPositionToken(chart.fret_hand_positions[uncovered.position].position));
+    }
+    for (const UncoveringFretHandPosition& uncovered : std::views::reverse(uncovering))
+    {
+        chart.fret_hand_positions.erase(
+            std::next(
+                chart.fret_hand_positions.begin(),
+                static_cast<std::ptrdiff_t>(uncovered.position)));
+    }
     return conversions;
 }
 

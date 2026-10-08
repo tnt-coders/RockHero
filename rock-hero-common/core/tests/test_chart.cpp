@@ -2466,7 +2466,8 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
 
 // The narrowest hand window must fit on the neck: with g_max_fret = 24 an index finger at 21 spans
 // 21..24 and stands, while one at 22 wants 22..25 and is refused. The reach past four frets is
-// derived from notes, which never state a fret off the board.
+// derived from notes, which never state a fret off the board. Asked of the stream alone, since the
+// fixture's notes would leave either window's position uncovered.
 TEST_CASE("Chart rules bound the narrowest hand window by the neck", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -2474,10 +2475,12 @@ TEST_CASE("Chart rules bound the narrowest hand window by the neck", "[core][cha
     REQUIRE_FALSE(chart.fret_hand_positions.empty());
 
     chart.fret_hand_positions.back().fret = g_max_fret - g_min_fret_hand_width + 1;
-    CHECK(validateChartRules(chart, tempo_map).has_value());
+    CHECK(
+        validateFretHandPositions(chart.fret_hand_positions, chart.tuning, tempo_map).has_value());
 
     chart.fret_hand_positions.back().fret = g_max_fret - g_min_fret_hand_width + 2;
-    CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+    CHECK_FALSE(
+        validateFretHandPositions(chart.fret_hand_positions, chart.tuning, tempo_map).has_value());
 }
 
 // The placement stream is strictly ascending: two placements at one instant leave "where the hand
@@ -2607,9 +2610,10 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     CHECK(node_result.error().code == ChartErrorCode::InvalidNote);
 
     // A bare node with an ordinary attack is a natural harmonic and perfectly valid — the rule
-    // above must reject the position, never the presence.
+    // above must reject the position, never the presence. The octave node sits inside the 1:1
+    // position's window, which a node is demanded of at its strike.
     Chart natural_harmonic = makeFullChart();
-    natural_harmonic.notes[0].harmonic_node = 3.2;
+    natural_harmonic.notes[0].harmonic_node = 12.0;
     CHECK(validateChartRules(natural_harmonic, tempo_map).has_value());
 
     // Cent offsets span a full octave because real bass arrangements charted on guitar strings

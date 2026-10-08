@@ -234,9 +234,11 @@ answers). These are the current reading wherever the older text below disagrees.
   states — its fret, and its end fret where it has one. It is a chart rule like any other: one predicate, and an edit that would break it is
   refused, whichever side the edit is on. (An earlier draft of this entry enforced it at the edit
   only and judged each edit on what it touched; the user rejected that as machinery for a simple
-  problem.) Owed before it is switched on: how many converted packages, and whether the user's
-  four projects, already break it, since an ordinary chart rule also applies when a file loads —
-  the tool that wrote a breaking position is what gets fixed. Built as step 5.
+  problem.) A loaded file is the one exception: loading DROPS a breaking position and reports it
+  as a load notice (user, 2026-10-07), because a converter cannot apply the rule — it would need
+  the whole hold derivation — and the notes alone already derive a window there. Measured before
+  the switch: 3,336 of 389,463 positions in 324 of 1,301 converted packages broke it; the user's
+  four projects, none. Built as step 5.
 - **The dips are DROPPED** (user). They cannot be rebuilt from stored data — a scoop is an
   ordinary slide once imported — and rules 1 and 2 already demand the approach fret and the
   arrival.

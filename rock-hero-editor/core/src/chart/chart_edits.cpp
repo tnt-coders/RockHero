@@ -300,6 +300,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     {
         return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
     }
+    // Whole-stream rather than over the affected notes: a hold is derived from its whole figure, so
+    // an edit can change what the hand grips far from the notes it touched.
+    if (std::expected<void, common::core::ChartError> covered =
+            common::core::validateFretHandCoverage(candidate, chart.fret_hand_positions, tempo_map);
+        !covered.has_value())
+    {
+        return std::unexpected{ChartPlanInvalid{std::move(covered.error().message)}};
+    }
     ChartEditPlan plan = diffNotes(base, candidate, label);
     if (plan.empty())
     {

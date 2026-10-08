@@ -1656,6 +1656,49 @@ TEST_CASE(
     }
 }
 
+// An authored position that leaves a gripped note uncovered is dropped on load and REPORTED, as a
+// converter that cannot apply the coverage rule writes them; the notes derive the window there, and
+// the chart that loads passes the rule.
+TEST_CASE(
+    "Rock song package read drops a hand position off a gripped note", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    // Hand-written, because the canonical writer refuses it: a fret-3 ring on string 1 sounds
+    // through 1:3, where the second position puts the index finger on fret 5. The first covers it.
+    writeTextFile(
+        package_directory / chart_ref,
+        R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
+        R"( "notes": [ { "at": "1:1", "string": 1, "fret": 3, "sustain": "1" } ],)"
+        R"( "positions": [ { "at": "1:1", "fret": 3 }, { "at": "1:3", "fret": 5 } ] })");
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read = readRockSongPackageDirectory(package_directory);
+    REQUIRE(read.has_value());
+    REQUIRE(read->conversions.size() == 1);
+    CHECK(read->conversions.front().conversion.repair == ChartRepair::UncoveringHandPosition);
+    CHECK(
+        chartConversionText(read->conversions.front().conversion).find("1:3") != std::string::npos);
+    REQUIRE(read->song.arrangements.front().chart.has_value());
+    if (read->song.arrangements.front().chart.has_value())
+    {
+        const Chart& loaded_chart = *read->song.arrangements.front().chart;
+        CHECK(
+            loaded_chart.fret_hand_positions ==
+            std::vector{FretHandPosition{
+                .position = GridPosition{.measure = 1, .beat = 1}, .fret = 3, .end_fret = {}
+            }});
+        CHECK(validateChartRules(loaded_chart, read->song.tempo_map).has_value());
+    }
+}
+
 // The load sweep: a hand-made document can carry a connection claim its own notes do not justify —
 // nothing the project writes can, since the writer settles first — and the reader settles it rather
 // than refusing the package, reporting the conversion so the editor can mark the session dirty.

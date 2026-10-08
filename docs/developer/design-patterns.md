@@ -221,8 +221,9 @@ Every chart-note planner builds a candidate stream in slot order (a new note ent
 `insertAtSlot`; nothing re-sorts the stream) and funnels it through the shared finalize
 (`finalizePlan` in `chart_edits.cpp`): sustain-overlap normalization, the intra-note strike
 flatten, then the technique-matrix gate — `validateChartNotes`' own questions asked of the
-candidate's *saved* form (`savedChartNote`), refusing the whole plan on any violation — and finally
-the diff against the stream the plan is expressed against. That stream is a parameter rather than
+candidate's *saved* form (`savedChartNote`), refusing the whole plan on any violation — then the
+authored positions' coverage of the whole candidate (`validateFretHandCoverage`), and finally the
+diff against the stream the plan is expressed against. That stream is a parameter rather than
 `chart.notes` for one verb's sake: the sustain gesture judges the LIVE chart (the ring bounds, and the ring a floored note
 holds) while its plan must describe the whole gesture, so it is diffed against the stream the
 gesture started from. The move gesture, equally a gesture, needs no such split — it judges nothing
@@ -231,7 +232,8 @@ one chart argument is both the source of the objects and the diff base. The live
 fixpoint of the gate, so it judges only the notes the candidate touched plus the same-string rings
 their new onsets can shorten (the locality rule beside `sustainBoundOf`), in stream order: a
 keystroke costs what the edit touches rather than the song, and the first refusal is the whole
-walk's. A new planner must end at the funnel too; skipping it is how a verb authors a chart the
+walk's. Coverage is the one whole-stream question, because a grip is derived from its whole figure
+and an edit can change what the hand holds far from the notes it touched. A new planner must end at the funnel too; skipping it is how a verb authors a chart the
 document reader would reject. Relational truths deliberately do NOT repair in the funnel:
 a connection claim the chart cannot justify plays as the pick it sounds like until the settle sweep
 (`planSettleChart`) flattens it in one batch at the burst's end, which is what keeps a burst one
