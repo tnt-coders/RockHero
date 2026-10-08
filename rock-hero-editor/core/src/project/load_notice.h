@@ -19,10 +19,11 @@ namespace rock_hero::editor::core
 
 A rule change repairs-and-reports instead of bricking a project, and this is the report — kept to a
 glance on purpose, because a per-position listing is far too noisy for a dialog. It says how many
-notes were updated, names each rule with its count (per arrangement, by part, only when the song has
-more than one), states what the user most needs to know — the file is unchanged until they save,
-because a trimmed tail that was meant as tremolo is recoverable only while that is true — and points
-at the log, where every position was already written in full when the package loaded.
+changes were made (to notes, keyframes or hand positions), names each rule with its count (per
+arrangement, by part, only when the song has more than one), states what the user most needs to
+know — the file is unchanged until they save, because a trimmed tail that was meant as tremolo is
+recoverable only while that is true — and points at the log, where every position was already
+written in full when the package loaded.
 
 Pure text, so a test can pin the wording without a view.
 

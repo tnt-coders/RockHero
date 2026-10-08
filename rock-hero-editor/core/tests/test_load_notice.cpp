@@ -86,7 +86,7 @@ TEST_CASE("Load conversion notice summarizes repairs and points at the log", "[c
         };
         const std::string text = loadConversionNoticeText(
             songWithParts({common::core::Part::Lead}), conversions, log_file);
-        CHECK(text.find("3 notes were updated") != std::string::npos);
+        CHECK(text.find("3 changes were made") != std::string::npos);
         CHECK(text.find("The file is unchanged until you save") != std::string::npos);
         CHECK(text.find("2 x a re-strike stops the ring") != std::string::npos);
         CHECK(text.find("1 x a legato mark had nothing to connect to") != std::string::npos);
@@ -103,7 +103,7 @@ TEST_CASE("Load conversion notice summarizes repairs and points at the log", "[c
         };
         const std::string text = loadConversionNoticeText(
             songWithParts({common::core::Part::Lead}), conversions, log_file);
-        CHECK(text.find("1 note was updated") != std::string::npos);
+        CHECK(text.find("1 change was made") != std::string::npos);
     }
 
     SECTION("more than one arrangement names each by its part")

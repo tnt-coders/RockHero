@@ -32,8 +32,8 @@ std::string loadConversionNoticeText(
     }
 
     std::string text = std::to_string(conversions.size()) +
-                       (conversions.size() == 1 ? " note was" : " notes were") +
-                       " updated to the current chart rules. The file is unchanged until you "
+                       (conversions.size() == 1 ? " change was" : " changes were") +
+                       " made to meet the current chart rules. The file is unchanged until you "
                        "save.\n";
     for (const auto& [arrangement, rules] : counts)
     {
