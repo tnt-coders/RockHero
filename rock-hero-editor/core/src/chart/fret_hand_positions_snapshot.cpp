@@ -57,8 +57,8 @@ std::optional<std::string> FretHandPositionsSnapshot::validate(
     {
         return valid.error().message;
     }
-    if (const auto covered =
-            common::core::validateFretHandCoverage(chart.notes, placements, tempo_map);
+    if (const auto covered = common::core::validateFretHandCoverage(
+            chart.notes, placements, tempo_map, chart.tuning.capo);
         !covered.has_value())
     {
         return covered.error().message;

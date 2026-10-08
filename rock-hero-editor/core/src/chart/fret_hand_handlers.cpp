@@ -115,7 +115,8 @@ namespace
     const std::vector<common::core::FretHandHold> holds = common::core::fretHandHolds(
         connections,
         common::core::deriveChartShapes(
-            connections, common::core::HeadMargins{connections.places, tempo_map}));
+            connections, common::core::HeadMargins{connections.places, tempo_map}),
+        chart.tuning.capo);
     const auto derive = [&](const std::vector<common::core::FretHandPosition>& authored) {
         return common::core::deriveFretHandEvents(
             connections, holds, tempo_map, chart.tuning.capo, authored);

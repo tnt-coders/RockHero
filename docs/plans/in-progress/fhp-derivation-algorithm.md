@@ -130,6 +130,10 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
     **behind-the-nut bend**: the fretting hand pushes the string on the headstock side of the nut,
     so the hand is at the nut. Such a note is a coverage demand at **fret 1**, so the run it
     belongs to anchors at FHP 1, and it is the one open-string note that constrains the window.
+    Under a capo the nut is the capo, so the demand is the first playable fret, `capo + 1`; more
+    generally no demand lies below that fret (`fretHandDemandAt` lifts it, as a node nearest the
+    capo's own fret is lifted), so the derivation and the coverage rule read the same number and
+    an authored position on the floor covers it.
     "Bent" means the bend channel leaves rest anywhere along the note's ring — a pre-bend at the
     onset, or any point on the tail — read through `ringStateAt`, like every other coverage
     source. A special mark for the behind-the-nut bend itself was considered and deferred; FHP 1

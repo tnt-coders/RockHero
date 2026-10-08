@@ -64,12 +64,15 @@ namespace
     return note;
 }
 
-// The holds one stream derives, through the spans it implies, as the resolutions derive them.
+// The holds one stream derives, through the spans it implies, as the resolutions derive them,
+// under a capo where a case names one.
 [[nodiscard]] std::vector<FretHandHold> holdsOf(
-    const ChartConnections& connections, const TempoMap& tempo_map)
+    const ChartConnections& connections, const TempoMap& tempo_map, const int capo = 0)
 {
     return fretHandHolds(
-        connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}));
+        connections,
+        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}),
+        capo);
 }
 
 // The hand events the 13 rules derive from one stream, under a capo where a case names one and
@@ -81,7 +84,7 @@ namespace
     const TempoMap tempo_map = makeTempoMap();
     const ChartConnections connections = chartConnections(notes, tempo_map);
     return deriveFretHandEvents(
-        connections, holdsOf(connections, tempo_map), tempo_map, capo, authored);
+        connections, holdsOf(connections, tempo_map, capo), tempo_map, capo, authored);
 }
 
 // An authored position at a measure and beat, with an end fret where a case states one.
@@ -98,7 +101,7 @@ namespace
 // Whether one authored position covers every fretted note of a stream sounding at its instant.
 [[nodiscard]] bool coveredBy(const std::vector<ChartNote>& notes, const FretHandPosition& position)
 {
-    return validateFretHandCoverage(notes, {position}, makeTempoMap()).has_value();
+    return validateFretHandCoverage(notes, {position}, makeTempoMap(), 0).has_value();
 }
 
 // An expected event: its front at a measure and beat of 4/4, and its window.
@@ -132,6 +135,7 @@ namespace
         connections,
         holds,
         tempo_map,
+        0,
         deriveFretHandEvents(connections, holds, tempo_map, 0, authored));
 }
 
@@ -296,9 +300,9 @@ TEST_CASE("A natural harmonic demands the fret nearest its node", "[core][chart]
         note.harmonic_node = node;
         return note;
     };
-    CHECK(fretHandDemandAt(chime(7.01955), Fraction{}) == std::optional{7});
-    CHECK(fretHandDemandAt(chime(4.98045), Fraction{}) == std::optional{5});
-    CHECK(fretHandDemandAt(chime(19.01955), Fraction{}) == std::optional{19});
+    CHECK(fretHandDemandAt(chime(7.01955), Fraction{}, 0) == std::optional{7});
+    CHECK(fretHandDemandAt(chime(4.98045), Fraction{}, 0) == std::optional{5});
+    CHECK(fretHandDemandAt(chime(19.01955), Fraction{}, 0) == std::optional{19});
     CHECK(coveredBy({chime(19.01955)}, positionAt(1, 1, 7, 19)));
 }
 
@@ -314,7 +318,7 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
         positionAt(1, 2, 5), positionAt(1, 3, 5), positionAt(2, 1, 5, 8)
     };
     const std::vector<UncoveringFretHandPosition> uncovering =
-        uncoveringFretHandPositions(notes, positions, makeTempoMap());
+        uncoveringFretHandPositions(notes, positions, makeTempoMap(), 0);
     REQUIRE(uncovering.size() == 2);
     CHECK(uncovering[0].position == 0);
     CHECK(uncovering[0].fret == 3);
@@ -323,7 +327,7 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
     CHECK(uncovering[1].fret == 9);
 
     // Without the breaking positions, the one left still passes.
-    CHECK(uncoveringFretHandPositions(notes, {positions[1]}, makeTempoMap()).empty());
+    CHECK(uncoveringFretHandPositions(notes, {positions[1]}, makeTempoMap(), 0).empty());
 }
 
 // Rule 1: an open string and a tap constrain nothing; the window is the fretted notes' alone.
@@ -534,7 +538,7 @@ TEST_CASE("Every derived window covers every hold standing under it", "[core][ch
                 .fret = event.window.fret,
                 .end_fret = event.window.top(),
             };
-            CHECK(validateFretHandCoverage(figure, {stated}, tempo_map).has_value());
+            CHECK(validateFretHandCoverage(figure, {stated}, tempo_map, 0).has_value());
         }
     }
 }
@@ -677,6 +681,26 @@ TEST_CASE("Hand derivation puts a behind-the-nut bend at fret one", "[core][char
     CHECK(eventsOf({bent_later}) == std::vector{eventAt(1, 1, 1)});
 
     CHECK(eventsOf({noteAt(1, 1, 1, 0)}).empty());
+}
+
+// The demand is a playable fret: behind the nut under a capo is behind the capo, and a node nearest
+// the capo's own fret is reached from the first fret above it — the floor every window and every
+// authored position is fitted to, so a position there covers the demand.
+TEST_CASE("The hand's demand never lies at or below the capo", "[core][chart]")
+{
+    ChartNote bent = noteAt(1, 1, 1, 0);
+    bent.bend = 1.0;
+    CHECK(fretHandDemandAt(bent, Fraction{}, 0) == std::optional{1});
+    CHECK(fretHandDemandAt(bent, Fraction{}, 2) == std::optional{3});
+
+    ChartNote chime = noteAt(1, 1, 1, 0);
+    chime.harmonic_node = 3.2;
+    CHECK(fretHandDemandAt(chime, Fraction{}, 0) == std::optional{3});
+    CHECK(fretHandDemandAt(chime, Fraction{}, 3) == std::optional{4});
+
+    const TempoMap tempo_map = makeTempoMap();
+    CHECK(validateFretHandCoverage({bent}, {positionAt(1, 1, 3)}, tempo_map, 2).has_value());
+    CHECK(validateFretHandCoverage({chime}, {positionAt(1, 1, 4)}, tempo_map, 3).has_value());
 }
 
 // An authored position is a row object of its own, so it is emitted even where the window it

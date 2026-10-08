@@ -101,7 +101,9 @@ void scoreChart(const Chart& chart, const TempoMap& tempo_map, PartScore& part, 
     // The stored positions are the truth this scores AGAINST, so none of them is handed in: the
     // derivation is asked what the notes alone say.
     const std::vector<FretHandHold> holds = fretHandHolds(
-        connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}));
+        connections,
+        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}),
+        chart.tuning.capo);
     const std::vector<FretHandEvent> events =
         deriveFretHandEvents(connections, holds, tempo_map, chart.tuning.capo, {}, &score.tally);
     if (events.empty())

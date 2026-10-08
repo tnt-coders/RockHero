@@ -2310,7 +2310,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                     common::core::ChartShapes{
                         .shapes = resolutions.shapes,
                         .postures = resolutions.postures,
-                    }),
+                    },
+                    chart.tuning.capo),
                 built->tempo_map,
                 chart.tuning.capo,
                 {},

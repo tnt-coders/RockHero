@@ -318,7 +318,10 @@ spec:
    resume at the first instant that does not fit, and their fronts never reach back to it.
 6. **Open strings never constrain, and taps float above.** Fret-zero notes are playable from
    anywhere and neither place nor move the window — save an open string BENT anywhere along its
-   ring, which is bent behind the nut and puts the hand at fret 1. A *tapped* note is likewise not
+   ring, which is bent behind the nut (behind the capo, under one) and puts the hand at the first
+   playable fret. No demand lies below that fret: a natural harmonic whose node is nearest a fret
+   at or below the capo is demanded just above it, the floor every window and every authored
+   position is fitted to (`fretHandDemandAt`). A *tapped* note is likewise not
    a coverage event: two-hand taps sit far above the fretting hand (a median seven frets in the
    corpus), so the window tracks the fretted / left-hand notes while the tap floats above it. The
    stop a pull-off plants beneath its source IS one, whichever hand struck the source: it demands

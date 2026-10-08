@@ -211,7 +211,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     }
     // Last, because it derives the holds from the notes and searches the positions, so it needs
     // both streams already valid.
-    return validateFretHandCoverage(chart.notes, chart.fret_hand_positions, tempo_map);
+    return validateFretHandCoverage(
+        chart.notes, chart.fret_hand_positions, tempo_map, chart.tuning.capo);
 }
 
 // Separate from validateChartRules so a placement edit can be judged without re-judging every note
@@ -275,7 +276,7 @@ std::expected<void, ChartError> validateFretHandPositions(
 // uncovered demand is collected, then each position keeps its earliest-found one.
 std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
-    const TempoMap& tempo_map)
+    const TempoMap& tempo_map, const int capo)
 {
     std::vector<UncoveringFretHandPosition> uncovering;
     if (positions.empty())
@@ -300,7 +301,7 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
-        const std::optional<int> demand = fretHandDemandAt(note, Fraction{});
+        const std::optional<int> demand = fretHandDemandAt(note, Fraction{}, capo);
         const auto at = std::ranges::lower_bound(instants, connections.places[index]);
         if (!demand.has_value() || at == instants.end() || *at != connections.places[index])
         {
@@ -317,7 +318,7 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     }
     const ChartShapes shapes =
         deriveChartShapes(connections, HeadMargins{connections.places, tempo_map});
-    for (const FretHandHold& hold : fretHandHolds(connections, shapes))
+    for (const FretHandHold& hold : fretHandHolds(connections, shapes, capo))
     {
         for (const std::size_t at : positions_inside(hold.from, hold.to))
         {
@@ -341,10 +342,10 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
 
 std::expected<void, ChartError> validateFretHandCoverage(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
-    const TempoMap& tempo_map)
+    const TempoMap& tempo_map, const int capo)
 {
     const std::vector<UncoveringFretHandPosition> uncovering =
-        uncoveringFretHandPositions(notes, positions, tempo_map);
+        uncoveringFretHandPositions(notes, positions, tempo_map, capo);
     if (uncovering.empty())
     {
         return {};
@@ -837,8 +838,8 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // The coverage rule last, against the notes and the fitted windows as they will stand. One pass
     // is complete: a position's demands come from the notes alone, so dropping one never changes
     // another's verdict.
-    const std::vector<UncoveringFretHandPosition> uncovering =
-        uncoveringFretHandPositions(chart.notes, chart.fret_hand_positions, tempo_map);
+    const std::vector<UncoveringFretHandPosition> uncovering = uncoveringFretHandPositions(
+        chart.notes, chart.fret_hand_positions, tempo_map, chart.tuning.capo);
     for (const UncoveringFretHandPosition& uncovered : uncovering)
     {
         record(

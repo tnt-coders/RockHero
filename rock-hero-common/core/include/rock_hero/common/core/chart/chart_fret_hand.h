@@ -74,15 +74,21 @@ ring, or nothing.
 
 The fret its fretting finger occupies there (\ref heldFretAt), so a natural harmonic demands its
 node's fret. An onset the PICKING hand makes (\ref rightHandOnset) demands nothing, and neither does
-an open string — save one bent anywhere along its ring, which is bent behind the nut and puts the
-hand at fret 1 (rule 13).
+an open string — save one bent anywhere along its ring, which is bent behind the nut, or behind the
+capo under one (rule 13).
+
+THE DEMAND IS A PLAYABLE FRET: one below \ref firstPlayableFret is lifted to it, exactly as every
+window is fitted (\ref fittedWindowFret), so the derivation and the coverage rule read one number. A
+pressed fret already lies above the capo; what the lift moves is a behind-the-nut bend, which
+demands the first playable fret, and a node nearest a fret at or below the capo.
 
 \param note Note whose demand is asked.
 \param offset Whole notes from the note's onset.
+\param capo The tuning's capo fret; 0 for none.
 
-\return The demanded fret, or nothing.
+\return The demanded fret, at or above the first playable fret, or nothing.
 */
-[[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset);
+[[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset, int capo);
 
 /*! \brief A stop the fretting hand provably holds over `[from, to)` on the whole-note axis. */
 struct FretHandHold
@@ -114,11 +120,12 @@ nothing, and neither does a natural harmonic's ring or node: its node is demande
 
 \param connections The resolved connections (\ref chartConnections).
 \param shapes The spans and postures derived from the same connections (\ref deriveChartShapes).
+\param capo The tuning's capo fret; 0 for none. Each stop is read through \ref fretHandDemandAt.
 
 \return Every hold, in no promised order.
 */
 [[nodiscard]] std::vector<FretHandHold> fretHandHolds(
-    const ChartConnections& connections, const ChartShapes& shapes);
+    const ChartConnections& connections, const ChartShapes& shapes, int capo);
 
 /*!
 \brief Derives where the fret hand sits from the notes and the positions the charter authored — THE
@@ -217,12 +224,13 @@ arrival, so the ride takes the slide's own segment and unpitched ease. Nothing e
 \param connections The resolved connections the events were derived from.
 \param holds The holds the events were derived from (\ref fretHandHolds).
 \param tempo_map Tempo map the connections were resolved against.
+\param capo The tuning's capo fret the events were derived under; 0 for none.
 \param events The hand events (\ref deriveFretHandEvents).
 
 \return The ride arrivals, strictly ascending by front, none fronting where a hand event does.
 */
 [[nodiscard]] std::vector<FretHandEvent> deriveFretHandRides(
     const ChartConnections& connections, const std::vector<FretHandHold>& holds,
-    const TempoMap& tempo_map, const std::vector<FretHandEvent>& events);
+    const TempoMap& tempo_map, int capo, const std::vector<FretHandEvent>& events);
 
 } // namespace rock_hero::common::core

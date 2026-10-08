@@ -734,12 +734,14 @@ struct UncoveringFretHandPosition
 EVERY FRETTED NOTE GRIPPED AT ITS INSTANT. Finds every position that breaks it.
 
 A note struck at a position's instant demands \ref fretHandDemandAt there — nothing for an open
-string or a picking-hand onset. Every stop the hand provably holds (\ref fretHandHolds, the holds
-the derivation keeps covered and pinned by: rings and span grips) is demanded at every position
-standing inside its hold, which ends exclusively, so a ring reaching exactly to a position's instant
-is not there and a natural harmonic's node is demanded at its strike alone. The position covers a
-demand at or above its fret and, where an end fret is stated, at or below that end. Only what the
-position STATES is read: nothing derived (the figure's top, the four-fret floor) enters the test.
+string or a picking-hand onset, and never a fret below the first playable one, which is the floor
+every position is fitted to (\ref normalizeFretHandPosition). Every stop the hand provably holds
+(\ref fretHandHolds, the holds the derivation keeps covered and pinned by: rings and span grips) is
+demanded at every position standing inside its hold, which ends exclusively, so a ring reaching
+exactly to a position's instant is not there and a natural harmonic's node is demanded at its strike
+alone. The position covers a demand at or above its fret and, where an end fret is stated, at or
+below that end. Only what the position STATES is read: nothing derived (the figure's top, the
+four-fret floor) enters the test.
 
 The demands come from the notes alone, so one position's verdict never depends on another's: a
 caller dropping every position found here leaves a stream that passes in one pass.
@@ -748,11 +750,12 @@ caller dropping every position found here leaves a stream that passes in one pas
        (\ref normalizeSustainOverlaps).
 \param positions Authored positions, strictly ascending (\ref validateFretHandPositions).
 \param tempo_map Song tempo map placing the notes and the positions.
+\param capo The tuning's capo fret; 0 for none.
 \return Each breaking position once, ascending by index; empty when every position covers.
 */
 [[nodiscard]] std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
-    const TempoMap& tempo_map);
+    const TempoMap& tempo_map, int capo);
 
 /*!
 \brief Validates the coverage rule (\ref uncoveringFretHandPositions) as a chart rule.
@@ -765,12 +768,13 @@ position first.
 \param notes Note stream, each ring already bounded by the next strike on its string.
 \param positions Authored positions, strictly ascending.
 \param tempo_map Song tempo map placing the notes and the positions.
+\param capo The tuning's capo fret; 0 for none.
 \return Empty success, or the earliest breaking position, placed with the fret it misses and where
         that demand was struck or began holding.
 */
 [[nodiscard]] std::expected<void, ChartError> validateFretHandCoverage(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& positions,
-    const TempoMap& tempo_map);
+    const TempoMap& tempo_map, int capo);
 
 /*!
 \brief Validates the chart's structural rules against the song's tempo map.

@@ -21,10 +21,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Where a behind-the-nut bend puts the hand (rule 13): the first fret, which the board clamp lifts
-// above a capo like any other floor.
-constexpr int g_behind_the_nut_fret{1};
-
 // One demand on the hand at one instant, before the instants are merged into groups.
 struct HandDemand
 {
@@ -95,11 +91,11 @@ struct ChannelStretch
 // stop read through the rule-1 authority (\ref fretHandDemandAt, \ref fretHandStopAt). Rule 2's
 // demands start the stretches and the ring holds are the pressed ones (\ref fretHandHolds).
 [[nodiscard]] std::vector<ChannelStretch> channelStretchesOf(
-    const ChartNote& note, const bool arrives_into_next_head)
+    const ChartNote& note, const bool arrives_into_next_head, const int capo)
 {
-    const auto stretch_from = [&note](const Fraction from) {
+    const auto stretch_from = [&note, capo](const Fraction from) {
         const std::optional<ChartStop> stop = fretHandStopAt(note, std::nullopt, from);
-        const std::optional<int> demand = fretHandDemandAt(note, from);
+        const std::optional<int> demand = fretHandDemandAt(note, from, capo);
         return ChannelStretch{
             .from = from,
             .to = note.sustain,
@@ -126,7 +122,7 @@ struct ChannelStretch
 // merging there. A stretch reached from a different demanded fret is a slide, and carries the
 // hand's travel (the slide rule).
 void collectNoteDemands(
-    const ChartConnections& connections, std::vector<HandDemand>& demands,
+    const ChartConnections& connections, const int capo, std::vector<HandDemand>& demands,
     FretHandDerivationTally& tally)
 {
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
@@ -134,8 +130,8 @@ void collectNoteDemands(
         const Fraction place = connections.places[index];
         std::optional<int> previous;
         bool onset = true;
-        for (const ChannelStretch& stretch :
-             channelStretchesOf(connections.saved_notes[index], connections.arrives_into[index]))
+        for (const ChannelStretch& stretch : channelStretchesOf(
+                 connections.saved_notes[index], connections.arrives_into[index], capo))
         {
             // The fret this stretch is reached from: the one the channel demanded before it.
             const std::optional<int> from = std::exchange(previous, stretch.demand);
@@ -202,10 +198,10 @@ void collectNoteDemands(
 // a span fronting where nothing fretted is struck is still an instant the hand covers.
 [[nodiscard]] std::vector<CoverageGroup> coverageGroupsOf(
     const ChartConnections& connections, const std::vector<FretHandHold>& holds,
-    const TempoMap& tempo_map, FretHandDerivationTally& tally)
+    const TempoMap& tempo_map, const int capo, FretHandDerivationTally& tally)
 {
     std::vector<HandDemand> demands;
-    collectNoteDemands(connections, demands, tally);
+    collectNoteDemands(connections, capo, demands, tally);
     std::vector<FretHandHold> spans = plantSpansOf(connections, tally);
     spans.insert(spans.end(), holds.begin(), holds.end());
     for (const FretHandHold& span : spans)
@@ -367,7 +363,7 @@ struct SlideOutRide
 // The slide-outs of stops the fretting hand holds, each under a window that has stood since the
 // slide began, ascending by end.
 [[nodiscard]] std::vector<SlideOutRide> slideOutRidesOf(
-    const ChartConnections& connections, const std::vector<FretHandEvent>& events)
+    const ChartConnections& connections, const int capo, const std::vector<FretHandEvent>& events)
 {
     std::vector<SlideOutRide> rides;
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
@@ -383,7 +379,7 @@ struct SlideOutRide
         const Fraction departure = offsetBeforeEnd(note);
         // The fretting hand travels only with a stop it holds: a tap's slide-out is the picking
         // hand's.
-        if (!fretHandDemandAt(note, departure).has_value())
+        if (!fretHandDemandAt(note, departure, capo).has_value())
         {
             continue;
         }
@@ -406,22 +402,26 @@ struct SlideOutRide
 
 } // namespace
 
-std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset)
+// Reads the finger's fret, lifted onto the playable board; a bent open string reads as the open
+// string, so the lift alone puts it at the first playable fret (rule 13).
+std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset, const int capo)
 {
     if (rightHandOnset(note.attack))
     {
         return std::nullopt;
     }
     const std::optional<int> held = heldFretAt(note, std::nullopt, offset);
-    if (held.has_value() || !noteIsBent(note))
+    if (!held.has_value() && !noteIsBent(note))
     {
-        return held;
+        return std::nullopt;
     }
-    return g_behind_the_nut_fret;
+    // A pressed fret already lies above the capo; what the lift moves is a bent open string and a
+    // node nearest a fret at or below the capo.
+    return std::max(held.value_or(0), firstPlayableFret(capo));
 }
 
 std::vector<FretHandHold> fretHandHolds(
-    const ChartConnections& connections, const ChartShapes& shapes)
+    const ChartConnections& connections, const ChartShapes& shapes, const int capo)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<Fraction>& places = connections.places;
@@ -432,7 +432,7 @@ std::vector<FretHandHold> fretHandHolds(
     {
         const Fraction place = places[index];
         for (const ChannelStretch& stretch :
-             channelStretchesOf(notes[index], connections.arrives_into[index]))
+             channelStretchesOf(notes[index], connections.arrives_into[index], capo))
         {
             // Bound once so the presence test and the read are provably the same object.
             const std::optional<int>& fret = stretch.demand;
@@ -482,7 +482,8 @@ std::vector<FretHandHold> fretHandHolds(
             std::optional<FretHandHold> hold;
             const auto ringing_member = [&](const std::size_t index) {
                 return shape.place < places[index] + notes[index].sustain &&
-                       fretHandDemandAt(notes[index], shape.place - places[index]) == stop->fret;
+                       fretHandDemandAt(notes[index], shape.place - places[index], capo) ==
+                           stop->fret;
             };
             if (member != members.begin() && ringing_member(*std::prev(member)))
             {
@@ -500,7 +501,7 @@ std::vector<FretHandHold> fretHandHolds(
             {
                 const Fraction place = places[*member];
                 for (const ChannelStretch& stretch :
-                     channelStretchesOf(notes[*member], connections.arrives_into[*member]))
+                     channelStretchesOf(notes[*member], connections.arrives_into[*member], capo))
                 {
                     const Fraction from = std::max(place + stretch.from, shape.place);
                     const Fraction to = std::min(place + stretch.to, close);
@@ -540,7 +541,7 @@ std::vector<FretHandEvent> deriveFretHandEvents(
     FretHandDerivationTally unread;
     FretHandDerivationTally& counts = tally != nullptr ? *tally : unread;
     const std::vector<CoverageGroup> groups =
-        coverageGroupsOf(connections, holds, tempo_map, counts);
+        coverageGroupsOf(connections, holds, tempo_map, capo, counts);
     const HoldPins hold_pins = holdPinsOf(holds);
     counts.hold_pins += static_cast<long long>(hold_pins.starts.size());
     const std::vector<Fraction>& onsets = connections.places;
@@ -732,9 +733,9 @@ std::vector<FretHandEvent>::const_iterator firstFretHandEventAfter(
 // instant's exits, and adds the way back where no hand event fronts first.
 std::vector<FretHandEvent> deriveFretHandRides(
     const ChartConnections& connections, const std::vector<FretHandHold>& holds,
-    const TempoMap& tempo_map, const std::vector<FretHandEvent>& events)
+    const TempoMap& tempo_map, const int capo, const std::vector<FretHandEvent>& events)
 {
-    std::vector<SlideOutRide> slide_outs = slideOutRidesOf(connections, events);
+    std::vector<SlideOutRide> slide_outs = slideOutRidesOf(connections, capo, events);
     if (slide_outs.empty())
     {
         return {};
@@ -742,7 +743,7 @@ std::vector<FretHandEvent> deriveFretHandRides(
     // The instants the hand derivation covers; what it met on the way is no concern of a ride.
     FretHandDerivationTally unread;
     const std::vector<CoverageGroup> demands =
-        coverageGroupsOf(connections, holds, tempo_map, unread);
+        coverageGroupsOf(connections, holds, tempo_map, capo, unread);
     const auto next_demand_after = [&demands](const Fraction place) {
         return std::ranges::upper_bound(demands, place, std::ranges::less{}, &CoverageGroup::place);
     };

@@ -981,6 +981,51 @@ TEST_CASE(
     }
 }
 
+namespace
+{
+
+// One open string bent behind the nut at 3:1 under `capo`: it demands the first playable fret of
+// the hand, and nothing else sounds.
+[[nodiscard]] common::core::Chart makeBehindTheNutBendChart(const int capo)
+{
+    common::core::Chart chart = makeBareChart();
+    chart.tuning.capo = capo;
+    common::core::ChartNote bent = makeTestNote(downbeat(3), 1, 0);
+    bent.bend = 1.0;
+    chart.notes = {std::move(bent)};
+    return chart;
+}
+
+} // namespace
+
+// Behind the nut under a capo is behind the capo, so a behind-the-nut bend demands the first
+// playable fret: the window the derivation stands there, and the chord's copy of it, cover the
+// bend, and the insert lands on capo + 1.
+TEST_CASE(
+    "The fret-hand position chord lands at a behind-the-nut bend under a capo",
+    "[core][marker-rows]")
+{
+    for (const int capo : {0, 2})
+    {
+        CAPTURE(capo);
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeBehindTheNutBendChart(capo)};
+        const std::optional<std::size_t> chip = editor.handChipAt(downbeat(3));
+        REQUIRE(chip.has_value());
+        REQUIRE(editor.state().tab != nullptr);
+        if (chip.has_value() && editor.state().tab != nullptr)
+        {
+            CHECK(editor.state().tab->fret_hand_positions.at(*chip).fret == capo + 1);
+        }
+        editor.parkAtMeasure(3);
+        const std::size_t entries_before = editor.undoEntryCount();
+
+        editor.controller.onFretHandPositionChordRequested();
+        CHECK(editor.placements() == std::vector{placementAt(downbeat(3), capo + 1)});
+        CHECK(editor.undoEntryCount() == entries_before + 1);
+        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
+    }
+}
+
 // On a start a placement already holds, the chord restates it: with no payload to re-enter, that
 // only selects it — and it is what keeps a second press from inserting a duplicate there.
 TEST_CASE(
