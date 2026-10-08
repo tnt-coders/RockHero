@@ -649,6 +649,12 @@ struct DerivationCounters
     // so a slid finger pins with the fret it is sounding rather than the one it was struck at.
     long long fhp_pinned_finger_windows{0};
     long long fhp_pinned_finger_holds{0};
+
+    // THE POSITION ROW'S IDENTITY: a hand event is selected by its front, so two events sharing a
+    // front, or one fronting before its predecessor, would make one chip stand for two windows.
+    // The derivation promises strictly ascending fronts; this counts the adjacent pairs that are
+    // not.
+    long long fhp_nonascending_fronts{0};
 };
 
 // The offsets at which a note's fret channel LANDS, in order — [D2]'s landings, read from the
@@ -806,6 +812,13 @@ void countDerivation(
             fretted = fretted || common::core::fretFor(note) != 0;
         }
         out.fhp_placements += static_cast<long long>(hand_events.size());
+        for (std::size_t next = 1; next < hand_events.size(); ++next)
+        {
+            if (!(hand_events[next - 1].front < hand_events[next].front))
+            {
+                ++out.fhp_nonascending_fronts;
+            }
+        }
         for (const common::core::FretHandEvent& event : hand_events)
         {
             const auto at = onsets.find(event.front);
@@ -2357,6 +2370,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  spans whose crossings only widen", census.derivation.spans_crossed_by_widening);
     row("fret-hand windows placed", census.derivation.fhp_placements);
     row("  ... arriving where nothing fretted sounds", census.derivation.fhp_placements_unfretted);
+    row("  ... fronting at or before the last (ZERO)", census.derivation.fhp_nonascending_fronts);
     std::cout << "  --- THE PINNED-FINGER CERTAINTY (only wrongness is certain: a held stop\n"
                  "   pins its finger, so a window excluding that fret describes a hand that\n"
                  "   cannot exist) ---\n";
@@ -2740,6 +2754,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
                 .expected = 2221.0,
+            },
+            CrossCheck{
+                // THE POSITION ROW'S IDENTITY: the row selects a hand event by its front, so the
+                // events must front strictly ascending (\ref common::core::deriveFretHandEvents).
+                // Exact-match: a pair sharing a front, or out of order, is a derivation defect.
+                .label = "  ... fronting at or before the last (ZERO)",
+                .rig = static_cast<double>(census.derivation.fhp_nonascending_fronts),
+                .expected = 0.0,
             },
             CrossCheck{
                 // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a

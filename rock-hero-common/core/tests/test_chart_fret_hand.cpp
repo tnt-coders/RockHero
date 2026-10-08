@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -897,6 +898,84 @@ TEST_CASE("An authored position standing over a slide-out gets the same ride", "
     CHECK(
         ridesOf({slideOutAt(1, 1, 1, 7, 12), noteAt(1, 3, 1, 6)}, {positionAt(1, 1, 5, 9)}) ==
         std::vector{rideAt(Fraction{1, 8}, 8, 5), rideAt(Fraction{1, 2}, 5, 5)});
+}
+
+// THE INVARIANT the position row's identity rests on: the hand events front strictly ascending, so
+// no two share a front and none is out of order, with nothing authored and around authored
+// positions alike. The figures are the ones that move a front off its own run's first onset — a
+// reach back over leading open strings, a slide's arrival, a plant waiting under a tap, a ring a
+// window must reach, a bar line cutting a held figure — each beside an authored position standing
+// where it can collide with them: on a derived front, between two, off the grid and after the last
+// note.
+TEST_CASE("The hand events front strictly ascending", "[core][chart]")
+{
+    ChartNote bent_open = noteAt(2, 1, 1, 0);
+    bent_open.bend = 1.0;
+    ChartNote harmonic = noteAt(1, 3, 2, 0);
+    harmonic.harmonic_node = 12.0;
+    struct Figure
+    {
+        std::vector<ChartNote> notes;
+        std::vector<FretHandPosition> authored;
+    };
+    const std::vector<Figure> figures{
+        {.notes =
+             {noteAt(1, 1, 1, 5, Fraction{1, 2}),
+              noteAt(1, 2, 2, 0),
+              noteAt(1, 3, 2, 0),
+              noteAt(1, 4, 1, 12),
+              noteAt(2, 2, 3, 0),
+              noteAt(2, 3, 1, 3)},
+         .authored = {positionAt(1, 3, 9), positionAt(2, 3, 3)}},
+        {.notes =
+             {withFretAt(noteAt(1, 1, 2, 5, Fraction{1, 2}), Fraction{1, 4}, 7),
+              noteAt(1, 4, 1, 9),
+              withFretAt(noteAt(2, 1, 1, 5, Fraction{3, 2}), Fraction{1, 4}, 7),
+              noteAt(3, 1, 2, 6),
+              noteAt(3, 2, 3, 8)},
+         .authored = {positionAt(1, 2, 6), positionAt(3, 1, 6)}},
+        {.notes =
+             {noteAt(1, 1, 2, 7, Fraction{1, 2}),
+              tapAt(1, 2, 1, 15),
+              legatoAt(1, 3, 1, 3),
+              harmonic,
+              bent_open,
+              noteAt(2, 2, 2, 10)},
+         .authored = {positionAt(1, 2, 3), positionAt(4, 1, 9)}},
+        {.notes =
+             {noteAt(1, 1, 1, 3, Fraction{1, 2}),
+              noteAt(1, 2, 2, 8),
+              noteAt(1, 3, 3, 11, Fraction{3, 4}),
+              noteAt(1, 4, 2, 7, Fraction{1, 2}),
+              noteAt(2, 1, 4, 9),
+              noteAt(2, 2, 1, 14)},
+         .authored =
+             {FretHandPosition{
+                  .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
+                  .fret = 3,
+                  .end_fret = 8,
+              },
+              positionAt(1, 4, 7, 11)}},
+        {.notes =
+             {slideOutAt(1, 1, 1, 5, 1),
+              noteAt(1, 3, 1, 5),
+              noteAt(2, 1, 1, 5),
+              noteAt(2, 2, 1, 6),
+              noteAt(2, 3, 1, 5)},
+         .authored = {positionAt(1, 1, 5), positionAt(2, 2, 5)}},
+    };
+    const auto check_ascending = [](const std::vector<FretHandEvent>& events) {
+        REQUIRE_FALSE(events.empty());
+        for (std::size_t index = 1; index < events.size(); ++index)
+        {
+            CHECK(events[index - 1].front < events[index].front);
+        }
+    };
+    for (const Figure& figure : figures)
+    {
+        check_ascending(eventsOf(figure.notes));
+        check_ascending(eventsOf(figure.notes, 0, figure.authored));
+    }
 }
 
 } // namespace rock_hero::common::core

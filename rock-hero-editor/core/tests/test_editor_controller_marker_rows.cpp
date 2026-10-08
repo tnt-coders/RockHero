@@ -347,6 +347,20 @@ struct MarkerRowEditor
     return chart;
 }
 
+// The derived hand chart: one short note on each of the downbeats of measures 2, 3 and 4, on frets
+// 3, 8 and 1, and no stored position. Each bar line breaks the run and each fret lies outside the
+// window before it, so the notes alone front a window at each of the three downbeats.
+[[nodiscard]] common::core::Chart makeDerivedHandChart()
+{
+    common::core::Chart chart = makeBareChart();
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3),
+        makeTestNote({.measure = 3, .beat = 1}, 2, 8),
+        makeTestNote({.measure = 4, .beat = 1}, 3, 1),
+    };
+    return chart;
+}
+
 } // namespace
 
 // Up off the top string walks the ruler's rows by selection — time signature, tempo, section — and
@@ -1652,6 +1666,139 @@ TEST_CASE("The position row walks derived and authored positions in order", "[co
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{2});
     editor.controller.onRowObjectStepRequested(false, false);
     CHECK(editor.selectedChip() == editor.handChipAt(downbeat(6)));
+}
+
+// A chart storing no position still has a position row: its objects are the windows the notes
+// derive. Up off the top string lands on the window holding the cursor and Down from the time
+// signature returns to it; Tab and Shift+Tab step across the derived fronts, inert past either end;
+// the jump lands on the holder, the first window holding the lead-in.
+TEST_CASE(
+    "The position row walks the derived windows of a chart storing none", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeDerivedHandChart()};
+    REQUIRE(editor.placements().empty());
+    const std::shared_ptr<const common::core::ChartViewState> tab = editor.state().tab;
+    REQUIRE(tab != nullptr);
+    REQUIRE(tab->fret_hand_positions.size() == 3);
+    for (const common::core::FhpViewState& chip : tab->fret_hand_positions)
+    {
+        CHECK(chip.authored == common::core::FhpAuthored::Nothing);
+    }
+    const std::optional<std::size_t> first = editor.handChipAt(downbeat(2));
+    const std::optional<std::size_t> second = editor.handChipAt(downbeat(3));
+    const std::optional<std::size_t> third = editor.handChipAt(downbeat(4));
+    REQUIRE(first.has_value());
+    REQUIRE(second.has_value());
+    REQUIRE(third.has_value());
+
+    SECTION("Up off the top string and Down from the time signature land on the holder")
+    {
+        editor.armAtMeasure(3);
+        for (int press = 0; press < 5; ++press)
+        {
+            editor.step(ChartStepDirection::Up);
+        }
+        REQUIRE(editor.caretString() == std::optional{6});
+
+        editor.step(ChartStepDirection::Up);
+        CHECK(editor.selectedChip() == second);
+        CHECK_FALSE(editor.caretString().has_value());
+        CHECK(editor.transport.position().seconds == Catch::Approx(4.0));
+
+        editor.step(ChartStepDirection::Up);
+        CHECK(editor.state().selected_time_signature_measure == std::optional{1});
+        CHECK_FALSE(editor.selectedChip().has_value());
+        editor.step(ChartStepDirection::Down);
+        CHECK(editor.selectedChip() == second);
+        editor.step(ChartStepDirection::Down);
+        CHECK(editor.caretString() == std::optional{6});
+    }
+
+    SECTION("Tab and Shift+Tab step across the derived fronts")
+    {
+        editor.clickChipAt(downbeat(3));
+        REQUIRE(editor.selectedChip() == second);
+
+        editor.controller.onRowObjectStepRequested(true, false);
+        CHECK(editor.selectedChip() == third);
+        CHECK(editor.transport.position().seconds == Catch::Approx(6.0));
+        editor.controller.onRowObjectStepRequested(true, false);
+        CHECK(editor.selectedChip() == third);
+
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedChip() == second);
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedChip() == first);
+        CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedChip() == first);
+    }
+
+    SECTION("the jump lands on the window holding the caret")
+    {
+        editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
+        editor.step(ChartStepDirection::Right);
+        REQUIRE(editor.caretString() == std::optional{1});
+
+        editor.jump(FocusRowJump::FretHandPosition);
+        CHECK(editor.selectedChip() == second);
+        CHECK_FALSE(editor.caretString().has_value());
+        CHECK(editor.transport.position().seconds == Catch::Approx(5.0));
+    }
+
+    SECTION("the first window holds the lead-in")
+    {
+        editor.armAtMeasure(1);
+        editor.jump(FocusRowJump::FretHandPosition);
+        CHECK(editor.selectedChip() == first);
+        CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
+    }
+}
+
+// A stored position pinning a front the notes already derive is one row object, not two: the chips
+// stand exactly where the notes alone put them, the pinned one drawn authored, and the row's stops
+// visit it once. Restating the derived fret and stating another one both leave a single chip there.
+TEST_CASE("A stored position on a derived front is one row object", "[core][marker-rows]")
+{
+    const MarkerRowEditor derived{makeMarkerSections(), {}, makeDerivedHandChart()};
+    const std::shared_ptr<const common::core::ChartViewState> derived_tab = derived.state().tab;
+    REQUIRE(derived_tab != nullptr);
+    const std::vector<common::core::FhpViewState>& derived_chips = derived_tab->fret_hand_positions;
+    REQUIRE(derived_chips.size() == 3);
+    REQUIRE(derived_chips[1].position == downbeat(3));
+    REQUIRE(derived_chips[1].fret == 8);
+
+    for (const int stated_fret : {8, 7})
+    {
+        common::core::Chart chart = makeDerivedHandChart();
+        chart.fret_hand_positions = {placementAt(downbeat(3), stated_fret)};
+        MarkerRowEditor pinned{makeMarkerSections(), {}, std::move(chart)};
+        const std::shared_ptr<const common::core::ChartViewState> tab = pinned.state().tab;
+        REQUIRE(tab != nullptr);
+        const std::vector<common::core::FhpViewState>& chips = tab->fret_hand_positions;
+        REQUIRE(chips.size() == derived_chips.size());
+        for (std::size_t index = 0; index < chips.size(); ++index)
+        {
+            CHECK(chips[index].position == derived_chips[index].position);
+        }
+        CHECK(chips[0].authored == common::core::FhpAuthored::Nothing);
+        CHECK(chips[1].authored == common::core::FhpAuthored::Fret);
+        CHECK(chips[1].fret == stated_fret);
+        CHECK(chips[2].authored == common::core::FhpAuthored::Nothing);
+
+        // From the first window's own front, since a Tab from the lead-in lands there first.
+        pinned.parkAtMeasure(2);
+        pinned.clickChipAt(downbeat(2));
+        pinned.controller.onRowObjectStepRequested(true, false);
+        CHECK(pinned.selectedChip() == std::optional<std::size_t>{1});
+        CHECK(pinned.selectedHandIndex() == std::optional<std::size_t>{0});
+        pinned.controller.onRowObjectStepRequested(true, false);
+        CHECK(pinned.selectedChip() == std::optional<std::size_t>{2});
+        pinned.controller.onRowObjectStepRequested(false, false);
+        CHECK(pinned.selectedChip() == std::optional<std::size_t>{1});
+        pinned.controller.onRowObjectStepRequested(false, false);
+        CHECK(pinned.selectedChip() == std::optional<std::size_t>{0});
+    }
 }
 
 // A digit on a selected DERIVED position states its fret the way it states an authored one's: the
