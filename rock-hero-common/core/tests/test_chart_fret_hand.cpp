@@ -85,8 +85,8 @@ namespace
         connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}), 0);
 }
 
-// The hand events the 13 rules derive from one stream, under a capo where a case names one and
-// around the authored positions where a case states any.
+// The hand events the 13 hand-position rules derive from one stream, under a capo where a case
+// names one and around the authored positions where a case states any.
 [[nodiscard]] std::vector<FretHandEvent> eventsOf(
     const std::vector<ChartNote>& notes, const int capo = 0,
     const std::vector<FretHandPosition>& authored = {})
@@ -340,7 +340,8 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
     CHECK(uncoveringFretHandPositions(resolved, {positions[1]}, tempo_map).empty());
 }
 
-// Rule 1: an open string and a tap constrain nothing; the window is the fretted notes' alone.
+// Hand-position rule 1: an open string and a tap constrain nothing; the window is the fretted
+// notes' alone.
 TEST_CASE("Hand derivation ignores open strings and taps", "[core][chart]")
 {
     CHECK(
@@ -349,7 +350,8 @@ TEST_CASE("Hand derivation ignores open strings and taps", "[core][chart]")
     CHECK(eventsOf({noteAt(1, 1, 1, 0), tapAt(1, 2, 2, 15)}).empty());
 }
 
-// Rule 1's fretted note is where the fretting finger is: a natural harmonic's is on its node.
+// Hand-position rule 1's fretted note is where the fretting finger is: a natural harmonic's is on
+// its node.
 TEST_CASE("Hand derivation places a natural harmonic at its node's fret", "[core][chart]")
 {
     ChartNote harmonic = noteAt(1, 1, 1, 0);
@@ -357,8 +359,8 @@ TEST_CASE("Hand derivation places a natural harmonic at its node's fret", "[core
     CHECK(eventsOf({harmonic}) == std::vector{eventAt(1, 1, 12)});
 }
 
-// Rule 2: a pitched keyframe fret statement demands its fret at its own place; a slide-out, where
-// pressure is already off, demands nothing.
+// Hand-position rule 2: a pitched keyframe fret statement demands its fret at its own place; a
+// slide-out, where pressure is already off, demands nothing.
 TEST_CASE("Hand derivation follows a pitched keyframe but not a slide-out", "[core][chart]")
 {
     const ChartNote slid = withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 2}), Fraction{1, 4}, 12);
@@ -377,9 +379,9 @@ TEST_CASE("Hand derivation never counts a keyframe demand toward a chord", "[cor
     CHECK(eventsOf({held, noteAt(1, 2, 2, 3)}) == std::vector{eventAt(1, 1, 3)});
 }
 
-// The slide rule: a finger sliding from one pressed stop to another carries the hand with it, so
-// the window at the arrival is the standing one shifted by the travel — over an authored position,
-// over a derived window, and over one that already covers the arrival.
+// The hand-position slide rule: a finger sliding from one pressed stop to another carries the hand
+// with it, so the window at the arrival is the standing one shifted by the travel — over an
+// authored position, over a derived window, and over one that already covers the arrival.
 TEST_CASE("Hand derivation shifts the window by a slide's travel", "[core][chart]")
 {
     const ChartNote slid = withFretAt(noteAt(1, 1, 2, 5, Fraction{1, 2}), Fraction{1, 4}, 7);
@@ -413,7 +415,8 @@ TEST_CASE("Hand derivation follows a chord gliding up and back", "[core][chart]"
         std::vector{eventAt(1, 1, 4), rideAt(Fraction{1, 8}, 6), rideAt(Fraction{1, 4}, 4)});
 }
 
-// Rule 3: a run closes at a chord, at a bar line, and where the grip outgrows the hand.
+// Hand-position rule 3: a run closes at a chord, at a bar line, and where the grip outgrows the
+// hand.
 TEST_CASE("Hand derivation closes a run at a chord, a bar line or an overflow", "[core][chart]")
 {
     CHECK(
@@ -427,7 +430,8 @@ TEST_CASE("Hand derivation closes a run at a chord, a bar line or an overflow", 
         std::vector{eventAt(1, 1, 5), eventAt(1, 2, 9)});
 }
 
-// Rule 5: a one-fret run the standing window covers restates nothing; one it does not still moves.
+// Hand-position rule 5: a one-fret run the standing window covers restates nothing; one it does not
+// still moves.
 TEST_CASE("Hand derivation keeps a covered one-fret run in place", "[core][chart]")
 {
     CHECK(
@@ -438,10 +442,10 @@ TEST_CASE("Hand derivation keeps a covered one-fret run in place", "[core][chart
         std::vector{eventAt(1, 1, 5), eventAt(2, 1, 12)});
 }
 
-// Rule 6: nothing moves unforced while a plain ring struck earlier sounds; a forced run still
-// moves — keeping the ring it is forced over — and the next run after the ring ends re-derives.
-// A chord struck over the ring accumulates a span with it, whose grip is held from the ring's
-// onset.
+// Hand-position rule 6: nothing moves unforced while a plain ring struck earlier sounds; a forced
+// run still moves — keeping the ring it is forced over — and the next run after the ring ends
+// re-derives. A chord struck over the ring accumulates a span with it, whose grip is held from the
+// ring's onset.
 TEST_CASE("Hand derivation holds still while a written ring sounds", "[core][chart]")
 {
     const ChartNote ring = noteAt(1, 1, 1, 5, Fraction{3, 4});
@@ -497,12 +501,12 @@ TEST_CASE("Hand derivation covers a chord span's grown grip from the chord", "[c
 }
 
 // THE INVARIANT: every derived window covers every hold (\ref fretHandHolds) at every onset and
-// every front inside it, with nothing authored and around an authored position the chart rule
-// (\ref validateFretHandCoverage) passes, which reads the same holds. With nothing authored, every
-// window, read as a position stating its fret and its top, passes that rule too. The second figure
-// plants a pull-off under a tap while lower rings still sound. Each authored position stands
-// mid-ring over silence, where the window's top must reach a ring that ends before the next
-// instant.
+// every front inside it, with nothing authored and around an authored position the hand-position
+// coverage rule (\ref validateFretHandCoverage) passes, which reads the same holds. With nothing
+// authored, every window, read as a position stating its fret and its top, passes that rule too.
+// The second figure plants a pull-off under a tap while lower rings still sound. Each authored
+// position stands mid-ring over silence, where the window's top must reach a ring that ends before
+// the next instant.
 TEST_CASE("Every derived window covers every hold standing under it", "[core][chart]")
 {
     ChartNote tap = noteAt(2, 3, 3, 16);
@@ -587,8 +591,8 @@ TEST_CASE("Every derived window covers every hold standing under it", "[core][ch
     }
 }
 
-// Rule 6's plain ring is any pressed stop: a pinch harmonic pins, a natural harmonic (fret 0) does
-// not.
+// Hand-position rule 6's plain ring is any pressed stop: a pinch harmonic pins, a natural harmonic
+// (fret 0) does not.
 TEST_CASE("Hand derivation pins a pinch harmonic's ring but not a natural's", "[core][chart]")
 {
     ChartNote pinch = noteAt(1, 1, 1, 5, Fraction{3, 4});
@@ -604,11 +608,11 @@ TEST_CASE("Hand derivation pins a pinch harmonic's ring but not a natural's", "[
         std::vector{eventAt(1, 1, 5), eventAt(1, 2, 6)});
 }
 
-// Rule 6's pin runs from the last pitched stop: a slide-then-hold pins at its destination, and so
-// does one that then slides out, since the finger stays pressed until the ring ends. The slide
-// carries the window to 7, and the figure the bar line cuts under the held 7 widens it down to the
-// 6 at once, its front unable to reach back past the hold. That figure never has three notes
-// sounding together, so no span holds anything.
+// Hand-position rule 6's pin runs from the last pitched stop: a slide-then-hold pins at its
+// destination, and so does one that then slides out, since the finger stays pressed until the ring
+// ends. The slide carries the window to 7, and the figure the bar line cuts under the held 7 widens
+// it down to the 6 at once, its front unable to reach back past the hold. That figure never has
+// three notes sounding together, so no span holds anything.
 TEST_CASE("Hand derivation pins a slide-then-hold at its destination", "[core][chart]")
 {
     const std::vector expected{eventAt(1, 1, 5), eventAt(1, 2, 7), eventAt(2, 1, 6)};
@@ -619,20 +623,20 @@ TEST_CASE("Hand derivation pins a slide-then-hold at its destination", "[core][c
     CHECK(eventsOf({slid_out, noteAt(2, 1, 2, 6), noteAt(2, 2, 3, 8)}) == expected);
 }
 
-// Rule 7: the window sits on the run's lowest fret, wherever in the run it falls.
+// Hand-position rule 7: the window sits on the run's lowest fret, wherever in the run it falls.
 TEST_CASE("Hand derivation places the window on the run's floor", "[core][chart]")
 {
     CHECK(eventsOf({noteAt(1, 1, 1, 7), noteAt(1, 2, 2, 5)}) == std::vector{eventAt(1, 1, 5)});
 }
 
-// Rule 8: the window spans the run's hull, never narrower than four frets.
+// Hand-position rule 8: the window spans the run's hull, never narrower than four frets.
 TEST_CASE("Hand derivation widens the window to a wide grip", "[core][chart]")
 {
     CHECK(eventsOf({noteAt(1, 1, 1, 5), noteAt(1, 1, 2, 10)}) == std::vector{eventAt(1, 1, 5, 6)});
 }
 
-// Rule 9: the window fits on the board — never below the capo, never past the last fret — the
-// floor winning.
+// Hand-position rule 9: the window fits on the board — never below the capo, never past the last
+// fret — the floor winning.
 TEST_CASE("Hand window fits above the capo and below the last fret", "[core][chart]")
 {
     CHECK(fittedWindowFret(10, g_min_fret_hand_width, 0) == 10);
@@ -649,8 +653,9 @@ TEST_CASE("Hand window fits above the capo and below the last fret", "[core][cha
     CHECK(eventsOf({bent_open}, 5) == std::vector{eventAt(1, 1, 6)});
 }
 
-// Rule 10: a front reaches back over onsets that demand nothing, to the first after the previous
-// run's last instant and the end of the last ring — the first run to the chart's first note.
+// Hand-position rule 10: a front reaches back over onsets that demand nothing, to the first after
+// the previous run's last instant and the end of the last ring — the first run to the chart's first
+// note.
 TEST_CASE("Hand derivation fronts a run at its leading open strings", "[core][chart]")
 {
     CHECK(
@@ -668,8 +673,8 @@ TEST_CASE("Hand derivation fronts a run at its leading open strings", "[core][ch
         std::vector{eventAt(1, 1, 5), eventAt(1, 2, 9)});
 }
 
-// Rule 10's reach-back stops at the bar line that broke the run: an open-string pickup before it
-// stays with the old window, an open string after it fronts the new one.
+// Hand-position rule 10's reach-back stops at the bar line that broke the run: an open-string
+// pickup before it stays with the old window, an open string after it fronts the new one.
 TEST_CASE("Hand derivation never reaches back across the breaking bar line", "[core][chart]")
 {
     CHECK(
@@ -681,7 +686,7 @@ TEST_CASE("Hand derivation never reaches back across the breaking bar line", "[c
         std::vector{eventAt(1, 1, 5), eventAt(2, 2, 12)});
 }
 
-// Rule 11: a run whose window is the standing one emits nothing.
+// Hand-position rule 11: a run whose window is the standing one emits nothing.
 TEST_CASE("Hand derivation emits only where the window changes", "[core][chart]")
 {
     CHECK(
@@ -690,9 +695,9 @@ TEST_CASE("Hand derivation emits only where the window changes", "[core][chart]"
         std::vector{eventAt(1, 1, 5)});
 }
 
-// Rule 12: a pull-off's plant is a demand at its source's onset — a tap's included, which demands
-// nothing itself — so the hand arrives there rather than at the pull-off, still covering the 7
-// ringing through it.
+// Hand-position rule 12: a pull-off's plant is a demand at its source's onset — a tap's included,
+// which demands nothing itself — so the hand arrives there rather than at the pull-off, still
+// covering the 7 ringing through it.
 TEST_CASE("Hand derivation covers a plant from its tapped source's onset", "[core][chart]")
 {
     CHECK(
@@ -700,8 +705,9 @@ TEST_CASE("Hand derivation covers a plant from its tapped source's onset", "[cor
         std::vector{eventAt(1, 1, 7), eventAt(1, 2, 3, 5)});
 }
 
-// Rule 12: the plant also widens every instant up to its pull-off, so the window over the span the
-// chord accumulates with the source, held from the source's onset, still covers the waiting finger.
+// Hand-position rule 12: the plant also widens every instant up to its pull-off, so the window over
+// the span the chord accumulates with the source, held from the source's onset, still covers the
+// waiting finger.
 TEST_CASE("Hand derivation widens the instants a plant waits under", "[core][chart]")
 {
     CHECK(
@@ -712,8 +718,8 @@ TEST_CASE("Hand derivation widens the instants a plant waits under", "[core][cha
              legatoAt(2, 1, 1, 5)}) == std::vector{eventAt(1, 3, 5, 5)});
 }
 
-// Rule 13: an open string bent anywhere along its ring is bent behind the nut, so the hand is at
-// the nut; an unbent open string asks nothing.
+// Hand-position rule 13: an open string bent anywhere along its ring is bent behind the nut, so the
+// hand is at the nut; an unbent open string asks nothing.
 TEST_CASE("Hand derivation puts a behind-the-nut bend at fret one", "[core][chart]")
 {
     ChartNote pre_bent = noteAt(1, 1, 1, 0);
@@ -751,8 +757,8 @@ TEST_CASE("The hand's demand never lies at or below the capo", "[core][chart]")
               .has_value());
 }
 
-// An authored position is a row object of its own, so it is emitted even where the window it
-// states is the one already standing — the one event rule 11 never drops.
+// An authored position is a row object of its own, so it is emitted even where the window it states
+// is the one already standing — the one event hand-position rule 11 never drops.
 TEST_CASE("An authored position is an event even where it restates the window", "[core][chart]")
 {
     const std::vector notes{noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 6)};
@@ -762,8 +768,8 @@ TEST_CASE("An authored position is an event even where it restates the window", 
         std::vector{eventAt(1, 1, 5), eventAt(1, 2, 5)});
 }
 
-// A stated fret pins the floor and rule 8 gives the top from there: the top of the run the
-// position heads, never under four frets.
+// A stated fret pins the floor and hand-position rule 8 gives the top from there: the top of the
+// run the position heads, never under four frets.
 TEST_CASE("An authored fret reaches the top of the run it heads", "[core][chart]")
 {
     CHECK(
@@ -832,8 +838,8 @@ TEST_CASE("No run crosses an authored position", "[core][chart]")
         std::vector{eventAt(1, 1, 5), eventAt(1, 3, 9)});
 }
 
-// Rule 10 reaches a derived front back over leading open strings, but never past an authored
-// position: one standing over silence keeps every onset up to its own instant.
+// Hand-position rule 10 reaches a derived front back over leading open strings, but never past an
+// authored position: one standing over silence keeps every onset up to its own instant.
 TEST_CASE("A derived front never reaches back past an authored position", "[core][chart]")
 {
     CHECK(

@@ -1584,7 +1584,7 @@ struct Census
 
     DerivationCounters derivation;
 
-    // RULE 6 UNDER GUITAR PRO'S DENSE DURATIONS (plan 60 §9 Q3): the ring rule was measured on a
+    // HAND-POSITION RULE 6 UNDER GUITAR PRO'S DENSE DURATIONS: the ring rule was measured on a
     // corpus whose sustains are sparse, while Guitar Pro tiles every duration, so how often it
     // holds a move here is a figure of its own. Read off the derivation's own tally over each
     // chart's notes — the stored stream also carries the import's fabricated slide windows, which
@@ -2071,7 +2071,7 @@ void reportCrossCheck(const std::vector<CrossCheck>& rows)
               << "    (this rig runs the production parser and is the authority; a flagged row is\n"
               << "     a FINDING to explain, not an error to hide.)\n";
     std::cout << "\n  --- ENFORCED: signed figures, checked ---\n";
-    std::cout << "    " << std::left << std::setw(44) << "metric" << std::right << std::setw(12)
+    std::cout << "    " << std::left << std::setw(50) << "metric" << std::right << std::setw(12)
               << "rig" << std::setw(12) << "expected" << std::setw(12) << "delta" << "\n";
     for (const CrossCheck& entry : rows)
     {
@@ -2083,7 +2083,7 @@ void reportCrossCheck(const std::vector<CrossCheck>& rows)
         }
         const double delta = entry.rig - *expected;
         const bool within = std::abs(delta) <= crossCheckTolerance(*expected);
-        std::cout << "    " << std::left << std::setw(44) << entry.label << std::right << std::fixed
+        std::cout << "    " << std::left << std::setw(50) << entry.label << std::right << std::fixed
                   << std::setprecision(2) << std::setw(12) << entry.rig << std::setw(12)
                   << *expected << std::setw(12) << delta << (within ? "" : "  <== FLAG") << "\n";
         INFO("cross-check row: " << entry.label);
@@ -2091,7 +2091,7 @@ void reportCrossCheck(const std::vector<CrossCheck>& rows)
     }
 
     std::cout << "\n  --- REPORTED, NOT ENFORCED: no signed figure to check against ---\n";
-    std::cout << "    " << std::left << std::setw(44) << "metric" << std::right << std::setw(12)
+    std::cout << "    " << std::left << std::setw(50) << "metric" << std::right << std::setw(12)
               << "rig" << "\n";
     for (const CrossCheck& entry : rows)
     {
@@ -2099,7 +2099,7 @@ void reportCrossCheck(const std::vector<CrossCheck>& rows)
         {
             continue;
         }
-        std::cout << "    " << std::left << std::setw(44) << entry.label << std::right << std::fixed
+        std::cout << "    " << std::left << std::setw(50) << entry.label << std::right << std::fixed
                   << std::setprecision(2) << std::setw(12) << entry.rig
                   << "  <== unsigned: reported only\n";
     }
@@ -2910,10 +2910,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = std::nullopt,
             },
             CrossCheck{
-                // RULE 6 UNDER DENSE DURATIONS, reported until the user signs a figure (plan 60
-                // §9 Q3): the figures a hold kept still (\ref fretHandHolds: a held ring or a
+                // HAND-POSITION RULE 6 UNDER DENSE DURATIONS, reported until the user signs a
+                // figure: the figures a hold kept still (\ref fretHandHolds: a held ring or a
                 // span's grip), beside every figure the hand derivation cut and the holds that pin.
-                .label = "hand figures held by a hold (rule 6)",
+                .label = "hand figures held by a hold (hand-position rule 6)",
                 .rig = static_cast<double>(census.hand.held_by_hold),
                 .expected = std::nullopt,
             },

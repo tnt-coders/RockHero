@@ -51,16 +51,16 @@ struct FretHandDerivationTally
     /*! \brief Of those, the instants where at least one fretted note is struck. */
     long long struck_instants{0};
 
-    /*! \brief Pitched keyframe fret statements demanding their fret (rule 2). */
+    /*! \brief Pitched keyframe fret statements demanding their fret (hand-position rule 2). */
     long long keyframe_demands{0};
 
     /*! \brief Pull-offs planting a stop beneath their source, the open string included. */
     long long plants{0};
 
-    /*! \brief Of those, the plants on a pressed fret: the rule-12 demands. */
+    /*! \brief Of those, the plants on a pressed fret: the demands of hand-position rule 12. */
     long long pressed_plants{0};
 
-    /*! \brief Instants a fretting finger slides into (the slide rule). */
+    /*! \brief Instants a fretting finger slides into (the hand-position slide rule). */
     long long slide_arrivals{0};
 
     /*! \brief Of those, the instants whose sliding fingers travel different distances. */
@@ -68,22 +68,22 @@ struct FretHandDerivationTally
 
     // Filled by \ref deriveFretHandEvents.
 
-    /*! \brief Holds that pin the hand for some time (rule 6, \ref fretHandHolds). */
+    /*! \brief Holds that pin the hand for some time (hand-position rule 6, \ref fretHandHolds). */
     long long hold_pins{0};
 
     /*! \brief Figures the walk cut. */
     long long runs{0};
 
-    /*! \brief Covered figures held still because a stop is still held (rule 6). */
+    /*! \brief Covered figures held still because a stop is still held (hand-position rule 6). */
     long long held_by_hold{0};
 
-    /*! \brief Covered one-fret figures held still (rule 5); a ring hold is counted first. */
+    /*! \brief Covered one-fret figures held still (hand-position rule 5); holds count first. */
     long long held_on_one_fret{0};
 
-    /*! \brief Figures whose window is the standing one, so nothing is emitted (rule 11). */
+    /*! \brief Figures restating the standing window: nothing emitted (hand-position rule 11). */
     long long restated{0};
 
-    /*! \brief Emitted fronts that reach back before their figure's first instant (rule 10). */
+    /*! \brief Fronts reaching back before their figure's first instant (hand-position rule 10). */
     long long fronts_reaching_back{0};
 
     /*! \brief Slide arrivals that shifted the standing window by the travel. */
@@ -127,7 +127,7 @@ struct FretHandInstant
     /*! \brief The instant, on the whole-note axis (\ref ChartConnections::places). */
     Fraction place{};
 
-    /*! \brief The bar the instant lies in, read once from its place (rule 3's bar test). */
+    /*! \brief The instant's bar, read once from its place (hand-position rule 3's bar test). */
     int measure{1};
 
     /*! \brief The lowest fret demanded or held at the instant. */
@@ -139,7 +139,7 @@ struct FretHandInstant
     /*! \brief How many fretted notes are struck at the instant. */
     int struck{0};
 
-    /*! \brief Present where a fretting finger slides into this instant (the slide rule). */
+    /*! \brief Present where a fretting finger slides in (the hand-position slide rule). */
     std::optional<FretHandSlideIn> slide{};
 };
 
@@ -175,18 +175,18 @@ struct FretHandDemands
 };
 
 /*!
-\brief RULE 1, stated once: the fret a note demands of the fretting hand at an offset along its
-ring, or nothing.
+\brief Hand-position rule 1, stated once: the fret a note demands of the fretting hand at an offset
+along its ring, or nothing.
 
 The fret slot its fretting finger occupies there (\ref fretHandStopAt), pressing a fret or touching
 a node, so a natural harmonic demands its node's fret. An onset the PICKING hand makes
 (\ref rightHandOnset) demands nothing, and neither does an open string — save one bent anywhere
-along its ring, which is bent behind the nut, or behind the capo under one (rule 13).
+along its ring, which is bent behind the nut, or behind the capo under one (hand-position rule 13).
 
 THE DEMAND IS A PLAYABLE FRET: one below \ref firstPlayableFret is lifted to it, exactly as every
-window is fitted (\ref fittedWindowFret), so the derivation and the coverage rule read one number. A
-pressed fret already lies above the capo; what the lift moves is a behind-the-nut bend, which
-demands the first playable fret, and a node nearest a fret at or below the capo.
+window is fitted (\ref fittedWindowFret), so the derivation and the hand-position coverage rule read
+one number. A pressed fret already lies above the capo; what the lift moves is a behind-the-nut
+bend, which demands the first playable fret, and a node nearest a fret at or below the capo.
 
 \param note Note whose demand is asked.
 \param offset Whole notes from the note's onset.
@@ -197,9 +197,9 @@ demands the first playable fret, and a node nearest a fret at or below the capo.
 [[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset, int capo);
 
 /*!
-\brief RULE 6, stated once: every stop the fretting hand provably holds, and for how long — what
-the derivation keeps covered and what pins it (\ref deriveFretHandEvents), and what an authored
-position must cover (\ref validateFretHandCoverage).
+\brief Hand-position rule 6, stated once: every stop the fretting hand provably holds, and for how
+long — what the derivation keeps covered and what pins it (\ref deriveFretHandEvents), and what an
+authored position must cover (\ref validateFretHandCoverage).
 
 Two sources. A RING: a note holds each pressed stop its fret channel states, from that statement
 up to the next — a slide holds the stop it leaves up to its arrival, half-open, and the stop it
@@ -224,15 +224,18 @@ nothing, and neither does a natural harmonic's ring or node: its node is demande
 \brief Derives what the notes demand of the fretting hand: the stops it holds (\ref fretHandHolds)
 and every instant it must cover.
 
+The hand-position rules are listed in \ref design_rulesets_hand_positions.
+
 What a note DEMANDS of the hand (\ref fretHandDemandAt) is asked at its onset and at every pitched
-keyframe fret statement but a slide-out (rule 2); a pull-off source's onset also demands the stop
-the pull-off plants beneath it (\ref chartPlantedStops), which widens every instant up to the
-pull-off (rule 12). Every stop the hand provably holds — each note's stops in turn, and a span
-member's from the span's front — is demanded the same way, from where its hold begins up to, not
-including, its end. The demands are merged by instant into the hull each one states, so a held stop
-fronting where nothing fretted is struck is still an instant the hand covers. A demand reached by
-a fretting finger sliding from a different pressed stop marks its instant a slide arrival, carrying
-the travel where every sliding finger agrees on it (the slide rule).
+keyframe fret statement but a slide-out (hand-position rule 2); a pull-off source's onset also
+demands the stop the pull-off plants beneath it (\ref chartPlantedStops), which widens every instant
+up to the pull-off (hand-position rule 12). Every stop the hand provably holds — each note's stops
+in turn, and a span member's from the span's front — is demanded the same way, from where its hold
+begins up to, not including, its end. The demands are merged by instant into the hull each one
+states, so a held stop fronting where nothing fretted is struck is still an instant the hand covers.
+A demand reached by a fretting finger sliding from a different pressed stop marks its instant a
+slide arrival, carrying the travel where every sliding finger agrees on it (the hand-position slide
+rule).
 
 \param connections The resolved connections (\ref chartConnections).
 \param shapes The spans and postures derived from the same connections (\ref deriveChartShapes);
@@ -249,9 +252,9 @@ the travel where every sliding finger agrees on it (the slide rule).
     const TempoMap& tempo_map, FretHandDerivationTally* tally = nullptr);
 
 /*!
-\brief Visits every stop the fretting hand grips at a place: the one query both the coverage rule
-(\ref uncoveringFretHandPositions) and an authored position's window (\ref deriveFretHandEvents)
-read, so the two cannot disagree about what a position must cover.
+\brief Visits every stop the fretting hand grips at a place: the one query both the hand-position
+coverage rule (\ref uncoveringFretHandPositions) and an authored position's window
+(\ref deriveFretHandEvents) read, so the two cannot disagree about what a position must cover.
 
 Two kinds of stop. Every note struck exactly at the place demands its onset's fret
 (\ref fretHandDemandAt) — nothing for an open string or a picking-hand onset — so a natural
@@ -274,6 +277,8 @@ void forEachGrippedStop(
 \brief Derives where the fret hand sits from the notes and the positions the charter authored: the
 13-rule figure-segmented floor tracker, superseded wherever an authored position stands.
 
+The hand-position rules are listed in \ref design_rulesets_hand_positions.
+
 THE LAW, in the three sentences a charter is taught: cut the song into figures at boundaries you can
 see — a chord being struck, a bar line, or the grip outgrowing the hand; put the hand at each
 figure's floor, spanning the grip, never narrower than four; and two exceptions, both of which only
@@ -294,22 +299,22 @@ AN AUTHORED POSITION is a statement the derivation consumes, never a patch on it
 always an event, fronting exactly where it stands, and no figure runs across it. Its window is
 `[fret, end fret]` where the end is stated; otherwise the stated fret is the floor and the top is
 the highest of every stop gripped at its instant (\ref forEachGrippedStop) and of the figure it
-heads, cut at the first later instant reaching below the stated fret — which it never holds, so
-that instant widens nothing — never under four frets, so it keeps every stop the coverage rule
-makes it cover. It stands until the
-chart contradicts it: it takes its own instant whatever sounds there, and every later instant whose
-demands fit inside the window, up to the next authored position. The 13 rules resume at the first
-instant that does not fit, and their fronts never reach back to an authored position.
+heads, cut at the first later instant reaching below the stated fret — which it never holds, so that
+instant widens nothing — never under four frets, so it keeps every stop the hand-position coverage
+rule makes it cover. It stands until the chart contradicts it: it takes its own instant whatever
+sounds there, and every later instant whose demands fit inside the window, up to the next authored
+position or slide arrival. The numbered hand-position rules resume at the first instant that does
+not fit, and their fronts never reach back to an authored position.
 
 A SLIDE MOVES THE HAND. A fretting finger's pitched slide from one pressed stop to another — a
 keyframe glide, or a glide arriving into the next head — proves the hand moved with it and kept the
 finger's place in it: the window at the slide's arrival is the standing one shifted by the travel,
 fret and top together. The arrival is a forced boundary like an authored position: no figure and no
-authored tenure runs across it, and rules 5, 6 and 10 neither hold the old window over it nor reach
-back across it. The shift stands only where the shifted window still covers everything demanded and
-held at the arrival — a finger held outside it proves the hand stayed — and an instant where
-fingers slide different distances proves no single shift; either way the window is placed by the
-ordinary rules there. A slide-out's fret is no stop, so it shifts nothing here
+authored tenure runs across it, and hand-position rules 5, 6 and 10 neither hold the old window over
+it nor reach back across it. The shift stands only where the shifted window still covers everything
+demanded and held at the arrival — a finger held outside it proves the hand stayed — and an instant
+where fingers slide different distances proves no single shift; either way the window is placed by
+the ordinary rules there. A slide-out's fret is no stop, so it shifts nothing here
 (\ref deriveFretHandRides).
 
 Memoryless per figure and never reads seconds: the bar test is the measure number changing between

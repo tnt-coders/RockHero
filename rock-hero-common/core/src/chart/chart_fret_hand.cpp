@@ -29,7 +29,7 @@ struct HandDemand
     // True for a fretted note struck here; a keyframe or a plant only widens the hull.
     bool struck{false};
     // The frets a fretting finger travelled to state this demand, where it slid here from another
-    // pressed stop (the slide rule).
+    // pressed stop (the hand-position slide rule).
     std::optional<int> travel{};
 };
 
@@ -41,7 +41,7 @@ struct ChannelStretch
 {
     Fraction from{};
     Fraction to{};
-    // What the stop demands of the hand (rule 1), or nothing.
+    // What the stop demands of the hand (hand-position rule 1), or nothing.
     std::optional<int> demand{};
     // Whether a fretting finger presses the stop, which is what makes the stretch a hold: an open
     // string, a natural harmonic's node and a picking-hand onset press nothing.
@@ -49,10 +49,10 @@ struct ChannelStretch
 };
 
 // The fret hand's walk of a note's fret channel over time: visits, in order, where its finger is
-// and for how long, each stop read through the rule-1 authority (\ref fretHandDemandAt,
-// \ref fretHandStopAt). Rule 2's demands start the stretches and the ring holds are the pressed
-// ones (\ref fretHandHolds). A stretch's end is known only once the next statement is reached, so
-// one stretch is held pending and visited then.
+// and for how long, each stop read through the authority for hand-position rule 1
+// (\ref fretHandDemandAt, \ref fretHandStopAt). Hand-position rule 2's demands start the stretches
+// and the ring holds are the pressed ones (\ref fretHandHolds). A stretch's end is known only once
+// the next statement is reached, so one stretch is held pending and visited then.
 template <typename Visit>
 void forEachChannelStretch(
     const ChartNote& note, const bool arrives_into_next_head, const int capo, const Visit& visit)
@@ -82,10 +82,10 @@ void forEachChannelStretch(
     visit(pending);
 }
 
-// Rule 2: every note's demands — the start of every stretch of its fret channel
+// Hand-position rule 2: every note's demands — the start of every stretch of its fret channel
 // (\ref forEachChannelStretch), the onset's struck. An arrival lands on the next head's instant,
 // merging there. A stretch reached from a different demanded fret is a slide, and carries the
-// hand's travel (the slide rule).
+// hand's travel (the hand-position slide rule).
 void collectNoteDemands(
     const ChartConnections& connections, const int capo, std::vector<HandDemand>& demands,
     FretHandDerivationTally& tally)
@@ -135,10 +135,10 @@ struct Widening
     int fret{0};
 };
 
-// Rule 12: a pressed stop a pull-off plants beneath its source, demanded from the source's onset —
-// a tapped source included, which demands nothing of its own — up to the pull-off, which itself
-// demands that stop. A demand and no hold (\ref fretHandHolds): the pull-off proves the finger
-// down at the release alone, so it pins nothing.
+// Hand-position rule 12: a pressed stop a pull-off plants beneath its source, demanded from the
+// source's onset — a tapped source included, which demands nothing of its own — up to the pull-off,
+// which itself demands that stop. A demand and no hold (\ref fretHandHolds): the pull-off proves
+// the finger down at the release alone, so it pins nothing.
 [[nodiscard]] std::vector<Widening> plantWideningsOf(
     const ChartConnections& connections, FretHandDerivationTally& tally)
 {
@@ -170,15 +170,16 @@ struct Widening
     return widenings;
 }
 
-// Rule 3's bar test: the measure changes between instant `index` and the instant before it.
+// Hand-position rule 3's bar test: the measure changes between instant `index` and the instant
+// before it.
 [[nodiscard]] bool breaksAtBar(
     const std::vector<FretHandInstant>& instants, const std::size_t index)
 {
     return index > 0 && instants[index].measure != instants[index - 1].measure;
 }
 
-// Rule 8: a run's width, its frets but never fewer than four — also the capacity rule 3 tests
-// a run against.
+// Hand-position rule 8: a run's width, its frets but never fewer than four — also the capacity
+// hand-position rule 3 tests a run against.
 [[nodiscard]] int runWidth(const int lowest, const int highest)
 {
     return std::max(g_min_fret_hand_width, FretWindow::through(lowest, highest).width);
@@ -192,10 +193,11 @@ struct HandRun
     int highest{0};
 };
 
-// Rule 3: the run from `head` closes at a bar line, at a chord, or where the grip would outgrow the
-// hand's capacity, max(4, hull) — the reach test keeps the four-fret floor. It also closes at
-// `limit`: the first instant an authored position takes, since that position states its own window
-// from there, or the next a slide arrives into (the slide rule). `head` must lie before `limit`.
+// Hand-position rule 3: the run from `head` closes at a bar line, at a chord, or where the grip
+// would outgrow the hand's capacity, max(4, hull) — the reach test keeps the four-fret floor. It
+// also closes at `limit`: the first instant an authored position takes, since that position states
+// its own window from there, or the next a slide arrives into (the hand-position slide rule).
+// `head` must lie before `limit`.
 [[nodiscard]] HandRun runFrom(
     const std::vector<FretHandInstant>& instants, const std::size_t head, const std::size_t limit)
 {
@@ -224,8 +226,9 @@ struct HandRun
     return run;
 }
 
-// Rule 6: each hold PINS the hand for as long as it holds, so the latest end among the holds begun
-// before an instant is how long nothing may move there; one search over the holds' reach.
+// Hand-position rule 6: each hold PINS the hand for as long as it holds, so the latest end among
+// the holds begun before an instant is how long nothing may move there; one search over the holds'
+// reach.
 [[nodiscard]] std::optional<Fraction> latestHoldEndBefore(
     const FretHandDemands& demands, const Fraction instant)
 {
@@ -290,7 +293,7 @@ struct SlideOutRide
 } // namespace
 
 // Reads the finger's fret, lifted onto the playable board; a bent open string reads as the open
-// string, so the lift alone puts it at the first playable fret (rule 13).
+// string, so the lift alone puts it at the first playable fret (hand-position rule 13).
 std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset, const int capo)
 {
     if (rightHandOnset(note.attack))
@@ -609,9 +612,9 @@ std::vector<FretHandEvent> deriveFretHandEvents(
                 instants, authored_places[index], {}, &FretHandInstant::place)));
     };
 
-    // THE SLIDE RULE's boundaries: `next_slide[k]` is the first instant at or after `k` that a
-    // fretting finger slides into, or every instant where none remains. No figure and no authored
-    // position's tenure runs across one.
+    // THE HAND-POSITION SLIDE RULE's boundaries: `next_slide[k]` is the first instant at or after
+    // `k` that a fretting finger slides into, or every instant where none remains. No figure and no
+    // authored position's tenure runs across one.
     std::vector<std::size_t> next_slide(instants.size() + 1, instants.size());
     for (std::size_t index = instants.size(); index > 0; --index)
     {
@@ -628,9 +631,9 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         const std::size_t authored_instant = first_instant_at(stated);
         if (head == authored_instant)
         {
-            // AN AUTHORED POSITION, standing where it is stated and always an event of its own.
-            // Its window is `[fret, end fret]` where the end is stated; else the floor is pinned
-            // and the width rule (`runWidth`) gives the top: the highest of every stop gripped at
+            // AN AUTHORED POSITION, standing where it is stated and always an event of its own. Its
+            // window is `[fret, end fret]` where the end is stated; else the floor is pinned and
+            // hand-position rule 8 (`runWidth`) gives the top: the highest of every stop gripped at
             // its place and of the run it heads, cut at the first later instant reaching below its
             // fret — the position never holds that one, so it widens nothing — never under four
             // frets. A hold standing there but ending before the next instant enters no instant the
@@ -681,13 +684,13 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             continue;
         }
 
-        // THE SLIDE RULE: a fretting finger sliding from one pressed stop to another proves the
-        // hand moved with it, keeping the finger's place in the hand, so the window at the arrival
-        // is the standing one shifted by the travel. The arrival's instant carries every demand and
-        // every hold standing there, so a shifted window that does not cover it — a finger held
-        // outside it proves the hand stayed — cuts as usual, and fingers sliding different
-        // distances prove no single shift; either way the arrival stays a forced boundary that
-        // rules 5, 6 and 10 cannot hold or reach back across.
+        // THE HAND-POSITION SLIDE RULE: a fretting finger sliding from one pressed stop to another
+        // proves the hand moved with it, keeping the finger's place in the hand, so the window at
+        // the arrival is the standing one shifted by the travel. The arrival's instant carries
+        // every demand and every hold standing there, so a shifted window that does not cover it —
+        // a finger held outside it proves the hand stayed — cuts as usual, and fingers sliding
+        // different distances prove no single shift; either way the arrival stays a forced boundary
+        // that hand-position rules 5, 6 and 10 cannot hold or reach back across.
         const FretHandInstant& arriving = instants[head];
         // Each bound once so the presence tests and the reads are provably the same objects.
         const std::optional<FretHandSlideIn>& slide = arriving.slide;
@@ -718,9 +721,9 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         const Fraction run_head = arriving.place;
         const std::optional<Fraction> hold_end = latestHoldEndBefore(demands, run_head);
 
-        // Rules 5 and 6 only ever remove motion, and only from an UNFORCED run, one the standing
-        // window already covers: a one-fret run restates nothing, and nothing moves while a stop
-        // held from earlier still holds.
+        // Hand-position rules 5 and 6 only ever remove motion, and only from an UNFORCED run, one
+        // the standing window already covers: a one-fret run restates nothing, and nothing moves
+        // while a stop held from earlier still holds.
         const bool unforced = !slid && standing.has_value() && standing->covers(run.lowest) &&
                               standing->covers(run.highest);
         if (unforced && hold_end.has_value() && run_head < *hold_end)
@@ -736,8 +739,8 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             continue;
         }
 
-        // Rules 7, 8 and 9: the window sits on the run's floor, spans max(4, hull), and fits on the
-        // board. Rule 11: it is emitted only where it changes.
+        // Hand-position rules 7, 8 and 9: the window sits on the run's floor, spans max(4, hull),
+        // and fits on the board. Hand-position rule 11: it is emitted only where it changes.
         const int width = runWidth(run.lowest, run.highest);
         const FretWindow window{.fret = fittedWindowFret(run.lowest, width, capo), .width = width};
         if (standing == window)
@@ -747,11 +750,11 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             continue;
         }
 
-        // Rule 10: the front is the first onset after the latest of the previous run's last
-        // instant, the latest end among the holds begun before this run, and the bar line
-        // that broke the run — never later than the run's own head. The first run therefore
-        // reaches back to the chart's first note. It never reaches back to the event before it:
-        // an authored position over silence keeps every onset up to its own instant.
+        // Hand-position rule 10: the front is the first onset after the latest of the previous
+        // run's last instant, the latest end among the holds begun before this run, and the bar
+        // line that broke the run — never later than the run's own head. The first run therefore
+        // reaches back to the chart's first note. It never reaches back to the event before it: an
+        // authored position over silence keeps every onset up to its own instant.
         Fraction bound{};
         if (hold_end.has_value())
         {

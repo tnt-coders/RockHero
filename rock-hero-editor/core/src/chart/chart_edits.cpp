@@ -300,8 +300,9 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     {
         return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
     }
-    // An empty diff lands `base`, which already passed the coverage rule (it is the live chart, or
-    // the stream a gesture started from), so it is NoChange before any derivation is paid for.
+    // An empty diff lands `base`, which already passed the hand-position coverage rule (it is the
+    // live chart, or the stream a gesture started from), so it is NoChange before any derivation is
+    // paid for.
     ChartEditPlan plan = diffNotes(base, candidate, label);
     if (plan.empty())
     {

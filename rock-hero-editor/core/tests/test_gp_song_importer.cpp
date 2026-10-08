@@ -476,8 +476,8 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.fret_hand_positions.empty());
     // The derived fret-hand track opens on the fret-5 palm mute; the seven-to-nine shift glide then
     // carries that hand two frets up where the ARRIVAL stands — the landing's own onset — so the
-    // window there is 7 (the slide rule). (The full track shape is the derivation's own concern, so
-    // this asserts the slide-driven move, not the whole sequence.)
+    // window there is 7 (the hand-position slide rule). (The full track shape is the derivation's
+    // own concern, so this asserts the slide-driven move, not the whole sequence.)
     CHECK(hands.front().fret == 5);
     const std::optional<std::size_t> shift_glide =
         fretHandPositionAt(hands, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
@@ -617,8 +617,8 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(common::core::endStatedFretOrNull(origin) == nullptr);
 
     // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: the
-    // seven-to-nine glide carries the opening hand two frets up where it arrives, mid-sustain
-    // (the slide rule).
+    // seven-to-nine glide carries the opening hand two frets up where it arrives, mid-sustain (the
+    // hand-position slide rule).
     const std::optional<std::size_t> legato_glide =
         fretHandPositionAt(hands, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(legato_glide.has_value());
@@ -794,7 +794,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
 
 // A pitched glide moves the hand even where the standing window already covers its target: with
 // the landing lowered, the one-fret glide from 7 to 8 sits inside the opening 5-8 window and still
-// carries it a fret up where it arrives (the slide rule).
+// carries it a fret up where it arrives (the hand-position slide rule).
 TEST_CASE("Guitar Pro import moves the hand through an in-window glide", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
@@ -924,7 +924,7 @@ TEST_CASE("Guitar Pro import moves the hand where a chord member slides", "[core
         CHECK(hands[0].width == 4);
 
         // The sliding 2->3 lands inside the [2,5] window the chord's run already holds, and still
-        // carries the hand a fret up where it arrives (the slide rule).
+        // carries the hand a fret up where it arrives (the hand-position slide rule).
         CHECK(hands.size() == 2);
         const std::optional<std::size_t> slid = fretHandPositionAt(hands, keyframe);
         REQUIRE(slid.has_value());

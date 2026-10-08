@@ -57,8 +57,9 @@ it touches and where the previous one ends.
 5. **One-fret runs stay.** A run the standing window already covers, all on one fret, moves nothing.
 6. **Holds pin the hand.** A pressed stop is held from where the note's fret channel states it until
    the channel's next statement or the end of the ring; a chord member struck after its chord's
-   front is held from the front. Open strings and natural harmonics hold nothing. A run the standing window already
-   covers moves nothing while any hold begun before it still holds. (`fretHandHolds`)
+   front is held from the front. Open strings and natural harmonics hold nothing. A run the
+   standing window already covers moves nothing while any hold begun before it still holds.
+   (`fretHandHolds`)
 7. **The floor.** A run's window sits on the run's lowest demanded fret: the index finger.
 8. **The width.** A window spans the run's hull, never fewer than four frets. The same
    `max(4, hull)` is the capacity rule 3 tests a run against. (`runWidth`)
@@ -67,8 +68,8 @@ it touches and where the previous one ends.
 10. **Where a window takes over.** A derived window fronts at the earliest note onset — open strings
     and taps included — that comes after the previous instant and the previous event, and not
     before the latest end of the holds begun before its run, nor before its bar's downbeat when the
-    run is the first in its bar. So a window arrives with the leading open strings of its figure, never later than the run's own
-    head. A slide arrival never reaches back.
+    run is the first in its bar. So a window arrives with the leading open strings of its figure,
+    never later than the run's own head. A slide arrival never reaches back.
 11. **Only changes are emitted.** A run whose window equals the standing one emits nothing, so every
     event is a real move.
 12. **Pull-off plants.** The stop a pull-off plants beneath its source note is demanded from the

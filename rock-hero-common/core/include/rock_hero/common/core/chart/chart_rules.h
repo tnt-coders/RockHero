@@ -22,7 +22,7 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief The notes layer the coverage rule reads (`chart_legato.h`).
+\brief The notes layer the hand-position coverage rule reads (`chart_legato.h`).
 
 Declared rather than included: `chart_legato.h` includes this header, so the include runs one way
 only and a reference needs no more than the name.
@@ -619,8 +619,9 @@ every ring at its own string's next onset with \ref normalizeSustainOverlaps (th
 note rule), applies \ref normalizeFretHandPosition to every hand position, then settles the
 relational truths against the stream as it will actually stand: \ref sweepUnjustifiedLegato,
 because a truncated tail can be the hold a neighbour's legato claim depended on, and last the drop
-of every authored hand position that breaks the coverage rule (\ref uncoveringFretHandPositions),
-because its demands read the bounded rings and its windows are the fitted ones.
+of every authored hand position that breaks the hand-position coverage rule
+(\ref uncoveringFretHandPositions), because its demands read the bounded rings and its windows are
+the fitted ones.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer
@@ -724,7 +725,10 @@ judged by exactly the rules a package load applies without re-judging every note
     const std::vector<FretHandPosition>& placements, const ChartTuning& tuning,
     const TempoMap& tempo_map);
 
-/*! \brief An authored position that breaks the coverage rule, with the first demand it misses. */
+/*!
+\brief An authored position that breaks the hand-position coverage rule, with the first demand it
+misses.
+*/
 struct UncoveringFretHandPosition
 {
     /*! \brief Index of the position in the stream it was found in. */
@@ -738,8 +742,8 @@ struct UncoveringFretHandPosition
 };
 
 /*!
-\brief THE coverage rule between the notes and the authored positions: AN AUTHORED POSITION COVERS
-EVERY FRETTED NOTE GRIPPED AT ITS INSTANT. Finds every position that breaks it.
+\brief THE hand-position coverage rule between the notes and the authored positions: AN AUTHORED
+POSITION COVERS EVERY FRETTED NOTE GRIPPED AT ITS INSTANT. Finds every position that breaks it.
 
 A note struck at a position's instant demands \ref fretHandDemandAt there — nothing for an open
 string or a picking-hand onset, and never a fret below the first playable one, which is the floor
@@ -750,7 +754,8 @@ exactly to a position's instant is not there and a natural harmonic's node is de
 alone. Both are the stops gripped at its instant (\ref forEachGrippedStop), the query an authored
 window's top also reads. The position covers a demand at or above its fret and, where an end fret is
 stated, at or below that end. Only what the position STATES is read: nothing derived (the figure's
-top, the four-fret floor) enters the test.
+top, the four-fret floor) enters the test. The rule is listed in
+\ref design_rulesets_hand_positions.
 
 The demands come from the notes alone, so one position's verdict never depends on another's: a
 caller dropping every position found here leaves a stream that passes in one pass. The notes arrive
@@ -769,7 +774,7 @@ editor's plan gate, its memo — pays for no second derivation here.
     const TempoMap& tempo_map);
 
 /*!
-\brief Validates the coverage rule (\ref uncoveringFretHandPositions) as a chart rule.
+\brief Validates the hand-position coverage rule (\ref uncoveringFretHandPositions) as a chart rule.
 
 \ref validateChartRules asks it last, and the editor's note and placement commits ask it of the
 stream they edit against the other one, so an edit from either side is refused exactly where the

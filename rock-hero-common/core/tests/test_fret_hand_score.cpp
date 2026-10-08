@@ -42,8 +42,8 @@ namespace
 
 // The exact agreement the derivation is held to and the band allowed around it, in percent: the
 // figure it makes over every package as the reader loads it, which drops each authored position
-// that breaks the coverage rule. Its rules have departed from the reference harness's (88.213), so
-// this is the derivation's own signed figure.
+// that breaks the hand-position coverage rule. Its rules have departed from the reference harness's
+// (88.213), so this is the derivation's own signed figure.
 constexpr double g_reference_exact_percent{88.175};
 constexpr double g_pass_band_percent{0.05};
 
@@ -233,7 +233,7 @@ void printPart(const std::string& label, const PartScore& part)
 
 void printRow(const std::string& label, const long long value)
 {
-    std::cout << "  " << std::left << std::setw(44) << label << std::right << value << "\n";
+    std::cout << "  " << std::left << std::setw(50) << label << std::right << value << "\n";
 }
 
 } // namespace
@@ -300,11 +300,11 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
     printRow("    from a slid source", score.pressed_plant_sources.slid);
     printRow("holds pinning", tally.hold_pins);
     printRow("runs", tally.runs);
-    printRow("  held by a hold (rule 6)", tally.held_by_hold);
-    printRow("  held on one fret (rule 5)", tally.held_on_one_fret);
-    printRow("  restating the window (rule 11)", tally.restated);
+    printRow("  held by a hold (hand-position rule 6)", tally.held_by_hold);
+    printRow("  held on one fret (hand-position rule 5)", tally.held_on_one_fret);
+    printRow("  restating the window (hand-position rule 11)", tally.restated);
     printRow("  emitted", all.emissions);
-    printRow("fronts reaching back (rule 10)", tally.fronts_reaching_back);
+    printRow("fronts reaching back (hand-position rule 10)", tally.fronts_reaching_back);
     printRow("slide arrivals", tally.slide_arrivals);
     printRow("  travelling different distances", tally.slide_arrivals_disagreeing);
     printRow("  shifting the window", tally.slide_shifts);

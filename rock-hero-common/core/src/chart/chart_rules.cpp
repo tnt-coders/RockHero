@@ -797,9 +797,9 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         conversions.end(),
         std::make_move_iterator(settled.begin()),
         std::make_move_iterator(settled.end()));
-    // The coverage rule last, against the notes and the fitted windows as they will stand: derived
-    // after the sweep, which can retype a claim. One pass is complete: a position's demands come
-    // from the notes alone, so dropping one never changes another's verdict.
+    // The hand-position coverage rule last, against the notes and the fitted windows as they will
+    // stand: derived after the sweep, which can retype a claim. One pass is complete: a position's
+    // demands come from the notes alone, so dropping one never changes another's verdict.
     const ChartResolutions resolved = chartResolutions(chart.notes, chart.tuning.capo, tempo_map);
     const std::vector<UncoveringFretHandPosition> uncovering =
         uncoveringFretHandPositions(resolved, chart.fret_hand_positions, tempo_map);

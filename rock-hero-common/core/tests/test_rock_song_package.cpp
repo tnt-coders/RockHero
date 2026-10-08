@@ -1657,8 +1657,8 @@ TEST_CASE(
 }
 
 // An authored position that leaves a gripped note uncovered is dropped on load and REPORTED, as a
-// converter that cannot apply the coverage rule writes them; the notes derive the window there, and
-// the chart that loads passes the rule.
+// converter that cannot apply the hand-position coverage rule writes them; the notes derive the
+// window there, and the chart that loads passes the rule.
 TEST_CASE(
     "Rock song package read drops a hand position off a gripped note", "[core][rock-song-package]")
 {
