@@ -171,7 +171,7 @@ Structure and metadata:
 - Icon/glyph look and feel should track Charter's 2D view closely: string-colored note heads with
   fret numbers, sustain tails, slide arrows, bend curves with value labels, technique glyphs
   (palm-mute, harmonic, HOPO, tremolo, vibrato sine strips), chord boxes with template names, FHP
-  markers along the bottom. Because Charter is MIT, its drawing code may be studied and its visual
+  markers along the bottom. Because Charter is BSD-3, its drawing code may be studied and its visual
   language ported; our implementation is JUCE `Graphics` primitives like the rest of the editor.
 - Rendering reuses the shared timeline mapping (`timelineXForPosition`, visible-range plumbing) and
   the track-row layering contract (row band → tempo grid → content → cursor overlay).

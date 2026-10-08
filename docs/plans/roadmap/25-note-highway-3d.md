@@ -32,7 +32,7 @@ A 3D note highway for the game executable: the player looks down a guitar-neck-s
 scrolling toward them, with string-colored note heads on fret lanes, sustain rails, technique
 glyphs, hit/miss feedback, and a camera that keeps the playable fret region readable at all
 times. **The visual target is [Charter](https://github.com/Lordszynencja/Charter)'s 3D preview
-(MIT), matched very closely** — Charter is the settled look for this project's 2D notation and
+(BSD-3), matched very closely** — Charter is the settled look for this project's 2D notation and
 its 3D preview is the settled starting point for the highway. Only the seven implementation
 defects catalogued in section 7 diverge from Charter's behavior: match first, improve
 deliberately. The chart sidecar format (`charts/<uuid>.chart.json`) is the single data source and

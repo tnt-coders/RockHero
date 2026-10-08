@@ -7,8 +7,8 @@ this as implementation input.
 ## Problem
 
 `ChartNote::sustain` is chart truth: how long the string actually rings. The primary 2D and 3D
-surfaces cannot simply draw every stored ring, because dense Rocksmith-style "show every tail"
-notation becomes visually bad, especially in fast songs. At the same time, suppressing short tails
+surfaces cannot simply draw every stored ring, because dense "show every tail" notation
+becomes visually bad, especially in fast songs. At the same time, suppressing short tails
 globally by note value makes fast songs cleaner but can hide intentional short holds that a charter
 may want the player to see.
 
