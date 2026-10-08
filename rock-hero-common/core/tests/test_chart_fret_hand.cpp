@@ -495,52 +495,85 @@ TEST_CASE("Hand derivation covers a chord span's grown grip from the chord", "[c
     CHECK_FALSE(coveredBy(chord, positionAt(1, 1, 5, 8)));
 }
 
-// THE INVARIANT, with nothing authored: every derived window covers every hold (\ref fretHandHolds)
-// at every onset inside it, and every window, read as a position stating its fret and its top,
-// passes the chart rule (\ref validateFretHandCoverage), which reads the same holds. A pull-off
-// planted under a tap while lower rings still sound is the figure that once left them out.
+// THE INVARIANT: every derived window covers every hold (\ref fretHandHolds) at every onset and
+// every front inside it, with nothing authored and around an authored position the chart rule
+// (\ref validateFretHandCoverage) passes, which reads the same holds. With nothing authored, every
+// window, read as a position stating its fret and its top, passes that rule too. The second figure
+// plants a pull-off under a tap while lower rings still sound. Each authored position stands
+// mid-ring over silence, where the window's top must reach a ring that ends before the next
+// instant.
 TEST_CASE("Every derived window covers every hold standing under it", "[core][chart]")
 {
     ChartNote tap = noteAt(2, 3, 3, 16);
     tap.attack = NoteAttack::Tap;
-    const std::vector<std::vector<ChartNote>> figures{
-        {noteAt(1, 1, 1, 5, Fraction{3, 4}), noteAt(1, 2, 2, 9), noteAt(1, 2, 3, 10)},
-        {noteAt(1, 2, 2, 4, Fraction{3, 2}),
-         noteAt(1, 3, 4, 4, Fraction{5, 4}),
-         tap,
-         legatoAt(2, 4, 3, 11),
-         noteAt(3, 1, 2, 7, Fraction{3, 4})},
-        {noteAt(1, 1, 3, 11, Fraction{3, 4}),
-         noteAt(1, 2, 2, 7, Fraction{1, 2}),
-         noteAt(1, 3, 4, 9, Fraction{1, 4}),
-         noteAt(2, 1, 1, 2),
-         noteAt(2, 2, 1, 14)},
-        {noteAt(1, 1, 1, 5, Fraction{1, 1}),
-         noteAt(1, 1, 2, 7, Fraction{1, 1}),
-         noteAt(1, 3, 3, 9, Fraction{1, 2}),
-         noteAt(1, 4, 4, 12)},
+    struct Figure
+    {
+        std::vector<ChartNote> notes;
+        FretHandPosition authored;
+    };
+    const std::vector<Figure> figures{
+        {.notes = {noteAt(1, 1, 1, 5, Fraction{3, 4}), noteAt(1, 2, 2, 9), noteAt(1, 2, 3, 10)},
+         .authored = positionAt(1, 3, 1)},
+        {.notes =
+             {noteAt(1, 2, 2, 4, Fraction{3, 2}),
+              noteAt(1, 3, 4, 4, Fraction{5, 4}),
+              tap,
+              legatoAt(2, 4, 3, 11),
+              noteAt(3, 1, 2, 7, Fraction{3, 4})},
+         .authored = positionAt(3, 3, 3)},
+        {.notes =
+             {noteAt(1, 1, 3, 11, Fraction{3, 4}),
+              noteAt(1, 2, 2, 7, Fraction{1, 2}),
+              noteAt(1, 3, 4, 9, Fraction{1, 4}),
+              noteAt(2, 1, 1, 2),
+              noteAt(2, 2, 1, 14)},
+         .authored =
+             FretHandPosition{
+                 .position = GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}},
+                 .fret = 7,
+                 .end_fret = std::nullopt,
+             }},
+        {.notes =
+             {noteAt(1, 1, 1, 5, Fraction{1, 1}),
+              noteAt(1, 1, 2, 7, Fraction{1, 1}),
+              noteAt(1, 3, 3, 9, Fraction{1, 2}),
+              noteAt(1, 4, 4, 12)},
+         .authored = positionAt(1, 2, 5)},
+        {.notes = {noteAt(1, 1, 1, 10, Fraction{1, 1}), noteAt(2, 1, 2, 3)},
+         .authored = positionAt(1, 3, 3)},
     };
     const TempoMap tempo_map = makeTempoMap();
-    for (const std::vector<ChartNote>& figure : figures)
+    for (const Figure& figure : figures)
     {
-        const ChartConnections connections = chartConnections(figure, tempo_map);
+        const ChartConnections connections = chartConnections(figure.notes, tempo_map);
         const FretHandDemands demands = demandsOf(connections, tempo_map);
+        const ChartResolutions resolved = chartResolutions(figure.notes, 0, tempo_map);
+        REQUIRE(validateFretHandCoverage(resolved, {figure.authored}, tempo_map).has_value());
+        const auto check_holds_covered = [&](const std::vector<FretHandEvent>& derived) {
+            std::vector<Fraction> instants = connections.places;
+            for (const FretHandEvent& front_event : derived)
+            {
+                instants.push_back(front_event.front);
+            }
+            for (const FretHandHold& hold : demands.holds)
+            {
+                for (const Fraction instant : instants)
+                {
+                    if (instant < hold.from || !(instant < hold.to))
+                    {
+                        continue;
+                    }
+                    const auto past = firstFretHandEventAfter(derived, instant);
+                    REQUIRE(past != derived.begin());
+                    CHECK(std::prev(past)->window.covers(hold.fret));
+                }
+            }
+        };
         const std::vector<FretHandEvent> events =
             deriveFretHandEvents(connections, demands, tempo_map, {});
-        for (const FretHandHold& hold : demands.holds)
-        {
-            for (const Fraction onset : connections.places)
-            {
-                if (onset < hold.from || !(onset < hold.to))
-                {
-                    continue;
-                }
-                const auto past = firstFretHandEventAfter(events, onset);
-                REQUIRE(past != events.begin());
-                CHECK(std::prev(past)->window.covers(hold.fret));
-            }
-        }
-        const ChartResolutions resolved = chartResolutions(figure, 0, tempo_map);
+        check_holds_covered(events);
+        check_holds_covered(
+            deriveFretHandEvents(connections, demands, tempo_map, {figure.authored}));
         for (const FretHandEvent& event : events)
         {
             const FretHandPosition stated{

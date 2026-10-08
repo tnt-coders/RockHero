@@ -747,9 +747,10 @@ every position is fitted to (\ref normalizeFretHandPosition). Every stop the han
 (\ref fretHandHolds, the holds the derivation keeps covered and pinned by: rings and span grips) is
 demanded at every position standing inside its hold, which ends exclusively, so a ring reaching
 exactly to a position's instant is not there and a natural harmonic's node is demanded at its strike
-alone. The position covers a demand at or above its fret and, where an end fret is stated, at or
-below that end. Only what the position STATES is read: nothing derived (the figure's top, the
-four-fret floor) enters the test.
+alone. Both are the stops gripped at its instant (\ref forEachGrippedStop), the query an authored
+window's top also reads. The position covers a demand at or above its fret and, where an end fret is
+stated, at or below that end. Only what the position STATES is read: nothing derived (the figure's
+top, the four-fret floor) enters the test.
 
 The demands come from the notes alone, so one position's verdict never depends on another's: a
 caller dropping every position found here leaves a stream that passes in one pass. The notes arrive

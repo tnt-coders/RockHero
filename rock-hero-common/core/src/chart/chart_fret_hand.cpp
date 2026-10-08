@@ -33,24 +33,6 @@ struct HandDemand
     std::optional<int> travel{};
 };
 
-// The holds' pins (rule 6), sorted by start: `reach[k]` is the latest end among the first k + 1,
-// so the latest end of every hold begun before an instant is one search.
-struct HoldPins
-{
-    std::vector<Fraction> starts;
-    std::vector<Fraction> reach;
-
-    [[nodiscard]] std::optional<Fraction> latestEndBefore(const Fraction instant) const
-    {
-        const auto past = std::ranges::lower_bound(starts, instant);
-        if (past == starts.begin())
-        {
-            return std::nullopt;
-        }
-        return reach[static_cast<std::size_t>(std::distance(starts.begin(), past)) - 1];
-    }
-};
-
 // One stretch of a note's ring over which its fret channel states one stop, as offsets from the
 // onset: the onset's stop up to the first fret statement, each statement's up to the next, and the
 // last to the ring's end. A slide-out's fret is no stop the hand takes, so the stop it slides from
@@ -232,26 +214,19 @@ struct HandRun
     return run;
 }
 
-// Rule 6: each hold PINS the hand for as long as it holds.
-[[nodiscard]] HoldPins holdPinsOf(const std::vector<FretHandHold>& holds)
+// Rule 6: each hold PINS the hand for as long as it holds, so the latest end among the holds begun
+// before an instant is how long nothing may move there; one search over the holds' reach.
+[[nodiscard]] std::optional<Fraction> latestHoldEndBefore(
+    const FretHandDemands& demands, const Fraction instant)
 {
-    std::vector<std::pair<Fraction, Fraction>> pins;
-    pins.reserve(holds.size());
-    for (const FretHandHold& hold : holds)
+    const auto past =
+        std::ranges::lower_bound(demands.holds, instant, std::ranges::less{}, &FretHandHold::from);
+    if (past == demands.holds.begin())
     {
-        pins.emplace_back(hold.from, hold.to);
+        return std::nullopt;
     }
-    std::ranges::sort(pins);
-    HoldPins hold_pins;
-    hold_pins.starts.reserve(pins.size());
-    hold_pins.reach.reserve(pins.size());
-    for (const auto& [from, to] : pins)
-    {
-        hold_pins.starts.push_back(from);
-        hold_pins.reach.push_back(
-            hold_pins.reach.empty() ? to : std::max(hold_pins.reach.back(), to));
-    }
-    return hold_pins;
+    return demands
+        .hold_reach[static_cast<std::size_t>(std::distance(demands.holds.begin(), past)) - 1];
 }
 
 // One slide-out the window may ride: its segment on the whole-note axis and the fret it exits to.
@@ -451,6 +426,15 @@ FretHandDemands fretHandDemands(
     FretHandDemands hand_demands;
     hand_demands.capo = capo;
     hand_demands.holds = fretHandHolds(connections, shapes, capo);
+    // Stable, so holds beginning together keep the order they were found in.
+    std::ranges::stable_sort(hand_demands.holds, std::ranges::less{}, &FretHandHold::from);
+    hand_demands.hold_reach.reserve(hand_demands.holds.size());
+    for (const FretHandHold& hold : hand_demands.holds)
+    {
+        hand_demands.hold_reach.push_back(
+            hand_demands.hold_reach.empty() ? hold.to
+                                            : std::max(hand_demands.hold_reach.back(), hold.to));
+    }
 
     std::vector<HandDemand> demands;
     collectNoteDemands(connections, capo, demands, counts);
@@ -536,6 +520,40 @@ FretHandDemands fretHandDemands(
     return hand_demands;
 }
 
+// The onsets struck at the place, one search over the ascending places, then the holds standing
+// there, walked back from the last begun at or before it until the holds' reach falls to it: no
+// earlier hold can still stand past that point.
+void forEachGrippedStop(
+    const ChartConnections& connections, const FretHandDemands& demands, const Fraction place,
+    const std::function<void(int fret, Fraction from)>& visit)
+{
+    const auto [first, past] = std::ranges::equal_range(connections.places, place);
+    for (auto onset = first; onset != past; ++onset)
+    {
+        const auto index =
+            static_cast<std::size_t>(std::distance(connections.places.begin(), onset));
+        const std::optional<int> demand =
+            fretHandDemandAt(connections.saved_notes[index], Fraction{}, demands.capo);
+        if (demand.has_value())
+        {
+            visit(*demand, place);
+        }
+    }
+    const std::vector<FretHandHold>& holds = demands.holds;
+    // How many holds begin at or before the place; only those can stand there.
+    auto begun = static_cast<std::size_t>(std::distance(
+        holds.begin(),
+        std::ranges::upper_bound(holds, place, std::ranges::less{}, &FretHandHold::from)));
+    for (; begun > 0 && place < demands.hold_reach[begun - 1]; --begun)
+    {
+        const FretHandHold& hold = holds[begun - 1];
+        if (place < hold.to)
+        {
+            visit(hold.fret, hold.from);
+        }
+    }
+}
+
 std::vector<FretHandEvent> deriveFretHandEvents(
     const ChartConnections& connections, const FretHandDemands& demands, const TempoMap& tempo_map,
     const std::vector<FretHandPosition>& authored, FretHandDerivationTally* const tally)
@@ -545,8 +563,7 @@ std::vector<FretHandEvent> deriveFretHandEvents(
     FretHandDerivationTally& counts = tally != nullptr ? *tally : unread;
     const std::vector<FretHandInstant>& groups = demands.instants;
     const int capo = demands.capo;
-    const HoldPins hold_pins = holdPinsOf(demands.holds);
-    counts.hold_pins += static_cast<long long>(hold_pins.starts.size());
+    counts.hold_pins += static_cast<long long>(demands.holds.size());
     const std::vector<Fraction>& onsets = connections.places;
 
     // Where each authored position stands on the whole-note axis; ascending, as the list is.
@@ -588,29 +605,39 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         {
             // AN AUTHORED POSITION, standing where it is stated and always an event of its own.
             // Its window is `[fret, end fret]` where the end is stated; else the floor is pinned
-            // and rule 8 gives the top: the top of the run it heads, never under four frets. It
-            // then stands until the chart contradicts it: it takes its own instant whatever
-            // sounds there — a slide arriving there included — and every later group that fits
-            // inside the window, up to the next authored position or slide arrival. The derivation
-            // resumes at the first group that does not fit.
+            // and rule 8 gives the top: the highest of the run it heads and of every stop gripped
+            // at its place, never under four frets. A hold standing there but ending before the
+            // next instant enters no instant the run reads, so only the gripped stops keep it. The
+            // position then stands until the chart contradicts it: it takes its own instant
+            // whatever sounds there — a slide arriving there included — and every later group that
+            // fits inside the window, up to the next authored position or slide arrival. The
+            // derivation resumes at the first group that does not fit.
             const FretHandPosition& position = authored[stated];
             const Fraction place = authored_places[stated];
             ++stated;
             const std::size_t own =
                 head < groups.size() && groups[head].place == place ? head + 1 : head;
             const std::size_t reach = std::min(first_group_at(stated), next_slide[own]);
-            int top = position.fret + g_min_fret_hand_width - 1;
+            FretWindow window{};
             // Bound once so the presence test and the read are provably one object.
             const std::optional<int>& end_fret = position.end_fret;
             if (end_fret.has_value())
             {
-                top = *end_fret;
+                window = FretWindow::through(position.fret, *end_fret);
             }
-            else if (head < reach)
+            else
             {
-                top = std::max(top, runFrom(groups, head, reach).highest);
+                int top = position.fret;
+                forEachGrippedStop(
+                    connections, demands, place, [&top](const int fret, const Fraction /*from*/) {
+                        top = std::max(top, fret);
+                    });
+                if (head < reach)
+                {
+                    top = std::max(top, runFrom(groups, head, reach).highest);
+                }
+                window = FretWindow{.fret = position.fret, .width = runWidth(position.fret, top)};
             }
-            const FretWindow window = FretWindow::through(position.fret, top);
             events.push_back(FretHandEvent{.front = place, .window = window});
             standing = window;
             while (head < reach &&
@@ -656,7 +683,7 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         const HandRun run = runFrom(groups, head, std::min(authored_group, next_slide[head + 1]));
         ++counts.runs;
         const Fraction run_head = arriving.place;
-        const std::optional<Fraction> hold_end = hold_pins.latestEndBefore(run_head);
+        const std::optional<Fraction> hold_end = latestHoldEndBefore(demands, run_head);
 
         // Rules 5 and 6 only ever remove motion, and only from an UNFORCED run, one the standing
         // window already covers: a one-fret run restates nothing, and nothing moves while a stop

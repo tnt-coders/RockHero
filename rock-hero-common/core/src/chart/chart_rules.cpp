@@ -268,73 +268,37 @@ std::expected<void, ChartError> validateFretHandPositions(
     return {};
 }
 
-// Walked from the demands' side: each onset meets the positions standing exactly at it, and each
-// hold the positions standing inside it, each found by one search. The holds are the derivation's
-// own (\ref ChartResolutions::hand_demands), so a stop is demanded here exactly where the
-// derivation keeps it. Every uncovered demand is collected, then each position keeps its
-// earliest-found one.
+// Each position against the stops gripped at its instant, the query the derivation tops an
+// authored window with, so a stop is demanded here exactly where the derivation keeps it. Each
+// position keeps the first stop it misses.
 std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     const ChartResolutions& chart, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
 {
     std::vector<UncoveringFretHandPosition> uncovering;
-    if (positions.empty())
+    for (std::size_t index = 0; index < positions.size(); ++index)
     {
-        return uncovering;
-    }
-    std::vector<Fraction> instants;
-    instants.reserve(positions.size());
-    for (const FretHandPosition& position : positions)
-    {
-        instants.push_back(tempo_map.wholeNotePositionAt(position.position));
-    }
-    // The positions standing inside `[from, to)`, as indices.
-    const auto positions_inside = [&instants](const Fraction from, const Fraction to) {
-        const auto first = std::ranges::lower_bound(instants, from);
-        const auto past = std::ranges::lower_bound(first, instants.end(), to);
-        return std::views::iota(
-            static_cast<std::size_t>(std::distance(instants.begin(), first)),
-            static_cast<std::size_t>(std::distance(instants.begin(), past)));
-    };
-    const ChartConnections& connections = chart.connections;
-    for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
-    {
-        const ChartNote& note = connections.saved_notes[index];
-        const std::optional<int> demand =
-            fretHandDemandAt(note, Fraction{}, chart.hand_demands.capo);
-        const auto at = std::ranges::lower_bound(instants, connections.places[index]);
-        if (!demand.has_value() || at == instants.end() || *at != connections.places[index])
+        const FretHandPosition& position = positions[index];
+        std::optional<UncoveringFretHandPosition> missed;
+        forEachGrippedStop(
+            chart.connections,
+            chart.hand_demands,
+            tempo_map.wholeNotePositionAt(position.position),
+            [&](const int fret, const Fraction from) {
+                if (!missed.has_value() && !positionCovers(position, fret))
+                {
+                    missed = UncoveringFretHandPosition{
+                        .position = index,
+                        .fret = fret,
+                        .gripped_from = tempo_map.gridPositionAtWholeNote(from),
+                    };
+                }
+            });
+        if (missed.has_value())
         {
-            continue;
-        }
-        const auto position = static_cast<std::size_t>(std::distance(instants.begin(), at));
-        if (!positionCovers(positions[position], *demand))
-        {
-            uncovering.push_back(
-                UncoveringFretHandPosition{
-                    .position = position, .fret = *demand, .gripped_from = note.position
-                });
+            uncovering.push_back(*missed);
         }
     }
-    for (const FretHandHold& hold : chart.hand_demands.holds)
-    {
-        for (const std::size_t at : positions_inside(hold.from, hold.to))
-        {
-            if (!positionCovers(positions[at], hold.fret))
-            {
-                uncovering.push_back(
-                    UncoveringFretHandPosition{
-                        .position = at,
-                        .fret = hold.fret,
-                        .gripped_from = tempo_map.gridPositionAtWholeNote(hold.from),
-                    });
-            }
-        }
-    }
-    std::ranges::stable_sort(uncovering, {}, &UncoveringFretHandPosition::position);
-    const auto repeated =
-        std::ranges::unique(uncovering, {}, &UncoveringFretHandPosition::position);
-    uncovering.erase(repeated.begin(), repeated.end());
     return uncovering;
 }
 

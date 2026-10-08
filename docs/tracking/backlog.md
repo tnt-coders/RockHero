@@ -1523,9 +1523,7 @@ against the tree on the date above.
   position k equal the events with it" needs only the stretch between k's neighbours —
   O(N + P·local) instead of O(P·N) — but the proof that nothing outside the neighbours can change
   (rule 10's front never reaches back across an authored position; a slide arrival is a forced
-  boundary either way) is owed first. Of the per-call work left, `holdPinsOf`'s sort is
-  notes-only and moves into `FretHandDemands` beside the instants before anything else. Prune is a
-  command, never a held key.
+  boundary either way) is owed first. Prune is a command, never a held key.
 - **Whole-stream copies on a gesture's walk-back (accepted cost).** `applyChartChange`
   (`chart_edits.cpp`) rebuilds the notes on a copy before swapping so a failed precondition leaves
   nothing half-applied, and `commitChartGestureStep` (`chart_handlers.cpp`) copies the pre-gesture

@@ -8,6 +8,7 @@ rides a slide-out (\ref deriveFretHandRides), and the two together as a chart re
 
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -157,8 +158,17 @@ struct FretHandDemands
     /*! \brief The tuning's capo fret the demands were derived under; 0 for none. */
     int capo{0};
 
-    /*! \brief Every stop the fretting hand provably holds (\ref fretHandHolds), unordered. */
+    /*!
+    \brief Every stop the fretting hand provably holds (\ref fretHandHolds), ascending by where each
+    hold begins.
+    */
     std::vector<FretHandHold> holds;
+
+    /*!
+    \brief Index-parallel to \ref holds: `hold_reach[k]` is the latest end among `holds[0..k]`, so
+    the holds standing at a place are found by walking back from the last one begun there.
+    */
+    std::vector<Fraction> hold_reach;
 
     /*! \brief Every instant the hand covers, strictly ascending by place. */
     std::vector<FretHandInstant> instants;
@@ -239,6 +249,28 @@ the travel where every sliding finger agrees on it (the slide rule).
     const TempoMap& tempo_map, FretHandDerivationTally* tally = nullptr);
 
 /*!
+\brief Visits every stop the fretting hand grips at a place: the one query both the coverage rule
+(\ref uncoveringFretHandPositions) and an authored position's window (\ref deriveFretHandEvents)
+read, so the two cannot disagree about what a position must cover.
+
+Two kinds of stop. Every note struck exactly at the place demands its onset's fret
+(\ref fretHandDemandAt) — nothing for an open string or a picking-hand onset — so a natural
+harmonic's node is gripped at its strike alone. And every hold (\ref fretHandHolds) standing there,
+begun at or before it and ending after it: a ring reaching exactly to the place is gone. A pressed
+onset that also begins a hold is visited once per kind, which no reader can tell apart.
+
+\param connections The resolved connections the demands were derived from.
+\param demands What the notes demand of the hand (\ref fretHandDemands); its capo is the one the
+       onsets are read under.
+\param place Place on the whole-note axis.
+\param visit Called with each gripped stop's fret and where it was struck or began holding, the
+       onsets first, in no further promised order.
+*/
+void forEachGrippedStop(
+    const ChartConnections& connections, const FretHandDemands& demands, Fraction place,
+    const std::function<void(int fret, Fraction from)>& visit);
+
+/*!
 \brief Derives where the fret hand sits from the notes and the positions the charter authored — THE
 13-rule figure-segmented floor tracker (`docs/plans/in-progress/fhp-derivation-algorithm.md`, with
 plan 60's Phase 1 rulings), superseded wherever an authored position stands.
@@ -262,10 +294,11 @@ the window changes.
 AN AUTHORED POSITION is a statement the derivation consumes, never a patch on its output. It is
 always an event, fronting exactly where it stands, and no figure runs across it. Its window is
 `[fret, end fret]` where the end is stated; otherwise the stated fret is the floor and the top is
-the top of the figure it heads, never under four frets. It stands until the chart contradicts it:
-it takes its own instant whatever sounds there, and every later instant whose demands fit inside
-the window, up to the next authored position. The 13 rules resume at the first instant that does
-not fit, and their fronts never reach back to an authored position.
+the highest of the figure it heads and every stop gripped at its instant (\ref forEachGrippedStop),
+never under four frets, so it keeps every stop the coverage rule makes it cover. It stands until the
+chart contradicts it: it takes its own instant whatever sounds there, and every later instant whose
+demands fit inside the window, up to the next authored position. The 13 rules resume at the first
+instant that does not fit, and their fronts never reach back to an authored position.
 
 A SLIDE MOVES THE HAND. A fretting finger's pitched slide from one pressed stop to another — a
 keyframe glide, or a glide arriving into the next head — proves the hand moved with it and kept the
