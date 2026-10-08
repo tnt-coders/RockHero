@@ -41,10 +41,11 @@ namespace rock_hero::common::core
 namespace
 {
 
-// The exact agreement the derivation is held to and the band Q12 allows around it, in percent. The
-// slide rule moved the derivation off the reference harness's 88.213, so this is the signed figure
-// the derivation now makes.
-constexpr double g_reference_exact_percent{88.509};
+// The exact agreement the derivation is held to and the band Q12 allows around it, in percent: the
+// figure it makes over every package as the reader loads it, which drops each authored position
+// that breaks the coverage rule. Its rules have departed from the reference harness's (88.213), so
+// this is the derivation's own signed figure.
+constexpr double g_reference_exact_percent{88.175};
 constexpr double g_pass_band_percent{0.05};
 
 // One part's agreement: how many fretted notes were judged and how they fared.

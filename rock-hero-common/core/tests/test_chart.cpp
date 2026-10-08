@@ -415,8 +415,7 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
     CHECK(harmonicNodeText(19.0196) == "19");
 
     // Which fret the FRETTING hand occupies. A natural harmonic has no stop of its own, so the hand
-    // is at the node; fret N spans wire N-1 to wire N, making that fret ceil(node) — NOT round and
-    // NOT floor.
+    // is at the node, which is touched over a wire: the fret nearest it, either side.
     const auto natural = [](const double node) {
         ChartNote note;
         note.position = GridPosition{.measure = 1, .beat = 1};
@@ -426,10 +425,11 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
         return note;
     };
     CHECK(fretFor(natural(12.0)) == 12);
-    CHECK(fretFor(natural(2.669)) == 3); // written "2.7"; lies in fret 3's span
-    CHECK(fretFor(natural(3.156)) == 4); // written "3.2"; fret 4's span — round would say 3
-    CHECK(fretFor(natural(7.020)) == 8); // just past wire 7 — round would say 7, putting it outside
-    CHECK(fretFor(natural(4.980)) == 5);
+    CHECK(fretFor(natural(2.669)) == 3); // written "2.7"
+    CHECK(fretFor(natural(3.156)) == 3); // written "3.2"
+    CHECK(fretFor(natural(7.020)) == 7); // just past wire 7, touched there
+    CHECK(fretFor(natural(4.980)) == 5); // just short of wire 5, touched there
+    CHECK(fretFor(natural(19.0196)) == 19);
     CHECK(fretFor(natural(24.0)) == 24);
 
     // A pinch and a two-hand tap both have a real stop, and their node is the other hand's, so the
@@ -458,8 +458,7 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
     plain.fret = 7;
     CHECK(fretFor(plain) == 7);
 
-    // The property that makes ceil the only safe choice: a window told about fret H is only
-    // guaranteed to cover fret units [H-1, H], so every node must fall inside its own fret's span.
+    // Every node the importer can snap to is given the fret whose wire is nearest it.
     for (int partial = 2; partial <= g_max_snapped_partial; ++partial)
     {
         for (int index = 1; index < partial; ++index)
@@ -468,8 +467,7 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
                 12.0 *
                 std::log2(static_cast<double>(partial) / static_cast<double>(partial - index));
             const int fret = fretFor(natural(node));
-            CHECK(static_cast<double>(fret - 1) <= node);
-            CHECK(node <= static_cast<double>(fret));
+            CHECK(std::abs(node - static_cast<double>(fret)) <= 0.5);
         }
     }
 }
@@ -511,12 +509,13 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
         CHECK(nodeStop(7.01955) != nodeStop(7.0));
     }
 
-    SECTION("the hand's fret is the one ceil law, and the label is the one label authority")
+    SECTION("the hand's fret is the one node law, and the label is the one label authority")
     {
         CHECK(handFretOf(nodeStop(12.0)) == 12);
         CHECK(handFretOf(nodeStop(2.669)) == 3);
-        CHECK(handFretOf(nodeStop(3.156)) == 4);
-        CHECK(handFretOf(nodeStop(7.01955)) == 8);
+        CHECK(handFretOf(nodeStop(3.156)) == 3);
+        CHECK(handFretOf(nodeStop(7.01955)) == 7);
+        CHECK(handFretOf(nodeStop(4.98)) == 5);
         CHECK(handFretOf(frettedStop(0)) == 0);
         CHECK(handFretOf(frettedStop(9)) == 9);
 

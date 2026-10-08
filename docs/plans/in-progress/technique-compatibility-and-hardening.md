@@ -659,15 +659,17 @@ what was left:
 | `nodeIsOnNeck(attack)` | is the node somewhere a display can point at? | everything but a **pinch**, whose thumb grazes out over the body. A predicate about the *attack* alone, so callers keep `harmonic_node.has_value()` inline — plainer, and visible to the optional-access checker, which cannot see through a wrapper. |
 | `fretFor(note)` | which fret is the **fretting hand** on? | the node's fret for a fret-hand harmonic; the stop for a pinch or a two-hand tap, whose node is the *other* hand's; the fret otherwise. |
 
-`fretFor` uses **`ceil`**. Fret `N` spans wire `N-1` to wire `N`, so a node at 2.669 lies in fret
-**3** and 3.156 in fret **4**. A fret-hand window over `[f, f+w-1]` covers fret units `[f-1,
-f+w-1]`, so an edge harmonic is only reliably covered when `H-1 <= node <= H`. Measured over every
-node below fret 25: **`floor` fails 18 times, `round` 7, `ceil` never.**
+`fretFor` uses **`round`**. A natural harmonic is touched over a wire, and equal temperament puts
+its node a hair to either side of it: 7.02 is the 7th-fret harmonic and 4.98 the 5th. The fret
+nearest the node is the one a charter writes a hand position over, so a window ending at 19 covers
+the 19th-fret harmonic at 19.02. The price is drawing: a window over `[f, f+w-1]` covers fret units
+`[f-1, f+w-1]`, so a node just past the top wire draws that sliver outside the 3D window (7 of the
+nodes below fret 25, 3.156 the widest at 0.156 fret).
 
 **Not every rounding is that question.** `highwayNoteFretboardX` does no rounding at all:
 `highwayFretLineX` takes a fractional coordinate and is linear in it, so a floor-then-lerp dance
 collapses to one call. That is *interpolation*, not containment, and a stray `floor` sitting next to
-a `ceil` rule costs a reader time.
+the `round` rule costs a reader time.
 
 **Capo consumption.** `capo` drives the import shift (GP's frets are capo-relative, so fretted notes
 store `F + capo`), the physical-stop derivation in E21's validation, and the harmonic-node

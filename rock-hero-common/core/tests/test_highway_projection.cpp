@@ -851,7 +851,7 @@ TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
 
     const std::vector<HighwayNodeSeries> series = makeHighwayNodeSeries(notes);
     REQUIRE(series.size() == 2);
-    CHECK(series[0].fret == 12); // The fret CONTAINING the node (the ceil law).
+    CHECK(series[0].fret == 12); // The fret nearest the node (the node law).
     CHECK(series[0].node == Catch::Approx(12.0));
     CHECK(series[0].begin_seconds == Catch::Approx(1.0));
     CHECK(series[0].end_seconds == Catch::Approx(3.0));

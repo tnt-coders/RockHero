@@ -287,6 +287,21 @@ TEST_CASE("Fret-hand coverage demands a natural harmonic's node only", "[core][c
     CHECK(coveredBy({chime}, positionAt(1, 2, 1, 4)));
 }
 
+// A natural harmonic is touched over a wire, which equal temperament puts its node a hair to either
+// side of: the hand is demanded at the nearest fret, so a window ending on that fret covers it.
+TEST_CASE("A natural harmonic demands the fret nearest its node", "[core][chart]")
+{
+    const auto chime = [](const double node) {
+        ChartNote note = noteAt(1, 1, 1, 0);
+        note.harmonic_node = node;
+        return note;
+    };
+    CHECK(fretHandDemandAt(chime(7.01955), Fraction{}) == std::optional{7});
+    CHECK(fretHandDemandAt(chime(4.98045), Fraction{}) == std::optional{5});
+    CHECK(fretHandDemandAt(chime(19.01955), Fraction{}) == std::optional{19});
+    CHECK(coveredBy({chime(19.01955)}, positionAt(1, 1, 7, 19)));
+}
+
 // The coverage authority reports every breaking position once, ascending, with the first demand it
 // misses; a position's verdict reads the notes alone, so its neighbours never change it.
 TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][chart]")

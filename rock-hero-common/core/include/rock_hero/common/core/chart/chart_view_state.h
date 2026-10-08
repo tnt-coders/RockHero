@@ -777,8 +777,8 @@ must ask this instead of testing `fret == 0`.
 \brief The fret slot the note's fretting hand occupies.
 
 \ref fretFor through the mirrored fields: a natural harmonic's finger stands on the node, so its
-slot is the fret CONTAINING the node (the ceil law chart.h derives), while every other note's slot
-is its own fret. This is what fret-aligned furniture — the onset span line, the hit-glow fret
+slot is the fret nearest the node (the node law, \ref handFretOf), while every other note's slot is
+its own fret. This is what fret-aligned furniture — the onset span line, the hit-glow fret
 lines — aligns to; a head itself keeps the node's exact fractional position.
 
 \param note Note to place.

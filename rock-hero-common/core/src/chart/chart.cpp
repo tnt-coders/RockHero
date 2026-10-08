@@ -25,7 +25,7 @@ int handFretOf(const ChartStop& stop)
     const std::optional<double>& node = stop.node;
     if (node.has_value())
     {
-        return static_cast<int>(std::ceil(*node));
+        return static_cast<int>(std::lround(*node));
     }
     return stop.fret;
 }

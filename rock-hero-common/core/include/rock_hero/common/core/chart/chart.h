@@ -269,9 +269,9 @@ typed. They agree about which labels name a node at all because there is one rul
 
 The verb reads it through the node picker (the `H` row of
 `docs/plans/in-progress/keymap-matrix.md`): a fret a CHARTER types is read as a label exactly as
-import reads a written one, rather than through the ceil law that places a node in fret `ceil(p)`.
-The two answer different questions — where a finger stands, versus what a label names — and the
-ceil law would make 7 and 19 name nothing, which are the commonest harmonics on the instrument.
+import reads a written one, rather than through the node law that gives a node the fret nearest it
+(\ref handFretOf). The two answer different questions — which fret a finger stands at, versus what
+a label names — and only the label reading knows which partial a typed "3" or "3.2" means.
 */
 inline constexpr double g_max_node_label_error{0.5};
 
@@ -1576,8 +1576,7 @@ EQUALITY IS EXACT, AND IT IS THE CHART'S OWN. \ref ChartNote's comparison alread
 on "is this the same node", free to disagree with the note the posture was derived from. Nodes are
 deterministic (the importer's snapper plus the capo) and round-trip exactly through the writer, so
 two harmonics at one node compare equal. The tenths rounding in \ref harmonicNodeText stays a
-DISPLAY rule and never decides structure — it cannot, because rounding 7.01955 to 7.0 would put
-\ref handFretOf's ceil in fret 7 where the finger is in fret 8.
+DISPLAY rule and never decides structure: two nodes that print alike can still be two places.
 
 The comparisons stay DEFAULTED: the only floating value is reached through `std::optional<double>`,
 where the compare happens inside `<optional>` and the float-equal diagnostic does not reach — the
@@ -1636,16 +1635,15 @@ struct ChartStop
 }
 
 /*!
-\brief The fret SLOT the hand occupies for this stop: the node's containing fret, or the stop.
+\brief The fret the hand occupies for this stop: the fret nearest the node, or the stop.
 
-THE ONE SPELLING OF THE CEIL LAW — \ref fretFor delegates here, so the FHP derivation, the 3D hand
-window and the census reach check all read one rule. Fret `N` occupies the neck from wire `N-1` to
-wire `N` (`highwayNoteCenterX` is the midpoint of those two), so the fret containing a node at `p`
-is `ceil(p)`: 2.669 lies in fret 3 and 3.156 in fret 4. **Neither `round` nor `floor` works.** A
-fret-hand window over frets `[f, f+w-1]` covers fret units `[f-1, f+w-1]`, so when the harmonic is
-the window's edge note the window only reliably covers `[H-1, H]` for the fret `H` it was given.
-Measured over every node below fret 25, `floor` leaves the head outside the window 18 times and
-`round` 7 times; `ceil` never does.
+THE ONE SPELLING OF THE NODE LAW — \ref fretFor delegates here, so the FHP derivation, its coverage
+rule, the 3D hand window and the census reach check all read one rule. A natural harmonic is
+touched over a fret WIRE, and equal temperament only puts the true node a hair to either side of it
+(4.98, 7.02, 19.02), so the finger that touches it is the one for the nearest fret: `round(p)`.
+`ceil` would send 7.02 to fret 8 and demand a window the player's hand never needs. The cost is a
+hair at the window's edge: a window over frets `[f, f+w-1]` spans wires `[f-1, f+w-1]`, so a node
+just past its top wire draws that hair outside it.
 
 \param stop Stop to place.
 

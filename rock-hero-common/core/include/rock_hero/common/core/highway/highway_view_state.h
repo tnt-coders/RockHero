@@ -121,8 +121,8 @@ The fret-UNITS coordinate the fret axis is laid out in — a fret's own wire num
 place — and what the hand-travel interpolation below works in. NOT a placement: \ref highwayStopX
 is the world-X authority, and it puts a node on its wire but a fret at its slot's MIDPOINT, so
 `highwayFretLineX(highwayStopPosition(stop))` is half a slot from `highwayStopX(stop)` for every
-pressed fret. NOT \ref handFretOf's ceil either: that asks which integer fret CONTAINS the node,
-for the hand window; this is the node itself.
+pressed fret. NOT \ref handFretOf either: that asks which integer fret the hand touches the node
+from, for the hand window; this is the node itself.
 
 \param stop Stop to read.
 \return Fret units along the axis.

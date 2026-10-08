@@ -149,8 +149,8 @@ void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit
             // a node in place of a fret. Asking for the DRAWN position closes the other end of that
             // guard: the zero test below catches a light below the nut, and the board cap catches
             // one past the last fret, which a node legally can be.
-            // The integer fret CONTAINING the sounding place, since the light spans fret slots: a
-            // node at 12.0 lies in fret 12, one at 2.669 in fret 3 — the one ceil law.
+            // The integer fret of the sounding place, since the light spans fret slots: a node at
+            // 12.0 is fret 12, one at 2.669 fret 3 — the one node law (handFretOf).
             const int sounding_fret = handFretOf(highwayDrawnStop(note, note.fret));
             if (!rightHandOnset(note.attack) || sounding_fret <= 0)
             {

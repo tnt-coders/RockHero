@@ -1009,7 +1009,7 @@ void countDerivation(
                 {
                     continue;
                 }
-                // The fret the HAND is on — a node's containing fret through the one ceil law,
+                // The fret the HAND is on — a node's nearest fret through the one node law,
                 // which is the fret the FHP derivation already put the hand on for it — so the
                 // rig stops disagreeing with the derivation it measures. Open members skip.
                 const int fret = common::core::handFretOf(*stop);
@@ -1151,7 +1151,7 @@ void countDerivation(
         }
 
         // The board POSITION of the shape a carry crosses: the lowest fret its struck members put
-        // a FINGER on — a node's containing fret through the one ceil law, the same axis the reach
+        // a FINGER on — a node's nearest fret through the one node law, the same axis the reach
         // distance below reads, so the bucket and the distances filed into it measure one hand.
         // Open members are passed over because an open string states no hand position at all, and
         // a shape struck entirely open falls to the nut — which is where the hand is.
@@ -1214,7 +1214,7 @@ void countDerivation(
             // folded in — the stop the ring's own fret channel states AT the crossing, not the
             // fret it was struck at. Reading the onset fret here instead would make the rig
             // a second statement of the rule it measures. The HAND's fret on both sides (the one
-            // ceil law for a node), so a carried node measures its distance from the finger the
+            // node law for a node), so a carried node measures its distance from the finger the
             // chord put down, not from a 0.
             const int carried_fret = common::core::handFretOf(*stop);
             long long nearest = -1;
@@ -2818,12 +2818,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 17649.0,
+                .expected = 17645.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
-                .expected = 2220.0,
+                .expected = 2221.0,
             },
             CrossCheck{
                 // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a

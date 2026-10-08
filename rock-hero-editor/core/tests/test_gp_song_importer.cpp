@@ -452,8 +452,8 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         // string — the capo never appears as a fret number — while the node stays absolute.
         CHECK(harmonic.fret == 0);
         CHECK(*harmonic.harmonic_node > static_cast<double>(chart.tuning.capo));
-        // The fretting hand is at the node it touches, not down at the capo.
-        CHECK(common::core::fretFor(harmonic) == 6);
+        // The fretting hand is at the node it touches, not down at the capo: the fret nearest it.
+        CHECK(common::core::fretFor(harmonic) == 5);
     }
     // The score notates a bend ON the natural harmonic — data a fretting hand touching a node
     // cannot execute — so import sheds it rather than producing an invalid chart. The

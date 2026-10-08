@@ -3843,8 +3843,8 @@ void HighwayRenderer::Impl::draw(
         // chord upper members. A tapped glide then establishes each landing as its own new
         // position (matching the placements a fretting-hand glide carries at its targets): every
         // track station that changes the extent, other than a strike's own arrival, gets an
-        // arrival number of its own, at the fret containing its low edge (handFretOf, the one ceil
-        // law the strike's own fret comes from).
+        // arrival number of its own, at the fret its low edge names (handFretOf, the one rule the
+        // strike's own fret comes from).
         //
         // The walk is over the picking hand's track, from the first arrival past now —
         // push_target_number drops everything at or before it — to the first past the span end.
