@@ -1,11 +1,12 @@
 # Plan 54 — Highway Visual Theming
 
 **Status**: Revised 2026-10-07 against `master @ 6f87951f`. Not started. **Phase 0 is
-decision-gated** (54-Q5 to 54-Q17 below, each with a recommendation); Phase 1 needs only the role
-names Phase 0 fixes. This revision replaces the 2026-08-02 plan (baseline `182faedb`): its
-mechanism survives, but its inventory was two months stale, and its goal changed from "make
-today's look one selectable theme" to "make the look data, and ship RockHero's own looks in place
-of today's".
+decision-gated** (54-Q5 to 54-Q17 below, each with a recommendation). Phases 1 and 2 need only
+the role names, which this plan fixes. **Phases 1 to 5 gate the first public release.** This
+revision replaces the 2026-08-02 plan (baseline `182faedb`): its mechanism survives, but its
+inventory was two months stale, and its goal changed from "make today's look one selectable
+theme" to "make the look data, and ship RockHero's own looks in place of today's". Today's look
+survives only as the user's private theme (54-Q10).
 
 ## Goal
 
@@ -243,9 +244,9 @@ Texture contracts: the two existing measurements (`measureHeadArtProfile`,
 - **Changed**: "built-in themes are complete" now means a complete theme directory; 54-Q1 C
   (inheritance from any theme) narrows if 54-Q11 is taken; the byte-identical extraction holds for
   Phase 1 only, since the product goal is a new look; the 2D non-goal narrows to the 2D lane's own
-  chrome; the schedule risk is Phases 0 and 4 (design and art), not engineering.
+  chrome; the schedule risk is Phases 0 and 5 (design and art), not engineering.
 - **Dropped**: a `constexpr` default theme as the lasting authority (Phase 1 scaffolding only —
-  after Phase 4 the default theme's `theme.json` is the one authority), the 16-role list,
+  after Phase 5 the default theme's `theme.json` is the one authority), the 16-role list,
   `chord_name`, every `fingering.png` and 8x4-inlay sentence, and export/import as a roadmap phase.
 
 ## Open questions (Phase 0 gate)
@@ -261,7 +262,7 @@ Each carries a recommendation; none is decided until the user rules.
 - **54-Q7 — chord device.** Settled by trying candidates, not by picking one on paper.
   - Every candidate drops the corner holders and the end-to-middle gradient.
   - The repeat boxes (S1) and the open-bar posts (S2) follow whichever device wins.
-  - Phase 0 renders stills of each candidate; Phase 3 prototypes the shortlist in motion and the
+  - Phase 0 renders stills of each candidate; Phase 4 prototypes the shortlist in motion and the
     user settles one.
   - Starting candidate: a floor bracket or understroke with short ticks, with repeats as the same
     device ghosted at half height carrying the X.
@@ -292,13 +293,14 @@ Each carries a recommendation; none is decided until the user rules.
   *Recommended: keep both.* Each encodes notation that has to read at distance.
 - **54-Q9 — accent pairs.** The chrome hue family for each built-in, chosen clear of the six
   string hues; exact values by sighting.
-- **54-Q10 — today's look after it leaves the tree.** It is kept only as an unpublished local
-  user theme, for the user's own use and A/B sighting. It is never committed or distributed in any
-  form, because the repository is public. *Recommended.*
-  - **What it can hold:** today's 23 colors, `notes.png`, `inlays.png` and `chords.png`.
-  - **What it cannot hold:** the code-drawn parts (S1, S2) and the fixed mark sheet (S3). It
-    draws those with the universal RockHero designs.
-  - **When it is made:** Phase 4 exports it before anything is deleted.
+- **54-Q10 — today's look after it leaves the tree. RULED 2026-10-08 (user):** it is kept as the
+  user's private theme, loadable in both products, and never committed or distributed in any form,
+  because the repository is public. Phase 3 exports it before any of its values leave the default.
+  - **What it holds:** today's 23 colors, `notes.png` (heads only after the Phase 4 split),
+    `inlays.png`, `chords.png`, and the Charter license notice.
+  - **What it cannot hold:** the code-drawn parts (S1 chord-box holders and gradient bars, S2
+    open-bar posts) and, from Phase 5, today's mark drawings on the fixed sheet (S3). It draws
+    those with the universal RockHero designs. The user accepted this loss.
 - **54-Q11 — inheritance scope.** `inherits` may name only a built-in theme id at v1. Deletes the
   cycle, two-pass-load, cascading-drop and depth-cap failure modes. *Recommended.*
 - **54-Q12 — export/import.** Moves to `docs/plans/todo/highway-theme-packaging.md`; with 54-Q11 a
@@ -319,24 +321,32 @@ Each carries a recommendation; none is decided until the user rules.
     heads.
 
   *Recommended: split.* Themes keep custom heads, and the head contract measures only heads. The
-  cost is a second texture in the head pass, measured on `relwithdebinfo` in Phase 3.
+  cost is a second texture in the head pass, measured on `relwithdebinfo` in Phase 4.
 
 ## Phased implementation
 
-Dependencies: 1 ← 0 (role names); 2 ← 1; 3 ← 0, 1; 4 ← 2, 3; 5 ← 4.
+Dependencies: 1 ← 0 (role names); 2 ← 1; 3 ← 2 and 54-Q9; 4 ← 0, 1; 5 ← 3, 4; 6 ← 5.
+
+**Release gate.** Phases 1 to 5 gate the first public release
+(`docs/plans/in-progress/first-releasable-editor.md`): no tagged release ships today's chrome
+values, the Charter-adapted art or the holder chord box. Phase 6 does not gate it.
+
+The order puts a distinct look first and swappable themes close behind it. Theme directories
+(Phase 2) still come before the first visible change, because today's look must already load as a
+private user theme before its values leave the default (Phase 3).
 
 ### Phase 0 — Design brief and decisions
 
 Phase 0 produces:
 - the written head brief and mark brief (54-Q8);
 - chord-device candidate stills (54-Q7);
-- two accent pairs;
+- two accent pairs (54-Q9);
 - several rendered candidates for every redesigned item (heads, marks, chord device), made through
   the `texture-author` agent, so each settles by comparison rather than on paper;
 - the user's rulings on 54-Q5 to Q17.
 
-**STOP: user sign-off on the brief before Phase 3 or 4 begins.** Phase 1 may start once the role
-names are fixed.
+Phase 0 runs in parallel with Phases 1 and 2. **STOP: the user rules 54-Q9 before Phase 3, and
+signs off on the brief before Phase 4 or 5 begins.**
 
 ### Phase 1 — Color roles and palette injection
 
@@ -381,33 +391,54 @@ key, missing id, unknown base, contract-violating asset, every guardrail violati
 drops only the offender and leaves the registry usable. Settings round-trip and controller state.
 **Verification**: configure, build, touched tests.
 
-### Phase 3 — Redesign once in code
+### Phase 3 — Today's look becomes a private theme; the default colors change
+
+- **Export (outside the repository).** Write a user theme directory into the per-user themes
+  folder Phase 2 scans:
+  - a `theme.json` holding today's 23 values, read from Phase 1's pinned test values;
+  - today's `notes.png`, `inlays.png` and `chords.png`;
+  - a copy of `textures/LICENSE.txt`, whose notice travels with the Charter-adapted art.
+
+  It is never committed, shipped or posted (54-Q10). The user keeps a private backup.
+- **Verify.** Select it in both products and A/B it in motion against the built-in default, which
+  still draws today's look. It must match exactly. A missed role shows up here, while the old
+  values still exist to compare against.
+- **Switch.** The built-in default's colors take 54-Q9's accent pair, and the pinned test values
+  move with them. The textures stay in the tree until Phase 5, because the built-in default still
+  draws them.
+
+**STOP: the new chrome sighted in motion in both products; user sign-off.** **Verification**:
+build, touched tests.
+
+### Phase 4 — Redesign once in code
 
 - **S1 and S2 per 54-Q7.** The shortlisted chord devices are prototyped in motion and the user
   settles one. The losing prototypes are deleted before commit.
 - **The 2D paint core** reads `chord_box`, `arpeggio` and `full_mute_mark` from the active theme
   instead of `tab_paint_core.cpp:37-42`, so a distinction both surfaces draw has one authority.
 - **S3's sheet split** per 54-Q17 moves today's mark cells unchanged, which is zero visual change,
-  and measures the second texture's cost.
+  and measures the second texture's cost. The private theme's `notes.png` is re-cut locally to the
+  heads-only layout so it still passes the contract.
 
 **STOP: sighting in motion in both products.** **Verification**: build, touched tests.
 
-### Phase 4 — The default theme lands
+### Phase 5 — The default theme's art lands
 
-- First, export today's look to the user's local theme folder (54-Q10) and confirm it loads.
-  This happens outside the repository and before anything below is deleted.
 - Generator-baked `notes.png`, `chords.png` and `inlays.png` from the Phase 0 brief, plus the
   redrawn fixed mark sheet (S3), with the generator committed; the default `theme.json`.
 - **STOP: the theme rendered in motion in the game and the editor preview; user sign-off before
   commit.**
-- Then, in the same change set: delete the old color values and the Charter-adapted art, delete or
-  shrink `textures/LICENSE.txt` (54-Q15), rewrite the provenance comments, update
-  `docs/plans/in-progress/highway-note-art-state.md`'s provenance lines and the developer guide.
+- Then, in the same change set:
+  - delete the Charter-adapted art from the tree; the private theme already holds it;
+  - delete or shrink `textures/LICENSE.txt` (54-Q15);
+  - rewrite the provenance comments;
+  - update `docs/plans/in-progress/highway-note-art-state.md`'s provenance lines and the developer
+    guide.
 
 **Verification**: build, touched tests, and the local corpus smoke (local only) so no chart shape
 breaks under the new asset set.
 
-### Phase 5 — The second built-in theme
+### Phase 6 — The second built-in theme
 
 A second complete directory differing from the default in its accent pair and at least one
 texture, so a role Phase 1 missed shows up as a wrong color rather than hiding in a one-theme
@@ -432,9 +463,12 @@ clang-tidy only when the user asks for it.
 - **Phase 2** creates the one external compatibility surface — role names and the manifest shape.
   Formats change in place, so a later rename invalidates user files by design; the themes folder
   is user data, and dropping the feature leaves built-ins working.
-- **Phase 3** is a code redesign behind a sighting; revertible per commit.
-- **Phase 4** deletes the old art and values. They remain in git history; a revert restores them.
-- **Phase 5** is data; the sign-off exists because a built-in is a public statement of the look.
+- **Phase 3** changes only the default's color values; one revert. The private theme lives outside
+  the repository and is untouched by any revert.
+- **Phase 4** is a code redesign behind a sighting; revertible per commit.
+- **Phase 5** deletes the old art from the tree. It remains in git history and in the private
+  theme; a revert restores it.
+- **Phase 6** is data; the sign-off exists because a built-in is a public statement of the look.
 
 ## Documentation impact
 

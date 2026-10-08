@@ -258,9 +258,9 @@ Mirror all four into `docs/plans/roadmap/00-roadmap.md` Decisions-needed.
    chartreuse-vs-indigo order there.
 3. **v1 theme delivery scope. RESOLVED A (2026-08-02).** (A) Built-in presets only (Default Dark
    ships; more are data); (B) file-based user themes at v1. This plan ships built-ins only. File
-   delivery is not deferred — it moved: `docs/plans/roadmap/54-highway-visual-theming.md` Phase 4
-   owns user theme and palette files for both products, and Phase 6 there owns packaging. This
-   plan's Phase 6 is withdrawn accordingly.
+   delivery is not deferred — it moved: `docs/plans/roadmap/54-highway-visual-theming.md` Phase 2
+   owns user theme and palette files for both products, and packaging moves to a todo plan
+   (54-Q12). This plan's Phase 6 is withdrawn accordingly.
 4. **When to raise `g_max_chart_strings` to 10.** (A) Execute Phase 5 immediately after Phase 4
    (colors exist; the raise is accept-more and unblocks the format's 10-string target for GP
    import and future authoring); (B) defer until a concrete extended-range need appears.
@@ -443,7 +443,7 @@ toggle.
   constant), `editor_controller.cpp:989,1253` (clamps auto-extend), `editor_view.cpp:707,817`
   (menu loop and command range auto-extend), `test_editor_controller_state.cpp:766–785`,
   `test_tab_view.cpp:85` comment, TrackViewport proportional row sizing at 10 lanes.
-  **If `docs/plans/roadmap/54-highway-visual-theming.md` Phase 4 has landed, add user palette
+  **If `docs/plans/roadmap/54-highway-visual-theming.md` Phase 2 has landed, add user palette
   files to this survey**: built-in presets fail to *compile* when the cap rises (the Phase 1
   array-sizing coupling working as designed), but a user-authored palette file sized for the old
   cap has no compile step — it silently becomes wrong-length and is dropped at load. That is a

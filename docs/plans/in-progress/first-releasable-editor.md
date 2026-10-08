@@ -340,6 +340,12 @@ Exit: a full song can be charted and revised without repeated one-object reconst
 Exit: invalid authored states are refused or repaired through one authority, and the charter can
 find what went wrong without a modal dead end.
 
+**Release precondition: the highway's own look (ruled 2026-10-08, user).** Plan 54 Phases 1 to
+5 land before any tagged release. No release ships today's chrome values, the Charter-adapted
+art or the holder chord box; the release bar's corollary 3 does not apply, because this is the
+product's identity, not polish. Today's look survives only as the user's private theme, which
+is never distributed. Plan 54's Phase 6 (a second built-in theme) is not a precondition.
+
 ### 7. Acceptance pass
 
 Create a release-candidate chart from scratch using only the editor. It must include:
@@ -448,9 +454,10 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   canonization (the converter's `"accent"` key is the one exception, under Phase 6).
 - The format-shape step in `technique-compatibility-and-hardening.md` (scrape variant, path-derived
   scrape sustain) — a representation refactor that authors no new fact.
-- The hidden-head mark (2D + 3D pair, task #279), head-atlas mipmapping (plan 56), highway theming
-  (plan 54), fret hit-light tuning, the camera lead (#269), the FOV pin (#273), the head-mark order
-  audit (#275), the floor-law breaches and consolidation (#276), the triple-projection cost watch item.
+- The hidden-head mark (2D + 3D pair, task #279), head-atlas mipmapping (plan 56), plan 54's
+  second built-in theme (its Phase 6), fret hit-light tuning, the camera lead (#269), the FOV pin
+  (#273), the head-mark order audit (#275), the floor-law breaches and consolidation (#276), the
+  triple-projection cost watch item.
 - The smooth-scroll camera (parked), the cross-platform port, C++26.
 - Plan 62 (per-song kept-sustain bound) — superseded; it survives only as a watch item's remedy
   (`docs/tracking/watch-items.md`).
