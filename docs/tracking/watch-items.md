@@ -338,6 +338,21 @@ of `ChartStop` that bypasses `frettedStop` / `nodeStop`. **Remedy:** hand-write 
 `std::strong_order` on the node — the same semantics, total by type, and the cross-file dependency
 is deleted.
 
+### A position or section edit rebuilds the whole scene — trigger: a position edit measures over 8 ms
+
+Accepted 2026-10-08. `refreshChartProjections` (`editor_controller.cpp`) rebuilds
+`makeChartViewState` (2.5 ms) and `makeHighwayViewState` (1.1 ms) on every `chartRevision` advance,
+though only the chips, the rides and the hand light read the positions and only the section list and
+camera zones read the sections. Measured on relwithdebinfo, Shiver Rhythm (9,144 notes, 133
+positions): a position nudge 6.4 → 4.7 ms once the hand's demands moved into the notes layer.
+
+**Trigger:** a position nudge or chip drag (plan 41 Phase 4's pointer-rate path) measures over 8 ms
+on relwithdebinfo at the densest corpus chart, or plan 64's album-scale measurement puts a position
+edit's scene past the frame. **Remedy:** split the scene into a notes half and a hand half and share
+the notes half through `shared_ptr<const>` — a broad mechanical edit to `ChartViewState`,
+`HighwayViewState` and every drawer; it is plan 64's work, together with the preview item under
+*Editor 3D preview*.
+
 ## 3D highway camera
 
 ### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a reference-footage comparison diverges
@@ -1092,6 +1107,18 @@ refuses first responder, but verify whatever view the render backend supplies ke
 way; Linux: a raw X child window never takes input focus by itself, but an SDL-managed window
 would claim it exactly like Windows did, so prefer a focus-inert embedding or replicate the
 bounce.
+
+### The highway state is composed on every chart revision while the preview is closed — trigger: the scene split, or the preview opening by default
+
+Accepted 2026-10-08. `refreshChartProjections` composes `makeHighwayViewState` (1.1 ms, Shiver
+Rhythm, relwithdebinfo) for a consumer that exists only once the preview is toggled on
+(`preview_surface.cpp`, created from `editor_view.cpp`'s toggle). Composing on demand at the
+consumer changes how the state is published and needs the tab's pointer to stop aliasing the
+highway state's `chart` member (the ONE-publication rule in `refreshChartProjections`), so it is the
+same scene split as the *Shared scene models* item on position and section edits and lands with it.
+
+**Trigger:** that item's, or the preview opening by default. **Remedy:** compose the highway state
+on demand at the preview, as part of that scene split.
 
 ## Song packages (untrusted input)
 

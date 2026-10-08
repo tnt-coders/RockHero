@@ -7,9 +7,10 @@ the whole note stream. Re-verify against the code before executing; nothing here
 
 Every note edit derives the chart's notes layer (`chartResolutions`) once — the controller memo and
 the plan gate's seed already removed the second derivation — but that once is O(N) in the song.
-Measured at about 0.85 µs per note for the derivation, and the scene projection
-(`makeChartViewState`) is the larger cost: about 95 ms per press at 36k notes, past a 16.7 ms frame
-long before that. A held-key gesture pays both on every press.
+Measured linear across 912, 2,742 and 9,144 notes at about 1.6 µs per note for the notes layer and
+the scene together (most of a 14.7 ms sustain step at 9,144), which predicts about 58 ms per press
+at 36k notes — past a 16.7 ms frame long before that. A held-key gesture pays
+both on every press.
 
 ## Shape
 
@@ -27,7 +28,8 @@ from its earliest affected note on (the plan gate already computes that set: `af
    held lengths, and the connections.
 5. **Judge only the re-derived range**: the coverage gate asks only the positions standing inside
    it, and the projection rebuilds only the notes and spans in it (the scene would need the same
-   checkpoint-and-splice shape over seconds).
+   checkpoint-and-splice shape over seconds), and the highway composition (`makeHighwayViewState`)
+   splits the same way, so the board rebuilds only the notes and sections in the range.
 
 ## Obstacles
 

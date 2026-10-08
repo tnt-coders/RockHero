@@ -1485,8 +1485,8 @@ against the tree on the date above.
   over `chartPredecessors` itself; in the editor, whose settle sweep runs at every caret move, seek
   and selection change, it could read the memo's connections instead.
 - **Rename `ChartResolutions::holds` to `held_lengths`.** The field is each note's held LENGTH in
-  whole notes, and it now sits beside `hand_holds`, the stops the fretting hand holds, which are a
-  different thing with nearly the same name.
+  whole notes, and the layer also carries `hand_demands.holds`, the stops the fretting hand holds,
+  which are a different thing with nearly the same name.
 - **`fretHandHolds`' `ringing_member` test compares a demand with a stop (re-verify).** It asks
   whether a note sits on the grip's stop by comparing the note's DEMAND (`fretHandDemandAt`) with
   the grip's pressed fret; that comparison is in the code. The consequence is NOT reproduced: since
@@ -1498,7 +1498,11 @@ against the tree on the date above.
   burst->plan.removed` test in `chart_handlers.cpp`) only after `finalizePlan` has derived the
   candidate's notes layer for the coverage judgment. The shape that fixes it: run the gesture
   compare before the derivation, which needs the gate split into a judge half (normalize, the
-  per-note walk, the diff) and a resolve half (derive, coverage).
+  per-note walk, the diff) and a resolve half (derive, coverage). Weight: not a corner. OS
+  auto-repeat (about 30 Hz) holds the key at the bound, and every repeat pays the whole
+  `planAdjustSustain` — about 9 ms on Shiver Rhythm, the ~8.5 ms derivation plus the plan — for a
+  plan the compare then throws away, so a key held at the end of travel costs more per press than
+  one that moves. It is the next per-press saving after the memo.
 - **A position fret entry is judged twice.** `planFretHandFret` judges the edited stream through
   `judgeMarkerModel` for the red box, and the settle's `commitMarkerModel` judges it again: two
   `validateFretHandPositions` passes and two coverage walks over the memo, no derivation. The shape
@@ -1512,3 +1516,19 @@ against the tree on the date above.
   `normalizeChart`'s legato sweep and hands the result to both. The save path's
   `writeChartDocument` derives a third time through `validateChartRules`. Trigger: plan 64's
   album-scale load measurement shows these derivations on the load path.
+- **Prune walks the whole chart once per position.** `withoutRedundantPositions`
+  (`fret_hand_handlers.cpp`) derives the hand events P+1 times: about 260 ms on Shiver Rhythm (133
+  positions) while each derivation rebuilt the coverage instants, about 60 ms now that
+  `FretHandDemands` carries them. An authored position resets the walk, so "the events without
+  position k equal the events with it" needs only the stretch between k's neighbours —
+  O(N + P·local) instead of O(P·N) — but the proof that nothing outside the neighbours can change
+  (rule 10's front never reaches back across an authored position; a slide arrival is a forced
+  boundary either way) is owed first. Of the per-call work left, `holdPinsOf`'s sort is
+  notes-only and moves into `FretHandDemands` beside the instants before anything else. Prune is a
+  command, never a held key.
+- **Whole-stream copies on a gesture's walk-back (accepted cost).** `applyChartChange`
+  (`chart_edits.cpp`) rebuilds the notes on a copy before swapping so a failed precondition leaves
+  nothing half-applied, and `commitChartGestureStep` (`chart_handlers.cpp`) copies the pre-gesture
+  chart it replans from: about 0.43 ms together on Shiver Rhythm. The copy IS the atomicity; a shape
+  without it (an apply verified before it mutates, a replan base kept across the run) waits for plan
+  64's gesture measurement to justify.
