@@ -1549,3 +1549,28 @@ against the tree on the date above.
 - **Rides are typed as hand events.** `deriveFretHandRides` returns `FretHandEvent`s, while
   `chart_fret_hand.h` says a ride is motion and "no hand event". Rename the `{front, window}` type
   `FretWindowArrival` when it is next touched, leaving "hand event" to the derivation's own output.
+- **Commit-then-select verbs publish twice.** Section add and rename (`section_handlers.cpp`, the
+  `commitMarkerModel` calls at :118 and :148), tone insert (`tone_handlers.cpp` :684) and
+  fret-hand add (`fret_hand_handlers.cpp` :236) publish inside `commitMarkerModel`
+  (`finishMarkerCommit`), then select what they made and publish again; their comments say "the
+  commit's own publish ran before it existed". The retone (:928) and the tone add (:1055) in
+  `tone_handlers.cpp` follow the same pattern. The fix: `landMarkerModel`, select, then one
+  `finishMarkerCommit` — the order `commitGridModel` uses since `f1da2663`. Its release of a
+  selection naming nothing then runs after the select, which is what the retone's comment needs.
+- **Marker moves publish twice per press.** `commitMarkerMove` (`marker_model_commit.h`) publishes
+  inside the funnel — through `commitMarkerModel` on a run's first press, through
+  `finishMarkerCommit` on a continuing one — and the verb's `followMovedMarker`
+  (`marker_row_handlers.cpp`) then moves the cursor and publishes again. After a meter move left
+  re-numbers measures, the first publish reads the cursor's old column under the new map. The
+  trust test usually rejects that reading, so the extra glide is mostly a no-op; no test pins it.
+  The shape is the one above: land, select, move the cursor, then publish once.
+- **The lane-point plant writes the armed caret directly.** `plantLanePoint` (`tone_handlers.cpp`
+  :1988, reached from the caret's lane-point create and `createAndNudgeLanePointAtCaret`) sets
+  `caret->position` in place, bypassing `setArmedCaret` (`chart_handlers.cpp`), which is
+  documented as the one writer of the armed caret, so the audible-tone resync it carries is skipped
+  there. Route the write through `setArmedCaret` with the caret's string and lane kept.
+- **A carry gives a cursor in free time a tick column.** `commitGridModel` reads the cursor at the
+  tick quantum and `carryCursorTo` (`chart_handlers.cpp`) writes the carried place as the cursor's
+  column, so a cursor standing between grid lines afterwards authors marker chords at that tick
+  instead of the nearest grid line. Not a regression: the old `moveCursorTo` path did the same.
+  Decide whether a carried column should be trusted only when the cursor stood on a column before.
