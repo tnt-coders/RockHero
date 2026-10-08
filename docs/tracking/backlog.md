@@ -1474,3 +1474,41 @@ against the tree on the date above.
 - **Chip rows now carry spare height.** With every chip 11 px tall, an automation lane has 6 px it
   no longer needs, the "+" lane 7 px, and the tab lane's top 3.5 px. Reclaim them once the chip
   size has been sighted.
+
+## Found while memoizing the chart's two derived layers (2026-10-08)
+
+- **`planSetLegato` derives its own connections of the current notes** (`chartConnections` at the
+  top of `planSetLegato` in `chart_edits.cpp`). The controller's memo already holds them
+  (`chartResolutions().connections`); the planner could take them as a parameter instead of
+  walking the whole stream again per press.
+- **`unjustifiedLegatoClaims` restates the connections walk.** It resolves the `Legato` claims
+  over `chartPredecessors` itself; in the editor, whose settle sweep runs at every caret move, seek
+  and selection change, it could read the memo's connections instead.
+- **Rename `ChartResolutions::holds` to `held_lengths`.** The field is each note's held LENGTH in
+  whole notes, and it now sits beside `hand_holds`, the stops the fretting hand holds, which are a
+  different thing with nearly the same name.
+- **`fretHandHolds`' `ringing_member` test compares a demand with a stop (re-verify).** It asks
+  whether a note sits on the grip's stop by comparing the note's DEMAND (`fretHandDemandAt`) with
+  the grip's pressed fret; that comparison is in the code. The consequence is NOT reproduced: since
+  the demand is lifted to the first playable fret, a harmonic whose node rounds to the capo should
+  demand capo+1 and so match a grip stop at capo+1 by demand alone. Confirm with a figure before
+  changing anything; if it holds, comparing stops (`fretHandStopAt`) says what the test means.
+- **A clamped gesture press derives for nothing.** A held key at the end of travel replays to a plan
+  equal to the burst's, which `commitChartGestureStep` discards (the `plan->plan.removed ==
+  burst->plan.removed` test in `chart_handlers.cpp`) only after `finalizePlan` has derived the
+  candidate's notes layer for the coverage judgment. The shape that fixes it: run the gesture
+  compare before the derivation, which needs the gate split into a judge half (normalize, the
+  per-note walk, the diff) and a resolve half (derive, coverage).
+- **A position fret entry is judged twice.** `planFretHandFret` judges the edited stream through
+  `judgeMarkerModel` for the red box, and the settle's `commitMarkerModel` judges it again: two
+  `validateFretHandPositions` passes and two coverage walks over the memo, no derivation. The shape
+  that fixes it: split the funnel into `judgeMarkerModel` and a `landMarkerModel(before, judged,
+  label)` half, and let `commitFretHandFret` land the already-judged snapshot. Sound because any
+  write between the digit and the settle discards the entry (the uniform settle prologue).
+- **A load pays two full derivations.** `normalizeChart` derives the notes layer for its coverage
+  drop and `validateChartRules` derives it again for the coverage rule, one after the other on the
+  package read (`rock_song_package_read.cpp`) and on the GP import (`gp_chart_builder.cpp`, where
+  the two calls sit apart in the same build). The fix: the reader derives once after
+  `normalizeChart`'s legato sweep and hands the result to both. The save path's
+  `writeChartDocument` derives a third time through `validateChartRules`. Trigger: plan 64's
+  album-scale load measurement shows these derivations on the load path.
