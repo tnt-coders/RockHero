@@ -57,7 +57,8 @@ constexpr std::uint32_t g_fret_entry_window_ms = 750;
 // be standing there. Not zero: 200 ms after a seek, even while paused, Tracktion writes its
 // playhead's sample-based position back over the one it was given
 // (tracktion_TransportControl.cpp:1083-1096), which moves it by up to half a sample. Any deliberate
-// move of the cursor is far larger.
+// move of the cursor is far larger. A whole-grid commit that holds time moves a carried column by
+// its lattice rounding alone, which this forgives at all but slow tempos (carryCursorTo).
 constexpr double g_cursor_column_tolerance_seconds = 0.001;
 
 // The face a target addresses: an object's BEND CHIP, or the mark every other target is. A press
@@ -491,6 +492,29 @@ void EditorController::Impl::moveCursorTo(const common::core::GridPosition posit
         cursor->column = position;
     }
     syncAudibleTone();
+}
+
+// Carries the cursor onto a re-addressed grid. The caret demotes first, so the column written is
+// the passive cursor's; where the transport already stands at the place only that column moves,
+// and the commit's tail re-derives the audible tone the demotion may have changed.
+void EditorController::Impl::carryCursorTo(const common::core::GridPosition position)
+{
+    disarmChartMarker();
+    if (transportStandsAt(position))
+    {
+        std::get<ChartCursor>(m_chart_marker).column = position;
+        return;
+    }
+    moveCursorTo(position);
+}
+
+// Compared in SECONDS because that is the only currency the transport and a musical column share —
+// the write-back the tolerance forgives is a sample rounding, which has no musical spelling.
+bool EditorController::Impl::transportStandsAt(const common::core::GridPosition column) const
+{
+    return std::abs(
+               session().song().tempo_map.secondsAt(column) - m_transport.position().seconds) <=
+           g_cursor_column_tolerance_seconds;
 }
 
 // What a slot HOLDS — what a landing there addresses — or absent when nothing does. The note stream
@@ -1565,11 +1589,10 @@ EditorController::Impl::FocusRow EditorController::Impl::prepareLandingRow(const
     return StringFocusRow{.string = std::clamp(chartMarkerString(), 1, string_count)};
 }
 
-// The trust test runs in SECONDS because that is the only currency the transport and the remembered
-// musical column share — the write-back the tolerance forgives is a sample rounding, which has no
-// musical spelling. Once the column is untrusted the answer is the caller's own quantum, not a
-// canonical one: an arming and a holder lookup want different roundings of the same instant, and
-// resolving that here rather than at the call sites is what keeps the trust rule single.
+// The remembered column while the transport stands at it (transportStandsAt). Once the column is
+// untrusted the answer is the caller's own quantum, not a canonical one: an arming and a holder
+// lookup want different roundings of the same instant, and resolving that here rather than at the
+// call sites is what keeps the trust rule single.
 common::core::GridPosition EditorController::Impl::pausedCursorPosition(
     const common::core::Fraction quantum) const
 {
@@ -1578,10 +1601,7 @@ common::core::GridPosition EditorController::Impl::pausedCursorPosition(
         // Bound once so the guard and both reads are provably the same optional: the CI
         // unchecked-optional-access check cannot tie two separate member accesses together.
         const std::optional<common::core::GridPosition>& column = passive->column;
-        if (column.has_value() &&
-            std::abs(
-                session().song().tempo_map.secondsAt(*column) - m_transport.position().seconds) <=
-                g_cursor_column_tolerance_seconds)
+        if (column.has_value() && transportStandsAt(*column))
         {
             return *column;
         }

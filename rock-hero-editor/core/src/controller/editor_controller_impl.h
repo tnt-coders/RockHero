@@ -1623,8 +1623,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         Landed,
     };
 
-    // The one commit every marker verb of every kind ends in; defined in marker_model_commit.h,
-    // which is where the rules it enforces are written down.
+    // The one landing every marker verb of every kind makes: the commit rules, the model applied
+    // and one undo entry pushed, with nothing published. Defined in marker_model_commit.h, which is
+    // where the rules it enforces are written down.
+    template <typename Snapshot>
+    MarkerCommit landMarkerModel(Snapshot before, Snapshot after, std::string label);
+
+    // The commit a marker verb ends in: landMarkerModel, then finishMarkerCommit where the model
+    // landed. Defined beside it in marker_model_commit.h, with the publish rule.
     template <typename Snapshot>
     MarkerCommit commitMarkerModel(Snapshot before, Snapshot after, std::string label);
 
@@ -1637,10 +1643,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed);
 
     // The commit every whole-grid verb ends in (a tempo map, a meter list, Scale Tempo):
-    // commitMarkerModel, then the marker on `landed_row` starting at `landed` selected where it
-    // still stands (else nothing), and the cursor carried as one more slice through the verb's
-    // `content` map (readdressedPosition). Defined beside the funnel in marker_model_commit.h,
-    // where its order rule is written down.
+    // landMarkerModel, then the cursor carried as one more slice through the verb's `content` map
+    // (readdressedPosition, carryCursorTo), then the marker on `landed_row` starting at `landed`
+    // selected where it still stands (else nothing), and one publish. Defined beside the funnel in
+    // marker_model_commit.h, where its order rule is written down.
     template <typename Snapshot>
     void commitGridModel(
         Snapshot before, Snapshot after, std::string label, MarkerRow landed_row,
@@ -1808,6 +1814,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // so the audible tone never lags the lanes and panel that follow the cursor. The selection is
     // kept — contrast activateToneAtCursor(), the transport-driven move, which drops it.
     void moveCursorTo(common::core::GridPosition position);
+
+    // The cursor onto a grid a whole-grid commit re-addressed: it stands on `position`, the place
+    // it stood on carried down the content's path, and an armed caret demotes onto it. The
+    // transport moves only where it no longer stands at that place (transportStandsAt): one rule
+    // for every whole-grid verb, under which a commit that holds time leaves the transport where
+    // it is — unless the place rounded onto the new lattice by more than the tolerance, which only
+    // a slow tempo's ticks are long enough to do — and one where the grid is truth takes it with
+    // its music.
+    void carryCursorTo(common::core::GridPosition position);
+
+    // THE trust test between the transport and a remembered musical column: true while the paused
+    // transport stands within the tolerance of the column's time, the tolerance that forgives the
+    // transport's sample-rounded write-back.
+    [[nodiscard]] bool transportStandsAt(common::core::GridPosition column) const;
 
     // The time a cursor move onto a musical position under a map lands at: the one statement
     // moveCursorTo seeks to and a held tempo-chip drag draws the cursor at, so the preview shows

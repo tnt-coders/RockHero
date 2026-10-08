@@ -21,6 +21,7 @@ namespace
 {
 
 using Catch::Matchers::WithinAbs;
+using Catch::Matchers::WithinULP;
 using common::core::GridPosition;
 using common::core::testing::anchor;
 using common::core::testing::beatAt;
@@ -125,32 +126,60 @@ TEST_CASE("Scale Tempo refuses bad text and records nothing for no change", "[co
     CHECK(editor.undoEntryCount() == 0);
 }
 
-// The cursor keeps its TIME, as on every whole-song commit, and the selection is released: every
-// address it held now names other music, even the anchor at 1:1, which still stands at 1:1.
-TEST_CASE("Scale Tempo keeps the cursor's time and selects nothing", "[core][scale-tempo]")
+// Scale Tempo holds every time, so the transport is left exactly where it stood — no seek, even for
+// a cursor between two ticks, whose place rounds onto the new lattice by less than the cursor's
+// trust tolerance. It publishes once, after the commit has settled. The selection is released:
+// every address it held now names other music, even the anchor at 1:1, which still stands at 1:1.
+TEST_CASE("Scale Tempo leaves the cursor's time alone and selects nothing", "[core][scale-tempo]")
 {
-    ScaleEditor editor;
-    editor.seek(5.0);
-    editor.controller.onTempoAnchorSelected(beatAt(1, 1));
-    REQUIRE(editor.state().selected_tempo_anchor == std::optional{beatAt(1, 1)});
+    for (const char* const factor : {"2", "1/2", "3/2"})
+    {
+        INFO(factor);
+        ScaleEditor editor;
+        editor.seek(5.0003);
+        editor.controller.onTempoAnchorSelected(beatAt(1, 1));
+        REQUIRE(editor.state().selected_tempo_anchor == std::optional{beatAt(1, 1)});
+        const int seeks = editor.transport.seek_call_count;
+        const int publishes = editor.view.set_state_call_count;
 
-    editor.scale("2");
-    CHECK_FALSE(editor.state().selected_tempo_anchor.has_value());
-    CHECK_THAT(editor.transport.position().seconds, WithinAbs(5.0, 1e-9));
-
-    // An armed caret dissolves where its time is, too.
-    editor.seek(13.25);
-    editor.armCaretAtCursor();
-    REQUIRE(caretOrNull(editor.state().chart_edit) != nullptr);
-    editor.scale("1/2");
-    CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
-    CHECK_THAT(editor.transport.position().seconds, WithinAbs(13.25, 1e-9));
+        editor.scale(factor);
+        REQUIRE(editor.undoEntryCount() == 1);
+        CHECK_FALSE(editor.state().selected_tempo_anchor.has_value());
+        CHECK(editor.transport.seek_call_count == seeks);
+        CHECK_THAT(editor.transport.position().seconds, WithinULP(5.0003, 0));
+        CHECK(editor.view.set_state_call_count == publishes + 1);
+    }
 }
 
-// The cursor is carried as one more slice, so it lands on the note it stood on even where the
-// terminal re-seats. Nine measures of 4/4 at about 240 BPM end at 9004 ms; halved they end on 5:3
-// and re-seat on 6:1, whose 10004.4 ms rounds to 10004, re-timing the last span by more than half
-// a tick near its end. The note at 9:4 lands on 5:2+1/2, and the cursor with it.
+// An armed caret standing away from the transport dissolves onto its own time: one seek, to the
+// music it stood on, and never to what its old address names under the new map.
+TEST_CASE("Scale Tempo dissolves an armed caret onto its own time", "[core][scale-tempo]")
+{
+    ScaleEditor editor;
+    editor.seek(13.25);
+    editor.armCaretAtCursor();
+    // A caret step never seeks, so the caret now stands a grid step from the transport.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const ChartCaretViewState* const caret = caretOrNull(editor.state().chart_edit);
+    REQUIRE(caret != nullptr);
+    const double caret_seconds = caret != nullptr ? caret->seconds : 0.0;
+    REQUIRE(caret_seconds - editor.transport.position().seconds > 0.1);
+    const int seeks = editor.transport.seek_call_count;
+    const int publishes = editor.view.set_state_call_count;
+
+    editor.scale("1/2");
+    CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
+    CHECK(editor.transport.seek_call_count == seeks + 1);
+    CHECK_THAT(editor.transport.position().seconds, WithinAbs(caret_seconds, 1e-9));
+    CHECK(editor.view.set_state_call_count == publishes + 1);
+}
+
+// The cursor is carried as one more slice, so the marker verbs author on the note it stood on even
+// where the terminal re-seats. Nine measures of 4/4 at about 240 BPM end at 9004 ms; halved they
+// end on 5:3 and re-seat on 6:1, whose 10004.4 ms rounds to 10004, re-timing the last span by more
+// than half a tick near its end. The note at 9:4 lands on 5:2+1/2, about 0.4 ms from where it
+// sounded: inside the cursor's trust tolerance, so the transport stays and the cursor's column is
+// the note's.
 TEST_CASE("Scale Tempo carries the cursor onto its note in a re-seated span", "[core][scale-tempo]")
 {
     common::core::Song song = makeEightMeasureSong();
@@ -162,7 +191,9 @@ TEST_CASE("Scale Tempo carries the cursor onto its note in a re-seated span", "[
     }
     SongEditorHarness editor;
     editor.open(std::move(song));
-    editor.seek(editor.tempoMap().secondsAt(beatAt(9, 4)));
+    const double sounded = editor.tempoMap().secondsAt(beatAt(9, 4));
+    editor.seek(sounded);
+    const int seeks = editor.transport.seek_call_count;
 
     editor.controller.onScaleTempoRequested("1/2");
     REQUIRE(editor.tempoMap().anchors().back() == anchor("6:1", 10004));
@@ -173,10 +204,12 @@ TEST_CASE("Scale Tempo carries the cursor onto its note in a re-seated span", "[
     {
         REQUIRE(chart->notes.size() == 4);
         CHECK(chart->notes.back().position == landed);
-        CHECK_THAT(
-            editor.transport.position().seconds,
-            WithinAbs(editor.tempoMap().secondsAt(landed), 1e-9));
     }
+    CHECK(editor.transport.seek_call_count == seeks);
+    CHECK_THAT(editor.transport.position().seconds, WithinULP(sounded, 0));
+    CHECK(
+        editor.state().tempo_chord_target ==
+        TempoChordTarget{InsertTempoAnchorTarget{.position = landed}});
 }
 
 } // namespace rock_hero::editor::core

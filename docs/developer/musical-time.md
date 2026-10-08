@@ -355,9 +355,11 @@ keeps its time, so a reign that is no longer a whole number of measures before i
 edit, naming the meter where it stands now; a section left mid-measure snaps to its measure's
 downbeat; a terminal left mid-measure re-seats on the next downbeat (`reseatTerminalAnchor`).
 The commit carries the cursor as one more slice (`commitGridModel` takes the verb's content map
-and asks `readdressedPosition`), so it lands on what it stood on even where the terminal re-seat
-re-times the last span. Tempo edits are the contrast: there the grid is truth, and their content
-map, `keptPlace`, keeps the cursor's musical place — unless the Note Lock is on.
+and asks `readdressedPosition`), so its column lands on what it stood on even where the terminal
+re-seat re-times the last span. The transport follows only where it no longer stands within the
+cursor's one-millisecond trust tolerance of that place (`carryCursorTo`), so an edit that holds
+time leaves it alone. Tempo edits are the contrast: there the grid is truth, and their content map,
+`keptPlace`, keeps the cursor's musical place, so its time moves — unless the Note Lock is on.
 
 Every tempo verb that changes a time (typed tempo, anchor delete, anchor move) ends in one step,
 `commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make its new map from a map,

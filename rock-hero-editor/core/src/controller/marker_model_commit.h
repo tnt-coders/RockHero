@@ -47,19 +47,13 @@ std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerMod
     return after;
 }
 
-// Commits one marker-model change as one undo entry and republishes. Every marker verb ends here,
-// whatever kind of marker it authored, so the commit rules live here once: the produced model is
-// normalized, then validated, and a model that breaks a rule is REFUSED whole — verbs build their
-// result on a copy, so a refusal leaves the live model untouched by construction and needs no
-// restore. A verb that changed nothing records nothing.
-//
-// THE PUBLISH RULE, for every marker verb: publish only when the model, the selection or the cursor
-// actually changed. A refusal of any kind changes none of the three, and neither does a commit that
-// matched the model it found, so both leave the view exactly as they found it and push nothing. The
-// one publish a landed commit makes therefore always carries a real change, and a verb that selects
-// what it just made publishes that selection itself, afterwards.
+// Lands one marker-model change as one undo entry, publishing nothing. Every marker verb lands
+// here, whatever kind of marker it authored, so the commit rules live here once: the produced model
+// is normalized, then validated, and a model that breaks a rule is REFUSED whole — verbs build
+// their result on a copy, so a refusal leaves the live model untouched by construction and needs
+// no restore. A verb that changed nothing records nothing.
 template <typename Snapshot>
-EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
+EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
     Snapshot before, Snapshot after, std::string label)
 {
     std::expected<Snapshot, ChartPlanRefusal> judged = judgeMarkerModel(before, std::move(after));
@@ -82,8 +76,27 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
     pushUndoEntry(
         std::make_unique<MarkerModelEdit<Snapshot>>(
             std::move(before), std::move(*judged), std::move(label)));
-    finishMarkerCommit();
     return MarkerCommit::Landed;
+}
+
+// Lands one marker-model change and republishes.
+//
+// THE PUBLISH RULE, for every marker verb: publish only when the model, the selection or the cursor
+// actually changed. A refusal of any kind changes none of the three, and neither does a commit that
+// matched the model it found, so both leave the view exactly as they found it and push nothing. The
+// one publish a landed commit makes therefore always carries a real change, and a verb that selects
+// what it just made publishes that selection itself, afterwards.
+template <typename Snapshot>
+EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
+    Snapshot before, Snapshot after, std::string label)
+{
+    const MarkerCommit committed =
+        landMarkerModel(std::move(before), std::move(after), std::move(label));
+    if (committed == MarkerCommit::Landed)
+    {
+        finishMarkerCommit();
+    }
+    return committed;
 }
 
 // The marker move verbs' commit: one held run of Alt+arrow presses on one selected marker is ONE
@@ -160,16 +173,16 @@ bool EditorController::Impl::commitMarkerMove(
 }
 
 // THE ORDER RULE of a grid commit, for every model that addresses the rest (a tempo map, a meter
-// list): the cursor's place is read at the tick BEFORE the commit; the landed marker is selected
-// next, because selecting dissolves an armed caret by seeking to its OLD token, which under the new
-// grid is other music; and the cursor moves to its place carried onto the new grid last, so that
-// move is the last word. The cursor is carried as one more slice, down the path the content took
-// (readdressedPosition with the verb's content map), so it lands on what it stood on: a kept place
-// where the grid is truth or a meter edit holds time, a scaled one under Scale Tempo. The landed
-// marker is selected only where it still stands, since normalization may have dropped it, and a
-// landed commit leaves its marker selected or nothing, the caret dissolving as a select dissolves
-// it: where every address moved, the old selection would name other music. The publish follows the
-// funnel's publish rule: only when the model landed or a marker was selected.
+// list): the cursor's place is read at the tick BEFORE the commit, and once the model has landed
+// the cursor is carried onto the new grid FIRST, as one more slice down the path the content took
+// (readdressedPosition with the verb's content map), so it stands on what it stood on: a kept place
+// where the grid is truth or a meter edit holds time, a time-kept one under the Note Lock, a scaled
+// one under Scale Tempo. Carrying first is what demotes an armed caret onto its carried place:
+// a select dissolves a caret by seeking to its address, and its OLD address under the new grid is
+// other music. The landed marker is selected next, only where it still stands, since normalization
+// may have dropped it, and otherwise nothing is: where every address moved, the old selection would
+// name other music. Everything settles before the commit's one publish, which follows the funnel's
+// publish rule: only when the model landed or a marker was selected.
 template <typename Snapshot>
 void EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
@@ -179,24 +192,24 @@ void EditorController::Impl::commitGridModel(
         cursorPosition(common::core::g_tick_quantum_note_value);
     const common::core::TempoMap old_map = session().song().tempo_map;
     const MarkerCommit committed =
-        commitMarkerModel(std::move(before), std::move(after), std::move(label));
+        landMarkerModel(std::move(before), std::move(after), std::move(label));
     if (committed == MarkerCommit::Refused)
     {
         return;
     }
+    // Absent only while the transport plays, when no caret can be armed.
+    if (committed == MarkerCommit::Landed && place.has_value())
+    {
+        carryCursorTo(readdressedPosition(old_map, session().song().tempo_map, content, *place));
+    }
     const bool selected = landed.has_value() && selectMarkerStartingAt(landed_row, *landed);
     if (committed == MarkerCommit::Landed && !selected)
     {
-        dissolveChartCaretInPlace();
         clearSelection();
-    }
-    if (committed == MarkerCommit::Landed && place.has_value())
-    {
-        moveCursorTo(readdressedPosition(old_map, session().song().tempo_map, content, *place));
     }
     if (selected || committed == MarkerCommit::Landed)
     {
-        updateView();
+        finishMarkerCommit();
     }
 }
 

@@ -864,7 +864,8 @@ TEST_CASE("A tempo-chip drag moves only the selected anchor while paused", "[cor
 
 // The grid is truth: a typed tempo moves the cursor in time with the map, so it keeps its musical
 // place whether it is the passive cursor or the armed caret. 5.25 s at 120 BPM is half a beat into
-// 3:3 (global beat 10.5), which half the tempo puts at 10.5 s.
+// 3:3 (global beat 10.5), which half the tempo puts at 10.5 s. The cursor rides its music in one
+// seek and one publish.
 TEST_CASE("A typed tempo keeps the cursor on its musical place", "[core][tempo]")
 {
     TempoEditor editor;
@@ -879,9 +880,13 @@ TEST_CASE("A typed tempo keeps the cursor on its musical place", "[core][tempo]"
 
     const TempoChordTarget before = editor.chord();
     REQUIRE(std::holds_alternative<InsertTempoAnchorTarget>(before));
+    const int seeks = editor.transport.seek_call_count;
+    const int publishes = editor.view.set_state_call_count;
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "60");
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(10.5, 1e-9));
     CHECK(editor.chord() == before);
+    CHECK(editor.transport.seek_call_count == seeks + 1);
+    CHECK(editor.view.set_state_call_count == publishes + 1);
 }
 
 // The tempo lock is session state: on at every open, whatever the session before it left, and

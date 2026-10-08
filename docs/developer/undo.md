@@ -83,9 +83,11 @@ Note Lock on (a held nudge run and a chip drag included), since each re-addresse
 every arrangement and lands as ONE entry per command; its `normalize` drops a meter restating the
 one before it, its `validate` runs the tempo-map, section and chart rules, and its apply is
 `Session::setSongTimeline()`, the one session write that reaches a non-current arrangement). Every
-grid commit (`commitGridModel`) carries the cursor as one more slice through the verb's content
-map, and leaves the landed marker selected or nothing, because where every address moved the old
-selection would name other music.
+grid commit (`commitGridModel`) lands through `landMarkerModel`, the funnel without its publish,
+carries the cursor as one more slice through the verb's content map (`carryCursorTo`, which seeks
+only where the transport no longer stands at the carried place), leaves the landed marker selected
+or nothing, because where every address moved the old selection would name other music, and then
+publishes once.
 Whole-model in every case because a tone delete or retone can MERGE regions and a section or
 placement move re-sorts the list, so an inverse command would have to know every record the edit
 took; a handful of small structs costs nothing to copy, and the round trip is exact by assignment.

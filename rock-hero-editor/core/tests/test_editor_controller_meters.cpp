@@ -22,6 +22,7 @@ namespace
 {
 
 using Catch::Matchers::WithinAbs;
+using Catch::Matchers::WithinULP;
 using common::core::GridPosition;
 using common::core::SongSection;
 using common::core::TimeSignature;
@@ -380,17 +381,22 @@ TEST_CASE("A meter edit moves no resolved time in either arrangement", "[core][m
 }
 
 // The cursor keeps its TIME, armed or passive: the caret armed at 6:1 (10 s) dissolves into the
-// selected meter, and the cursor stands where it stood, which under 3/4 from measure 3 is 7:1.
+// selected meter, and the cursor stands where it stood, which under 3/4 from measure 3 is 7:1. The
+// transport already stands there, so nothing seeks, and the commit publishes once.
 TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][meters]")
 {
     MeterEditor editor;
     editor.seek(10.0);
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     REQUIRE(caretOrNull(editor.state().chart_edit) != nullptr);
+    const int seeks = editor.transport.seek_call_count;
+    const int publishes = editor.view.set_state_call_count;
 
     editor.set(3, "3/4");
     CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
-    CHECK_THAT(editor.transport.position().seconds, WithinAbs(10.0, 1e-9));
+    CHECK(editor.transport.seek_call_count == seeks);
+    CHECK_THAT(editor.transport.position().seconds, WithinULP(10.0, 0));
+    CHECK(editor.view.set_state_call_count == publishes + 1);
     const std::optional<KeyboardPositionViewState>& position = editor.state().keyboard_position;
     REQUIRE(position.has_value());
     if (position.has_value())
@@ -405,11 +411,11 @@ TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(13.25, 1e-9));
 }
 
-// The cursor is carried as one more slice, so it lands on the note it stood on even where the
-// terminal re-seats. The eight measures of 4/4 end at 16016 ms; restated as 3/4 they end
+// The cursor is carried as one more slice, so the marker verbs author on the note it stood on even
+// where the terminal re-seats. The eight measures of 4/4 end at 16016 ms; restated as 3/4 they end
 // mid-measure and re-seat on 12:1, about 16516.5 ms, stored as 16516, re-timing the last span by
-// about half a millisecond, more than half a tick. The note at 8:4 lands on 11:2, and the cursor
-// with it.
+// about half a millisecond, more than half a tick. The note at 8:4 lands on 11:2: inside the
+// cursor's trust tolerance, so the transport stays and the cursor's column is the note's.
 TEST_CASE("A meter edit carries the cursor onto its note in a re-seated span", "[core][meters]")
 {
     common::core::Song song = makeEightMeasureSong();
@@ -422,7 +428,9 @@ TEST_CASE("A meter edit carries the cursor onto its note in a re-seated span", "
     }
     SongEditorHarness editor;
     editor.open(std::move(song));
-    editor.seek(editor.tempoMap().secondsAt(beatAt(8, 4)));
+    const double sounded = editor.tempoMap().secondsAt(beatAt(8, 4));
+    editor.seek(sounded);
+    const int seeks = editor.transport.seek_call_count;
 
     editor.controller.onTimeSignatureSetRequested(1, "3/4");
     REQUIRE(editor.tempoMap().anchors().back() == common::core::testing::anchor("12:1", 16516));
@@ -432,10 +440,12 @@ TEST_CASE("A meter edit carries the cursor onto its note in a re-seated span", "
     {
         REQUIRE(chart->notes.size() == 4);
         CHECK(chart->notes.back().position == beatAt(11, 2));
-        CHECK_THAT(
-            editor.transport.position().seconds,
-            WithinAbs(editor.tempoMap().secondsAt(beatAt(11, 2)), 1e-9));
     }
+    CHECK(editor.transport.seek_call_count == seeks);
+    CHECK_THAT(editor.transport.position().seconds, WithinULP(sounded, 0));
+    CHECK(
+        editor.state().tempo_chord_target ==
+        TempoChordTarget{InsertTempoAnchorTarget{.position = beatAt(11, 2)}});
 }
 
 } // namespace rock_hero::editor::core
