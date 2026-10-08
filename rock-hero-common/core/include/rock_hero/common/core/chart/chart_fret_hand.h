@@ -293,8 +293,10 @@ the window changes.
 AN AUTHORED POSITION is a statement the derivation consumes, never a patch on its output. It is
 always an event, fronting exactly where it stands, and no figure runs across it. Its window is
 `[fret, end fret]` where the end is stated; otherwise the stated fret is the floor and the top is
-the highest of the figure it heads and every stop gripped at its instant (\ref forEachGrippedStop),
-never under four frets, so it keeps every stop the coverage rule makes it cover. It stands until the
+the highest of every stop gripped at its instant (\ref forEachGrippedStop) and of the figure it
+heads, cut at the first later instant reaching below the stated fret — which it never holds, so
+that instant widens nothing — never under four frets, so it keeps every stop the coverage rule
+makes it cover. It stands until the
 chart contradicts it: it takes its own instant whatever sounds there, and every later instant whose
 demands fit inside the window, up to the next authored position. The 13 rules resume at the first
 instant that does not fit, and their fronts never reach back to an authored position.

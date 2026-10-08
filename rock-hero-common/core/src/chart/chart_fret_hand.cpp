@@ -630,13 +630,15 @@ std::vector<FretHandEvent> deriveFretHandEvents(
         {
             // AN AUTHORED POSITION, standing where it is stated and always an event of its own.
             // Its window is `[fret, end fret]` where the end is stated; else the floor is pinned
-            // and rule 8 gives the top: the highest of the run it heads and of every stop gripped
-            // at its place, never under four frets. A hold standing there but ending before the
-            // next instant enters no instant the run reads, so only the gripped stops keep it. The
-            // position then stands until the chart contradicts it: it takes its own instant
-            // whatever sounds there — a slide arriving there included — and every later instant
-            // that fits inside the window, up to the next authored position or slide arrival. The
-            // derivation resumes at the first instant that does not fit.
+            // and the width rule (`runWidth`) gives the top: the highest of every stop gripped at
+            // its place and of the run it heads, cut at the first later instant reaching below its
+            // fret — the position never holds that one, so it widens nothing — never under four
+            // frets. A hold standing there but ending before the next instant enters no instant the
+            // run reads, so only the gripped stops keep it. The position then stands until the
+            // chart contradicts it: it takes its own instant whatever sounds there — a slide
+            // arriving there included — and every later instant that fits inside the window, up to
+            // the next authored position or slide arrival. The derivation resumes at the first
+            // instant that does not fit.
             const FretHandPosition& position = authored[stated];
             const Fraction place = authored_places[stated];
             ++stated;
@@ -657,9 +659,14 @@ std::vector<FretHandEvent> deriveFretHandEvents(
                     connections, demands, place, [&top](const int fret, const Fraction /*from*/) {
                         top = std::max(top, fret);
                     });
-                if (head < reach)
+                std::size_t held = own;
+                while (held < reach && instants[held].lowest >= position.fret)
                 {
-                    top = std::max(top, runFrom(instants, head, reach).highest);
+                    ++held;
+                }
+                if (head < held)
+                {
+                    top = std::max(top, runFrom(instants, head, held).highest);
                 }
                 window = FretWindow{.fret = position.fret, .width = runWidth(position.fret, top)};
             }

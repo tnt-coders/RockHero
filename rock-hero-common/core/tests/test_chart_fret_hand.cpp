@@ -773,6 +773,15 @@ TEST_CASE("An authored fret reaches the top of the run it heads", "[core][chart]
         eventsOf({noteAt(1, 1, 1, 5)}, 0, {positionAt(1, 1, 5)}) == std::vector{eventAt(1, 1, 5)});
 }
 
+// A position holds nothing below its fret, so a run dipping below it widens nothing: the chord
+// spanning frets 4 to 9 is the derivation's, and the position keeps the four-fret floor.
+TEST_CASE("An authored fret never reaches for a run it does not hold", "[core][chart]")
+{
+    CHECK(
+        eventsOf({noteAt(1, 2, 1, 4), noteAt(1, 2, 2, 9)}, 0, {positionAt(1, 1, 5)}) ==
+        std::vector{eventAt(1, 1, 5), eventAt(1, 2, 4, 6)});
+}
+
 // A stated end fret IS the top, however narrow, and the derivation resumes at the first instant
 // that falls outside the window.
 TEST_CASE("An authored end fret is the window's top", "[core][chart]")

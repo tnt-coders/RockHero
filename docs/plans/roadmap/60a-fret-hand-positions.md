@@ -30,7 +30,9 @@ Saved as `positions[]`, today `fhps`.
 - **An authored position stands until the chart contradicts it.** Its window is `[fret, endFret]`
   where the end is stated, else the stated fret up to the top of the run it heads and of every
   stop gripped at its instant (`forEachGrippedStop`, the coverage rule's own query), never under
-  four frets (Phase 2 build rulings, 2026-10-05). It stands through every later instant that fits
+  four frets (Phase 2 build rulings, 2026-10-05). The run is cut at the first later instant that
+  reaches below the stated fret: the position never holds that instant, so its notes widen nothing
+  (sighted 2026-10-08: a fret-5 position before a 4-to-9 chord drew 5–9). It stands through every later instant that fits
   inside that window and emits nothing; the derivation resumes at the first demand outside it.
   This answers the "scope of a stated fret" question Phase 2 carried: neither "the run it heads"
   nor "until the next marker".
@@ -223,7 +225,8 @@ answers). These are the current reading wherever the older text below disagrees.
   authored positions, is DONE 2026-10-05 with no visible change.
 - **The authored window, exactly** (refines §1a's wording): `[fret, end fret]` where the end is
   stated; else the stated fret is the floor and the top is the top of the run the position heads,
-  never under four frets. "The fret plus the run's width" would leave a run's top uncovered
+  never under four frets (the run cut where it first reaches below the stated fret, refined
+  2026-10-08 — see the design section). "The fret plus the run's width" would leave a run's top uncovered
   wherever the stated fret sits below the run's floor; this is the reach the width fold gave.
 - **An authored position is a forced boundary:** it is always an event, no run crosses it, the run
   it heads starts at the first demand at or after it, and a derived front never reaches back to
