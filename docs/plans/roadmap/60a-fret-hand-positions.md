@@ -10,8 +10,9 @@ read; `b8eb6f82` and `959fcb9c` the slide-out ride; `3d8bb3a1` the row over ever
 Prune; `c074b721` and `3a74bb34` the coverage rule, with drop-on-load; `1ef9a5f8` holds as
 demands; `355fd52f` the slide rule; `b4a66c15` and `0f4e71e6` the node fret and the capo floor;
 `9edb7138` and `fff2dd1f` the two-layer derivation; `b95ce8f1` the hand demands; and the close-out
-`9a4375f9`, `a98149cb`, `cc479791` and `51e10165`. Scorer 88.175% exact. NEXT: Phase 3; positions
-are finished before the holds plan (`60b-holds.md`) starts.
+`9a4375f9`, `a98149cb`, `cc479791` and `51e10165`. Scorer 88.175% exact. **Phase 3's tests are
+DONE (`6d2cdc01`); only the user's sighting of the position row remains.** Positions are finished
+before the holds plan (`60b-holds.md`) starts.
 
 Section numbers are the family's (the master's §0 has the map): §§1–6, the G60 gate record of §9
 and §§10–12 are in the master; the phases, §8 and the rulings below keep the numbers they had.
@@ -380,8 +381,12 @@ record (subsumed: a marker with a stated fret over silence IS that statement, §
 **Status (2026-10-08):** items 1, 2 and 6 were built in Phase 2 (`3d8bb3a1`): the row's objects
 are the hand events, an authored chip draws solid beside the derived ghost, and Prune is item 6,
 with their tests in `test_editor_controller_marker_rows.cpp` and `test_tab_paint_core.cpp`. Item 3
-(rail selection) lives in `60b-holds.md`. What remains is the sighting brief and the tests §8 still
-owes.
+(rail selection) lives in `60b-holds.md`. The tests §8 owed the position row are DONE
+(`6d2cdc01`): the row walking the derived windows of a chart storing no position, a stored
+position on a derived front as one row object, and the strictly-ascending-fronts invariant in
+`test_chart_fret_hand.cpp` with its census ZERO row (0 over the GP corpus); the rail and span
+tests moved to `60b-holds.md` with item 3. Only the user's sighting (§8's brief) remains, and the
+phase is not done until it is signed.
 
 **REVISED 2026-10-04 (§1a).** The row is the POSITION row, and its items read so: item 1 (the
 derived events as the row's objects) and item 2 (the authored tell) stand, for positions; item 3
@@ -471,23 +476,29 @@ pin the floor, `Alt`+digits the top, `Alt+Delete` clears the top; `Enter` opens 
 picker on an event with a shape (Phase 5); `Ctrl+R` is inert until an event has a name to rename
 (the entry's name is the dictionary's).
 
-**Tests still owed** (the stopgap's cover the built verbs): the row walking derived events on a
-fixture chart with no markers; a marker pinning an event the derivation also fronts (no
-duplicate); ~~the authored-tell pixels~~ (landed: "Tab FHP chip draws a derived position as a
-ghost"); pointer selection from rails; `chartSpanRevealed`'s selected ground;
-`test_tab_paint_core.cpp` exported rail bounds matching the drawn rails; ~~`Alt+←/→` inert on a
-derived front~~ (landed: "Delete and the move refuse a derived position"); the end move's fit test
-at each refusal, if built; ~~"drop markers that state nothing" keeping exactly the markers whose
-removal changes an event~~ (landed: "The prune removes exactly the redundant stored positions"); a
+**Tests still owed** — none for the position row; every one landed (the stopgap's cover the built
+verbs): ~~the row walking derived events on a fixture chart with no markers~~ (landed: "The
+position row walks the derived windows of a chart storing none"); ~~a marker pinning an event the
+derivation also fronts (no duplicate)~~ (landed: "A stored position on a derived front is one row
+object"); ~~the authored-tell pixels~~ (landed: "Tab FHP chip draws a derived position as a
+ghost"); ~~`Alt+←/→` inert on a derived front~~ (landed: "Delete and the move refuse a derived
+position"); ~~"drop markers that state nothing" keeping exactly the markers whose removal changes
+an event~~ (landed: "The prune removes exactly the redundant stored positions"); ~~a
 strictly-ascending-fronts invariant over the derived events in `test_chart_shapes.cpp` and a
-local census row for it.
+local census row for it~~ (landed in `test_chart_fret_hand.cpp`, where the hand events are
+tested: "The hand events front strictly ascending", and the census row "... fronting at or before
+the last (ZERO)", 0 over the GP corpus); ~~the end move's fit test at each refusal, if built~~
+(struck: §1a closed the end gesture, and it is not built). The rail and span tests — pointer
+selection from rails, `chartSpanRevealed`'s selected ground, the exported rail bounds matching
+the drawn rails — are owed by `60b-holds.md` with rail selection.
 
-**Sighting brief** (Phase 3): a GP import with dense position changes and short-gap chord charts,
-with NO markers; Tab across derived fronts; the authored tell beside a derived chip; a span
-ending near the cursor; a landing successor abutting its predecessor; clicking rails; the marker
-move's refusal flash at a duplicate front; the outline and rail-highlight strength. From Phase 2
-on (added 2026-10-04): a time-signature edit MOVES THE DERIVED POSITIONS while the notes keep
-their places — rule 3 reads bar lines, so this is correct, but it is sighted, never assumed.
+**Sighting brief** (Phase 3, positions): a GP import with dense position changes and short-gap
+chord charts, with NO markers; Tab across derived fronts; the authored tell beside a derived chip;
+the marker move's refusal flash at a duplicate front; the selected chip's outline strength. From
+Phase 2 on (added 2026-10-04): a time-signature edit MOVES THE DERIVED POSITIONS while the notes
+keep their places — rule 3 reads bar lines, so this is correct, but it is sighted, never assumed.
+The span items — clicking rails, the rail-highlight strength, a span ending near the cursor, a
+landing successor abutting its predecessor — are sighted with rail selection in `60b-holds.md`.
 
 ## 9. The rulings that are this plan's
 

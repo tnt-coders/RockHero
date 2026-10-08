@@ -117,6 +117,16 @@ gestures the redesign closed, and the seam's census row. Phase 3's REVISED note 
    row is exact — NEEDS VERIFICATION whether ~~`bracket_position`~~ `bracket_place` (renamed;
    `std::optional<Fraction>`, `chart_shapes.h:284`, verified 2026-10-04) / `landing_opened` (still
    present) already answer it; `bracket_place` probably does.
+
+**Tests owed with item 3** (moved from `60a-fret-hand-positions.md` §8 on 2026-10-08, since they
+are the span's): pointer selection from rails; `chartSpanRevealed`'s selected ground (today it
+answers to the lane reveal, a selected note and the caret, and spans are not selectable);
+`test_tab_paint_core.cpp`'s exported rail bounds (`tabShapeRailBounds`, not yet built) matching
+the drawn rails.
+
+**Sighting with item 3** (moved from the same brief): clicking rails; the rail-highlight
+strength; a span ending near the cursor; a landing successor abutting its predecessor.
+
 ### Phase 4 — span-free zones and the settlement census (needs Phase 3)
 
 **REVISED 2026-10-04 (§1a) — this phase builds THE HOLD.** The zone is the hold's not-held
