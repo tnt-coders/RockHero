@@ -634,6 +634,21 @@ regression, then re-pin.
 
 ## Chart editing (tab lane)
 
+### Per-edit derivation cost past the edit budget on huge charts — trigger: a real chart feels sluggish to edit
+
+Measured 2026-10-08 on `relwithdebinfo` with synthetic charts: one chart edit's rebuild
+(`editor_controller.cpp` ~:2039-2070, led by `chartResolutions` at ~1.8 µs a note) costs ≈127 ms
+at 50,000 notes, and the per-edit gate `validateChartRules` ≈101 ms more, so an edit runs 2–3x
+the 100 ms budget there. Both scale linearly (8.4 / 26.1 / 91.2 ms for `chartResolutions` at
+5k / 15k / 50k notes). Accepted for now: the densest corpus arrangement (about 3,900 notes)
+rebuilds in ≈6 ms, and no real song comes near 50,000 notes. The position type is not the cost:
+GridPosition conversion is 3.5% of the rebuild.
+
+Remedy: profile the editor exe on the chart that felt slow (a sampling profile, not the synthetic
+probe), then make the derivation passes and the gate O(changed) around the edit instead of
+O(song) — the candidate pass in `chart_edits.cpp` (~:316) runs `chartResolutions` too, so the
+same work happens twice per edit and is the first place to look.
+
 ### Bracket clipping gaps a scrape's travel diagonals — trigger: seen in real material
 
 Technique marks riding a tail — slide diagonals, bend curves, the vibrato sine — clip against

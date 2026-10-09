@@ -254,9 +254,13 @@ is a quarter of it. A tick count is the least readable and bakes the lattice con
 file. A quarter count reads like MIDI beats and is the most familiar in 4/4, but it is a second unit
 beside the durations' whole notes. The whole-note place spelled by the ONE existing rational grammar
 (`formatFractionToken` / `parseFractionToken`: `"47/4"`, `"11"`) adds no grammar and no unit:
-positions and durations are then the same kind of number in the same spelling. A mixed spelling
-(`"11+3/4"`) reads better for a person and costs a second grammar; it is not recommended, but it is
-the one readability concession available if the user wants it.
+positions and durations are then the same kind of number in the same spelling. **DECIDED
+2026-10-08 (user): if the file stores counts, the spelling is the canonical MIXED number** — the
+whole part, then `+n/d` for a remaining fraction in (0, 1) in lowest terms, each part omitted when
+zero (`"11+3/4"`, `"12"`, `"3/8"`, `"0"`); an improper spelling (`"47/4"`) is refused, so every
+value has one spelling. It replaces the rational grammar for durations too (`"1+1/2"`, not
+`"3/2"`), so the file still has ONE number grammar, and it echoes the tokens' `+n/d`. Whether the
+file stores counts at all awaits the performance probe and the user's ruling.
 
 **Exactness and validity.** A place is a reduced rational on the tick lattice: `isOnTickLattice`
 (the denominator divides 3840), non-negative, strictly before the terminal for every marker
