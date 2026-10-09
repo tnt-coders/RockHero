@@ -1,6 +1,7 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
-**Status:** Phases 1–5 DONE 2026-10-09 (see their "As built" notes). The user's four projects
+**Status:** Phases 1–5 DONE 2026-10-09 (see their "As built" notes); Phase 6 (the user's
+settle ruling for redundant meter chips) added 2026-10-09, not started. The user's four projects
 were converted 2026-10-09 (backed up beside each as `.bak`; Creed loads). Left for the user: the
 Phase 5 sighting checklist.
 Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
@@ -833,7 +834,27 @@ suites. New files follow the placement procedure; comments follow
       `at`, `sustain` and `offset` is a mixed number (`"0"`, `"12"`, `"3/8"`, `"11+3/4"`); a
       `git diff` of a saved project after one meter edit touches only the `timeSignatures` lines.
 
-## 9. Open questions for the user
+### Phase 6 — A redundant meter chip dissolves at settle (user ruling, 2026-10-09)
+
+- **The ruling.** A meter change that restates its reign (the same meter, on one of that reign's
+  own downbeats: `SongTimelineSnapshot::normalize`'s redundancy, `53863575`) is allowed WHILE its
+  chip is in focus and dissolves when focus leaves it, exactly as a silent keyframe does under
+  the keyframe commit law (`dissolveSilentKeyframes`). So `Alt+←/→` can walk a repeat across its
+  predecessor's downbeats without the chip vanishing under the key, and `Ctrl+/` restating the
+  prevailing meter on a downbeat shows a chip the charter can retype, instead of doing nothing.
+- **Generalize, do not parallel.** Read how the keyframe commit law keeps a silent point out of
+  the history and the file ("no history entry; none ever held them") and give the meter row the
+  same shape: the history and the saved file hold only the normal form, the redundant chip lives
+  in memory while focused, and its dissolve records no entry. Focus for a chip is its selection;
+  settle points are the existing ones (selection leaving it, `settleChart`'s callers, save).
+  Where the two laws can share one settle step, they share it.
+- **Failing tests first:** `Ctrl+/` typing the prevailing meter on a downbeat shows a selected
+  chip and records nothing; selecting elsewhere dissolves it with no entry and no time moved;
+  `Alt+→` across a downbeat of the reign before keeps the chip while selected and then dissolves
+  it on leaving only if it still restates; undo never brings back a redundant chip; a save while
+  one is focused writes the normal form; retyping the focused redundant chip to another meter
+  makes it a real change (one entry).
+
 
 - **Q1 — the camera zone for a mid-measure section.** (a) Cut at the downbeat of the measure the
   section starts IN, so the framing is in place when its first notes arrive (one comparison

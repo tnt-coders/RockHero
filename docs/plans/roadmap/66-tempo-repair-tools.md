@@ -48,6 +48,15 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
   automation points — is scaled by a factor on the whole-note axis while every TIME stays put. x2
   doubles every span's tempo and the measure count (a meter change at old bar m lands on new bar
   2m-1); /2 and free factors (3/2) round to the tick lattice. A range-scoped form is later.
+  **AMENDED 2026-10-09 (user): Scale Tempo obeys the Note Lock like every other tempo verb.**
+  The paragraph above is the verb with the Note Lock ON: a relabel, nothing moves in time. With
+  the Note Lock OFF it STRETCHES: every span's tempo × f, every anchor keeping its grid address
+  and its milliseconds rescaled about the first anchor (`t0 + (t − t0) / f`, whole milliseconds),
+  every object keeping its grid address and so moving in time with the beat; the terminal grows
+  to cover the audio exactly as a typed tempo's does (`terminalCovering`). The use is a chart that
+  drifts uniformly against its recording (a GP tempo of 120 under a 125 BPM take). Fixing a
+  half-time chart now asks for the lock first; unlocked x2 desyncs the chart visibly and is one
+  undo away. Phase 4 builds it.
 - **Note Lock** (toolbar toggle, OFF by default, session state; named "Keep Notes in Time" until
   the user renamed it on 2026-10-04 to read with Tempo Lock): while on, a tempo edit keeps every
   object's time and re-addresses its grid position, instead of moving it with the beat. It applies to tempo edits only (a meter edit already keeps time under 65-Q1 = A). The
@@ -211,6 +220,22 @@ and verifies with a build and the touched tests.
   turn it off; the notes never move in time and the grid lands under them. Scale a half-speed tab
   by x2 and confirm playback is unchanged. Try to move an anchor with the lock on and see it
   refused.
+
+### Phase 4 — Scale Tempo obeys the Note Lock (amended ruling, 2026-10-09)
+
+- Lock ON: today's verb, unchanged (the relabel; it re-engages the lock on what it wrote). Lock
+  OFF: the stretch. Anchors keep their addresses with milliseconds `t0 + (t − t0) / f` rounded to
+  whole milliseconds, content keeps its addresses (`keptPlace`), meters keep their places, and
+  the terminal grows to cover the audio as a typed tempo's does. No lattice refusal applies
+  unlocked: nothing is re-placed. A factor that would collapse two anchors onto one millisecond
+  refuses through the tempo-map rules at the commit.
+- One verb, one prompt, one menu row; the lock is the one switch. The prompt and the undo label
+  say which form ran, so the charter is never surprised by a desync.
+- **Failing tests first:** unlocked x2 halves every anchor's distance from the first in
+  milliseconds, doubles every span's BPM text, and keeps every note, section, meter and anchor
+  address; every object's time moves exactly as its beat does; x2 then /2 restores every
+  original anchor's milliseconds within the whole-millisecond rounding; the terminal covers the audio after /2.
+  Locked behaviour is bit-identical to today (its suite green). One undo entry each.
 
 ## Final acceptance
 
