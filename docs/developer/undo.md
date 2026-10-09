@@ -78,8 +78,8 @@ layer the controller already holds, and its apply writes through
 and leaves the notes revision, so the notes layer survives), and
 `SongTimelineSnapshot` (`timeline/song_timeline_snapshot.h` — the song's WHOLE timeline, the
 common-core `SongTimeline`: the map, the sections and every arrangement's chart, tone track and
-automation, behind the time-signature verbs, Scale Tempo and every tempo edit made with the
-Note Lock on (a held nudge run and a chip drag included), since each re-addresses all of it in
+automation, behind the time-signature verbs, the locked Scale Tempo and every tempo edit made with
+the Note Lock on (a held nudge run and a chip drag included), since each re-addresses all of it in
 every arrangement and lands as ONE entry per command — under the lock, the content the lock holds
 re-addressed under the verb's map, so the entry's `before` and `after` both descend from the lock's
 origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` drops a

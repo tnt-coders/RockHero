@@ -99,8 +99,9 @@ the BPM prompt through the core's published restate verb, `Alt+←/→` and a dr
 freely (a drag is one gesture and one undo entry, below), and a right-click on the tempo row opens Add
 Tempo Anchor, Set Tempo... and Delete Tempo Anchor, plus Scale Tempo... wherever the row is clicked
 (`TimelineRuler::tempoMenuAt`), which runs the same `ScaleTempo` command as the Edit menu's item
-(plan 66: every address in the song scaled by a typed factor, every time held, one entry; see
-\ref guide_musical_time). The two moves — and only they — answer to the
+(plan 66: every span's tempo multiplied by a typed factor, one entry, in the form the Note Lock
+chooses — every address scaled and every time held with the lock on, every anchor re-timed on its
+address with it off; see \ref guide_musical_time). The two moves — and only they — answer to the
 **Tempo Lock**, a session switch that is on at every song open and never saved: while it is on,
 `refuseLockedTempoAnchorMove` (`tempo_handlers.cpp`) refuses each nudge and every drag event with
 the refusal flash on the chip and a log line, and inserting, deleting and typing a tempo stay

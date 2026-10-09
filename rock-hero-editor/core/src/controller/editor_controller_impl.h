@@ -624,8 +624,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTempoSpanBpmRequested(common::core::GridPosition position, const std::string& text);
     void onTempoAnchorMoveRequested(common::core::GridPosition position, std::int64_t milliseconds);
     void onTempoAnchorDragReleased();
-    // Scale Tempo, the whole-song tempo verb: it re-addresses every arrangement, so it commits the
-    // whole song timeline as the time-signature verbs do.
+    // Scale Tempo, in the form the Note Lock chooses: under the lock it re-addresses every
+    // arrangement and commits the whole song timeline as the time-signature verbs do; off the lock
+    // it is a tempo-map edit like a typed tempo's and ends in commitTempoEdit.
     void onScaleTempoRequested(const std::string& text);
     // What the tempo chord would do at the cursor right now (the published verb; see the
     // definition for the rule it derives).
@@ -649,19 +650,19 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::optional<common::core::GridPosition> anchor;
     };
     using TempoCommit = std::variant<TempoGridCommit, TempoAnchorSelection>;
-    // THE step every tempo verb ends in (an insert, a typed tempo, a delete, a move): `edit` makes
-    // the verb's new map from the session's map, and `landing` says how it commits. With the Note
-    // Lock off the grid is truth, so the map alone is committed and content moves with its beat;
-    // with it on, the content the lock holds is laid under the new map so every time holds (plan
-    // 66 decision 5; timeKeptSnapshot), and the cursor is carried from its place now to the same
-    // time under the new map. A refused edit or re-address is logged under `verb`. Defined in
-    // tempo_handlers.cpp, its only user.
+    // THE step every tempo-map edit ends in (an insert, a typed tempo, a delete, a move, Scale
+    // Tempo's stretch): `edit` makes the verb's new map from the session's map, and `landing` says
+    // how it commits. With the Note Lock off the grid is truth, so the map alone is committed and
+    // content moves with its beat; with it on, the content the lock holds is laid under the new
+    // map so every time holds (plan 66 decision 5; timeKeptSnapshot), and the cursor is carried
+    // from its place now to the same time under the new map. A refused edit or re-address is
+    // logged under `verb`. Defined in tempo_handlers.cpp, its only user.
     template <typename Edit>
     void commitTempoEdit(std::string_view verb, const Edit& edit, const TempoCommit& landing);
     // Engages the Note Lock on the song's content as it stands and marks the history's base there:
-    // what the toggle does, and what the two content writes the lock admits (Scale Tempo, the
-    // settle sweep) do once they have written, so the lock holds what the song shows. Returns the
-    // content it now holds.
+    // what the toggle does, and what the two content writes the lock admits (the locked Scale
+    // Tempo, the settle sweep) do once they have written, so the lock holds what the song shows.
+    // Returns the content it now holds.
     const common::core::SongTimeline& engageNoteLock();
     // The Note Lock's content laid under a new map (timeKeptTimeline), as the snapshot a tempo
     // verb commits. Where the history no longer stands on the origin's run — an undo below the

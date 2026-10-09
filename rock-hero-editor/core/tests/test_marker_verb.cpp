@@ -40,4 +40,12 @@ TEST_CASE("A prompt row is its verb's label and an ellipsis", "[core][marker-ver
     CHECK(markerVerbPromptRow(MarkerVerb::ScaleTempo) == "Scale Tempo...");
 }
 
+// Scale Tempo's two forms are told apart by the lock, so its entry, prompt and log line carry the
+// form on the verb's label.
+TEST_CASE("Scale Tempo's label names the form the Note Lock chooses", "[core][marker-verb]")
+{
+    CHECK(scaleTempoLabel(true) == "Scale Tempo (notes keep their time)");
+    CHECK(scaleTempoLabel(false) == "Scale Tempo (notes follow the beat)");
+}
+
 } // namespace rock_hero::editor::core

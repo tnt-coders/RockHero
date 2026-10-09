@@ -20,7 +20,7 @@ namespace rock_hero::editor::core
 
 /*!
 \brief The song's whole timeline: the snapshot every whole-song verb commits, the time-signature
-verbs and Scale Tempo.
+verbs and Scale Tempo under the Note Lock.
 
 Such an edit keeps every object's time and re-addresses it, in every arrangement, so its one undo
 entry has to restore all of it field-equal: the map, the sections and every arrangement's chart,

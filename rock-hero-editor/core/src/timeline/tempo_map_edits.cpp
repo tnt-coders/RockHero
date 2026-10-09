@@ -1,11 +1,13 @@
 #include "timeline/tempo_map_edits.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <optional>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <string>
 #include <utility>
@@ -57,6 +59,19 @@ namespace
     const std::vector<common::core::BeatAnchor>& anchors = tempo_map.anchors();
     return (anchors[span + 1].seconds() - anchors[span].seconds()) /
            tempo_map.spanQuarterLength(span);
+}
+
+// A non-negative distance in whole milliseconds divided by a factor, halves rounding up: exact
+// integer arithmetic, since a time between two milliseconds cannot be stored anyway. The quotient
+// is taken before the denominator multiplies, so the only products are the result itself and the
+// remainder's, which the factor's small terms bound.
+[[nodiscard]] std::int64_t scaledDistance(
+    const std::int64_t distance, const common::core::Fraction factor)
+{
+    const std::int64_t whole = distance / factor.numerator;
+    const std::int64_t part = distance % factor.numerator;
+    return whole * factor.denominator +
+           (2 * part * factor.denominator + factor.numerator) / (2 * factor.numerator);
 }
 
 } // namespace
@@ -140,6 +155,36 @@ TempoMapEditResult setTempoSpanBpm(
     const double seconds_per_quarter =
         span == last_span ? 60.0 / quarter_bpm : spanSecondsPerQuarter(rippled, last_span);
     anchors.back() = rippled.terminalCovering(cover_until_seconds, seconds_per_quarter);
+    return validated(tempo_map, std::move(anchors));
+}
+
+TempoMapEditResult scaleTempoMap(
+    const common::core::TempoMap& tempo_map, const common::core::Fraction factor,
+    const double cover_until_seconds)
+{
+    assert(factor > common::core::Fraction{} && "a scale factor is positive");
+    std::vector<common::core::BeatAnchor> anchors = tempo_map.anchors();
+    const std::int64_t origin = anchors.front().milliseconds;
+    // A factor small enough can put the terminal past any time an anchor can hold.
+    const double terminal_seconds =
+        anchors.front().seconds() +
+        (anchors.back().seconds() - anchors.front().seconds()) / factor.toDouble();
+    if (!common::core::isRepresentableAnchorTime(terminal_seconds))
+    {
+        return refuse(TempoMapEditErrorCode::BrokenRule, "anchor time is out of range");
+    }
+    for (common::core::BeatAnchor& anchor : anchors)
+    {
+        anchor.milliseconds = origin + scaledDistance(anchor.milliseconds - origin, factor);
+    }
+
+    // The terminal grows from the last span's scaled tempo if a faster map left the audio
+    // uncovered. Two anchors scaled onto one millisecond leave the span between them no tempo, and
+    // the rules refuse them whatever the terminal did.
+    const std::size_t last_span = anchors.size() - 2;
+    const common::core::TempoMap scaled{tempo_map.timeSignatures(), anchors};
+    anchors.back() =
+        scaled.terminalCovering(cover_until_seconds, spanSecondsPerQuarter(scaled, last_span));
     return validated(tempo_map, std::move(anchors));
 }
 

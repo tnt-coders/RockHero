@@ -309,8 +309,10 @@ whole notes from the song's start, written in the one canonical mixed-number spe
 (`"16+3/16"`, `"23"`). A place names one instant whatever the meters before it say, so no stored
 place depends on a meter, and the measure a change begins is derived. Where a change cuts the
 reign before it short of a whole measure, the remainder is one derived short bar, never stored.
-So a meter edit, Scale Tempo and a Note Lock edit move nothing in time: they change how the song is
-cut into measures, never where anything sounds.
+So a meter edit, a Note Lock edit and Scale Tempo under the Note Lock move nothing in time: they
+change how the song is cut into measures, never where anything sounds. With the Note Lock off,
+Scale Tempo is a tempo edit like a typed tempo: every anchor keeps its address and is re-timed
+about the first, so the notes follow the beat.
 
 The persisted tempo-map shape is:
 

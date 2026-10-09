@@ -1052,14 +1052,17 @@ struct EditorAction
     };
 
     /*!
-    \brief Scale every grid address in the song by a factor, every time held (Scale Tempo).
+    \brief Multiply every span's tempo by a factor (Scale Tempo), in the form the Note Lock
+    chooses.
 
-    The whole song is re-addressed once and lands as one entry. The Tempo Lock does not block it:
-    it moves no anchor in time (plan 66).
+    With the lock on every grid address is scaled and every time holds, one whole-song re-address;
+    with it off every anchor keeps its address and is re-timed about the first, a tempo-map edit
+    like a typed tempo's. Either lands as one entry. The Tempo Lock does not block it: no anchor is
+    moved by hand.
     */
     struct ScaleTempo
     {
-        /*! \brief Positive factor; x2 doubles every span's tempo and the measure count. */
+        /*! \brief Positive factor; x2 doubles every span's tempo. */
         common::core::Fraction factor{1};
     };
 

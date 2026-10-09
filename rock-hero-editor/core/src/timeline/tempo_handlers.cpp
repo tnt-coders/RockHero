@@ -273,36 +273,58 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
     const std::expected<common::core::Fraction, std::string> factor = parseScaleFactor(text);
     if (!factor.has_value())
     {
-        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::ScaleTempo), factor.error());
+        m_refusal_log.markerEdit(
+            scaleTempoLabel(m_grid_session.note_lock.has_value()), factor.error());
         return;
     }
     runAction(EditorAction::ScaleTempo{.factor = *factor});
 }
 
-// Scales every grid address in the song while every time holds: one whole-song re-address, one
-// commit, one entry. It moves no anchor in time, so the Tempo Lock does not apply. Nothing is
-// selected after it, because every address the old selection held now names other music. Under the
-// Note Lock it scales the song as it stands, like every other time, and then the lock re-engages on
-// what it wrote: a free factor rounds the content it scaled, so the lock's origin would otherwise
-// no longer be what the song shows.
+// Scale Tempo takes the form the Note Lock chooses, and its label says which. With the lock OFF it
+// STRETCHES: a tempo-map edit like a typed tempo's (scaleTempoMap), landed through commitTempoEdit,
+// which finds the lock off and commits the map alone, so every object keeps its address and moves
+// in time with its beat. With the lock ON it RELABELS: every grid address scaled while every time
+// holds, one whole-song re-address, one entry; then the lock re-engages on what it wrote, since a
+// free factor rounds the content it scaled and the lock's origin would otherwise no longer be what
+// the song shows. The relabel is not the stretch laid under the held content — it re-places the
+// meters and the anchors, where the lock's own path keeps a verb's map — so it is the one tempo
+// verb that does not reach commitTempoEdit's lock branch. Neither form moves an anchor by hand, so
+// the Tempo Lock does not apply, and nothing is selected after either: the relabel sends every
+// address the old selection held to other music.
 void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& action)
 {
+    const std::string label = scaleTempoLabel(m_grid_session.note_lock.has_value());
+    if (!m_grid_session.note_lock.has_value())
+    {
+        const double cover_until_seconds = latestAudioEndSeconds(session().song());
+        commitTempoEdit(
+            label,
+            [&action, cover_until_seconds](const common::core::TempoMap& tempo_map) {
+                return scaleTempoMap(tempo_map, action.factor, cover_until_seconds);
+            },
+            TempoGridCommit{
+                .label = [&label](const common::core::TempoMap& /*tempo_map*/) { return label; },
+                .anchor = std::nullopt,
+            });
+        return;
+    }
+
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
     std::expected<common::core::SongTimeline, std::string> scaled =
         scaledTimeline(before.timeline, action.factor);
     if (!scaled.has_value())
     {
-        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::ScaleTempo), scaled.error());
+        m_refusal_log.markerEdit(label, scaled.error());
         return;
     }
     const MarkerCommit committed = commitGridModel(
         std::move(before),
         SongTimelineSnapshot{.timeline = std::move(*scaled)},
-        markerVerbLabel(MarkerVerb::ScaleTempo),
+        label,
         MarkerRow::Tempo,
         std::nullopt,
         scaledPlaces(action.factor));
-    if (committed == MarkerCommit::Landed && m_grid_session.note_lock.has_value())
+    if (committed == MarkerCommit::Landed)
     {
         engageNoteLock();
     }

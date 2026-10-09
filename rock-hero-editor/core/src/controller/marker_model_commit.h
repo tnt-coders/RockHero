@@ -192,7 +192,8 @@ bool EditorController::Impl::commitMarkerMove(
 // the cursor is carried onto the new grid FIRST, as one more slice down the path the content took
 // (readdressedPosition with the verb's content map), so it stands on what it stood on: a kept place
 // where the grid is truth or a meter edit holds time, a time-kept one under the Note Lock, a scaled
-// one under Scale Tempo. Carrying first is what demotes an armed caret onto its carried place:
+// one under the locked Scale Tempo. Carrying first is what demotes an armed caret onto its carried
+// place:
 // a select dissolves a caret by seeking to its address, and its OLD address under the new grid is
 // other music. The landed marker is selected next, only where it still stands, since normalization
 // may have dropped it, and otherwise nothing is: where every address moved, the old selection would

@@ -191,12 +191,14 @@ enum class EditorCommandId : std::uint16_t
     InsertTimeSignature = 0x1408,
 
     /*!
-    \brief Scale every grid address in the song by a typed factor, every time held (Scale Tempo).
+    \brief Multiply every span's tempo by a typed factor (Scale Tempo), in the form the Note Lock
+    chooses: the grid relabelled under notes that keep their time, or stretched under notes that
+    follow the beat.
 
-    Opens the Scale Tempo prompt ("2", "1/2", "3/2"), whose raw text the core parses. The Edit
-    menu's "Scale Tempo..." and the tempo row's right-click row both run this command. No default
-    chord: a whole-song repair is rare and deliberate. Disabled while the marker plane is closed —
-    while the transport plays, or with no song.
+    Opens the Scale Tempo prompt ("2", "1/2", "3/2"), titled by the form, whose raw text the core
+    parses. The Edit menu's "Scale Tempo..." and the tempo row's right-click row both run this
+    command. No default chord: a whole-song repair is rare and deliberate. Disabled while the
+    marker plane is closed — while the transport plays, or with no song.
     */
     ScaleTempo = 0x1409,
 

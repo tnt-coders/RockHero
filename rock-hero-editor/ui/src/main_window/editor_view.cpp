@@ -3923,13 +3923,14 @@ void EditorView::promptTimeSignature(
 }
 
 // The Scale Tempo prompt behind the Edit menu's item and the tempo row's menu row, titled as its
-// undo entry is. It opens empty, so an accidental Enter scales nothing; the text goes back raw for
-// the core to parse and refuse.
+// undo entry is — which names the form the Note Lock chooses, so the charter sees before typing
+// whether the notes keep their time or follow the beat. It opens empty, so an accidental Enter
+// scales nothing; the text goes back raw for the core to parse and refuse.
 void EditorView::promptScaleTempo()
 {
     showThemedTextPrompt(
         this,
-        core::markerVerbLabel(core::MarkerVerb::ScaleTempo),
+        core::scaleTempoLabel(m_state.note_lock),
         "Scale factor (e.g. 2, 1/2, 3/2)",
         juce::String{},
         "Scale",

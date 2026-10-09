@@ -93,4 +93,13 @@ that says a prompt follows, the one place that convention is applied.
 */
 [[nodiscard]] std::string markerVerbPromptRow(MarkerVerb verb);
 
+/*!
+\brief Scale Tempo's label under a Note Lock state: the one verb takes two forms, and its undo
+entry, its prompt's title and its refusals' log line say which.
+\param note_lock Whether the Note Lock is on.
+\return "Scale Tempo (notes keep their time)" with the lock on, the relabel that holds every time;
+        "Scale Tempo (notes follow the beat)" with it off, the stretch that re-times the anchors.
+*/
+[[nodiscard]] std::string scaleTempoLabel(bool note_lock);
+
 } // namespace rock_hero::editor::core

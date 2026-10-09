@@ -304,15 +304,15 @@ TEST_CASE("Grid verbs under the Note Lock hold the lock's origin", "[core][tempo
     checkHeldFrom(origin, editor);
 }
 
-// Scale Tempo rounds the content it scales, so under the lock it re-engages the lock on what it
-// wrote: the tempo edits after it round once from the scaled song.
+// Under the lock Scale Tempo relabels, every time held, and rounds the content it scales, so it
+// re-engages the lock on what it wrote: the tempo edits after it round once from the scaled song.
 TEST_CASE("Scale Tempo under the Note Lock re-engages it on its result", "[core][tempo][note-lock]")
 {
     DenseNoteLockEditor editor;
     editor.controller.onTempoSpanBpmRequested(g_typed_tempos[0].span, g_typed_tempos[0].bpm);
     const SongTimeline before_scale = editor.timeline();
     editor.controller.onScaleTempoRequested("3/2");
-    REQUIRE(editor.undoTopLabel() == "Scale Tempo");
+    REQUIRE(editor.undoTopLabel() == "Scale Tempo (notes keep their time)");
     const SongTimeline scaled = editor.timeline();
     REQUIRE_FALSE(scaled == before_scale);
     checkTimesHeld(before_scale, scaled, 0.0);

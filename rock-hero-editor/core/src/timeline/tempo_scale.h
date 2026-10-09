@@ -1,6 +1,7 @@
 /*!
 \file tempo_scale.h
-\brief Scale Tempo: the whole song's grid scaled by a factor, every time held.
+\brief Scale Tempo's factor and its form under the Note Lock: the whole song's grid scaled by the
+factor, every time held. (Its form off the lock is \ref scaleTempoMap, a tempo-map edit.)
 */
 
 #pragma once
@@ -47,7 +48,8 @@ A positive whole number, or two around one slash, spaces and tabs around either 
 /*!
 \brief Scales every grid address in the song by a factor on the whole-note axis, every time held.
 
-Scale Tempo's driver of \ref readdressTimeline: the content map is \ref scaledPlaces, and the
+Scale Tempo's form with the Note Lock on, and its driver of \ref readdressTimeline: the content
+map is \ref scaledPlaces, and the
 meters and anchors are placed by it too, each anchor keeping its milliseconds, so every span's
 tempo is multiplied by the factor and its music keeps its time. x2 doubles the measure count — a
 meter at measure m lands on measure 2m-1 — and is exact; /2 and a free factor such as 3/2 round

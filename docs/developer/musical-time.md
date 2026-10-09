@@ -337,12 +337,16 @@ Two performance mechanisms matter when querying it:
 
 **A meter edit keeps time** (plan 65): inserting, restating, deleting or moving a time signature
 leaves every object at its instant and gives it a new address, the measures after the change
-renumbering. **Scale Tempo keeps time too** (plan 66): it multiplies every grid address in the song
-by a typed factor on the whole-note axis, so x2 doubles every span's tempo and the measure count
-(a meter at measure m lands on 2m-1), and the music stays where it sounds. So does a tempo edit
-made with the **Note Lock** on (plan 66): the grid moves under the notes instead of the notes
-moving with the beat, which is how a song whose grid is wrong under correctly timed notes is
-repaired.
+renumbering. So does a tempo edit made with the **Note Lock** on (plan 66): the grid moves under
+the notes instead of the notes moving with the beat, which is how a song whose grid is wrong under
+correctly timed notes is repaired. **Scale Tempo** multiplies every span's tempo by a typed factor
+and obeys that lock like every other tempo verb. With the lock ON it RELABELS, keeping time: every
+grid address in the song is scaled on the whole-note axis, so x2 doubles the measure count (a meter
+at measure m lands on 2m-1) and the music stays where it sounds. With the lock OFF it STRETCHES:
+every anchor keeps its address and its distance in time from the first anchor is divided by the
+factor, so every object keeps its address and moves in time with its beat — the repair for a chart
+that drifts uniformly against its recording. One verb, one prompt, one menu row: the prompt's title
+and the undo entry carry the form (`scaleTempoLabel`), so a desync is never a surprise.
 
 Both run ONE transform, `readdressTimeline` (`editor/core/src/timeline/timeline_readdress.h`). A
 driver states the new map on the whole-note axis — the placed `TimeSignatureChange`s and
@@ -354,9 +358,10 @@ through the content map (`readdressedPosition`), rounding onto the tick lattice
 
 - **meter edits** — `readdressUnderMeters` (`meter_edits.h`): anchors where they stood, the
   content map `keptPlace`, so nothing rounds (a debug assert holds it to that);
-- **Scale Tempo** — `scaledTimeline` (`tempo_scale.h`): meters, anchors and content all at f
-  times their place (`scaledPlaces`); x2 is exact, /2 and free factors such as 3/2 round. The
-  factor's terms are each at most 16 once reduced (`parseScaleFactor`).
+- **Scale Tempo under the Note Lock** — `scaledTimeline` (`tempo_scale.h`): meters, anchors and
+  content all at f times their place (`scaledPlaces`); x2 is exact, /2 and free factors such as
+  3/2 round. The factor's terms are each at most 16 once reduced (`parseScaleFactor`). Off the
+  lock Scale Tempo runs no transform at all: it is a tempo-map edit (below).
 - **the Note Lock** — `timeKeptTimeline` (`keep_notes_in_time.h`): the new map's meters and
   anchors, and the content map `timeKeptPlaces`, which sends each place to the tick nearest, under
   the new map, to the instant the old map gave it. Every place rounds once, to within half a tick
@@ -370,15 +375,16 @@ through the content map (`readdressedPosition`), rounding onto the tick lattice
   (below).
 
 A ring's `sustain` and a keyframe's `offset` are note values — differences on the whole-note axis
-— so a meter edit, whose content map keeps every place, leaves them untouched. Scale Tempo and the
-Note Lock move places, so each is re-expressed as the difference of its mapped ends,
+— so a meter edit, whose content map keeps every place, leaves them untouched. The locked Scale
+Tempo and the Note Lock move places, so each is re-expressed as the difference of its mapped ends,
 P(p+d) − P(p), which keeps every ring end and keyframe on the tick lattice. Nothing moves in
 time: a later meter keeps its place, so a reign that is no longer a whole number of measures
 before it ends in a derived short bar (`TempoMap::reigns`); a section left mid-measure stays
 there; a terminal left mid-measure stays too, the song ending on a short final bar. The transform
 refuses nothing — a reign left shorter than one of its measures is the tempo-map rules' refusal
-(`ReignTooShort`), asked at the commit — and Scale Tempo alone refuses a factor that would carry
-a meter off the meter lattice (`isOnMeterLattice`), naming the meter where it stands now. The
+(`ReignTooShort`), asked at the commit — and the locked Scale Tempo alone refuses a factor that
+would carry a meter off the meter lattice (`isOnMeterLattice`), naming the meter where it stands
+now. The
 commit carries the cursor as one more slice (`commitGridModel` takes the verb's content map and
 asks `readdressedPosition`), so its column lands on what it stood on. The transport follows only
 where it no longer stands within the
@@ -389,13 +395,22 @@ only at slow tempos. Tempo edits are the contrast: there the grid is truth, and 
 grid commit is a keyboard move, so none of them scrolls the window
 (`EditorViewState::keyboard_move_count`).
 
-Every tempo verb (anchor insert, typed tempo, anchor delete, anchor move) ends in one step,
-`commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make its new map from the
-session's map, and it commits either that map alone (`TempoMapSnapshot`, `keptPlace`) or, with the
-toggle on, the lock's origin laid under it (`SongTimelineSnapshot`; the cursor carried by
-`timeKeptPlaces` from where it stands), as one entry either way. A held `Alt+←/→` run coalesces
-into one entry like the meter move's, but needs no run origin of its own: a move states its anchor's
-time absolutely, and the content's origin is the lock's.
+Every tempo-map edit (anchor insert, typed tempo, anchor delete, anchor move, and Scale Tempo's
+stretch) ends in one step, `commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make
+its new map from the session's map, and it commits either that map alone (`TempoMapSnapshot`,
+`keptPlace`) or, with the toggle on, the lock's origin laid under it (`SongTimelineSnapshot`; the
+cursor carried by `timeKeptPlaces` from where it stands), as one entry either way. A held `Alt+←/→`
+run coalesces into one entry like the meter move's, but needs no run origin of its own: a move
+states its anchor's time absolutely, and the content's origin is the lock's. Scale Tempo's stretch
+is the pure edit `scaleTempoMap` (`tempo_map_edits.h`): each anchor's time becomes
+`t0 + (t − t0) / f` in whole milliseconds by exact integer arithmetic, halves away from zero (so
+x2 then /2 lands within a millisecond), and the terminal grows to cover the audio exactly as a
+typed tempo's does (`terminalCovering`), never shrinking. Nothing is re-placed, so no lattice
+refusal applies; a factor that lands two anchors on one millisecond is the tempo-map rules'
+refusal at the commit. The verb reaches `commitTempoEdit` only with the lock off: its locked form
+is not the stretch laid under the held content but a different map — the meters and anchors
+re-placed at f times their place — so the verb chooses its form on the lock itself and the relabel
+commits through `commitGridModel` as a meter edit does.
 
 **While the Note Lock is on, the song's content is frozen.** Every verb that would change it is
 refused through the one authority `noteLockRefusal` — the marker funnel's judge refuses every
@@ -404,9 +419,9 @@ timeline), the chart funnel `applyChartEditPlan` refuses every planned chart edi
 notes it would rewrite, the pending fret entry's plan refuses so the typed value's box is red, and
 the automation points verb refuses — and the plugin removal, which takes a plugin's automation out
 of the song, is unavailable (`ActionConditions::note_locked`). Two writes the lock admits move
-content, and each re-engages the lock on what it wrote (`engageNoteLock`): Scale Tempo, whose free
-factor rounds the content it scales, and the settle sweep, whose flatten is the chart's normal
-form. A meter edit keeps every place exactly, so it runs as it always does and the origin stays
+content, and each re-engages the lock on what it wrote (`engageNoteLock`): the locked Scale Tempo,
+whose free factor rounds the content it scales, and the settle sweep, whose flatten is the chart's
+normal form. A meter edit keeps every place exactly, so it runs as it always does and the origin stays
 true through it; `timeKeptTimeline` reads its meters from the verb's map for that reason.
 
 Whether the history still stands on the origin is the history's own fact. Engaging marks the

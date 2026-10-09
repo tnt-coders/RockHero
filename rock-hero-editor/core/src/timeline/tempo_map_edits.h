@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
@@ -88,6 +89,25 @@ downbeat at or past that time at the last span's tempo; it never shrinks.
 [[nodiscard]] TempoMapEditResult setTempoSpanBpm(
     const common::core::TempoMap& tempo_map, common::core::GridPosition position,
     double quarter_bpm, double cover_until_seconds);
+
+/*!
+\brief Multiplies every span's tempo by a factor: each anchor keeps its position, and its distance
+in time from the first anchor is divided by the factor.
+
+Scale Tempo's form with the Note Lock off. Each anchor's time becomes t0 + (t - t0) / f in whole
+milliseconds, halves rounding away from zero, so x2 then /2 puts every anchor back within a
+millisecond. The terminal then grows to cover \p cover_until_seconds at the last span's scaled tempo
+exactly as \ref setTempoSpanBpm grows it, and never shrinks. A factor that lands two anchors on one
+millisecond breaks the ordering rule and is refused.
+
+\param tempo_map Map to edit.
+\param factor Positive scale factor; its terms are at most \ref g_max_scale_factor_term.
+\param cover_until_seconds Time the map must still reach, the end of the song's audio.
+\return The edited map, or the refusal.
+*/
+[[nodiscard]] TempoMapEditResult scaleTempoMap(
+    const common::core::TempoMap& tempo_map, common::core::Fraction factor,
+    double cover_until_seconds);
 
 /*!
 \brief Deletes an anchor, its neighbours staying where they are.

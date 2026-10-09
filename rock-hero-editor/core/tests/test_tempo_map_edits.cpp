@@ -381,6 +381,97 @@ TEST_CASE("Typing a tempo refuses bad values and the terminal", "[editor][tempo-
         TempoMapEditErrorCode::NoAnchorAtPosition);
 }
 
+// Verifies a scale keeps every anchor's position and divides its distance from the FIRST anchor,
+// which keeps its own time, so every span's tempo is multiplied: x2 on a map starting half a second
+// in halves every distance and grows the terminal at the doubled last tempo to cover the audio,
+// and /2 doubles every distance and leaves the terminal where it stands.
+TEST_CASE("Scaling a tempo map rescales every anchor about the first", "[editor][tempo-map]")
+{
+    const common::core::TempoMap source = commonTimeMap(
+        {anchor("1:1", 500), anchor("2:1", 2500), anchor("3:1", 4500), anchor("5:1", 8500)});
+
+    const TempoMapEditResult doubled = scaleTempoMap(source, common::core::Fraction{2}, 8.5);
+    REQUIRE(doubled.has_value());
+    if (doubled.has_value())
+    {
+        CHECK(
+            doubled->anchors() ==
+            std::vector{
+                anchor("1:1", 500), anchor("2:1", 1500), anchor("3:1", 2500), anchor("9:1", 8500)
+            });
+        for (std::size_t span = 0; span < 3; ++span)
+        {
+            CHECK(tempoSpanBpmText(*doubled, span) == "240");
+        }
+    }
+
+    const TempoMapEditResult halved = scaleTempoMap(source, common::core::Fraction{1, 2}, 8.5);
+    REQUIRE(halved.has_value());
+    if (halved.has_value())
+    {
+        CHECK(
+            halved->anchors() ==
+            std::vector{
+                anchor("1:1", 500), anchor("2:1", 4500), anchor("3:1", 8500), anchor("5:1", 16500)
+            });
+    }
+
+    // A factor of one re-times nothing, so a terminal that covers the audio leaves the map as it
+    // is.
+    CHECK(scaleTempoMap(source, common::core::Fraction{1}, 8.5) == source);
+}
+
+// Verifies the rounding is exact integer arithmetic with halves away from zero, so a free factor
+// lands each anchor on the millisecond nearest its scaled distance: 3001 halves to 1501, thirds to
+// 1000 (1000.33) and 8003 thirds to 2668 (2667.67).
+TEST_CASE(
+    "Scaling a tempo map rounds each distance to the nearest millisecond", "[editor][tempo-map]")
+{
+    const common::core::TempoMap source = commonTimeMap(
+        {anchor("1:1", 0), anchor("3:1", 3001), anchor("5:1", 8003), anchor("9:1", 16005)});
+
+    const TempoMapEditResult doubled = scaleTempoMap(source, common::core::Fraction{2}, 8.0);
+    REQUIRE(doubled.has_value());
+    if (doubled.has_value())
+    {
+        CHECK(
+            doubled->anchors() ==
+            std::vector{
+                anchor("1:1", 0), anchor("3:1", 1501), anchor("5:1", 4002), anchor("9:1", 8003)
+            });
+    }
+
+    const TempoMapEditResult thirds = scaleTempoMap(source, common::core::Fraction{3}, 5.0);
+    REQUIRE(thirds.has_value());
+    if (thirds.has_value())
+    {
+        CHECK(
+            thirds->anchors() ==
+            std::vector{
+                anchor("1:1", 0), anchor("3:1", 1000), anchor("5:1", 2668), anchor("9:1", 5335)
+            });
+    }
+}
+
+// Verifies a factor that lands two anchors on one millisecond is the ordering rule's refusal, and
+// one that would carry the terminal past any time an anchor can hold is refused before any
+// arithmetic runs on it.
+TEST_CASE(
+    "Scaling a tempo map refuses a collapse and an unrepresentable time", "[editor][tempo-map]")
+{
+    CHECK(
+        refusalCode(scaleTempoMap(
+            commonTimeMap({anchor("1:1", 0), anchor("2:1", 7), anchor("5:1", 8000)}),
+            common::core::Fraction{16},
+            8.0)) == TempoMapEditErrorCode::BrokenRule);
+    CHECK(
+        refusalCode(scaleTempoMap(
+            commonTimeMap(
+                {anchor("1:1", 0), anchor("5:1", std::numeric_limits<std::int64_t>::max() / 8)}),
+            common::core::Fraction{1, 16},
+            8.0)) == TempoMapEditErrorCode::BrokenRule);
+}
+
 // Verifies a delete keeps the map's two ends and exactly undoes an insert.
 TEST_CASE("Deleting a tempo anchor is the inverse of inserting one", "[editor][tempo-map]")
 {

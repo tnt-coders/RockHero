@@ -93,4 +93,10 @@ std::string markerVerbPromptRow(const MarkerVerb verb)
     return markerVerbLabel(verb) + "...";
 }
 
+std::string scaleTempoLabel(const bool note_lock)
+{
+    return markerVerbLabel(MarkerVerb::ScaleTempo) +
+           (note_lock ? " (notes keep their time)" : " (notes follow the beat)");
+}
+
 } // namespace rock_hero::editor::core

@@ -735,13 +735,15 @@ public:
         common::core::GridPosition position, std::string text) = 0;
 
     /*!
-    \brief Handles a typed Scale Tempo factor: scale every grid address in the song by it, every
-    time held.
+    \brief Handles a typed Scale Tempo factor: multiply every span's tempo by it, in the form the
+    Note Lock chooses.
 
     The answer to the Scale Tempo prompt, from the Edit menu or the tempo row's menu. The text is
     parsed here, in the core: a positive whole number or ratio ("2", "1/2", "3/2"); anything else
-    is refused and logged, changing nothing. The whole song lands as one undo entry, "Scale Tempo".
-    The Tempo Lock does not block it.
+    is refused and logged, changing nothing. With the Note Lock on every grid address is scaled
+    and every time holds; with it off every anchor keeps its address and is re-timed about the
+    first, so the notes follow the beat. Either lands as one undo entry labelled with its form
+    (\ref scaleTempoLabel). The Tempo Lock does not block it.
 
     \param text Factor as typed.
     */

@@ -284,7 +284,8 @@ TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][e
 // Scale Tempo is an Edit-menu verb, greyed while the marker plane is closed (no song, or the
 // transport playing), when performing it opens nothing. Open, it raises the factor prompt, empty so
 // an accidental Enter scales nothing, and hands the typed text back raw for the core to parse. The
-// tempo row's "Scale Tempo..." row runs this same command (the ruler suite pins the row).
+// tempo row's "Scale Tempo..." row runs this same command (the ruler suite pins the row). The
+// prompt is titled as the entry it will record: with the Note Lock off, the stretch.
 TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -308,9 +309,36 @@ TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
     view.setState(state);
     CHECK(requiredMenuItem(view.getMenuForIndex(1, "Edit"), scale_command).isEnabled);
 
+    REQUIRE_FALSE(state.note_lock);
     acceptPrompt(
-        view, EditorCommandId::ScaleTempo, ShownPrompt{.title = "Scale Tempo", .text = ""}, "3/2");
+        view,
+        EditorCommandId::ScaleTempo,
+        ShownPrompt{.title = "Scale Tempo (notes follow the beat)", .text = ""},
+        "3/2");
     CHECK(controller.last_scale_tempo_text == std::optional<std::string>{"3/2"});
+}
+
+// With the Note Lock on the same command opens the same prompt titled as the relabel, so the
+// charter reads which form the factor will take before typing it.
+TEST_CASE("EditorView titles the Scale Tempo prompt by the Note Lock", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    state.marker_edits_enabled = true;
+    state.note_lock = true;
+    view.setState(state);
+
+    acceptPrompt(
+        view,
+        EditorCommandId::ScaleTempo,
+        ShownPrompt{.title = "Scale Tempo (notes keep their time)", .text = ""},
+        "2");
+    CHECK(controller.last_scale_tempo_text == std::optional<std::string>{"2"});
 }
 
 // The fret-hand position chord has nothing to prompt for, so no verb is published for it: the view

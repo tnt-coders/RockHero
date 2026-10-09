@@ -635,9 +635,10 @@ regression, then re-pin.
 
 ## Chart editing (tab lane)
 
-### Scale Tempo refuses a factor that would put a meter off the meter lattice — trigger: a refusal that reads as wrong in use
+### Scale Tempo under the Note Lock refuses a factor that would put a meter off the meter lattice — trigger: a refusal that reads as wrong in use
 
-`scaledTimeline` (`rock-hero-editor/core/src/timeline/tempo_scale.cpp`) refuses a factor whose
+The locked form (the relabel; unlocked, Scale Tempo re-places nothing and never refuses for a
+meter): `scaledTimeline` (`rock-hero-editor/core/src/timeline/tempo_scale.cpp`) refuses a factor whose
 scaled meter place is not a whole number of 1/256 notes from the song's start, naming the meter.
 ×4/3 or ×2/3 on a song with a meter change after the start can do it. A single-meter song never
 refuses. The user ruled this refusal over rounding the meter's place (plan 67 Q6), because a

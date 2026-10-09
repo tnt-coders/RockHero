@@ -340,10 +340,12 @@ from the core's marker-verb table (`markerVerbPromptRow`, `marker_verb.h`), as i
 spelling. Unlike the chorded marker
 verbs it greys rather than staying active, since no chord can sound the system alert: its
 `getCommandInfo` and `perform` both read `marker_edits_enabled`, so it is off with no song and
-while the transport plays. It opens one prompt ("Scale Tempo", one field "Scale factor (e.g. 2,
-1/2, 3/2)", a "Scale" button), empty so a stray Enter scales nothing, whose raw text goes back
-through `onScaleTempoRequested` for the core to parse (`parseScaleFactor`, which refuses a term
-over 16 once reduced). The Tempo Lock does not block it: it moves no anchor in time.
+while the transport plays. It opens one prompt (titled by the form the Note Lock chooses,
+`scaleTempoLabel` — "Scale Tempo (notes keep their time)" with the lock on, "Scale Tempo (notes
+follow the beat)" with it off — one field "Scale factor (e.g. 2, 1/2, 3/2)", a "Scale" button),
+empty so a stray Enter scales nothing, whose raw text goes back through `onScaleTempoRequested`
+for the core to parse (`parseScaleFactor`, which refuses a term over 16 once reduced). The Tempo
+Lock does not block either form: no anchor is moved by hand (\ref guide_musical_time).
 
 `PruneHandPositions` (`0x140A`, "Prune Hand Positions", category Hand) has the same shape with no
 prompt: no default chord, an Edit-menu item greyed and self-gated on `marker_edits_enabled`, its
