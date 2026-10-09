@@ -1972,12 +1972,12 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
     SECTION("a quarter-note chug chain goes ribbonless end to end")
     {
         // THE RESTRIKE CHAIN, derived: the same grip struck on three consecutive beats is ONE span
-        // (rule 8 — a restatement of the same grip continues it), reaching the LAST strike's rings
-        // at beat four. The earlier strikes' rings die at their own restrikes, well inside that
-        // span — the population rule 11's "close is the minimum" reading cannot account for — and
-        // the law rests every one of them, which is exactly the consequence
-        // `span-derivation-ground-up.md` prices beside the plain sustained chord: quarter-note
-        // chug chains rest ribbonless, the repeat heads and the rails stating the rhythm.
+        // (shape rule 2 — a restatement of the same grip continues it), reaching the LAST strike's
+        // rings at beat four. The earlier strikes' rings die at their own restrikes, well inside
+        // that span — the population rule 11's "close is the minimum" reading cannot account for —
+        // and the law rests every one of them, which is exactly the consequence tail rule 4 states
+        // beside the plain sustained chord: quarter-note chug chains rest ribbonless, the repeat
+        // heads and the rails stating the rhythm.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 4}),
             note(at(1, 1), 2, Fraction{1, 4}, 7),
@@ -2060,9 +2060,9 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
 // A real let-ring texture opens with a STRUMMED PAIR whose rings the later plucks accumulate over,
 // all ending together at the statement's boundary. Splitting the span at every growth would put
 // the founding rings in a DIFFERENT span from the heads they cross, so only a figure walk could
-// carry them. Rule 8 makes growth ACCUMULATION IN PLACE — a stop the grip lacks joins it and
-// breaks nothing — so there is ONE span and the law needs no cross-span vocabulary at all. Growth
-// keeps splitting only in the authored-marker context.
+// carry them. Shape rule 2 makes growth ACCUMULATION IN PLACE — a stop the grip lacks joins it
+// and breaks nothing — so there is ONE span and the law needs no cross-span vocabulary at all.
+// Growth keeps splitting only in the authored-marker context.
 TEST_CASE("A founding strum grows in place and the whole figure goes ribbonless", "[core][chart]")
 {
     const TempoMap map = fourFourMap();

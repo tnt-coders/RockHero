@@ -532,8 +532,8 @@ void TabView::paint(juce::Graphics& g)
     };
 
     // THE SPAN'S OWN REVEAL (core::chartSpanRevealed), the same grounds answering for a different
-    // subject: a revealed span's furniture runs to its MUSICAL CLOSE instead of to the extent rule
-    // 12a trimmed for display. What the lane hands the paint core is the answer rather than a
+    // subject: a revealed span's furniture runs to its MUSICAL CLOSE instead of to the extent shape
+    // rule 6 trimmed for display. What the lane hands the paint core is the answer rather than a
     // span, and the core reads whichever of the span's two ends that answer names.
     const auto revealed_shape = [this, &tab](std::size_t index) {
         return core::chartSpanRevealed(tab.shapes[index], m_ring_reveal, tab.notes, m_edit);

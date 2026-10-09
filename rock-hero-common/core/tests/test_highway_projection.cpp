@@ -1443,9 +1443,9 @@ TEST_CASE("Highway tapped chord holds to its ring end with no drawn tail", "[cor
     CHECK(std::is_eq(light.lit.front().release_seconds <=> 1.0));
 }
 
-// RULE 12A for a tapped chord, as for a posture span: where a head stands exactly at the close of
-// the struck rings, the hold is DRAWN one margin clear of it, so abutting holds show a gap; with no
-// head there, the hold runs to the ring end; and where the margin would leave nothing, it falls
+// SHAPE RULE 6 for a tapped chord, as for a posture span: where a head stands exactly at the close
+// of the struck rings, the hold is DRAWN one margin clear of it, so abutting holds show a gap; with
+// no head there, the hold runs to the ring end; and where the margin would leave nothing, it falls
 // back to the ring end — exact adjacency.
 TEST_CASE("Highway tapped chord keeps a margin before the head that closes it", "[core][highway]")
 {
@@ -2876,9 +2876,10 @@ TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][
 
     SECTION("a dead chug after a ringing chord of the same frets REPEATS")
     {
-        // THE DISCRIMINATOR for a profile-free identity. Rule 11 makes the chord and its chugs ONE
-        // span — a change in articulation does not split it — and the identity ignores the profile,
-        // so the first chug is an X'd REPEAT box wearing its own mark rather than a full re-head.
+        // THE DISCRIMINATOR for a profile-free identity. Shape rule 2 makes the chord and its chugs
+        // ONE span — a change in articulation does not split it — and the identity ignores the
+        // profile, so the first chug is an X'd REPEAT box wearing its own mark rather than a full
+        // re-head.
         const std::vector<ShapeViewState> shapes{chordShape(1.0, 2.5, posture)};
         const std::vector<NoteViewState> notes{
             chordNote(1.0, 1, 3),
@@ -2948,10 +2949,10 @@ TEST_CASE("Highway chord groups repeat only after the identical onset", "[core][
     SECTION("silence between two soundings of one grip re-heads the chain")
     {
         // The motivating figure, and the gap law's own consequence: a chord whose stored ring stops
-        // short of the next one leaves a REST, a rest is the hand free to lift and mute, and rule
-        // 11a therefore ends the statement there. The identical chord after it is a new statement,
-        // so it draws its FULL box with heads — across silence the grip is unstated, and a headless
-        // repeat box would be a guess about a hand nobody watched.
+        // short of the next one leaves a REST, a rest is the hand free to lift and mute, and shape
+        // rule 3 therefore ends the statement there. The identical chord after it is a new
+        // statement, so it draws its FULL box with heads — across silence the grip is unstated, and
+        // a headless repeat box would be a guess about a hand nobody watched.
         const std::vector<ShapeViewState> shapes{
             chordShape(1.0, 1.5, posture), chordShape(9.0, 9.5, posture)
         };

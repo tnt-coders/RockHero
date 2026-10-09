@@ -4418,8 +4418,8 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         note.harmonic_node = 17.0;
         return note;
     };
-    // A second member at the same slot, so rule 10 opens a span at all: the hand is holding a shape
-    // and the tap is played over one of its stops.
+    // A second member at the same slot, so shape rule 1 opens a span at all: the hand is holding a
+    // shape and the tap is played over one of its stops.
     const auto struck_member = [] {
         ChartNote note;
         note.position = GridPosition{.measure = 1, .beat = 1};

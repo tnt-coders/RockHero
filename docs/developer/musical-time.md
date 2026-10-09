@@ -243,7 +243,7 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   pass over spans that never overlap, keeping the seam ownership an ONSET at a seam needs, since it
   stands in the grip that ARRIVED — is read by the hold walk and the held-stop default alone. Their
   judgment is exact only because `ChartShape::sustain` stores the MUSICAL CLOSE: a close carrying
-  rule 12a's display trim would sit one margin early, and no comparison against it would be the
+  shape rule 6's display trim would sit one margin early, and no comparison against it would be the
   musical one.
   **IT ASSIGNS NO LENGTH, WHICH IS THE POINT**, and the two rejected alternatives both did. INK
   OWNERSHIP — the bracket owning its members' ink so their ribbons draw nothing at all, recorded

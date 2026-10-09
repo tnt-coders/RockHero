@@ -441,7 +441,7 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(const std::vector<Not
     std::vector<HighwayTapOnsetViewState> onsets;
     forEachTapGroup(
         notes, [&](const HighwayTapOnsetViewState& struck, std::span<const std::size_t>) {
-            // The hold is DRAWN by rule 12a, as a posture span's is: a head standing where the
+            // The hold is DRAWN by shape rule 6, as a posture span's is: a head standing where the
             // struck rings close is kept one margin clear of.
             HighwayTapOnsetViewState strike = struck;
             const auto closing = std::ranges::lower_bound(

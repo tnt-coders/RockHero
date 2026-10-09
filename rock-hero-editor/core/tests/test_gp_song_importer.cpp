@@ -969,7 +969,7 @@ TEST_CASE("Guitar Pro import moves the hand where a chord member slides", "[core
 // One bar, quarter notes: a tied fret-6 whose continuation sits inside a chord and shift-slides
 // down, next to a fret-8 chord member shift-sliding down, with the chord's fret-3 member tied
 // through into the landing chord — the Periphery measure-20 shape the tie/slide/arpeggio rules
-// were written for (policy rules 12, 13, 15).
+// were written for (shape rule 5 and policy rules 13 and 15).
 constexpr const char* g_tied_chord_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 <GPIF>
 <GPVersion>8.1.4</GPVersion>
@@ -1115,7 +1115,7 @@ TEST_CASE(
     // THE DATING RULE puts the first span's FRONT at beat one, not at the beat-2 chord: the tied
     // fret-6 ring the chord picks around began there and no preceding span covers it, so the
     // statement runs from the ring's own onset and the chord arrives inside it. The span COVERS ITS
-    // OWN GLIDE (rule 11b), so it ends at the LANDING, which the store places exactly on the
+    // OWN GLIDE (shape rule 4), so it ends at the LANDING, which the store places exactly on the
     // beat-3 chord, two quarters in.
     //
     // THE LANDED GRIP DOES NOT BREATHE: the glides complete as the beat-3 chord is struck, and a
@@ -1218,8 +1218,8 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     CHECK(posture.stops[1] == std::optional{common::core::frettedStop(7)});
 
     // Both strums merge into one span from 1:1 to the closing fret-7 onset at 1:2+1/2, which is
-    // also where the eighth strum's own ring ends — the musical close, with rule 12a's margin taken
-    // off it at the projection and not here.
+    // also where the eighth strum's own ring ends — the musical close, with shape rule 6's margin
+    // taken off it at the projection and not here.
     REQUIRE(derived.shapes.size() == 1);
     CHECK(derived.shapes.front().place == common::core::Fraction{});
     CHECK(derived.shapes.front().sustain == Fraction{3, 8});
@@ -7490,7 +7490,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         // span", and it says it exactly. ONE, and the whole song holds no other: the
         // figure's one end stops all three marks on beat four together, and past that instant
         // nothing ever sounds two members at once — the unmarked stab is alone and the plain bar is
-        // one string struck four times — so rule 10 never opens a second span. Three is the
+        // one string struck four times — so shape rule 1 never opens a second span. Three is the
         // staircase this section exists to refuse, and three of another shape is what a per-mark
         // bound makes when each member quits under its own cap.
         REQUIRE(derived.shapes.size() == 1);

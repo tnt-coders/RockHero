@@ -409,12 +409,12 @@ grip re-heads because it is a fresh span, an interleaved onset of any kind re-he
 strike after a full chord re-heads because it is not the same notes.
 
 **The grip-tenure law leaves that rule alone and supplies its INPUTS.** A seamless successor — the
-one a LANDED TRAVEL opens (rule 11b) — is a span BOUNDARY, so it breaks the run and the four
+one a LANDED TRAVEL opens (shape rule 4) — is a span BOUNDARY, so it breaks the run and the four
 re-heads all stand: seamless is about the ink drawn at the boundary, never about the identity chain.
 An ARRIVING new stop GROWS the one span in place rather than opening a fresh one, so it re-heads as
 an INTERLEAVED onset rather than on "fresh span" grounds — the same answer through a different
-clause. And the two two-or-more counts on this page are NOT the same test: rule 10's opening law
-counts MEMBERS — stops struck, claimed, or ringing at a stated stop — over time, while the box's
+clause. And the two two-or-more counts on this page are NOT the same test: shape rule 1's opening
+law counts MEMBERS — stops struck, claimed, or ringing at a stated stop — over time, while the box's
 count is the strings ONE onset strikes, at an instant. A lone pluck inside a span is a member of it
 and wears no box at all.
 
@@ -450,7 +450,7 @@ surface to re-scan for it: a span an EVENT states carries its own FRONT, since t
 statement's own extent and the rails run from it — for an ACCUMULATION that front is where its
 earliest uncovered member's statement began, its onset or the landing a glide brought it to, so the
 bracket stands from the figure's first stop and the later members' heads arrive under it — and a
-rule 11b landing-opened successor carries its first interior sounding instead, because its whole
+shape rule 4 landing-opened successor carries its first interior sounding instead, because its whole
 grip slid in, its landing states nothing new, and the ink follows the sound. The projection
 consults it only where a bracket actually draws — an arpeggio-class span — so a box-class span
 publishes no `bracket_seconds` at all, which is now the ordinary disposition of a successor rather

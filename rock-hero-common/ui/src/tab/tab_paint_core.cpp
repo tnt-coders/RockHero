@@ -3236,7 +3236,7 @@ void paintTabLaneFurniture(
     {
         const common::core::ShapeViewState& shape = tab.shapes[shape_index];
         // WHERE THIS SPAN'S RAILS STOP, resolved once for the cull and the drawing alike: the drawn
-        // extent rule 12a trimmed, or the musical close where the host reveals this span — the
+        // extent shape rule 6 trimmed, or the musical close where the host reveals this span — the
         // same shape the note passes take, a note drawing to its ink end or, revealed, its ring
         // end.
         const double end_seconds = tabSpanRevealed(revealed_shape, shape_index)

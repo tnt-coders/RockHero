@@ -63,7 +63,7 @@ namespace
             .keyframes = {},
         },
         // Rings across the 3:1+1/2 strum without being re-struck there: it joins that span's
-        // posture (rule 12) and makes the span arrive arpeggio-style.
+        // posture (shape rule 1) and makes the span arrive arpeggio-style (shape rule 5).
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 2,
@@ -241,19 +241,19 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
     // strikes under string 2's still-sounding ring, so it is an arpeggio.
     //
-    // The first is THE CONTINUITY LAW's box case ([D3]): its members ring a quarter and an eighth
-    // of a quarter, and the first genuine stored gap ends the span at that ring's end — not the
-    // MAXIMUM of the members' rings, which would read as a whole quarter of held shape, a statement
-    // the chart does not make since the hand has demonstrably let one string go. The surviving long
-    // ring outlives the span, so it draws its own whole tail and is untouched, which the note
-    // assertions above still pin.
+    // The first is THE CONTINUITY LAW's box case (shape rule 3): its members ring a quarter and an
+    // eighth of a quarter, and the first genuine stored gap ends the span at that ring's end — not
+    // the MAXIMUM of the members' rings, which would read as a whole quarter of held shape, a
+    // statement the chart does not make since the hand has demonstrably let one string go. The
+    // surviving long ring outlives the span, so it draws its own whole tail and is untouched, which
+    // the note assertions above still pin.
     //
-    // The second is TRAVEL SPLITTING under the LANDING split ([D2]): its string-4 member glides,
-    // and the span COVERS that travel rather than stopping where the hand departed — a chord slide
-    // keeps the fingers planted, so the continuity law itself carries the transit. What bounds this
-    // span is therefore the OTHER member, whose thirty-second-note ring is the first coverage to
-    // run out. Nothing re-opens after it: the glide's arrival IS the ring's end, so no member goes
-    // on ringing past the landing for a successor to state.
+    // The second is TRAVEL SPLITTING under the LANDING split (shape rule 4): its string-4 member
+    // glides, and the span COVERS that travel rather than stopping where the hand departed — a
+    // chord slide keeps the fingers planted, so the continuity law itself carries the transit. What
+    // bounds this span is therefore the OTHER member, whose thirty-second-note ring is the first
+    // coverage to run out. Nothing re-opens after it: the glide's arrival IS the ring's end, so no
+    // member goes on ringing past the landing for a successor to state.
     //
     // Its FRONT is string 2's own onset, not the pair's (THE DATING RULE): the ring the pair
     // strikes under began at 8:0 and no preceding span covers that instant, so the statement runs
@@ -996,7 +996,7 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
     CHECK(state.display_hold_ends[3] == Catch::Approx(2.0));
 }
 
-// RULE 12A LIVES HERE. The derivation stores THE MUSICAL CLOSE — the instant a span's statement
+// SHAPE RULE 6 LIVES HERE. The derivation stores THE MUSICAL CLOSE — the instant a span's statement
 // ended — and the minimum sustain distance every drawn element keeps is taken off it exactly once,
 // where the view state is built. Each section is one arm of that rule, and the last two are the
 // arms a blanket "close minus a margin" would get wrong.
@@ -1870,10 +1870,11 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
     }
 }
 
-// [D2]'s landing rule, projected. A span an event states keeps its bracket at its own start,
-// because there the start IS the statement. A LANDING-OPENED span states nothing at its landing —
-// a chord slide keeps the fingers planted, so all that happens there is the fingers arriving — and
-// its bracket defers to the span's first interior sounding, where the ink follows the sound.
+// Shape rule 4's landing rule, projected. A span an event states keeps its bracket at its own
+// start, because there the start IS the statement. A LANDING-OPENED span states nothing at its
+// landing — a chord slide keeps the fingers planted, so all that happens there is the fingers
+// arriving — and its bracket defers to the span's first interior sounding, where the ink follows
+// the sound.
 TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1971,7 +1972,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         REQUIRE(state.shapes.size() == 2);
         // BOX AT BOTH ENDS: the departing grip is struck whole and nothing strikes the successor at
         // all, so neither is an arpeggio and neither draws an opening mark. What the reader sees is
-        // the two boxes and the members' sliding tails between them — [D2]'s seamless
+        // the two boxes and the members' sliding tails between them — shape rule 4's seamless
         // picture, falling out of the class law rather than a carve-out.
         CHECK_FALSE(state.shapes[0].arpeggio);
         CHECK_FALSE(state.shapes[1].arpeggio);

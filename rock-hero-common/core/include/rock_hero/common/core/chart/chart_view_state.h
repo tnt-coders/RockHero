@@ -27,12 +27,12 @@ namespace rock_hero::common::core
 
 The two slots a posture digit can occupy, and the answer is a property of a (span, string) rather
 than of either alone: what HEADS the string AT THE INSTANT THE MARK DRAWS, and at that instant
-alone, is what decides it (THE DIGIT WINDOW). That instant is the span's FRONT for every span an
-EVENT states and its first interior sounding for a carry-opened successor ([D2]), so the question is
-asked where the reader is actually looking rather than over a window the span's own closing onset
-could reach into. Published as \ref ShapeStringViewState::digit by the projection so the painter and
-the hit test read one answer — the digit is drawn exactly where it is clickable, which is the whole
-of "nothing drawn is unreachable" for this mark.
+alone, is what decides it (THE DIGIT WINDOW, shape rule 7). That instant is the span's FRONT for
+every span an EVENT states and its first interior sounding for a carry-opened successor (shape rule
+4), so the question is asked where the reader is actually looking rather than over a window the
+span's own closing onset could reach into. Published as \ref ShapeStringViewState::digit by the
+projection so the painter and the hit test read one answer — the digit is drawn exactly where it is
+clickable, which is the whole of "nothing drawn is unreachable" for this mark.
 */
 enum class StopMarkSlot : std::uint8_t
 {
@@ -851,8 +851,8 @@ struct ShapeViewState
     /*!
     \brief Where the span's furniture STOPS: the drawn extent, on every surface, every time.
 
-    Rule 12a's answer and the only end anything draws unasked (\ref makeChartViewState, which is
-    where the whole of that rule lives): the musical close pulled back to keep the minimum
+    Shape rule 6's answer and the only end anything draws unasked (\ref makeChartViewState, which
+    is where the whole of that rule lives): the musical close pulled back to keep the minimum
     sustain distance before the head that closed the span, so consecutive spans show the gap every
     other drawn element shows instead of butting exactly. The margin is a DISPLAY rule, so this is
     the field it is in and \ref close_seconds beside it stays the musical fact.
@@ -1105,8 +1105,8 @@ struct ChartViewState
     repeat boxes restate the same shape over them. A fully dead group is choked rather than held and
     keeps its own end. The note's own ring does not cap this; \ref chartHolds says why.
 
-    The CLOSE and not the drawn rails, rule 12a's margin belonging to the projection: a hold is how
-    long the hand is down, and the margin is ink spacing. So a held head stands right up to the
+    The CLOSE and not the drawn rails, shape rule 6's margin belonging to the projection: a hold is
+    how long the hand is down, and the margin is ink spacing. So a held head stands right up to the
     onset that ended the shape, which is the honest answer and the one the rails are not the
     authority for.
 

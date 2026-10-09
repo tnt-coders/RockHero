@@ -570,11 +570,11 @@ struct DerivationCounters
     // opinion: a boundary is a LANDING where some ring crossing it has its fret channel land
     // exactly there, read off the fret channels rather than off the walk.
     //
-    // ONE CAUSE (grip-tenure law rule 7): ring-out opens NOTHING, so a member's DEATH is not a
-    // boundary that opens anything and `landing_opened` carries exactly one cause. That makes this
-    // row a CONVERGENCE check rather than a SPLIT of the successor population — every span the
-    // walk opened should be a landing the source side can also see, and the remainder is the rig's
-    // own attribution shortfall rather than a second cause.
+    // ONE CAUSE (shape rule 1): ring-out opens NOTHING, so a member's DEATH is not a boundary that
+    // opens anything and `landing_opened` carries exactly one cause. That makes this row a
+    // CONVERGENCE check rather than a SPLIT of the successor population — every span the walk
+    // opened should be a landing the source side can also see, and the remainder is the rig's own
+    // attribution shortfall rather than a second cause.
     long long successor_spans_landing{0};
     long long successor_spans_landing_box{0};
 
@@ -986,10 +986,10 @@ void countDerivation(
             // Read per string off the last note before the front, because that is the record whose
             // chain crosses.
             //
-            // A CONVERGENCE CHECK, not a cause split (grip-tenure law rule 7): ring-out opens
-            // nothing, so a member's DEATH is not a boundary that can open anything and every span
-            // counted above should be a landing this reading also sees. The rows that do not
-            // converge are the rig's attribution shortfall.
+            // A CONVERGENCE CHECK, not a cause split (shape rule 1): ring-out opens nothing, so a
+            // member's DEATH is not a boundary that can open anything and every span counted above
+            // should be a landing this reading also sees. The rows that do not converge are the
+            // rig's attribution shortfall.
             //
             // Scanned over the PREDECESSOR's MEMBER strings and no others, and only where that
             // member's ring actually CROSSES the boundary. Both narrowings say one thing: the
@@ -1230,7 +1230,7 @@ void countDerivation(
             }
 
             // ---- (ii): a LONE re-pick of a string the span already states, AT THE STOP it states
-            // there. ONE comparison, matching the production rule under rule 11: a span is a
+            // there. ONE comparison, matching the production rule under shape rule 2: a span is a
             // fretting-hand statement, so palm-mute, dead, accent and ghost move no finger and the
             // fret is the whole test however the shape came to state it. An instrument carrying
             // its own ARTICULATION identity test beside that one would be measuring a rule the
@@ -2597,8 +2597,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             CrossCheck{
                 // EVERY span the derivation emits over the corpus, and so the denominator every
                 // other span row is read against. The figure is what the span laws produce
-                // together: a run over one grip is ONE span however often it restrikes (rule 11
-                // and the grip-statement law), a span ends at the first genuine stored gap on a
+                // together: a run over one grip is ONE span however often it restrikes (shape rule
+                // 2 and the grip-statement law), a span ends at the first genuine stored gap on a
                 // sounding member (the continuity law), a ring belongs only to the span it was
                 // struck in, and a strike on a ringing open breaks the span it stands
                 // in rather than growing it. THE EXACT END OF A TAIL NEVER FOUNDS A SPAN: where a
@@ -2634,7 +2634,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             CrossCheck{
                 // The spans holding at least one LONE re-pick: a single sounding member restriking
                 // a string the span already states, AT the stop it states there. Identity is on
-                // the stop alone (rule 11), so a change of articulation re-picks rather than
+                // the stop alone (shape rule 2), so a change of articulation re-picks rather than
                 // splits, and the longer a marked ring runs the more re-picks fall inside a span
                 // instead of between two. Section [2] prints the slot count, the witness split and
                 // the arpeggio share beside it; a re-pick sitting exactly on a span's own end is
@@ -2645,13 +2645,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
-                // onset-less open the grip-tenure law admits. ONE cause only (rule 7): a member
-                // that merely rings on past a break is a tail and opens nothing, so what stands
-                // here is chord slides arriving at the grip they travel to or turn on. THE EXACT
-                // END OF A TAIL NEVER FOUNDS A SPAN, so a glide whose arrival stands on the head it
-                // slides into hands nothing over and opens nothing: only a ring running STRICTLY
-                // PAST its landing does. The SOURCE-side reading in section [5] attributes the
-                // same population edge by edge, independently of this count.
+                // onset-less open the grip-tenure law admits. ONE cause only (shape rule 1): a
+                // member that merely rings on past a break is a tail and opens nothing, so what
+                // stands here is chord slides arriving at the grip they travel to or turn on. THE
+                // EXACT END OF A TAIL NEVER FOUNDS A SPAN, so a glide whose arrival stands on the
+                // head it slides into hands nothing over and opens nothing: only a ring running
+                // STRICTLY PAST its landing does. The SOURCE-side reading in section [5] attributes
+                // the same population edge by edge, independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
                 .expected = 1231.0,

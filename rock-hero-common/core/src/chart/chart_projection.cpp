@@ -30,10 +30,10 @@ namespace
            nullptr;
 }
 
-// RULE 12A, and this is the only place it lives. A span's DRAWN extent keeps the minimum sustain
-// distance before the head that closed it — the same margin every other drawn element keeps, so
-// consecutive shapes show the gap everything else shows instead of butting exactly. What the
-// derivation stores is the MUSICAL CLOSE (\ref ChartShape::sustain): the instant the statement
+// SHAPE RULE 6, and this is the only place it lives. A span's DRAWN extent keeps the minimum
+// sustain distance before the head that closed it — the same margin every other drawn element
+// keeps, so consecutive shapes show the gap everything else shows instead of butting exactly. What
+// the derivation stores is the MUSICAL CLOSE (\ref ChartShape::sustain): the instant the statement
 // actually ended, which is what the spans themselves are measured against and what a figure's seams
 // have to abut at. Trimming there would put a display margin inside every seam.
 //
@@ -52,7 +52,7 @@ namespace
 //   PROTECTED ADJACENCY, where even that leaves nothing: a statement made at an instant is drawn
 //   however crowded, so it falls back to the musical close itself — exact adjacency, mirroring the
 //   sustain rules' own precedent. The one span nothing states at an instant never reaches here,
-//   because a close leaving it no room is what deletes it in the walk ([D2] edge (b)).
+//   because a close leaving it no room is what deletes it in the walk (shape rule 4's emission).
 //
 // The extent is therefore positive exactly where the musical close is, and never past it.
 [[nodiscard]] Fraction drawnShapeExtent(const ChartShape& shape, const HeadMargins& margins)
@@ -265,8 +265,8 @@ ChartViewState makeChartViewState(
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
         const Fraction place = shape.place;
-        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK ([D2]; published as \ref
-        // ChartShape::bracket_place). Every span an EVENT states carries its own FRONT; a
+        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK (shape rule 4; published as
+        // \ref ChartShape::bracket_place). Every span an EVENT states carries its own FRONT; a
         // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
         // interior SOUNDING instead, because nothing at all is stated at a boundary; one that never
         // sounds interiorly carries nothing and draws no mark.
@@ -321,10 +321,10 @@ ChartViewState makeChartViewState(
         state.shapes.push_back(
             ShapeViewState{
                 .start_seconds = tempo_map.secondsAtWholeNote(place),
-                // BOTH ENDS, from the one site that owns them. The DRAWN extent is where rule 12a's
-                // margin is taken and the only place it is (\ref drawnShapeExtent); the CLOSE is
-                // what the walk stored, published verbatim so the editor's reveal has the truth to
-                // reach for and no surface has to undo the trim to get it.
+                // BOTH ENDS, from the one site that owns them. The DRAWN extent is where shape rule
+                // 6's margin is taken and the only place it is (\ref drawnShapeExtent); the CLOSE
+                // is what the walk stored, published verbatim so the editor's reveal has the truth
+                // to reach for and no surface has to undo the trim to get it.
                 .drawn_end_seconds = tempo_map.secondsAtWholeNote(
                     place + drawnShapeExtent(shape, resolutions.margins)),
                 .close_seconds = tempo_map.secondsAtWholeNote(place + shape.sustain),

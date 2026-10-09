@@ -643,7 +643,7 @@ both. Because sustains overlap, it keeps a
 prefix-max index of note end times and binary-searches the visible note range each paint instead of
 scanning the whole chart. It draws each hand-shape span's rails and, for an arpeggio, its brackets.
 Where one span's rails meet the next span's start they stop one screen pixel short, so two spans
-that meet read as two; that parting is paint-time only, and the drawn extent stays rule 12a's.
+that meet read as two; that parting is paint-time only, and the drawn extent stays shape rule 6's.
 
 Each span also wears a **label chip** at its start (`common::ui::drawTabSpanChip`): a rectangle
 filled in the rails' ink, its left edge on the span's start, its square base on the rail and its
@@ -973,7 +973,7 @@ controller's hit test. Everything downstream reads that
 one answer: how far the note draws. The projection stays selection-agnostic, and the editor layers
 apply the reveal.
 
-**And a predicate for the other subject: SPANS** (`core::chartSpanRevealed`). Rule 12a stops
+**And a predicate for the other subject: SPANS** (`core::chartSpanRevealed`). Shape rule 6 stops
 a span's rails one minimum-sustain-distance margin before the head that closed it, so the drawn
 extent is short of the musical close by design; while the reveal is held, while the selection
 holds a note the span covers, or while the caret stands inside its tenure, that span's furniture

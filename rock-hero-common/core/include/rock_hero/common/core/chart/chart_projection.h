@@ -17,7 +17,8 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief RULE 12A: how far a hold's furniture is DRAWN, measured from the hold's start.
+\brief Shape rule 6 (\ref design_rulesets_shapes): how far a hold's furniture is DRAWN, measured
+       from the hold's start.
 
 A hold that a head closes keeps the minimum sustain distance before that head, so consecutive
 holds show the gap every other drawn element shows instead of butting exactly: the close is pulled

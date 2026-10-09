@@ -19,8 +19,9 @@ namespace rock_hero::common::ui
 \brief Answers whether one hand-posture span, by its index, is REVEALED, for a host that reveals.
 
 The furniture pass's pick: a revealed span's furniture runs to its musical close
-(\ref common::core::ShapeViewState::close_seconds) instead of the extent rule 12a trimmed. A host
-derives the answer from a predicate of its own; the core is told the answer and never the reason.
+(\ref common::core::ShapeViewState::close_seconds) instead of the extent shape rule 6 trimmed. A
+host derives the answer from a predicate of its own; the core is told the answer and never the
+reason.
 A note's reveal is part of its presence instead (\ref TabNotePresence).
 
 An empty accessor is the ordinary case and reveals nothing (\ref tabSpanRevealed), which is the

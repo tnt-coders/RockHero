@@ -33,10 +33,10 @@ the held default asks that same covering span what grip it states — a caller t
 apart could pair a reach with a statement that did not make it.
 
 THE MUSICAL CLOSE is what reaches (\ref ChartShape::sustain), never a drawn extent. Every rule
-here asks about the HAND — is it still down, is it still holding this grip — and rule 12a's margin
-is about ink, so measuring against a trimmed extent would stop every one of them one margin early:
-the hold would end a margin before the hand does, and the held default would fall back to the open
-string in the last margin of the very span it stands under.
+here asks about the HAND — is it still down, is it still holding this grip — and shape rule 6's
+margin is about ink, so measuring against a trimmed extent would stop every one of them one margin
+early: the hold would end a margin before the hand does, and the held default would fall back to
+the open string in the last margin of the very span it stands under.
 */
 struct SpanCoverage
 {

@@ -156,9 +156,9 @@ using rock_hero::common::core::testing::anchor;
     return makeHighwayChordGroups(view.notes, view.shapes);
 }
 
-// THE INVARIANT ([D2]), asked of a whole derivation: every span with a SOUNDING member is strictly
-// positive. In a figure with no claimed stops every span has one, so the observable form is
-// "no span has zero length" — and it is asked through the emit path, over derived spans, rather
+// THE INVARIANT (shape rule 3), asked of a whole derivation: every span with a SOUNDING member is
+// strictly positive. In a figure with no claimed stops every span has one, so the observable form
+// is "no span has zero length" — and it is asked through the emit path, over derived spans, rather
 // than of a hand-built shape.
 void everySpanIsPositive(const ChartShapes& derived)
 {
@@ -226,7 +226,7 @@ void derivesLike(const std::vector<ChartNote>& notes, const std::vector<ChartNot
 
 // A note whose fret channel TRAVELS: the same slot note with fret statements added along its ring,
 // listed as (offset, fret) pairs so a case reads as the path the hand takes. That path is the whole
-// of what [D2]'s two moments are read off, so nothing here is incidental either.
+// of what shape rule 4's two moments are read off, so nothing here is incidental either.
 [[nodiscard]] ChartNote travellingAt(
     ChartNote note, const std::vector<std::pair<Fraction, int>>& path)
 {
@@ -267,10 +267,10 @@ void derivesLike(const std::vector<ChartNote>& notes, const std::vector<ChartNot
 
 } // namespace
 
-// Rule 12's core: two or more fretting-hand strings struck together form a posture, consecutive
-// strums of the same articulation merge into one span, and the span runs over the strums' own
-// rings — to THE MUSICAL CLOSE, which where an event closes the span is that event's own onset.
-// Rule 12a's margin is taken off this at the projection and is not in here.
+// The core of shape rules 1 and 2: two or more fretting-hand strings struck together form a
+// posture, consecutive strums of the same articulation merge into one span, and the span runs over
+// the strums' own rings — to THE MUSICAL CLOSE, which where an event closes the span is that
+// event's own onset. Shape rule 6's margin is taken off this at the projection and is not in here.
 TEST_CASE("Chart shape derivation merges repeated strums of one posture", "[core][chart]")
 {
     // A quarter-note power chord, the same chord again as an eighth an eighth later, then a
@@ -349,10 +349,10 @@ TEST_CASE("Chart shape derivation keeps a crowded span at positive length", "[co
     CHECK(derived.shapes.front().sustain == Fraction{1, 32});
 }
 
-// THE CONTINUITY LAW ([D3]): a span's statement is in force while every SOUNDING member's STORED
-// ring is continuous — ringing through, or ending exactly at its next same-string onset — and the
-// FIRST genuine stored gap on any member ends the span at that ring's end. Min-extent is not a
-// second rule beside it but this law's box case.
+// THE CONTINUITY LAW (shape rule 3): a span's statement is in force while every SOUNDING member's
+// STORED ring is continuous — ringing through, or ending exactly at its next same-string onset —
+// and the FIRST genuine stored gap on any member ends the span at that ring's end. Min-extent is
+// not a second rule beside it but this law's box case.
 TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][chart]")
 {
     SECTION("a box with uneven rings ends at the first member to stop")
@@ -420,8 +420,8 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         // drone does, and the span may not go on claiming fret 7 after the finger that held it
         // stopped sounding.
         //
-        // Rule 7: the chord's three strings ring on past that death and open NOTHING. Ring-out
-        // opens nothing, and what those survivors draw is plain tails.
+        // Shape rule 1: the chord's three strings ring on past that death and open NOTHING.
+        // Ring-out opens nothing, and what those survivors draw is plain tails.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 3, 7, Fraction{5, 16}),
             noteAt(2, Fraction{}, 1, 3, Fraction{1, 2}),
@@ -531,8 +531,8 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
         // governs at eight. The members are what make the difference visible: with the tapped
         // string's chain the minimum either way, only its VALUE is in question.
         //
-        // Rule 7, and it is the two reach columns doing their two jobs: the tap RENEWS string 3's
-        // sound at beat 8, so nothing quits and the grip never breaks — while `covers`, the
+        // Shape rule 1, and it is the two reach columns doing their two jobs: the tap RENEWS string
+        // 3's sound at beat 8, so nothing quits and the grip never breaks — while `covers`, the
         // fretting hand's own reach, is what the close reads, so the statement runs out at eight.
         // ONE span: ring-out opens nothing, and the three long members ring on as plain tails.
         const std::vector<ChartNote> notes = streamOf({
@@ -601,8 +601,8 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
 // in that window takes in a member whose reach ends AT OR BEFORE the span's own front: the reach is
 // the minimum of its members' coverage, so the front and the close land on one instant — a
 // ZERO-LENGTH span with a sounding member in it (negative, where another string dates the front
-// later), holding a grip (fret 5 here) that stopped sounding a quarter earlier. [D2] says a span
-// with a sounding member is strictly positive, so that state is illegal on its face.
+// later), holding a grip (fret 5 here) that stopped sounding a quarter earlier. Shape rule 3 says a
+// span with a sounding member is strictly positive, so that state is illegal on its face.
 TEST_CASE("A tap's ring never makes a dead string a member", "[core][chart]")
 {
     // Two picked notes a quarter long, then a tap on the first string over a second pair entering
@@ -670,9 +670,9 @@ TEST_CASE("Chart shape derivation chains a statement through a tap on a member",
     CHECK(derived.postures.front().stops[1] == std::optional{frettedStop(7)});
 }
 
-// A CHANGE IN ARTICULATION DOES NOT SPLIT THE SPAN (rule 11 in
-// `docs/plans/in-progress/chart-ruleset.md`). The span is a fretting-hand statement, so the same
-// frets played with a different technique restate it: one span, one posture.
+// A CHANGE IN ARTICULATION DOES NOT SPLIT THE SPAN (shape rule 2). The span is a fretting-hand
+// statement, so the same frets played with a different technique restate it: one span, one
+// posture.
 TEST_CASE("Chart shape derivation rides a span through an articulation change", "[core][chart]")
 {
     std::vector<ChartNote> notes{
@@ -699,10 +699,9 @@ TEST_CASE("Chart shape derivation rides a span through an articulation change", 
     CHECK_FALSE(derived.shapes.front().sounds_in_parts);
 }
 
-// THE CHUG FIGURE END TO END, which is what rule 11 exists for: a plain chord, dead chugs on the
-// same grip, and the plain chord again are ONE hand fact and derive as ONE span. Census-scale —
-// this is the population the corpus collapses by (docs/plans/in-progress/chart-ruleset.md, rule
-// 11).
+// THE CHUG FIGURE END TO END, which is what shape rule 2 exists for: a plain chord, dead chugs on
+// the same grip, and the plain chord again are ONE hand fact and derive as ONE span. Census-scale —
+// this is the population the corpus collapses by.
 TEST_CASE("Chart shape derivation holds one span across a dead chug run", "[core][chart]")
 {
     // Eight adjacent eighth-note strums of the same two-string grip: plain, six dead chugs, plain.
@@ -752,9 +751,9 @@ TEST_CASE("Chart shape derivation survives an unvalidated string number", "[core
 }
 
 // What the lifecycle doc names under "Posture and shape derivation": every reader derives from the
-// SETTLED stream. Under rule 11 the settle cannot CHANGE this answer, and that is the point worth
-// pinning — an articulation the rules refuse (a connection claim nothing justifies, here) never
-// splits a span the chart's own notes say is one, because no articulation does.
+// SETTLED stream. Under shape rule 2 the settle cannot CHANGE this answer, and that is the point
+// worth pinning — an articulation the rules refuse (a connection claim nothing justifies, here)
+// never splits a span the chart's own notes say is one, because no articulation does.
 TEST_CASE(
     "Chart shape derivation is unmoved by an articulation the settle rewrites", "[core][chart]")
 {
@@ -786,8 +785,8 @@ TEST_CASE(
     CHECK(resolutions.shapes.front().sustain == Fraction{1, 2});
 }
 
-// Rule 12's other half: a note still ringing across a chord's onset, on a string the strum does
-// not re-strike, joins the posture — the hand is still holding it.
+// Shape rule 1's carried member: a note still ringing across a chord's onset, on a string the strum
+// does not re-strike, joins the posture — the hand is still holding it.
 TEST_CASE("Chart shape derivation folds a ringing string into the posture", "[core][chart]")
 {
     const std::vector<ChartNote> notes{
@@ -864,9 +863,10 @@ TEST_CASE("Chart shape derivation rings a span through tap-only onsets", "[core]
     }
 }
 
-// Side ruling (ii), NARROWED by THE CONTINUITY LAW ([D3]): a lone re-pick of a string the open
-// span already holds keeps the span while the span's own statement is still in force. This is the
-// one-note-at-a-time broken chord over a held shape, and it is DERIVED — nothing here is authored.
+// Side ruling (ii), NARROWED by THE CONTINUITY LAW (shape rule 3): a lone re-pick of a string the
+// open span already holds keeps the span while the span's own statement is still in force. This is
+// the one-note-at-a-time broken chord over a held shape, and it is DERIVED — nothing here is
+// authored.
 //
 // The narrowing leaves no drawn-ring witness in the rule: an ADJACENT re-pick is continuity
 // itself, and a GAP re-pick arrives after the statement has already ended. Two sections name the
@@ -904,7 +904,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
     {
         // The reason this is not "a lone note may always continue a span": the chord's rings stop
         // an eighth in with nothing restriking them, so the statement ended there and the beat-2
-        // re-pick arrives after it. Under rule 11 it is just a note.
+        // re-pick arrives after it. Under shape rule 2 it is just a note.
         const ChartShapes derived = deriveFrom(chord_then_repick(Fraction{1, 32}));
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes.front().sustain == Fraction{1, 32});
@@ -960,8 +960,8 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 
     SECTION("a re-pick with a different articulation rides the span")
     {
-        // Rule 11 asked of one string: the span is a fretting-hand statement, so the palm of the
-        // OTHER hand cannot end it — the finger is still on fret 5.
+        // Shape rule 2 asked of one string: the span is a fretting-hand statement, so the palm of
+        // the OTHER hand cannot end it — the finger is still on fret 5.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{1, 2});
         notes[2].palm_mute = true;
         const ChartShapes derived = deriveFrom(notes);
@@ -1012,7 +1012,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 
     SECTION("a re-pick cannot OPEN a shape")
     {
-        // Rule 10 is untouched: two sounding fretting-hand members or no posture at all.
+        // Shape rule 1 is untouched: two sounding fretting-hand members or no posture at all.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
             noteAt(2, Fraction{}, 1, 5, Fraction{1, 4}),
@@ -1027,8 +1027,8 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 // two figures the interior arm covers are one fact at two widths — a partial restrike and a lone
 // re-pick of a single member — which is why they need no clause each.
 //
-// Two negatives carry the rule's edges, and both are needed. Rule 11 is unchanged underneath: a
-// partial restrike with NO ring behind it is interior to nothing, because it split into a span of
+// Two negatives carry the rule's edges, and both are needed. Shape rule 2 is unchanged underneath:
+// a partial restrike with NO ring behind it is interior to nothing, because it split into a span of
 // its own. And an interior slot that restates the shape WHOLE is the box chain the repeat marks are
 // for, which is what keeps this from collapsing into "any span with an interior onset".
 TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[core][chart]")
@@ -1063,8 +1063,8 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
 
     SECTION("with no ring behind it the partial restrike splits, and both spans stay boxes")
     {
-        // Rule 11 unchanged, and the reason the interior arm can never reach this: string 3's ring
-        // ends exactly AT the restrike, so nothing folds in, the articulations differ, and the
+        // Shape rule 2 unchanged, and the reason the interior arm can never reach this: string 3's
+        // ring ends exactly AT the restrike, so nothing folds in, the articulations differ, and the
         // smaller strum states a shape of its own. Neither span sounds anything but itself whole.
         const std::vector<ChartNote> notes = strum_then_partial(Fraction{1, 4});
         REQUIRE(deriveFrom(notes).shapes.size() == 2);
@@ -1312,28 +1312,27 @@ TEST_CASE("A tap's plant reaches the spans through the pull-off that states it",
     }
 }
 
-// TRAVEL SPLITS AT THE LANDING, AND THE LANDED GRIP RE-OPENS THERE ([D2]). A chord slide keeps the
-// fingers planted, so the rings run continuously and the span COVERS the transit, ending where the
-// new grip is established — which is exactly where the successor opens, so the two TILE. The
-// members' sliding tails draw across the transit, and the successor draws no opening mark of its
-// own: the continued tails and the chord NAME changing at the landing are the whole
-// statement.
+// TRAVEL SPLITS AT THE LANDING, AND THE LANDED GRIP RE-OPENS THERE (shape rule 4). A chord slide
+// keeps the fingers planted, so the rings run continuously and the span COVERS the transit, ending
+// where the new grip is established — which is exactly where the successor opens, so the two TILE.
+// The members' sliding tails draw across the transit, and the successor draws no opening mark of
+// its own: the continued tails and the chord NAME changing at the landing are the whole statement.
 TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][chart]")
 {
     SECTION("a chord slide states its departing grip, then the grip it lands in")
     {
         // All three members hold their stop through a restating keyframe at a quarter, then travel
-        // and come to rest at two quarters. [D2]: the box covers the hold AND the transit, because
-        // the fingers stay planted through a chord slide and the rings run continuously — the split
-        // falls at the LANDING, where the new grip is established, and the two spans TILE with no
-        // gap between them.
+        // and come to rest at two quarters. Shape rule 4: the box covers the hold AND the transit,
+        // because the fingers stay planted through a chord slide and the rings run continuously —
+        // the split falls at the LANDING, where the new grip is established, and the two spans TILE
+        // with no gap between them.
         //
-        // THREE strings here and in most glides below, which under rule 6 is a choice of figure
-        // rather than a requirement: A LANDING OPENS AT TWO. Its members were already established
-        // members of the span that just closed, so nothing arrives staggered at a landing and the
-        // three-member minimum — which gates FOUNDING BY SOUND ALONE and nothing else — never
-        // applies to one. The two-string glide is pinned with rule 10's refusal, in "a slot inside
-        // the travel closes the span" below.
+        // THREE strings here and in most glides below, which under shape rule 4 is a choice of
+        // figure rather than a requirement: A LANDING OPENS AT TWO. Its members were already
+        // established members of the span that just closed, so nothing arrives staggered at a
+        // landing and the three-member minimum — which gates FOUNDING BY SOUND ALONE and nothing
+        // else — never applies to one. The two-string glide is pinned with shape rule 4's refusal,
+        // in "a slot inside the travel closes the span" below.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(
                 noteAt(1, Fraction{}, 1, 5, Fraction{1}),
@@ -1434,18 +1433,18 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // The landed grip therefore has no moment of its own, and the strike's own full box states
         // the new chord.
         //
-        // Under tiling this is no test of its own ([D2]): the successor opens at the landing and
-        // the next statement closes it one margin later, leaving it no room to be DRAWN in — and a
-        // span no EVENT states, with no room of its own, states nothing and is not emitted. This is
-        // the ONE derivation question that reads the display margin, every other use of it living
-        // at the projection, and it does so on purpose: whether the landed grip gets a moment of
-        // its own is whether a reader could see one. The margin is taken at the CLOSING onset, as
-        // every other reader takes it and never at the arrival; the cross-tempo
+        // Under tiling this is no test of its own (shape rule 4): the successor opens at the
+        // landing and the next statement closes it one margin later, leaving it no room to be DRAWN
+        // in — and a span no EVENT states, with no room of its own, states nothing and is not
+        // emitted. This is the ONE derivation question that reads the display margin, every other
+        // use of it living at the projection, and it does so on purpose: whether the landed grip
+        // gets a moment of its own is whether a reader could see one. The margin is taken at the
+        // CLOSING onset, as every other reader takes it and never at the arrival; the cross-tempo
         // section below is what pins that.
         //
-        // The closing statement has to be a FOREIGN one (rule 11, corollary 2). A restrike of the
-        // LANDED grip does not close the successor at all — it restates it, so it rides inside it,
-        // which the section below pins.
+        // The closing statement has to be a FOREIGN one (shape rule 4). A restrike of the LANDED
+        // grip does not close the successor at all — it restates it, so it rides inside it, which
+        // the section below pins.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}), {{Fraction{19, 40}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}), {{Fraction{19, 40}, 10}}),
@@ -1501,9 +1500,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         // TWO spans and no third: the departing grip, and the chord that replaced it. The landed
-        // grip's own successor is opened — its survivors reach rule 6's threshold — and its tenure
-        // is exactly one quantum, which the STRICT test drops, so it is never emitted. That is what
-        // the absence of any landing-opened span below states.
+        // grip's own successor is opened — its survivors reach shape rule 4's threshold — and its
+        // tenure is exactly one quantum, which the STRICT test drops, so it is never emitted. That
+        // is what the absence of any landing-opened span below states.
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{19, 40});
@@ -1532,8 +1531,8 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // the re-picked chord's own onset, and the chart PROVES it is an arrival because every fret
         // it names is the stop that chord is struck at (\ref arrivesIntoNextHead). A landing hands
         // the grip over only where the ring runs STRICTLY PAST it, and an arrival never does — so
-        // no successor is opened, rule 6's tenure test is never reached, and the departing grip
-        // simply runs to the chord that replaces it.
+        // no successor is opened, shape rule 4's tenure test is never reached, and the departing
+        // grip simply runs to the chord that replaces it.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}), {{Fraction{1, 2}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}), {{Fraction{1, 2}, 10}}),
@@ -1558,9 +1557,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
 
     SECTION("a full restrike of the landed grip rides INSIDE the successor")
     {
-        // Rule 11, corollary 2 (chart-ruleset.md): a full restrike of a landed grip stays INSIDE
-        // the successor, and its full box comes from the display law. The strike states the
-        // successor's own stops, so it restates the shape like any other restrike.
+        // Shape rule 4: a full restrike of a landed grip stays INSIDE the successor, and its full
+        // box comes from the display law. The strike states the successor's own stops, so it
+        // restates the shape like any other restrike.
         //
         // The suppression for want of room (edge (b)) applies to a FOREIGN chord alone — the
         // section above is that control.
@@ -1630,9 +1629,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        // The EARLIEST landing ends the span ([D2], edge (c)): coverage is the minimum of
-        // the members' own, so the first finger to come to rest is where the shape stops being
-        // the one that was travelling. The other fingers' remaining glide draws as their tails.
+        // The EARLIEST landing ends the span (shape rule 4): coverage is the minimum of the
+        // members' own, so the first finger to come to rest is where the shape stops being the one
+        // that was travelling. The other fingers' remaining glide draws as their tails.
         CHECK(derived.shapes.front().sustain == Fraction{1, 2});
 
         // The control, one offset apart on two of them: landing together is what re-opens.
@@ -1647,9 +1646,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
     SECTION("THE PARTIALLY STAGGERED SLIDE: two arrivals open the pair, the third states nothing")
     {
         // Edge (c)'s refusal is carried by "fewer than TWO", never by "fewer than three" — THE
-        // LANDING OPENS AT TWO (rule 6) — so the fully staggered figure above cannot discriminate
-        // the case where SOME of the fingers arrive together. This is that case: two members come
-        // to rest at the same instant and the third is still mid-travel there.
+        // LANDING OPENS AT TWO (shape rule 4) — so the fully staggered figure above cannot
+        // discriminate the case where SOME of the fingers arrive together. This is that case: two
+        // members come to rest at the same instant and the third is still mid-travel there.
         //
         // Two arrivals are a landed grip, so the successor opens holding exactly those two — the
         // third finger is on NO stop at the boundary (a finger between stops is a member of
@@ -1746,7 +1745,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 3);
-        // Three statements, TILING end to end ([D2]): each covers its own hold and the
+        // Three statements, TILING end to end (shape rule 4): each covers its own hold and the
         // glide out of it, and the next opens exactly where the last closes.
         CHECK(derived.shapes[0].place == Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
@@ -1840,17 +1839,17 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
     }
 }
 
-// [D2] — the split falls at the LANDING. What that BUYS, case by case: the transit rides the
-// predecessor, so every slot inside a glide is inside a span; the two spans TILE; and no span with
-// sound in it is ever emitted at zero length. Each section here is a hole a departure split would
-// leave open, probed on a figure that derives the answer.
+// Shape rule 4 — the split falls at the LANDING. What that BUYS, case by case: the transit rides
+// the predecessor, so every slot inside a glide is inside a span; the two spans TILE; and no span
+// with sound in it is ever emitted at zero length. Each section here is a hole a departure split
+// would leave open, probed on a figure that derives the answer.
 TEST_CASE("The landing split covers a travel and hands the grip over", "[core][chart]")
 {
     // Three fingers hold a grip through a restating keyframe at a quarter, glide, and come to rest
     // at two quarters, ringing on to four. The departing span runs to the landing at two, and the
     // successor runs from there.
     //
-    // THREE strings by choice of figure, not by requirement: rule 6 opens a landing at TWO
+    // THREE strings by choice of figure, not by requirement: shape rule 4 opens a landing at TWO
     // survivors, and the three-member minimum gates founding by sound alone and nothing else.
     const auto chord_slide = [] {
         return std::vector<ChartNote>{
@@ -1925,10 +1924,10 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         everySpanIsPositive(derived);
 
         // The control, and the one statement a travelling span cannot absorb: a restrike naming
-        // ANOTHER stop on a string the grip states is a CONTRADICTION (rule 8), so it truncates the
-        // travel there and the landing, behind the close, opens nothing. It has to be a
-        // contradiction, because a mid-slide sounding on a string the shape does not STATE would be
-        // ordinary growth. The contradicting strike then stands alone: the other glide is
+        // ANOTHER stop on a string the grip states is a CONTRADICTION (shape rule 3), so it
+        // truncates the travel there and the landing, behind the close, opens nothing. It has to be
+        // a contradiction, because a mid-slide sounding on a string the shape does not STATE would
+        // be ordinary growth. The contradicting strike then stands alone: the other glide is
         // mid-travel and states no grip, and the two open rings are plain tails — A RING BELONGS
         // ONLY TO THE SPAN IT WAS STRUCK IN — so nothing founds behind the close.
         const std::vector<ChartNote> contradicting = streamOf({
@@ -1969,9 +1968,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         CHECK(derived.shapes[1].sustain != Fraction{7, 16});
         CHECK(derived.shapes[1].sounds_in_parts);
 
-        // One string apart, a FULL restatement of the landed grip RIDES the successor too (rule 11,
-        // corollary 2): the re-pick and the full restrike are one law, which is what the separation
-        // is for.
+        // One string apart, a FULL restatement of the landed grip RIDES the successor too (shape
+        // rule 4): the re-pick and the full restrike are one law, which is what the separation is
+        // for.
         const std::vector<ChartNote> restruck = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1, 2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{3, 2}), {{Fraction{1, 2}, 9}}),
@@ -1989,12 +1988,12 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
     SECTION("only the landing successor is published as landing-opened")
     {
-        // [D2]'s one derivational fact for a landing, and display keys the whole bracket deferral
-        // on it. What makes it a field rather than a test a reader could run for itself is that
-        // every available proxy drifts: a successor states nothing at its own start, but so does a
-        // span the hand alone opened — and the walk's own record of "an event stated this" stops
-        // being empty the moment an interior re-pick states the successor, which is exactly the
-        // case the deferral has to survive.
+        // Shape rule 4's one derivational fact for a landing, and display keys the whole bracket
+        // deferral on it. What makes it a field rather than a test a reader could run for itself is
+        // that every available proxy drifts: a successor states nothing at its own start, but so
+        // does a span the hand alone opened — and the walk's own record of "an event stated this"
+        // stops being empty the moment an interior re-pick states the successor, which is exactly
+        // the case the deferral has to survive.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1, 2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{3, 2}), {{Fraction{1, 2}, 9}}),
@@ -2031,11 +2030,11 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
     SECTION("a slot inside the travel closes the span, and the landing it outran opens nothing")
     {
-        // Rule 10's second half: "a landing reached after the break opens nothing". The break is a
+        // Shape rule 4: "a landing reached after the grip broke opens nothing". The break is a
         // CONTRADICTION — a restrike naming another stop on a string the grip states — because a
         // note sounding a string the shape does not state would be ordinary growth instead. And the
-        // glide is two strings rather than three, because THE LANDING OPENS AT TWO (rule 6): at
-        // three the surviving pair would re-open behind the break and the section would stop
+        // glide is two strings rather than three, because THE LANDING OPENS AT TWO (shape rule 4):
+        // at three the surviving pair would re-open behind the break and the section would stop
         // discriminating.
         //
         // The break leaves one struck string beside one still-gliding ring: two members against a
@@ -2061,9 +2060,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         everySpanIsPositive(derived);
 
-        // THE 2-NOTE CHORD SLIDE (rule 6) — the control that proves the refusal above is the BREAK
-        // and not the width. The same two-string glide with nothing interrupting it lands its pair
-        // and hands the grip over, which a ≥3 boundary minimum would refuse outright.
+        // THE 2-NOTE CHORD SLIDE (shape rule 4) — the control that proves the refusal above is the
+        // BREAK and not the width. The same two-string glide with nothing interrupting it lands its
+        // pair and hands the grip over, which a ≥3 boundary minimum would refuse outright.
         const ChartShapes uninterrupted = deriveFrom(streamOf({
             travellingAt(
                 noteAt(1, Fraction{}, 1, 5, Fraction{1}),
@@ -2121,8 +2120,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // The arrival sits one margin before the closing chord, which is how the chart states
         // "glides into that note". At this map's one quarter-note rate an eighth lasts two thirds
         // of a second, so the margin measures 3/320 of a whole note there. The closing chord
-        // has to be a FOREIGN grip (rule 11, corollary 2): a restrike of the LANDED grip restates
-        // the successor and rides inside it, so it would close nothing and this figure would stop
+        // has to be a FOREIGN grip (shape rule 4): a restrike of the LANDED grip restates the
+        // successor and rides inside it, so it would close nothing and this figure would stop
         // asking its question.
         const TempoMap meter_change{
             {TimeSignatureChange{.measure = 1, .meter = {.numerator = 6, .denominator = 8}},
@@ -2236,9 +2235,10 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
     }
 }
 
-// Rule 12(a)'s fret, which is [D2]'s reading of the channel asked at a later slot: a carried ring
-// joins the posture at the stop its own fret channel states THERE, so a finger that has slid since
-// the strike is stated where it now is and one still sliding is stated nowhere.
+// A carried member's fret (shape rule 1), which is shape rule 4's reading of the channel asked at a
+// later slot: a carried ring joins the posture at the stop its own fret channel states THERE, so a
+// finger that has slid since the strike is stated where it now is and one still sliding is stated
+// nowhere.
 TEST_CASE("A carried ring folds into a posture at the stop its channel states", "[core][chart]")
 {
     SECTION("a travelled ring folds in at the fret it LANDED on")
@@ -2258,8 +2258,8 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
         // TWO spans. The departing stack ends at its landing; the grip its travels landed in then
         // GROWS to take the later chord's two stops (growth continues) instead of handing over to a
         // span of its own; and when that chord's members fall silent the carried rings open NOTHING
-        // (rule 7 — ring-out opens nothing). What the section is about: the carried strings fold in
-        // at the frets they LANDED on.
+        // (shape rule 1 — ring-out opens nothing). What the section is about: the carried strings
+        // fold in at the frets they LANDED on.
         REQUIRE(derived.shapes.size() == 2);
         CHECK_FALSE(derived.shapes[0].landing_opened);
         CHECK(derived.shapes[1].landing_opened);
@@ -2295,7 +2295,7 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
 
         // ONE span: no travel means no landing to divide it, the chord GROWS it (growth continues),
         // and the carried rings that outlive the chord's members open NOTHING when it ends
-        // (rule 7). The control this section exists for is the posture.
+        // (shape rule 1). The control this section exists for is the posture.
         REQUIRE(derived.shapes.size() == 1);
         CHECK_FALSE(derived.shapes[0].landing_opened);
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
@@ -2323,8 +2323,8 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
         };
         // The posture of the span the crossing chord is IN — the first, since the chord's statement
         // is what the fold-in question is asked of. It is the only span in the first two figures;
-        // in the third the chord is struck exactly where the carry's travel arrives, so rule 6
-        // tiles a landing successor onto it (the crossing itself is unchanged, which is why the
+        // in the third the chord is struck exactly where the carry's travel arrives, so shape rule
+        // 4 tiles a landing successor onto it (the crossing itself is unchanged, which is why the
         // helper names the span rather than the count).
         const auto carried_frets =
             [](const std::vector<ChartNote>& notes) -> std::vector<std::optional<ChartStop>> {
@@ -2507,9 +2507,9 @@ TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
     }
 }
 
-// THE OPENING MARK'S ANCHOR, published by the walk ([D2]). One
-// field with one write rule: every span an EVENT states seeds it at its own start, and the first
-// interior SOUNDING fills the slot a landing left empty.
+// THE OPENING MARK'S ANCHOR, published by the walk (shape rule 4). One field with one write rule:
+// every span an EVENT states seeds it at its own start, and the first interior SOUNDING fills the
+// slot a landing left empty.
 TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][chart]")
 {
     SECTION("an event-opened span carries its own start")
@@ -2595,10 +2595,10 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
     SECTION("THE BROKEN CHORD: one note at a time, bracketed from its FIRST note")
     {
         // The founding figure — the let-ring broken chord whose plucks pile up into a held shape.
-        // Under rule 10 alone it would derive NOTHING: every slot holds one member, so no span
-        // would open and the figure would read as four bare notes. The opening law reads the rings
-        // instead, and the dating rule puts the bracket's front at the FIRST pluck rather than at
-        // whichever arrival reached the threshold.
+        // Under shape rule 1's statement threshold alone it would derive NOTHING: every slot holds
+        // one member, so no span would open and the figure would read as four bare notes. The
+        // opening law reads the rings instead, and the dating rule puts the bracket's front at the
+        // FIRST pluck rather than at whichever arrival reached the threshold.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 3, Fraction{1}),
             noteAt(2, Fraction{}, 2, 5, Fraction{3, 4}),
@@ -2684,12 +2684,12 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 
     SECTION("RING-OUT OPENS NOTHING: the shape ends at its first death and hands nothing on")
     {
-        // RULE 7. TERMINATION and the posture truth criterion: four members ring for three, four,
-        // five and six quarters, and the statement ends at the first death because no span may
-        // claim a stop the hand abandoned while it ran. There is no CHAIN — the survivors open no
-        // seamless death-successor holding the smaller shape. Strings that merely ring on past a
-        // break are TAILS, so nothing is stated after beat 4 and the three survivors' rings simply
-        // draw.
+        // SHAPE RULE 1. TERMINATION and the posture truth criterion (shape rule 3): four members
+        // ring for three, four, five and six quarters, and the statement ends at the first death
+        // because no span may claim a stop the hand abandoned while it ran. There is no CHAIN — the
+        // survivors open no seamless death-successor holding the smaller shape. Strings that merely
+        // ring on past a break are TAILS, so nothing is stated after beat 4 and the three
+        // survivors' rings simply draw.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{3, 4}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1}),
@@ -3541,7 +3541,7 @@ TEST_CASE("A tap at or below the standing grip's stop splits the span", "[core][
 // span it is the statement coming apart AT that slot, even where it restates the whole grip: the
 // box closes there and the slot founds the parts figure, dated at its own onset and born in parts.
 // A voicing-shift slide whose held strings ring the whole transit stays one statement, and a
-// whole-grip travel is the chord slide ([D2]).
+// whole-grip travel is the chord slide (shape rule 4).
 TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][chart]")
 {
     // Two whole chugs, then the chord restated with its fretted strings gliding away while the
@@ -3572,8 +3572,9 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
     CHECK(derived.shapes[0].sustain == Fraction{1, 2});
     CHECK_FALSE(derived.shapes[0].sounds_in_parts);
     CHECK(derived.shapes[1].place == Fraction{1, 2});
-    // The parts figure runs to the travellers' ARRIVAL, where the new grip is established (rule
-    // 10) — a margin before the restrike, which then restates the whole grip and founds nothing.
+    // The parts figure runs to the travellers' ARRIVAL, where the new grip is established (shape
+    // rule 4) — a margin before the restrike, which then restates the whole grip and founds
+    // nothing.
     CHECK(derived.shapes[1].sustain == Fraction{5, 16});
     CHECK(derived.shapes[1].sounds_in_parts);
     CHECK(derived.shapes[2].place == Fraction{13, 16});
@@ -5205,9 +5206,9 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
 }
 
 // THE SAME COLUMN'S OTHER HALF: a TRAVEL begins a statement too. The glide's landing is where the
-// new stop is established (rule 10), so a slid finger's statement begins LATER than the note it
-// rides — the mirror of the restrike, which begins earlier. Both are read off one channel
-// (\ref StatedStop::stated_from), so the landing needs no record of its own.
+// new stop is established (shape rule 4), so a slid finger's statement begins LATER than the note
+// it rides — the mirror of the restrike, which begins earlier. Both are read off one channel (\ref
+// StatedStop::stated_from), so the landing needs no record of its own.
 //
 // The defect this pins is the tie doctrine's sibling: dating a lone glide under no span at its
 // NOTE's onset would make the first span to fold it in front over the very beats the string spent

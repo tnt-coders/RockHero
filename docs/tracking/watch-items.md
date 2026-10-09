@@ -826,9 +826,9 @@ moments — is unchanged by either turn. Same remedy, same trigger.
 figure reads wrong, or the census population grows past its measured 12
 
 Edge (e), ruled 2026-08-29 (one span at a time is DEFINITIVE — user's word) and unchanged in
-effect by the grip-tenure law (2026-09-04), which states it as rule 10: a landing REACHED AFTER THE
-GRIP BROKE opens nothing — no successor, no name change; the landed grip lives
-in its members' tails alone, edge (c)'s disposition. Not reachable by the common figures: a
+effect by the grip-tenure law (2026-09-04), which states it in shape rule 4: a landing REACHED
+AFTER THE GRIP BROKE opens nothing — no successor, no name change; the landed grip lives in its
+members' tails alone, edge (c)'s disposition. Not reachable by the common figures: a
 strike stating a stop the grip lacks GROWS the span in place, an open-member restrike chains
 through per the per-member judgment, so only the genuine cross-voice interleave — a foreign
 statement contradicting the travelling grip mid-glide — remains. **Population measured
@@ -840,10 +840,10 @@ scoped to exactly this figure, where the one hand holds both shapes.
 
 ### ~~Two-member arpeggio spans may be noise~~ — RETIRED 2026-09-04: the trigger fired and the minimum signed at three
 
-The item was: the accumulation ruling founded spans at two mutually-ringing members — rule 10's own
-threshold, kept so the one opening law stayed unforked (user 2026-08-31: "stick with 2 for now...
-I have a feeling we may be revisiting this one"). The gate census priced the population at 129
-spans (30.0% of accumulation-founded), re-priced on the shipped law at **826 two-member spans of
+The item was: the accumulation ruling founded spans at two mutually-ringing members — shape rule
+1's own threshold, kept so the one opening law stayed unforked (user 2026-08-31: "stick with 2 for
+now... I have a feeling we may be revisiting this one"). The gate census priced the population at
+129 spans (30.0% of accumulation-founded), re-priced on the shipped law at **826 two-member spans of
 3402 accumulation-founded, 24.3%**; the remedy named here was "the founding threshold is ONE named
 constant — flip to 3 plus census expectations".
 
@@ -923,8 +923,8 @@ stored stop on a note whose own pitch is measured from the first.
 stop OTHER than its pressed fret — the destination the derivation would have to invent a planted
 finger for. **Remedy**: let the complete held table carry the plant beneath a pressed-stop harmonic
 as a SECOND derived stop strictly BELOW `fret` (the pressed stop stays the claim, so nothing about
-pitch moves), supplied by the pull-off derivation of rule 12c — nothing stored, as every held stop
-is.
+pitch moves), supplied by the pull-off derivation of shape rule 8 — nothing stored, as every held
+stop is.
 
 ### A slide on the pressed stop under a harmonic would draw the wrong hand — trigger: a fret keyframe on a pressed-stop harmonic
 

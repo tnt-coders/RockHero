@@ -359,7 +359,8 @@ held table (\ref chartHeldStops).
     const ChartConnections& connections);
 
 /*!
-\brief THE HELD TABLE: the fret the fretting hand presses under every head that sounds elsewhere.
+\brief THE HELD TABLE: the fret the fretting hand presses under every head that sounds elsewhere —
+shape rule 8 (\ref design_rulesets_shapes).
 
 A held stop is DERIVED, never typed. Every note a pull-off plants a stop beneath
 (\ref chartPlantedStops) holds that stop, whichever hand made the onset. A note the PICKING HAND

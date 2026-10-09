@@ -1192,16 +1192,16 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     CHECK(render().getPixelAt(191, 72).getARGB() != 0);
 }
 
-// THE SPAN ARM of the same reveal. Rule 12a stops a span's rails one margin before the head that
-// closed it, and that trim is reachable exactly the way a note's clipped ring is: while the
+// THE SPAN ARM of the same reveal. Shape rule 6 stops a span's rails one margin before the head
+// that closed it, and that trim is reachable exactly the way a note's clipped ring is: while the
 // whole-lane reveal is held, and while the selection holds a note the span covers. Nothing else
 // changes — the rails simply run on to the musical close in the ink they already had, and snap back
 // when the ground goes away.
 //
-// The figure is the projection's own rule-12a case (test_chart_projection), projected by the real
-// derivation rather than assigned into a fixture: two strums merging into one span, closed by a
-// lone note an eighth after the second. The two halves are pinned apart — the projection's two ends
-// there, the lane's pick here — and this is the composition.
+// The figure is the projection's own shape rule 6 case (test_chart_projection), projected by the
+// real derivation rather than assigned into a fixture: two strums merging into one span, closed by
+// a lone note an eighth after the second. The two halves are pinned apart — the projection's two
+// ends there, the lane's pick here — and this is the composition.
 TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
