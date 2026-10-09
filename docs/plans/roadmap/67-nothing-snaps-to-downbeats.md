@@ -260,7 +260,12 @@ whole part, then `+n/d` for a remaining fraction in (0, 1) in lowest terms, each
 zero (`"11+3/4"`, `"12"`, `"3/8"`, `"0"`); an improper spelling (`"47/4"`) is refused, so every
 value has one spelling. It replaces the rational grammar for durations too (`"1+1/2"`, not
 `"3/2"`), so the file still has ONE number grammar, and it echoes the tokens' `+n/d`. Whether the
-file stores counts at all awaits the performance probe and the user's ruling.
+file stores counts at all awaits the user's ruling. The performance probe (2026-10-08,
+`relwithdebinfo`, 50,000 notes) settles nothing either way: the file change alone is
+runtime-neutral (load 1.5 ms faster, save 3 ms slower), and B' would save only the 3.5% of a
+rebuild spent converting positions — `chartNotePlaces` already converts each note once per
+revision, and no frame path converts at all. B''s one real gain is memory: a meter edit's undo
+entry falls from ≈9.6 MB to kilobytes.
 
 **Exactness and validity.** A place is a reduced rational on the tick lattice: `isOnTickLattice`
 (the denominator divides 3840), non-negative, strictly before the terminal for every marker
