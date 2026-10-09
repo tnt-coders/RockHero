@@ -47,19 +47,22 @@ A positive whole number, or two around one slash, spaces and tabs around either 
 /*!
 \brief Scales every grid address in the song by a factor on the whole-note axis, every time held.
 
-Scale Tempo's driver of \ref readdressTimeline (plan 66): the content map is \ref scaledPlaces, and
-the meters and anchors are placed by it too, each anchor keeping its milliseconds, so every span's
+Scale Tempo's driver of \ref readdressTimeline: the content map is \ref scaledPlaces, and the
+meters and anchors are placed by it too, each anchor keeping its milliseconds, so every span's
 tempo is multiplied by the factor and its music keeps its time. x2 doubles the measure count — a
 meter at measure m lands on measure 2m-1 — and is exact; /2 and a free factor such as 3/2 round
-what lands between two ticks onto the nearer. A reign of k measures becomes f times k measures, so
-a factor leaving one that is not whole before a later meter is refused, naming that meter
-(decision 6). The terminal re-seats on a downbeat where it lands off one.
+what lands between two ticks onto the nearer. A reign of k measures becomes f times k measures,
+ending in a derived short bar where that is not whole, and the terminal stands where it lands. The
+one refusal: a factor whose reduced denominator is not a power of two (4/3) can carry a meter off
+the meter lattice (\ref common::core::isOnMeterLattice), where the bar it cuts has no meter;
+rounding the meter's place apart from the content beside it would leave a note that stood on the
+downbeat a tick off the barline, so the factor is refused naming the meter where it stands now.
 
 \param timeline Timeline to scale.
 \param factor Positive scale factor, as \ref parseScaleFactor reads one.
-\return The scaled timeline, not yet validated, or the refusal.
+\return The scaled timeline, not yet validated, or the refusal's diagnostic for the log.
 */
-[[nodiscard]] std::expected<common::core::SongTimeline, ReaddressError> scaledTimeline(
+[[nodiscard]] std::expected<common::core::SongTimeline, std::string> scaledTimeline(
     const common::core::SongTimeline& timeline, common::core::Fraction factor);
 
 } // namespace rock_hero::editor::core

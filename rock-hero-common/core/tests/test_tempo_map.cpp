@@ -112,7 +112,6 @@ TEST_CASE("TempoMap interpolates sparse anchors", "[core][tempo-map]")
     CHECK(
         tempo_map.secondsAt(GridPosition{.measure = 2, .beat = 2, .offset = Fraction{1, 2}}) ==
         Catch::Approx(12.75));
-    CHECK(tempo_map.terminalGlobalBeatIndex() == 12);
 }
 
 // Verifies the shared global-beat interpolation query matches measure-address lookups and clamps
@@ -150,7 +149,6 @@ TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")
     const TempoMap tempo_map = makeThreeMeterMap();
 
     // 19 beats span the anchors (4 + 4 + 3 + 3 + 5), so each beat lasts 0.5 seconds.
-    CHECK(tempo_map.terminalGlobalBeatIndex() == 19);
     CHECK(tempo_map.secondsAtBeat(3, 1) == Catch::Approx(4.0));
     CHECK(
         tempo_map.secondsAt(GridPosition{.measure = 5, .beat = 1, .offset = Fraction{1, 2}}) ==
@@ -478,7 +476,7 @@ TEST_CASE("BeatAnchor equality compares position and time", "[core][tempo-map]")
 }
 
 // Verifies a sub-beat anchor pins its own position: each span interpolates on its own side of
-// it, the anchor's time comes back exactly, and the terminal still counts whole beats.
+// it, and the anchor's time comes back exactly.
 TEST_CASE("TempoMap interpolates around a sub-beat anchor", "[core][tempo-map]")
 {
     const TempoMap tempo_map = makeSubBeatAnchorMap();
@@ -491,7 +489,6 @@ TEST_CASE("TempoMap interpolates around a sub-beat anchor", "[core][tempo-map]")
     CHECK(tempo_map.spanStartingAt(between) == std::optional<std::size_t>{1});
     CHECK_FALSE(
         tempo_map.spanStartingAt(GridPosition{.measure = 1, .beat = 3, .offset = {}}).has_value());
-    CHECK(tempo_map.terminalGlobalBeatIndex() == 4);
 }
 
 // Verifies the time-to-beat inverse finds a query's span by comparing in seconds: a time between

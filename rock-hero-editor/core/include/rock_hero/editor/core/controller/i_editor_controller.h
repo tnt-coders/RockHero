@@ -300,7 +300,7 @@ public:
 
     Unlike the one-grid-step arrow keys, each jump resolves an absolute or section-relative
     destination and places the caret there on the first press: ChartStart/ChartEnd leap to the
-    chart's first position / terminal downbeat; PreviousSection/NextSection leap to the nearest
+    chart's first position / terminal anchor; PreviousSection/NextSection leap to the nearest
     song section starting before / after the caret. All four are horizontal reach — they keep the
     caret's row (string or lane). A section jump with no section in that direction is refused, not
     clamped (the caret stays put), matching every other refused move; a jump with no armed caret

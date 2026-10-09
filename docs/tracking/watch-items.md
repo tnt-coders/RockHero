@@ -635,6 +635,16 @@ regression, then re-pin.
 
 ## Chart editing (tab lane)
 
+### Scale Tempo refuses a factor that would put a meter off the meter lattice — trigger: a refusal that reads as wrong in use
+
+`scaledTimeline` (`rock-hero-editor/core/src/timeline/tempo_scale.cpp`) refuses a factor whose
+scaled meter place is not a whole number of 1/256 notes from the song's start, naming the meter.
+×4/3 or ×2/3 on a song with a meter change after the start can do it. A single-meter song never
+refuses. The user ruled this refusal over rounding the meter's place (plan 67 Q6), because a
+silently moved authored meter would leave a note that stood on its downbeat a tick off the
+barline. Revisit if a charter hits the refusal for a factor they reasonably expected to work: the
+alternative is rounding the meter onto the lattice and reporting it like a lattice rounding.
+
 ### Per-edit derivation cost past the edit budget on huge charts — trigger: a real chart feels sluggish to edit
 
 Measured 2026-10-08 on `relwithdebinfo` with synthetic charts: one chart edit's rebuild

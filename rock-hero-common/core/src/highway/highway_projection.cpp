@@ -6,6 +6,7 @@
 #include <limits>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_hit_glow.h>
 #include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
@@ -583,11 +584,12 @@ HighwayViewState makeHighwayViewState(
             g_hit_glow_trough_guard_seconds),
     };
 
-    // Every beat of the song grid, resolved once so beat bars never touch the tempo map per
-    // frame. Beat indices ascend, so a forward cursor keeps this one pass over the anchors
-    // regardless of song length.
+    // Every whole beat of the song grid at or before the terminal, resolved once so beat bars never
+    // touch the tempo map per frame. Beat indices ascend, so a forward cursor keeps this one pass
+    // over the anchors regardless of song length.
     TempoMap::ForwardBeatTimeCursor beat_cursor{tempo_map};
-    const std::int64_t terminal_beat = tempo_map.terminalGlobalBeatIndex();
+    const GridPosition terminal = terminalGridPosition(tempo_map);
+    const std::int64_t terminal_beat = tempo_map.globalBeatIndex(terminal.measure, terminal.beat);
     state.beats.reserve(static_cast<std::size_t>(terminal_beat) + 1);
     for (std::int64_t index = 0; index <= terminal_beat; ++index)
     {

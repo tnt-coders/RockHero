@@ -36,10 +36,10 @@ const SongSectionSelection* EditorController::Impl::selectedSongSection() const
 
 // The section chord authors at the cursor and never reads the selection: the measure the cursor is
 // IN, read from the tick so a cursor near a barline is not rounded into the next measure, snapped
-// to that measure's downbeat, the only place a section can start. A section already standing
-// there is restated (renamed) — which is what makes the double press work: the first inserts and
+// to that measure's downbeat, where the chord places a section. A section already standing there
+// is restated (renamed) — which is what makes the double press work: the first inserts and
 // selects, the second finds that section in the cursor's measure. Where none stands and a section
-// may start, the verb is an insert; on the terminal downbeat it is nothing, so the chord is inert
+// may start, the verb is an insert; at the terminal anchor it is nothing, so the chord is inert
 // exactly where the commit would refuse it rather than prompting for a name it cannot use.
 SectionChordTarget EditorController::Impl::sectionChordTarget() const
 {

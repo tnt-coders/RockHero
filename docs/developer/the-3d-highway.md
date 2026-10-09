@@ -290,9 +290,10 @@ rather than taking as an argument. A hard end reads as an edge belonging to noth
 falls, wires included, and a harmonic's stop-to-node line does not stop on the wires that would give
 a slot line its flat ends in any case. There is no un-tapered floor line, and no way to ask for one.
 
-**A song section boundary draws nothing on the floor.** Sections snap to measure downbeats (the
-authoring verb enforces it), so a boundary *is* a bar the board already draws, and the board
-draws it as any other downbeat; only the name above the board marks the section. A promoted bar
+**A song section boundary draws nothing on the floor.** The authoring verbs place a section on a
+measure downbeat, so a boundary is usually a bar the board already draws, and the board draws it
+as any other downbeat; only the name above the board marks the section (a section left mid-measure
+by a meter edit has the name alone). A promoted bar
 — the downbeat's attack line at full alpha in the section green with a trailing wing about three
 times as long — shipped 2026-09-12 and was removed 2026-09-24 after sighting: the green wing read
 as an awkward glow under the notes rather than as a boundary. How sections should read on the

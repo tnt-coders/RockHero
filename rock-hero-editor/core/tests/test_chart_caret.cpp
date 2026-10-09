@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <cstdint>
 #include <optional>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
@@ -263,11 +264,9 @@ TEST_CASE("EditorController jumps the caret to the chart bounds", "[core][chart]
     CHECK(caret->seconds == Catch::Approx(0.0));
     CHECK(caret->string == 1);
 
-    // End -> the tempo map's terminal downbeat, the chart's closing barline past the last measure.
+    // End -> the tempo map's terminal anchor, the chart's closing barline past the last measure.
     const common::core::TempoMap& tempo_map = controller.session().song().tempo_map;
-    const auto [end_measure, end_beat] =
-        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-    const double end_seconds = tempo_map.secondsAtBeat(end_measure, end_beat);
+    const double end_seconds = tempo_map.secondsAt(common::core::terminalGridPosition(tempo_map));
     controller.onChartCaretJumpRequested(ChartCaretJump::ChartEnd);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);
@@ -411,11 +410,9 @@ TEST_CASE("EditorController builds and extends the time selection", "[core][char
     CHECK(time_selection->start.seconds == Catch::Approx(0.0));
     CHECK(time_selection->end.seconds == Catch::Approx(1.5));
 
-    // Shift+End extends the focus to the chart's terminal downbeat; the anchor stays at 0.0.
+    // Shift+End extends the focus to the chart's terminal anchor; the anchor stays at 0.0.
     const common::core::TempoMap& tempo_map = controller.session().song().tempo_map;
-    const auto [end_measure, end_beat] =
-        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-    const double chart_end = tempo_map.secondsAtBeat(end_measure, end_beat);
+    const double chart_end = tempo_map.secondsAt(common::core::terminalGridPosition(tempo_map));
     controller.onTimeSelectionExtendRequested(
         TimeSelectionExtent::ChartBound, ChartStepDirection::Right);
     CHECK(time_selection->start.seconds == Catch::Approx(0.0));

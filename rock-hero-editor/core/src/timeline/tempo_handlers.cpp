@@ -118,12 +118,7 @@ void EditorController::Impl::commitTempoEdit(
     // The cursor is no content: it is carried from where it stands now to the same time under the
     // new map, which is one rounding per edit of a place the transport trusts to a millisecond.
     const ContentMap content = timeKeptPlaces(current, tempo_map);
-    std::optional<SongTimelineSnapshot> after = timeKeptSnapshot(tempo_map, verb);
-    if (!after.has_value())
-    {
-        return;
-    }
-    land(SongTimelineSnapshot::capture(session()), std::move(*after), tempo_map, content);
+    land(SongTimelineSnapshot::capture(session()), timeKeptSnapshot(tempo_map), tempo_map, content);
 }
 
 // Holds the song as it stands, and marks the history there so holdsBase can say whether a later
@@ -134,24 +129,15 @@ const common::core::SongTimeline& EditorController::Impl::engageNoteLock()
     return m_grid_session.note_lock.emplace(common::core::makeSongTimeline(session().song()));
 }
 
-// Rationale lives on the declaration in editor_controller_impl.h. The re-address can refuse only
-// where a meter stands off a downbeat, which no map a tempo verb makes has, so the refusal branch
-// is the transform's contract being honoured rather than a case the lock expects.
-std::optional<SongTimelineSnapshot> EditorController::Impl::timeKeptSnapshot(
-    const common::core::TempoMap& tempo_map, const std::string_view verb)
+// Rationale lives on the declaration in editor_controller_impl.h.
+SongTimelineSnapshot EditorController::Impl::timeKeptSnapshot(
+    const common::core::TempoMap& tempo_map)
 {
     const std::optional<common::core::SongTimeline>& held = m_grid_session.note_lock;
     assert(held.has_value() && "asked only while the Note Lock is on");
     const common::core::SongTimeline& origin =
         held.has_value() && m_undo_history.holdsBase() ? *held : engageNoteLock();
-    std::expected<common::core::SongTimeline, ReaddressError> kept =
-        timeKeptTimeline(origin, tempo_map);
-    if (!kept.has_value())
-    {
-        m_refusal_log.markerEdit(verb, kept.error().message);
-        return std::nullopt;
-    }
-    return SongTimelineSnapshot{.timeline = std::move(*kept)};
+    return SongTimelineSnapshot{.timeline = timeKeptTimeline(origin, tempo_map)};
 }
 
 std::optional<ChartPlanInvalid> EditorController::Impl::noteLockRefusal() const
@@ -302,11 +288,11 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
 void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& action)
 {
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
-    std::expected<common::core::SongTimeline, ReaddressError> scaled =
+    std::expected<common::core::SongTimeline, std::string> scaled =
         scaledTimeline(before.timeline, action.factor);
     if (!scaled.has_value())
     {
-        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::ScaleTempo), scaled.error().message);
+        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::ScaleTempo), scaled.error());
         return;
     }
     const MarkerCommit committed = commitGridModel(

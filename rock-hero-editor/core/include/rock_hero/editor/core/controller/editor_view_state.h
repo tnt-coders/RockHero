@@ -460,7 +460,7 @@ downbeat, insert one there, or nothing.
 
 THE section chord's answer, derived once in the core from the cursor — the armed caret, else the
 paused cursor — and never from the selection. Nothing while the transport plays, with no song, or
-where a section cannot stand (the terminal downbeat), so the chord is inert exactly where the
+where a section cannot stand (the terminal anchor), so the chord is inert exactly where the
 commit would refuse it, and the view keeps no gate of its own.
 */
 using SectionChordTarget = std::variant<std::monostate, RenameSectionTarget, InsertSectionTarget>;

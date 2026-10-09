@@ -99,9 +99,9 @@ the meter back makes it vanish.
 
 Anchor invariants (`validateTempoMapRules`): at least two anchors (start + terminal); the first
 must be exactly `"0"` but its seconds **may be non-zero** (finite and non-negative is the whole
-floor); every anchor stands on the tick lattice, so an anchor may sit between beats; strictly
-increasing in both place and time; the terminal anchor must land on a downbeat. `timeSignatures`
-must be non-empty and must start at `"0"`.
+floor); every anchor stands on the tick lattice, so an anchor may sit between beats, the terminal
+included (a song may end mid-measure, on a short final bar); strictly increasing in both place and
+time. `timeSignatures` must be non-empty and must start at `"0"`.
 
 ## sections[]
 
@@ -110,15 +110,17 @@ one arrangement's tab). Every arrangement and the 3D highway share this one list
 
 | key | type | req | meaning |
 |---|---|---|---|
-| `at` | place | req | Whole-note place (see tempoMap), today always a measure downbeat. |
+| `at` | place | req | Whole-note place (see tempoMap) on the tick lattice; any grid position, a measure downbeat or not. |
 | `name` | string | req | Free-form label, blank-rejecting, otherwise verbatim from import. |
 
 The rules are `validateSongSectionRules` (`song_section_rules.h`), which the reader and the
 editor's section verbs both ask rather than restate: a name that is not blank once surrounding
-whitespace is trimmed; a position that is a real measure downbeat (beat 1, no sub-beat offset)
-strictly before the terminal anchor, since a section on the closing barline would name a passage of
-no length; and STRICTLY ascending positions, so two sections can never claim one position (which
-would leave every later which-section-governs-this-moment question answering arbitrarily).
+whitespace is trimmed; a position on the grid and strictly before the terminal anchor
+(`markerCanStartAt`), since a section on the closing barline would name a passage of no length;
+and STRICTLY ascending positions, so two sections can never claim one position (which would leave
+every later which-section-governs-this-moment question answering arbitrarily). The section verbs
+place a section on its measure's downbeat; a meter edit keeps a section's place, so one may stand
+mid-measure after it.
 
 ## audioAssets[]
 

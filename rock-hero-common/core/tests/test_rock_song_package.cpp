@@ -946,8 +946,8 @@ TEST_CASE("Rock song package rejects non-FLAC backing audio", "[core][rock-song-
 
 // Verifies the reader rejects tempo maps that break grid invariants. Each fragment parses and
 // passes the per-entry field reads, so these exercise validateTempoMap's structural rules: meter
-// coverage, ordering and placement, the required start and terminal anchors, downbeat terminals,
-// and anchor ordering — plus the two grammar refusals every place shares, the removed measure key
+// coverage, ordering and placement, the required start and terminal anchors and anchor ordering —
+// plus the two grammar refusals every place shares, the removed measure key
 // and a place off the tick lattice, which the reader states in the same tempoMap vocabulary.
 TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-package]")
 {
@@ -999,10 +999,6 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
         // The first anchor must address measure 1 beat 1.
         R"(
             "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1/4", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
-)",
-        // The terminal anchor must land on a downbeat.
-        R"(
-            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "1+1/4", "seconds": 4.000 } ] },
 )",
         // anchor seconds must be strictly increasing.
         R"(

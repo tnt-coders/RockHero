@@ -1,6 +1,6 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
-**Status:** Phase 1 DONE 2026-10-09 (see its "As built" note); Phases 2–5 not started.
+**Status:** Phases 1 and 2 DONE 2026-10-09 (see their "As built" notes); Phases 3–5 not started.
 Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
@@ -698,16 +698,33 @@ suites. New files follow the placement procedure; comments follow
   about any note's time changes (the controller test over both arrangements); Scale Tempo x2 /2
   round trips exactly, 4/3 with a meter off the lattice refuses naming it, 4/3 on a single-meter
   song lands; the Note Lock's `timeKeptTimeline` unchanged in behaviour (its suite green).
+- **As built (2026-10-09).** `NotAMeasureDownbeat` went here, not in Phase 4: with the snap gone,
+  the commit's section validation would otherwise refuse a non-dividing meter edit over a section,
+  against ruling B. It folds with `SectionPastTerminalAnchor` into `OffGridOrPastTerminal`, the
+  one place rule. The section VERBS still place on downbeats until Phase 4. `ReaddressError` is
+  deleted (the transform refuses nothing); Scale Tempo's refusal is a message string, through
+  `isOnMeterLattice`, which the validator shares. `runBase` is deleted, because a meter move's
+  re-address is exactly invertible. The grid walker floors the terminal into its integer units,
+  so a mid-measure terminal costs no per-line rational compare. Times now hold bit-exactly.
 
 ### Phase 3 — The derived chip and authoring onto it
 
 - The ruler's signature row from `reigns()`, derived chips as ghosts; the row's objects every
   reign start; `Ctrl+/`, `Enter` and the right-click Set on a derived start author it; `Delete`
   and `Alt+←/→` on it glow red; `focusReplacing` by first measure.
+- **Q2 (b), the meter verbs at the beat.** `Ctrl+/` and the ruler's Add read the BEAT the cursor
+  is in rather than the measure downbeat, and `Alt+←/→` moves an authored meter by one beat of
+  the meter before it. Off a downbeat the chord inserts a meter there and the bar it cuts becomes
+  the derived short bar (cursor on `6:3` under 4/4, type 7/8: bar 6 is a derived 2/4, the 7/8
+  begins at bar 7). On a reign start it restates as today. This reopens 65-Q2: the keymap
+  matrix's "measure downbeat" quantum for the meter row becomes "beat", in the same change set.
 - **Failing tests first:** the row walks a derived start; a stating verb on it inserts a stored
   meter at its place and the derived chip becomes authored (one undo entry); Delete and the move
   refuse it with a flash and no entry; changing the authored meter back makes the short bar
-  vanish; the ghost pixels (the ruler's chip test pattern).
+  vanish; the ghost pixels (the ruler's chip test pattern); `Ctrl+/` on `6:3` inserts at place
+  `5+1/2` and derives bar 6 as 2/4; a cursor between beats inserts at the beat it is in;
+  `Alt+→` steps an authored meter one beat and a step that leaves a reign under one measure
+  refuses (`ReignTooShort`); the ruler's Add at a mid-measure click inserts at that beat.
 - ui-design-expert consulted if the ghost treatment does not read at chip size (§4).
 
 ### Phase 4 — Sections off the downbeat

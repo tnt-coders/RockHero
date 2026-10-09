@@ -117,9 +117,9 @@ enum class EditorCommandId : std::uint16_t
     /*!
     \brief Insert a section at the cursor's measure, or rename the one starting there (`Ctrl+M`).
 
-    Shares the tone change's marker grammar. The chord reads the MEASURE the cursor is in — the
-    downbeat is the only place a section can start — and renames the section standing on that
-    downbeat or inserts one where it is free, a prompt naming it; the terminal downbeat, which can
+    Shares the tone change's marker grammar. The chord reads the MEASURE the cursor is in — its
+    downbeat is where the chord places a section — and renames the section standing on that
+    downbeat or inserts one where it is free, a prompt naming it; the terminal anchor, which can
     carry no section, makes the press inert. The core publishes the verb
     (`EditorViewState::section_chord_target`); the view opens the prompt it names. A second press
     after an insert therefore renames what the first made, since the cursor is still in its

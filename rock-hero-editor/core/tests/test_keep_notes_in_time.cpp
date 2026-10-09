@@ -6,7 +6,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <expected>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
@@ -83,10 +82,7 @@ TEST_CASE("Keeping notes in time holds every time over random songs", "[core][ke
         requireValid(before);
 
         // The unchanged map is the identity: a drag released where it began commits nothing.
-        const std::expected<SongTimeline, ReaddressError> kept =
-            timeKeptTimeline(before, before.tempo_map);
-        REQUIRE(kept.has_value());
-        CHECK(*kept == before);
+        CHECK(timeKeptTimeline(before, before.tempo_map) == before);
 
         if (before.tempo_map.anchors().size() < 3)
         {
@@ -100,16 +96,14 @@ TEST_CASE("Keeping notes in time holds every time over random songs", "[core][ke
             {
                 continue;
             }
-            const std::expected<SongTimeline, ReaddressError> held =
-                timeKeptTimeline(before, *edited);
-            REQUIRE(held.has_value());
-            CHECK(held->tempo_map == *edited);
-            CHECK(addressesErased(*held) == addressesErased(before));
-            if (!common::core::validateSongTimelineRules(*held).has_value())
+            const SongTimeline held = timeKeptTimeline(before, *edited);
+            CHECK(held.tempo_map == *edited);
+            CHECK(addressesErased(held) == addressesErased(before));
+            if (!common::core::validateSongTimelineRules(held).has_value())
             {
                 continue;
             }
-            checkTimesHeld(before, *held, 0.0);
+            checkTimesHeld(before, held, 0.0);
             ++landed;
         }
     }
@@ -128,19 +122,15 @@ TEST_CASE("Keeping notes in time lays the new map's meters", "[core][keep-notes-
     std::vector<common::core::TimeSignatureChange> meters = before.tempo_map.timeSignatures();
     REQUIRE(meters.size() == 2);
     meters[1].meter = common::core::TimeSignature{.numerator = 2, .denominator = 4};
-    const std::expected<SongTimeline, ReaddressError> remetered =
-        readdressUnderMeters(before, meters);
-    REQUIRE(remetered.has_value());
+    const SongTimeline remetered = readdressUnderMeters(before, meters);
 
-    const std::expected<SongTimeline, ReaddressError> held =
-        timeKeptTimeline(before, remetered->tempo_map);
-    REQUIRE(held.has_value());
-    CHECK(held->tempo_map == remetered->tempo_map);
-    CHECK(held->tempo_map.timeSignatures() == remetered->tempo_map.timeSignatures());
-    checkTimesHeld(before, *held, 0.0);
+    const SongTimeline held = timeKeptTimeline(before, remetered.tempo_map);
+    CHECK(held.tempo_map == remetered.tempo_map);
+    CHECK(held.tempo_map.timeSignatures() == remetered.tempo_map.timeSignatures());
+    checkTimesHeld(before, held, 0.0);
     // The 4:2 note of the lead arrangement, one whole note past the change (a 3/4 measure and a
     // quarter), is two 2/4 measures past it: 5:1.
-    CHECK(chartOf(*held, 0).notes[1].position == at("5:1"));
+    CHECK(chartOf(held, 0).notes[1].position == at("5:1"));
 }
 
 // 4/4 at 120 BPM with anchors on 1:1, 3:1 and 5:1. Pulling 3:1 from 4 s to 3 s plays the first two
@@ -164,10 +154,9 @@ TEST_CASE(
 
     const TempoMapEditResult moved = moveTempoAnchor(before.tempo_map, at("3:1"), 3000);
     REQUIRE(moved.has_value());
-    const std::expected<SongTimeline, ReaddressError> after = timeKeptTimeline(before, *moved);
-    REQUIRE(after.has_value());
-    requireValid(*after);
-    const common::core::Chart& chart = chartOf(*after, 0);
+    const SongTimeline after = timeKeptTimeline(before, *moved);
+    requireValid(after);
+    const common::core::Chart& chart = chartOf(after, 0);
     REQUIRE(chart.notes.size() == 2);
     CHECK(
         chart.notes[0].position == GridPosition{.measure = 2, .beat = 2, .offset = Fraction{1, 3}});
@@ -175,7 +164,7 @@ TEST_CASE(
     CHECK(
         chart.notes[1].position == GridPosition{.measure = 4, .beat = 1, .offset = Fraction{4, 5}});
     CHECK(chart.notes[1].sustain == Fraction{1, 10});
-    checkTimesHeld(before, *after, 0.0);
+    checkTimesHeld(before, after, 0.0);
 }
 
 } // namespace rock_hero::editor::core

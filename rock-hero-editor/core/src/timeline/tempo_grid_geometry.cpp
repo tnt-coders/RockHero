@@ -40,8 +40,8 @@ double secondsAtColumn(common::core::TimeRange visible_timeline, double width_sp
 // quarter notes, so the step is n*den_sig/d beats — exact integers over the note denominator).
 // The walk restarts at every downbeat, which keeps each measure's start on a grid line even in
 // meters whose length is not a multiple of the step, and it never advances past the terminal
-// anchor beat. Signature and measure base-index bookkeeping is incremental so the per-line hot
-// path stays integer arithmetic.
+// anchor, which may stand mid-measure. Signature and measure base-index bookkeeping is incremental
+// so the per-line hot path stays integer arithmetic.
 //
 // The walk itself is exact, but every line it REPORTS is rounded onto the chart's tick lattice
 // through the one rounding rule (common::core::nearestTick), exactly as common's own lattice
@@ -56,7 +56,7 @@ public:
     MeasureGridWalker(const common::core::TempoMap& tempo_map, common::core::Fraction note_value)
         : m_tempo_map(tempo_map)
         , m_note(note_value)
-        , m_terminal_units(tempo_map.terminalGlobalBeatIndex() * note_value.denominator)
+        , m_terminal_units(terminalUnits(tempo_map, note_value))
     {
         moveToMeasure(1, 0);
     }
@@ -68,7 +68,7 @@ public:
     MeasureGridWalker(MeasureGridWalker&&) = delete;
     MeasureGridWalker& operator=(MeasureGridWalker&&) = delete;
 
-    // Reports whether the walker still addresses a line at or before the terminal anchor beat.
+    // Reports whether the walker still addresses a line at or before the terminal anchor.
     [[nodiscard]] bool valid() const noexcept
     {
         return lineUnits() <= m_terminal_units;
@@ -206,16 +206,29 @@ public:
     }
 
     // Positions the walker on the final grid line: the last step that fits at or before the
-    // terminal anchor beat inside the terminal measure.
+    // terminal anchor inside the terminal measure.
     void moveToLastLine()
     {
-        const int terminal_measure =
-            m_tempo_map.beatAtGlobalIndex(m_tempo_map.terminalGlobalBeatIndex()).first;
+        const int terminal_measure = common::core::terminalGridPosition(m_tempo_map).measure;
         moveToMeasure(terminal_measure, m_tempo_map.globalBeatIndex(terminal_measure, 1));
         m_offset_units = lastLineOffsetUnits();
     }
 
 private:
+    // The terminal's exact position in note-denominator units, floored. A line's units are whole,
+    // so a line is at or before the terminal exactly when its units are at or before this: the
+    // floor loses nothing, and a terminal mid-beat needs no rational comparison per line.
+    [[nodiscard]] static std::int64_t terminalUnits(
+        const common::core::TempoMap& tempo_map, const common::core::Fraction note_value)
+    {
+        const common::core::GridPosition terminal = common::core::terminalGridPosition(tempo_map);
+        const std::int64_t beat_units =
+            tempo_map.globalBeatIndex(terminal.measure, terminal.beat) * note_value.denominator;
+        // The offset is in [0, 1) of a beat, so its share of the units floors by integer division.
+        return beat_units + (static_cast<std::int64_t>(terminal.offset.numerator) *
+                             note_value.denominator / terminal.offset.denominator);
+    }
+
     // Rebinds the per-measure geometry for a measure whose downbeat global beat index is known.
     // The signature lookup runs once per measure, not per line, so the scan stays cheap. The
     // reign's meter has both terms clamped to at least one, so the step below is never zero and
@@ -277,7 +290,7 @@ private:
     // Normalized grid note value; its denominator is the exact unit of all offset arithmetic.
     common::core::Fraction m_note;
 
-    // Terminal anchor beat index scaled into note-denominator units; no line may pass it.
+    // The terminal anchor in note-denominator units (terminalUnits); no line may pass it.
     std::int64_t m_terminal_units;
 
     // Signature active for the current measure.

@@ -259,9 +259,8 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
         return m_anchors.empty() ? BeatAnchor{} : m_anchors.back();
     }
     const BeatAnchor& terminal = m_anchors.back();
-    const bool on_downbeat = measureDownbeat(terminal.position) == terminal.position;
     if (!std::isfinite(cover_until_seconds) || !std::isfinite(seconds_per_quarter) ||
-        seconds_per_quarter <= 0.0 || (on_downbeat && terminal.seconds() >= cover_until_seconds))
+        seconds_per_quarter <= 0.0 || terminal.seconds() >= cover_until_seconds)
     {
         return terminal;
     }
@@ -282,9 +281,10 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
         return quarterPositionOf(segmentForMeasure(at_measure).meter.measureWholeNotes());
     };
 
-    // The walk starts at the first downbeat at or after the terminal: the terminal itself on a
-    // valid map, the next barline when a meter edit has left it mid-measure.
-    int measure = on_downbeat ? terminal.position.measure : terminal.position.measure + 1;
+    // The walk starts at the downbeat of the terminal's own measure. The terminal does not cover
+    // the time, so neither does that downbeat (at or before it), and the first covering downbeat
+    // is a later barline either way: a terminal standing mid-measure grows past its short last bar.
+    int measure = terminal.position.measure;
     double quarters =
         quarterPositionAt(measureDownbeat(measure)) - m_anchor_quarter_positions[opener_index];
 
@@ -552,18 +552,6 @@ double TempoMap::secondsAtWholeNote(const Fraction whole_note_position) const no
 double TempoMap::secondsAtBeat(int measure, int beat) const noexcept
 {
     return secondsAt(GridPosition{.measure = measure, .beat = beat, .offset = {}});
-}
-
-// Reports the last anchor's grid address so package validation can enforce the terminal boundary;
-// the rules keep the terminal on a downbeat, so its beat index has no offset to drop.
-std::int64_t TempoMap::terminalGlobalBeatIndex() const noexcept
-{
-    if (m_anchors.empty())
-    {
-        return 0;
-    }
-    const GridPosition& terminal = m_anchors.back().position;
-    return globalBeatIndex(terminal.measure, terminal.beat);
 }
 
 // A beat position's time, through its quarter position: secondsAtQuarterPosition owns the binary

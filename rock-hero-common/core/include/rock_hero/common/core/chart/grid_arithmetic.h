@@ -174,7 +174,7 @@ on that string.
 Named once because every consumer of the chart's end needs the same answer — package read closing
 the last tone region, tone-track normalization materializing the whole-song region, tone-track
 validation bounding every region, and the editor's end-of-chart navigation and selection bounds.
-The tempo-map rules keep the terminal anchor on a downbeat with no offset.
+The terminal may stand mid-measure, in which case the song ends on a short final bar.
 
 \param tempo_map Tempo map whose terminal anchor is being addressed.
 \return Grid position of the terminal anchor, or the grid origin for a map with no anchors.

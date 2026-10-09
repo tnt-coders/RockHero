@@ -527,8 +527,8 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             SongSection{.position = *position, .name = trimmedSongSectionName(*name)});
     }
 
-    // Names, downbeat positions and strict ascent are the section rules the editor's verbs enforce
-    // too, so they are asked of the one authority rather than restated here.
+    // Names, places and strict ascent are the section rules the editor's verbs enforce too, so they
+    // are asked of the one authority rather than restated here.
     if (const auto valid = validateSongSectionRules(sections, tempo_map); !valid.has_value())
     {
         return std::unexpected{SongPackageError{

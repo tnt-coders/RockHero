@@ -7,7 +7,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <expected>
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -20,7 +19,6 @@
 #include <rock_hero/common/core/timeline/time_signature_text.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
-#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -47,23 +45,6 @@ namespace
     return common::core::TimeSignature{
         .numerator = ratio->numerator, .denominator = ratio->denominator
     };
-}
-
-// The timeline re-addressed under a new meter list, as the snapshot a verb commits, or nothing
-// once the transform's refusal is logged under the verb's label.
-[[nodiscard]] std::optional<SongTimelineSnapshot> readdressedSnapshot(
-    const common::core::SongTimeline& timeline,
-    const std::span<const common::core::TimeSignatureChange> meters, const std::string_view label,
-    RefusalLog& refusal_log)
-{
-    std::expected<common::core::SongTimeline, ReaddressError> readdressed =
-        readdressUnderMeters(timeline, meters);
-    if (!readdressed.has_value())
-    {
-        refusal_log.markerEdit(label, readdressed.error().message);
-        return std::nullopt;
-    }
-    return SongTimelineSnapshot{.timeline = std::move(*readdressed)};
 }
 
 // Shows which measure numbers a meter verb changed (decision 5): the ruler re-derives them from the
@@ -172,14 +153,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
                 }),
             common::core::TimeSignatureChange{.place = place, .meter = action.meter});
     }
-    std::optional<SongTimelineSnapshot> after =
-        readdressedSnapshot(before.timeline, meters, label, m_refusal_log);
-    if (!after.has_value())
-    {
-        return;
-    }
+    // The re-address refuses nothing; a reign left shorter than one of its measures is the
+    // tempo-map rules' refusal, asked at the commit.
+    SongTimelineSnapshot after{.timeline = readdressUnderMeters(before.timeline, meters)};
     commitGridModel(
-        std::move(before), std::move(*after), label, MarkerRow::TimeSignature, downbeat, keptPlace);
+        std::move(before), std::move(after), label, MarkerRow::TimeSignature, downbeat, keptPlace);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
@@ -206,15 +184,10 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     const common::core::TempoMap tempo_map = before.timeline.tempo_map;
     std::vector<common::core::TimeSignatureChange> meters = tempo_map.timeSignatures();
     meters.erase(std::next(meters.begin(), static_cast<std::ptrdiff_t>(*standing)));
-    std::optional<SongTimelineSnapshot> after = readdressedSnapshot(
-        before.timeline, meters, markerVerbLabel(MarkerVerb::DeleteTimeSignature), m_refusal_log);
-    if (!after.has_value())
-    {
-        return;
-    }
+    SongTimelineSnapshot after{.timeline = readdressUnderMeters(before.timeline, meters)};
     commitGridModel(
         std::move(before),
-        std::move(*after),
+        std::move(after),
         markerVerbLabel(MarkerVerb::DeleteTimeSignature),
         MarkerRow::TimeSignature,
         std::nullopt,
@@ -226,9 +199,8 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
 // list. Measures before it are not its own, so measure m-1 or m+1 in the result is one measure of
 // the meter BEFORE it from its old downbeat, which is where it is placed on the whole-note axis.
 // The measure-1 meter, a step onto or past a neighbouring meter, and a step to or past the end of
-// the song are refused. A held run is ONE undo entry, each press re-addressed from the run's
-// origin: a re-address that snapped a section or re-seated the terminal is not undone by the step
-// back, so only the origin keeps a run that walks back exact.
+// the song are refused. A held run is ONE undo entry; every press keeps every place exactly, so a
+// step back is the step's exact inverse and a run walked back lands where it began.
 void EditorController::Impl::moveSelectedTimeSignature(
     const TimeSignatureSelection& selection, const ChartStepDirection direction)
 {
@@ -266,11 +238,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
             "a time signature cannot step onto or past its neighbour");
         return;
     }
-    // The run's origin is what the press re-addresses, so its terminal is the end the step must
-    // stay before; a terminal the run has since re-seated later does not count.
-    const common::core::SongTimeline& base = runBase(before).timeline;
-    if (place >=
-        base.tempo_map.wholeNotePositionAt(common::core::terminalGridPosition(base.tempo_map)))
+    if (place >= tempo_map.wholeNotePositionAt(common::core::terminalGridPosition(tempo_map)))
     {
         m_refusal_log.markerEdit(
             markerVerbLabel(MarkerVerb::MoveTimeSignature),
@@ -279,15 +247,10 @@ void EditorController::Impl::moveSelectedTimeSignature(
     }
     meters[index].place = place;
 
-    std::optional<SongTimelineSnapshot> moved = readdressedSnapshot(
-        base, meters, markerVerbLabel(MarkerVerb::MoveTimeSignature), m_refusal_log);
-    if (!moved.has_value())
-    {
-        return;
-    }
+    SongTimelineSnapshot moved{.timeline = readdressUnderMeters(before.timeline, meters)};
     if (commitMarkerMove(
             std::move(before),
-            std::move(*moved),
+            std::move(moved),
             markerVerbLabel(MarkerVerb::MoveTimeSignature),
             TimeSignatureSelection{.measure = target}))
     {

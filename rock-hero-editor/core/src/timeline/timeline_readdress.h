@@ -6,14 +6,12 @@
 #pragma once
 
 #include <cstdint>
-#include <expected>
 #include <functional>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <span>
-#include <string>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -67,26 +65,6 @@ it to that.
 */
 [[nodiscard]] std::vector<PlacedAnchor> placedAnchorsOf(const common::core::TempoMap& tempo_map);
 
-/*! \brief Stable reasons a whole-song re-address refuses. */
-enum class ReaddressErrorCode : std::uint8_t
-{
-    /*!
-    \brief A meter's place is not a downbeat under the meters before it: the reign before it is not
-    a whole number of measures (65-Q3).
-    */
-    MeterOffDownbeat,
-};
-
-/*! \brief Recoverable failure produced by a whole-song re-address. */
-struct [[nodiscard]] ReaddressError
-{
-    /*! \brief Stable error code used by callers for branching. */
-    ReaddressErrorCode code{};
-
-    /*! \brief Human-readable diagnostic for the refusal log. */
-    std::string message;
-};
-
 /*!
 \brief Maps one position from the old map to the new: THE path every slice takes.
 
@@ -107,33 +85,31 @@ the same path, so it lands on what it stood on.
 
 /*!
 \brief Re-addresses the whole song timeline under a new map stated on the whole-note axis, every
-object going where the content map sends it.
+object going where the content map sends it and nothing moving in time.
 
-THE one pass every whole-song edit runs: a meter edit, Scale Tempo and the Note Lock differ
-only in the map they state and where they send the content (plan 66 decision 5).
-- The new meters are the map's own placed changes; a place that is not a downbeat under the meters
-  before it refuses the edit, naming the meter where it stands now.
+THE one pass every whole-song edit runs: a meter edit, Scale Tempo and the Note Lock differ only
+in the map they state and where they send the content. It refuses nothing: a reign that is not a
+whole number of its measures ends in a derived short bar (\ref common::core::TempoMap::reigns),
+and a terminal left mid-measure stands, the song ending on a short final bar.
+- The new meters are the map's own placed changes.
 - The new anchors' addresses are derived from their places, keeping their milliseconds.
-- Note onsets, fret-hand positions, tone region starts and tone automation points are mapped
-  (\ref readdressedPosition).
+- Sections, note onsets, fret-hand positions, tone region starts and tone automation points are
+  mapped (\ref readdressedPosition).
 - A note's ring and its keyframe offsets are note values from its onset, so each becomes the
   distance between where its two instants are sent: a meter edit leaves them untouched, Scale Tempo
   scales them, and the Note Lock re-rounds them with the places they join.
-- A section left off a downbeat snaps back to its measure's downbeat (a section is navigation and
-  moves no sound); two snapping onto one downbeat are left for the section rules to refuse, as they
-  refuse any repeated position.
-- A terminal left off a downbeat re-seats on the first one after it (\ref reseatTerminalAnchor).
 
 Every arrangement is re-addressed, not only the loaded one. The result is not validated: the caller
-judges it against the rules as it would any edit.
+judges it against the rules as it would any edit, and a reign holding no whole measure is the
+tempo-map rules' refusal.
 
 \param timeline Timeline to re-address.
 \param meters The new meter list, in order, the first at whole note 0.
 \param anchors The new anchor list, in order, the first at whole note 0 and the terminal last.
 \param content Where each old whole-note place goes.
-\return The re-addressed timeline, or the refusal.
+\return The re-addressed timeline.
 */
-[[nodiscard]] std::expected<common::core::SongTimeline, ReaddressError> readdressTimeline(
+[[nodiscard]] common::core::SongTimeline readdressTimeline(
     const common::core::SongTimeline& timeline,
     std::span<const common::core::TimeSignatureChange> meters,
     std::span<const PlacedAnchor> anchors, const ContentMap& content);

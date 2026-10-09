@@ -642,15 +642,17 @@ TEST_CASE("Displayed lanes pad below the chart's strings", "[core][highway][tab]
     CHECK(displayedLane(1, 6 - 6) == 1);
 }
 
-// The beat list covers the whole song grid up to the terminal anchor with correct downbeat
-// marks, so beat bars never query the tempo map at render time.
+// The beat list covers every whole beat of the song grid up to the terminal anchor with correct
+// downbeat marks, so beat bars never query the tempo map at render time.
 TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     const Arrangement arrangement = makeArrangementWithChart();
     const HighwayViewState state = boardOf(arrangement, tempo_map);
 
-    const auto expected_count = static_cast<std::size_t>(tempo_map.terminalGlobalBeatIndex()) + 1;
+    const GridPosition terminal = terminalGridPosition(tempo_map);
+    const auto expected_count =
+        static_cast<std::size_t>(tempo_map.globalBeatIndex(terminal.measure, terminal.beat)) + 1;
     REQUIRE(state.beats.size() == expected_count);
     REQUIRE(state.beats.size() >= 5);
 

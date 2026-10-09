@@ -105,7 +105,7 @@ enum class ChartCaretJump : std::uint8_t
     /*! \brief The chart's first position (measure 1, beat 1) — Home. */
     ChartStart,
 
-    /*! \brief The chart's terminal downbeat — End. */
+    /*! \brief The chart's terminal anchor, its closing barline — End. */
     ChartEnd,
 
     /*! \brief The nearest section starting before the caret — PageUp. */

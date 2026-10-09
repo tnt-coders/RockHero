@@ -10,7 +10,6 @@ content the lock holds through here.
 
 #include "timeline/timeline_readdress.h"
 
-#include <expected>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 
@@ -34,16 +33,15 @@ tick lattice, and lands within half a tick of its old time.
 /*!
 \brief Lays a new map under a whole song while every time holds.
 
-The Note Lock's driver of \ref readdressTimeline (plan 66 decision 5): the meters and the anchors
-are the new map's, and the content map is \ref timeKeptPlaces, so the song's map matters only for
-the time it gives each place. The new map's meters already stand on its downbeats and its terminal
-on one, so no meter refuses and the terminal does not re-seat.
+The Note Lock's driver of \ref readdressTimeline: the meters and the anchors are the new map's, and
+the content map is \ref timeKeptPlaces, so the song's map matters only for the time it gives each
+place.
 
 \param timeline Timeline to re-address; its tempo map is the map its places are addressed under.
 \param tempo_map The map to lay under it.
-\return The re-addressed timeline, not yet validated, or the refusal.
+\return The re-addressed timeline, not yet validated.
 */
-[[nodiscard]] std::expected<common::core::SongTimeline, ReaddressError> timeKeptTimeline(
+[[nodiscard]] common::core::SongTimeline timeKeptTimeline(
     const common::core::SongTimeline& timeline, const common::core::TempoMap& tempo_map);
 
 } // namespace rock_hero::editor::core

@@ -297,9 +297,10 @@ packages and defaults to Unknown on load. See
 
 The tempo map is a **warp-anchor grid**: time signatures are stored as changes (carried forward),
 and time is pinned only on a sparse set of addressed **anchors** (a grid position — any tick
-position, on a beat or between beats — with an absolute time). A start anchor (measure 1, beat 1)
-and a terminal anchor at the one-past-content downbeat are always required; every other beat and
-measure interpolates, so absolute times appear only in anchors. Interpolation is linear in
+position, on a beat or between beats — with an absolute time). A start anchor at the song's start
+and a terminal anchor after every piece of content are always required; the terminal may stand
+mid-measure, and the song then ends on a short final measure. Every other beat and measure
+interpolates, so absolute times appear only in anchors. Interpolation is linear in
 **quarter-note (metronome) time**, not in beats: the quarter-note tempo is constant inside each
 anchor span and changes only at anchors, so a meter-denominator change between anchors (say 4/4 to
 7/8) re-slices beat durations — the eighth-note beats run twice as fast — instead of stretching each
@@ -308,6 +309,8 @@ whole notes from the song's start, written in the one canonical mixed-number spe
 (`"16+3/16"`, `"23"`). A place names one instant whatever the meters before it say, so no stored
 place depends on a meter, and the measure a change begins is derived. Where a change cuts the
 reign before it short of a whole measure, the remainder is one derived short bar, never stored.
+So a meter edit, Scale Tempo and a Note Lock edit move nothing in time: they change how the song is
+cut into measures, never where anything sounds.
 
 The persisted tempo-map shape is:
 

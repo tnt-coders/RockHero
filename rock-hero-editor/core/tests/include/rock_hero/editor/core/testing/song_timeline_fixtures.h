@@ -63,10 +63,6 @@ using common::core::testing::metersAt;
 // Floating noise only: the two maps resolve one instant through different beat decompositions.
 inline constexpr double g_time_tolerance_seconds = 1e-9;
 
-// A re-seated terminal re-times the last span, its whole-millisecond rounding shifting the span's
-// tempo by at most half a millisecond over the span's length.
-inline constexpr double g_reseated_time_tolerance_seconds = 0.5e-3 + g_time_tolerance_seconds;
-
 [[nodiscard]] inline GridPosition at(const std::string& token)
 {
     return anchor(token, 0).position;
@@ -684,20 +680,15 @@ void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, con
     return std::max(later, earlier) / 2.0;
 }
 
-// Checks every content position of a re-addressed timeline against the one it came from: its time
-// held within half a tick of the new grid, the most the rounding onto the lattice moves it, plus
-// `slack_seconds` where the edit itself re-timed a span. Sections are navigation and may snap, so
-// they are the section rules' to judge.
+// Checks every position of a re-addressed timeline, sections included, against the one it came
+// from: its time held within half a tick of the new grid, the most the rounding onto the lattice
+// moves it, plus `slack_seconds` where the edit itself re-timed a span.
 inline void checkTimesHeld(
     const SongTimeline& before, const SongTimeline& after, const double slack_seconds)
 {
     const TempoMap& old_map = before.tempo_map;
     const TempoMap& new_map = after.tempo_map;
     forEachSlicePair(before, after, [&old_map, &new_map, slack_seconds](const SlicePair& pair) {
-        if (pair.kind == SliceKind::Section)
-        {
-            return;
-        }
         CHECK_THAT(
             new_map.secondsAt(pair.new_position),
             Catch::Matchers::WithinAbs(

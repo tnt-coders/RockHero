@@ -74,7 +74,7 @@ signature menu.
 
 The time signature governing the measure is read once: where it starts on this measure's downbeat
 it is restated, opened on its own meter; elsewhere one is inserted, opened on that governing meter,
-where a marker may start (not on the terminal anchor's downbeat or past it); otherwise nothing.
+where a marker may start (not at the terminal anchor or past it); otherwise nothing.
 
 \param tempo_map Map the measure is read under.
 \param measure One-based measure.

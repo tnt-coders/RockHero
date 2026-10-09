@@ -5,6 +5,9 @@
 #include <cassert>
 #include <format>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
+#include <rock_hero/common/core/timeline/time_signature_text.h>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -46,17 +49,28 @@ ContentMap scaledPlaces(const common::core::Fraction factor)
 
 // The map is scaled exactly as the content is, so a span keeps its music and its milliseconds, and
 // only where the scaled content lands between two ticks does the transform round it.
-std::expected<common::core::SongTimeline, ReaddressError> scaledTimeline(
+std::expected<common::core::SongTimeline, std::string> scaledTimeline(
     const common::core::SongTimeline& timeline, const common::core::Fraction factor)
 {
     assert(factor > common::core::Fraction{} && "a scale factor is positive");
     const ContentMap scaled = scaledPlaces(factor);
-    std::vector<common::core::TimeSignatureChange> meters = timeline.tempo_map.timeSignatures();
+    const common::core::TempoMap& old_map = timeline.tempo_map;
+    std::vector<common::core::TimeSignatureChange> meters = old_map.timeSignatures();
     for (common::core::TimeSignatureChange& meter : meters)
     {
-        meter.place = scaled(meter.place);
+        const common::core::Fraction place = meter.place;
+        meter.place = scaled(place);
+        if (!common::core::isOnMeterLattice(meter.place))
+        {
+            // Named where the charter sees it now.
+            return std::unexpected{std::format(
+                "the {} time signature at {} would not start a whole number of 1/256 notes from "
+                "the song's start",
+                common::core::timeSignatureText(meter.meter),
+                common::core::formatGridPositionToken(old_map.gridPositionAtWholeNote(place)))};
+        }
     }
-    std::vector<PlacedAnchor> anchors = placedAnchorsOf(timeline.tempo_map);
+    std::vector<PlacedAnchor> anchors = placedAnchorsOf(old_map);
     for (PlacedAnchor& anchor : anchors)
     {
         anchor.whole_note = scaled(anchor.whole_note);

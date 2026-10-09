@@ -225,15 +225,14 @@ TEST_CASE("A meter moves a measure per press and a held run is one entry", "[cor
     CHECK(editor.timeline() == inserted);
 }
 
-// Each press of a run is built from the run's origin, because a re-address that re-seated the
-// terminal is not undone by the step back: a run walked back lands the origin exactly and leaves no
-// entry.
+// A run walked back lands the origin exactly and leaves no entry: every press keeps every place,
+// the terminal's included, so the step back is the step's exact inverse.
 TEST_CASE("A meter run walked back restores the song exactly", "[core][meters]")
 {
     MeterEditor editor;
-    // 3/4 from measure 7 leaves the terminal's whole note 8 inside a measure, so it re-seats.
+    // 3/4 from measure 7 leaves the terminal's whole note 8 on 9:3, the song ending mid-measure.
     editor.set(7, "3/4");
-    REQUIRE(common::core::terminalGridPosition(editor.tempoMap()) == beatAt(10, 1));
+    REQUIRE(common::core::terminalGridPosition(editor.tempoMap()) == beatAt(9, 3));
     const common::core::SongTimeline inserted = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
 
@@ -405,43 +404,6 @@ TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][
     editor.seek(13.25);
     editor.set(8, "6/8");
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(13.25, 1e-9));
-}
-
-// The cursor is carried as one more slice, so the marker verbs author on the note it stood on even
-// where the terminal re-seats. The eight measures of 4/4 end at 16016 ms; restated as 3/4 they end
-// mid-measure and re-seat on 12:1, about 16516.5 ms, stored as 16516, re-timing the last span by
-// about half a millisecond, more than half a tick. The note at 8:4 lands on 11:2: inside the
-// cursor's trust tolerance, so the transport stays and the cursor's column is the note's.
-TEST_CASE("A meter edit carries the cursor onto its note in a re-seated span", "[core][meters]")
-{
-    common::core::Song song = makeEightMeasureSong();
-    song.tempo_map = common::core::testing::commonTimeMap(
-        {common::core::testing::anchor("1:1", 0), common::core::testing::anchor("9:1", 16016)});
-    REQUIRE(song.arrangements.front().chart.has_value());
-    if (song.arrangements.front().chart.has_value())
-    {
-        song.arrangements.front().chart->notes.push_back(makeTestNote(beatAt(8, 4), 1, 5));
-    }
-    SongEditorHarness editor;
-    editor.open(std::move(song));
-    const double sounded = editor.tempoMap().secondsAt(beatAt(8, 4));
-    editor.seek(sounded);
-    const int seeks = editor.transport.seek_call_count;
-
-    editor.controller.onTimeSignatureSetRequested(1, "3/4");
-    REQUIRE(editor.tempoMap().anchors().back() == common::core::testing::anchor("12:1", 16516));
-    const common::core::Chart* const chart = chartOrNull(editor.controller);
-    REQUIRE(chart != nullptr);
-    if (chart != nullptr)
-    {
-        REQUIRE(chart->notes.size() == 4);
-        CHECK(chart->notes.back().position == beatAt(11, 2));
-    }
-    CHECK(editor.transport.seek_call_count == seeks);
-    CHECK_THAT(editor.transport.position().seconds, WithinULP(sounded, 0));
-    CHECK(
-        editor.state().tempo_chord_target ==
-        TempoChordTarget{InsertTempoAnchorTarget{.position = beatAt(11, 2)}});
 }
 
 } // namespace rock_hero::editor::core

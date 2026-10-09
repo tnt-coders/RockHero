@@ -164,23 +164,6 @@ TempoMapEditResult deleteTempoAnchor(
     return validated(tempo_map, std::move(anchors));
 }
 
-common::core::TempoMap reseatTerminalAnchor(const common::core::TempoMap& tempo_map)
-{
-    const std::vector<common::core::BeatAnchor>& held = tempo_map.anchors();
-    if (held.size() < 2 ||
-        common::core::measureDownbeat(held.back().position) == held.back().position)
-    {
-        return tempo_map;
-    }
-    std::vector<common::core::BeatAnchor> anchors = held;
-
-    // Covering no time at all, the growth rule only seats the terminal on the first downbeat at or
-    // after it, timed at the tempo its span already holds.
-    anchors.back() =
-        tempo_map.terminalCovering(0.0, spanSecondsPerQuarter(tempo_map, anchors.size() - 2));
-    return common::core::TempoMap{tempo_map.timeSignatures(), std::move(anchors)};
-}
-
 std::int64_t tempoAnchorNudgeMilliseconds(double pixels_per_second) noexcept
 {
     // An unreported zoom, or one so far out that a pixel spans no storable time, nudges by the

@@ -20,7 +20,7 @@ namespace
 // A meter's beat is a power-of-two note value, as notation writes meters, and one that is a whole
 // number of ticks: a 512th-note beat would leave every position in its measure, downbeats
 // included, between two ticks, which the chart rules refuse. The same rule bounds where a meter may
-// START (the meter lattice): the measure a change cuts short is itself a meter, so the remainder it
+// START (isOnMeterLattice): the measure a change cuts short is itself a meter, so the remainder it
 // leaves must be a whole number of some beat a meter may state.
 [[nodiscard]] bool isRepresentableDenominator(int denominator) noexcept
 {
@@ -44,6 +44,11 @@ namespace
 }
 
 } // namespace
+
+bool isOnMeterLattice(const Fraction place) noexcept
+{
+    return isRepresentableDenominator(place.denominator);
+}
 
 std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_map)
 {
@@ -74,7 +79,7 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
                     " must have a positive numerator and a power-of-two denominator of at most "
                     "256");
         }
-        if (!isRepresentableDenominator(signature.place.denominator))
+        if (!isOnMeterLattice(signature.place))
         {
             return refuse(
                 TempoMapErrorCode::InvalidTimeSignature,
@@ -140,13 +145,6 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
         }
 
         previous_anchor = anchor;
-    }
-
-    const GridPosition& terminal = anchors.back().position;
-    if (measureDownbeat(terminal) != terminal)
-    {
-        return refuse(
-            TempoMapErrorCode::TerminalOffDownbeat, "the terminal anchor must be on a downbeat");
     }
 
     return {};

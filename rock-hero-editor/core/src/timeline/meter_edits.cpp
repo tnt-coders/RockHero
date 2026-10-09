@@ -26,7 +26,7 @@ std::optional<int> firstRenumberedMeasure(
 }
 
 // An anchor standing where it stood keeps its time.
-std::expected<common::core::SongTimeline, ReaddressError> readdressUnderMeters(
+common::core::SongTimeline readdressUnderMeters(
     const common::core::SongTimeline& timeline,
     const std::span<const common::core::TimeSignatureChange> meters)
 {

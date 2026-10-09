@@ -663,12 +663,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // content it now holds.
     const common::core::SongTimeline& engageNoteLock();
     // The Note Lock's content laid under a new map (timeKeptTimeline), as the snapshot a tempo
-    // verb commits, or nothing once the transform's refusal is logged under `verb`. Where the
-    // history no longer stands on the origin's run — an undo below the lock-on point, a redo onto
-    // an entry from before it — the lock re-engages on the content as it stands first, since that
-    // content is the truth the edit must hold. The ONE reader of the lock's origin.
-    [[nodiscard]] std::optional<SongTimelineSnapshot> timeKeptSnapshot(
-        const common::core::TempoMap& tempo_map, std::string_view verb);
+    // verb commits. Where the history no longer stands on the origin's run — an undo below the
+    // lock-on point, a redo onto an entry from before it — the lock re-engages on the content as it
+    // stands first, since that content is the truth the edit must hold. The ONE reader of the
+    // lock's origin.
+    [[nodiscard]] SongTimelineSnapshot timeKeptSnapshot(const common::core::TempoMap& tempo_map);
     // THE Note Lock's refusal: while the lock is on, the reason every edit that would move or
     // change the song's content is turned down, in the words the refusal log and the red box
     // carry; nothing while it is off. Asked by the marker funnel's judge, the chart funnel and
@@ -1691,15 +1690,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::optional<common::core::GridPosition> landed, const ContentMap& content);
 
     // The model a held run of marker moves started from, while the next move press would continue
-    // that run (commitMarkerMove's own test); nothing when it would start one. A move that is not
-    // invertible step by step builds each press from here. Defined beside the funnel.
+    // that run (commitMarkerMove's own test); nothing when it would start one. Defined beside the
+    // funnel.
     template <typename Snapshot> [[nodiscard]] const Snapshot* markerMoveRunOrigin() const;
-
-    // The model a move press builds from: the held run's origin while the press continues a run
-    // of this kind (markerMoveRunOrigin), else `before`, the model the press found. Defined beside
-    // the funnel.
-    template <typename Snapshot>
-    [[nodiscard]] const Snapshot& runBase(const Snapshot& before) const;
 
     // What both funnels do once a model has landed: release a selection naming a marker that is
     // gone, re-derive the audible tone and the engine's tempo-derived caches, and publish.

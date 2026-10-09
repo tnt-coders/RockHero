@@ -2,7 +2,6 @@
 
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
-#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
 
 namespace rock_hero::common::core
@@ -20,7 +19,7 @@ std::string trimmedSongSectionName(std::string_view name)
     return std::string{name.substr(first, name.find_last_not_of(" \t") - first + 1)};
 }
 
-// Walks the list once in stored order, because two of the four rules are about a section's relation
+// Walks the list once in stored order, because one of the three rules is about a section's relation
 // to the one before it. The first violation is the whole answer: a caller that has one rule to fix
 // has no use for the rest, and every caller here refuses the whole list anyway.
 std::expected<void, SongSectionError> validateSongSectionRules(
@@ -39,27 +38,13 @@ std::expected<void, SongSectionError> validateSongSectionRules(
             }};
         }
 
-        // Exactly its own measure's downbeat; asking measureDownbeat rather than restating
-        // beat-1-no-offset keeps the snap the verbs apply and the position this accepts the same
-        // rule. The grid and terminal checks are the shared place rule, asked the same way the
-        // section chord's projection asks it.
-        if (!isValidGridPosition(section.position, tempo_map) ||
-            measureDownbeat(section.position) != section.position)
-        {
-            return std::unexpected{SongSectionError{
-                .code = SongSectionErrorCode::NotAMeasureDownbeat,
-                .message = "section position is not a measure downbeat: " +
-                           formatGridPositionToken(section.position),
-            }};
-        }
-
-        // The grid half already held above, so only the terminal half of the shared place rule can
-        // fire here.
+        // The shared place rule, asked the same way the section chord's projection asks it.
         if (!markerCanStartAt(section.position, tempo_map))
         {
             return std::unexpected{SongSectionError{
-                .code = SongSectionErrorCode::SectionPastTerminalAnchor,
-                .message = "section starts at or past the tempo-map terminal anchor: " +
+                .code = SongSectionErrorCode::OffGridOrPastTerminal,
+                .message = "section stands off the grid or at or past the tempo-map terminal "
+                           "anchor: " +
                            formatGridPositionToken(section.position),
             }};
         }

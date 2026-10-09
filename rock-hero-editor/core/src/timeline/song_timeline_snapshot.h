@@ -26,7 +26,7 @@ Such an edit keeps every object's time and re-addresses it, in every arrangement
 entry has to restore all of it field-equal: the map, the sections and every arrangement's chart,
 tone track and automation (\ref common::core::SongTimeline, the one definition of that set). Whole
 rather than a diff, as every marker snapshot is, because the re-address is not invertible where a
-section snapped, the terminal re-seated or a scale rounded, so no replay could restore those.
+scale rounded, so no replay could restore it.
 */
 struct SongTimelineSnapshot
 {

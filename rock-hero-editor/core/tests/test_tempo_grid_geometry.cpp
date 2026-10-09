@@ -364,6 +364,44 @@ TEST_CASE("Nearest tempo grid time clamps to the authored beat range", "[core][t
         common::core::TimePosition{4.0});
 }
 
+// A song may end mid-measure: the grid runs to the terminal's own position, a line on it included,
+// and no line past it. At a quarter a second, a terminal on 2:3+1/2 ends the eighth-note grid on
+// its own line at 6.5 s and the quarter-note grid one line earlier, on 2:3.
+TEST_CASE("Tempo grid lines stop at a mid-measure terminal", "[core][tempo-grid]")
+{
+    const common::core::TempoMap map{
+        common::core::testing::commonTime(),
+        std::vector{anchor("1:1", 0), anchor("2:3+1/2", 6500)},
+    };
+    constexpr common::core::Fraction eighth_note_grid{1, 8};
+    constexpr common::core::TimeRange window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{8.0},
+    };
+    constexpr int width = 801;
+
+    const std::vector<TempoGridLine> eighths =
+        visibleTempoGridLines(map, eighth_note_grid, window, width, 0, width);
+    REQUIRE(eighths.size() == 14);
+    CHECK(eighths.back().x == 650);
+    CHECK(eighths.back().measure == 2);
+    const std::vector<TempoGridLine> quarters =
+        visibleTempoGridLines(map, g_quarter_note_grid, window, width, 0, width);
+    REQUIRE(quarters.size() == 7);
+    CHECK(quarters.back().x == 600);
+
+    // Past the end, the snap lands on the last line, the terminal's own on the eighth grid.
+    const common::core::GridPosition terminal{
+        .measure = 2, .beat = 3, .offset = common::core::Fraction{1, 2}
+    };
+    CHECK(
+        nearestTempoGridPosition(map, eighth_note_grid, common::core::TimePosition{9.0}) ==
+        terminal);
+    CHECK(
+        nearestTempoGridTime(map, g_quarter_note_grid, common::core::TimePosition{9.0}) ==
+        common::core::TimePosition{6.0});
+}
+
 // Verifies a degenerate anchorless map resolves to its clamp position instead of failing.
 TEST_CASE("Nearest tempo grid time tolerates an anchorless map", "[core][tempo-grid]")
 {

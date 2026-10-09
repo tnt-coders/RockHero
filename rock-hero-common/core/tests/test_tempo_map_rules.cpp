@@ -91,9 +91,16 @@ TEST_CASE("Tempo map rules refuse each violation", "[core][tempo-map]")
     CHECK(
         refusalOf({anchor("1:1", 0), anchor("2:1", 3000), anchor("3:1", 3000)}) ==
         TempoMapErrorCode::UnorderedAnchors);
-    CHECK(
-        refusalOf({anchor("1:1", 0), anchor("2:2", 4000)}) ==
-        TempoMapErrorCode::TerminalOffDownbeat);
+}
+
+// The terminal is an anchor like any other: a song may end mid-measure, on a short final bar, and
+// the last reign keeps the governing meter rather than deriving one for the cut.
+TEST_CASE("Tempo map rules accept a terminal mid-measure", "[core][tempo-map]")
+{
+    const TempoMap short_last_bar = commonTimeMap({anchor("1:1", 0), anchor("2:2+1/2", 4000)});
+    CHECK(validateTempoMapRules(short_last_bar).has_value());
+    CHECK(short_last_bar.reigns().size() == 1);
+    CHECK_FALSE(short_last_bar.timeSignatureAt(2).derived);
 }
 
 // A meter may start mid-measure, cutting the bar before it short, but only where the cut bar is
@@ -164,16 +171,12 @@ TEST_CASE("Tempo map rules place a meter on the meter lattice", "[core][tempo-ma
 }
 
 // Verifies the anchor rules hold for a position between two beats: the first anchor is exactly
-// 1:1, the terminal a downbeat with no offset, every anchor a valid grid position, and the order
-// the full position's.
+// 1:1, every anchor a valid grid position, and the order the full position's.
 TEST_CASE("Tempo map rules refuse sub-beat anchor violations", "[core][tempo-map]")
 {
     CHECK(
         refusalOf({anchor("1:1+1/2", 0), anchor("3:1", 4000)}) ==
         TempoMapErrorCode::FirstAnchorLate);
-    CHECK(
-        refusalOf({anchor("1:1", 0), anchor("2:1+1/2", 4000)}) ==
-        TempoMapErrorCode::TerminalOffDownbeat);
 
     // A seventh of a beat is no whole number of ticks, so the position is off the lattice.
     CHECK(

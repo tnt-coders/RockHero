@@ -248,11 +248,4 @@ template <typename Snapshot> const Snapshot* EditorController::Impl::markerMoveR
     return std::get_if<Snapshot>(&*m_marker_move_origin);
 }
 
-template <typename Snapshot>
-const Snapshot& EditorController::Impl::runBase(const Snapshot& before) const
-{
-    const Snapshot* const origin = markerMoveRunOrigin<Snapshot>();
-    return origin != nullptr ? *origin : before;
-}
-
 } // namespace rock_hero::editor::core

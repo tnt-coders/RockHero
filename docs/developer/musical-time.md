@@ -372,13 +372,16 @@ through the content map (`readdressedPosition`), rounding onto the tick lattice
 A ring's `sustain` and a keyframe's `offset` are note values — differences on the whole-note axis
 — so a meter edit, whose content map keeps every place, leaves them untouched. Scale Tempo and the
 Note Lock move places, so each is re-expressed as the difference of its mapped ends,
-P(p+d) − P(p), which keeps every ring end and keyframe on the tick lattice. A later meter
-keeps its time, so a reign that is no longer a whole number of measures before it refuses the
-edit, naming the meter where it stands now; a section left mid-measure snaps to its measure's
-downbeat; a terminal left mid-measure re-seats on the next downbeat (`reseatTerminalAnchor`).
-The commit carries the cursor as one more slice (`commitGridModel` takes the verb's content map
-and asks `readdressedPosition`), so its column lands on what it stood on even where the terminal
-re-seat re-times the last span. The transport follows only where it no longer stands within the
+P(p+d) − P(p), which keeps every ring end and keyframe on the tick lattice. Nothing moves in
+time: a later meter keeps its place, so a reign that is no longer a whole number of measures
+before it ends in a derived short bar (`TempoMap::reigns`); a section left mid-measure stays
+there; a terminal left mid-measure stays too, the song ending on a short final bar. The transform
+refuses nothing — a reign left shorter than one of its measures is the tempo-map rules' refusal
+(`ReignTooShort`), asked at the commit — and Scale Tempo alone refuses a factor that would carry
+a meter off the meter lattice (`isOnMeterLattice`), naming the meter where it stands now. The
+commit carries the cursor as one more slice (`commitGridModel` takes the verb's content map and
+asks `readdressedPosition`), so its column lands on what it stood on. The transport follows only
+where it no longer stands within the
 cursor's one-millisecond trust tolerance of that place (`carryCursorTo`), so an edit that holds
 time moves it only by the tick rounding the content under it takes too, which passes a millisecond
 only at slow tempos. Tempo edits are the contrast: there the grid is truth, and their content map,

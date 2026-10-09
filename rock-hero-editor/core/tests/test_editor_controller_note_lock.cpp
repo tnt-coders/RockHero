@@ -7,7 +7,6 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/song.h>
@@ -150,10 +149,7 @@ constexpr std::array<TypedTempo, 8> g_typed_tempos{{
 void checkHeldFrom(const SongTimeline& origin, const SongEditorHarness& editor)
 {
     const SongTimeline after = editor.timeline();
-    const std::expected<SongTimeline, ReaddressError> once =
-        timeKeptTimeline(origin, after.tempo_map);
-    REQUIRE(once.has_value());
-    CHECK(after == *once);
+    CHECK(after == timeKeptTimeline(origin, after.tempo_map));
     checkTimesHeld(origin, after, 0.0);
 }
 

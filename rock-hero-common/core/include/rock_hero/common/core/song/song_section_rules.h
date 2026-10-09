@@ -23,11 +23,11 @@ enum class SongSectionErrorCode : std::uint8_t
     /*! \brief A section name is empty, or holds nothing but surrounding whitespace. */
     EmptyName,
 
-    /*! \brief A section position is not a measure downbeat on the tempo map's grid. */
-    NotAMeasureDownbeat,
-
-    /*! \brief A section starts at or past the tempo map's terminal anchor, naming no passage. */
-    SectionPastTerminalAnchor,
+    /*!
+    \brief A section stands off the tempo map's grid, or at or past its terminal anchor, naming no
+    passage.
+    */
+    OffGridOrPastTerminal,
 
     /*! \brief Section positions are not strictly ascending, so one repeats or reverses another. */
     UnsortedOrRepeatedPositions,
@@ -59,13 +59,12 @@ so the stored name and the accepted name can never disagree.
 /*!
 \brief Validates the structural song-section rules shared by editing and persistence.
 
-Checks non-empty names (after \ref trimmedSongSectionName), positions that are real measure
-downbeats (\ref measureDownbeat — a section names a passage that begins at a barline, and the board
-promotes that downbeat's own bar rather than drawing a mark of its own) on the tempo map's grid,
-every position lying strictly before the terminal anchor (a section starting on the closing barline
-would name a passage of no length),
-and strictly ascending positions — strictly, because two sections at one position would make "which
-section governs this moment" answer arbitrarily.
+Checks non-empty names (after \ref trimmedSongSectionName), positions where a marker may start
+(\ref markerCanStartAt: on the tempo map's grid and strictly before the terminal anchor, since a
+section starting on the closing barline would name a passage of no length — a section is a named
+instant anywhere on the grid, a measure downbeat or not), and strictly ascending positions —
+strictly, because two sections at one position would make "which section governs this moment"
+answer arbitrarily.
 
 \param sections Section markers to validate, in the order they are stored.
 \param tempo_map Tempo map the section positions must address.

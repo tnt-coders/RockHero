@@ -180,13 +180,11 @@ TEST_CASE("Scale Tempo dissolves an armed caret onto its own time", "[core][scal
     CHECK(editor.state().keyboard_move_count == moves);
 }
 
-// The cursor is carried as one more slice, so the marker verbs author on the note it stood on even
-// where the terminal re-seats. Nine measures of 4/4 at about 240 BPM end at 9004 ms; halved they
-// end on 5:3 and re-seat on 6:1, whose 10004.4 ms rounds to 10004, re-timing the last span by more
-// than half a tick near its end. The note at 9:4 lands on 5:2+1/2, about 0.4 ms from where it
-// sounded: inside the cursor's trust tolerance, so the transport stays and the cursor's column is
-// the note's.
-TEST_CASE("Scale Tempo carries the cursor onto its note in a re-seated span", "[core][scale-tempo]")
+// The cursor is carried as one more slice, so the marker verbs author on the note it stood on. Nine
+// measures of 4/4 at about 240 BPM end at 9004 ms; halved they end on 5:3, the song's last bar
+// half a measure, still at 9004 ms. The note at 9:4 lands on 5:2+1/2 exactly where it sounded, so
+// the transport stays and the cursor's column is the note's.
+TEST_CASE("Scale Tempo carries the cursor onto its note", "[core][scale-tempo]")
 {
     common::core::Song song = makeEightMeasureSong();
     song.tempo_map = common::core::testing::commonTimeMap({anchor("1:1", 0), anchor("10:1", 9004)});
@@ -202,7 +200,7 @@ TEST_CASE("Scale Tempo carries the cursor onto its note in a re-seated span", "[
     const int seeks = editor.transport.seek_call_count;
 
     editor.controller.onScaleTempoRequested("1/2");
-    REQUIRE(editor.tempoMap().anchors().back() == anchor("6:1", 10004));
+    REQUIRE(editor.tempoMap().anchors().back() == anchor("5:3", 9004));
     const GridPosition landed{.measure = 5, .beat = 2, .offset = common::core::Fraction{1, 2}};
     const common::core::Chart* const chart = chartOrNull(editor.controller);
     REQUIRE(chart != nullptr);

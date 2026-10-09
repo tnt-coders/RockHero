@@ -289,12 +289,11 @@ public:
     /*!
     \brief Returns the terminal anchor grown to cover a time.
 
-    The terminal moves to the first downbeat at or after its own position whose time reaches
-    \p cover_until_seconds, timed from the last anchor before it at \p seconds_per_quarter and
-    rounded to a whole millisecond once, so a long extension carries no accumulated rounding. A
-    terminal on a downbeat that already covers the time comes back unchanged: it never moves
-    earlier. A terminal left mid-measure (a meter edit's re-addressed map) always moves, so a
-    zero time re-seats it on the next downbeat and nothing further.
+    A terminal that already covers the time comes back unchanged, wherever it stands: it never
+    moves earlier. Otherwise it moves to the first downbeat after its own position whose time
+    reaches \p cover_until_seconds, timed from the last anchor before it at \p seconds_per_quarter
+    and rounded to a whole millisecond once, so a long extension carries no accumulated rounding,
+    and a grown terminal always stands on a downbeat.
 
     \param cover_until_seconds Time the map must reach, such as the end of the song's audio.
     \param seconds_per_quarter Tempo the last span keeps, as seconds per quarter note.
@@ -461,16 +460,6 @@ public:
         // monotonically so the beat-to-quarter conversion stays amortized constant time.
         std::size_t m_segment{0};
     };
-
-    /*!
-    \brief Returns the terminal anchor's global beat index.
-
-    Honest because the tempo-map rules hold the terminal on a downbeat with no offset, so its
-    position is a whole beat.
-
-    \return Zero-based global beat index for the terminal anchor.
-    */
-    [[nodiscard]] std::int64_t terminalGlobalBeatIndex() const noexcept;
 
     /*!
     \brief Compares two tempo maps by their stored fields.

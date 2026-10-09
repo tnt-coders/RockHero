@@ -7,7 +7,6 @@
 
 #include "timeline/timeline_readdress.h"
 
-#include <expected>
 #include <optional>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -36,13 +35,14 @@ of the two terminals.
 \brief Re-addresses the whole song under a new meter list, every object keeping its time.
 
 The meter edits' driver of \ref readdressTimeline: the anchors stay where they stand and the
-content map is \ref keptPlace, so every place is kept exactly and nothing rounds.
+content map is \ref keptPlace, so every place is kept exactly, nothing rounds, and re-addressing
+the result under the old meters restores the timeline exactly.
 
 \param timeline Timeline to re-address; its tempo map holds the meters being replaced.
 \param meters The new meter list, in order, the first at whole note 0.
-\return The re-addressed timeline, or the refusal.
+\return The re-addressed timeline, not yet validated.
 */
-[[nodiscard]] std::expected<common::core::SongTimeline, ReaddressError> readdressUnderMeters(
+[[nodiscard]] common::core::SongTimeline readdressUnderMeters(
     const common::core::SongTimeline& timeline,
     std::span<const common::core::TimeSignatureChange> meters);
 

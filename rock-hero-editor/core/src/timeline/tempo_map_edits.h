@@ -102,20 +102,6 @@ The exact inverse of \ref insertTempoAnchor: the two spans beside it merge into 
     const common::core::TempoMap& tempo_map, common::core::GridPosition position);
 
 /*!
-\brief Moves a terminal anchor standing off a downbeat to the first downbeat after it.
-
-A meter edit keeps every anchor's time, so the terminal it re-addresses can land mid-measure, where
-no terminal may stand. It moves later, never earlier, so nothing the map closes ends up past it,
-and the last span keeps its tempo: it is the terminal growth rule asked to cover no time
-(\ref common::core::TempoMap::terminalCovering). A terminal already on a downbeat comes back
-unchanged.
-
-\param tempo_map Map whose terminal may stand mid-measure.
-\return The map with its terminal on a downbeat.
-*/
-[[nodiscard]] common::core::TempoMap reseatTerminalAnchor(const common::core::TempoMap& tempo_map);
-
-/*!
 \brief Returns the time one keyboard nudge moves an anchor: one on-screen pixel.
 
 Zoom is the precision control, so a nudge is the smallest change the charter can see, and never

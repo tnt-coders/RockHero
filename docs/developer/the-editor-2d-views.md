@@ -216,7 +216,7 @@ and verbs (`Enter`, `Ctrl+R`, Delete, Alt+arrow moves) dispatch on whichever alt
 That dispatch is why the ruler's section chips needed almost no chords of their own: `Enter`
 restates the selected section, `Ctrl+R` renames it (`RenameSelection`, `0x1405`, which also renames
 a selected tone region's TONE and is silently inert on every kind with no name), `Delete` deletes it
-and `Alt+←/→` moves it one MEASURE (a section starts on a downbeat and nowhere else, so a
+and `Alt+←/→` moves it one MEASURE (the section verbs place a section on a downbeat, so a
 measure is its step) — all by reaching a new alternative. The one chord a section owns is
 `Ctrl+M`, which under the marker grammar signed 2026-09-12 and re-ruled 2026-09-14 reads the cursor
 and never the selection: it restates the section standing at the cursor's measure downbeat, else
