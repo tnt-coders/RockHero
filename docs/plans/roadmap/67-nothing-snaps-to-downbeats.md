@@ -5,7 +5,7 @@ Lock change (round once from the lock's origin; content frozen while locked), af
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
 file stores every position as a whole-note place, so a meter edit rewrites nothing but the meter)
-— a recommendation the user has NOT yet ruled on; Phase 1 waits on it. §9 records the user's
+— DECIDED by the user 2026-10-08, spelled as a canonical mixed number (`"11+3/4"`). §9 records the user's
 decisions Q1–Q7. Supersedes plan 65's Q3 and Q4 and plan 66's Q2 and decision 6; the sighting of
 plans 65 and 66 can run on this plan's result instead of theirs.
 
@@ -260,7 +260,12 @@ whole part, then `+n/d` for a remaining fraction in (0, 1) in lowest terms, each
 zero (`"11+3/4"`, `"12"`, `"3/8"`, `"0"`); an improper spelling (`"47/4"`) is refused, so every
 value has one spelling. It replaces the rational grammar for durations too (`"1+1/2"`, not
 `"3/2"`), so the file still has ONE number grammar, and it echoes the tokens' `+n/d`. Whether the
-file stores counts at all awaits the user's ruling. The performance probe (2026-10-08,
+file stores counts at all was **DECIDED 2026-10-08 (user): counts everywhere.** The deciding
+reason is correctness, not speed or diff size: a bar:beat token means a moment only together with
+every meter before it, so any change to a meter that is not followed by the editor's re-address —
+a hand edit, a git merge of a meter change with note edits, an external writer — silently moves
+every later object in time, while a count means the same moment whatever the meters say. The
+cost accepted: reading an object's bar in the raw file takes arithmetic. The performance probe (2026-10-08,
 `relwithdebinfo`, 50,000 notes) settles nothing either way: the file change alone is
 runtime-neutral (load 1.5 ms faster, save 3 ms slower), and B' would save only the 3.5% of a
 rebuild spent converting positions — `chartNotePlaces` already converts each note once per
@@ -412,8 +417,10 @@ places).
 ### 2.3 The place at the package boundary (revised by §1a)
 
 Every `at` in the package — a meter, an anchor, a section, a note, a fret-hand position, a tone
-change, an automation point — is a whole-note place spelled by `formatFractionToken` (`"47/4"`,
-`"11"`, `"0"`). The reader reads the meters first, as places, validates them (§2.1) and builds the
+change, an automation point — is a whole-note place spelled as the canonical mixed number §1a
+decided (`"11+3/4"`, `"11"`, `"3/8"`, `"0"`; an improper `"47/4"` refused), and so is every
+duration (`sustain`, keyframe offsets), so the file keeps one number grammar: the existing
+`formatFractionToken` / `parseFractionToken` pair becomes that grammar for every caller. The reader reads the meters first, as places, validates them (§2.1) and builds the
 grid-only `TempoMap` from them; every other place is validated on the tick lattice and turned into
 the in-memory `GridPosition` through `gridPositionAtWholeNote`. The writer runs `wholeNotePositionAt`
 the other way. No position is read under a prefix of anything: a meter is a place like every other,
@@ -472,7 +479,8 @@ Grouped by the decision each hides; file:line is today's.
   `timeline_readdress.h:29-44` `PlacedMeter` deleted into it.
 - `rock_song_package_read.cpp:282-339` reads each meter's `at` as a whole-note place and refuses
   `measure`; `rock_song_package_write.cpp:153, 368-374` writes the place through
-  `formatFractionToken`. Every other `at` in the reader, the writer and `chart_document.cpp`
+  `formatFractionToken`, which (with `parseFractionToken`) now spells and reads the canonical
+  mixed number for places and durations alike. Every other `at` in the reader, the writer and `chart_document.cpp`
   (eleven token sites) converts between place and `GridPosition` through the grid-only map (§2.3).
 - `gp_chart_builder.cpp:162-179` accumulates places (the sum of the bars before each change)
   instead of measure numbers; `:183` `grid_only` unchanged in role.
@@ -653,7 +661,8 @@ suites. New files follow the placement procedure; comments follow
   speaking whole-note places for every `at` (§2.3), `measure` refused; the in-memory
   `TimeSignatureChange` fixtures rewritten (a fixture helper taking a token, `meterAt("12:1", 7, 8)`,
   resolved under the fixture's earlier meters, keeps the tests readable); the package and document
-  tests' spellings moved to places.
+  tests' spellings moved to places; the number grammar's tests pin the canonical mixed spelling
+  (`"11+3/4"` round-trips, `"47/4"` and `"0+3/4"` are refused, durations spell the same way).
 - **Failing tests first:** a map with a meter at place `21/4` under 4/4 derives bar 6 as 1/4 and
   the 7/8 from bar 7, with `beatsPerMeasureAt(6) == 1` and `6:2` not a valid grid position;
   `4/4 → 7/8` after four whole notes derives 4/8, `7/8 → 3/4` after one bar derives 1/8; a reign
@@ -788,8 +797,8 @@ grammar (`"m:b+n/d"`) is the editor's address of a place, not the file's".
 
 **`docs/developer/file-formats.md`, tempoMap** — the rows:
 
-> | `timeSignatures[].at` | string | req | Whole-note place (`formatFractionToken`: `"16"`,
-> `"47/4"`) of the first downbeat it governs; the first is `"0"`; strictly ascending; on the meter
+> | `timeSignatures[].at` | string | req | Whole-note place, a canonical mixed number (`"16"`,
+> `"11+3/4"`) of the first downbeat it governs; the first is `"0"`; strictly ascending; on the meter
 > lattice (a whole number of the finest beat a meter may state, 1/256 note), so the measure it cuts
 > short is itself a meter; each time signature governs at least one whole measure. |
 > | `anchors[].at` | string | req | Whole-note place on the tick lattice (a denominator dividing
