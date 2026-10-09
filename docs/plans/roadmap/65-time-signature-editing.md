@@ -149,7 +149,8 @@ Carried from plan 41 (they stand):
     it and `Alt+←` onto or from it are refused and logged, as the first tempo anchor's delete is.
   - *Redundant meters:* the snapshot's `normalize()` drops a change equal to its predecessor (the
     `coalesceToneRegions` law), so inserting the prevailing meter is `Unchanged` and records
-    nothing.
+    nothing. **Narrowed by plan 67:** only a repeat on one of its predecessor's downbeats is
+    redundant; a repeat off that grid cuts a derived short bar and is kept (`53863575`).
   - *The prompt:* one text field ("7/8") parsed in the core, as the BPM text is; the rules refuse
     a bad denominator; the chord's target is nothing while playing, with no song, or when the
     cursor's measure downbeat fails `markerCanStartAt`.
