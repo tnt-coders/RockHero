@@ -183,7 +183,7 @@ not a contradiction — it is the point of templates.
 
 ## The template's content, the picker, and the FHP coupling (2026-09-05, fingering design conversation)
 
-The FHP-push endgame (see `docs/plans/in-progress/fhp-derivation-algorithm.md`) walked this
+The FHP-push endgame (see `docs/plans/completed/fhp-derivation-algorithm.md`) walked this
 design again from the fingering side and landed on the standing model with these sharpenings:
 
 - **Entry content**: `{name, fingering, stops}` with fingering keyed by string. **Stacked

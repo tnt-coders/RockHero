@@ -881,7 +881,7 @@ form now derives exactly what the tapped one always did and the two columns say 
 The plant stays in the wide table (`chartPlantedStops`), but what it proves was re-ruled 2026-09-19:
 a finger on that fret AT THE RELEASE, and nothing about the source's ring before it. The FRET-HAND
 POSITION derivation is meant to reach that finger — law 12 of
-`docs/plans/in-progress/fhp-derivation-algorithm.md` (RULED 2026-09-18) — but **nothing reads the
+`docs/plans/completed/fhp-derivation-algorithm.md` (RULED 2026-09-18) — but **nothing reads the
 table for it today**: the generator, the hand window and the highway carry no reference to it, so
 that law is unbuilt rather than merely unsatisfied. The hold-under law no longer reads the plant
 bare either: `gripStatement` admits it to a grip only where the string is demonstrably already at

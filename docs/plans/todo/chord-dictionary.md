@@ -101,7 +101,7 @@ as the model's constraint; revisit only on a concrete counterexample.
   fret across strings — the standard power chord's 1-3-4) are first-class; a barre is one
   finger. Fingering feeds FHP anchor placement (`anchor = floor − (floor's finger − 1)`); the
   per-instance inline-finger override precedence above is unchanged. The FHP integration and
-  the derived-FHP-stream proposal live in `docs/plans/in-progress/fhp-derivation-algorithm.md`.
+  the derived-FHP-stream proposal live in `docs/plans/completed/fhp-derivation-algorithm.md`.
 
 ## Open points for the build-time ruling
 

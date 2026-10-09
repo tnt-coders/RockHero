@@ -301,7 +301,7 @@ the import authors none, so every position is derived at read, once per chart re
 holds (notes, then grips, then positions: the spans never read the hand), by the 13-rule
 figure-segmented floor tracker,
 `common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`); the measured algorithm and the
-rulings it is built to are in `docs/plans/in-progress/fhp-derivation-algorithm.md` and plan 60 §9.
+rulings it is built to are in `docs/plans/completed/fhp-derivation-algorithm.md` and plan 60 §9.
 The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
 statement: it stands until the chart contradicts it. A project whose stored positions predate the
 derivation keeps them all as authored; the editor's Prune Hand Positions command removes each one

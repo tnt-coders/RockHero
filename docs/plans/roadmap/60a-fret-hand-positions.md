@@ -2,13 +2,16 @@
 
 ## Status
 
-**Sub-plan of `docs/plans/roadmap/60-the-hand.md`, split out 2026-10-04.** Phases 0 and 1 are
+**Sub-plan of `docs/plans/roadmap/60-the-hand.md`, split out 2026-10-04.** Phases 0, 1 and 2 are
 DONE (Phase 1 closed 2026-10-04 at 88.213% exact, identical to its reference). The master's
-rename sweep is DONE (`c910b8d8`). Phase 2 is BUILT through step 4 of 5 (2026-10-05: `16878e2f`
-the derivation takes authored positions, `3b8966db` positions derive at read, `b8eb6f82` and
-`959fcb9c` the slide-out ride, then the row walking every position with the prune command);
-unsighted. NEXT: step 5 (the one chart rule), the sighting, then Phase 3 (the position row's
-remainder). Positions are finished before the holds plan (`60b-holds.md`) starts.
+rename sweep is DONE (`c910b8d8`). **Phase 2 is DONE 2026-10-08, its sighting included (sighted
+2026-10-07):** `16878e2f` the derivation takes authored positions; `3b8966db` positions derive at
+read; `b8eb6f82` and `959fcb9c` the slide-out ride; `3d8bb3a1` the row over every position, with
+Prune; `c074b721` and `3a74bb34` the coverage rule, with drop-on-load; `1ef9a5f8` holds as
+demands; `355fd52f` the slide rule; `b4a66c15` and `0f4e71e6` the node fret and the capo floor;
+`9edb7138` and `fff2dd1f` the two-layer derivation; `b95ce8f1` the hand demands; and the close-out
+`9a4375f9`, `a98149cb`, `cc479791` and `51e10165`. Scorer 88.175% exact. NEXT: Phase 3; positions
+are finished before the holds plan (`60b-holds.md`) starts.
 
 Section numbers are the family's (the master's §0 has the map): §§1–6, the G60 gate record of §9
 and §§10–12 are in the master; the phases, §8 and the rulings below keep the numbers they had.
@@ -24,17 +27,18 @@ Saved as `positions[]`, today `fhps`.
 - **Positions derive at read** (60-Q4 stands); the list stores only what the charter authored, and
   a fresh import stores none.
 - **An authored position stands until the chart contradicts it.** Its window is `[fret, endFret]`
-  where the end is stated, else the stated fret up to the top of the run it heads, never under
+  where the end is stated, else the stated fret up to the top of the run it heads and of every
+  stop gripped at its instant (`forEachGrippedStop`, the coverage rule's own query), never under
   four frets (Phase 2 build rulings, 2026-10-05). It stands through every later instant that fits
   inside that window and emits nothing; the derivation resumes at the first demand outside it.
   This answers the "scope of a stated fret" question Phase 2 carried: neither "the run it heads"
   nor "until the next marker".
 - **Whether a note at an authored position's own instant, outside its window, is REFUSED** was
   ruled yes on 2026-10-04 and re-ruled as ONE chart rule on 2026-10-05; Phase 2's build rulings
-  carry it and what is owed before it is switched on. The derivation needs no refusal: a position
-  owns its own instant. A note later on is never refused; the position stops standing there.
-- **Chords:** `Ctrl+P` inserts or restates, `Ctrl+Shift+P` jumps to the row. The built `Ctrl+H`
-  pair moves there.
+  carry it; it is built (`3a74bb34`). The derivation needs no refusal: a position owns its own
+  instant. A note later on is never refused; the position stops standing there.
+- **Chords:** `Ctrl+P` inserts or restates, `Ctrl+Shift+P` jumps to the row. Moved in the rename
+  sweep.
 
 ## 7. Phases — 0 to 3
 
@@ -206,8 +210,8 @@ through these changes:
   `MarkerRow::Hand` rename's touch list below is the `positions` rename's.
 - **The resolutions pass takes the authored positions** as its input beside the notes; no hold
   reaches it in this phase, and nothing about holds is built here.
-- **Validation gains one rule:** a note at an authored position's own instant, outside its
-  window, is refused.
+- ~~**Validation gains one rule:** a note at an authored position's own instant, outside its
+  window, is refused.~~ SUPERSEDED by the build rulings' coverage rule (gripped, not struck).
 - Unchanged: the events inside `ChartResolutions`, the pass order, the importer storing nothing,
   everything this phase deletes, the exit-ride and dip ruling, the converter note, the sighting.
 
@@ -256,7 +260,7 @@ answers). These are the current reading wherever the older text below disagrees.
   this is step 3, and Phase 2 is not sighted without it.
 - **The steps, renumbered:** (1) the derivation accepts authored positions, DONE; (2) positions
   derive at read, DONE; (3) the slide-out motion, DONE; (4) the row walks the derived positions,
-  with the prune command, DONE; (5) the refusal.
+  with the prune command, DONE; (5) the coverage rule, DONE.
 - **Step 4 as built (2026-10-05):** the row's markers ARE the hand events' chips. A derived chip
   draws as a ghost (user), an authored one solid. A verb that STATES something on a derived
   position (a fret or an end fret) first authors the standing fret there, as `Ctrl+P` does, in one
@@ -293,11 +297,14 @@ answers). These are the current reading wherever the older text below disagrees.
 - **`Ctrl+P` states the fret already standing at the cursor,** the nut window where nothing
   stands. `defaultedPlacement`'s stop fold is gone; the function stays as that one statement,
   which every stating verb on a derived position also goes through (step 4).
-- **`chartResolutions` takes the `Chart`** (notes, authored positions, capo). There are 20 call
-  sites, 18 of them in tests, not the 28 counted below. `FretHandEvent` moves beside `FretWindow`
-  in `chart.h`, since `chart_fret_hand.h` includes `chart_legato.h`.
+- **As built:** the notes layer `chartResolutions(notes, capo, tempo_map)` carries
+  `FretHandDemands`; authored positions enter only the hand layer,
+  `fretHandResolutions(notes_layer, positions, tempo_map)`. `FretHandEvent` sits beside
+  `FretWindow` in `chart.h`.
 - **Every census fret-hand row is re-signed** on the derived events, which gain width-only changes
   and lose the fabricated placements.
+
+SUPERSEDED by the REVISED note and the build rulings; kept as record.
 
 The marker's `fret` becomes OPTIONAL; the record is then `{position, fret?, endFret?}` — a forced
 statement boundary carrying an optional direct window statement — under the key 60-H2 settles
@@ -368,7 +375,13 @@ Not here: the free-note finger (no writer exists — the GP parser reads none �
 the field until Phase 5's import wiring) and the open-stretch window statement as a separate
 record (subsumed: a marker with a stated fret over silence IS that statement, §9 item 4).
 
-### Phase 3 — the hand marker and the hand row — REMAINDER (needs Phase 2)
+### Phase 3 — the position row's sighting and owed tests
+
+**Status (2026-10-08):** items 1, 2 and 6 were built in Phase 2 (`3d8bb3a1`): the row's objects
+are the hand events, an authored chip draws solid beside the derived ghost, and Prune is item 6,
+with their tests in `test_editor_controller_marker_rows.cpp` and `test_tab_paint_core.cpp`. Item 3
+(rail selection) lives in `60b-holds.md`. What remains is the sighting brief and the tests §8 still
+owes.
 
 **REVISED 2026-10-04 (§1a).** The row is the POSITION row, and its items read so: item 1 (the
 derived events as the row's objects) and item 2 (the authored tell) stand, for positions; item 3
@@ -413,8 +426,8 @@ Phase 3). It reuses the marker-row model wholesale: every marker row walks as
 `MarkerFocusRow{row}`, one holder function, one landing, one selection mapping, one jump action.
 
 **The row and its objects (60-H3).** One row between the time signature and the strings. Its
-objects are today the stored placements and, from Phase 3, the derived **hand events** of §2 read
-from `ChartResolutions`, some of them pinned by authored markers. Identity is by front position.
+objects are the hand events (`FretHandResolutions::events`), derived and authored alike. Identity
+is by front position.
 Because every event carries a window and windows tile the song (the first owns the lead-in), the
 row always has a holder once any event exists — the "gap" of the former span row applies only to
 the SHAPE half, never to the row: the holder function — ~~`markerHolderAt(MarkerRow,
@@ -434,7 +447,7 @@ holder is computed at that column BEFORE the caret is demoted.
 
 **Walk, reach, Tab, jump.** `↑` from the top string and `↓` from the time signature land on the
 row's holder; `Ctrl+↑/↓` reach it as its own group; `Tab`/`Shift+Tab` step to the adjacent front;
-`Ctrl+Shift+H` jumps and is silent with no events. Landing from the lead-in selects the first
+`Ctrl+Shift+P` jumps and is silent with no events. Landing from the lead-in selects the first
 event, whose only outlined mark may be its own scrolling chip off-screen to the right — the same
 accepted trade as a late first section.
 
@@ -449,9 +462,9 @@ wherever it stands (`selected_fret_hand_position`).
 **Acting on an off-screen selection** reveals it (60-H6) — built on the shipped marker rows
 (keyboard-focus-rows 4d) and inherited here.
 
-**Verbs on the row.** `Ctrl+H` at the cursor authors or restates the marker; `Delete` removes
-an authored marker, authors a zone over a derived span (Phase 4), and is inert on a derived event
-with no shape (a derived position is not directly deletable, by law 7); `Alt+←/→` moves the
+**Verbs on the row.** `Ctrl+P` at the cursor authors or restates the marker; `Delete` removes
+an authored marker, and is inert on a derived event with no shape (a derived position is not
+directly deletable, by law 7); `Alt+←/→` moves the
 marker and is inert on a derived front (§9 item 8); the tail keys move the end only if Phase 3's
 open END question builds them; digits
 pin the floor, `Alt`+digits the top, `Alt+Delete` clears the top; `Enter` opens the template
@@ -460,10 +473,12 @@ picker on an event with a shape (Phase 5); `Ctrl+R` is inert until an event has 
 
 **Tests still owed** (the stopgap's cover the built verbs): the row walking derived events on a
 fixture chart with no markers; a marker pinning an event the derivation also fronts (no
-duplicate); the authored-tell pixels; pointer selection from rails; `chartSpanRevealed`'s selected
-ground; `test_tab_paint_core.cpp` exported rail bounds matching the drawn rails; `Alt+←/→`
-inert on a derived front; the end move's fit test at each refusal, if built; "drop markers that
-state nothing" keeping exactly the markers whose removal changes an event or a span; a
+duplicate); ~~the authored-tell pixels~~ (landed: "Tab FHP chip draws a derived position as a
+ghost"); pointer selection from rails; `chartSpanRevealed`'s selected ground;
+`test_tab_paint_core.cpp` exported rail bounds matching the drawn rails; ~~`Alt+←/→` inert on a
+derived front~~ (landed: "Delete and the move refuse a derived position"); the end move's fit test
+at each refusal, if built; ~~"drop markers that state nothing" keeping exactly the markers whose
+removal changes an event~~ (landed: "The prune removes exactly the redundant stored positions"); a
 strictly-ascending-fronts invariant over the derived events in `test_chart_shapes.cpp` and a
 local census row for it.
 
@@ -616,8 +631,8 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
   and before the record exists by the funnel (built, the stopgap) — not a keyed container type.
 - **60-D7 — release when "the front names nothing"**, not on any chart edit. Built.
 - **60-D8 — zero-length spans stay out of the row.** Stands.
-- **60-D9 — one lazy hand-stream cache.** Resolved by Phase 2: the events live inside
-  `ChartResolutions`, no second cache.
+- **60-D9 — one lazy hand-stream cache.** Resolved by Phase 2: the events live in the hand layer,
+  `FretHandResolutions`, memoized beside the notes layer.
 - **60-D10 — `Cmd+H` is Hide on macOS.** Accepted as H's cost in 60-H2.
 - **60-D11 — pointer selection: in.** Built for chips; rails are Phase 3.
 - **60-D12 — the selected pin yields exactly as the ruler's does.** Built.

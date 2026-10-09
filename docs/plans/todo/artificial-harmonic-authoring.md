@@ -126,7 +126,7 @@ that finger: the node is measured from the stop, so the stop is the grip the fig
 bracket agreeing with the satellite is what keeps one number in one column (the digit rule
 suppresses the span's digit on exactly that equality). The planted finger stays true in the derived
 table because it is real — the FRET-HAND POSITION derivation must reach it
-(`docs/plans/in-progress/fhp-derivation-algorithm.md`, law 12), the bracket must not print it.
+(`docs/plans/completed/fhp-derivation-algorithm.md`, law 12), the bracket must not print it.
 
 **Picker rows.** Absolute touch positions with the partial ordinal beside them — the vocabulary the
 shipped natural picker (`SetChartHarmonicNode`, whose partial became a `std::optional<int>` on

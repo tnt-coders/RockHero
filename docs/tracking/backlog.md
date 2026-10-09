@@ -1158,7 +1158,7 @@ written down.
   the neck — the same failure the comment at ~2240 already names for natural harmonics. Fix shape:
   gate on `pickingHandStopsString` instead, which is exactly the population whose fret belongs to
   the other hand. Measure against the corpus FHP accuracy before landing it; FHP derivation is
-  under its own plan (`docs/plans/in-progress/fhp-derivation-algorithm.md`).
+  under its own plan (`docs/plans/completed/fhp-derivation-algorithm.md`).
 
 ## Found while ruling the pressed stop's display (2026-09-18)
 
@@ -1530,3 +1530,22 @@ against the tree on the date above.
   chart it replans from: about 0.43 ms together on Shiver Rhythm. The copy IS the atomicity; a shape
   without it (an apply verified before it mutates, a replan base kept across the run) waits for plan
   64's gesture measurement to justify.
+- **"Placement" and "position" name one thing.** The record is `FretHandPosition` and the format
+  key is `positions`, but the editor says placement: `findPlacement`, `defaultedPlacement` and
+  `statedPlacement` (`fret_hand_handlers.cpp`), `FretHandPositionsSnapshot::placements`,
+  `validateFretHandPositions(placements, …)`, `chart_rules.h`'s "fret-hand placement stream", and
+  `chart_projection.cpp`'s approach-ramp comments. A wide mechanical rename to "position", in a
+  change of its own.
+- **The memo layers share one key field.** `seedChartResolutions` (`editor_controller.cpp`) writes
+  the scene's `m_tab_arrangement_id` while seeding only the notes layer, and the scene stays
+  correct only because the write that preceded the seed has advanced `chartRevision`. Give each
+  layer its own `{arrangement_id, revision}` key so neither layer's freshness rests on the other's
+  write order.
+- **`MarkerJudgeContext::notes_layer` is current only for some kinds.** It is the notes layer of
+  the session as it stands, so it is current for a snapshot that leaves the notes and the tempo map
+  untouched — yet it is handed to the tempo, meter and section snapshots too
+  (`marker_model_commit.h`). Only the positions snapshot reads it. Either state that precondition
+  on the field, or hand the layer to the positions snapshot alone.
+- **Rides are typed as hand events.** `deriveFretHandRides` returns `FretHandEvent`s, while
+  `chart_fret_hand.h` says a ride is motion and "no hand event". Rename the `{front, window}` type
+  `FretWindowArrival` when it is next touched, leaving "hand event" to the derivation's own output.

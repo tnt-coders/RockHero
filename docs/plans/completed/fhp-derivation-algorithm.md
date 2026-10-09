@@ -4,7 +4,8 @@
 and 13 re-measured with the headline holding — was discharged 2026-10-03 (88.09% exact with
 rule 12; rule 13 has no corpus population). Implemented 2026-10-04 as `deriveFretHandEvents`
 (`chart_fret_hand.h`, plan 60 Phase 1) and scored the same day: 88.213% exact over the 4,100
-converted arrangements, identical to its Python reference (plan 60, Phase 1 acceptance (b)).**
+converted arrangements, identical to its Python reference (plan 60, Phase 1 acceptance (b)).
+Positions are derived at read since plan 60a Phase 2 (2026-10-08).**
 
 This is the outcome of the FHP accuracy push: a ground-truth dataset of 4,555 professionally
 reviewed arrangements (442,323 authored hand-position anchors; the dataset lives in local

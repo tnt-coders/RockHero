@@ -252,7 +252,7 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
 (`positions` on `Ctrl+P`, `holds` on `Ctrl+H`); the zone, the bare marker and the span-end gesture
 are gone, a span's edges move and author a hold, and the timeline key becomes `at`. The plan is
 now a master with two sub-plans, built in this order: the master's rename sweep,
-`docs/plans/roadmap/60a-fret-hand-positions.md` (Phases 2 and 3), then
+`docs/plans/roadmap/60a-fret-hand-positions.md` (Phase 3), then
 `docs/plans/roadmap/60b-holds.md` (Phases 4 and 5). The phase bullets below predate that and read
 through the plans' REVISED notes.
 
@@ -261,7 +261,8 @@ through the plans' REVISED notes.
 - ~~Phase 1 — the derived 13-rule tracker.~~ CLOSED 2026-10-04: built, and scored at 88.213%
   exact, identical to its reference. The offender worklist's walk and the seam-vs-shift measure's
   slide split moved to Phase 6's entry.
-- Phase 2 — the derived stream: stored `fhps` deleted, positions derived at read.
+- ~~Phase 2 — the derived stream.~~ DONE 2026-10-08: positions derive at read over the authored
+  ones, with the coverage rule and Prune.
 - Phase 3 — the hand row's remainder: the derived events as its objects, the authored tell, rail
   selection, the marker-only `Alt+←/→` (the content-editing front gesture is struck; the END
   gesture is that phase's open question), "drop markers that state nothing".
@@ -493,7 +494,7 @@ the only one that orders work.
 | `ring-ends-and-authoring-planes.md` | The ring's-end display and the lane's two authoring planes; both phases BUILT and signed 2026-09-24 | Phase 2 |
 | `keyframe-and-burst-ground-up.md` | Unsigned PROPOSAL, ground-up review of keyframes, the release and the undo burst | Phase 3 |
 | `highway-note-art-state.md` | 3D note-art state record; holds the bend anchor decision | Phase 3 |
-| `fhp-derivation-algorithm.md` | Evidence and the five rulings behind 60-Q1..Q5 | Phase 4 |
+| `fhp-derivation-algorithm.md` (moved to `completed/`) | Evidence and the five rulings behind 60-Q1..Q5 | Phase 4 |
 | `span-derivation-ground-up.md` | The built span law; cited from `chart_shapes.cpp` | Phases 2, 4 |
 | `arpeggio-posture-display-options.md` | SETTLED display record; cited from `tab_paint_core.cpp` | Phase 4 |
 | `chart-ruleset.md` | The five laws; the code is the authority | all |

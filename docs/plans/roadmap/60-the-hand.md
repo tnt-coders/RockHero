@@ -5,8 +5,8 @@
 The hand is one design built as two plans, in this order (user, 2026-10-04):
 
 1. **The rename sweep** — below. DONE 2026-10-04 (`c910b8d8`).
-2. **`docs/plans/roadmap/60a-fret-hand-positions.md`** — where the hand is. Phases 0 and 1 are
-   DONE; Phases 2 and 3 are next.
+2. **`docs/plans/roadmap/60a-fret-hand-positions.md`** — where the hand is. Phases 0, 1 and 2 are
+   DONE; Phase 3 is next.
 3. **`docs/plans/roadmap/60b-holds.md`** — what the hand holds. NOT STARTED; Phases 4 and 5.
 4. **Phase 6, the let-ring hand coupling** (§7 here) — after Phase 4, because it needs the
    positions and the hold; it needs nothing from Phase 5, which may follow it (§10).
@@ -83,12 +83,14 @@ were deferred at the close to Phase 6's entry, where the stream they measure is 
 per-file offender worklist with the user's sightings, and the slide split of the seam-vs-shift
 measure.
 
+**PHASE 2 DONE 2026-10-08** (60a's status lists the commits).
+
 What has landed since the merge, and what this revision folds in:
 
 - **Phase 0 is DONE** and the **hand-marker stopgap is BUILT and merged** (2026-09-26, with the
   authored end fret 2026-09-29): the stored stream is strict, the hand marker kind exists with its
   row, selection, chords, funnel snapshot and verbs, and the window's width is derived from the
-  notes unless an end fret is authored (`docs/plans/in-progress/hand-marker-stopgap.md`). Phase 3
+  notes unless an end fret is authored (`docs/plans/completed/hand-marker-stopgap.md`). Phase 3
   is therefore mostly built; §7 lists only what remains.
 - **Held stops are derived-only and the span-claim machinery is gone** (2026-09-29): a right-hand
   onset states no grip; `chartHeldStops` derives a tap's stop (a pull-off's plant, else the
@@ -101,13 +103,13 @@ What has landed since the merge, and what this revision folds in:
 
 The design records this plan executes, in the order a new reader should take them:
 
-- `docs/plans/in-progress/fhp-derivation-algorithm.md` — the measured algorithm (rules 1–11
+- `docs/plans/completed/fhp-derivation-algorithm.md` — the measured algorithm (rules 1–11
   measured, 12–13 ruled and re-measured 2026-10-03), the tension resolutions, the
   tap-corrected evaluation regime, the profiles verdict, and the fingering / template / manual
   specification model. Source of truth
   for Phases 1, 2 and the fingering half of Phase 5. Its "three record kinds" residue is
   superseded by §9 item 4 of this plan.
-- `docs/plans/in-progress/hand-marker-stopgap.md` — what is built: the record, the derived width,
+- `docs/plans/completed/hand-marker-stopgap.md` — what is built: the record, the derived width,
   the marker kind and its verbs. Completed work; the plan builds on it.
 - `docs/plans/todo/span-marker-redesign.md` — the founding principle, the template model, the
   resolution and invalidation laws, the settlement rider, the extent invariant, the signed span
@@ -517,17 +519,17 @@ a hold across a position shift, and the fit test's clauses.
 | Phase | Ruled | Still OPEN |
 |---|---|---|
 | 1 | 60-Q1 (item 1, condition discharged 2026-10-03), items 2 and 3, Q1–Q12 above | Nothing. CLOSED 2026-10-04 |
-| 2 | 60-Q4 (item 5), items 4, 6 and 7 | The selection kind's spelling (the naming expert, item 6). The marker semantics Q9 deferred: whether a marker that changes nothing is still a row event (rule 11 against §2 and law 7); the scope of a stated fret (the run it heads, or until the next marker); where a bare marker over silence fronts; whether `endFret` without `fret` is legal. The fate of the exit ride and the scoop dips (Q11: drop, or `FhpViewState` ramps). Whether any hand-placed package exists that needs the conversion script (item 5) |
-| 3 | Items 8 and 9 | The END gesture (OPEN by design: build it, or let the members' tail keys serve). The tell and outline strength (a sighting). Q-D, which `bracket_place` probably answers. How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate |
+| 2 | 60-Q4 (item 5), items 4, 6 and 7 | Nothing. Ruled by §1a and 60a's Phase 2 build rulings (the exit ride KEPT as derived motion, the dips DROPPED); DONE 2026-10-08. |
+| 3 | Items 8 and 9 | The END gesture (OPEN by design: build it, or let the members' tail keys serve). The tell and outline strength (a sighting). Q-D, which `bracket_place` probably answers. ~~How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate~~ |
 | 4 | none named | The zone record's kind: one kind with polarity, or two. The settlement edge (re-verify on a regenerated reel; likely moot). The background triplet (a sighting) |
 | 5 | 60-Q5 (item 11) RULED NO, reopenable there | 60-Q3, the fingering model, and the GP parser's fingering scope (item 10); purge-on-save and the invalidation rule's confirming word (item 12) — all DEFERRED to the Phase 5 session |
 | 6 | The measure's DEFINITION (Q12) | The measure's slide split and the offender worklist's walk, both deferred from Phase 1's close. The pass threshold on seam-vs-shift agreement (the user's). The let-ring extension inside the stored sustain, which rule 6 pins on and this phase clips (§9 Q3), ruled before this phase. The drone watch item, re-read here |
 
 ## 10. Sequencing
 
-**REVISED 2026-10-04 (the split, §0):** Phases 0 and 1 are done. Next: the rename sweep → Phase 2 →
-Phase 3 (the positions plan, finished first) → Phase 4 (the hold) → Phase 6 → Phase 5. The order
-below is the one this replaces; its reasoning for the coupling ahead of the templates stands.
+**REVISED 2026-10-04 (the split, §0):** Phases 0 and 1 are done. Done: the rename sweep and Phase
+2. Next: Phase 3 → Phase 4 → Phase 6 → Phase 5. The order below is the one this replaces; its
+reasoning for the coupling ahead of the templates stands.
 
 Revise the plan (done 2026-10-02; re-verified 2026-10-04) → G60 (ruled 2026-10-02) → the Phase 1
 build rulings (ruled 2026-10-04) → Phase 1 → Phase 2 → Phase 3 remainder → Phase 4 →
@@ -552,17 +554,17 @@ file); the seam-vs-shift agreement measure (defined §9 Q12) produced and consum
 (Phase 1 took its unsplit ceiling); the
 sighting gates of Phases 3, 4 and 5 recorded; CI blind-spot reading pass over every touched hunk
 (new variant alternatives → designated initializers, `-Wswitch-enum` on `MarkerRow`, optional
-access in tests, the `-Wmissing-designated-field-initializers` sweep when `FretHandPosition`
-gains an optional `fret`).
+access in tests).
 
 ## 12. Docs to change as phases land
 
 - **`docs/developer/the-project-lifecycle.md`** rules 5–9 (`:297-374`): rewritten to the charter
   law in Phase 1 (the 0.8 s rest and the minimal-shift wording go with the walk); rule 9's exit
   ride and rule 16's dips stay, flagged, until Phase 2 rules their home (§9 Q11).
-- **`docs/plans/in-progress/fhp-derivation-algorithm.md`**: its status line and "three record
-  kinds" residue after G60; moves to `completed/` when Phase 2 lands.
-- **`docs/plans/in-progress/hand-marker-stopgap.md`**: completed work — move to `completed/`.
+- **`docs/plans/completed/fhp-derivation-algorithm.md`**: its status line and "three record
+  kinds" residue after G60. MOVED to `completed/` 2026-10-08, when Phase 2 landed.
+- **`docs/plans/completed/hand-marker-stopgap.md`**: completed work. MOVED to `completed/`
+  2026-10-08.
 - ~~**`docs/plans/todo/fhp-corpus-derived-generation.md`**: superseded (pointer added
   2026-10-02); delete or move to `completed/` when Phase 1 lands.~~ MOVED 2026-10-04 to
   `docs/plans/completed/`, with the walk it studied deleted.
@@ -574,8 +576,8 @@ gains an optional `fret`).
   go Live in Phases 4 and 5.
 - **`docs/developer/`** command-id registry, `keyboard-input.md`, `the-editor-2d-views.md`: the
   derived events as the row's objects, the authored tell, the rail selection and the span reveal
-  ground (Phase 3); `file-formats.md` and `chart.h`: the optional `fret` and the record's key
-  (Phase 2), the template fields (Phase 5).
+  ground (Phase 3); `file-formats.md` and `chart.h`: the record's key (Phase 2), the template
+  fields (Phase 5).
 - **`marker-verb-grammar.md`**: the new-kind checklist ran once for the hand marker (done).
 - **`docs/design/`**: none expected — the one-arrow order and the derived-over-authored rule are
   already recorded; confirm with the user before any rule changes.
