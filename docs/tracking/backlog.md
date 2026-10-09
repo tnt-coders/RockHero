@@ -28,6 +28,28 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while moving the shape rules into their ruleset (2026-10-08)
+
+Reported by the migration (`42ab0397`) and not yet re-verified against the code; check each first.
+
+- **The emission test is framed two ways.** `test_chart_shapes.cpp` (~:1436) calls landed-span
+  emission "the ONE derivation question that reads the display margin", while shape rule 4 says
+  emission is a musical test and no derivation question measures drawable room. Both read the
+  minimum sustain distance at the closing head; one framing is wrong.
+- **Stale comments.** `chart_projection.cpp` (~:270) says a carry-opened successor is one "a
+  landing or a member's death founded", but ring-out opens nothing; `docs/developer/the-3d-highway.md`
+  (~:417) still lists "claimed" stops as members, and claims were retired.
+- **`ChartShape`'s field docs restate rules** (`place`, `sustain`, `sounds_in_parts`,
+  `bracket_place` in `chart_shapes.h` restate the dating rule, posture truth and class rule at
+  length); cut them to a citation of shape rules 1, 3 and 5.
+- **A handover detail lost its home.** The replaced guide text said the tail law's handover reads
+  the successor's stored claim (`legatoClaimed` plus `predecessorHoldReaches`), never the resolved
+  direction. Tail rule 4 does not say it; add it there if it is still true.
+- **Ambiguous citations left in place:** `test_chart_presentation.cpp:1977` ("rule 11's 'close
+  is the minimum' reading"), `test_chart_shapes.cpp:3336` ("rules 8 and 11"), `:697` ("corollary
+  4"), `:3028-3031` (the [D4] "flip" tags), `:3933` (a named ruling in `chart-ruleset.md`). They
+  go with the dangling [D1]-[D11] tags' migration.
+
 ## Found while fixing the bracket-over-head draw order (2026-10-05)
 
 - **The highway's bracket glyphs have an ordering authority of their own.** The arpeggio bracket
