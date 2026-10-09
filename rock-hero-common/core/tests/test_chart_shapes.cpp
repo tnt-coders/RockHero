@@ -935,12 +935,12 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
     SECTION("an adjacent re-pick continues where no drawn tail could witness it")
     {
         // The divergence in the other direction, and the reason a witness is worse evidence than
-        // the stored stream it would stand in for: string 2 is a dead click, so E25 takes its tail
-        // away in presentation and a witness would see NOTHING ringing — the span would die at the
-        // margin before this re-pick (9/10 of a quarter) although the hand is demonstrably still
-        // holding the shape. The stored ring says what the hand did: string 1 rings exactly into
-        // its own re-pick, string 2 rings through it, so every member is continuous and the
-        // statement stands through both.
+        // the stored stream it would stand in for: string 2 is a dead click, so technique rule 25
+        // takes its tail away in presentation and a witness would see NOTHING ringing — the span
+        // would die at the margin before this re-pick (9/10 of a quarter) although the hand is
+        // demonstrably still holding the shape. The stored ring says what the hand did: string 1
+        // rings exactly into its own re-pick, string 2 rings through it, so every member is
+        // continuous and the statement stands through both.
         std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 4}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
@@ -1137,9 +1137,9 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
 // CLASSIFICATION READS THE STORED STREAM.
 //
 // One figure, two arms of the one class law. A DEAD string carries into a chord's onset: its
-// STORED ring is real timing, its DRAWN tail is gone (E25). The walk's fold-in asks the stored
-// ring, so the carry joins the posture and an interior restrike classifies the span as an
-// arpeggio; re-deriving that same carry off the DRAWN tail at the span's start would find
+// STORED ring is real timing, its DRAWN tail is gone (technique rule 25). The walk's fold-in asks
+// the stored ring, so the carry joins the posture and an interior restrike classifies the span as
+// an arpeggio; re-deriving that same carry off the DRAWN tail at the span's start would find
 // nothing there — same figure, same law, two answers, decided by which slot you happened to look
 // at.
 //
@@ -1173,8 +1173,9 @@ TEST_CASE("A dead string's carry classifies at a span start and inside it alike"
         const std::vector<ChartNote> notes = dead_carry(false);
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        // The dead string joined the posture, which is what a carry means and what E25 never
-        // touched: presentation takes the drawn tail, not the fact that the finger is down.
+        // The dead string joined the posture, which is what a carry means and what technique
+        // rule 25 never touched: presentation takes the drawn tail, not the fact that the finger
+        // is down.
         REQUIRE(derived.shapes.front().posture < derived.postures.size());
         CHECK(
             derived.postures[derived.shapes.front().posture].stops[2] ==

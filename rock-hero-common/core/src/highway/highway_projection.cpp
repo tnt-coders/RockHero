@@ -145,10 +145,10 @@ void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit
             // Judged on where the note SOUNDS, so an open-string tap HARMONIC strikes its node. The
             // guard exists to keep a malformed chart from putting a light off the board, and the
             // sounding position is what has to be on the board — reading `fret` instead would drop
-            // the light from a note the rules explicitly allow, since E4 accepts a tap that strikes
-            // a node in place of a fret. Asking for the DRAWN position closes the other end of that
-            // guard: the zero test below catches a light below the nut, and the board cap catches
-            // one past the last fret, which a node legally can be.
+            // the light from a note the rules explicitly allow, since technique rule 4 accepts a
+            // tap that strikes a node in place of a fret. Asking for the DRAWN position closes the
+            // other end of that guard: the zero test below catches a light below the nut, and the
+            // board cap catches one past the last fret, which a node legally can be.
             // The integer fret of the sounding place, since the light spans fret slots: a node at
             // 12.0 is fret 12, one at 2.669 fret 3 — the one node law (handFretOf).
             const int sounding_fret = handFretOf(highwayDrawnStop(note, note.fret));

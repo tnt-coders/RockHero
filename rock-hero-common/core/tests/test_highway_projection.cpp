@@ -1257,10 +1257,10 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
         });
 }
 
-// A tap harmonic lights the NODE it strikes, even on an open string. E4 accepts a tap that strikes
-// a node in place of a fret, and the tapping hand really does land on the node — so judging the
-// light by `fret` would drop it entirely from a legal, matrix-listed note: the same tap one fret
-// higher would light normally while the open-string one lit nowhere.
+// A tap harmonic lights the NODE it strikes, even on an open string. Technique rule 4 accepts a tap
+// that strikes a node in place of a fret, and the tapping hand really does land on the node — so
+// judging the light by `fret` would drop it entirely from a legal, matrix-listed note: the same tap
+// one fret higher would light normally while the open-string one lit nowhere.
 TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[core][highway]")
 {
     NoteViewState tap;

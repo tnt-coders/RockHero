@@ -900,12 +900,12 @@ void drawNoteTail(
     }
     // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them. A scrape is one continuous
     // drag — teeth would assert a repetition it never performs, and it cannot be tremolo picked
-    // at all (E2) — so it draws the plain ribbon with its slide diagonals carrying the travel,
-    // and its plectrum head states that the noise is unpitched. That division is the rule for
-    // the whole tail axis: the head says what kind of attack, the tail says what happens over
-    // time (ribbon = duration, diagonal = travel, curve = bend, sine = vibrato, teeth =
-    // repetition). It is also what makes a muted tremolo slide — noisy travel — read apart from
-    // a plain muted slide's single drag.
+    // at all (technique rule 2) — so it draws the plain ribbon with its slide diagonals carrying
+    // the travel, and its plectrum head states that the noise is unpitched. That division is the
+    // rule for the whole tail axis: the head says what kind of attack, the tail says what happens
+    // over time (ribbon = duration, diagonal = travel, curve = bend, sine = vibrato, teeth =
+    // repetition). It is also what makes a muted tremolo slide — noisy travel — read apart from a
+    // plain muted slide's single drag.
     if (note.tremolo)
     {
         drawTremoloTail(g, style, metrics, centerline, fade);
@@ -1649,7 +1649,7 @@ void drawMuteIcon(
     const juce::Colour inner = dead ? style[Ink::PlateLight] : style[Ink::PalmMuteInner];
     g.setColour(inner);
     g.fillPath(x_shape);
-    // E1: a note carrying BOTH mutes states the fusion on its RIM rather than inside the fill, and
+    // A note carrying BOTH mutes states the fusion on its RIM rather than inside the fill, and
     // states it in the PALM's own near-black rather than the border's grey. That color is the
     // whole point: the fill says the note sounds DEAD (white) while the rim says the PALM hand is
     // also on the string, so the one mark carries both flags in the two inks that already mean

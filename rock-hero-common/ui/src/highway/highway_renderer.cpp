@@ -3902,8 +3902,8 @@ void HighwayRenderer::Impl::draw(
         // Slide keyframes deliberately push no numbers of their own (completing the one-rule
         // model: an orange number marks a hand position being established, nothing else). A
         // fretting-hand glide that moves the window carries a hand-position placement at its
-        // target (normalization rule 9), and a tapped glide's landings are labeled through the
-        // track walk above — both hands' glides earn their numbers as POSITIONS, never
+        // target (the hand-position slide rule), and a tapped glide's landings are labeled
+        // through the track walk above — both hands' glides earn their numbers as POSITIONS, never
         // as keyframes. The keyframe glow posts and fret-span lines remain — they are target
         // furniture, not labels.
 
@@ -4433,10 +4433,10 @@ void HighwayRenderer::Impl::draw(
                 // the uniform grid rounds every apex unevenly and aliases the wave outright. The
                 // walk terminates because tail_to is clamped to the visible window.
                 // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them — a scrape is one
-                // continuous drag and cannot be tremolo picked at all (E2), so teeth would
-                // assert a repetition it never performs. Its plectrum head states the unpitched
-                // noise instead, matching the 2D lane's division of the same fact (the head says
-                // what kind of attack, the tail says what happens over time).
+                // continuous drag and cannot be tremolo picked at all (technique rule 2), so
+                // teeth would assert a repetition it never performs. Its plectrum head states the
+                // unpitched noise instead, matching the 2D lane's division of the same fact (the
+                // head says what kind of attack, the tail says what happens over time).
                 const bool teethed = note.tremolo;
                 const auto tooth_phase = [&](const double seconds) {
                     return common::core::highwayTremoloTailCycles(seconds - note.start_seconds);

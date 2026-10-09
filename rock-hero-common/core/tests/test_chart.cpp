@@ -2755,8 +2755,8 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("a dead note excludes the pitch-valued payloads and keeps the positions")
     {
-        // Sustainless on purpose: under E25 a dead note carries no plain tail, and the tail rules
-        // have their own section below. This one is about the payloads.
+        // Sustainless on purpose: under technique rule 25 a dead note carries no plain tail, and
+        // the tail rules have their own section below. This one is about the payloads.
         ChartNote dead = make_note(1, 1, 5);
         dead.dead = true;
         CHECK(validate({dead}).has_value());
@@ -2818,19 +2818,21 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({muted_vibrato}).has_value());
 
         // Positions survive the same test: the dragged muted slide is real music — and a slide
-        // is one of the two things that earn a dead note its tail (E25, below).
+        // is one of the two things that earn a dead note its tail (technique rule 25, below).
         ChartNote muted_slide = dead;
         muted_slide.sustain = Fraction{1, 4};
         muted_slide.keyframes = {Keyframe{.offset = Fraction{1, 8}, .fret = 9}};
         CHECK(validate({muted_slide}).has_value());
     }
 
-    SECTION("a dead note keeps its stored ring: E25 is a presentation rule, not a repair")
+    SECTION(
+        "a dead note keeps its stored ring: technique rule 25 is a presentation rule, not a "
+        "repair")
     {
-        // E25 lives outside the stored form: a dead note's damped stroke has a duration like any
-        // other, and that duration is the timing the legato adjacency test reads. What it does NOT
-        // have is a drawn tail — that is tail rule 3, covered in test_chart_presentation.cpp — so
-        // nothing here refuses or trims one.
+        // Technique rule 25 lives outside the stored form: a dead note's damped stroke has a
+        // duration like any other, and that duration is the timing the legato adjacency test
+        // reads. What it does NOT have is a drawn tail — that is tail rule 3, covered in
+        // test_chart_presentation.cpp — so nothing here refuses or trims one.
         ChartNote plain_tail = make_note(1, 1, 5);
         plain_tail.dead = true;
         plain_tail.sustain = Fraction{1, 4};
@@ -3683,11 +3685,11 @@ TEST_CASE(
     }
 }
 
-// The relational half of the technique matrix: E5/E12/E19 are resolver clauses rather than reasons
-// to refuse a document, so each is a resolution instead of a refusal. Asked through
-// chartResolutions rather than resolveLegato directly, because that is the path every consumer
-// takes — the same-string walk that finds the predecessor and the span-extended hold table are
-// under test with it.
+// The relational half of the technique matrix: technique rules 5, 12 and 19 are resolver clauses
+// rather than reasons to refuse a document, so each is a resolution instead of a refusal. Asked
+// through chartResolutions rather than resolveLegato directly, because that is the path every
+// consumer takes — the same-string walk that finds the predecessor and the span-extended hold table
+// are under test with it.
 TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -3790,8 +3792,8 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // Its finger is on the stop, so the muted hammer or pull that follows is a connection
         // like any other — disqualifying it would turn every imported cluck into a picked note.
         // It is bounded by the same one test reading the same field: a dead note stores the
-        // duration its damped stroke lasts — only the DRAWN tail goes with E25 — so a cluck
-        // chained to its restrike connects in both directions.
+        // duration its damped stroke lasts — only the DRAWN tail goes with technique rule 25 — so
+        // a cluck chained to its restrike connects in both directions.
         ChartNote dead_above = make_note(1, 1, 9);
         dead_above.dead = true;
         dead_above.sustain = Fraction{1, 8};
@@ -3812,7 +3814,8 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         left_tap.attack = NoteAttack::LeftTap;
         CHECK(resolve_claim({dead_above, left_tap}) == LegatoMotion::Hammer);
 
-        // And a claim ON a dead note from a ringing predecessor — the muted hammer of E24.
+        // And a claim ON a dead note from a ringing predecessor — the muted hammer of technique
+        // rule 24.
         ChartNote source = make_note(1, 1, 3);
         source.sustain = Fraction{1, 4};
         ChartNote dead_claim = claim_at(2, 1, 5);
@@ -3881,9 +3884,9 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
     SECTION("resolutions judge the SAVED form, so a scrape's latent mute changes nothing")
     {
-        // E2 forbids a mute on any saved scrape, so a dead flag found on one is purely the
-        // in-memory latent the attack toggle preserves, and every resolution reads the saved form
-        // it has already been stripped from.
+        // Technique rule 2 forbids a mute on any saved scrape, so a dead flag found on one is
+        // purely the in-memory latent the attack toggle preserves, and every resolution reads the
+        // saved form it has already been stripped from.
         ChartNote dead_low = make_note(1, 1, 9);
         dead_low.dead = true;
         // The strum's second fretting-hand member: it is what makes the onset a chord and derives
@@ -4369,9 +4372,9 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
 
     // A DEAD string's carry classifies. The class is a fact about the HANDS — the finger is
     // still down and the strum still picks around it — so it reads the STORED ring, the same one
-    // the walk's fold-in reads. E25 takes the tail off what a surface DRAWS and says nothing about
-    // what the hands were doing; letting it decide here would flip the span at an interior slot
-    // and not at its start.
+    // the walk's fold-in reads. Technique rule 25 takes the tail off what a surface DRAWS and says
+    // nothing about what the hands were doing; letting it decide here would flip the span at an
+    // interior slot and not at its start.
     Chart dead_ring = chart;
     dead_ring.notes[0].dead = true;
     CHECK(arrivesAsArpeggio(dead_ring.notes, strum_at, tempo_map));

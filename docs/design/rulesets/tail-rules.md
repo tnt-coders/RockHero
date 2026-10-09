@@ -62,7 +62,8 @@ takes the next one.
    the ink end, so a ring held past the bound keeps its tail even where the crop leaves it shorter.
    Vibrato and tremolo protect a tail from dropping but not from cropping.
 3. **A dead note draws no tail** unless tremolo or a slide payload keeps it making noise or
-   travelling (E25). Its stored ring is untouched: it is the timing the legato adjacency test reads.
+   travelling (technique rule 25, \ref design_rulesets_techniques). Its stored ring is untouched:
+   it is the timing the legato adjacency test reads.
 4. **The tail law — a tail that shows no technique information RESTS.** The curtain owns everything
    past a note's last always-visible landmark. A verdict-only filter, applied LAST: it reads the
    stored stream, judges, and marks where each tail rests (`ChartPresentation::rested_from`),

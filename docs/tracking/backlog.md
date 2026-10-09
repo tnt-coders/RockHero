@@ -28,6 +28,25 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while moving the technique rows into their ruleset (2026-10-08)
+
+Reported by the migration and not yet re-verified against the code; check each first.
+
+- **Two enforced combination rules have no number:** the open-string slide strip and the
+  disabled-harmonic gate (`ChartRepair::DisabledHarmonic`). Give them technique rules 29 and 30.
+- **Technique rule 23 is unreachable** while tap harmonics are disabled (the disabling runs
+  first, so the `TapHarmonicTremolo` repair never fires). Keep or delete it with the harmonics
+  revisit.
+- **Stale comments:** `highway_projection.cpp:145-151` and `test_highway_projection.cpp:1260` call
+  the open-string tap harmonic legal and "matrix-listed", but it is disabled; `chart.h` on
+  `sustain` says a dead note draws "no tail at all", ignoring tail rule 3's tremolo and slide
+  exception; `normalizeChartNote`'s "What it owns" list in `chart_rules.h` omits the
+  disabled-harmonic reduction; `watch-items.md` (~:884-889) says nothing reads
+  `chartPlantedStops` for the plant rule, but `chart_fret_hand.cpp:145` does, and it points at
+  `chart-ruleset.md`'s "THE HOLD-UNDER LAW", now shape rule 7.
+- **The technique plan's slide_out note** (`technique-compatibility-and-hardening.md` ~:20-24)
+  still names rows (E2, E7, E10, E17, E25) the plan no longer holds.
+
 ## Found while moving the shape rules into their ruleset (2026-10-08)
 
 Reported by the migration (`42ab0397`) and not yet re-verified against the code; check each first.
@@ -300,10 +319,10 @@ rest, each verified against the code, each a fix rather than a question unless m
   they open an old project.
   **Four rule tightenings briefly widened it again on 2026-08-20, and W4 closed that class the
   same day:** the fret cap (30 → 24), the open-string slide rules, the `capo + 1` slide floors,
-  and (then) E25's muted tail are all REPAIRS of the one normalizer, so a project saved under the
-  older rules opens, is repaired, reports what changed and where in a one-shot notice, and opens
-  dirty — it no longer refuses. The same-string ring bound (40-Q2-B, `OverlappingTail`) joined that
-  list on 2026-08-22.
+  and (then) technique rule 25's muted tail are all REPAIRS of the one normalizer, so a project
+  saved under the older rules opens, is repaired, reports what changed and where in a one-shot
+  notice, and opens dirty — it no longer refuses. The same-string ring bound (40-Q2-B,
+  `OverlappingTail`) joined that list on 2026-08-22.
   **The note-sustain model added a THIRD token-level break on 2026-08-22:** `notes[].sustain` is
   required and must be strictly positive, because a note's ring is now the actual duration the
   string sounds and no repair can invent one. Every package written before that date is missing the
@@ -1259,12 +1278,12 @@ against the tree on the date above.
 - **The head-mark order audit is unfinished, with two findings in hand.** (1)
   `HighwayHeadMarkStack::g_capacity` is 5 (`highway_head_marks.h:176`) but the true maximum is 4 —
   two rungs both key off the single attack slot — and `test_highway_head_marks.cpp` asserts
-  `count == g_capacity` on a Tap + Hammer combination no chart can carry. (2) Since the 2026-08-18 ruling (E8: `dead` excludes only
-  the pinch's harmonic) harmonic-under-X is live, which gives a second concentric-overlap pair the
-  order was never walked for; the task also reported rendered matrix cells still forbidding
-  full-mute + node, which a 2026-09-19 search could not find — confirm while walking. Finish the
-  pair-by-pair walk against the order authority in `highway_head_marks.h`, end with a test pinning
-  the order per LEGAL combination, and reconcile
+  `count == g_capacity` on a Tap + Hammer combination no chart can carry. (2) Since the 2026-08-18
+  ruling (technique rule 8: `dead` excludes only the pinch's harmonic) harmonic-under-X is live,
+  which gives a second concentric-overlap pair the order was never walked for; the task also
+  reported rendered matrix cells still forbidding full-mute + node, which a 2026-09-19 search could
+  not find — confirm while walking. Finish the pair-by-pair walk against the order authority in
+  `highway_head_marks.h`, end with a test pinning the order per LEGAL combination, and reconcile
   `docs/plans/in-progress/technique-compatibility-and-hardening.md`. Not gated on plan 56, which
   owns the overlap-conflict work. (task #275)
 

@@ -859,9 +859,9 @@ TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][ch
     CHECK(ink[1] == Fraction{1, 16});
 }
 
-// Tail rule 3 (E25) reads the note as the earlier rules leave it: a dead string rings nothing, so a
-// plain tail on one is silence pretending to be sound — while tremolo (a chug) or a slide payload
-// (a dragged mute) keeps it making noise or travelling and keeps its tail.
+// Tail rule 3 (technique rule 25) reads the note as the earlier rules leave it: a dead string rings
+// nothing, so a plain tail on one is silence pretending to be sound — while tremolo (a chug) or a
+// slide payload (a dragged mute) keeps it making noise or travelling and keeps its tail.
 TEST_CASE("Tail rule 3 draws no tail on a dead note that makes no noise", "[core][chart]")
 {
     const TempoMap map = fourFourMap();

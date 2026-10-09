@@ -123,7 +123,8 @@ Keep this list and the session task list in step.
   - **Still follow-on, not part of this ship:** the W5 counted-skip and W6 locked-tail payloads need
     their own notice surface. The pending box carries a typed value, not a report; their entries
     below stay open for exactly that surface.
-- [x] **W4 — E25's muted-tail rules (D16 below).** E25 is a PRESENTATION rule: it is rule 4 of
+- [x] **W4 — E25's muted-tail rules (D16 below).** E25 is a PRESENTATION rule: it is technique
+  rule 25 (`docs/design/rulesets/technique-rules.md`), applied as tail rule 3 of
   `chartPresentation`, so the drawn tail goes and the STORED ring stays. Nothing trims a stored
   ring, and a dead note therefore keeps the duration of its damped stroke — which is the timing a
   legato claim after the cluck reads. The load policy is the other half: load NORMALIZES and never

@@ -578,8 +578,8 @@ that leave a statement there.
 
 The question every rule about gliding asks, and it is not "are there keyframes": a note whose only
 statements are a mid-ring curl or delayed vibrato never moves the hand, so an open string may keep
-them and a dead note's E25 tail is not earned by them. Spelled once so the travel rules and the
-presentation rules cannot drift about what travelling means.
+them and a dead note's tail (technique rule 25) is not earned by them. Spelled once so the travel
+rules and the presentation rules cannot drift about what travelling means.
 
 \param keyframes The note's keyframes.
 
@@ -633,9 +633,9 @@ struct ChartNote
     sound. Every surface draws this ring, but only as far as its ink end, derived once per chart
     revision by \ref chartPresentation: a chug inside the kept-sustain bound rings its notated
     length and shows nothing, and a dead note carries the duration of its damped stroke while
-    drawing no tail at all (E25).
-    Storing the truth once is what keeps the readability policy from being destruction that every
-    later reader then has to guess back (`docs/plans/in-progress/note-sustain-model.md`).
+    drawing no tail at all (technique rule 25). Storing the truth once is what keeps the
+    readability policy from being destruction that every later reader then has to guess back
+    (`docs/plans/in-progress/note-sustain-model.md`).
 
     Every note rings for some length, so zero is not an encoding — \ref validateChartNoteAlone
     refuses it structurally on every note, since no repair can invent a duration. The only bound is
@@ -1795,21 +1795,21 @@ own (\ref documentChart, \ref keyframeSaysNothingNew).
 /*!
 \brief True when the note is a harmonic damped by the fretting hand touching its node.
 
-The key E7/E9 rules and the resolver's release clause turn on: a node with no real stop (`fret == 0`
-— the string speaks from the nut or the capo) and no attack whose node belongs to the OTHER hand or
-to nothing at all. `Pinch` is excluded because its thumb grazes off the neck. `PickSlide` is
-excluded because a scrape's node is never a sounding node at all: E2 forbids one in any saved chart,
-so a node found on a scrape is purely the in-memory latent the attack toggle preserves (chart.h's
-override contract), and reading it as a fretting-hand touch goes wrong twice over — the connection
-resolver would refuse to release from a scrape while the SAVED stream it is contracted to judge
-(where the node is stripped) says there is nothing to refuse, so a pull the fret-at-ring-end
-semantics rule calls valid would silently resolve to nothing; and the normalizer's
-fret-hand-harmonic stage would strip the scrape's REQUIRED slide-out terminal, producing a chart
-that E2 then rejects on re-read. `Tap` is NOT excluded — an open-string tap harmonic has
-nothing pressed either, which is exactly what those rules test, while a tapped harmonic over a
-PRESSED stop fails the `fret == 0` half exactly as an artificial one does. Contrast `fretFor`'s
-node branch, which additionally excludes `Tap` because the hand-placement question cares which HAND
-owns the node, not whether a stop is pressed.
+The key technique rules 7 and 9 and the resolver's release clause turn on: a node with no real stop
+(`fret == 0` — the string speaks from the nut or the capo) and no attack whose node belongs to the
+OTHER hand or to nothing at all. `Pinch` is excluded because its thumb grazes off the neck.
+`PickSlide` is excluded because a scrape's node is never a sounding node at all: technique rule 2
+forbids one in any saved chart, so a node found on a scrape is purely the in-memory latent the
+attack toggle preserves (chart.h's override contract), and reading it as a fretting-hand touch goes
+wrong twice over — the connection resolver would refuse to release from a scrape while the SAVED
+stream it is contracted to judge (where the node is stripped) says there is nothing to refuse, so a
+pull the fret-at-ring-end semantics rule calls valid would silently resolve to nothing; and the
+normalizer's fret-hand-harmonic stage would strip the scrape's REQUIRED slide-out terminal,
+producing a chart that technique rule 2 then rejects on re-read. `Tap` is NOT excluded — an
+open-string tap harmonic has nothing pressed either, which is exactly what those rules test, while
+a tapped harmonic over a PRESSED stop fails the `fret == 0` half exactly as an artificial one does.
+Contrast `fretFor`'s node branch, which additionally excludes `Tap` because the hand-placement
+question cares which HAND owns the node, not whether a stop is pressed.
 
 \param fret Stored fret; zero is the open string.
 \param harmonic_node The note's node, if it has one.
@@ -1853,7 +1853,8 @@ stop on a tapped harmonic exactly as on an artificial one.
 }
 
 /*!
-\brief True when the note's attack strikes from nowhere but has nothing to strike — E4's whole test.
+\brief True when the note's attack strikes from nowhere but has nothing to strike — the whole test
+of technique rule 4.
 
 Two attacks strike a note into existence with no pick stroke and no predecessor to come from: the
 left-hand tap and the two-hand tap. Both need a place to land — a fret, or a harmonic's node, which

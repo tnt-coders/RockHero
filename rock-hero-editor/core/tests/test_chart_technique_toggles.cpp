@@ -662,9 +662,9 @@ TEST_CASE(
 }
 
 // Mixed validity, decided by the one rule authority rather than by this row: a tap strikes from
-// nowhere and needs somewhere to land (E4), so the open string with no node is skipped while the
-// fretted member takes it. The slap is the control — it strikes the string itself, so the same
-// open string is an ordinary slap.
+// nowhere and needs somewhere to land (technique rule 4), so the open string with no node is
+// skipped while the fretted member takes it. The slap is the control — it strikes the string
+// itself, so the same open string is an ordinary slap.
 TEST_CASE("EditorController tap toggle skips a note with nothing to strike", "[core][chart]")
 {
     common::core::Chart open_string = makeTestChart();

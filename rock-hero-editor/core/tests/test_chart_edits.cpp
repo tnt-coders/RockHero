@@ -3149,10 +3149,10 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
     }
 }
 
-// E25 is a PRESENTATION rule, so the verbs do not trim: X on a held note deadens it and leaves the
-// ring exactly where it was, because a dead note's damped stroke has a duration like any other and
-// that duration is what a legato claim after it reads. What changes is only what a surface draws,
-// which no plan touches.
+// Technique rule 25 is a PRESENTATION rule, so the verbs do not trim: X on a held note deadens it
+// and leaves the ring exactly where it was, because a dead note's damped stroke has a duration like
+// any other and that duration is what a legato claim after it reads. What changes is only what a
+// surface draws, which no plan touches.
 TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
@@ -3175,7 +3175,7 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     }
 
     // The other half of the same rule, so the pair is stated in one place: the ring survives the
-    // press and NOTHING draws it (E25 as tail rule 3).
+    // press and NOTHING draws it (technique rule 25, as tail rule 3).
     const common::core::ChartConnections connections =
         common::core::chartConnections(chart.notes, tempo_map);
     const std::vector<common::core::Fraction> ink_end =
@@ -3940,8 +3940,8 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
 
     SECTION("the earlier note is a fret-hand harmonic")
     {
-        // A touch holds nothing to hand over, so neither direction resolves across it (E19 says as
-        // much for the pull-off), and the assist cannot buy it either.
+        // A touch holds nothing to hand over, so neither direction resolves across it (technique
+        // rule 19 says as much for the pull-off), and the assist cannot buy it either.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -4364,10 +4364,10 @@ TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart
     CHECK(applied == pre_burst);
 }
 
-// E4's landing requirement binds both strike attacks, so the in-plan flatten must cover both: a tap
-// or a left-hand tap on an open string with no node is not a tap at all. A junk `Tapped` flag is
-// real Guitar Pro data, so without the flatten such a stream reaches validation unrepaired and
-// fails the whole import.
+// Technique rule 4's landing requirement binds both strike attacks, so the in-plan flatten must
+// cover both: a tap or a left-hand tap on an open string with no node is not a tap at all. A junk
+// `Tapped` flag is real Guitar Pro data, so without the flatten such a stream reaches validation
+// unrepaired and fails the whole import.
 TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();

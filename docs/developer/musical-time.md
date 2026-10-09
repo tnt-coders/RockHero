@@ -129,7 +129,8 @@ span's start is not a display fact: it asks where the fingers are and which of t
 reached, so it reads the **stored** ring, and a dead string's carry classifies exactly like any
 other. `chartShapeArrivals` reads the stream only for the attacks it still derives — the right-hand
 onsets inside a span — and takes the rest off the spans, where `deriveChartShapes` recorded it
-against the stored rings. E25, by contrast, takes a dead note's tail off what a surface **draws**.
+against the stored rings. Technique rule 25, by contrast, takes a dead note's tail off what a
+surface **draws**.
 
 - `chartPresentation(connections, margins, tempo_map)` — per saved note, the ink end and the tail law's
   verdict, through four ordered rules: crop to the margin before the binding onset — the first

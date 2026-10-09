@@ -218,10 +218,10 @@ planned hand coupling runs the other way (FHP → rings, clipping rings at posit
 extension inside the stored ring is owed a ruling before that coupling is built (plan 60 §9 Q3,
 before Phase 6); until then nothing reads the FHP stream to shape a ring, and no cycle exists.
 
-Nothing else shortens a ring. A dead note keeps its notated duration like any other — E25 is a
-presentation rule and nothing applies it to the stored note — because that duration is the timing
-the legato adjacency test reads, and the picture it does not draw is derived. Readability otherwise
-is the next section, and it is drawn, not stored.
+Nothing else shortens a ring. A dead note keeps its notated duration like any other — technique
+rule 25 is a presentation rule and nothing applies it to the stored note — because that duration is
+the timing the legato adjacency test reads, and the picture it does not draw is derived.
+Readability otherwise is the next section, and it is drawn, not stored.
 
 **Tail policy — what a surface DRAWS** (GP notates every note at its full duration, and the chart
 now *stores* that duration; a chart only *shows* deliberate sustains, so the shortening is a
@@ -561,34 +561,31 @@ differently):
     keyframe, or exit; the capo floor lifts a scrape's start and every exit and drops a keyframe;
     the technique exclusions fire — **the deadening wins outright** (a dead note drops its bend and
     its whole vibrato width, at either tier, and keeps its node, which is positional; the dead
-    pinch alone loses its harmonic, since
-    its node lies off the neck), a tap harmonic drops its tremolo, a fret-hand harmonic drops its
-    payload, an open string drops its slide; a strike with nowhere to land becomes a pick; and
-    last, a scrape that no longer travels becomes the pick it sounds like. A dead note's tail is
-    NOT trimmed here — E25 is a presentation rule (tail rule 3), and the stored ring is the
-    timing a legato claim after the cluck reads. Then the one stream-level note rule bounds every
-    ring at its own string's next onset (40-Q2-B, `normalizeSustainOverlaps`, reported as
-    `OverlappingTail`), and hand windows fit onto the board. E4's strike
-    requirement is ALSO decided earlier, the moment a note's node is known
-    (`flattenStrandedStrike`), because
-    the hand-window pass reads the attack and must not shape a song around a tap
-    that cannot survive. The relational half is the normalizer's last stage — the same sweep every
-    settle point runs, `sweepUnjustifiedLegato` — so a chart is never born carrying a statement its
-    own notes contradict. It runs last because it reads the finished stream: released frets after
-    the slide chains (rules 13-15), holds after the ring policy's clamp. The spans a reader derives
-    therefore describe the SETTLED stream (the shape rules). After it, every authored hand position
-    that leaves a fretted note gripped at its instant uncovered is dropped
+    pinch alone loses its harmonic, since its node lies off the neck), a tap harmonic drops its
+    tremolo, a fret-hand harmonic drops its payload, an open string drops its slide; a strike with
+    nowhere to land becomes a pick; and last, a scrape that no longer travels becomes the pick it
+    sounds like. A dead note's tail is NOT trimmed here — technique rule 25 is a presentation rule
+    (tail rule 3), and the stored ring is the timing a legato claim after the cluck reads. Then the
+    one stream-level note rule bounds every ring at its own string's next onset (40-Q2-B,
+    `normalizeSustainOverlaps`, reported as `OverlappingTail`), and hand windows fit onto the board.
+    Technique rule 4's strike requirement is ALSO decided earlier, the moment a note's node is known
+    (`flattenStrandedStrike`), because the hand-window pass reads the attack and must not shape a
+    song around a tap that cannot survive. The relational half is the normalizer's last stage — the
+    same sweep every settle point runs, `sweepUnjustifiedLegato` — so a chart is never born carrying
+    a statement its own notes contradict. It runs last because it reads the finished stream:
+    released frets after the slide chains (rules 13-15), holds after the ring policy's clamp. The
+    spans a reader derives therefore describe the SETTLED stream (the shape rules). After it, every
+    authored hand position that leaves a fretted note gripped at its instant uncovered is dropped
     (`uncoveringFretHandPositions`, reported as `UncoveringHandPosition`): a converter cannot apply
     that rule, and the notes derive a window there. An import authors no position, so only a load
-    meets it.
-    The importer counts the repairs by rule in its log; the editor's open shows them once with
-    positions. Guitar Pro's hammer-on/pull-off destinations import as the `Legato`
-    claim and nothing more — the score says the notes connect but not which way, which is exactly
-    what the claim says — so the junk flags real scores carry (a mark with nothing before it, or
-    with a predecessor at the same stop) are what this sweep converts, counted in the import log.
-    It reads the predecessor's stored RING and asks strict adjacency: a string that stopped
-    sounding before the onset is a released string, so a predecessor that no longer reaches
-    justifies no connection at all.
+    meets it. The importer counts the repairs by rule in its log; the editor's open shows them once
+    with positions. Guitar Pro's hammer-on/pull-off destinations import as the `Legato` claim and
+    nothing more — the score says the notes connect but not which way, which is exactly what the
+    claim says — so the junk flags real scores carry (a mark with nothing before it, or with a
+    predecessor at the same stop) are what this sweep converts, counted in the import log. It reads
+    the predecessor's stored RING and asks strict adjacency: a string that stopped sounding before
+    the onset is a released string, so a predecessor that no longer reaches justifies no connection
+    at all.
 
 Every generated track logs a conversion note ("derived; verify", "derived N chord
 spans", "imported N pick slides") so the guesses stay observable in the import log.

@@ -250,7 +250,7 @@ enum class ChartRepair : std::uint8_t
     FretHandHarmonicPayload,
     /*! \brief A slide left an open string: nothing is pressed to travel. */
     OpenStringSlide,
-    /*! \brief A tap with nowhere to strike became a plain pick (E4). */
+    /*! \brief A tap with nowhere to strike became a plain pick (technique rule 4). */
     StrandedStrike,
     /*! \brief A tail ringing across the next onset on its own string was truncated. */
     OverlappingTail,
@@ -328,7 +328,7 @@ struct ChartConversion
 
 /*!
 \brief Flattens an attack that strikes from nowhere onto a plain pick when nothing is there to
-strike (E4).
+strike (technique rule 4).
 
 The one repair for \ref nothingToStrike, spelled once so the three places that apply it — the
 normalizer, the editor's plan finalize (an edit to a note's own fret can strand its tap), and the
@@ -550,10 +550,10 @@ else, and the validator never restates a rule as a refusal beside it.
 
 What it owns: the board and capo ranges (a fret, a keyframe's stated fret, or an exit past the last
 fret clamps onto it; a scrape's start or any exit on or below the capo lifts above it; a stated
-fret on or below the capo is stripped); the technique exclusions (a dead note's modulation, the
-dead pinch, the tap harmonic's tremolo, a fret-hand harmonic's payload, an open string's slide);
-the stranded strike (\ref flattenStrandedStrike); and last, a pick slide whose path no longer
-travels after all of that, which becomes the plain pick it sounds like.
+fret on or below the capo is stripped); the technique exclusions (\ref design_rulesets_techniques:
+a dead note's modulation, the dead pinch, the tap harmonic's tremolo, a fret-hand harmonic's
+payload, an open string's slide); the stranded strike (\ref flattenStrandedStrike); and last, a pick
+slide whose path no longer travels after all of that, which becomes the plain pick it sounds like.
 
 Every strip is per CHANNEL, not per keyframe: a capo floor takes a keyframe's fret and leaves the
 bend authored at the same instant, an open string loses its path and keeps its vibrato, and a
@@ -562,7 +562,7 @@ silent-keyframe sweep where it says nothing (\ref stripKeyframeChannels). That i
 storing the moment once — and the point of it, since the alternative silently deletes statements
 that share an offset with the one a rule refused.
 
-A dead note's tail is deliberately NOT here (E25). It is a presentation rule
+A dead note's tail is deliberately NOT here (technique rule 25). It is a presentation rule
 (\ref chartPresentation, tail rule 3): a dead note carries its actual ring like any other — that
 ring is the timing information the legato adjacency test reads — and no surface draws it.
 
@@ -689,10 +689,10 @@ and nothing else.
 /*!
 \brief Validates the note stream — every intra-note rule, plus the ordering and payload rules.
 
-The single authority for the technique compatibility matrix's note rules, split out so the editor
-planners can gate a CANDIDATE stream through the same checks the document reader applies: a plan
-whose candidate fails here refuses, which is what makes authoring an invalid chart impossible by
-construction rather than by per-verb discipline.
+The single authority for the intra-note technique rules (\ref design_rulesets_techniques), split
+out so the editor planners can gate a CANDIDATE stream through the same checks the document
+reader applies: a plan whose candidate fails here refuses, which is what makes authoring an invalid
+chart impossible by construction rather than by per-verb discipline.
 
 Validation is deliberately blind to what a note's NEIGHBOURS make of it, the ordering aside: the
 relational questions are the connection resolver's (\ref resolveLegato), which answers them as

@@ -72,10 +72,10 @@ namespace
            note.tremolo || end - onset > g_minimum_kept_sustain_seconds;
 }
 
-// Tail rule 3 (E25): a dead note rings nothing, so a plain tail on one is silence pretending to be
-// sound. Repeated raking (a chug) or a dragged mute keeps a dead string making noise or
-// travelling, and keeps its tail; a scrape always carries a slide-out, so a dead scrape keeps its
-// gesture.
+// Tail rule 3 (technique rule 25): a dead note rings nothing, so a plain tail on one is silence
+// pretending to be sound. Repeated raking (a chug) or a dragged mute keeps a dead string making
+// noise or travelling, and keeps its tail; a scrape always carries a slide-out, so a dead scrape
+// keeps its gesture.
 [[nodiscard]] bool drawsNoDeadTail(const ChartNote& note)
 {
     return note.dead && !note.tremolo && !anyKeyframeStatesFret(note.keyframes);

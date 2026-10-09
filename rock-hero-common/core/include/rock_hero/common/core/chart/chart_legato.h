@@ -52,9 +52,9 @@ struct LegatoPredecessor
 
 The ONE authority for which way a legato connection runs, and the only place the question is
 answered — no direction is ever stored, so there is nothing else it could be read from. Validation
-is intra-note only; the relational rules that would otherwise refuse a document live here as
-clauses instead, because a claim the chart cannot justify is a claim that plays as a plain pick,
-not a broken file.
+is intra-note only; the relational technique rules (\ref design_rulesets_techniques) that would
+otherwise refuse a document live here as clauses instead, because a claim the chart cannot justify
+is a claim that plays as a plain pick, not a broken file.
 
 Judged against the FRET AT THE RING'S END — where the predecessor's finger ends, so a glide hands
 over its last keyframe — never against predecessor identity. Four things disqualify a predecessor
@@ -66,9 +66,10 @@ claimed and why a claim after a REST resolves to nothing.
 
 A dead predecessor is an ordinary one: its finger is on the stop, and the muted cluck after it is a
 hammer or pull like any other. It is bounded by the same one test, reading the same field — a dead
-note stores the duration its damped stroke lasts (only the DRAWN tail goes, E25), so a chug chained
-to its restrike connects and a cluck the hand left long before does not. The alternative —
-disqualifying the dead note outright — turns every imported muted cluck into a picked note.
+note stores the duration its damped stroke lasts (only the DRAWN tail goes, technique rule 25), so a
+chug chained to its restrike connects and a cluck the hand left long before does not. The
+alternative — disqualifying the dead note outright — turns every imported muted cluck into a picked
+note.
 
 Then the fret at the ring's end picks the direction: above the note is a pull-off, below it a
 hammer-on. A pull-off carries no harmonic (it releases onto a plain stopped pitch); a hammer-on

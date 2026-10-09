@@ -285,7 +285,7 @@ takes the next one.
      it an arpeggio: the fretting hand holds the shape while the other hand sounds above it. This is
      the one trigger `chartShapeArrivals` derives itself, because it asks about the span's extent.
    - **The class reads the stored stream.** A dead string's carry classifies like any other ring,
-     because where the fingers are is a fact about the hands; E25 is a display rule.
+     because where the fingers are is a fact about the hands; technique rule 25 is a display rule.
    - **A box marks simultaneity.** Every onset striking two or more strings with the fretting hand
      wears the standard chord box, inside a span or out of one, a partial restrike inside an
      arpeggio span included; a single note wears none. The box is the headless repeat box when the

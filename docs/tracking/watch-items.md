@@ -896,12 +896,11 @@ form now derives exactly what the tapped one always did and the two columns say 
 
 The plant stays in the wide table (`chartPlantedStops`), but what it proves was re-ruled 2026-09-19:
 a finger on that fret AT THE RELEASE, and nothing about the source's ring before it. The FRET-HAND
-POSITION derivation is meant to reach that finger — law 12 of
-`docs/plans/completed/fhp-derivation-algorithm.md` (RULED 2026-09-18) — but **nothing reads the
-table for it today**: the generator, the hand window and the highway carry no reference to it, so
-that law is unbuilt rather than merely unsatisfied. The hold-under law no longer reads the plant
-bare either: `gripStatement` admits it to a grip only where the string is demonstrably already at
-that stop (`docs/plans/in-progress/chart-ruleset.md`, THE HOLD-UNDER LAW).
+POSITION derivation is meant to reach that finger — hand-position rule 12 (RULED 2026-09-18) — but
+**nothing reads the table for it today**: the generator, the hand window and the highway carry no
+reference to it, so that law is unbuilt rather than merely unsatisfied. The hold-under law no
+longer reads the plant bare either: `gripStatement` admits it to a grip only where the string is
+demonstrably already at that stop (`docs/plans/in-progress/chart-ruleset.md`, THE HOLD-UNDER LAW).
 
 The original item, for the record:
 
@@ -1415,25 +1414,26 @@ never how long one is, so `end_seconds` still carries the whole answer and drawn
 
 ### ~~A muted-tail trim would flatten legato claims corpus-wide~~ — RETIRED 2026-08-20
 
-**Trigger FIRED: W4/E25 shipped, with the ruled remedy.** Recorded by the legato ruling of
-2026-08-11: a fully muted note's tail counted at its stored length for the connection hold test, so
-the muted-tail trim would break every dependent claim corpus-wide, silently, on open. The remedy as
-first recorded — run the trim as an editor plan operation so the flatten rode its undo entry — was
-superseded by the load policy ruled 2026-08-20 (load normalizes and never refuses, so the trim had
-to live in the normalizer), and the knock-on is handled the way that policy prescribes:
-`normalizeChart` runs the settle sweep as its LAST stage over the trimmed stream, every flattened
-claim is reported beside every trimmed tail in the one-shot open notice with its position, the
-session opens dirty, and the file is untouched until the user saves. Nothing is silent, which was
-this item's real complaint; "reversible" is answered by the untouched file rather than by undo.
-Pinned by the normalizer's own test ("the whole chart normalizes in one call, with the settle
-sweep last"). Design: `docs/plans/completed/e25-muted-tail-implementation.md` §6.5 and §6.7.
+**Trigger FIRED: W4 (technique rule 25) shipped, with the ruled remedy.** Recorded by the legato
+ruling of 2026-08-11: a fully muted note's tail counted at its stored length for the connection
+hold test, so the muted-tail trim would break every dependent claim corpus-wide, silently, on open.
+The remedy as first recorded — run the trim as an editor plan operation so the flatten rode its
+undo entry — was superseded by the load policy ruled 2026-08-20 (load normalizes and never
+refuses, so the trim had to live in the normalizer), and the knock-on is handled the way that
+policy prescribes: `normalizeChart` runs the settle sweep as its LAST stage over the trimmed
+stream, every flattened claim is reported beside every trimmed tail in the one-shot open notice
+with its position, the session opens dirty, and the file is untouched until the user saves.
+Nothing is silent, which was this item's real complaint; "reversible" is answered by the untouched
+file rather than by undo. Pinned by the normalizer's own test ("the whole chart normalizes in one
+call, with the settle sweep last"). Design: `docs/plans/completed/e25-muted-tail-implementation.md`
+§6.5 and §6.7.
 
-**Reversed at the root on 2026-08-22 (note-sustain model, stage A3):** E25 is a PRESENTATION rule
-now, so nothing trims a stored ring at all — a dead note carries the duration of its damped stroke,
-which is exactly the datum this item was worried about losing, and only the drawn tail goes. The
-knock-on the entry describes therefore cannot arise: measured over the 113-song local corpus, the
-whole move (E25 out of the stored form plus the strict-adjacency hold test) changed ZERO resolved
-legato motions.
+**Reversed at the root on 2026-08-22 (note-sustain model, stage A3):** technique rule 25 is a
+PRESENTATION rule now, so nothing trims a stored ring at all — a dead note carries the duration of
+its damped stroke, which is exactly the datum this item was worried about losing, and only the
+drawn tail goes. The knock-on the entry describes therefore cannot arise: measured over the
+113-song local corpus, the whole move (technique rule 25 out of the stored form plus the
+strict-adjacency hold test) changed ZERO resolved legato motions.
 
 ### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
 

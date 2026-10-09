@@ -504,18 +504,18 @@ already at the OTHER tier is an ordinary set that replaces it in one entry — n
 followed by a set, and never a cycle. The four ATTACK rows (`Shift+X` pick slide, `T` right-hand
 tap, `S` slap, `P` pop) are the second such family and take the identical shape one level up
 (`attackLaw` beside `vibratoTierLaw`): the attack field holds exactly one value, so each row
-toggles its own against the plain pick and replaces any other in a single entry. **`Shift+H`'s pinch
-is the family's ONE harmonic row**, and the one row whose CLEAR belongs to a verb outside the family:
-it re-hands the note to the picking thumb through the attack verb, and clears with
+toggles its own against the plain pick and replaces any other in a single entry. **`Shift+H`'s
+pinch is the family's ONE harmonic row**, and the one row whose CLEAR belongs to a verb outside the
+family: it re-hands the note to the picking thumb through the attack verb, and clears with
 `planClearPinchHarmonic` rather than `planSetAttack(Pick)`, because the row's noun is a harmonic so
-its clear must remove one — the thumb's own clear, which returns the note to the plain pick and drops
-the node while leaving the fret alone. The fret-hand harmonic `H` was the second harmonic row until 2026-09-16, when
-it stopped being a toggle and left `chartTechniqueLaw` — `ChartTechnique::Harmonic` went with it —
-for the stating verb described below. Every
-compatibility consequence a conversion owes belongs to `planSetAttack` and the rule authority
-behind it in BOTH directions — the scrape's path and terminal drop when a note converts away, a
-tap with nothing to strike is skipped (E4) — so a row states none of it. `Shift+T`'s left-hand tap
-is one of these attack rows (`ChartTechnique::LeftTap`), toggled like `T`'s right-hand tap since
+its clear must remove one — the thumb's own clear, which returns the note to the plain pick and
+drops the node while leaving the fret alone. The fret-hand harmonic `H` was the second harmonic row
+until 2026-09-16, when it stopped being a toggle and left `chartTechniqueLaw` —
+`ChartTechnique::Harmonic` went with it — for the stating verb described below. Every compatibility
+consequence a conversion owes belongs to `planSetAttack` and the rule authority behind it in BOTH
+directions — the scrape's path and terminal drop when a note converts away, a tap with nothing to
+strike is skipped (technique rule 4) — so a row states none of it. `Shift+T`'s left-hand tap is one
+of these attack rows (`ChartTechnique::LeftTap`), toggled like `T`'s right-hand tap since
 2026-09-30; before that it was a set-only verb.
 The planner applies the generalized dissolve law to what it wrote,
 dropping a statement that restates the state already in force and letting the strip authority
