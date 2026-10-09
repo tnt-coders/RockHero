@@ -1,6 +1,8 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
-**Status:** Phases 1–4 DONE 2026-10-09 (see their "As built" notes); Phase 5 not started.
+**Status:** Phases 1–5 DONE 2026-10-09 (see their "As built" notes). The user's four projects
+were converted 2026-10-09 (backed up beside each as `.bak`; Creed loads). Left for the user: the
+Phase 5 sighting checklist.
 Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
@@ -770,6 +772,66 @@ suites. New files follow the placement procedure; comments follow
   appear grayed with nothing moving in sound; change it back and watch it vanish; type a meter on
   the ghost and see it turn solid; put a section on beat 3 and confirm the ruler mark and the 3D
   label agree; Scale Tempo x2 and /2 on a song with sections and meters round-trips.
+- **As built (2026-10-09).** The design documents and the developer guide were brought to the
+  current truth in the phase that changed each (§10's note); plans 65 and 66 carry superseded
+  notes at 65-Q2/Q3/Q4, 66-Q2 and 66 decision 6; the roadmap marks this plan DONE with its Q
+  list decided, records the §7 follow-on as `docs/plans/todo/a-position-is-a-number.md`, and
+  corrects plans 65's and 66's status rows (both built 2026-10-04). The converter
+  (`custom-song-importer`, working tree only) writes every `at` and every duration through ONE
+  helper, `mixed_number`, the meter and anchor places read off the grid mapper's beat places;
+  its `GridPosition` is gone (a place is the one address, so the class was a wrapper around one
+  field); `validate-package.py` parses the canonical spelling through one fixpoint parser,
+  refuses the `measure` key, an off-meter-lattice meter, a reign under one measure, and accepts a
+  mid-measure section and terminal; the FHP harness's `rock_package.py` derives each measure from
+  the placed meters exactly as the reign table does, short bar included; `timing-gate.py`
+  re-derives note times from places. Hand-checked over a synthetic 3/4→4/4 grid (the §8 Phase 5
+  report). The user's own projects are still to be converted (§9 Q5's script).
+
+- **Sighting checklist (the user's).** Open a GP-imported package with sections and at least two
+  meters, a populated chart, grid snap ON at 1/4, and the 3D preview (`F3`) beside the 2D view.
+  1. **The derived short bar.** Pick a reign of several 4/4 bars that ends at a later meter. Walk
+     onto its meter chip (`Ctrl+Shift+/`, or `↑` from the tab lane), `Enter`, type `3/4`. Expect:
+     the measures after it renumber and flash once; a GHOST chip reading `1/4` stands on the last
+     bar before the next authored meter, drawn at the hand-position ghost's opacity, while its
+     dotted leader down to the ruler body is in the FULL signature colour (Phase 3's note — judge
+     whether that reads as intended or the leader should ghost too); play through the reign: every
+     note sounds exactly where it did, and the 3D preview's beat bars and measure labels agree
+     with the ruler.
+  2. **It vanishes.** `Enter` on the authored chip, type `4/4`: the ghost is gone, the numbers are
+     back, and every section in the reign stands where it stood (read its token in the readout
+     before and after; an A→B→A round trip restores it exactly). Undo and redo both ways.
+  3. **Typing onto the ghost authors it.** Redo step 1, walk or click onto the ghost chip, `Enter`,
+     type `1/4`: the chip turns solid, one undo entry; save and open `song.json`: one more
+     `timeSignatures` entry whose `at` is a mixed-number place (`"16+3/4"`-style), no `measure`
+     key anywhere. `Delete` and `Alt+→` on a ghost chip glow it red and change nothing.
+  4. **A mid-measure meter typed on a beat.** Put the cursor on beat 3 of a 4/4 bar (`→` at 1/4,
+     or a ruler click), `Ctrl+/`, type `7/8`. Expect: that bar becomes a ghost `2/4`, the `7/8`
+     chip stands at beat 3's instant and the next bar is the first full 7/8 bar; nothing moves in
+     sound. Right-click the signature row at a mid-measure beat: "Add Time Signature..." is
+     offered there. `Alt+→` on the new chip steps it one beat of the 4/4 before it. Undo.
+  5. **A section on beat 3.** Cursor on beat 3 of a bar holding no section, `Ctrl+M`, type a
+     name. Expect: the section chip stands at beat 3 with its dotted leader to the ruler body at
+     that column, nothing drawn in the body beneath it; pause the 3D preview there: the floating
+     name is at the same instant as the 2D cursor. `Alt+→` moves it ONE placement line (a beat at
+     1/4, an eighth at 1/8 — never a measure); `Alt+←` back; `Ctrl+M` on it again opens the
+     rename; `Alt+→` onto another section refuses with the flash.
+  6. **Camera framing at a mid-measure section.** In the 3D preview, play across the beat-3
+     section: the framing zone changes at the DOWNBEAT of the bar the section starts in (67-Q1
+     (a)), so the damped camera has settled when the section's first notes arrive; there is no
+     second cut at the section's own instant.
+  7. **A meter round trip over that section.** With the beat-3 section inside a reign, do steps
+     1–2 on that reign: the section's token is identical afterwards.
+  8. **Scale Tempo x2 then x1/2.** Edit → Scale Tempo..., `2`, then `1/2`: every meter chip,
+     anchor, section and note is where it was (tokens and playback identical). Then `4/3`: it is
+     refused naming the first authored meter whose place is not a multiple of 3 whole notes (that
+     place × 4/3 leaves the meter lattice); on a single-meter song it lands.
+  9. **The terminal mid-measure.** On the LAST reign (no later meter), change its meter so the
+     terminal falls inside a bar (4/4 → 3/4 on a reign whose length is not a multiple of 3/4):
+     the song ends on a short final bar with no ghost chip, the grid lines stop at the terminal,
+     nothing moves in sound. Undo.
+  10. **Save, reopen, diff.** Save; reopen: identical. In `song.json` and the chart documents every
+      `at`, `sustain` and `offset` is a mixed number (`"0"`, `"12"`, `"3/8"`, `"11+3/4"`); a
+      `git diff` of a saved project after one meter edit touches only the `timeSignatures` lines.
 
 ## 9. Open questions for the user
 
@@ -821,7 +883,18 @@ suites. New files follow the placement procedure; comments follow
   no whole measure). **R: (a).** **DECIDED 2026-10-08: (a)** — the case is an authored meter whose
   own reign, up to the next authored meter, is shorter than one of its bars.
 
-## 10. Documentation to change (proposed wording; not edited by this plan)
+## 10. Documentation to change (proposed wording, written before the build)
+
+**As built (Phases 1–5, 2026-10-09).** Every document below was edited in the phase that changed
+what it describes, and the design documents state the current truth without the history. Where
+the proposals below disagree with the build, the build is right: the file's number grammar is the
+canonical MIXED number (`"16+3/16"`, never the improper `"131/8"` or `"47/4"` written below); the
+anchor example's `"33:1"` is `"31"`, not `"30"` (bars 1–16 of 4/4 reach 16, bars 17–24 of 7/8
+reach 23, and bar 33 is the ninth 4/4 bar after that: 23 + 8 = 31); the 2D section
+mark needed no drawing change (the chip and its leader already stood at the section's instant);
+and the sections' rules are a non-blank name, on the grid strictly before the terminal
+(`OffGridOrPastTerminal`), strictly ascending. Plan 65's Q2–Q4 and plan 66's Q2 and decision 6
+carry superseded notes; the roadmap marks this plan DONE and its Q list decided.
 
 **`docs/design/architecture.md`, Song Data Model** — replace the warp-anchor paragraph's "time
 signatures are stored as changes (carried forward) ... A start anchor (measure 1, beat 1) and a

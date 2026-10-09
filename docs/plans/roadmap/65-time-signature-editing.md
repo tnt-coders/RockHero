@@ -123,6 +123,9 @@ Carried from plan 41 (they stand):
   well defined in the result), then re-addressed through Phase 1 like any other meter edit.
   Refused: the measure-1 meter; a step onto or past the neighbouring change; a step to or past
   the terminal. A held run coalesces through `commitMarkerMove` from the run's origin.
+  **SUPERSEDED by plan 67 (67-Q2 (b), built 2026-10-09):** the measure quantum is gone from the
+  meter row — `Ctrl+/` and the ruler's Add read the BEAT the cursor is in, and `Alt+←/→` moves a
+  meter by one beat of the meter before it; the refusals above stand, plus `ReignTooShort`.
 - **Q3 — later meters. RULED 2026-10-04 (user): they keep their TIME.** An edit at measure m
   changes the length of every measure until the next change; that next change keeps its
   whole-note position (so its time) and takes whatever measure number that is under the new list.
@@ -130,11 +133,17 @@ Carried from plan 41 (they stand):
   later change would land mid-measure, which no partial measure can express: the edit is
   REFUSED, logged naming the next meter. With no later change the reign runs to the terminal,
   which re-seats (Phase 1), so the edit is never refused for this reason.
+  **SUPERSEDED by plan 67 (ruling B, built 2026-10-09):** later meters still keep their time,
+  but the edit never refuses for a reign that does not divide — the remainder is ONE derived
+  short measure, shown grayed and never stored — and the terminal is never re-seated (the song
+  may end mid-measure). The one refusal left is a reign shorter than one of its own measures.
 - **Q4 — a section left mid-measure. RULED 2026-10-04 (user): snap to its bar's downbeat.** A
   section whose preserved time is no longer a downbeat moves back to the downbeat of the measure
   it now falls in (a section is navigation and moves no sound); the edit is refused only when two
   sections snap onto one downbeat. This is the one slice that does not keep its time, so the
   round-trip property exempts a snapped section.
+  **SUPERSEDED by plan 67 (ruling A, built 2026-10-09):** a section is a named instant anywhere
+  on the grid; a meter edit keeps it exactly where it stands, and the property exempts nothing.
 - **Build-session answers taken from the audit's recommendations (2026-10-04):**
   - *Measure 1:* a meter always stands there, so `Ctrl+/` in measure 1 always restates; Delete on
     it and `Alt+←` onto or from it are refused and logged, as the first tempo anchor's delete is.

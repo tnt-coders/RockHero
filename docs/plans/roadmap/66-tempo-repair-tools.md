@@ -124,6 +124,11 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    When that is not whole before a later meter, the factor is refused, naming the meter. A
    single-meter song is never refused; its end re-seats. The terminal re-seats through plan 65's
    `reseatTerminalAnchor`.
+   **SUPERSEDED by plan 67 (§6 items 3–4, built 2026-10-09):** a reign of f·k measures that is
+   not whole ends in a derived short bar and refuses nothing; the only refusal left is a factor
+   whose reduced denominator is not a power of two carrying a meter off the meter lattice
+   (1/256), reported naming the meter. The terminal is never re-seated; `reseatTerminalAnchor`
+   is deleted and the song may end on a short final measure.
 
 7. **Q1 resolved (2026-10-04, overnight, on the recommendation), then widened the same day to
    every chip drag:** a chip drag is ONE gesture — hold, preview, land once — with the Note Lock
@@ -161,6 +166,9 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
   downbeats and the terminal off one; the ruling says only "round to the tick lattice". Decide
   whether such a meter moves to the nearest downbeat or the factor is refused, and re-seat the
   terminal with plan 65's `reseatTerminalAnchor`.
+  **ANSWERED by plan 67 (67-Q6, built 2026-10-09):** a meter landing between downbeats cuts a
+  derived short bar and is fine; a meter carried off the meter lattice refuses, naming it; the
+  terminal needs no rule and is never re-seated.
 
 ## Dependencies
 
