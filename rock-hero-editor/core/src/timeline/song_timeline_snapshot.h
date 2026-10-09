@@ -48,8 +48,10 @@ struct SongTimelineSnapshot
     [[nodiscard]] bool applyTo(common::core::Session& session) const;
 
     /*!
-    \brief Drops a time signature restating the meter before it (the `coalesceToneRegions` law), so
-    inserting the prevailing meter changes nothing and records nothing.
+    \brief Drops every time signature that repeats the meter before it from one of that reign's own
+    downbeats, where it changes no measure's length (the `coalesceToneRegions` law), so inserting
+    the prevailing meter on a barline changes nothing and records nothing. A repeat placed off that
+    grid cuts the bar short and stays.
     */
     void normalize();
 

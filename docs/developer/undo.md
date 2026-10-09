@@ -83,7 +83,8 @@ Note Lock on (a held nudge run and a chip drag included), since each re-addresse
 every arrangement and lands as ONE entry per command — under the lock, the content the lock holds
 re-addressed under the verb's map, so the entry's `before` and `after` both descend from the lock's
 origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` drops a
-meter restating the one before it, its `validate` runs the tempo-map, section and chart rules, and
+meter repeating the one before it from one of that reign's own downbeats — a repeat placed off that
+grid cuts a bar short and stays — its `validate` runs the tempo-map, section and chart rules, and
 its apply is
 `Session::setSongTimeline()`, the one session write that reaches a non-current arrangement). Every
 grid commit (`commitGridModel`) lands through `landMarkerModel`, the funnel without its publish,

@@ -1,4 +1,5 @@
 #include "timeline/meter_edits.h"
+#include "timeline/song_timeline_snapshot.h"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -43,6 +44,7 @@ using common::core::TimeSignatureChange;
 using common::core::ToneAutomationPoint;
 using common::core::ToneRegion;
 using common::core::testing::anchor;
+using common::core::testing::beatAt;
 using common::core::testing::downbeat;
 using common::core::testing::metersAt;
 using testing::addressesErased;
@@ -83,10 +85,29 @@ using Catch::Matchers::WithinULP;
     return after;
 }
 
+// Puts a change at its place: the one stored there is restated, else it is inserted in order.
+void putMeter(std::vector<TimeSignatureChange>& meters, const TimeSignatureChange& inserted)
+{
+    const auto place = std::ranges::find_if(meters, [&inserted](const TimeSignatureChange& held) {
+        return held.place >= inserted.place;
+    });
+    if (place != meters.end() && place->place == inserted.place)
+    {
+        *place = inserted;
+    }
+    else
+    {
+        meters.insert(place, inserted);
+    }
+}
+
 // One random meter edit of the kinds the verbs make, and the freer ones a later verb may: a
-// respelling, an inserted respelling of the prevailing meter, a restated last meter (its reign runs
-// to the terminal, which may be left mid-measure), a free restatement and a deletion (either may
-// leave a later meter mid-measure, cutting a derived short bar before it).
+// respelling, an inserted respelling of the prevailing meter on a downbeat, a meter inserted at a
+// beat INSIDE a measure (half the time the prevailing meter itself, which repeats its predecessor
+// off that reign's downbeat grid and so cuts a bar rather than restating anything), a restated
+// last meter (its reign runs to the terminal, which may be left mid-measure), a free restatement
+// and a deletion (either may leave a later meter mid-measure, cutting a derived short bar before
+// it).
 [[nodiscard]] std::vector<TimeSignatureChange> randomMeterEdit(
     Dice& dice, const TempoMap& tempo_map)
 {
@@ -94,7 +115,8 @@ using Catch::Matchers::WithinULP;
     const auto pick = [&dice, &meters] {
         return static_cast<std::size_t>(dice.roll(0, static_cast<int>(meters.size()) - 1));
     };
-    switch (dice.roll(0, 4))
+    const int terminal_measure = common::core::terminalGridPosition(tempo_map).measure;
+    switch (dice.roll(0, 5))
     {
         case 0:
         {
@@ -104,32 +126,34 @@ using Catch::Matchers::WithinULP;
         }
         case 1:
         {
-            const int terminal_measure = common::core::terminalGridPosition(tempo_map).measure;
             const int measure = dice.roll(1, terminal_measure - 1);
-            const TimeSignatureChange inserted{
-                .place = tempo_map.wholeNotePositionAt(downbeat(measure)),
-                .meter = respelled(tempo_map.timeSignatureAt(measure).meter),
-            };
-            const auto place =
-                std::ranges::find_if(meters, [&inserted](const TimeSignatureChange& held) {
-                    return held.place >= inserted.place;
+            putMeter(
+                meters,
+                TimeSignatureChange{
+                    .place = tempo_map.wholeNotePositionAt(downbeat(measure)),
+                    .meter = respelled(tempo_map.timeSignatureAt(measure).meter),
                 });
-            if (place != meters.end() && place->place == inserted.place)
-            {
-                *place = inserted;
-            }
-            else
-            {
-                meters.insert(place, inserted);
-            }
             break;
         }
         case 2:
         {
-            meters.back().meter = randomMeter(dice);
+            const int measure = dice.roll(1, terminal_measure - 1);
+            const common::core::TimeSignature governing = tempo_map.timeSignatureAt(measure).meter;
+            const int beat = dice.roll(2, std::max(2, governing.numerator));
+            putMeter(
+                meters,
+                TimeSignatureChange{
+                    .place = tempo_map.wholeNotePositionAt(beatAt(measure, beat)),
+                    .meter = dice.chance(50) ? governing : randomMeter(dice),
+                });
             break;
         }
         case 3:
+        {
+            meters.back().meter = randomMeter(dice);
+            break;
+        }
+        case 4:
         {
             meters[pick()].meter = randomMeter(dice);
             break;
@@ -406,16 +430,31 @@ struct WrittenPackage
     return std::ranges::any_of(tempo_map.reigns(), &common::core::MeterReign::derived);
 }
 
+// The path the editor takes: the transform's result normalized, as the commit funnel lands it.
+[[nodiscard]] SongTimeline landedUnderMeters(
+    const SongTimeline& before, const std::vector<TimeSignatureChange>& meters)
+{
+    SongTimelineSnapshot landed{.timeline = readdressUnderMeters(before, meters)};
+    landed.normalize();
+    return landed.timeline;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------------------------
 // Properties over random songs.
 
+// The time-holding guarantee is checked on what the editor holds after the commit: the transform's
+// result with every redundant change dropped. A repeat of the prevailing meter off its downbeat
+// grid is no such change — it cuts a bar — so it survives the normalize and the song keeps its
+// time around the cut; a repeat on the grid is dropped and the song keeps its time just the same.
 TEST_CASE("Meter edits keep every object's time over random songs", "[core][meter-edits]")
 {
     int landed_count = 0;
     int refused_count = 0;
     int short_bar_count = 0;
+    int kept_repeat_count = 0;
+    int dropped_count = 0;
     int crossing_rings = 0;
     int crossing_keyframes = 0;
     for (std::uint32_t seed = 1; seed <= 150; ++seed)
@@ -426,30 +465,101 @@ TEST_CASE("Meter edits keep every object's time over random songs", "[core][mete
         requireValid(before);
         const std::vector<TimeSignatureChange> meters = randomMeterEdit(dice, before.tempo_map);
 
-        const SongTimeline edited = readdressUnderMeters(before, meters);
-        if (breaksAReignRule(edited))
+        // Normalized, then judged, in the funnel's own order.
+        const SongTimeline landed = landedUnderMeters(before, meters);
+        if (breaksAReignRule(landed))
         {
             ++refused_count;
             continue;
         }
         ++landed_count;
-        const Crossings crossings = checkKeepsTime(before, edited, meters);
-        if (hasDerivedShortBar(edited.tempo_map))
+        const std::vector<TimeSignatureChange>& kept = landed.tempo_map.timeSignatures();
+        const Crossings crossings = checkKeepsTime(before, landed, kept);
+        if (hasDerivedShortBar(landed.tempo_map))
         {
             ++short_bar_count;
+        }
+        if (kept.size() < meters.size())
+        {
+            ++dropped_count;
+        }
+        // Two stored changes of one meter in a row: only a repeat off the grid is kept.
+        if (std::ranges::adjacent_find(kept, {}, &TimeSignatureChange::meter) != kept.end())
+        {
+            ++kept_repeat_count;
         }
         crossing_rings += crossings.rings;
         crossing_keyframes += crossings.keyframes;
 
         // A -> B -> A restores the song exactly: every token, section, meter and the terminal.
-        CHECK(readdressUnderMeters(edited, before.tempo_map.timeSignatures()) == before);
+        CHECK(readdressUnderMeters(landed, before.tempo_map.timeSignatures()) == before);
     }
     // The dice must reach every branch, or the property proves less than it claims.
     CHECK(landed_count >= 75);
     CHECK(refused_count > 0);
     CHECK(short_bar_count > 0);
+    CHECK(kept_repeat_count > 0);
+    CHECK(dropped_count > 0);
     CHECK(crossing_rings > 0);
     CHECK(crossing_keyframes > 0);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The commit's normalize: which stored repeats carry nothing.
+
+// A stored change is redundant exactly when dropping it leaves every measure's length as it is: it
+// repeats the meter of the authored reign before it from one of that reign's own downbeats. A
+// repeat off that grid cuts a bar, so it stays, and so does a meter equal to the derived short bar
+// before it, which stores nothing to repeat. The anchors stand under the cut, so dropping the
+// repeat after the re-address would move every one of them.
+TEST_CASE(
+    "Normalize drops only a repeated meter on its predecessor's downbeat grid",
+    "[core][meter-edits]")
+{
+    const SongTimeline before{
+        .tempo_map = common::core::testing::commonTimeMap({
+            anchor("1:1", 0),
+            anchor("3:1", 4000),
+            anchor("5:3", 7000),
+            anchor("7:1", 10000),
+            anchor("9:1", 16000),
+        }),
+        .sections = {SongSection{.position = at("6:1"), .name = "Chorus"}},
+        .arrangements = {sliceArrangement("lead", {makeNote(at("4:4"), 1, 5, Fraction{1}, {})})},
+    };
+    requireValid(before);
+    const std::vector<TimeSignatureChange> cut{
+        placed(Fraction{}, 4, 4), placed(Fraction{7, 2}, 4, 4)
+    };
+
+    SECTION("a repeat on the grid is dropped and the song is as it was")
+    {
+        CHECK(
+            landedUnderMeters(before, {placed(Fraction{}, 4, 4), placed(Fraction{2}, 4, 4)}) ==
+            before);
+    }
+    SECTION("a repeat off the grid is kept with the bar it cuts, and the song keeps its time")
+    {
+        const SongTimeline landed = landedUnderMeters(before, cut);
+        CHECK(landed == readdressUnderMeters(before, cut));
+        CHECK(landed.tempo_map.timeSignatureAt(4).derived);
+        CHECK(landed.tempo_map.anchors()[2] == anchor("6:1", 7000));
+        static_cast<void>(checkKeepsTime(before, landed, cut));
+    }
+    SECTION("a chain drops the repeat on the grid and keeps the one off it")
+    {
+        const SongTimeline landed = landedUnderMeters(
+            before,
+            {placed(Fraction{}, 4, 4), placed(Fraction{2}, 4, 4), placed(Fraction{7, 2}, 4, 4)});
+        CHECK(landed == readdressUnderMeters(before, cut));
+    }
+    SECTION("a meter equal to the derived short bar before it is kept")
+    {
+        const std::vector<TimeSignatureChange> meters{
+            placed(Fraction{}, 4, 4), placed(Fraction{5, 2}, 2, 4)
+        };
+        CHECK(landedUnderMeters(before, meters).tempo_map.timeSignatures() == meters);
+    }
 }
 
 // The file stores every position as a whole-note place, so a meter edit, which moves nothing,

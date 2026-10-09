@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <string>
 #include <utility>
 #include <variant>
@@ -53,8 +54,12 @@ using common::core::testing::metersAt;
 struct MeterEditor : SongEditorHarness
 {
     MeterEditor()
+        : MeterEditor(makeMeterSong())
+    {}
+
+    explicit MeterEditor(common::core::Song song)
     {
-        open(makeMeterSong());
+        open(std::move(song));
         REQUIRE(controller.session().arrangements().size() == 2);
     }
 
@@ -207,6 +212,77 @@ TEST_CASE("A meter edit refuses bad text and records nothing for no change", "[c
     editor.set(downbeat(3), "4/4");
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == 0);
+}
+
+// A meter placed at a beat starts a bar there, so the prevailing meter repeated OFF its own
+// downbeat grid restates nothing: 4/4 at 4:3 cuts measure 4 to a derived 2/4 and renumbers every
+// bar after it, while every anchor, every span's tempo and every object keep their time, the
+// anchors under the cut re-addressed (5:3 is 6:1). Only a repeat ON the grid is dropped as no
+// change, before the cut and after it alike.
+TEST_CASE("A repeated meter off the downbeat grid cuts a bar and moves nothing", "[core][meters]")
+{
+    using common::core::BeatAnchor;
+    using common::core::testing::anchor;
+    common::core::Song song = makeMeterSong();
+    song.tempo_map = common::core::testing::commonTimeMap({
+        anchor("1:1", 0),
+        anchor("3:1", 4000),
+        anchor("5:3", 7000),
+        anchor("7:1", 10000),
+        anchor("9:1", 16000),
+    });
+    MeterEditor editor{std::move(song)};
+    const common::core::TempoMap before = editor.tempoMap();
+    const std::vector<double> times = resolvedTimes(editor.controller.session().song());
+
+    editor.set(beatAt(4, 3), "4/4");
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:3", 4, 4}}));
+    CHECK(editor.undoEntryCount() == 1);
+    CHECK(editor.undoTopLabel() == "Add Time Signature");
+    CHECK(editor.view.renumber_flashes == std::vector{5});
+    const common::core::TempoMap& after = editor.tempoMap();
+    CHECK(after.reigns().size() == 3);
+    CHECK(
+        after.timeSignatureAt(4) == common::core::MeterReign{
+                                        .first_measure = 4,
+                                        .place = common::core::Fraction{3},
+                                        .meter = {.numerator = 2, .denominator = 4},
+                                        .derived = true,
+                                    });
+    CHECK(after.timeSignatureAt(5).first_measure == 5);
+    CHECK_FALSE(after.timeSignatureAt(5).derived);
+
+    CHECK(
+        after.anchors() == std::vector<BeatAnchor>{
+                               anchor("1:1", 0),
+                               anchor("3:1", 4000),
+                               anchor("6:1", 7000),
+                               anchor("7:3", 10000),
+                               anchor("9:3", 16000),
+                           });
+    REQUIRE(after.anchors().size() == before.anchors().size());
+    for (std::size_t index = 0; index < before.anchors().size(); ++index)
+    {
+        CHECK(
+            after.wholeNotePositionAt(after.anchors()[index].position) ==
+            before.wholeNotePositionAt(before.anchors()[index].position));
+    }
+    for (std::size_t span = 0; span + 1 < before.anchors().size(); ++span)
+    {
+        CHECK(tempoSpanBpmText(after, span) == tempoSpanBpmText(before, span));
+    }
+    const std::vector<double> landed = resolvedTimes(editor.controller.session().song());
+    REQUIRE(landed.size() == times.size());
+    for (std::size_t index = 0; index < times.size(); ++index)
+    {
+        CHECK_THAT(landed[index], WithinAbs(times[index], 1e-9));
+    }
+
+    const common::core::SongTimeline cut = editor.timeline();
+    editor.set(downbeat(3), "4/4");
+    editor.set(downbeat(7), "4/4");
+    CHECK(editor.timeline() == cut);
+    CHECK(editor.undoEntryCount() == 1);
 }
 
 // The measure-1 meter cannot be deleted or moved. Another one is deleted whole, the meter before it
