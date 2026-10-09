@@ -79,7 +79,8 @@ The tempo map comes from the score's audio sync points (bar positions pinned to 
 so imported notes line up with the backing audio exactly as they did in Guitar Pro; the base
 tempo is only used for scores without sync points. Tie chains merge into single notes with
 combined sustains, matching the format's one-onset-one-note model, and techniques map onto the
-chart's fields with unrepresentable ornaments recorded in the notes list.
+chart's fields with unrepresentable ornaments recorded in the notes list. What the build does
+beyond literal conversion is the Guitar Pro import ruleset (\ref design_rulesets_gp_import).
 
 \param score Parsed score to convert.
 \return Built song data, or a typed import failure describing the unconvertible score.

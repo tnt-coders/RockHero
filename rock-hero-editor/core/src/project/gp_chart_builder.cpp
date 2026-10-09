@@ -57,10 +57,10 @@ struct NoteEvent
     std::size_t voice{0};
 
     // How much ring an ornament took from this event, whether a following before-beat grace run
-    // (rule 17) or the alternation a trill on this note spells out. Guitar Pro states a bend's
-    // points as PERCENTAGES of the NOTATED duration, so the curve is mapped over the ring plus
-    // this and then clipped back to the ring — squeezing it into the shortened ring would state a
-    // curve nobody wrote.
+    // (GP import rule 5) or the alternation a trill on this note spells out. Guitar Pro states a
+    // bend's points as PERCENTAGES of the NOTATED duration, so the curve is mapped over the ring
+    // plus this and then clipped back to the ring — squeezing it into the shortened ring would
+    // state a curve nobody wrote.
     Fraction stolen_lead{};
 
     // Whether the source marks this note LET RING and Guitar Pro's own playback honors the mark
@@ -1521,7 +1521,7 @@ struct BuiltNote
     std::size_t voice{0};
 
     // Onset of the tied continuation the slide flags were inherited from, when they were: the
-    // glide leaves from the junction, not the merged note's onset (policy rule 15).
+    // glide leaves from the junction, not the merged note's onset (GP import rule 3).
     std::optional<Fraction> slide_from_place;
 
     // Whether this note carries a live LET RING mark, carried from the event that opened it and
@@ -2195,7 +2195,7 @@ void resolveSlideIns(
 
 // Chooses every unpitched slide-out's exit fret from the hand's next move. When the next event of
 // the natural stream departs in the slide-out's direction AND arrives by the very next onset, the
-// slide-out IS the departure: the exit fret rides that travel (widened to the slide-in rule's
+// slide-out IS the departure: the exit fret rides that travel (widened to GP import rule 4's
 // two-fret minimum). Otherwise the slide-out keeps the fixed four-fret gesture it was built with,
 // as does one ending past the next onset.
 //
@@ -2429,9 +2429,9 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
                         }
                     }
                 }
-                // A slide notated on the tied continuation belongs to the merged note (policy
-                // rule 15): the flags fold in rather than vanishing with the merged onset, and
-                // the continuation's own onset marks where the glide leaves from.
+                // A slide notated on the tied continuation belongs to the merged note (GP import
+                // rule 3): the flags fold in rather than vanishing with the merged onset, and the
+                // continuation's own onset marks where the glide leaves from.
                 origin.slide_flags |= source.slide_flags;
                 if (source.slide_flags != 0)
                 {
@@ -2806,7 +2806,7 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
 
         // Flags inherited from a tied continuation glide from the junction, not the merged
         // note's onset: a hold keyframe pins the pitch until the sliding segment begins (the
-        // tied 6 holds through its chord, then slides — policy rule 15).
+        // tied 6 holds through its chord, then slides — GP import rule 3).
         if (entry.slide_from_place.has_value())
         {
             const Fraction hold_offset = *entry.slide_from_place - entry.place;
@@ -2883,7 +2883,7 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
             }
 
             // Shift: the glide states the re-picked landing's fret AT the ring's END, exactly on
-            // that head (policy rule 13). Nothing marks it as the pitched arrival a shift slide
+            // that head (GP import rule 1). Nothing marks it as the pitched arrival a shift slide
             // is, and nothing has to — the chart PROVES it: an end statement naming the same stop
             // the next head on this string is struck at, at the same instant, is a glide into
             // position and a pick (\ref common::core::arrivesIntoNextHead). Guitar Pro states no
@@ -3047,8 +3047,9 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
     // a pure function of the written stream.
     //
     // A note that ABSORBED a same-string merge — a tie continuation, a legato-slide landing —
-    // extends here like any other marked note (rule 1 of the baseline law: ties combine into a
-    // single note at its true WRITTEN duration, and the mark then extends that note normally).
+    // extends here like any other marked note (the GP import figure law's "written is the floor":
+    // ties combine into a single note at its true WRITTEN duration, and the mark then extends that
+    // note normally).
     // Guitar Pro itself audibly rings tied let-ring notes past the written duration.
     //
     // The connections are RESOLVED AGAIN because `resolveSlideIns` has since moved rings: a scoop

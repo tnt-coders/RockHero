@@ -969,7 +969,7 @@ TEST_CASE("Guitar Pro import moves the hand where a chord member slides", "[core
 // One bar, quarter notes: a tied fret-6 whose continuation sits inside a chord and shift-slides
 // down, next to a fret-8 chord member shift-sliding down, with the chord's fret-3 member tied
 // through into the landing chord — the Periphery measure-20 shape the tie/slide/arpeggio rules
-// were written for (shape rule 5 and policy rules 13 and 15).
+// were written for (shape rule 5 and GP import rules 1 and 3).
 constexpr const char* g_tied_chord_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 <GPIF>
 <GPVersion>8.1.4</GPVersion>
@@ -1068,12 +1068,12 @@ TEST_CASE(
     REQUIRE(chart.notes.size() == 5);
 
     // The tied 6: its continuation merged in (the ring runs through the chord) and the
-    // continuation's shift-slide flags folded into the merged note (rule 15). A hold keyframe
-    // pins fret 6 until the chord where the sliding segment was notated, then the glide states its
-    // landing AT the ring's end, exactly on the landing pair's onset (rule 13). The string rings
-    // until that landing re-picks it, so two quarters are stored; the ring passes the chord it
-    // crosses but ends exactly ON the landing pair, so tail rule 1 binds it there (the crop binds
-    // on the first onset a ring does not pass) and the DRAWN tail stops at 19/40.
+    // continuation's shift-slide flags folded into the merged note (GP import rule 3). A hold
+    // keyframe pins fret 6 until the chord where the sliding segment was notated, then the glide
+    // states its landing AT the ring's end, exactly on the landing pair's onset (GP import rule 1).
+    // The string rings until that landing re-picks it, so two quarters are stored; the ring passes
+    // the chord it crosses but ends exactly ON the landing pair, so tail rule 1 binds it there (the
+    // crop binds on the first onset a ring does not pass) and the DRAWN tail stops at 19/40.
     const common::core::ChartNote& tied = chart.notes[0];
     const std::vector<Fraction> ink_end = inkEndsOf(chart, song->tempo_map);
     CHECK(tied.position == GridPosition{.measure = 1, .beat = 1});
@@ -2419,8 +2419,8 @@ TEST_CASE("Guitar Pro import plays a bar's triplet feel", "[core][gp-import]")
     SECTION("a grace between the pair neither breaks it nor moves it")
     {
         // Grace beats take no bar time, so the pair reaches across one: the second eighth still
-        // lands at 2/3. The ornament then places itself against that principal by rule 17 — a
-        // thirty-second lead ahead of it, stolen from the swung first eighth's ring.
+        // lands at 2/3. The ornament then places itself against that principal by GP import
+        // rule 5 — a thirty-second lead ahead of it, stolen from the swung first eighth's ring.
         GpScore score = makeLinearScore(1, syncs);
         score.master_bars[0].triplet_feel = GpTripletFeel::Triplet8th;
         score.tracks[0].bars.push_back(
@@ -3107,9 +3107,9 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 
     SECTION("a note that absorbed a TIE keeps a merged ring LONGER than the figure's end")
     {
-        // Rule 1 of the baseline law: ties combine into a single note at its true written
-        // duration, and the figure law then LENGTHENS ONLY — written is its floor — so a merged
-        // ring already reaching past the figure's end simply stands. The anchor puts that end on
+        // The GP import figure law's "written is the floor": ties combine into a single note at
+        // its true written duration, and the figure law then LENGTHENS ONLY, so a merged ring
+        // already reaching past the figure's end simply stands. The anchor puts that end on
         // beat two, a quarter in, while the merged chain runs eight quarters; the sibling section
         // below is the other side of the same floor, where the figure end sits past the merged end
         // and the mark extends like any other.
@@ -3338,12 +3338,12 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 
     SECTION("a following grace steals from the ring, but the bend keeps its destination")
     {
-        // Rule 17's steal takes the ornament's lead out of this beat, and the figure law then
-        // out-rings it. What must not happen anywhere in that order is the truth loss this pins:
-        // clipping the bend to the STOLEN ring the instant it is mapped would lose the destination
-        // — which Guitar Pro states as a percentage of the NOTATED quarter and which therefore
-        // sits past the stolen end — before the ring comes back. The trim runs ONCE, after every
-        // pass that can lengthen a ring.
+        // GP import rule 5's steal takes the ornament's lead out of this beat, and the figure law
+        // then out-rings it. What must not happen anywhere in that order is the truth loss this
+        // pins: clipping the bend to the STOLEN ring the instant it is mapped would lose the
+        // destination — which Guitar Pro states as a percentage of the NOTATED quarter and which
+        // therefore sits past the stolen end — before the ring comes back. The trim runs ONCE,
+        // after every pass that can lengthen a ring.
         //
         // THE FIGURE HAS TO REACH PAST THE ORNAMENT for that to be observable, so the beat the
         // grace ornaments carries a mark of its own: the anchor is measured from the figure's LAST
@@ -6495,7 +6495,7 @@ TEST_CASE(
 
 // The hand's next move picks an unpitched slide-out's exit fret. A next placement of the natural
 // stream departing in the slide-out's direction AND serving the very next onset makes the gesture a
-// departure: the exit fret rides that anchor travel (widened to the slide-in rule's two-fret
+// departure: the exit fret rides that anchor travel (widened to GP import rule 4's two-fret
 // minimum). Otherwise it is a slide-out: the fixed four-fret exit. The gesture places no window of
 // its own: the positions a reader derives from the notes are the whole hand.
 TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-import]")

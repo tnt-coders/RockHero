@@ -612,16 +612,16 @@ the position heads (\ref deriveFretHandEvents), and the notes never state a fret
 /*!
 \brief Brings a whole chart to its normal form, in place, and reports every repair with its place.
 
-THE one normalizer: every path that brings a chart into memory — the package reader and the Guitar
-Pro importer — calls this and nothing else, so the two cannot drift, and the validator that follows
-refuses only what no repair can express. It applies \ref normalizeChartNote to every note, bounds
-every ring at its own string's next onset with \ref normalizeSustainOverlaps (the one stream-level
-note rule), applies \ref normalizeFretHandPosition to every hand position, then settles the
-relational truths against the stream as it will actually stand: \ref sweepUnjustifiedLegato,
-because a truncated tail can be the hold a neighbour's legato claim depended on, and last the drop
-of every authored hand position that breaks the hand-position coverage rule
-(\ref uncoveringFretHandPositions), because its demands read the bounded rings and its windows are
-the fitted ones.
+THE one normalizer, the load normalizer (\ref design_rulesets_techniques): every path that brings a
+chart into memory — the package reader and the Guitar Pro importer — calls this and nothing else,
+so the two cannot drift, and the validator that follows refuses only what no repair can express.
+It applies \ref normalizeChartNote to every note, bounds every ring at its own string's next onset
+with \ref normalizeSustainOverlaps (the one stream-level note rule), applies
+\ref normalizeFretHandPosition to every hand position, then settles the relational truths against
+the stream as it will actually stand: \ref sweepUnjustifiedLegato, because a truncated tail can be
+the hold a neighbour's legato claim depended on, and last the drop of every authored hand position
+that breaks the hand-position coverage rule (\ref uncoveringFretHandPositions), because its demands
+read the bounded rings and its windows are the fitted ones.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer

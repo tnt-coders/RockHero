@@ -8,8 +8,9 @@ itself — or when its stored value would describe something that does not exist
 offset on a note with no pitch. The merely unusual is allowed, and an allowance needs no code: a
 rule below that allows a combination is kept so that nobody adds a refusal for it later.
 
-Code cites a rule as **technique rule N**. The rules are implemented in three places, by what a
-broken rule becomes:
+Code cites a rule as **technique rule N**, or by its name for the rule below the numbered list
+(**the load normalizer**). The rules are implemented in three places, by what a broken rule
+becomes:
 
 - **Repairs and refusals** read one note. `normalizeChartNote` (`chart_rules.h`) owns every rule a
   repair can express — it strips the technique a note cannot carry, flattens a stranded strike
@@ -138,3 +139,37 @@ state what holds for those forms; until they are enabled, the reduction runs bef
     pitch. Only the path goes: nothing stops an open string to travel, so the normalizer drops its
     fret statements (`ChartRepair::OpenStringSlide`) and leaves its bend. The hand sits at the first
     playable fret (hand-position rule 13).
+
+# Named rules
+
+## The load normalizer
+
+Every path that brings a chart into memory runs one normalizer, `normalizeChart`
+(`chart_rules.h`): the package reader on every `.rock` load and saved project, and the Guitar Pro
+import as its commit (\ref design_rulesets_gp_import). Import and load therefore cannot drift, and
+a chart written under older rules is repaired and reported rather than refused; the validator that
+follows refuses only what no repair can express. It runs in this order:
+
+- **Each note**, through `normalizeChartNote` in stage order: the board ceiling clamps a fret or a
+  keyframe's stated fret onto the last fret; the capo floor lifts a scrape's start and every
+  slide-out above the capo and strips any other stated fret on or below it; the exclusions — a dead
+  note's bend and vibrato (rules 10 and 11), the dead pinch (rule 8), the disabled harmonic forms,
+  a tap harmonic's tremolo (rule 23), a fret-hand harmonic's payload (rules 7 and 9), an open
+  string's path (rule 28), and a vibrato stated where no ring can sound it, at the ring's end or
+  inside a glide; the stranded strike (rule 4); and last, a scrape that no longer travels (rule 2).
+  Then every keyframe that says nothing the path does not already say goes
+  (`stripSilentKeyframes`).
+- **The same-string clamp**: every ring is bounded at its own string's next onset
+  (`normalizeSustainOverlaps`).
+- **Every hand position** fits onto the board (`normalizeFretHandPosition`).
+- **The relational settle**: every legato claim the stream does not justify becomes the plain pick
+  it plays as (`sweepUnjustifiedLegato`). It runs after the clamp, because a bounded ring can be
+  the hold a claim depended on.
+- **Last, the hand-position coverage rule** (\ref design_rulesets_hand_positions): every authored
+  position that leaves a stop gripped at its place uncovered is dropped
+  (`uncoveringFretHandPositions`), judged against the bounded rings and the fitted windows. An
+  import authors no position, so only a load meets this stage.
+
+A dead note's ring is untouched (rule 25). Every repair is reported with its place
+(`ChartConversion`): the editor opens such a chart dirty and shows the repairs once, and the
+importer counts them by repair in its log.

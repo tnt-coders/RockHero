@@ -28,6 +28,21 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while moving the GP import rules into their ruleset (2026-10-08)
+
+Reported by the migration and not yet re-verified against the code; check each first.
+
+- **Trill and tremolo thresholds floor where their comments say "one step".** The code's
+  `count <= 1` leaves a trill shorter than TWO steps single, and a tremolo beat shorter than two
+  strokes loses its mark and imports as one plain note, while the comments say "no longer than
+  one step/stroke". A 1.5-step trill or 1.5-stroke tremolo is the case that tells which is meant;
+  fix the arithmetic or the comments (GP import rules 8 and 9).
+- **A shift slide with no landing becomes a slide-out DOWN whatever its direction** (GP import
+  rule 1). Confirm that is intended rather than a lost direction.
+- **`normalizeChart`'s header doc omits its `stripSilentKeyframes` stage.**
+- **The lifecycle guide's tail-policy paragraph still narrates history** ("now *stores*", "not
+  import policy … any more"); restate it as the current truth.
+
 ## Found while moving the technique rows into their ruleset (2026-10-08)
 
 Reported by the migration and not yet re-verified against the code; check each first.
@@ -869,7 +884,7 @@ Each re-verified against the code before being written down.
   should call that authority instead of keeping a second copy of it — two producers of one merge is
   the rule-stated-twice defect, and this one has already smeared a technique across the junction
   once. The shape is a common-core helper the editor planner and the builder both call; check what
-  the importer needs that the editor's join does not (policy rule 15's positional payloads) before
+  the importer needs that the editor's join does not (GP import rule 3's positional payloads) before
   moving the code.
 
 

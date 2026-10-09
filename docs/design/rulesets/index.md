@@ -12,6 +12,9 @@ one document here, and code cites its rules by the ruleset's name and the rule's
   and ends (the grip-tenure law), its class, and what the surfaces draw of it.
 - \subpage design_rulesets_techniques — which techniques may combine on a note, and what a
   combination draws, refuses or normalizes.
+- \subpage design_rulesets_gp_import — what the Guitar Pro import does to a score beyond literal
+  conversion: its spelled-out gestures, ornaments, frames and reductions, and how long each string
+  rings.
 
 Rule numbers are stable. A rule is never renumbered; a retired rule keeps its number, marked
 retired, and a new rule takes the next number.
