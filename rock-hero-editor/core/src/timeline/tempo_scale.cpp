@@ -51,10 +51,10 @@ std::expected<common::core::SongTimeline, ReaddressError> scaledTimeline(
 {
     assert(factor > common::core::Fraction{} && "a scale factor is positive");
     const ContentMap scaled = scaledPlaces(factor);
-    std::vector<PlacedMeter> meters = placedMetersOf(timeline.tempo_map);
-    for (PlacedMeter& meter : meters)
+    std::vector<common::core::TimeSignatureChange> meters = timeline.tempo_map.timeSignatures();
+    for (common::core::TimeSignatureChange& meter : meters)
     {
-        meter.whole_note = scaled(meter.whole_note);
+        meter.place = scaled(meter.place);
     }
     std::vector<PlacedAnchor> anchors = placedAnchorsOf(timeline.tempo_map);
     for (PlacedAnchor& anchor : anchors)

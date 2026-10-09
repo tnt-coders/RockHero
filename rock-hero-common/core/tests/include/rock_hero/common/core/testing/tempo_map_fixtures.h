@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <initializer_list>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
@@ -62,13 +63,53 @@ hides inside a helper and a time between two milliseconds cannot be written. A t
     return GridPosition{.measure = measure, .beat = beat, .offset = {}};
 }
 
+/*! \brief A time signature as a fixture states it: the grid token it starts at, and its meter. */
+struct MeterAt
+{
+    /*! \brief Grid token of the first downbeat, read under the meters listed before this one. */
+    std::string_view at;
+
+    /*! \brief Beats per measure. */
+    int numerator;
+
+    /*! \brief Note value that represents one beat. */
+    int denominator;
+};
+
 /*!
-\brief The 4/4 meter from measure 1 that nearly every suite's tempo map starts from.
-\return A single common-time signature at measure 1.
+\brief Time-signature changes stated by the measure each starts, as a charter counts them.
+
+Each token is resolved under the meters listed before it, so `{{"1:1", 4, 4}, {"3:1", 3, 4},
+{"5:1", 5, 4}}` places the 5/4 after two bars of 4/4 and two of 3/4. A token off a downbeat
+(`"6:2"`) places a meter mid-measure, for the cases about the derived short bar.
+
+\param meters The changes in order, the first at `"1:1"`; a malformed token throws
+       `std::invalid_argument`.
+\return The placed changes.
+*/
+[[nodiscard]] inline std::vector<TimeSignatureChange> metersAt(
+    std::initializer_list<MeterAt> meters)
+{
+    std::vector<TimeSignatureChange> changes;
+    for (const MeterAt& meter : meters)
+    {
+        const TempoMap before{changes, {}};
+        changes.push_back(
+            TimeSignatureChange{
+                .place = before.wholeNotePositionAt(anchor(meter.at, 0).position),
+                .meter = {.numerator = meter.numerator, .denominator = meter.denominator},
+            });
+    }
+    return changes;
+}
+
+/*!
+\brief The 4/4 meter from the song's start that nearly every suite's tempo map starts from.
+\return A single common-time signature at the song's start.
 */
 [[nodiscard]] inline std::vector<TimeSignatureChange> commonTime()
 {
-    return {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}};
+    return metersAt({{"1:1", 4, 4}});
 }
 
 /*!

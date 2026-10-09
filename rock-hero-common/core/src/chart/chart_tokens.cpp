@@ -1,5 +1,6 @@
 #include <charconv>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 
 namespace rock_hero::common::core
 {
@@ -80,35 +81,73 @@ std::string formatHandPositionToken(const GridPosition& position)
     return "hand position " + formatGridPositionToken(position);
 }
 
+// Reads the three shapes leniently, then holds the text to the formatter's spelling of the value
+// it read: the formatter is the one statement of the grammar, and a spelling that is not its own
+// (an improper or unreduced fraction, a written zero part) is refused by that fixpoint rather than
+// by a second statement of the rules.
 std::optional<Fraction> parseFractionToken(const std::string& text)
 {
+    const char* const end = text.data() + text.size();
+    const std::size_t plus = text.find('+');
     const std::size_t slash = text.find('/');
-    if (slash == std::string::npos)
+    std::optional<Fraction> value;
+    if (plus == std::string::npos && slash == std::string::npos)
     {
-        const auto whole = parseWholeInt(text.data(), text.data() + text.size());
-        if (!whole.has_value())
+        if (const auto whole = parseWholeInt(text.data(), end); whole.has_value())
         {
-            return std::nullopt;
+            value = Fraction{*whole};
         }
-        return Fraction{*whole};
     }
-
-    const auto numerator = parseWholeInt(text.data(), text.data() + slash);
-    const auto denominator = parseWholeInt(text.data() + slash + 1, text.data() + text.size());
-    if (!numerator.has_value() || !denominator.has_value() || *denominator <= 0)
+    else if (slash != std::string::npos && (plus == std::string::npos || plus < slash))
+    {
+        const bool mixed = plus != std::string::npos;
+        const char* const fraction_begin = mixed ? text.data() + plus + 1 : text.data();
+        const std::optional<int> whole =
+            mixed ? parseWholeInt(text.data(), text.data() + plus) : std::optional{0};
+        const auto numerator = parseWholeInt(fraction_begin, text.data() + slash);
+        const auto denominator = parseWholeInt(text.data() + slash + 1, end);
+        if (whole.has_value() && numerator.has_value() && denominator.has_value() &&
+            *denominator > 0)
+        {
+            value = Fraction{*whole} + Fraction{*numerator, *denominator};
+        }
+    }
+    if (!value.has_value() || formatFractionToken(*value) != text)
     {
         return std::nullopt;
     }
-    return Fraction{*numerator, *denominator};
+    return value;
 }
 
-std::string formatFractionToken(Fraction value)
+// The lattice is asked here, at admission, because everything downstream of a reader — the
+// normalizer before the rules included — measures from lattice places; a place between two ticks
+// must never become a position.
+std::optional<GridPosition> parsePlaceToken(const TempoMap& tempo_map, const std::string& text)
 {
-    if (value.denominator == 1)
+    const std::optional<Fraction> place = parseFractionToken(text);
+    if (!place.has_value() || !isOnTickLattice(*place))
     {
-        return std::to_string(value.numerator);
+        return std::nullopt;
     }
-    return std::to_string(value.numerator) + "/" + std::to_string(value.denominator);
+    return tempo_map.gridPositionAtWholeNote(*place);
+}
+
+std::string formatPlaceToken(const TempoMap& tempo_map, const GridPosition& position)
+{
+    return formatFractionToken(tempo_map.wholeNotePositionAt(position));
+}
+
+std::string formatFractionToken(const Fraction value)
+{
+    const int whole = value.numerator / value.denominator;
+    const Fraction fraction = value - Fraction{whole};
+    if (fraction.numerator == 0)
+    {
+        return std::to_string(whole);
+    }
+    const std::string fraction_text =
+        std::to_string(fraction.numerator) + "/" + std::to_string(fraction.denominator);
+    return whole == 0 ? fraction_text : std::to_string(whole) + "+" + fraction_text;
 }
 
 } // namespace rock_hero::common::core

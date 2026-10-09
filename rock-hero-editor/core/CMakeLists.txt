@@ -112,7 +112,6 @@ target_sources(
             src/timeline/tempo_scale.h
             src/timeline/tempo_span_text.cpp
             src/timeline/time_signature_target.cpp
-            src/timeline/time_signature_text.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/timeline_readdress.cpp
             src/timeline/timeline_readdress.h

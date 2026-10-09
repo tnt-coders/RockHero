@@ -27,9 +27,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] common::core::TempoMap makeLeadInTempoMap()
 {
     return common::core::TempoMap{
-        {common::core::TimeSignatureChange{
-            .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-        }},
+        common::core::testing::commonTime(),
         {
             anchor("1:1", 1000),
             anchor("3:1", 5000),

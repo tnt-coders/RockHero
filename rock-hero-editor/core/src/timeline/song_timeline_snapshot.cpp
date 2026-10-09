@@ -45,8 +45,8 @@ std::optional<std::string> SongTimelineSnapshot::validate(
     return std::nullopt;
 }
 
-// A meter is identified by its measure, so a renumbered later meter is a changed record too: a
-// transition that renumbers shows the first meter it renumbered when it added none.
+// A meter is placed on the whole-note axis, so only the change the transition made differs; the
+// focus goes where that change stands, or stood, under the landed map.
 EditFocus SongTimelineSnapshot::focusReplacing(const SongTimelineSnapshot& replaced) const
 {
     const std::optional<ChangedRecord<common::core::TimeSignatureChange>> changed =
@@ -56,14 +56,12 @@ EditFocus SongTimelineSnapshot::focusReplacing(const SongTimelineSnapshot& repla
     {
         return {};
     }
-    const int measure = changed->record->measure;
-    MarkerEditFocus marker{
-        .marker = {},
-        .start = common::core::measureDownbeat(measure),
-    };
+    const common::core::GridPosition start =
+        timeline.tempo_map.gridPositionAtWholeNote(changed->record->place);
+    MarkerEditFocus marker{.marker = {}, .start = start};
     if (changed->present)
     {
-        marker.marker = TimeSignatureSelection{.measure = measure};
+        marker.marker = TimeSignatureSelection{.measure = start.measure};
     }
     return marker;
 }

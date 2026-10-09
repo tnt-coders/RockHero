@@ -19,19 +19,37 @@ namespace rock_hero::common::core
 \brief Parses a chart document from its JSON text.
 
 Parsing is structural only; run validateChartRules against the song's tempo map afterwards for
-the rules that need grid context.
+the rules that need grid context. The tempo map is a parameter because the document stores every
+position as a whole-note place, which only the song's meters can address (\ref parsePlaceToken).
 
 \param text UTF-8 chart document text.
+\param tempo_map Song tempo map the chart's places are addressed on; only its meters are read.
 \return Parsed chart, or a typed failure naming the malformed element.
 */
-[[nodiscard]] std::expected<Chart, ChartError> parseChartDocument(const std::string& text);
+[[nodiscard]] std::expected<Chart, ChartError> parseChartDocument(
+    const std::string& text, const TempoMap& tempo_map);
+
+/*!
+\brief Parses a chart document's tuning alone.
+
+For a reader that wants the tuning and nothing the grid addresses — the package peek — so it need
+not hold the song's tempo map. The version gate and the tuning read are the ones
+\ref parseChartDocument runs.
+
+\param text UTF-8 chart document text.
+\return The tuning, or a typed failure naming the malformed element.
+*/
+[[nodiscard]] std::expected<ChartTuning, ChartError> parseChartDocumentTuning(
+    const std::string& text);
 
 /*!
 \brief Reads and parses a chart document file.
 \param file Native path of the chart document.
+\param tempo_map Song tempo map the chart's places are addressed on; see \ref parseChartDocument.
 \return Parsed chart, or a typed failure.
 */
-[[nodiscard]] std::expected<Chart, ChartError> readChartDocument(const std::filesystem::path& file);
+[[nodiscard]] std::expected<Chart, ChartError> readChartDocument(
+    const std::filesystem::path& file, const TempoMap& tempo_map);
 
 /*!
 \brief The chart as its document holds it: every note in saved form, every claim settled.

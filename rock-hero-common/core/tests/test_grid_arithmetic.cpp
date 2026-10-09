@@ -17,6 +17,8 @@ namespace
 {
 
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTime;
+using rock_hero::common::core::testing::metersAt;
 
 // Measures 1-2 are 4/4 (quarter-note beats), measure 3 onward is 7/8 (eighth-note beats): the
 // signature change exercises both the beats-per-measure carry and the note-value-to-beats
@@ -24,8 +26,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap signatureChangeMap()
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-         TimeSignatureChange{.measure = 3, .meter = {.numerator = 7, .denominator = 8}}},
+        metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}}),
         {anchor("1:1", 0), anchor("6:1", 20000)},
     };
 }
@@ -35,7 +36,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap steadyMap(const double quarter_note_bpm)
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
+        commonTime(),
         {anchor("1:1", 0),
          anchor("5:1", nearestAnchorMilliseconds(16.0 * 60.0 / quarter_note_bpm))},
     };
@@ -82,7 +83,7 @@ TEST_CASE("The minimum sustain distance spans one duration at every tempo", "[co
 TEST_CASE("The minimum sustain distance honours a tempo anchor inside it", "[core][chart]")
 {
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
+        commonTime(),
         {anchor("1:1", 0), anchor("1:4", 3000), anchor("2:1", 3025), anchor("5:1", 7000)},
     };
     const Fraction onset{1};

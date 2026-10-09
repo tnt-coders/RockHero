@@ -37,13 +37,10 @@ struct TempoMirrorHarness
 // 4/4 map holding 120 quarter-note BPM across one anchored measure.
 [[nodiscard]] core::TempoMap makeSteadyMap()
 {
-    return core::TempoMap{
-        {core::TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
-        {
-            anchor("1:1", 0),
-            anchor("2:1", 2000),
-        },
-    };
+    return core::testing::commonTimeMap({
+        anchor("1:1", 0),
+        anchor("2:1", 2000),
+    });
 }
 
 // 4/4 then 6/8 map with a tempo change at the meter change: 120 BPM over measure 1 (4 quarters in
@@ -51,10 +48,7 @@ struct TempoMirrorHarness
 [[nodiscard]] core::TempoMap makeMeterChangeMap()
 {
     return core::TempoMap{
-        {
-            core::TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            core::TimeSignatureChange{.measure = 2, .meter = {.numerator = 6, .denominator = 8}},
-        },
+        core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}}),
         {
             anchor("1:1", 0),
             anchor("2:1", 2000),
@@ -139,13 +133,10 @@ TEST_CASE("Tempo mirror preserves BPM beyond the official clamp", "[audio][tempo
 
     // Four quarters in half a second: 480 quarter-note BPM, well past Tracktion's 300 BPM
     // mutator clamp. Real charts exceed 300 BPM, so clamping would corrupt the mirror.
-    const core::TempoMap map{
-        {core::TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
-        {
-            anchor("1:1", 0),
-            anchor("2:1", 500),
-        },
-    };
+    const core::TempoMap map = core::testing::commonTimeMap({
+        anchor("1:1", 0),
+        anchor("2:1", 500),
+    });
     mirrorTempoMapIntoSequence(sequence, map);
 
     REQUIRE(sequence.getNumTempos() == 1);
@@ -175,6 +166,34 @@ TEST_CASE("Tempo mirror prunes stale entries on re-mirror", "[audio][tempo-mirro
     CHECK(tempo->getBpm() == Catch::Approx(120.0));
     CHECK(signature->numerator.get() == 4);
     CHECK(signature->denominator.get() == 4);
+}
+
+// A meter placed mid-measure cuts the bar before it short, and the derived short bar reaches the
+// host as a time signature of its own: 4/4 then 7/8 from beat 2 of measure 2 is a 1/4 bar on
+// quarter 4, the 7/8 from quarter 5.
+TEST_CASE("Tempo mirror writes a derived short bar as a time signature", "[audio][tempo-mirror]")
+{
+    const TempoMirrorHarness harness;
+    tracktion::TempoSequence& sequence = harness.edit->tempoSequence;
+
+    mirrorTempoMapIntoSequence(
+        sequence,
+        core::TempoMap{
+            core::testing::metersAt({{"1:1", 4, 4}, {"2:2", 7, 8}}),
+            {anchor("1:1", 0), anchor("4:1", 4250)},
+        });
+
+    REQUIRE(sequence.getNumTimeSigs() == 3);
+    const tracktion::TimeSigSetting* const short_bar = sequence.getTimeSig(1);
+    const tracktion::TimeSigSetting* const seven_eight = sequence.getTimeSig(2);
+    REQUIRE(short_bar != nullptr);
+    REQUIRE(seven_eight != nullptr);
+    CHECK(short_bar->getStartBeat().inBeats() == Catch::Approx(4.0));
+    CHECK(short_bar->numerator.get() == 1);
+    CHECK(short_bar->denominator.get() == 4);
+    CHECK(seven_eight->getStartBeat().inBeats() == Catch::Approx(5.0));
+    CHECK(seven_eight->numerator.get() == 7);
+    CHECK(seven_eight->denominator.get() == 8);
 }
 
 TEST_CASE("Tempo mirror leaves maps without tempo information alone", "[audio][tempo-mirror]")

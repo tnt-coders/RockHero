@@ -26,17 +26,9 @@ using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinULP;
 using common::core::GridPosition;
 using common::core::SongSection;
-using common::core::TimeSignature;
 using common::core::TimeSignatureChange;
 using common::core::testing::beatAt;
-
-[[nodiscard]] TimeSignatureChange meterAt(int measure, int numerator, int denominator)
-{
-    return TimeSignatureChange{
-        .measure = measure,
-        .meter = TimeSignature{.numerator = numerator, .denominator = denominator},
-    };
-}
+using common::core::testing::metersAt;
 
 // The eight-measure song with a second arrangement, so a meter edit has a non-current one to
 // re-address too: the bass holds a note whose ring crosses measure 3 and one off the beat.
@@ -130,7 +122,7 @@ TEST_CASE("The meter chord inserts at the cursor's measure, then restates", "[co
     CHECK(insert->meter_text == "4/4");
 
     editor.set(3, "3/4");
-    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(3, 3, 4)});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
     CHECK(editor.state().selected_time_signature_measure == std::optional{3});
     CHECK(editor.undoEntryCount() == 1);
     CHECK(editor.undoTopLabel() == "Add Time Signature");
@@ -147,7 +139,7 @@ TEST_CASE("The meter chord inserts at the cursor's measure, then restates", "[co
     CHECK(*entered == expected);
 
     editor.set(3, " 6 / 8 ");
-    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(3, 6, 8)});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}));
     CHECK(editor.undoEntryCount() == 2);
     CHECK(editor.undoTopLabel() == "Set Time Signature");
 }
@@ -198,19 +190,19 @@ TEST_CASE("Delete removes a meter and refuses the first", "[core][meters]")
     editor.controller.onTimeSignatureSelected(1);
     editor.controller.onSelectionDeleteRequested();
     editor.pressAlt(ChartStepDirection::Right);
-    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4)});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}}));
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
     CHECK(editor.undoEntryCount() == 0);
 
     editor.set(3, "3/4");
-    REQUIRE(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(3, 3, 4)});
+    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
     editor.controller.onSelectionDeleteRequested();
-    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4)});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}}));
     CHECK(editor.undoTopLabel() == "Delete Time Signature");
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
 
     editor.controller.onUndoRequested();
-    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(3, 3, 4)});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
 }
 
 // Alt+arrows step a meter one measure, re-addressing everything after it, and a held run is ONE
@@ -224,7 +216,7 @@ TEST_CASE("A meter moves a measure per press and a held run is one entry", "[cor
     const common::core::SongTimeline inserted = editor.timeline();
 
     editor.pressAlt(ChartStepDirection::Right, 2);
-    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(5, 2, 4)});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"5:1", 2, 4}}));
     CHECK(editor.state().selected_time_signature_measure == std::optional{5});
     CHECK(editor.undoEntryCount() == 2);
     CHECK(editor.undoTopLabel() == "Move Time Signature");
@@ -246,7 +238,7 @@ TEST_CASE("A meter run walked back restores the song exactly", "[core][meters]")
     const std::size_t entries = editor.undoEntryCount();
 
     editor.pressAlt(ChartStepDirection::Left);
-    REQUIRE(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(6, 3, 4)});
+    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:1", 3, 4}}));
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == inserted);
     CHECK(editor.undoEntryCount() == entries);
@@ -274,7 +266,7 @@ TEST_CASE("A meter move refuses neighbours and the song's end", "[core][meters]"
     MeterEditor ending;
     ending.set(7, "2/4");
     ending.pressAlt(ChartStepDirection::Right);
-    REQUIRE(ending.meters() == std::vector{meterAt(1, 4, 4), meterAt(8, 2, 4)});
+    REQUIRE(ending.meters() == metersAt({{"1:1", 4, 4}, {"8:1", 2, 4}}));
     const common::core::SongTimeline stepped = ending.timeline();
     ending.pressAlt(ChartStepDirection::Right);
     CHECK(ending.timeline() == stepped);
@@ -347,7 +339,7 @@ TEST_CASE("A meter restate that moves no downbeat flashes nothing", "[core][mete
     REQUIRE(editor.view.renumber_flashes == std::vector{4});
 
     editor.set(3, "6/8");
-    CHECK(editor.meters() == std::vector{meterAt(1, 4, 4), meterAt(3, 6, 8)});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}));
     CHECK(editor.undoTopLabel() == "Set Time Signature");
     CHECK(editor.view.renumber_flashes == std::vector{4});
 }

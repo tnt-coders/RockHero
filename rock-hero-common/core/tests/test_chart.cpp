@@ -15,6 +15,7 @@
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
@@ -274,13 +275,9 @@ TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
         CHECK(formatGridPositionToken(*fractional) == "12:3+1/2");
     }
 
-    // Non-canonical spellings parse to the reduced value and reformat canonically.
-    const auto reducible = parseGridPositionToken("4:1+2/4");
-    REQUIRE(reducible.has_value());
-    if (reducible.has_value())
-    {
-        CHECK(reducible->offset == Fraction{1, 2});
-    }
+    // The beat fraction is spelled the one canonical way, so an unreduced one is refused with the
+    // rest rather than read as its reduced value.
+    CHECK_FALSE(parseGridPositionToken("4:1+2/4").has_value());
 
     CHECK_FALSE(parseGridPositionToken("").has_value());
     CHECK_FALSE(parseGridPositionToken("12").has_value());
@@ -293,18 +290,77 @@ TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
     CHECK_FALSE(parseGridPositionToken("1:1+0/2").has_value());
 }
 
-// Verifies fraction tokens parse whole and fractional spellings, refuse malformed ones, and
-// reformat canonically.
-TEST_CASE("Chart fraction tokens round-trip", "[core][chart]")
+// The file's one number grammar is the canonical mixed number: the whole part, then `+n/d` for a
+// remainder in (0, 1) in lowest terms, each part omitted when zero. Every value has one spelling,
+// so the parser is the formatter's fixpoint: whatever formats to the text is read, and an improper,
+// unreduced or zero-part spelling is refused rather than read as its value.
+TEST_CASE("Fraction tokens are canonical mixed numbers", "[core][chart]")
 {
-    CHECK(parseFractionToken("2") == Fraction{2});
-    CHECK(parseFractionToken("11/8") == Fraction{11, 8});
-    CHECK(formatFractionToken(Fraction{2}) == "2");
-    CHECK(formatFractionToken(Fraction{11, 8}) == "11/8");
-    CHECK_FALSE(parseFractionToken("").has_value());
-    CHECK_FALSE(parseFractionToken("1/").has_value());
-    CHECK_FALSE(parseFractionToken("/2").has_value());
-    CHECK_FALSE(parseFractionToken("-1/2").has_value());
+    CHECK(formatFractionToken(Fraction{0}) == "0");
+    CHECK(formatFractionToken(Fraction{12}) == "12");
+    CHECK(formatFractionToken(Fraction{3, 8}) == "3/8");
+    CHECK(formatFractionToken(Fraction{47, 4}) == "11+3/4");
+    CHECK(formatFractionToken(Fraction{3, 2}) == "1+1/2");
+
+    CHECK(parseFractionToken("0") == Fraction{0});
+    CHECK(parseFractionToken("12") == Fraction{12});
+    CHECK(parseFractionToken("3/8") == Fraction{3, 8});
+    CHECK(parseFractionToken("11+3/4") == Fraction{47, 4});
+    CHECK(parseFractionToken("1+1/2") == Fraction{3, 2});
+    for (const std::string_view spelling : {"0", "12", "3/8", "11+3/4", "1+1/2", "131/8"})
+    {
+        CAPTURE(spelling);
+        const std::optional<Fraction> value = parseFractionToken(std::string{spelling});
+        if (value.has_value())
+        {
+            CHECK(formatFractionToken(*value) == spelling);
+        }
+    }
+
+    // Improper, unreduced, a written zero whole part, a zero fraction, and the malformed.
+    for (const std::string_view refused :
+         {"47/4",
+          "131/8",
+          "2/4",
+          "0+3/4",
+          "11+0/4",
+          "11+4/4",
+          "11+6/4",
+          "1/1",
+          "+3/4",
+          "11+",
+          "",
+          "1/",
+          "/2",
+          "-1/2",
+          "3/4+11",
+          "1+1+1/2"})
+    {
+        CAPTURE(refused);
+        CHECK_FALSE(parseFractionToken(std::string{refused}).has_value());
+    }
+}
+
+// A stored position is a whole-note place addressed on the grid; under 4/4 then 7/8 from measure 3,
+// the place 2+3/8 is beat 4 of the 7/8 bar and comes back as the very same text.
+TEST_CASE("Place tokens address a position on the grid and back", "[core][chart]")
+{
+    const TempoMap tempo_map{
+        testing::metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}}),
+        {testing::anchor("1:1", 0), testing::anchor("5:1", 8000)},
+    };
+    const GridPosition beat_four{.measure = 3, .beat = 4, .offset = {}};
+    CHECK(parsePlaceToken(tempo_map, "2+3/8") == std::optional{beat_four});
+    CHECK(formatPlaceToken(tempo_map, beat_four) == "2+3/8");
+    CHECK(parsePlaceToken(tempo_map, "0") == std::optional{GridPosition{}});
+    CHECK(
+        parsePlaceToken(tempo_map, "1+1/2") ==
+        std::optional{GridPosition{.measure = 2, .beat = 3, .offset = {}}});
+    CHECK_FALSE(parsePlaceToken(tempo_map, "3:4").has_value());
+    CHECK_FALSE(parsePlaceToken(tempo_map, "19/8").has_value());
+    // One tick is a place; a seventh of a whole note lies between two and never becomes a position.
+    CHECK(parsePlaceToken(tempo_map, "1/3840").has_value());
+    CHECK_FALSE(parsePlaceToken(tempo_map, "1/7").has_value());
 }
 
 // Verifies the fixture holding every construct the format defines survives a write and read
@@ -314,7 +370,7 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
     const Chart chart = makeFullChart();
 
     const std::string text = chartDocumentText(chart, makeTempoMap());
-    const auto parsed = parseChartDocument(text);
+    const auto parsed = parseChartDocument(text, makeTempoMap());
     REQUIRE(parsed.has_value());
     CHECK(*parsed == chart);
 
@@ -654,7 +710,7 @@ TEST_CASE("A duration's lattice test is the same in every meter", "[core][chart]
     for (const TimeSignature meter : meters)
     {
         const TempoMap tempo_map{
-            {TimeSignatureChange{.measure = 1, .meter = meter}},
+            {TimeSignatureChange{.place = {}, .meter = meter}},
             {BeatAnchor{.position = GridPosition{.measure = 1, .beat = 1}, .milliseconds = 0},
              BeatAnchor{.position = GridPosition{.measure = 5, .beat = 1}, .milliseconds = 8000}},
         };
@@ -693,7 +749,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         Chart chart;
         chart.tuning.strings = {"E2"};
         chart.notes = {note};
-        const auto parsed = parseChartDocument(chartDocumentText(chart, tempo_map));
+        const auto parsed = parseChartDocument(chartDocumentText(chart, tempo_map), tempo_map);
         REQUIRE(parsed.has_value());
         REQUIRE(parsed->notes.size() == 1);
         return parsed->notes[0];
@@ -871,13 +927,15 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         // harmonic in the chart without a word.
         CHECK_FALSE(parseChartDocument(
                         R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                        R"( "notes": [ { "at": "1:1", "string": 1, "fret": 0, "sustain": "1/32",)"
-                        R"( "harmonic": "natural" } ] })")
+                        R"( "notes": [ { "at": "0", "string": 1, "fret": 0, "sustain": "1/32",)"
+                        R"( "harmonic": "natural" } ] })",
+                        makeTempoMap())
                         .has_value());
         CHECK_FALSE(parseChartDocument(
                         R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                        R"( "notes": [ { "at": "1:1", "string": 1, "fret": 12, "sustain": "1/32",)"
-                        R"( "touch": 12.0 } ] })")
+                        R"( "notes": [ { "at": "0", "string": 1, "fret": 12, "sustain": "1/32",)"
+                        R"( "touch": 12.0 } ] })",
+                        makeTempoMap())
                         .has_value());
     }
 }
@@ -952,7 +1010,8 @@ TEST_CASE("Chart document refuses the removed posture and span keys", "[core][ch
     const auto parse_with_key = [](const std::string& key_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, )" + key_body +
-            R"( "notes": [] })");
+                R"( "notes": [] })",
+            makeTempoMap());
     };
     const auto chords = parse_with_key(R"("chords": [],)");
     REQUIRE_FALSE(chords.has_value());
@@ -992,7 +1051,7 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     chart.tuning.strings = {"E2"};
     chart.notes = {note};
     const std::string text = chartDocumentText(chart, tempo_map);
-    const auto parsed = parseChartDocument(text);
+    const auto parsed = parseChartDocument(text, makeTempoMap());
     REQUIRE(parsed.has_value());
     REQUIRE(parsed->notes.size() == 1);
     CHECK(parsed->notes[0] == note);
@@ -1043,8 +1102,9 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     const auto parse_note = [](const std::string& body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-            R"( "notes": [ { "at": "1:1", "string": 1, "fret": 5, "sustain": "1/8", )" +
-            body + R"( } ] })");
+            R"( "notes": [ { "at": "0", "string": 1, "fret": 5, "sustain": "1/8", )" +
+                body + R"( } ] })",
+            makeTempoMap());
     };
 
     const auto slides = parse_note(R"("slides": [ { "offset": "1/16", "fret": 7 } ])");
@@ -1084,11 +1144,12 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
 TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    const auto parse_note = [](const std::string& body) {
+    const auto parse_note = [&tempo_map](const std::string& body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-            R"( "notes": [ { "at": "1:1", "string": 1, "fret": 5, "sustain": "1/4", )" +
-            body + R"( } ] })");
+            R"( "notes": [ { "at": "0", "string": 1, "fret": 5, "sustain": "1/4", )" +
+                body + R"( } ] })",
+            tempo_map);
     };
 
     SECTION("both widths round-trip through the writer and back")
@@ -1114,7 +1175,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             chart.notes = {note};
 
             const std::string text = chartDocumentText(chart, tempo_map);
-            const auto reparsed = parseChartDocument(text);
+            const auto reparsed = parseChartDocument(text, makeTempoMap());
             REQUIRE(reparsed.has_value());
             if (!reparsed.has_value())
             {
@@ -2124,42 +2185,67 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
 TEST_CASE("Chart document rejects unsupported versions", "[core][chart]")
 {
     // Missing and non-1 versions are both rejected by the single chart version gate.
-    CHECK_FALSE(parseChartDocument(R"({ "tuning": { "strings": ["E2"] } })").has_value());
-    CHECK_FALSE(parseChartDocument(R"({ "formatVersion": 2, "tuning": { "strings": ["E2"] } })")
-                    .has_value());
+    const TempoMap tempo_map = makeTempoMap();
+    CHECK_FALSE(
+        parseChartDocument(R"({ "tuning": { "strings": ["E2"] } })", tempo_map).has_value());
+    CHECK_FALSE(
+        parseChartDocument(R"({ "formatVersion": 2, "tuning": { "strings": ["E2"] } })", tempo_map)
+            .has_value());
 
     const auto rejected =
-        parseChartDocument(R"({ "formatVersion": 2, "tuning": { "strings": ["E2"] } })");
+        parseChartDocument(R"({ "formatVersion": 2, "tuning": { "strings": ["E2"] } })", tempo_map);
     REQUIRE_FALSE(rejected.has_value());
     CHECK(rejected.error().message.find("formatVersion") != std::string::npos);
+
+    // The tuning-only read runs the same gate, so the peek cannot describe a document the loader
+    // would refuse.
+    CHECK_FALSE(parseChartDocumentTuning(R"({ "tuning": { "strings": ["E2"] } })").has_value());
+    const auto tuning =
+        parseChartDocumentTuning(R"({ "formatVersion": 1, "tuning": { "strings": ["D2"] } })");
+    REQUIRE(tuning.has_value());
+    CHECK(tuning->strings == std::vector<std::string>{"D2"});
 }
 
 // Verifies malformed elements, wrong-typed properties, a missing ring and out-of-order notes each
 // fail the read rather than loading as something else.
 TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
 {
-    CHECK_FALSE(parseChartDocument("not json").has_value());
+    const TempoMap tempo_map = makeTempoMap();
+    CHECK_FALSE(parseChartDocument("not json", tempo_map).has_value());
     CHECK_FALSE(
-        parseChartDocument(R"({ "formatVersion": 1, "tuning": { "strings": 3 } })").has_value());
+        parseChartDocument(R"({ "formatVersion": 1, "tuning": { "strings": 3 } })", tempo_map)
+            .has_value());
+    // A position is a whole-note place on the tick lattice in the one canonical spelling: the grid
+    // token the editor shows is not a spelling of it, and a seventh of a whole note is no tick.
+    for (const std::string_view at : {"bad", "1:1", "1/7", "4/4", "0+1/2", "1+2/4"})
+    {
+        CAPTURE(at);
+        CHECK_FALSE(parseChartDocument(
+                        R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+                        R"( "notes": [ { "at": ")" +
+                            std::string{at} +
+                            R"(", "string": 1, "fret": 0, "sustain": "1/32" } ] })",
+                        tempo_map)
+                        .has_value());
+    }
     CHECK_FALSE(parseChartDocument(
                     R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                    R"( "notes": [ { "at": "bad" } ] })")
+                    R"( "notes": [ { "at": "0", "string": 1, "fret": 0, "sustain": "1/32",)"
+                    R"( "attack": "chug" } ] })",
+                    tempo_map)
                     .has_value());
     CHECK_FALSE(parseChartDocument(
                     R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                    R"( "notes": [ { "at": "1:1", "string": 1, "fret": 0, "sustain": "1/32",)"
-                    R"( "attack": "chug" } ] })")
-                    .has_value());
-    CHECK_FALSE(parseChartDocument(
-                    R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                    R"( "notes": [ { "at": "1:1", "string": 1, "fret": 0, "sustain": "1/32",)"
-                    R"( "bend": [[0, 1]] } ] })")
+                    R"( "notes": [ { "at": "0", "string": 1, "fret": 0, "sustain": "1/32",)"
+                    R"( "bend": [[0, 1]] } ] })",
+                    tempo_map)
                     .has_value());
     // A keyframe must carry a parseable offset — the slide-out included, since it is one of them.
     CHECK_FALSE(parseChartDocument(
                     R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                    R"( "notes": [ { "at": "1:1", "string": 1, "fret": 3, "sustain": "1/32",)"
-                    R"( "keyframes": [ { "fret": 15 } ] } ] })")
+                    R"( "notes": [ { "at": "0", "string": 1, "fret": 3, "sustain": "1/32",)"
+                    R"( "keyframes": [ { "fret": 15 } ] } ] })",
+                    tempo_map)
                     .has_value());
 
     // A property of the WRONG TYPE is malformed, not absent. A lenient fallback would silently
@@ -2167,38 +2253,36 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // a numeric sustain read as no tail, a numeric attack as a plain pick, a numeric mute flag as
     // unmuted, a string fret as fret -1 (which validation does catch, unlike the rest), and a
     // string bend height as a flat zero-semitone bend.
-    const auto parse_note = [](const std::string& note_body) {
+    const auto parse_note = [&tempo_map](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
-            R"( } ] })");
+                R"( } ] })",
+            tempo_map);
     };
-    CHECK_FALSE(parse_note(R"("at": "1:1", "string": 1, "fret": 0, "sustain": 2)").has_value());
-    CHECK_FALSE(parse_note(R"("at": "1:1", "string": 1, "fret": 0, "sustain": "1/32", "attack": 7)")
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":0, "sustain": 2)").has_value());
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":0, "sustain": "1/32", "attack": 7)")
                     .has_value());
-    CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 0, "sustain": "1/32", "palmMute": 1)")
-            .has_value());
-    CHECK_FALSE(parse_note(R"("at": "1:1", "string": 1, "fret": 0, "sustain": "1/32", "dead": 1)")
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":0, "sustain": "1/32", "palmMute": 1)")
                     .has_value());
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":0, "sustain": "1/32", "dead": 1)")
+                    .has_value());
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":"3", "sustain": "1/32")").has_value());
     CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": "3", "sustain": "1/32")").has_value());
-    CHECK_FALSE(
-        parse_note(
-            R"("at": "1:1", "string": 1, "fret": 3, "sustain": "1/4", "bend": [["0", "half"]])")
+        parse_note(R"("at": "0", "string": 1, "fret":3, "sustain": "1/4", "bend": [["0", "half"]])")
             .has_value());
     // And the well-typed forms of the same fields still load, so the check refuses types rather
     // than fields.
-    CHECK(parse_note(R"("at": "1:1", "string": 1, "fret": 0, "sustain": "1/2")").has_value());
-    CHECK(parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "attack": "tap")")
+    CHECK(parse_note(R"("at": "0", "string": 1, "fret":0, "sustain": "1/2")").has_value());
+    CHECK(parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "attack": "tap")")
               .has_value());
-    CHECK(parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "palmMute": true)")
+    CHECK(parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "palmMute": true)")
               .has_value());
-    CHECK(parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "dead": true)")
+    CHECK(parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "dead": true)")
               .has_value());
 
     // The ring is REQUIRED, and absence is malformed rather than "no tail": reading a missing key
     // as zero would invent the one datum the model cannot derive.
-    const auto missing = parse_note(R"("at": "1:1", "string": 1, "fret": 5)");
+    const auto missing = parse_note(R"("at": "0", "string": 1, "fret":5)");
     REQUIRE_FALSE(missing.has_value());
     CHECK(missing.error().code == ChartErrorCode::MalformedDocument);
     CHECK(missing.error().message.find("sustain") != std::string::npos);
@@ -2211,7 +2295,7 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
          {"legato", "pinch", "leftTap", "tap", "pop", "slap", "pickSlide"})
     {
         const auto without_ring = parse_note(
-            R"("at": "1:1", "string": 1, "fret": 5, "attack": ")" + std::string{token} + R"(")");
+            R"("at": "0", "string": 1, "fret":5, "attack": ")" + std::string{token} + R"(")");
         REQUIRE_FALSE(without_ring.has_value());
         CHECK(without_ring.error().message.find("sustain") != std::string::npos);
     }
@@ -2222,8 +2306,9 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // sorted one, so an out-of-order document must not reach them.
     const auto unsorted = parseChartDocument(
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ )"
-        R"({ "at": "2:1", "string": 1, "fret": 5, "sustain": "1/32" }, )"
-        R"({ "at": "1:1", "string": 1, "fret": 3, "sustain": "1/32" } ] })");
+        R"({ "at": "1", "string": 1, "fret": 5, "sustain": "1/32" }, )"
+        R"({ "at": "0", "string": 1, "fret": 3, "sustain": "1/32" } ] })",
+        tempo_map);
     REQUIRE_FALSE(unsorted.has_value());
     CHECK(unsorted.error().code == ChartErrorCode::MalformedDocument);
     CHECK(unsorted.error().message.find("sorted") != std::string::npos);
@@ -2232,7 +2317,7 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // attack path every other misspelling takes — no branch of its own, so it fails exactly as
     // `"attack": "wobble"` does.
     const auto none_attack =
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/4", "attack": "none")");
+        parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/4", "attack": "none")");
     REQUIRE_FALSE(none_attack.has_value());
     CHECK(none_attack.error().code == ChartErrorCode::MalformedDocument);
     CHECK(
@@ -2249,7 +2334,8 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
     const auto parse_note = [](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
-            R"( } ] })");
+                R"( } ] })",
+            makeTempoMap());
     };
     const auto emphasis_of = [&](const std::string& note_body) {
         const auto parsed = parse_note(note_body);
@@ -2259,42 +2345,39 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
     };
 
     CHECK(
-        emphasis_of(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32")") ==
+        emphasis_of(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32")") ==
         NoteEmphasis::Normal);
     CHECK(
         emphasis_of(
-            R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
+            R"("at": "0", "string": 1, "fret":5, "sustain": "1/32",)"
             R"( "emphasis": "accent")") == NoteEmphasis::Accent);
     CHECK(
         emphasis_of(
-            R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
+            R"("at": "0", "string": 1, "fret":5, "sustain": "1/32",)"
             R"( "emphasis": "ghost")") == NoteEmphasis::Ghost);
 
     // "normal" is the value absence already means, so spelling it is malformed like an explicit
     // "pick" attack, and an unknown token is a hard read error rather than a silent default.
     CHECK_FALSE(
-        parse_note(
-            R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": "normal")")
+        parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "emphasis": "normal")")
             .has_value());
     CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": "loud")")
+        parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "emphasis": "loud")")
             .has_value());
     CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": true)")
+        parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "emphasis": true)")
             .has_value());
     // The empty string is not a token either. It reads back as the same "" the absent key gives,
     // so accepting it would let a present-but-meaningless field pass as the default.
-    CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "emphasis": "")")
-            .has_value());
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "emphasis": "")")
+                    .has_value());
 
     // The tripwire: the removed key fails the load and names the fix, exactly as the removed
     // harmonic/touch keys do. Delete this with the tripwire.
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "accent": true)")
+                    .has_value());
     CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "accent": true)")
-            .has_value());
-    CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "accent": false)")
+        parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "accent": false)")
             .has_value());
 
     // Round trip: both named values survive a write and read, and a normal note writes no key at
@@ -2333,7 +2416,7 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
     CHECK(text.find(R"("emphasis": "accent")") != std::string::npos);
     CHECK(text.find(R"("emphasis": "ghost")") != std::string::npos);
     CHECK(text.find(R"("emphasis": "normal")") == std::string::npos);
-    const auto reparsed = parseChartDocument(text);
+    const auto reparsed = parseChartDocument(text, makeTempoMap());
     REQUIRE(reparsed.has_value());
     if (reparsed.has_value())
     {
@@ -2352,7 +2435,8 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     const auto parse_note = [](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
-            R"( } ] })");
+                R"( } ] })",
+            makeTempoMap());
     };
     const auto mutes_of = [&](const std::string& note_body) {
         const auto parsed = parse_note(note_body);
@@ -2363,28 +2447,26 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     };
 
     CHECK(
-        mutes_of(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32")") ==
+        mutes_of(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32")") ==
         std::pair{false, false});
     CHECK(
-        mutes_of(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "palmMute": true)") ==
+        mutes_of(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "palmMute": true)") ==
         std::pair{true, false});
     CHECK(
-        mutes_of(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "dead": true)") ==
+        mutes_of(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "dead": true)") ==
         std::pair{false, true});
     CHECK(
         mutes_of(
-            R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
+            R"("at": "0", "string": 1, "fret":5, "sustain": "1/32",)"
             R"( "palmMute": true, "dead": true)") == std::pair{true, true});
 
     // The tripwire: the removed single "mute" key fails the load and names the fix, exactly as the
     // removed accent and harmonic/touch keys do. A silently ignored key would load every muted note
     // in the corpus as unmuted. Delete this with the tripwire.
-    CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "mute": "palm")")
-            .has_value());
-    CHECK_FALSE(
-        parse_note(R"("at": "1:1", "string": 1, "fret": 5, "sustain": "1/32", "mute": "full")")
-            .has_value());
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "mute": "palm")")
+                    .has_value());
+    CHECK_FALSE(parse_note(R"("at": "0", "string": 1, "fret":5, "sustain": "1/32", "mute": "full")")
+                    .has_value());
 
     // Round trip: every combination survives a write and read, and each flag is written only when
     // TRUE — the same absence-is-the-default rule the sibling "vibrato" and "tremolo" flags follow.
@@ -2444,7 +2526,7 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     CHECK(occurrences(R"("palmMute")") == 2);
     CHECK(occurrences(R"("dead")") == 2);
 
-    const auto reparsed = parseChartDocument(text);
+    const auto reparsed = parseChartDocument(text, makeTempoMap());
     REQUIRE(reparsed.has_value());
     if (reparsed.has_value())
     {
@@ -2502,7 +2584,7 @@ TEST_CASE("Chart document round-trips a hand position's authored end fret", "[co
     chart.fret_hand_positions.front().end_fret = chart.fret_hand_positions.front().fret + 2;
     const std::string text = chartDocumentText(chart, makeTempoMap());
     CHECK(text.find(R"("endFret")") != std::string::npos);
-    const auto reparsed = parseChartDocument(text);
+    const auto reparsed = parseChartDocument(text, makeTempoMap());
     REQUIRE(reparsed.has_value());
     if (reparsed.has_value())
     {
@@ -2523,7 +2605,7 @@ TEST_CASE("Chart document refuses a hand position without a fret", "[core][chart
     REQUIRE(fret_at != std::string::npos);
     text.erase(fret_at, fret_key.size());
 
-    const auto parsed = parseChartDocument(text);
+    const auto parsed = parseChartDocument(text, makeTempoMap());
     REQUIRE_FALSE(parsed.has_value());
     CHECK(parsed.error().code == ChartErrorCode::MalformedDocument);
 }
@@ -4050,7 +4132,7 @@ TEST_CASE("Chart settles unjustifiable legato claims", "[core][chart]")
 
     SECTION("the writer serializes the resolved form, so no file carries a broken claim")
     {
-        const auto written = parseChartDocument(chartDocumentText(chart, tempo_map));
+        const auto written = parseChartDocument(chartDocumentText(chart, tempo_map), tempo_map);
         REQUIRE(written.has_value());
         REQUIRE(written->notes.size() == chart.notes.size());
         CHECK(written->notes[1].attack == NoteAttack::Legato);
@@ -4064,12 +4146,13 @@ TEST_CASE("Chart settles unjustifiable legato claims", "[core][chart]")
 
     SECTION("the direction tokens are unknown, and the intent tokens round-trip")
     {
-        const auto parse_attack = [](const std::string& token) {
+        const auto parse_attack = [&tempo_map](const std::string& token) {
             return parseChartDocument(
                 R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-                R"( "notes": [ { "at": "1:1", "string": 1, "fret": 5, "sustain": "1/32",)"
+                R"( "notes": [ { "at": "0", "string": 1, "fret": 5, "sustain": "1/32",)"
                 R"( "attack": ")" +
-                token + R"(" } ] })");
+                    token + R"(" } ] })",
+                tempo_map);
         };
         CHECK_FALSE(parse_attack("hammer").has_value());
         CHECK_FALSE(parse_attack("pull").has_value());
@@ -4222,7 +4305,8 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     scrape.dead = true;
     scrape.emphasis = NoteEmphasis::Accent;
 
-    const auto parsed = parseChartDocument(chartDocumentText(chart, makeTempoMap()));
+    const auto parsed =
+        parseChartDocument(chartDocumentText(chart, makeTempoMap()), makeTempoMap());
     REQUIRE(parsed.has_value());
     const ChartNote& saved = parsed->notes[7];
     CHECK(saved.attack == NoteAttack::PickSlide);
@@ -4386,8 +4470,9 @@ TEST_CASE("A chart document ignores the retired held key", "[core][chart]")
     const TempoMap tempo_map = makeTempoMap();
     const auto parsed = parseChartDocument(
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-        R"( "notes": [ { "at": "1:1", "string": 1, "fret": 12, "sustain": "1/16",)"
-        R"( "attack": "tap", "held": "5" } ] })");
+        R"( "notes": [ { "at": "0", "string": 1, "fret": 12, "sustain": "1/16",)"
+        R"( "attack": "tap", "held": "5" } ] })",
+        tempo_map);
     REQUIRE(parsed.has_value());
     REQUIRE(parsed->notes.size() == 1);
     CHECK(parsed->notes.front().fret == 12);
@@ -4491,7 +4576,7 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         CHECK(text.find(R"("fret": 5)") != std::string::npos);
         CHECK(text.find(R"("harmonicNode": 17)") != std::string::npos);
         CHECK(text.find(R"("held")") == std::string::npos);
-        const auto parsed = parseChartDocument(text);
+        const auto parsed = parseChartDocument(text, makeTempoMap());
         REQUIRE(parsed.has_value());
         REQUIRE(parsed->notes.size() == chart.notes.size());
         CHECK(parsed->notes == chart.notes);

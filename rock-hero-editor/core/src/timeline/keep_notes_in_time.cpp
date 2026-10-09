@@ -27,7 +27,7 @@ std::expected<common::core::SongTimeline, ReaddressError> timeKeptTimeline(
 {
     return readdressTimeline(
         timeline,
-        placedMetersOf(tempo_map),
+        tempo_map.timeSignatures(),
         placedAnchorsOf(tempo_map),
         timeKeptPlaces(timeline.tempo_map, tempo_map));
 }

@@ -10,6 +10,7 @@
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
@@ -2069,8 +2070,7 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
 TEST_CASE("Ring ends and keyframes resolve across a meter change", "[core][chart]")
 {
     const TempoMap tempo_map{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-         TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}}},
+        testing::metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
         {BeatAnchor{.position = GridPosition{.measure = 1, .beat = 1}, .milliseconds = 0},
          BeatAnchor{.position = GridPosition{.measure = 2, .beat = 3}, .milliseconds = 2777},
          BeatAnchor{.position = GridPosition{.measure = 3, .beat = 4}, .milliseconds = 5113},
@@ -2110,7 +2110,7 @@ TEST_CASE("Ring ends and keyframes resolve across a meter change", "[core][chart
 TEST_CASE("An onset and the ring ending on it are one double", "[core][chart]")
 {
     const TempoMap tempo_map{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
+        testing::commonTime(),
         {BeatAnchor{.position = GridPosition{.measure = 1, .beat = 1}, .milliseconds = 0},
          BeatAnchor{.position = GridPosition{.measure = 2, .beat = 2}, .milliseconds = 2311},
          BeatAnchor{.position = GridPosition{.measure = 5, .beat = 1}, .milliseconds = 7919}},

@@ -17,9 +17,9 @@
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/common/core/timeline/time_signature_text.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
-#include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -52,8 +52,9 @@ namespace
 // The timeline re-addressed under a new meter list, as the snapshot a verb commits, or nothing
 // once the transform's refusal is logged under the verb's label.
 [[nodiscard]] std::optional<SongTimelineSnapshot> readdressedSnapshot(
-    const common::core::SongTimeline& timeline, const std::span<const PlacedMeter> meters,
-    const std::string_view label, RefusalLog& refusal_log)
+    const common::core::SongTimeline& timeline,
+    const std::span<const common::core::TimeSignatureChange> meters, const std::string_view label,
+    RefusalLog& refusal_log)
 {
     std::expected<common::core::SongTimeline, ReaddressError> readdressed =
         readdressUnderMeters(timeline, meters);
@@ -114,11 +115,11 @@ std::optional<SetTimeSignatureTarget> EditorController::Impl::selectedTimeSignat
     {
         return std::nullopt;
     }
-    const common::core::TimeSignatureChange& change =
-        session().song().tempo_map.timeSignatures()[*standing];
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const common::core::TimeSignatureChange& change = tempo_map.timeSignatures()[*standing];
     return SetTimeSignatureTarget{
-        .measure = change.measure,
-        .meter_text = timeSignatureText(change.meter),
+        .measure = tempo_map.gridPositionAtWholeNote(change.place).measure,
+        .meter_text = common::core::timeSignatureText(change.meter),
     };
 }
 
@@ -149,7 +150,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
         standing.has_value() ? MarkerVerb::SetTimeSignature : MarkerVerb::AddTimeSignature);
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
     const common::core::TempoMap tempo_map = before.timeline.tempo_map;
-    std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
+    std::vector<common::core::TimeSignatureChange> meters = tempo_map.timeSignatures();
     if (standing.has_value())
     {
         meters[*standing].meter = action.meter;
@@ -165,8 +166,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
         const common::core::Fraction place = tempo_map.wholeNotePositionAt(downbeat);
         meters.insert(
             std::ranges::find_if(
-                meters, [&place](const PlacedMeter& placed) { return placed.whole_note >= place; }),
-            PlacedMeter{.whole_note = place, .meter = action.meter});
+                meters,
+                [&place](const common::core::TimeSignatureChange& placed) {
+                    return placed.place >= place;
+                }),
+            common::core::TimeSignatureChange{.place = place, .meter = action.meter});
     }
     std::optional<SongTimelineSnapshot> after =
         readdressedSnapshot(before.timeline, meters, label, m_refusal_log);
@@ -200,7 +204,7 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     }
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
     const common::core::TempoMap tempo_map = before.timeline.tempo_map;
-    std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
+    std::vector<common::core::TimeSignatureChange> meters = tempo_map.timeSignatures();
     meters.erase(std::next(meters.begin(), static_cast<std::ptrdiff_t>(*standing)));
     std::optional<SongTimelineSnapshot> after = readdressedSnapshot(
         before.timeline, meters, markerVerbLabel(MarkerVerb::DeleteTimeSignature), m_refusal_log);
@@ -250,12 +254,12 @@ void EditorController::Impl::moveSelectedTimeSignature(
     // the neighbour and end refusals are plain comparisons there.
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
     const common::core::TempoMap tempo_map = before.timeline.tempo_map;
-    std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
+    std::vector<common::core::TimeSignatureChange> meters = tempo_map.timeSignatures();
     const common::core::Fraction step = meters[index - 1].meter.measureWholeNotes();
     const common::core::Fraction place =
-        later ? meters[index].whole_note + step : meters[index].whole_note - step;
-    if (place <= meters[index - 1].whole_note ||
-        (index + 1 < meters.size() && place >= meters[index + 1].whole_note))
+        later ? meters[index].place + step : meters[index].place - step;
+    if (place <= meters[index - 1].place ||
+        (index + 1 < meters.size() && place >= meters[index + 1].place))
     {
         m_refusal_log.markerEdit(
             markerVerbLabel(MarkerVerb::MoveTimeSignature),
@@ -273,7 +277,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
             "a time signature cannot step to or past the end of the song");
         return;
     }
-    meters[index].whole_note = place;
+    meters[index].place = place;
 
     std::optional<SongTimelineSnapshot> moved = readdressedSnapshot(
         base, meters, markerVerbLabel(MarkerVerb::MoveTimeSignature), m_refusal_log);

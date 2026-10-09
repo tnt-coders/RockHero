@@ -74,18 +74,34 @@ alone. Structural damage becomes a warning and a partial description rather than
 
 | key | type | req | meaning |
 |---|---|---|---|
-| `timeSignatures[].measure` | int > 0 | req | 1-based effect measure; strictly increasing. |
+| `timeSignatures[].at` | place | req | Whole-note place of the first downbeat it governs; the first is `"0"`; strictly ascending; on the meter lattice (a whole number of the finest beat a meter may state, 1/256 note), so the measure it cuts short is itself a meter; each time signature governs at least one whole measure before the next. |
 | `timeSignatures[].numerator` | int > 0 | req | Beats per measure. |
-| `timeSignatures[].denominator` | int | req | Beat unit — must be a power of two. |
-| `anchors[].at` | string | req | Grid token `"measure:beat"` or `"measure:beat+n/d"` (`n/d` = the fraction of the beat toward the next, written in lowest terms), e.g. `"12:3+1/2"`. |
+| `timeSignatures[].denominator` | int | req | Beat unit — a power of two of at most 256. |
+| `anchors[].at` | place | req | Whole-note place on the tick lattice; the first is `"0"`; strictly ascending with the seconds. |
 | `anchors[].seconds` | number | req | Absolute seconds in whole milliseconds (`BeatAnchor::milliseconds`): written with exactly three decimals (`2` reads as 2000 ms and writes back `2.000`), and *refused*, not rounded, when it is not a whole number of milliseconds. |
 
+**Every `at` in the format is a place** — a time signature's, an anchor's, a section's, a tone
+change's, an automation point's, a note's, a hand position's — and so is every duration (`sustain`,
+a keyframe's `offset`): whole notes from the song's start, spelled as the **canonical mixed
+number** `parseFractionToken` reads and `formatFractionToken` writes (`chart_tokens.h`): the whole
+part, then `+n/d` for a remainder in (0, 1) in lowest terms, each part omitted when zero —
+`"16"`, `"11+3/4"`, `"3/8"`, `"0"`. Every value has one spelling, so `"47/4"`, `"2/4"` and
+`"0+3/4"` are refused. A place means one instant whatever the meters say, so a meter edit's diff is
+the time signature line alone; the editor's bar-and-beat grid token (`"12:3+1/2"`) is how a place
+is SHOWN, never how the file stores one (`parsePlaceToken` / `formatPlaceToken` convert at the
+package boundary). Whether a place is one the grid holds — on the tick lattice (a denominator
+dividing 3840), before the terminal — is each document's rules' question, asked of the position it
+becomes exactly as before. The removed `timeSignatures[].measure` key is refused with the fix named.
+
+Where a time signature starts mid-measure of the one before it, the measure it cuts is ONE short
+measure whose meter is derived from the remainder (`TempoMap::reigns`) and never stored; changing
+the meter back makes it vanish.
+
 Anchor invariants (`validateTempoMapRules`): at least two anchors (start + terminal); the first
-must be exactly `1:1` but its seconds **may be non-zero** (finite and non-negative is the whole
-floor); every anchor stands on a valid tick-lattice grid position (`isValidGridPosition`: the beat
-inside its measure, the offset in [0, 1) on the tick lattice), so an anchor may sit between beats;
-strictly increasing in both position and time; the terminal anchor must land on a downbeat with
-no sub-beat offset. `timeSignatures` must be non-empty and must start at measure 1.
+must be exactly `"0"` but its seconds **may be non-zero** (finite and non-negative is the whole
+floor); every anchor stands on the tick lattice, so an anchor may sit between beats; strictly
+increasing in both place and time; the terminal anchor must land on a downbeat. `timeSignatures`
+must be non-empty and must start at `"0"`.
 
 ## sections[]
 
@@ -94,7 +110,7 @@ one arrangement's tab). Every arrangement and the 3D highway share this one list
 
 | key | type | req | meaning |
 |---|---|---|---|
-| `at` | string | req | Grid token, always a measure downbeat `"m:1"` on the tempo-map grid. |
+| `at` | place | req | Whole-note place (see tempoMap), today always a measure downbeat. |
 | `name` | string | req | Free-form label, blank-rejecting, otherwise verbatim from import. |
 
 The rules are `validateSongSectionRules` (`song_section_rules.h`), which the reader and the
@@ -124,23 +140,23 @@ would leave every later which-section-governs-this-moment question answering arb
 | `audio` | string | req | An `audioAssets[].id`. |
 | `chart` | string | opt | `charts/<uuid>.chart.json` ref; must exist if present. |
 | `tones` | array | opt | Tone catalog `{id: <uuid>, name}`; paths derived. |
-| `toneChanges` | array | opt | Tone schedule: `{at: <grid token>, tone: <uuid>}`. |
+| `toneChanges` | array | opt | Tone schedule: `{at: <place>, tone: <uuid>}`. |
 | `toneAutomation` | array | opt | Parameter automation — see below. |
 
 Deliberately **not** persisted: difficulty (derived at runtime), audio duration (read from the
 decoded audio), and any per-arrangement paths — `song.json` speaks only UUIDs and asset ids.
 
-`toneChanges` stores only region **starts** (grid tokens allow `+n/d` sub-beat); each region ends
+`toneChanges` stores only region **starts** (a place may fall between beats); each region ends
 at the next start, the last at the tempo map's terminal beat — gaps are structurally
 unrepresentable, and the in-memory `ToneRegion` stores no end either. The first change must sit
-on the song's first downbeat (`1:1`) and starts must be strictly ascending. A change naming the
+on the song's first downbeat (`"0"`) and starts must be strictly ascending. A change naming the
 tone already sounding is no change: consecutive entries on one tone are read as ONE region
 (`coalesceToneRegions`, the same law every edit applies), and the writer never produces them.
 Region ids are session-scoped and never persisted. A `toneChanges` tone missing from `tones[]` is
 normalized in as an unnamed catalog entry.
 
 `toneAutomation[]`: `{plugin, param, points[]}` with at most one entry per (plugin, param); points
-are `{at: <grid token>, value: <normalized number>}`. `plugin` is a chain plugin's minted
+are `{at: <place>, value: <normalized number>}`. `plugin` is a chain plugin's minted
 `stableId`, or — for the tone's own output stage, whose `level` (the Volume lane) and `pan` are
 automatable — the derived id `<tone ref>#output` (`toneOutputPluginId`), which no document
 carries. Musical positions are the persisted
@@ -156,16 +172,20 @@ shapes are a planned continuous-parameter feature (`docs/plans/todo/authored-cur
 
 # Chart document — `charts/<uuid>.chart.json`
 
-Owned by `common/core/chart/chart_document.cpp`. Grid tokens are `"m:b"` or `"m:b+n/d"`;
-fractions are `"n/d"` (or `"n"`). `formatVersion` must be `1` — the parser's single version gate,
-like every other format.
+Owned by `common/core/chart/chart_document.cpp`. Every position and every duration is a canonical
+mixed number of whole notes (see tempoMap above), so the parser takes the song's tempo map to
+address the places on the grid (`parseChartDocument(text, tempo_map)`); the package peek reads the
+tuning alone through `parseChartDocumentTuning`, which needs none. `formatVersion` must be `1` —
+the parser's single version gate, like every other format.
 
-The chart states time in exactly four kinds, each in its own unit:
+The chart states time in exactly four kinds, two of them in one unit:
 
-- **Positions are bar addresses**: a grid token `"m:b+n/d"`, where `n/d` is a fraction of the
-  beat.
+- **Positions are whole-note places** from the song's start: `"3/4"` is the fourth beat of a 4/4
+  first bar, `"2+5/16"` two whole notes and five sixteenths in. The editor shows a place as a bar
+  address (`"3:3+1/2"`); the file never stores one.
 - **Durations are note values in whole notes**, whatever the meter: `1/4` is a quarter, `3/8` a
-  dotted quarter, `1/6` a quarter triplet. A meter change never re-means one.
+  dotted quarter, `1/6` a quarter triplet, `1+1/2` a dotted whole note. A meter change never
+  re-means one.
 - **Things inside a note are relative to the note**: a keyframe's `offset` is a duration from the
   note's onset, so it moves with the note.
 - **Time is seconds**, and only `song.json`'s anchors and audio offsets state it.
@@ -175,7 +195,7 @@ The chart states time in exactly four kinds, each in its own unit:
 | `tuning.strings` | string[] | req | Per-string tuning labels. |
 | `tuning.capo` | int | opt | (`0`) Capo fret, `0..12`. Frets are **absolute**, and `0` means the open string capo'd or not — so the capo never appears as a fret number, and frets `1..capo` are invalid on notes, postures, keyframe fret statements, and fret-hand positions. |
 | `tuning.centOffset` | number | opt | (`0.0`) |
-| `notes[].at` | grid token | req | Note location. |
+| `notes[].at` | place | req | Note location, a whole-note place on the tick lattice. |
 | `notes[].string` | int | opt | String index (`0`). |
 | `notes[].fret` | int | opt | (`-1` = unset). THE STOP THE STRING SPEAKS FROM, whichever hand stopped it: `0` is the open string, the fretting hand's press is an ordinary note's, and the tapping finger's landing is a plain two-hand tap's. A harmonic of either hand stores its PRESSED stop here — a natural harmonic `0` (the nut, or the capo), an artificial or a tapped one the fret the fretting hand presses while the other hand touches the node — so the pressed stop has one spelling across the whole family. Not where the note SOUNDS: a harmonic sounds at its node, derived from this stop and `harmonicNode`; and not where the fretting HAND is, which is derived too. One stored answer, two derived ones, so no two keys can disagree about the stop. The pick slide is the one fret that is not a pitch source at all: a scrape is unpitched and its fret is where the travel starts. |
 | `notes[].sustain` | fraction | req | The actual duration the string rings, as a note value in **whole notes** (`1/4` a quarter, in every meter), strictly positive and always written, on every note. Every surface draws this ring, stopping at the ink end presentation derives from it (`chartPresentation`). A missing key is a malformed document and a non-positive value is refused. The MISSING-key path is the tripwire that actually fires on an old package — the pre-model writer elided the key on every tail-less note rather than writing a zero — so that message is the one carrying the re-import remedy. |

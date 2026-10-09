@@ -5,6 +5,7 @@
 #include <vector>
 
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::metersAt;
 
 namespace rock_hero::common::core
 {
@@ -94,10 +95,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     song.metadata.album = "Test Album";
     song.metadata.year = 2026;
     song.tempo_map = TempoMap{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
-        },
+        metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}),
         std::vector{
             anchor("1:1", 0),
             anchor("4:1", 5500),

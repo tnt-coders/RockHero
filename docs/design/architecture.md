@@ -303,8 +303,11 @@ measure interpolates, so absolute times appear only in anchors. Interpolation is
 **quarter-note (metronome) time**, not in beats: the quarter-note tempo is constant inside each
 anchor span and changes only at anchors, so a meter-denominator change between anchors (say 4/4 to
 7/8) re-slices beat durations — the eighth-note beats run twice as fast — instead of stretching each
-beat to the old length. Anchor positions use the chart's grid-token grammar: `"1:1"` and `"17:1"` on
-beats, `"17:2+1/2"` between them.
+beat to the old length. A time-signature change and an anchor are both PLACED: each `at` is the
+whole notes from the song's start, written in the one canonical mixed-number spelling durations use
+(`"16+3/16"`, `"23"`). A place names one instant whatever the meters before it say, so no stored
+place depends on a meter, and the measure a change begins is derived. Where a change cuts the
+reign before it short of a whole measure, the remainder is one derived short bar, never stored.
 
 The persisted tempo-map shape is:
 
@@ -312,15 +315,15 @@ The persisted tempo-map shape is:
 {
   "tempoMap": {
     "timeSignatures": [
-      { "measure": 1,  "numerator": 4, "denominator": 4 },
-      { "measure": 17, "numerator": 7, "denominator": 8 },
-      { "measure": 25, "numerator": 4, "denominator": 4 }
+      { "at": "0",  "numerator": 4, "denominator": 4 },
+      { "at": "16", "numerator": 7, "denominator": 8 },
+      { "at": "23", "numerator": 4, "denominator": 4 }
     ],
     "anchors": [
-      { "at": "1:1",  "seconds": 1.840 },
-      { "at": "17:1", "seconds": 28.057 },
-      { "at": "17:2+1/2", "seconds": 29.112 },
-      { "at": "33:1", "seconds": 48.500 }
+      { "at": "0",  "seconds": 1.840 },
+      { "at": "16", "seconds": 28.057 },
+      { "at": "16+3/16", "seconds": 29.112 },
+      { "at": "31", "seconds": 48.500 }
     ]
   }
 }
@@ -341,11 +344,12 @@ are derived from the notes wherever they are read, because a span is a statement
 under it.
 Synthesized-instrument storage remains deferred until a feature needs it.
 
-The chart stores two kinds of musical quantity. Positions (a note's onset, a fret-hand position)
-are bar addresses in the grid-token grammar (`"m:b+n/d"`, `n/d` a fraction of the beat).
-Durations — a note's `sustain` and each keyframe's `offset` from its onset — are note values in
-whole notes (`1/4` a quarter, `3/8` a dotted quarter), whatever the meter, so a meter edit
-re-addresses positions and leaves every duration untouched.
+The chart stores two kinds of musical quantity, both whole-note rationals in the one canonical
+mixed spelling. Positions (a note's onset, a fret-hand position) are places: whole notes from the
+song's start. Durations — a note's `sustain` and each keyframe's `offset` from its onset — are note
+values in whole notes (`1/4` a quarter, `3/8` a dotted quarter), whatever the meter. So a meter
+edit leaves every stored position and duration untouched. The grid token (`"m:b+n/d"`, `n/d` a
+fraction of the beat) is the editor's address of a place, never the file's.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
 headless `Session` and displays one arrangement at a time. Native song package loading validates

@@ -50,14 +50,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] common::core::TempoMap makeMeterChangeMap()
 {
     return common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-            common::core::TimeSignatureChange{
-                .measure = 3, .meter = {.numerator = 6, .denominator = 8}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("21:1", 31000),
@@ -2151,11 +2144,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
     // Two 6/8 measures at one eighth-note beat per second, so the whole fixture is grid rather than
     // terminal-anchor extrapolation.
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 6, .denominator = 8}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 6, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 12000),
@@ -2211,11 +2200,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
 TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart]")
 {
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 7, .denominator = 8}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 7, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("4:1", 21000),
@@ -2771,8 +2756,8 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         // The latents are legal in memory but the rules gate binds documents, so the oracle
         // is the SAVED form: the writer omits the overrides and the reparse passes clean.
         REQUIRE(applyChartChange(chart, plan->plan).has_value());
-        const auto saved =
-            common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
+        const auto saved = common::core::parseChartDocument(
+            common::core::chartDocumentText(chart, tempo_map), tempo_map);
         REQUIRE(saved.has_value());
         CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
     }
@@ -3724,8 +3709,8 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     // The tremolo latent makes the in-memory chart deliberately dirty, so validate the saved
     // form rather than the raw stream.
     REQUIRE(applyChartChange(chart, enter->plan).has_value());
-    const auto saved =
-        common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
+    const auto saved = common::core::parseChartDocument(
+        common::core::chartDocumentText(chart, tempo_map), tempo_map);
     REQUIRE(saved.has_value());
     CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
     const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);

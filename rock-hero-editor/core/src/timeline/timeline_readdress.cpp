@@ -8,9 +8,9 @@
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/common/core/timeline/time_signature_text.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
-#include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -46,79 +46,52 @@ namespace
     const common::core::TempoMap& old_map, const ContentMap& content,
     const common::core::Fraction place)
 {
-    for (const PlacedMeter& old_meter : placedMetersOf(old_map))
+    for (const common::core::TimeSignatureChange& old_meter : old_map.timeSignatures())
     {
-        if (content(old_meter.whole_note) == place)
+        if (content(old_meter.place) == place)
         {
-            return old_meter.whole_note;
+            return old_meter.place;
         }
     }
     return place;
 }
 
-// Walks the places in order. A reign is a whole number of its own measures exactly when the next
-// place is a downbeat under the meters before it, and that count is what numbers the next meter.
-[[nodiscard]] std::expected<std::vector<common::core::TimeSignatureChange>, ReaddressError>
-timeSignaturesOf(
-    const common::core::TempoMap& old_map, std::span<const PlacedMeter> meters,
-    const ContentMap& content)
+// Walks the places in order: a reign is a whole number of its own measures exactly when the next
+// place is a downbeat under the meters before it (65-Q3).
+[[nodiscard]] std::expected<void, ReaddressError> requireWholeMeasureReigns(
+    const common::core::TempoMap& old_map,
+    const std::span<const common::core::TimeSignatureChange> meters, const ContentMap& content)
 {
     assert(
-        (meters.empty() || meters.front().whole_note == common::core::Fraction{}) &&
+        (meters.empty() || meters.front().place == common::core::Fraction{}) &&
         "the first meter governs from the song's start");
-    std::vector<common::core::TimeSignatureChange> signatures;
-    signatures.reserve(meters.size());
-    const PlacedMeter* previous = nullptr;
-    for (const PlacedMeter& placed : meters)
+    for (std::size_t index = 1; index < meters.size(); ++index)
     {
-        int measure = 1;
-        if (previous != nullptr)
+        const common::core::TimeSignatureChange& previous = meters[index - 1];
+        const common::core::TimeSignatureChange& placed = meters[index];
+        // The reign over the length of one of its measures.
+        const common::core::Fraction measure_length = previous.meter.measureWholeNotes();
+        const common::core::Fraction reign_measures =
+            (placed.place - previous.place) *
+            common::core::Fraction{measure_length.denominator, measure_length.numerator};
+        if (reign_measures.denominator != 1)
         {
-            // The reign over the length of one of its measures.
-            const common::core::Fraction measure_length = previous->meter.measureWholeNotes();
-            const common::core::Fraction reign_measures =
-                (placed.whole_note - previous->whole_note) *
-                common::core::Fraction{measure_length.denominator, measure_length.numerator};
-            if (reign_measures.denominator != 1)
-            {
-                // Named where the charter sees it now.
-                return std::unexpected{ReaddressError{
-                    .code = ReaddressErrorCode::MeterOffDownbeat,
-                    .message = std::format(
-                        "the {} time signature at {} would start mid-measure under the {} before "
-                        "it",
-                        timeSignatureText(placed.meter),
-                        common::core::formatGridPositionToken(old_map.gridPositionAtWholeNote(
-                            placeNow(old_map, content, placed.whole_note))),
-                        timeSignatureText(previous->meter)),
-                }};
-            }
-            measure = signatures.back().measure + reign_measures.numerator;
+            // Named where the charter sees it now.
+            return std::unexpected{ReaddressError{
+                .code = ReaddressErrorCode::MeterOffDownbeat,
+                .message = std::format(
+                    "the {} time signature at {} would start mid-measure under the {} before it",
+                    common::core::timeSignatureText(placed.meter),
+                    common::core::formatGridPositionToken(
+                        old_map.gridPositionAtWholeNote(placeNow(old_map, content, placed.place))),
+                    common::core::timeSignatureText(previous.meter)),
+            }};
         }
-        signatures.push_back(
-            common::core::TimeSignatureChange{.measure = measure, .meter = placed.meter});
-        previous = &placed;
     }
-    return signatures;
+    return {};
 }
 
 } // namespace
-
-std::vector<PlacedMeter> placedMetersOf(const common::core::TempoMap& tempo_map)
-{
-    std::vector<PlacedMeter> meters;
-    meters.reserve(tempo_map.timeSignatures().size());
-    for (const common::core::TimeSignatureChange& signature : tempo_map.timeSignatures())
-    {
-        meters.push_back(
-            PlacedMeter{
-                .whole_note =
-                    tempo_map.wholeNotePositionAt(common::core::measureDownbeat(signature.measure)),
-                .meter = signature.meter,
-            });
-    }
-    return meters;
-}
 
 std::vector<PlacedAnchor> placedAnchorsOf(const common::core::TempoMap& tempo_map)
 {
@@ -149,20 +122,20 @@ common::core::GridPosition readdressedPosition(
 }
 
 std::expected<common::core::SongTimeline, ReaddressError> readdressTimeline(
-    const common::core::SongTimeline& timeline, std::span<const PlacedMeter> meters,
-    std::span<const PlacedAnchor> anchors, const ContentMap& content)
+    const common::core::SongTimeline& timeline,
+    const std::span<const common::core::TimeSignatureChange> meters,
+    const std::span<const PlacedAnchor> anchors, const ContentMap& content)
 {
     const common::core::TempoMap& old_map = timeline.tempo_map;
-    std::expected<std::vector<common::core::TimeSignatureChange>, ReaddressError> signatures =
-        timeSignaturesOf(old_map, meters, content);
-    if (!signatures.has_value())
+    if (auto whole = requireWholeMeasureReigns(old_map, meters, content); !whole.has_value())
     {
-        return std::unexpected{std::move(signatures.error())};
+        return std::unexpected{std::move(whole.error())};
     }
+    std::vector<common::core::TimeSignatureChange> signatures{meters.begin(), meters.end()};
 
     // The new meters under the old anchors: wrong in time, right in address, so it is asked only
     // address questions, which the meters alone answer.
-    const common::core::TempoMap address_map{*signatures, old_map.anchors()};
+    const common::core::TempoMap address_map{signatures, old_map.anchors()};
     const auto mapped =
         [&old_map, &address_map, &content](const common::core::GridPosition position) {
             return readdressedPosition(old_map, address_map, content, position);
@@ -181,7 +154,7 @@ std::expected<common::core::SongTimeline, ReaddressError> readdressTimeline(
     }
     common::core::SongTimeline result{
         .tempo_map = reseatTerminalAnchor(
-            common::core::TempoMap{std::move(*signatures), std::move(placed_anchors)}),
+            common::core::TempoMap{std::move(signatures), std::move(placed_anchors)}),
         .sections = timeline.sections,
         .arrangements = timeline.arrangements,
     };

@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <utility>
 #include <vector>
@@ -21,7 +22,34 @@ namespace
 
 using Catch::Matchers::WithinULP;
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTime;
 using rock_hero::common::core::testing::commonTimeMap;
+using rock_hero::common::core::testing::metersAt;
+
+// 4/4, 3/4 from measure 3 and 5/4 from measure 5, over one span of 19 half-second beats.
+[[nodiscard]] TempoMap makeThreeMeterMap()
+{
+    return TempoMap{
+        metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}, {"5:1", 5, 4}}),
+        std::vector{
+            anchor("1:1", 0),
+            anchor("6:1", 9500),
+        },
+    };
+}
+
+// 4/4 then 7/8 from measure 2 over one span: 4 quarters plus 7 eighths is 7.5 quarters, 3.75 s at
+// 120 quarter notes a minute.
+[[nodiscard]] TempoMap makeSevenEightMap()
+{
+    return TempoMap{
+        metersAt({{"1:1", 4, 4}, {"2:1", 7, 8}}),
+        std::vector{
+            anchor("1:1", 0),
+            anchor("3:1", 3750),
+        },
+    };
+}
 
 // Three sparse 4/4 anchors shared by the interpolation, cursor, and tempo-query cases: eight
 // beats at 0.5s each across the first span, then four beats at 0.375s each, so queries exercise
@@ -64,17 +92,7 @@ TEST_CASE("TempoMap default construction creates a usable grid", "[core][tempo-m
 // Verifies global beat indices account for carried-forward time-signature changes.
 TEST_CASE("TempoMap indexes beats across meter changes", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
-            TimeSignatureChange{.measure = 5, .meter = {.numerator = 5, .denominator = 4}},
-        },
-        std::vector{
-            anchor("1:1", 0),
-            anchor("6:1", 9500),
-        },
-    };
+    const TempoMap tempo_map = makeThreeMeterMap();
 
     CHECK(tempo_map.globalBeatIndex(1, 1) == 0);
     CHECK(tempo_map.globalBeatIndex(2, 1) == 4);
@@ -129,17 +147,7 @@ TEST_CASE("TempoMap forward cursor matches the global-beat query", "[core][tempo
 // changes, exercising the derived segment and anchor index tables together.
 TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
-            TimeSignatureChange{.measure = 5, .meter = {.numerator = 5, .denominator = 4}},
-        },
-        std::vector{
-            anchor("1:1", 0),
-            anchor("6:1", 9500),
-        },
-    };
+    const TempoMap tempo_map = makeThreeMeterMap();
 
     // 19 beats span the anchors (4 + 4 + 3 + 3 + 5), so each beat lasts 0.5 seconds.
     CHECK(tempo_map.terminalGlobalBeatIndex() == 19);
@@ -167,9 +175,7 @@ TEST_CASE("TempoMap measures each sparse anchor span in quarters", "[core][tempo
 TEST_CASE("TempoMap counts an eighth-note meter in quarter notes", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 6, .denominator = 8}},
-        },
+        metersAt({{"1:1", 6, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("2:1", 3000),
@@ -184,16 +190,7 @@ TEST_CASE("TempoMap counts an eighth-note meter in quarter notes", "[core][tempo
 // authored anchor range and crossing an un-anchored denominator change.
 TEST_CASE("TempoMap resolves beat positions from seconds", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 2, .meter = {.numerator = 7, .denominator = 8}},
-        },
-        std::vector{
-            anchor("1:1", 0),
-            anchor("3:1", 3750),
-        },
-    };
+    const TempoMap tempo_map = makeSevenEightMap();
 
     CHECK(tempo_map.beatPositionAtSeconds(0.5) == Catch::Approx(1.0));
     CHECK(tempo_map.beatPositionAtSeconds(2.25) == Catch::Approx(5.0));
@@ -205,16 +202,7 @@ TEST_CASE("TempoMap resolves beat positions from seconds", "[core][tempo-map]")
 // position does, a time resolves to the place it stands at, and both clamp outside the anchors.
 TEST_CASE("TempoMap resolves whole-note places to seconds and back", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 2, .meter = {.numerator = 7, .denominator = 8}},
-        },
-        std::vector{
-            anchor("1:1", 0),
-            anchor("3:1", 3750),
-        },
-    };
+    const TempoMap tempo_map = makeSevenEightMap();
 
     // A whole 4/4 bar then three eighths into the 7/8 bar: five and a half quarters, 2.75 s.
     const Fraction place{11, 8};
@@ -234,18 +222,7 @@ TEST_CASE("TempoMap resolves whole-note places to seconds and back", "[core][tem
 // instead of stretching to quarter-note length.
 TEST_CASE("TempoMap holds quarter tempo across un-anchored meter changes", "[core][tempo-map]")
 {
-    // One span pins measure 3's downbeat: 4 quarters (4/4) plus 7 eighths (7/8) is 7.5 quarter
-    // notes, which at 120 quarter notes per minute lands at 3.75 seconds.
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 2, .meter = {.numerator = 7, .denominator = 8}},
-        },
-        std::vector{
-            anchor("1:1", 0),
-            anchor("3:1", 3750),
-        },
-    };
+    const TempoMap tempo_map = makeSevenEightMap();
 
     CHECK(tempo_map.spanQuarterLength(0) == Catch::Approx(7.5));
     CHECK(tempo_map.secondsAtBeat(1, 2) == Catch::Approx(0.5));
@@ -254,28 +231,133 @@ TEST_CASE("TempoMap holds quarter tempo across un-anchored meter changes", "[cor
     CHECK(tempo_map.secondsAtBeat(3, 1) == Catch::Approx(3.75));
 }
 
-// Verifies signature lookup by absolute time follows the meter-change downbeats and clamps
-// outside the authored range.
-TEST_CASE("TempoMap resolves the active signature at a time", "[core][tempo-map]")
+// Verifies the reign table of a map whose every reign divides: one authored reign per change,
+// numbered from the measures before it, and the reign governing a measure is the one it falls in,
+// clamped to the first before measure 1.
+TEST_CASE("TempoMap reigns are its authored changes when every reign divides", "[core][tempo-map]")
+{
+    const TempoMap tempo_map = makeThreeMeterMap();
+
+    CHECK(
+        tempo_map.reigns() == std::vector<MeterReign>{
+                                  {.first_measure = 1,
+                                   .place = {},
+                                   .meter = {.numerator = 4, .denominator = 4},
+                                   .derived = false},
+                                  {.first_measure = 3,
+                                   .place = Fraction{2},
+                                   .meter = {.numerator = 3, .denominator = 4},
+                                   .derived = false},
+                                  {.first_measure = 5,
+                                   .place = Fraction{7, 2},
+                                   .meter = {.numerator = 5, .denominator = 4},
+                                   .derived = false},
+                              });
+    CHECK(tempo_map.timeSignatureAt(2) == tempo_map.reigns()[0]);
+    CHECK(tempo_map.timeSignatureAt(3) == tempo_map.reigns()[1]);
+    CHECK(tempo_map.timeSignatureAt(4).meter.numerator == 3);
+    CHECK(tempo_map.timeSignatureAt(99).meter.numerator == 5);
+    CHECK(tempo_map.timeSignatureAt(-4) == tempo_map.reigns()[0]);
+}
+
+// A meter placed mid-measure cuts the bar before it short: 7/8 at place 5 1/4 under 4/4 leaves bar
+// 6 one beat long, a DERIVED 1/4 reign, and the 7/8 governs from bar 7. The short bar is a measure
+// like any other — one beat, so `6:2` names nothing and the place has exactly one address — and
+// every address query honours it through the one table.
+TEST_CASE("TempoMap derives a short bar before a mid-measure meter", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
-            TimeSignatureChange{.measure = 5, .meter = {.numerator = 5, .denominator = 4}},
-        },
-        std::vector{
-            anchor("1:1", 0),
-            anchor("6:1", 9500),
-        },
+        metersAt({{"1:1", 4, 4}, {"6:2", 7, 8}}),
+        std::vector{anchor("1:1", 0), anchor("9:1", 14000)},
     };
 
-    // 19 beats over 9.5 seconds puts measure 3 at 4.0s and measure 5 at 7.0s.
-    CHECK(tempo_map.timeSignatureAtSeconds(3.9).meter.numerator == 4);
-    CHECK(tempo_map.timeSignatureAtSeconds(4.0).meter.numerator == 3);
-    CHECK(tempo_map.timeSignatureAtSeconds(7.2).meter.numerator == 5);
-    CHECK(tempo_map.timeSignatureAtSeconds(-1.0).meter.numerator == 4);
-    CHECK(tempo_map.timeSignatureAtSeconds(99.0).meter.numerator == 5);
+    CHECK(
+        tempo_map.reigns() == std::vector<MeterReign>{
+                                  {.first_measure = 1,
+                                   .place = {},
+                                   .meter = {.numerator = 4, .denominator = 4},
+                                   .derived = false},
+                                  {.first_measure = 6,
+                                   .place = Fraction{5},
+                                   .meter = {.numerator = 1, .denominator = 4},
+                                   .derived = true},
+                                  {.first_measure = 7,
+                                   .place = Fraction{21, 4},
+                                   .meter = {.numerator = 7, .denominator = 8},
+                                   .derived = false},
+                              });
+    CHECK(tempo_map.timeSignatureAt(6).derived);
+    CHECK(tempo_map.beatsPerMeasureAt(6) == 1);
+    CHECK(isValidGridPosition(GridPosition{.measure = 6, .beat = 1, .offset = {}}, tempo_map));
+    CHECK_FALSE(
+        isValidGridPosition(GridPosition{.measure = 6, .beat = 2, .offset = {}}, tempo_map));
+    CHECK(tempo_map.wholeNotePositionAt(measureDownbeat(7)) == Fraction{21, 4});
+    CHECK(tempo_map.gridPositionAtWholeNote(Fraction{21, 4}) == measureDownbeat(7));
+    CHECK(tempo_map.gridPositionAtWholeNote(Fraction{5}) == measureDownbeat(6));
+    CHECK(tempo_map.globalBeatIndex(7, 1) == 21);
+    CHECK(tempo_map.beatAtGlobalIndex(20) == std::pair{6, 1});
+    CHECK(tempo_map.beatAtGlobalIndex(21) == std::pair{7, 1});
+    // Twenty-one quarters then fourteen eighths over 14.25 s: half a second a quarter throughout.
+    CHECK(tempo_map.secondsAtBeat(6, 1) == Catch::Approx(10.0));
+    CHECK(tempo_map.secondsAtBeat(7, 1) == Catch::Approx(10.5));
+    CHECK(tempo_map.secondsAtBeat(7, 2) == Catch::Approx(10.75));
+}
+
+// The short bar's meter counts the remainder in the governing beat where it is a whole number of
+// them, else in the finer power of two: four bars of 7/8 then half a whole note before a 4/4 is a
+// 4/8 bar, and a 3/4 cut after seven eighths leaves 1/8.
+TEST_CASE("TempoMap counts a short bar in the governing beat or the finer one", "[core][tempo-map]")
+{
+    const TempoMap four_eight{
+        metersAt({{"1:1", 4, 4}, {"5:1", 7, 8}, {"9:5", 4, 4}}),
+        std::vector{anchor("1:1", 0), anchor("11:1", 20000)},
+    };
+    CHECK(
+        four_eight.reigns() == std::vector<MeterReign>{
+                                   {.first_measure = 1,
+                                    .place = {},
+                                    .meter = {.numerator = 4, .denominator = 4},
+                                    .derived = false},
+                                   {.first_measure = 5,
+                                    .place = Fraction{4},
+                                    .meter = {.numerator = 7, .denominator = 8},
+                                    .derived = false},
+                                   {.first_measure = 9,
+                                    .place = Fraction{15, 2},
+                                    .meter = {.numerator = 4, .denominator = 8},
+                                    .derived = true},
+                                   {.first_measure = 10,
+                                    .place = Fraction{8},
+                                    .meter = {.numerator = 4, .denominator = 4},
+                                    .derived = false},
+                               });
+
+    // The 4/4 at place 7/8 is beat 2 and a half of a 3/4 bar: no token spells it, so it is placed
+    // by hand.
+    const TempoMap one_eight{
+        std::vector{
+            TimeSignatureChange{.place = {}, .meter = {.numerator = 3, .denominator = 4}},
+            TimeSignatureChange{
+                .place = Fraction{7, 8}, .meter = {.numerator = 4, .denominator = 4}
+            },
+        },
+        std::vector{anchor("1:1", 0), anchor("4:1", 3750)},
+    };
+    CHECK(
+        one_eight.reigns() == std::vector<MeterReign>{
+                                  {.first_measure = 1,
+                                   .place = {},
+                                   .meter = {.numerator = 3, .denominator = 4},
+                                   .derived = false},
+                                  {.first_measure = 2,
+                                   .place = Fraction{3, 4},
+                                   .meter = {.numerator = 1, .denominator = 8},
+                                   .derived = true},
+                                  {.first_measure = 3,
+                                   .place = Fraction{7, 8},
+                                   .meter = {.numerator = 4, .denominator = 4},
+                                   .derived = false},
+                              });
 }
 
 // Verifies the generated fallback map extends to a terminal downbeat after the audio.
@@ -293,15 +375,10 @@ TEST_CASE("TempoMap defaultMap covers audio duration", "[core][tempo-map]")
 // value constructor accepts them and the documented contract still applies.
 TEST_CASE("TempoMap clamps beat positions below the first anchor", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-        },
-        std::vector{
-            anchor("2:1", 10000),
-            anchor("3:1", 14000),
-        },
-    };
+    const TempoMap tempo_map = commonTimeMap({
+        anchor("2:1", 10000),
+        anchor("3:1", 14000),
+    });
 
     CHECK(tempo_map.secondsAtBeat(1, 1) == Catch::Approx(10.0));
     CHECK(tempo_map.secondsAtGlobalBeatPosition(2.0) == Catch::Approx(10.0));
@@ -319,9 +396,8 @@ TEST_CASE("TempoMap clamps beat positions below the first anchor", "[core][tempo
 TEST_CASE("TempoMap reports each anchor span's quarter length", "[core][tempo-map]")
 {
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-         TimeSignatureChange{.measure = 2, .meter = {.numerator = 6, .denominator = 8}}},
-        {anchor("1:1", 0), anchor("2:1", 2000), anchor("3:1", 3500)}
+        metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}}),
+        {anchor("1:1", 0), anchor("2:1", 2000), anchor("3:1", 3500)},
     };
 
     CHECK(map.spanQuarterLength(0) == Catch::Approx(4.0));
@@ -363,19 +439,15 @@ TEST_CASE("TempoMap default map ends on the first downbeat covering the audio", 
 TEST_CASE("TempoMap grows its terminal to cover a time", "[core][tempo-map]")
 {
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-         TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}}},
-        {anchor("1:1", 0), anchor("2:1", 2000)}
+        metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
+        {anchor("1:1", 0), anchor("2:1", 2000)},
     };
 
     CHECK(map.terminalCovering(5.0, 0.5) == anchor("4:1", 5500));
     CHECK(map.terminalCovering(1.0, 0.5) == map.anchors().back());
 
     // 241 quarter notes a minute over five minutes: one rounding, not one per measure.
-    const TempoMap fast{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
-        {anchor("1:1", 0), anchor("2:1", 996)}
-    };
+    const TempoMap fast = commonTimeMap({anchor("1:1", 0), anchor("2:1", 996)});
     const BeatAnchor grown = fast.terminalCovering(300.0, 60.0 / 241.0);
     const double quarters = static_cast<double>(grown.position.measure - 1) * 4.0;
     CHECK(grown.milliseconds == nearestAnchorMilliseconds(quarters * (60.0 / 241.0)));

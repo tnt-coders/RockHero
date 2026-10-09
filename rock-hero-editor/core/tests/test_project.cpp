@@ -159,11 +159,11 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
     return R"(
                 "tempoMap": {
                     "timeSignatures": [
-                        { "measure": 1, "numerator": 4, "denominator": 4 }
+                        { "at": "0", "numerator": 4, "denominator": 4 }
                     ],
                     "anchors": [
-                        { "at": "1:1", "seconds": 0.000 },
-                        { "at": "3:1", "seconds": 4.000 }
+                        { "at": "0", "seconds": 0.000 },
+                        { "at": "2", "seconds": 4.000 }
                     ]
                 },
 )";
@@ -254,7 +254,7 @@ void writeChartedProjectPackage(
                 .path = "song/" + chart_ref,
                 .contents = R"({ "formatVersion": 1,)"
                             R"( "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-                            R"( "notes": [ { "at": "1:2", "string": 1, "fret": 5,)"
+                            R"( "notes": [ { "at": "1/4", "string": 1, "fret": 5,)"
                             R"( "sustain": "1/32")" +
                             note_properties + R"( } ] })",
             },

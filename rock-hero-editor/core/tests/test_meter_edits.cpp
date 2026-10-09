@@ -4,12 +4,17 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/song/song_timeline.h>
@@ -41,6 +46,7 @@ using common::core::ToneAutomationPoint;
 using common::core::ToneRegion;
 using common::core::testing::anchor;
 using common::core::testing::downbeat;
+using common::core::testing::metersAt;
 using testing::addressesErased;
 using testing::at;
 using testing::chartOf;
@@ -62,16 +68,16 @@ using testing::sliceTimeline;
 
 using Catch::Matchers::WithinAbs;
 
-[[nodiscard]] PlacedMeter placed(Fraction whole_note, int numerator, int denominator)
+[[nodiscard]] TimeSignatureChange placed(Fraction place, int numerator, int denominator)
 {
-    return PlacedMeter{
-        .whole_note = whole_note,
+    return TimeSignatureChange{
+        .place = place,
         .meter = {.numerator = numerator, .denominator = denominator},
     };
 }
 // Re-addresses and requires the edit to land.
 [[nodiscard]] SongTimeline landed(
-    const SongTimeline& timeline, const std::vector<PlacedMeter>& meters)
+    const SongTimeline& timeline, const std::vector<TimeSignatureChange>& meters)
 {
     const std::expected<SongTimeline, ReaddressError> result =
         readdressUnderMeters(timeline, meters);
@@ -95,9 +101,10 @@ using Catch::Matchers::WithinAbs;
 // respelling (never refused), an inserted respelling of the prevailing meter, a restated last
 // meter (its reign runs to the terminal, so only the terminal re-seats), a free restatement and a
 // deletion (either may leave a later meter mid-measure).
-[[nodiscard]] std::vector<PlacedMeter> randomMeterEdit(Dice& dice, const TempoMap& tempo_map)
+[[nodiscard]] std::vector<TimeSignatureChange> randomMeterEdit(
+    Dice& dice, const TempoMap& tempo_map)
 {
-    std::vector<PlacedMeter> meters = placedMetersOf(tempo_map);
+    std::vector<TimeSignatureChange> meters = tempo_map.timeSignatures();
     const auto pick = [&dice, &meters] {
         return static_cast<std::size_t>(dice.roll(0, static_cast<int>(meters.size()) - 1));
     };
@@ -105,7 +112,7 @@ using Catch::Matchers::WithinAbs;
     {
         case 0:
         {
-            PlacedMeter& respelt = meters[pick()];
+            TimeSignatureChange& respelt = meters[pick()];
             respelt.meter = respelled(respelt.meter);
             break;
         }
@@ -113,15 +120,15 @@ using Catch::Matchers::WithinAbs;
         {
             const int terminal_measure = common::core::terminalGridPosition(tempo_map).measure;
             const int measure = dice.roll(1, terminal_measure - 1);
-            const TimeSignatureChange prevailing = tempo_map.timeSignatureAt(measure);
-            const PlacedMeter inserted{
-                .whole_note = tempo_map.wholeNotePositionAt(downbeat(measure)),
-                .meter = respelled(prevailing.meter),
+            const TimeSignatureChange inserted{
+                .place = tempo_map.wholeNotePositionAt(downbeat(measure)),
+                .meter = respelled(tempo_map.timeSignatureAt(measure).meter),
             };
-            const auto place = std::ranges::find_if(meters, [&inserted](const PlacedMeter& held) {
-                return held.whole_note >= inserted.whole_note;
-            });
-            if (place != meters.end() && place->whole_note == inserted.whole_note)
+            const auto place =
+                std::ranges::find_if(meters, [&inserted](const TimeSignatureChange& held) {
+                    return held.place >= inserted.place;
+                });
+            if (place != meters.end() && place->place == inserted.place)
             {
                 *place = inserted;
             }
@@ -183,12 +190,13 @@ struct EditFootprint
 // times equal, every other field untouched. A snapped section and a re-seated terminal are checked
 // against their own rules instead.
 [[nodiscard]] EditFootprint checkKeepsTime(
-    const SongTimeline& before, const SongTimeline& after, const std::vector<PlacedMeter>& meters)
+    const SongTimeline& before, const SongTimeline& after,
+    const std::vector<TimeSignatureChange>& meters)
 {
     requireValid(after);
     const TempoMap& old_map = before.tempo_map;
     const TempoMap& new_map = after.tempo_map;
-    CHECK(placedMetersOf(new_map) == meters);
+    CHECK(new_map.timeSignatures() == meters);
 
     EditFootprint footprint;
     const std::vector<BeatAnchor>& old_anchors = old_map.anchors();
@@ -287,6 +295,167 @@ struct EditFootprint
     return footprint;
 }
 
+// ---------------------------------------------------------------------------------------------
+// The written document.
+
+// Owns a clean temporary directory the document property writes its packages into.
+class TemporaryDirectory final
+{
+public:
+    TemporaryDirectory()
+        : m_path(
+              std::filesystem::temp_directory_path() /
+              std::filesystem::path{
+                  "rock-hero-meter-edits-test-" +
+                  std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+              })
+    {
+        std::filesystem::remove_all(m_path);
+        std::filesystem::create_directories(m_path);
+    }
+
+    ~TemporaryDirectory() noexcept
+    {
+        try
+        {
+            std::error_code error;
+            std::filesystem::remove_all(m_path, error);
+        }
+        catch (...)
+        {
+            m_path.clear();
+        }
+    }
+
+    TemporaryDirectory(const TemporaryDirectory&) = delete;
+    TemporaryDirectory& operator=(const TemporaryDirectory&) = delete;
+    TemporaryDirectory(TemporaryDirectory&&) = delete;
+    TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+
+    [[nodiscard]] const std::filesystem::path& path() const noexcept
+    {
+        return m_path;
+    }
+
+private:
+    std::filesystem::path m_path;
+};
+
+void writeTextFile(const std::filesystem::path& path, const std::string& contents)
+{
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream file{path, std::ios::binary};
+    REQUIRE(file.is_open());
+    file << contents;
+}
+
+[[nodiscard]] std::string readTextFile(const std::filesystem::path& path)
+{
+    std::ifstream file{path, std::ios::binary};
+    REQUIRE(file.is_open());
+    return std::string{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+}
+
+// The lines of a text, so two documents compare line by line.
+[[nodiscard]] std::vector<std::string> linesOf(const std::string& text)
+{
+    std::vector<std::string> lines;
+    std::size_t start = 0;
+    while (start < text.size())
+    {
+        const std::size_t end = text.find('\n', start);
+        lines.push_back(text.substr(start, end == std::string::npos ? end : end - start));
+        if (end == std::string::npos)
+        {
+            break;
+        }
+        start = end + 1;
+    }
+    return lines;
+}
+
+// The lines of a song document a meter edit may not change: everything outside the
+// `timeSignatures` array and, while the transform still snaps sections and re-seats the terminal,
+// outside the `sections` array and off the terminal anchor's line (the last line of `anchors`).
+[[nodiscard]] std::vector<std::string> linesAMeterEditKeeps(const std::vector<std::string>& lines)
+{
+    std::vector<std::string> kept;
+    bool inside_signatures = false;
+    bool inside_sections = false;
+    for (std::size_t index = 0; index < lines.size(); ++index)
+    {
+        const std::string& text = lines[index];
+        if (text.find("\"timeSignatures\"") != std::string::npos)
+        {
+            inside_signatures = true;
+        }
+        else if (text.find("\"anchors\"") != std::string::npos)
+        {
+            inside_signatures = false;
+        }
+        if (text.find("\"sections\"") != std::string::npos)
+        {
+            inside_sections = true;
+        }
+        else if (text.find("\"audioAssets\"") != std::string::npos)
+        {
+            inside_sections = false;
+        }
+        const bool terminal_line = text.find("\"seconds\"") != std::string::npos &&
+                                   index + 1 < lines.size() &&
+                                   lines[index + 1].find("\"seconds\"") == std::string::npos;
+        if (!inside_signatures && !inside_sections && !terminal_line)
+        {
+            kept.push_back(text);
+        }
+    }
+    return kept;
+}
+
+// The package a timeline saves as: the song document and one chart document per arrangement, as
+// text, written into a fresh workspace holding the audio and tone documents the writer requires.
+struct WrittenPackage
+{
+    std::vector<std::string> song_lines;
+    std::vector<std::string> chart_texts;
+};
+
+[[nodiscard]] WrittenPackage writtenPackage(
+    const std::filesystem::path& workspace, const SongTimeline& timeline)
+{
+    common::core::Song song;
+    song.tempo_map = timeline.tempo_map;
+    song.sections = timeline.sections;
+    const std::filesystem::path audio = workspace / "audio" / "backing.flac";
+    writeTextFile(audio, "audio");
+    for (const common::core::ArrangementTimeline& share : timeline.arrangements)
+    {
+        common::core::Arrangement arrangement;
+        arrangement.id = share.id == "lead" ? "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"
+                                            : "9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d";
+        arrangement.part = common::core::Part::Lead;
+        arrangement.audio_asset.path = audio;
+        arrangement.tone_track = share.tone_track;
+        arrangement.tone_automation = share.tone_automation;
+        for (const ToneRegion& region : share.tone_track.regions)
+        {
+            writeTextFile(workspace / region.tone_document_ref, "{}");
+        }
+        arrangement.chart_ref = "charts/" + arrangement.id + ".chart.json";
+        arrangement.chart = share.chart;
+        song.arrangements.push_back(std::move(arrangement));
+    }
+    const auto written = common::core::writeRockSongPackageDirectory(workspace, song);
+    INFO((written.has_value() ? std::string{} : written.error().message));
+    REQUIRE(written.has_value());
+    WrittenPackage package{.song_lines = linesOf(readTextFile(workspace / "song.json"))};
+    for (const common::core::Arrangement& arrangement : song.arrangements)
+    {
+        package.chart_texts.push_back(readTextFile(workspace / arrangement.chart_ref));
+    }
+    return package;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------------------------
@@ -307,7 +476,7 @@ TEST_CASE("Meter edits keep every object's time over random songs", "[core][mete
         Dice dice{seed};
         const SongTimeline before = randomTimeline(dice);
         requireValid(before);
-        const std::vector<PlacedMeter> meters = randomMeterEdit(dice, before.tempo_map);
+        const std::vector<TimeSignatureChange> meters = randomMeterEdit(dice, before.tempo_map);
 
         const std::expected<SongTimeline, ReaddressError> after =
             readdressUnderMeters(before, meters);
@@ -346,7 +515,7 @@ TEST_CASE("Meter edits keep every object's time over random songs", "[core][mete
         // A -> B -> A restores every token, but for a snapped section and a re-seated terminal. The
         // old meters' places are downbeats under the old meters, so the return never refuses.
         const std::expected<SongTimeline, ReaddressError> back =
-            readdressUnderMeters(edited, placedMetersOf(before.tempo_map));
+            readdressUnderMeters(edited, before.tempo_map.timeSignatures());
         REQUIRE(back.has_value());
         ++round_trips;
         const SongTimeline& restored = *back;
@@ -382,6 +551,38 @@ TEST_CASE("Meter edits keep every object's time over random songs", "[core][mete
     CHECK(crossing_keyframes > 0);
 }
 
+// The file stores every position as a whole-note place, so a meter edit that moves nothing changes
+// nothing in the saved documents but the time signatures: every chart document is byte-identical,
+// and song.json differs only inside `timeSignatures` — and, until the transform stops snapping
+// sections and re-seating the terminal, in a section line or the terminal anchor's where it did.
+TEST_CASE("Meter edits change only the meter lines of a saved project", "[core][meter-edits]")
+{
+    int compared = 0;
+    for (std::uint32_t seed = 1; seed <= 40; ++seed)
+    {
+        INFO("seed " << seed);
+        Dice dice{seed};
+        const SongTimeline before = randomTimeline(dice);
+        requireValid(before);
+        const std::expected<SongTimeline, ReaddressError> after =
+            readdressUnderMeters(before, randomMeterEdit(dice, before.tempo_map));
+        if (!after.has_value() ||
+            !common::core::validateSongSectionRules(after->sections, after->tempo_map).has_value())
+        {
+            continue;
+        }
+
+        const TemporaryDirectory directory;
+        const WrittenPackage was = writtenPackage(directory.path() / "before", before);
+        const WrittenPackage now = writtenPackage(directory.path() / "after", *after);
+        ++compared;
+
+        CHECK(now.chart_texts == was.chart_texts);
+        CHECK(linesAMeterEditKeeps(now.song_lines) == linesAMeterEditKeeps(was.song_lines));
+    }
+    CHECK(compared >= 20);
+}
+
 // ---------------------------------------------------------------------------------------------
 // One test per slice.
 
@@ -397,12 +598,7 @@ TEST_CASE("Meter edit re-addresses tempo anchors keeping their time", "[core][me
                                          anchor("4:4", 6250),
                                          anchor("6:1", 8500),
                                      });
-    CHECK(
-        after.tempo_map.timeSignatures() ==
-        std::vector<TimeSignatureChange>{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}},
-        });
+    CHECK(after.tempo_map.timeSignatures() == metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}));
 }
 
 TEST_CASE("Meter edit re-addresses note onsets", "[core][meter-edits]")
@@ -522,12 +718,8 @@ TEST_CASE("Meter edit renumbers the measures after a changed reign", "[core][met
     const SongTimeline after =
         landed(before, {placed(Fraction{}, 2, 4), placed(Fraction{2}, 3, 4)});
     requireValid(after);
-    CHECK(
-        after.tempo_map.timeSignatures() ==
-        std::vector<TimeSignatureChange>{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 2, .denominator = 4}},
-            TimeSignatureChange{.measure = 5, .meter = {.numerator = 3, .denominator = 4}},
-        });
+    // The meters keep their places; the 3/4 at whole note 2 is measure 5 under the 2/4.
+    CHECK(after.tempo_map.timeSignatures() == metersAt({{"1:1", 2, 4}, {"5:1", 3, 4}}));
     CHECK(after.tempo_map.anchors().back() == anchor("8:1", 8500));
     const Chart& chart = chartOf(after, 0);
     REQUIRE(chart.notes.size() == 2);
@@ -535,13 +727,11 @@ TEST_CASE("Meter edit renumbers the measures after a changed reign", "[core][met
     CHECK(chart.notes[1].position == at("6:2"));
 }
 
-TEST_CASE("Placed meters read a map's signatures at their whole notes", "[core][meter-edits]")
+TEST_CASE("A map's signatures are placed at their whole notes", "[core][meter-edits]")
 {
     CHECK(
-        placedMetersOf(sliceMap()) == std::vector<PlacedMeter>{
-                                          placed(Fraction{}, 4, 4),
-                                          placed(Fraction{2}, 3, 4),
-                                      });
+        sliceMap().timeSignatures() ==
+        std::vector<TimeSignatureChange>{placed(Fraction{}, 4, 4), placed(Fraction{2}, 3, 4)});
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -554,10 +744,7 @@ TEST_CASE("Meter edit refuses a reign that leaves a later meter mid-measure", "[
     const SongTimeline before{
         .tempo_map =
             TempoMap{
-                {
-                    TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-                    TimeSignatureChange{.measure = 5, .meter = {.numerator = 6, .denominator = 8}},
-                },
+                metersAt({{"1:1", 4, 4}, {"5:1", 6, 8}}),
                 {anchor("1:1", 0), anchor("7:1", 11000)},
             },
         .sections = {},
@@ -587,10 +774,7 @@ TEST_CASE("Meter edit with no later meter re-seats the terminal", "[core][meter-
     requireValid(after);
     CHECK(
         after.tempo_map ==
-        TempoMap{
-            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
-            {anchor("1:1", 0), anchor("7:1", 9000)},
-        });
+        TempoMap{metersAt({{"1:1", 3, 4}}), {anchor("1:1", 0), anchor("7:1", 9000)}});
     // Content keeps its time under the re-timed span: 4:4 is whole note 3 3/4, beat 1 of 6.
     const Chart& chart = chartOf(after, 0);
     REQUIRE(chart.notes.size() == 1);
@@ -655,13 +839,13 @@ TEST_CASE(
 {
     // 6:2 of 3/4 is 16 quarters; 7:1 is 18, timed from 3:1 at the last span's 500 ms quarter.
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
+        metersAt({{"1:1", 3, 4}}),
         {anchor("1:1", 0), anchor("3:1", 3000), anchor("6:2", 8000)},
     };
     CHECK(
         reseatTerminalAnchor(map) ==
         TempoMap{
-            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
+            metersAt({{"1:1", 3, 4}}),
             {anchor("1:1", 0), anchor("3:1", 3000), anchor("7:1", 9000)},
         });
 }
@@ -670,7 +854,7 @@ TEST_CASE("Terminal re-seat rounds its time to a millisecond once", "[core][mete
 {
     // 7001 ms over 16 quarters, extended to 18: 7876.125 ms, stored as 7876.
     const TempoMap map{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 3, .denominator = 4}}},
+        metersAt({{"1:1", 3, 4}}),
         {anchor("1:1", 0), anchor("6:2", 7001)},
     };
     CHECK(reseatTerminalAnchor(map).anchors().back() == anchor("7:1", 7876));

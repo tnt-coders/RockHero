@@ -4533,7 +4533,7 @@ TEST_CASE("Guitar Pro import writes a tie's vibrato stop into the document", "[c
         text.find(
             R"({ "offset": ")" + common::core::formatFractionToken(Fraction{1, 4}) + R"(" })") !=
         std::string::npos);
-    const auto reparsed = common::core::parseChartDocument(text);
+    const auto reparsed = common::core::parseChartDocument(text, built->tempo_map);
     REQUIRE(reparsed.has_value());
     if (!reparsed.has_value())
     {

@@ -278,7 +278,10 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return value > 0 && fitsIntField(value);
 }
 
-// Reads the tempo-map time-signature array without applying cross-entry ordering rules yet.
+// Reads the tempo-map time-signature array without applying cross-entry rules yet. A meter is
+// placed on the whole-note axis like every other stored position; the removed measure-number key
+// is refused rather than ignored, so a package from before the format changed fails to load with
+// the fix named instead of loading every meter at the song's start.
 [[nodiscard]] std::expected<std::vector<TimeSignatureChange>, SongPackageError>
 readTimeSignatureChanges(const juce::var& tempo_map_json)
 {
@@ -305,29 +308,48 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto measure = Json::tryReadInt64(signature_json, "measure");
-        const auto numerator = Json::tryReadInt64(signature_json, "numerator");
-        const auto denominator = Json::tryReadInt64(signature_json, "denominator");
-        if (!measure.has_value() || !numerator.has_value() || !denominator.has_value())
+        if (!Json::value(signature_json, "measure").isVoid())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.timeSignatures entries require measure, numerator, and denominator",
+                R"(tempoMap.timeSignatures entries use the removed "measure" key; a time )"
+                R"(signature is placed by "at", a whole-note place, so convert the package)",
             }};
         }
 
-        if (!fitsPositiveIntField(*measure) || !fitsPositiveIntField(*numerator) ||
-            !fitsPositiveIntField(*denominator))
+        const auto place_text = Json::tryReadString(signature_json, "at");
+        const auto numerator = Json::tryReadInt64(signature_json, "numerator");
+        const auto denominator = Json::tryReadInt64(signature_json, "denominator");
+        if (!place_text.has_value() || !numerator.has_value() || !denominator.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.timeSignatures values must be positive integers",
+                R"(tempoMap.timeSignatures entries require "at", numerator, and denominator)",
+            }};
+        }
+
+        const auto place = parseFractionToken(*place_text);
+        if (!place.has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                R"(tempoMap.timeSignatures "at" must be a whole-note place such as "16" or )"
+                R"("11+3/4": )" +
+                    *place_text,
+            }};
+        }
+
+        if (!fitsPositiveIntField(*numerator) || !fitsPositiveIntField(*denominator))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.timeSignatures numerator and denominator must be positive integers",
             }};
         }
 
         time_signatures.push_back(
             TimeSignatureChange{
-                .measure = static_cast<int>(*measure),
+                .place = *place,
                 .meter = {
                     .numerator = static_cast<int>(*numerator),
                     .denominator = static_cast<int>(*denominator)
@@ -338,9 +360,10 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     return time_signatures;
 }
 
-// Reads the tempo-map anchor array without applying ordering or meter-address rules yet.
+// Reads the tempo-map anchor array without applying ordering or meter-address rules yet; each
+// anchor's place is addressed on the grid the time signatures alone define.
 [[nodiscard]] std::expected<std::vector<BeatAnchor>, SongPackageError> readBeatAnchors(
-    const juce::var& tempo_map_json)
+    const juce::var& tempo_map_json, const TempoMap& grid)
 {
     const juce::var& anchors_json = Json::value(tempo_map_json, "anchors");
     if (!anchors_json.isArray())
@@ -375,12 +398,13 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto position = parseGridPositionToken(*position_text);
+        const auto position = parsePlaceToken(grid, *position_text);
         if (!position.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                R"(tempoMap.anchors "at" must be a grid token such as "188:1" or "188:3+1/2")",
+                R"(tempoMap.anchors "at" must be a whole-note place such as "16" or "11+3/4": )" +
+                    *position_text,
             }};
         }
 
@@ -438,7 +462,10 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         return std::unexpected{std::move(time_signatures.error())};
     }
 
-    auto anchors = readBeatAnchors(tempo_map_json);
+    // The grid without its timing: the meters alone address every place the document stores, the
+    // anchors' included, so the anchors are read on it before the timed map exists.
+    const TempoMap grid{*time_signatures, {}};
+    auto anchors = readBeatAnchors(tempo_map_json, grid);
     if (!anchors.has_value())
     {
         return std::unexpected{std::move(anchors.error())};
@@ -485,12 +512,12 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto position = parseGridPositionToken(*position_text);
+        const auto position = parsePlaceToken(tempo_map, *position_text);
         if (!position.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                R"(sections "at" is not a grid token: )" + *position_text,
+                R"(sections "at" is not a whole-note place: )" + *position_text,
             }};
         }
 
@@ -556,13 +583,12 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto start = parseGridPositionToken(*at_text);
+        const auto start = parsePlaceToken(tempo_map, *at_text);
         if (!start.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "tone change \"at\" must be a \"<measure>:<beat>\" or \"<measure>:<beat>+<n>/<d>\" "
-                "token",
+                R"(tone change "at" is not a whole-note place: )" + *at_text,
             }};
         }
 
@@ -644,8 +670,8 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
 }
 
 // Reads one arrangement's optional plugin-parameter automation and validates it against the
-// structural rules. Musical positions are the persisted truth, so points parse as grid-position
-// tokens; the runtime seconds curves are derived later by the editor.
+// structural rules. Musical positions are the persisted truth, so points parse as whole-note
+// places; the runtime seconds curves are derived later by the editor.
 [[nodiscard]] std::expected<std::vector<ToneParameterAutomation>, SongPackageError>
 readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
 {
@@ -696,12 +722,12 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                 }};
             }
 
-            const auto position = parseGridPositionToken(*position_text);
+            const auto position = parsePlaceToken(tempo_map, *position_text);
             if (!position.has_value())
             {
                 return std::unexpected{SongPackageError{
                     SongPackageErrorCode::InvalidArrangement,
-                    R"(toneAutomation point "at" is not a grid-position token: )" + *position_text,
+                    R"(toneAutomation point "at" is not a whole-note place: )" + *position_text,
                 }};
             }
 
@@ -838,7 +864,7 @@ struct ReadArrangements
                 }};
             }
 
-            auto loaded_chart = readChartDocument(*chart_path);
+            auto loaded_chart = readChartDocument(*chart_path, tempo_map);
             if (!loaded_chart.has_value())
             {
                 return std::unexpected{SongPackageError{

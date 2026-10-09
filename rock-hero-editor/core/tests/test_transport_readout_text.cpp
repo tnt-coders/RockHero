@@ -17,11 +17,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] common::core::TempoMap makeOneMeasure44Map()
 {
     return common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             anchor("2:1", 4000),
@@ -73,11 +69,7 @@ TEST_CASE("Beat position text lands on measure starts", "[core][readout]")
     // Two 4/4 measures over 7.3s: measure 2's downbeat is not an anchor, so its seconds resolve
     // through anchor-span interpolation and the inverse picks up rounding error.
     const common::core::TempoMap map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7300),

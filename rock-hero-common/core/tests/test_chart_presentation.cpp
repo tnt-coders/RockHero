@@ -23,6 +23,8 @@ namespace
 {
 
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTime;
+using rock_hero::common::core::testing::metersAt;
 
 // A plain 4/4 map at 120 BPM with room for the handful of measures these fixtures use. The margin
 // is a DURATION (`g_minimum_sustain_distance_seconds`), so at this tempo it is a fortieth of a
@@ -43,8 +45,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap meterChangeMap()
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-         TimeSignatureChange{.measure = 3, .meter = {.numerator = 6, .denominator = 8}}},
+        metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
         {anchor("1:1", 0), anchor("8:1", 23000)},
     };
 }
@@ -54,7 +55,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap fourFourMapAt(const double quarter_note_bpm)
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
+        commonTime(),
         {anchor("1:1", 0),
          anchor("5:1", nearestAnchorMilliseconds(16.0 * 60.0 / quarter_note_bpm))},
     };
@@ -792,7 +793,7 @@ TEST_CASE("Tail rule 2 earns a tail only for a ring past the kept-sustain bound"
         // ms together, past the bound, where the 200 ms its onset's rate alone would give it falls
         // short. The ring is read end to end, not at its onset's rate.
         const TempoMap map{
-            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
+            commonTime(),
             {anchor("1:1", 0), anchor("3:1", 3200), anchor("5:1", 11200)},
         };
         CHECK(loneTail(note(at(2, 4, Fraction{3, 4}), 1, Fraction{1, 8}), map) == Fraction{1, 8});
@@ -824,7 +825,7 @@ TEST_CASE("Tail rule 2 earns a tail only for a ring past the kept-sustain bound"
         // Four 12/8 measures in 24 s: each eighth-note beat lasts half a second, twice the bound,
         // so a quarter earns its tail here where the same written eighth at 150 BPM in 4/4 drops.
         const TempoMap map{
-            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 12, .denominator = 8}}},
+            metersAt({{"1:1", 12, 8}}),
             {anchor("1:1", 0), anchor("5:1", 24000)},
         };
         CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 4}), map) == Fraction{1, 4});

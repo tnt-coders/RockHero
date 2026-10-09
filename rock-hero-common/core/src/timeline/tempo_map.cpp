@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <iterator>
 #include <limits>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -59,7 +60,7 @@ std::int64_t nearestAnchorMilliseconds(const double seconds) noexcept
 TempoMap::TempoMap()
     : m_time_signatures{
           TimeSignatureChange{
-              .measure = 1,
+              .place = {},
               .meter = {.numerator = g_default_beats_per_measure, .denominator = 4},
           },
       }
@@ -87,17 +88,34 @@ TempoMap::TempoMap(
     buildDerivedIndices();
 }
 
-// Normalizes the signature list into monotonic reigns with prefix beat and whole-note
-// positions, then addresses every anchor on both axes. Runs once per construction so beat and
-// time queries stay logarithmic instead of rescanning the authored lists; the timeline grid scan
-// calls them once per line.
+// Derives the reign table from the placed changes — every measure's length, the derived short bar
+// included — with prefix beat and whole-note positions, then addresses every anchor on both axes.
+// Runs once per construction so beat and time queries stay logarithmic instead of rescanning the
+// authored lists; the timeline grid scan calls them once per line.
 void TempoMap::buildDerivedIndices()
 {
     m_segments.clear();
     m_anchor_quarter_positions.clear();
 
-    // The first signature governs from measure 1 regardless of its stored measure, so maps whose
-    // first change starts late still define a grid at the song start.
+    // The segment `measures` whole measures after `previous`, governing `meter` from there on.
+    const auto following = [](const SignatureSegment& previous,
+                              const int measures,
+                              const TimeSignature meter,
+                              const bool derived) {
+        return SignatureSegment{
+            .start_measure = previous.start_measure + measures,
+            .meter = meter,
+            .derived = derived,
+            .start_beat_index = previous.start_beat_index +
+                                static_cast<std::int64_t>(measures) * previous.meter.numerator,
+            .start_whole_note_position = previous.start_whole_note_position +
+                                         previous.meter.measureWholeNotes() * Fraction{measures},
+            .start_seconds = 0.0,
+        };
+    };
+
+    // The first signature governs from the song's start regardless of its stored place, so maps
+    // whose first change starts late still define a grid at the song start.
     const TimeSignatureChange default_signature{};
     const TimeSignatureChange& first_signature =
         m_time_signatures.empty() ? default_signature : m_time_signatures.front();
@@ -105,29 +123,48 @@ void TempoMap::buildDerivedIndices()
         SignatureSegment{
             .start_measure = 1,
             .meter = clampedMeter(first_signature.meter),
+            .derived = false,
             .start_beat_index = 0,
             .start_whole_note_position = {},
+            .start_seconds = 0.0,
         });
 
     for (std::size_t index = 1; index < m_time_signatures.size(); ++index)
     {
         const TimeSignatureChange& signature = m_time_signatures[index];
-        const SignatureSegment& previous = m_segments.back();
-        // A malformed out-of-order measure clamps forward so segment starts stay monotonic for the
+        // A copy, not a reference: the push below may reallocate.
+        const SignatureSegment previous = m_segments.back();
+        // A malformed out-of-order place clamps forward so segment starts stay monotonic for the
         // binary searches; the later-listed signature still wins from that point on, so a bad map
         // can only misplace beats, never crash.
-        const int start_measure = std::max(signature.measure, previous.start_measure);
-        const int measures = start_measure - previous.start_measure;
-        m_segments.push_back(
-            SignatureSegment{
-                .start_measure = start_measure,
-                .meter = clampedMeter(signature.meter),
-                .start_beat_index = previous.start_beat_index +
-                                    static_cast<std::int64_t>(measures) * previous.meter.numerator,
-                .start_whole_note_position =
-                    previous.start_whole_note_position +
-                    previous.meter.measureWholeNotes() * Fraction{measures},
-            });
+        const Fraction place = std::max(signature.place, previous.start_whole_note_position);
+        const Fraction measure_length = previous.meter.measureWholeNotes();
+        const Fraction reign = place - previous.start_whole_note_position;
+        // The whole measures of the reign are the floor of its length in measures; the division
+        // is exact and non-negative, so integer division floors it.
+        const Fraction measures_exact =
+            reign * Fraction{measure_length.denominator, measure_length.numerator};
+        const int whole_measures = measures_exact.numerator / measures_exact.denominator;
+        const Fraction remainder = reign - measure_length * Fraction{whole_measures};
+
+        SignatureSegment next =
+            following(previous, whole_measures, clampedMeter(signature.meter), false);
+        if (remainder > Fraction{})
+        {
+            // The derived short bar: the remainder counted in the governing beat where it is a
+            // whole number of them, else in the finer unit both divide. The lcm of two powers of
+            // two is the larger; for a malformed place off the meter lattice it is still the unit
+            // that makes the count whole, so the table never holds a fractional beat count.
+            const int beat = std::lcm(previous.meter.denominator, remainder.denominator);
+            const Fraction beats = remainder * Fraction{beat};
+            m_segments.push_back(following(
+                previous,
+                whole_measures,
+                TimeSignature{.numerator = beats.numerator, .denominator = beat},
+                true));
+            next = following(m_segments.back(), 1, clampedMeter(signature.meter), false);
+        }
+        m_segments.push_back(next);
     }
 
     // Through the same quarter query every chart instant's time takes, so an instant standing on
@@ -148,7 +185,7 @@ void TempoMap::buildDerivedIndices()
 
 // Finds the last segment whose reign starts at or before the measure. upper_bound lands past the
 // last segment with an equal start, so a zero-length reign left by a duplicate or out-of-order
-// signature loses to the later-listed one, the same answer timeSignatureAt's walk gives.
+// signature loses to the later-listed one.
 const TempoMap::SignatureSegment& TempoMap::segmentForMeasure(int measure) const noexcept
 {
     const auto after =
@@ -251,8 +288,9 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
     double quarters =
         quarterPositionAt(measureDownbeat(measure)) - m_anchor_quarter_positions[opener_index];
 
-    // Measure by measure through any meter change still ahead of the terminal...
-    const int last_change = m_time_signatures.back().measure;
+    // Measure by measure through any meter change still ahead of the terminal: the last segment is
+    // the last authored change's reign (a derived one only ever precedes a change).
+    const int last_change = m_segments.back().start_measure;
     while (measure < last_change && !covers(quarters))
     {
         quarters += measure_quarters(measure);
@@ -300,52 +338,38 @@ const std::vector<BeatAnchor>& TempoMap::anchors() const noexcept
     return m_anchors;
 }
 
-// Carries the last change forward into the requested measure.
-TimeSignatureChange TempoMap::timeSignatureAt(int measure) const noexcept
+MeterReign TempoMap::reignOf(const SignatureSegment& segment) noexcept
 {
-    if (m_time_signatures.empty())
-    {
-        return TimeSignatureChange{};
-    }
-
-    const int target_measure = normalizedMeasure(measure);
-    TimeSignatureChange active_signature = m_time_signatures.front();
-    for (const TimeSignatureChange& signature : m_time_signatures)
-    {
-        if (signature.measure > target_measure)
-        {
-            break;
-        }
-        active_signature = signature;
-    }
-
-    return active_signature;
+    return MeterReign{
+        .first_measure = segment.start_measure,
+        .place = segment.start_whole_note_position,
+        .meter = segment.meter,
+        .derived = segment.derived,
+    };
 }
 
-// Returns the active numerator because note beat addresses are counted in denominator beats.
+std::vector<MeterReign> TempoMap::reigns() const
+{
+    std::vector<MeterReign> reigns;
+    reigns.reserve(m_segments.size());
+    for (const SignatureSegment& segment : m_segments)
+    {
+        reigns.push_back(reignOf(segment));
+    }
+    return reigns;
+}
+
+// The reign whose segment holds the measure; the derived short bar is a reign like any other.
+MeterReign TempoMap::timeSignatureAt(int measure) const noexcept
+{
+    return reignOf(segmentForMeasure(normalizedMeasure(measure)));
+}
+
+// The segment's numerator, already clamped to at least one, because note beat addresses are
+// counted in denominator beats.
 int TempoMap::beatsPerMeasureAt(int measure) const noexcept
 {
-    return std::max(1, timeSignatureAt(measure).meter.numerator);
-}
-
-// Finds the signature whose reign contains the absolute time via the derived segments' downbeat
-// seconds; segments map one-to-one onto the authored signature list.
-TimeSignatureChange TempoMap::timeSignatureAtSeconds(double seconds) const noexcept
-{
-    if (m_time_signatures.empty())
-    {
-        return TimeSignatureChange{};
-    }
-
-    const auto after =
-        std::ranges::upper_bound(m_segments, seconds, {}, &SignatureSegment::start_seconds);
-    // Positions before the first downbeat still use the first signature, which governs from
-    // measure 1.
-    const std::size_t index =
-        after == m_segments.begin()
-            ? 0
-            : static_cast<std::size_t>(std::distance(m_segments.begin(), after)) - 1;
-    return m_time_signatures[index];
+    return timeSignatureAt(measure).meter.numerator;
 }
 
 // Inverts the metronome-linear interpolation: inverse-lerps the containing anchor span to a

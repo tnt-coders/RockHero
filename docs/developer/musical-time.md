@@ -307,12 +307,25 @@ draws it, because other ink already prints every held stop.
 # The TempoMap
 
 `TempoMap` (`timeline/tempo_map.h`) is the **sole durable timing authority**. Its authored data
-is small: time-signature changes (per measure) and sparse *beat anchors* (`BeatAnchor`) pinning
+is small: time-signature changes (`TimeSignatureChange`, each PLACED on the whole-note axis — the
+measure it begins is derived, never stored) and sparse *beat anchors* (`BeatAnchor`) pinning
 grid positions — on a beat or between beats, anywhere on the tick lattice — to whole
 milliseconds (`BeatAnchor::seconds()` is the one conversion back, `nearestAnchorMilliseconds`
 the one rounding). Between anchors, time interpolates linearly in **quarter-note (metronome)
 time** — a meter change between anchors re-slices beat durations rather than stretching them, so
 tempo changes only ever happen at anchors (the "metronome-linear" invariant).
+
+The **reign table** (`TempoMap::reigns`, one `MeterReign` per reign) is the ONE derivation of
+every measure's length. Each change opens a reign at its place; where the reign before a change
+is not a whole number of its measures, the remainder is one DERIVED short measure whose meter is
+the remainder counted in the governing beat (4/4 cut after one beat is 1/4) or, where that is no
+whole count, in the finer power of two (a 3/4 cut after seven eighths leaves 1/8). It is never
+stored, so changing the meter back makes it vanish. Every address query (`timeSignatureAt`,
+`beatsPerMeasureAt`, `gridPositionAtWholeNote`, the grid walker, the metronome mirror) reads the
+table, so a short bar is one measure with one address everywhere by construction. The rules
+(`validateTempoMapRules`) keep every change on the meter lattice (a place that is a whole number
+of 1/256 notes) and every reign at least one whole measure long, so a short bar is always a meter
+and never shares its downbeat with the change that made it.
 
 Two performance mechanisms matter when querying it:
 
@@ -332,10 +345,10 @@ moving with the beat, which is how a song whose grid is wrong under correctly ti
 repaired.
 
 Both run ONE transform, `readdressTimeline` (`editor/core/src/timeline/timeline_readdress.h`). A
-driver states the new map on the whole-note axis — `PlacedMeter`s and `PlacedAnchor`s, placed by
-whole note rather than by measure number or token, anchors keeping their milliseconds — plus a
-content map from each old whole-note place to its new one. The transform derives the meters' measure
-numbers and the anchors' tokens from those places and maps every position in every arrangement
+driver states the new map on the whole-note axis — the placed `TimeSignatureChange`s and
+`PlacedAnchor`s, placed by whole note rather than by token, anchors keeping their milliseconds —
+plus a content map from each old whole-note place to its new one. The transform builds the new map
+from those places, derives the anchors' tokens, and maps every position in every arrangement
 through the content map (`readdressedPosition`), rounding onto the tick lattice
 (`nearestTickPlace`, common core) only where the mapped place lies off it. The drivers:
 

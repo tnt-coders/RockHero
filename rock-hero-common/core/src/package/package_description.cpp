@@ -95,20 +95,21 @@ void describeArrangement(
             description.warnings.emplace_back(
                 "chart entry is missing from the archive: " + arrangement.chart_ref);
         }
-        // A structural parse only — the peek reports the tuning, which no rule rewrites, and
-        // leaves normalizing and judging the chart to the loader (see the tuning field's doc).
-        else if (const auto chart = parseChartDocument(*chart_text); !chart.has_value())
+        // The tuning alone — which no rule rewrites, and which needs no tempo map to read, unlike
+        // the notes — leaving normalizing and judging the chart to the loader (see the tuning
+        // field's doc).
+        else if (const auto tuning = parseChartDocumentTuning(*chart_text); !tuning.has_value())
         {
             description.warnings.emplace_back(
                 "chart entry could not be parsed: " + arrangement.chart_ref + " (" +
-                chart.error().message + ")");
+                tuning.error().message + ")");
         }
         else
         {
             arrangement.tuning = ArrangementTuningDescription{
-                .strings = chart->tuning.strings,
-                .capo = chart->tuning.capo,
-                .cent_offset = chart->tuning.cent_offset,
+                .strings = tuning->strings,
+                .capo = tuning->capo,
+                .cent_offset = tuning->cent_offset,
             };
         }
     }

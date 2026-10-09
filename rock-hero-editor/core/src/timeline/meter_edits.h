@@ -43,6 +43,7 @@ content map is \ref keptPlace, so every place is kept exactly and nothing rounds
 \return The re-addressed timeline, or the refusal.
 */
 [[nodiscard]] std::expected<common::core::SongTimeline, ReaddressError> readdressUnderMeters(
-    const common::core::SongTimeline& timeline, std::span<const PlacedMeter> meters);
+    const common::core::SongTimeline& timeline,
+    std::span<const common::core::TimeSignatureChange> meters);
 
 } // namespace rock_hero::editor::core

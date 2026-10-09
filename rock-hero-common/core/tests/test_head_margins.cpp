@@ -25,6 +25,7 @@ namespace
 
 using Catch::Matchers::WithinULP;
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::metersAt;
 
 // A map every margin round trip has something to cross: a 7/8 bar between two 4/4 stretches,
 // anchors at odd milliseconds on both sides of it, and a sub-beat anchor a third of a quarter into
@@ -32,9 +33,7 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] TempoMap denseMap()
 {
     return TempoMap{
-        {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-         TimeSignatureChange{.measure = 3, .meter = {.numerator = 7, .denominator = 8}},
-         TimeSignatureChange{.measure = 4, .meter = {.numerator = 4, .denominator = 4}}},
+        metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}, {"4:1", 4, 4}}),
         {anchor("1:1", 0),
          anchor("2:3", 2777),
          anchor("3:4", 4321),

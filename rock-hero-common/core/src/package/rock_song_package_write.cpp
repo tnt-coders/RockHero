@@ -147,28 +147,30 @@ constexpr int g_zip_compression_level = 9;
     return Json::numberText(value);
 }
 
-// Renders one time-signature change as a compact object line.
+// Renders one time-signature change as a compact object line, placed where it starts on the
+// whole-note axis like every other stored position, so a meter edit's diff is the meter alone.
 [[nodiscard]] std::string formatTimeSignatureLine(const TimeSignatureChange& signature)
 {
-    return R"({ "measure": )" + std::to_string(signature.measure) + R"(, "numerator": )" +
+    return R"({ "at": ")" + formatFractionToken(signature.place) + R"(", "numerator": )" +
            std::to_string(signature.meter.numerator) + R"(, "denominator": )" +
            std::to_string(signature.meter.denominator) + " }";
 }
 
-// Renders one beat anchor as a compact object line, addressing it with its grid token and pinning
-// it to seconds written with exactly three decimals: the stored unit is the whole millisecond, so
-// the decimals are its digits, never a rounding. The writer validates the map first, so the time is
-// non-negative and the split into seconds and milliseconds needs no sign handling.
-[[nodiscard]] std::string formatAnchorLine(const BeatAnchor& anchor)
+// Renders one beat anchor as a compact object line, addressing it with its whole-note place and
+// pinning it to seconds written with exactly three decimals: the stored unit is the whole
+// millisecond, so the decimals are its digits, never a rounding. The writer validates the map
+// first, so the time is non-negative and the split into seconds and milliseconds needs no sign
+// handling.
+[[nodiscard]] std::string formatAnchorLine(const BeatAnchor& anchor, const TempoMap& tempo_map)
 {
-    return R"({ "at": ")" + formatGridPositionToken(anchor.position) + R"(", "seconds": )" +
+    return R"({ "at": ")" + formatPlaceToken(tempo_map, anchor.position) + R"(", "seconds": )" +
            std::format("{}.{:03}", anchor.milliseconds / 1000, anchor.milliseconds % 1000) + " }";
 }
 
 // Renders one song-structure section marker as a compact object line.
-[[nodiscard]] std::string formatSectionLine(const SongSection& section)
+[[nodiscard]] std::string formatSectionLine(const SongSection& section, const TempoMap& tempo_map)
 {
-    return R"({ "at": ")" + formatGridPositionToken(section.position) + R"(", "name": )" +
+    return R"({ "at": ")" + formatPlaceToken(tempo_map, section.position) + R"(", "name": )" +
            jsonString(section.name) + " }";
 }
 
@@ -239,9 +241,10 @@ struct ArrangementDocumentEntry
 
 // Renders one plugin-parameter automation entry with its points inline. Musical positions are the
 // persisted truth (runtime seconds are derived through the tempo map), so points serialize as
-// grid-position tokens. A point is a position and a value only: segment shape is derived from the
+// whole-note places. A point is a position and a value only: segment shape is derived from the
 // parameter at the backend write seam, never stored.
-[[nodiscard]] std::string formatToneAutomationLine(const ToneParameterAutomation& automation)
+[[nodiscard]] std::string formatToneAutomationLine(
+    const ToneParameterAutomation& automation, const TempoMap& tempo_map)
 {
     std::string line = "{ \"plugin\": ";
     line += jsonString(automation.plugin_id);
@@ -256,7 +259,7 @@ struct ArrangementDocumentEntry
             line += ", ";
         }
         line += "{ \"at\": ";
-        line += jsonString(formatGridPositionToken(point.position));
+        line += jsonString(formatPlaceToken(tempo_map, point.position));
         line += ", \"value\": ";
         line += formatJsonDouble(point.norm_value);
         line += " }";
@@ -376,7 +379,7 @@ struct SongDocumentForSave
     for (std::size_t index = 0; index < tempo_map.anchors().size(); ++index)
     {
         contents += (index == 0 ? "\n      " : ",\n      ");
-        contents += formatAnchorLine(tempo_map.anchors()[index]);
+        contents += formatAnchorLine(tempo_map.anchors()[index], tempo_map);
     }
     contents += tempo_map.anchors().empty() ? "]\n" : "\n    ]\n";
     contents += "  },\n";
@@ -384,7 +387,7 @@ struct SongDocumentForSave
     for (std::size_t index = 0; index < sections.size(); ++index)
     {
         contents += (index == 0 ? "\n    " : ",\n    ");
-        contents += formatSectionLine(sections[index]);
+        contents += formatSectionLine(sections[index], tempo_map);
     }
     contents += sections.empty() ? "],\n" : "\n  ],\n";
     contents += "  \"audioAssets\": [";
@@ -681,7 +684,7 @@ struct SongDocumentForSave
         {
             tone_changes.push_back(
                 ToneChangeDocumentEntry{
-                    .start = formatGridPositionToken(region.start),
+                    .start = formatPlaceToken(song.tempo_map, region.start),
                     .tone_id = toneIdFromToneDocumentRef(region.tone_document_ref),
                 });
         }
@@ -701,7 +704,7 @@ struct SongDocumentForSave
         tone_automation_lines.reserve(arrangement.tone_automation.size());
         for (const ToneParameterAutomation& automation : arrangement.tone_automation)
         {
-            tone_automation_lines.push_back(formatToneAutomationLine(automation));
+            tone_automation_lines.push_back(formatToneAutomationLine(automation, song.tempo_map));
         }
 
         arrangements.push_back(

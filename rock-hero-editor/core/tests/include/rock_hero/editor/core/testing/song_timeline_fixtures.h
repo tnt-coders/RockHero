@@ -58,6 +58,7 @@ using common::core::ToneParameterAutomation;
 using common::core::ToneRegion;
 using common::core::testing::anchor;
 using common::core::testing::downbeat;
+using common::core::testing::metersAt;
 
 // Floating noise only: the two maps resolve one instant through different beat decompositions.
 inline constexpr double g_time_tolerance_seconds = 1e-9;
@@ -133,10 +134,7 @@ inline void requireValid(const SongTimeline& timeline)
 [[nodiscard]] inline TempoMap sliceMap()
 {
     return TempoMap{
-        {
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 3, .meter = {.numerator = 3, .denominator = 4}},
-        },
+        metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}),
         {
             anchor("1:1", 0),
             anchor("2:2+1/2", 2750),
@@ -332,13 +330,19 @@ inline constexpr std::array<int, 6> g_grids{16, 12, 24, 32, 20, 3840};
 
 [[nodiscard]] inline TempoMap randomTempoMap(Dice& dice)
 {
+    // Each change a whole number of the previous meter's measures after it, so every reign
+    // divides and the measures count up as a charter would number them.
     std::vector<TimeSignatureChange> signatures;
     int measure = 1;
+    Fraction change_place{};
     const int changes = dice.roll(0, 4);
     for (int index = 0; index <= changes; ++index)
     {
-        signatures.push_back(TimeSignatureChange{.measure = measure, .meter = randomMeter(dice)});
-        measure += dice.roll(1, 5);
+        const TimeSignature meter = randomMeter(dice);
+        signatures.push_back(TimeSignatureChange{.place = change_place, .meter = meter});
+        const int measures = dice.roll(1, 5);
+        measure += measures;
+        change_place = change_place + meter.measureWholeNotes() * Fraction{measures};
     }
     const int terminal_measure = measure + dice.roll(0, 3);
 

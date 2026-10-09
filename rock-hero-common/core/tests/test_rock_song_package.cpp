@@ -28,6 +28,7 @@ namespace
 
 using rock_hero::common::core::testing::anchor;
 using rock_hero::common::core::testing::commonTimeMap;
+using rock_hero::common::core::testing::metersAt;
 
 constexpr std::string_view g_lead_arrangement_id{"4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"};
 constexpr std::string_view g_tone_id{"9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d"};
@@ -161,17 +162,18 @@ void writeAudioFile(const std::filesystem::path& path)
     return toneDocumentPath(g_second_tone_id).generic_string();
 }
 
-// Returns the required native tempo-map document fragment shared by package fixtures.
+// Returns the required native tempo-map document fragment shared by package fixtures: two 4/4
+// measures, every position a whole-note place.
 [[nodiscard]] std::string tempoMapJsonFragment()
 {
     return R"(
             "tempoMap": {
                 "timeSignatures": [
-                    { "measure": 1, "numerator": 4, "denominator": 4 }
+                    { "at": "0", "numerator": 4, "denominator": 4 }
                 ],
                 "anchors": [
-                    { "at": "1:1", "seconds": 0.000 },
-                    { "at": "3:1", "seconds": 4.000 }
+                    { "at": "0", "seconds": 0.000 },
+                    { "at": "2", "seconds": 4.000 }
                 ]
             },
 )";
@@ -555,7 +557,7 @@ TEST_CASE("Rock song package rejects missing tone documents", "[core][rock-song-
             R"(",
                     "part": "Lead",
                     "audio": "backing",
-                    "toneChanges": [ { "at": "1:1", "tone": ")" +
+                    "toneChanges": [ { "at": "0", "tone": ")" +
             std::string{g_tone_id} +
             R"(" } ]
                 }
@@ -827,7 +829,9 @@ TEST_CASE(
     CHECK_FALSE(read_song->arrangements.front().audio_asset.normalization.has_value());
 }
 
-// Locks the writer's readable row layout for time signatures and anchors.
+// Locks the writer's readable row layout for time signatures and anchors, every position a
+// whole-note place in the canonical mixed spelling: the 7/8 from measure 12 is eleven whole notes
+// in, and measure 13 one 7/8 bar after it.
 TEST_CASE(
     "Rock song package writer formats scan-heavy arrays one object per line",
     "[core][rock-song-package]")
@@ -838,16 +842,7 @@ TEST_CASE(
 
     Song song = makeSong(source_audio);
     song.tempo_map = TempoMap{
-        std::vector{
-            TimeSignatureChange{
-                .measure = 1,
-                .meter = {.numerator = 4, .denominator = 4},
-            },
-            TimeSignatureChange{
-                .measure = 12,
-                .meter = {.numerator = 7, .denominator = 8},
-            },
-        },
+        metersAt({{"1:1", 4, 4}, {"12:1", 7, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 4000),
@@ -863,14 +858,14 @@ TEST_CASE(
     const std::string song_document = readTextFile(package_directory / "song.json");
     const std::string expected_time_signatures =
         R"(    "timeSignatures": [
-      { "measure": 1, "numerator": 4, "denominator": 4 },
-      { "measure": 12, "numerator": 7, "denominator": 8 }
+      { "at": "0", "numerator": 4, "denominator": 4 },
+      { "at": "11", "numerator": 7, "denominator": 8 }
     ])";
     const std::string expected_anchors =
         R"(    "anchors": [
-      { "at": "1:1", "seconds": 0.000 },
-      { "at": "3:1", "seconds": 4.000 },
-      { "at": "13:1", "seconds": 19.250 }
+      { "at": "0", "seconds": 0.000 },
+      { "at": "2", "seconds": 4.000 },
+      { "at": "11+7/8", "seconds": 19.250 }
     ])";
 
     CHECK(song_document.find(expected_time_signatures) != std::string::npos);
@@ -951,62 +946,90 @@ TEST_CASE("Rock song package rejects non-FLAC backing audio", "[core][rock-song-
 
 // Verifies the reader rejects tempo maps that break grid invariants. Each fragment parses and
 // passes the per-entry field reads, so these exercise validateTempoMap's structural rules: meter
-// coverage and ordering, the required start and terminal anchors, downbeat
-// terminals, and anchor ordering.
+// coverage, ordering and placement, the required start and terminal anchors, downbeat terminals,
+// and anchor ordering — plus the two grammar refusals every place shares, the removed measure key
+// and a place off the tick lattice, which the reader states in the same tempoMap vocabulary.
 TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-package]")
 {
     const std::vector<std::string> invalid_tempo_maps{
         // timeSignatures must contain at least one meter.
         R"(
-            "tempoMap": { "timeSignatures": [], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
 )",
-        // timeSignatures must start at measure 1.
+        // timeSignatures must start at the song's start.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 2, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "1", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
+)",
+        // The removed measure-number key is refused, not read.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
+)",
+        // A place is a canonical mixed number, not the editor's grid token.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "at": "1:1", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
 )",
         // Denominators must be a power of two.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 3 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 3 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
 )",
         // Denominators must be a whole number of ticks: a 512th-note beat has no lattice.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 512 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 512 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
 )",
-        // timeSignatures measures must be strictly increasing.
+        // timeSignatures places must be strictly increasing.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 }, { "measure": 1, "numerator": 3, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 }, { "at": "0", "numerator": 3, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
+)",
+        R"(
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 }, { "at": "2", "numerator": 3, "denominator": 4 }, { "at": "1", "numerator": 5, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "4", "seconds": 8.000 } ] },
+)",
+        // A time signature stands on the meter lattice: a third of a beat cuts a bar no meter can
+        // state.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 }, { "at": "1+1/12", "numerator": 3, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "4", "seconds": 8.000 } ] },
+)",
+        // A time signature governs at least one whole measure before the next.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 }, { "at": "1", "numerator": 9, "denominator": 8 }, { "at": "2", "numerator": 3, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "4", "seconds": 8.000 } ] },
 )",
         // anchors must contain both a start and a terminal anchor.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 } ] },
 )",
         // The first anchor must address measure 1 beat 1.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:2", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1/4", "seconds": 0.000 }, { "at": "2", "seconds": 4.000 } ] },
 )",
         // The terminal anchor must land on a downbeat.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "2:2", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "1+1/4", "seconds": 4.000 } ] },
 )",
         // anchor seconds must be strictly increasing.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 0.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 0.000 } ] },
+)",
+        // anchor places must be strictly increasing.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "1+1/2", "seconds": 2.000 }, { "at": "1", "seconds": 3.000 }, { "at": "2", "seconds": 4.000 } ] },
 )",
         // anchor seconds must be a whole number of milliseconds; the reader never rounds.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.0004 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 4.0004 } ] },
 )",
-        // An anchor must stand on a valid grid position: its beat inside its measure.
+        // An anchor must stand on the tick lattice: a seventh of a whole note is no whole tick.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "1:5", "seconds": 2.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "1/7", "seconds": 1.000 }, { "at": "2", "seconds": 4.000 } ] },
 )",
-        // The terminal anchor must be a downbeat with no sub-beat offset.
+        // A place is a canonical mixed number: an improper fraction and a grid token are refused.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "2:1+1/2", "seconds": 4.000 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "8/4", "seconds": 4.000 } ] },
+)",
+        R"(
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 4.000 } ] },
 )",
         // anchor seconds must be finite: a literal past the double range parses as infinity.
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": 1e400 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": 1e400 } ] },
 )",
     };
 
@@ -1024,8 +1047,9 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
     }
 }
 
-// Verifies an anchor between two beats saves as its grid token with its whole milliseconds written
-// as three-decimal seconds, and loads back as the same anchor.
+// Verifies an anchor between two beats saves as its whole-note place (2:3+1/2 of 4/4 is one bar and
+// five eighths in) with its whole milliseconds written as three-decimal seconds, and loads back as
+// the same anchor.
 TEST_CASE("Rock song package round-trips a sub-beat tempo anchor", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
@@ -1043,11 +1067,144 @@ TEST_CASE("Rock song package round-trips a sub-beat tempo anchor", "[core][rock-
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
     const std::string song_document = readTextFile(package_directory / "song.json");
-    CHECK(song_document.find(R"({ "at": "2:3+1/2", "seconds": 3.250 })") != std::string::npos);
+    CHECK(song_document.find(R"({ "at": "1+5/8", "seconds": 3.250 })") != std::string::npos);
 
     const auto read_song = readSong(package_directory);
     REQUIRE(read_song.has_value());
     CHECK(read_song->tempo_map == song.tempo_map);
+}
+
+// Every `at` in a package is a whole-note place in the one canonical spelling, and so is every
+// duration. One package carries every kind — a meter, anchors, sections, tone changes, automation
+// points, notes, hand positions, a ring and keyframe offsets past a whole note — under a map
+// whose meter changes, each at a place the previous format's token addressed: the read gives back
+// the very positions the token form named, and a second save reproduces the document byte for
+// byte.
+TEST_CASE(
+    "Rock song package speaks whole-note places for every position", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+    writeTextFile(package_directory / toneDocumentPath(g_second_tone_id), "{}");
+
+    // 4/4 then 7/8 from measure 3 (two whole notes in), the terminal at 6:1 after three 7/8 bars.
+    Song song = makeSongWithToneDocument(source_audio);
+    song.tempo_map = TempoMap{
+        metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}}),
+        {anchor("1:1", 0), anchor("2:3+1/2", 2750), anchor("4:4", 6250), anchor("6:1", 8500)},
+    };
+    const auto at = [](const std::string& token) { return anchor(token, 0).position; };
+    song.sections = {
+        SongSection{.position = at("1:1"), .name = "Intro"},
+        SongSection{.position = at("4:1"), .name = "Bridge"},
+    };
+    Arrangement& arrangement = song.arrangements.front();
+    arrangement.tones = {
+        Tone{.tone_document_ref = toneDocumentRef(), .name = "Clean"},
+        Tone{.tone_document_ref = secondToneDocumentRef(), .name = "Drive"},
+    };
+    arrangement.tone_track.regions = {
+        ToneRegion{
+            .id = std::string{g_verse_region_id},
+            .start = at("1:1"),
+            .tone_document_ref = toneDocumentRef(),
+        },
+        ToneRegion{
+            .id = std::string{g_chorus_region_id},
+            .start = at("4:1+1/2"),
+            .tone_document_ref = secondToneDocumentRef(),
+        },
+    };
+    arrangement.tone_automation = {
+        ToneParameterAutomation{
+            .plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+            .param_id = "gain",
+            .points = {
+                ToneAutomationPoint{.position = at("1:1"), .norm_value = 0.25F},
+                ToneAutomationPoint{.position = at("4:1+1/3"), .norm_value = 0.75F},
+            },
+        },
+    };
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // A ring of a whole note and a half, with a bend released at a dotted whole note.
+        ChartNote{
+            .position = at("2:4"),
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{3, 2},
+            .bend = 1.0,
+            .keyframes =
+                {Keyframe{.offset = Fraction{3, 4}, .bend = 2.0},
+                 Keyframe{.offset = Fraction{3, 2}, .bend = 0.0}},
+        },
+        ChartNote{
+            .position = at("4:2"),
+            .string = 2,
+            .fret = 7,
+            .sustain = Fraction{1, 8},
+            .bend = 0.0,
+            .keyframes = {},
+        },
+    };
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = at("1:1"), .fret = 3, .end_fret = std::nullopt},
+        FretHandPosition{.position = at("3:3+1/2"), .fret = 5, .end_fret = std::nullopt},
+    };
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    arrangement.chart_ref = chart_ref;
+    arrangement.chart = chart;
+
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+    const std::string song_document = readTextFile(package_directory / "song.json");
+    const std::string chart_document = readTextFile(package_directory / chart_ref);
+    // Each kind in its place spelling: 2:3+1/2 of 4/4 is 1+5/8; 4:4 is the 7/8's second downbeat
+    // (2+7/8) and three eighths (3+1/4); 4:1+1/2 is 2+7/8 and a sixteenth (2+15/16); 4:1+1/3 is
+    // 2+7/8 and a twenty-fourth (2+11/12); 2:4 is 1+3/4; 3:3+1/2 is 2 and five sixteenths.
+    CHECK(
+        song_document.find(R"({ "at": "2", "numerator": 7, "denominator": 8 })") !=
+        std::string::npos);
+    CHECK(song_document.find(R"({ "at": "1+5/8", "seconds": 2.750 })") != std::string::npos);
+    CHECK(song_document.find(R"({ "at": "3+1/4", "seconds": 6.250 })") != std::string::npos);
+    CHECK(song_document.find(R"({ "at": "4+5/8", "seconds": 8.500 })") != std::string::npos);
+    CHECK(song_document.find(R"({ "at": "2+7/8", "name": "Bridge" })") != std::string::npos);
+    CHECK(song_document.find(R"({ "at": "2+15/16", "tone": )") != std::string::npos);
+    CHECK(song_document.find(R"({ "at": "2+11/12", "value": )") != std::string::npos);
+    CHECK(
+        chart_document.find(R"({ "at": "1+3/4", "string": 1, "fret": 5, "sustain": "1+1/2")") !=
+        std::string::npos);
+    CHECK(chart_document.find(R"({ "offset": "1+1/2", "bend": 0)") != std::string::npos);
+    CHECK(chart_document.find(R"({ "at": "2+5/16", "fret": 5 })") != std::string::npos);
+
+    const auto loaded = readSong(package_directory);
+    REQUIRE(loaded.has_value());
+    CHECK(loaded->tempo_map == song.tempo_map);
+    CHECK(loaded->sections == song.sections);
+    REQUIRE(loaded->arrangements.size() == 1);
+    const Arrangement& read_arrangement = loaded->arrangements.front();
+    REQUIRE(read_arrangement.tone_track.regions.size() == 2);
+    CHECK(read_arrangement.tone_track.regions[1].start == at("4:1+1/2"));
+    CHECK(read_arrangement.tone_automation == arrangement.tone_automation);
+    REQUIRE(read_arrangement.chart.has_value());
+    if (read_arrangement.chart.has_value())
+    {
+        CHECK(*read_arrangement.chart == chart);
+    }
+
+    // A second save of what was read reproduces every byte, so places never churn.
+    const std::filesystem::path again = temp.path() / "again";
+    writeAudioFile(again / "audio" / "backing.flac");
+    writeTextFile(again / toneDocumentPath(g_tone_id), "{}");
+    writeTextFile(again / toneDocumentPath(g_second_tone_id), "{}");
+    Song reloaded = *loaded;
+    reloaded.arrangements.front().audio_asset.path = again / "audio" / "backing.flac";
+    REQUIRE(writeRockSongPackageDirectory(again, reloaded).has_value());
+    CHECK(readTextFile(again / "song.json") == song_document);
+    CHECK(readTextFile(again / chart_ref) == chart_document);
 }
 
 // Verifies an anchor time written as a JSON integer reads as whole milliseconds, and the
@@ -1059,7 +1216,7 @@ TEST_CASE("Rock song package reads an integer anchor time", "[core][rock-song-pa
     writePackageDirectoryWithTempoMap(
         package_directory,
         R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0 }, { "at": "2:1", "seconds": 2 } ] },
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0 }, { "at": "1", "seconds": 2 } ] },
 )");
 
     const auto read_song = readSong(package_directory);
@@ -1074,7 +1231,7 @@ TEST_CASE("Rock song package reads an integer anchor time", "[core][rock-song-pa
     REQUIRE(writeRockSongPackageDirectory(rewritten_directory, song).has_value());
     CHECK(
         readTextFile(rewritten_directory / "song.json")
-            .find(R"({ "at": "2:1", "seconds": 2.000 })") != std::string::npos);
+            .find(R"({ "at": "1", "seconds": 2.000 })") != std::string::npos);
 }
 
 // Verifies the reader refuses an anchor time between two milliseconds instead of rounding it, and
@@ -1089,7 +1246,7 @@ TEST_CASE(
         writePackageDirectoryWithTempoMap(
             package_directory,
             R"(
-            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "1:1", "seconds": 0.000 }, { "at": "3:1", "seconds": )" +
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "2", "seconds": )" +
                 seconds_text + R"( } ] },
 )");
         const auto read_song = readSong(package_directory);
@@ -1311,7 +1468,7 @@ TEST_CASE("Rock song package read rejects malformed tone change ids", "[core][ro
             R"(",
                     "part": "Lead",
                     "audio": "backing",
-                    "toneChanges": [ { "at": "1:1", "tone": "not-a-uuid" } ]
+                    "toneChanges": [ { "at": "0", "tone": "not-a-uuid" } ]
                 }
             ]
         })");
@@ -1413,7 +1570,7 @@ TEST_CASE(
     CHECK(written.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
-// Verifies a tone change whose start token is not a valid grid position is refused on read.
+// Verifies a tone change whose start is not a whole-note place is refused on read.
 TEST_CASE(
     "Rock song package read rejects malformed tone change tokens", "[core][rock-song-package]")
 {
@@ -1421,8 +1578,8 @@ TEST_CASE(
     const std::filesystem::path package_directory = temp.path() / "package";
     writeReadablePackageDirectory(package_directory);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
-    // "1:1+3/2" is malformed: the sub-beat extension must be a proper fraction of the beat (in
-    // (0, 1)); a 3/2 remainder belongs in the beat number, so the token is rejected.
+    // "1:1" is the editor's grid token, not the file's place: the file speaks the canonical mixed
+    // number alone, so the token is rejected.
     writeTextFile(
         package_directory / "song.json",
         R"({
@@ -1439,7 +1596,7 @@ TEST_CASE(
             R"(",
                     "part": "Lead",
                     "audio": "backing",
-                    "toneChanges": [ { "at": "1:1+3/2", "tone": ")" +
+                    "toneChanges": [ { "at": "1:1", "tone": ")" +
             std::string{g_tone_id} +
             R"(" } ]
                 }
@@ -1635,8 +1792,8 @@ TEST_CASE(
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "at": "1:1", "string": 1, "fret": 5, "sustain": "1" },)"
-        R"( { "at": "1:3", "string": 1, "fret": 7, "sustain": "1/32" } ] })");
+        R"( "notes": [ { "at": "0", "string": 1, "fret": 5, "sustain": "1" },)"
+        R"( { "at": "1/2", "string": 1, "fret": 7, "sustain": "1/32" } ] })");
 
     Song song = makeSong(source_audio);
     song.arrangements.front().chart_ref = chart_ref;
@@ -1673,8 +1830,8 @@ TEST_CASE(
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "at": "1:1", "string": 1, "fret": 3, "sustain": "1" } ],)"
-        R"( "positions": [ { "at": "1:1", "fret": 3 }, { "at": "1:3", "fret": 5 } ] })");
+        R"( "notes": [ { "at": "0", "string": 1, "fret": 3, "sustain": "1" } ],)"
+        R"( "positions": [ { "at": "0", "fret": 3 }, { "at": "1/2", "fret": 5 } ] })");
 
     Song song = makeSong(source_audio);
     song.arrangements.front().chart_ref = chart_ref;
@@ -1716,7 +1873,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "at": "1:2", "string": 1, "fret": 5, "sustain": "1/32",)"
+        R"( "notes": [ { "at": "1/4", "string": 1, "fret": 5, "sustain": "1/32",)"
         R"( "attack": "legato" } ] })");
 
     Song song = makeSong(source_audio);
@@ -1779,7 +1936,8 @@ TEST_CASE(
     const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
 
-    // Beat 9 does not exist in the fixture's 4/4 grid.
+    // Beat 9 does not exist in the fixture's 4/4 grid, so the writer refuses it; the hand-written
+    // document below stands its note a seventh of a whole note in, which is no whole tick.
     Chart invalid_chart;
     invalid_chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     invalid_chart.notes = {
@@ -1807,10 +1965,10 @@ TEST_CASE(
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "at": "1:9", "string": 3, "fret": 5, "sustain": "1/32" } ] })");
+        R"( "notes": [ { "at": "1/7", "string": 3, "fret": 5, "sustain": "1/32" } ] })");
 
-    // A position off the grid is structural — no repair can express it — so the load refuses
-    // the package rather than normalizing it.
+    // A position off the tick lattice is structural — no repair can express it — so the load
+    // refuses the package rather than normalizing it.
     const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
@@ -1861,7 +2019,7 @@ TEST_CASE(
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "at": "1:1", "string": 1, "fret": 12, "sustain": "1/8",)"
+        R"( "notes": [ { "at": "0", "string": 1, "fret": 12, "sustain": "1/8",)"
         R"( "attack": "pickSlide", "keyframes": [ { "offset": "1/8", "fret": 12 } ] } ] })");
 
     const auto loaded = readRockSongPackageDirectory(package_directory);
@@ -2111,7 +2269,7 @@ TEST_CASE("Rock song package ignores a stale automation shape key", "[core][rock
                             "plugin": "plugin-1",
                             "param": "gain",
                             "points": [
-                                { "at": "1:1", "value": 0.5, "shape": "linear" }
+                                { "at": "0", "value": 0.5, "shape": "linear" }
                             ]
                         }
                     ]

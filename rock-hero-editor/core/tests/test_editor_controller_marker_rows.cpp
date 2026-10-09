@@ -42,14 +42,7 @@ constexpr const char* g_second_tone_ref = "tone-drive";
 [[nodiscard]] common::core::TempoMap makeMarkerTempoMap()
 {
     return common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-            common::core::TimeSignatureChange{
-                .measure = 5, .meter = {.numerator = 3, .denominator = 4}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"5:1", 3, 4}}),
         std::vector{
             anchor("1:1", 0),
             anchor("5:1", 8000),

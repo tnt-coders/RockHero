@@ -152,8 +152,7 @@ public:
 
         const common::core::TimeSignature previous_signature =
             m_tempo_map.timeSignatureAt(m_measure - 1).meter;
-        moveToMeasure(
-            m_measure - 1, m_measure_beat_index - std::max(1, previous_signature.numerator));
+        moveToMeasure(m_measure - 1, m_measure_beat_index - previous_signature.numerator);
         m_offset_units = lastLineOffsetUnits();
         return true;
     }
@@ -218,18 +217,15 @@ public:
 
 private:
     // Rebinds the per-measure geometry for a measure whose downbeat global beat index is known.
-    // The signature lookup runs once per measure, not per line, so the scan stays cheap.
+    // The signature lookup runs once per measure, not per line, so the scan stays cheap. The
+    // reign's meter has both terms clamped to at least one, so the step below is never zero and
+    // the walk always progresses, a malformed map's included.
     void moveToMeasure(int measure, std::int64_t measure_beat_index)
     {
         m_measure = measure;
         m_measure_beat_index = measure_beat_index;
         m_offset_units = 0;
         m_signature = m_tempo_map.timeSignatureAt(measure).meter;
-        // A malformed map's non-positive signature terms clamp to one so the walk always
-        // progresses; misplacing that map's lines is acceptable, a zero step hanging the scan is
-        // not.
-        m_signature.numerator = std::max(1, m_signature.numerator);
-        m_signature.denominator = std::max(1, m_signature.denominator);
         m_step_units = static_cast<std::int64_t>(m_note.numerator) * m_signature.denominator;
         m_measure_units = static_cast<std::int64_t>(m_signature.numerator) * m_note.denominator;
         // A meter whose denominator no tick divides has no lattice; its beat is then its own

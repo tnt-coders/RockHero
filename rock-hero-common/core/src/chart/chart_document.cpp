@@ -27,13 +27,14 @@ constexpr int g_chart_format_version{1};
     return ChartError{.code = ChartErrorCode::MalformedDocument, .message = detail};
 }
 
-[[nodiscard]] std::expected<GridPosition, ChartError> readPosition(const juce::var& object)
+[[nodiscard]] std::expected<GridPosition, ChartError> readPosition(
+    const juce::var& object, const TempoMap& tempo_map)
 {
     const std::string text = Json::readOptionalString(object, "at", "");
-    const auto position = parseGridPositionToken(text);
+    const auto position = parsePlaceToken(tempo_map, text);
     if (!position.has_value())
     {
-        return std::unexpected{malformed("chart position token is malformed: " + text)};
+        return std::unexpected{malformed("chart position is not a whole-note place: " + text)};
     }
     return *position;
 }
@@ -187,9 +188,10 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
     };
 }
 
-[[nodiscard]] std::expected<ChartNote, ChartError> readNote(const juce::var& note_json)
+[[nodiscard]] std::expected<ChartNote, ChartError> readNote(
+    const juce::var& note_json, const TempoMap& tempo_map)
 {
-    auto position = readPosition(note_json);
+    auto position = readPosition(note_json, tempo_map);
     if (!position.has_value())
     {
         return std::unexpected{std::move(position.error())};
@@ -459,9 +461,9 @@ void appendJsonString(std::string& out, const std::string& text)
     return Json::numberText(value);
 }
 
-[[nodiscard]] std::string noteLine(const ChartNote& note)
+[[nodiscard]] std::string noteLine(const ChartNote& note, const TempoMap& tempo_map)
 {
-    std::string line = R"({ "at": ")" + formatGridPositionToken(note.position) + '"';
+    std::string line = R"({ "at": ")" + formatPlaceToken(tempo_map, note.position) + '"';
     line += ", \"string\": " + std::to_string(note.string);
     line += ", \"fret\": " + std::to_string(note.fret);
     // Always emitted: the ring is the note's own fact, and the reader refuses a document that omits
@@ -597,39 +599,38 @@ void appendJsonString(std::string& out, const std::string& text)
     return line;
 }
 
-} // namespace
-
-std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
+// The document's root through the single chart-document version gate, mirroring the other formats:
+// g_chart_format_version is the only supported revision, and no other call site may test the chart
+// version. The format itself changes in place under this number — every project is fresh, nothing
+// legacy is preserved, and stale documents are simply re-imported.
+[[nodiscard]] std::expected<juce::var, ChartError> parseChartRoot(const std::string& text)
 {
-    const auto document = Json::parseUtf8Document(text);
+    auto document = Json::parseUtf8Document(text);
     if (!document.has_value())
     {
         return std::unexpected{malformed("chart document is not valid JSON")};
     }
-
-    Chart chart;
-    const juce::var& root = *document;
-
-    // The single chart-document version gate, mirroring the other formats: g_chart_format_version
-    // is the only supported revision, and no other call site may test the chart version. The
-    // format itself changes in place under this number — every project is fresh, nothing legacy is
-    // preserved, and stale documents are simply re-imported.
-    if (Json::readOptionalInt(root, "formatVersion", 0) != g_chart_format_version)
+    if (Json::readOptionalInt(*document, "formatVersion", 0) != g_chart_format_version)
     {
         return std::unexpected{malformed(
             "chart document formatVersion must be " + std::to_string(g_chart_format_version))};
     }
+    return std::move(*document);
+}
 
+[[nodiscard]] std::expected<ChartTuning, ChartError> readTuning(const juce::var& root)
+{
+    ChartTuning tuning;
     const juce::var& tuning_json = Json::value(root, "tuning");
     const juce::var& strings_json = Json::value(tuning_json, "strings");
     if (!strings_json.isArray())
     {
         return std::unexpected{malformed("chart tuning strings must be an array")};
     }
-    chart.tuning.strings.reserve(static_cast<std::size_t>(strings_json.size()));
+    tuning.strings.reserve(static_cast<std::size_t>(strings_json.size()));
     for (int index = 0; index < strings_json.size(); ++index)
     {
-        chart.tuning.strings.push_back(strings_json[index].toString().toStdString());
+        tuning.strings.push_back(strings_json[index].toString().toStdString());
     }
     // Typed like the note scalars: a wrong-typed capo silently read as 0 would then have every
     // capo-relative rule — the floors, the hand windows, the node stops — measured against the
@@ -644,8 +645,40 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     {
         return std::unexpected{malformed("chart tuning \"centOffset\" has the wrong type")};
     }
-    chart.tuning.capo = Json::readOptionalInt(tuning_json, "capo", 0);
-    chart.tuning.cent_offset = Json::readOptionalDouble(tuning_json, "centOffset", 0.0);
+    tuning.capo = Json::readOptionalInt(tuning_json, "capo", 0);
+    tuning.cent_offset = Json::readOptionalDouble(tuning_json, "centOffset", 0.0);
+    return tuning;
+}
+
+} // namespace
+
+std::expected<ChartTuning, ChartError> parseChartDocumentTuning(const std::string& text)
+{
+    const auto root = parseChartRoot(text);
+    if (!root.has_value())
+    {
+        return std::unexpected{root.error()};
+    }
+    return readTuning(*root);
+}
+
+std::expected<Chart, ChartError> parseChartDocument(
+    const std::string& text, const TempoMap& tempo_map)
+{
+    const auto document = parseChartRoot(text);
+    if (!document.has_value())
+    {
+        return std::unexpected{document.error()};
+    }
+    const juce::var& root = *document;
+
+    Chart chart;
+    auto tuning = readTuning(root);
+    if (!tuning.has_value())
+    {
+        return std::unexpected{std::move(tuning.error())};
+    }
+    chart.tuning = std::move(*tuning);
 
     // No posture table or span list is stored: both are derived from the notes (deriveChartShapes),
     // so a document carrying them states a second, unverifiable copy of something the notes
@@ -665,7 +698,7 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
         chart.notes.reserve(static_cast<std::size_t>(notes_json.size()));
         for (int index = 0; index < notes_json.size(); ++index)
         {
-            auto note = readNote(notes_json[index]);
+            auto note = readNote(notes_json[index], tempo_map);
             if (!note.has_value())
             {
                 return std::unexpected{std::move(note.error())};
@@ -693,7 +726,7 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
         for (int index = 0; index < positions_json.size(); ++index)
         {
             const juce::var& fhp_json = positions_json[index];
-            auto position = readPosition(fhp_json);
+            auto position = readPosition(fhp_json, tempo_map);
             if (!position.has_value())
             {
                 return std::unexpected{std::move(position.error())};
@@ -733,22 +766,24 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     return chart;
 }
 
-std::expected<Chart, ChartError> readChartDocument(const std::filesystem::path& file)
+std::expected<Chart, ChartError> readChartDocument(
+    const std::filesystem::path& file, const TempoMap& tempo_map)
 {
     const juce::File chart_file = juceFileFromPath(file);
     if (!chart_file.existsAsFile())
     {
         return std::unexpected{malformed("chart document does not exist: " + file.string())};
     }
-    return parseChartDocument(chart_file.loadFileAsString().toStdString());
+    return parseChartDocument(chart_file.loadFileAsString().toStdString(), tempo_map);
 }
 
 namespace
 {
 
 // Renders a chart already in its document form (documentChart): every note in saved form, every
-// claim settled. Nothing here converts, so the text is exactly the chart it is handed.
-[[nodiscard]] std::string renderChartDocument(const Chart& chart)
+// claim settled. Nothing here converts but the addresses, which the file holds as whole-note
+// places, so the text is exactly the chart it is handed.
+[[nodiscard]] std::string renderChartDocument(const Chart& chart, const TempoMap& tempo_map)
 {
     std::string text = "{\n  \"formatVersion\": " + std::to_string(g_chart_format_version) + ",\n";
 
@@ -774,9 +809,11 @@ namespace
         text += items.empty() ? "],\n" : "\n  ],\n";
     };
 
-    append_array("notes", chart.notes, noteLine);
-    append_array("positions", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
-        std::string line = R"({ "at": ")" + formatGridPositionToken(fhp.position) +
+    append_array("notes", chart.notes, [&tempo_map](const ChartNote& note) {
+        return noteLine(note, tempo_map);
+    });
+    append_array("positions", chart.fret_hand_positions, [&tempo_map](const FretHandPosition& fhp) {
+        std::string line = R"({ "at": ")" + formatPlaceToken(tempo_map, fhp.position) +
                            R"(", "fret": )" + std::to_string(fhp.fret);
         // Written only where authored: an absent end is the derived window.
         if (const std::optional<int>& end_fret = fhp.end_fret; end_fret.has_value())
@@ -818,7 +855,7 @@ Chart documentChart(const Chart& chart, const TempoMap& tempo_map)
 
 std::string chartDocumentText(const Chart& chart, const TempoMap& tempo_map)
 {
-    return renderChartDocument(documentChart(chart, tempo_map));
+    return renderChartDocument(documentChart(chart, tempo_map), tempo_map);
 }
 
 std::expected<void, ChartError> writeChartDocument(
@@ -844,7 +881,8 @@ std::expected<void, ChartError> writeChartDocument(
         return std::unexpected{malformed(
             "could not create the chart document directory: " + file.string())};
     }
-    if (!chart_file.replaceWithText(juce::String::fromUTF8(renderChartDocument(document).c_str())))
+    if (!chart_file.replaceWithText(
+            juce::String::fromUTF8(renderChartDocument(document, tempo_map).c_str())))
     {
         return std::unexpected{malformed("could not write the chart document: " + file.string())};
     }

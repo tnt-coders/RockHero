@@ -52,13 +52,19 @@ struct TimeSignature
 static_assert(sizeof(TimeSignature) <= 16);
 static_assert(std::is_trivially_copyable_v<TimeSignature>);
 
-/*! \brief Time signature that starts at a measure and carries forward. */
+/*!
+\brief A time signature that governs from a place on the whole-note axis and carries forward.
+
+Placed rather than numbered: a measure number cannot say where a measure starts once the bar
+before it may be cut short, while a place on the axis no meter bends names one instant whatever
+the meters before it say. The measure a change begins is derived (\ref TempoMap::reigns).
+*/
 struct TimeSignatureChange
 {
-    /*! \brief One-based measure where this time signature begins. */
-    int measure{1};
+    /*! \brief Whole notes from the song's start to the first downbeat this meter governs. */
+    Fraction place{};
 
-    /*! \brief The meter that governs from this measure on. */
+    /*! \brief The meter that governs from that place on. */
     TimeSignature meter{};
 
     /*!
@@ -67,7 +73,45 @@ struct TimeSignatureChange
     \param rhs Right-hand time-signature change.
     \return True when both changes store equal values.
     */
-    friend bool operator==(const TimeSignatureChange& lhs, const TimeSignatureChange& rhs) =
+    friend constexpr bool operator==(
+        const TimeSignatureChange& lhs, const TimeSignatureChange& rhs) noexcept = default;
+};
+
+static_assert(sizeof(TimeSignatureChange) <= 16);
+static_assert(std::is_trivially_copyable_v<TimeSignatureChange>);
+
+/*!
+\brief One measure-numbered reign of the derived meter table: the meter governing from a first
+measure, authored or derived.
+
+Every authored change opens a reign at its place. Where the reign before a change is not a whole
+number of its measures, the remainder is ONE derived short measure whose meter is the remainder
+counted in the governing beat (4/4 cut after one beat is 1/4; 7/8 cut after four eighths is 4/8)
+or, where the remainder is no whole number of those beats, in the finer power of two (7/8
+re-metered to 3/4 leaves 1/8). A derived reign is never stored: changing the meter back makes it
+vanish. The reign table is the one derivation of every measure's length.
+*/
+struct MeterReign
+{
+    /*! \brief One-based first measure the reign governs. */
+    int first_measure{1};
+
+    /*! \brief Whole notes from the song's start to that measure's downbeat. */
+    Fraction place{};
+
+    /*! \brief The meter governing the reign's measures. */
+    TimeSignature meter{};
+
+    /*! \brief True for the derived short measure before an authored change, false when authored. */
+    bool derived{false};
+
+    /*!
+    \brief Compares two reigns by their stored fields.
+    \param lhs Left-hand reign.
+    \param rhs Right-hand reign.
+    \return True when both store equal values.
+    */
+    friend constexpr bool operator==(const MeterReign& lhs, const MeterReign& rhs) noexcept =
         default;
 };
 
@@ -151,7 +195,7 @@ public:
 
     /*!
     \brief Creates a tempo map from already validated changes and anchors.
-    \param time_signatures Time signatures carried forward from their starting measure.
+    \param time_signatures Time signatures carried forward from the places they start.
     \param anchors Sparse absolute timing anchors.
     */
     TempoMap(std::vector<TimeSignatureChange> time_signatures, std::vector<BeatAnchor> anchors);
@@ -176,22 +220,22 @@ public:
     [[nodiscard]] const std::vector<BeatAnchor>& anchors() const noexcept;
 
     /*!
-    \brief Finds the time signature active at a measure.
-    \param measure One-based measure to query.
-    \return Time signature carried into the supplied measure.
+    \brief The derived meter table: every reign in measure order, authored and derived alike.
+
+    THE one derivation of every measure's length (\ref MeterReign). Every consumer that walks
+    measures — the chip row, the marker row, the metronome mirror, the validator — reads it from
+    here rather than from the authored list, which cannot say where a cut measure ends.
+
+    \return The reigns, the first governing from measure 1.
     */
-    [[nodiscard]] TimeSignatureChange timeSignatureAt(int measure) const noexcept;
+    [[nodiscard]] std::vector<MeterReign> reigns() const;
 
     /*!
-    \brief Finds the time signature active at an absolute second position.
-
-    Positions before the first signature's downbeat use the first signature, which governs from
-    measure 1.
-
-    \param seconds Absolute second position to query.
-    \return Time signature whose reign contains the supplied position.
+    \brief Finds the reign governing a measure: its meter, and where the reign began.
+    \param measure One-based measure to query.
+    \return The reign, authored or derived, carried into the supplied measure.
     */
-    [[nodiscard]] TimeSignatureChange timeSignatureAtSeconds(double seconds) const noexcept;
+    [[nodiscard]] MeterReign timeSignatureAt(int measure) const noexcept;
 
     /*!
     \brief Resolves an absolute second position to a fractional global beat position.
@@ -438,8 +482,8 @@ public:
 
 private:
     // One normalized time-signature reign covering measures [start_measure, next segment's
-    // start_measure). Derived from m_time_signatures so beat-address queries binary-search a
-    // monotonic table instead of rewalking the signature list on every call.
+    // start_measure): a MeterReign with the two prefix sums the address queries binary-search, so
+    // they never rewalk the signature list.
     struct SignatureSegment
     {
         // First measure governed by this segment; segment starts are non-decreasing and begin at 1.
@@ -447,6 +491,9 @@ private:
 
         // The meter inside this segment, both terms clamped to at least one.
         TimeSignature meter{};
+
+        // True for the one-measure segment derived from a reign's remainder before the next change.
+        bool derived{false};
 
         // Global beat index of the first beat of the segment's first measure.
         std::int64_t start_beat_index{0};
@@ -493,6 +540,9 @@ private:
 
     // Rebuilds the derived lookup tables; must run whenever the authored vectors change.
     void buildDerivedIndices();
+
+    // The segment's public face: its reign without the prefix sums.
+    [[nodiscard]] static MeterReign reignOf(const SignatureSegment& segment) noexcept;
 
     // Finds the segment governing a measure; the front segment starts at measure 1 so normalized
     // inputs always match.

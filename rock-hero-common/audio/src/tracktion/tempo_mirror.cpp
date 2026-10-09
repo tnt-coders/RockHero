@@ -10,11 +10,13 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// Quarter-note position of a measure's downbeat, where a time signature takes effect. The edit's
-// beat unit is pinned to quarters, so every address mirrors through the map's own quarter axis.
-[[nodiscard]] double downbeatQuarterPosition(const core::TempoMap& tempo_map, int measure)
+// Quarter-note position of a reign's first downbeat, where its time signature takes effect. The
+// edit's beat unit is pinned to quarters, so every address mirrors through the map's own quarter
+// axis.
+[[nodiscard]] double downbeatQuarterPosition(
+    const core::TempoMap& tempo_map, const core::MeterReign& reign)
 {
-    return tempo_map.quarterPositionAt(core::measureDownbeat(measure));
+    return tempo_map.quarterPositionAt(core::measureDownbeat(reign.first_measure));
 }
 
 } // namespace
@@ -27,7 +29,9 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
         return;
     }
 
-    const std::vector<core::TimeSignatureChange>& signatures = tempo_map.timeSignatures();
+    // Every reign, the derived short bar included, so the host counts the same bars the editor
+    // shows.
+    const std::vector<core::MeterReign> signatures = tempo_map.reigns();
 
     // One flat tempo step per anchor span: Rock Hero tempo is constant between anchors, and the
     // final span's tempo simply extends past the terminal anchor.
@@ -87,25 +91,22 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
             1.0F);
     }
 
-    if (!signatures.empty())
+    if (tracktion::TimeSigSetting* const first_signature = sequence.getTimeSig(0))
     {
-        if (tracktion::TimeSigSetting* const first_signature = sequence.getTimeSig(0))
+        first_signature->startBeatNumber = tracktion::BeatPosition::fromBeats(
+            downbeatQuarterPosition(tempo_map, signatures.front()));
+        first_signature->numerator = signatures.front().meter.numerator;
+        first_signature->denominator = signatures.front().meter.denominator;
+    }
+    for (std::size_t index = 1; index < signatures.size(); ++index)
+    {
+        const tracktion::TimeSigSetting::Ptr inserted = sequence.insertTimeSig(
+            tracktion::BeatPosition::fromBeats(
+                downbeatQuarterPosition(tempo_map, signatures[index])));
+        if (inserted != nullptr)
         {
-            first_signature->startBeatNumber = tracktion::BeatPosition::fromBeats(
-                downbeatQuarterPosition(tempo_map, signatures.front().measure));
-            first_signature->numerator = signatures.front().meter.numerator;
-            first_signature->denominator = signatures.front().meter.denominator;
-        }
-        for (std::size_t index = 1; index < signatures.size(); ++index)
-        {
-            const tracktion::TimeSigSetting::Ptr inserted = sequence.insertTimeSig(
-                tracktion::BeatPosition::fromBeats(
-                    downbeatQuarterPosition(tempo_map, signatures[index].measure)));
-            if (inserted != nullptr)
-            {
-                inserted->numerator = signatures[index].meter.numerator;
-                inserted->denominator = signatures[index].meter.denominator;
-            }
+            inserted->numerator = signatures[index].meter.numerator;
+            inserted->denominator = signatures[index].meter.denominator;
         }
     }
 }

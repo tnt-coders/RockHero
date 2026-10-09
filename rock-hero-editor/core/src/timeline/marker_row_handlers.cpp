@@ -50,10 +50,10 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
         }
         case MarkerRow::TimeSignature:
         {
-            for (const common::core::TimeSignatureChange& change :
-                 session().song().tempo_map.timeSignatures())
+            const common::core::TempoMap& tempo_map = session().song().tempo_map;
+            for (const common::core::TimeSignatureChange& change : tempo_map.timeSignatures())
             {
-                starts.push_back(common::core::measureDownbeat(change.measure));
+                starts.push_back(tempo_map.gridPositionAtWholeNote(change.place));
             }
             break;
         }

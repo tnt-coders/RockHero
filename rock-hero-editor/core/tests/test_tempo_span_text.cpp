@@ -59,12 +59,7 @@ TEST_CASE("An inserted anchor's halves print the parent tempo", "[editor][tempo-
 // off its printed tempo can split into a half that carries the error over a shorter length.
 TEST_CASE("An inserted anchor's half can print the parent's stored error", "[editor][tempo-map]")
 {
-    const common::core::TempoMap parent{
-        {common::core::TimeSignatureChange{
-            .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-        }},
-        {anchor("1:1", 0), anchor("5:1", 7219)}
-    };
+    const common::core::TempoMap parent = commonTimeMap({anchor("1:1", 0), anchor("5:1", 7219)});
     REQUIRE(tempoSpanBpmText(parent, 0) == "133");
 
     const TempoMapEditResult split = insertTempoAnchor(

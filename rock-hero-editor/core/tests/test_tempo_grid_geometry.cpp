@@ -27,11 +27,7 @@ using rock_hero::common::core::testing::anchor;
     int measures, std::int64_t measure_milliseconds)
 {
     return common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             common::core::BeatAnchor{
@@ -469,14 +465,7 @@ TEST_CASE("Visible tempo grid keeps note values constant across meters", "[core]
     // One 4/4 measure (four quarters) then one 6/8 measure (three quarters), metronome-linear at
     // one quarter note per second: seven quarters over seven seconds, terminal at measure 3.
     const common::core::TempoMap map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-            common::core::TimeSignatureChange{
-                .measure = 2, .meter = {.numerator = 6, .denominator = 8}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7000),
@@ -515,6 +504,46 @@ TEST_CASE("Visible tempo grid keeps note values constant across meters", "[core]
         common::core::TimePosition{4.0});
 }
 
+// A meter placed mid-measure leaves a derived short bar before it, and the walk honours it like any
+// measure: 4/4 cut after one beat by a 7/8 is a 1/4 bar whose downbeat line is its only line, and
+// the 7/8's downbeat follows one beat later. One beat a second, so columns are seconds times 100.
+TEST_CASE("Visible tempo grid stops a short bar's lines at its end", "[core][tempo-grid]")
+{
+    // 4/4, the 7/8 from beat 2 of measure 2: measure 2 is a derived 1/4 at 4 s, measure 3 the 7/8
+    // from 5 s, its eighth-note beats half a second each, and the terminal at 4:1 (8.5 s).
+    const common::core::TempoMap map{
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:2", 7, 8}}),
+        std::vector{anchor("1:1", 0), anchor("4:1", 8500)},
+    };
+    constexpr common::core::TimeRange window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{8.5},
+    };
+    constexpr int width = 851;
+
+    const std::vector<TempoGridLine> lines =
+        visibleTempoGridLines(map, g_quarter_note_grid, window, width, 0, width);
+
+    const std::vector<TempoGridLine> expected{
+        {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 100, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 200, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 400, .measure = 2, .rank = TempoGridLineRank::Measure},
+        {.x = 500, .measure = 3, .rank = TempoGridLineRank::Measure},
+        {.x = 600, .measure = 3, .rank = TempoGridLineRank::Beat},
+        {.x = 700, .measure = 3, .rank = TempoGridLineRank::Beat},
+        {.x = 800, .measure = 3, .rank = TempoGridLineRank::Beat},
+        {.x = 850, .measure = 4, .rank = TempoGridLineRank::Measure},
+    };
+    CHECK(lines == expected);
+    // Snapping inside the short bar brackets its downbeat and the next measure's: nothing of the
+    // cut-off 4/4 beats survives between them.
+    CHECK(
+        nearestTempoGridTime(map, g_quarter_note_grid, common::core::TimePosition{4.6}) ==
+        common::core::TimePosition{5.0});
+}
+
 // Verifies measure anchoring in a meter whose length is not a multiple of the step: every 7/8
 // downbeat restarts the quarter-note grid, so downbeats always carry Measure-rank lines instead
 // of drifting off a song-uniform walk.
@@ -523,11 +552,7 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
     // Two 7/8 measures at one eighth-note beat per half second: each measure spans 3.5 quarters,
     // so a song-uniform quarter-note walk from zero would miss measure 2's downbeat at 3.5s.
     const common::core::TempoMap map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 7, .denominator = 8}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 7, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7000),
@@ -682,17 +707,7 @@ TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo
 {
     // 4/4, then 6/8, then 7/8; the tempo halves at measure 3.
     const common::core::TempoMap map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-            common::core::TimeSignatureChange{
-                .measure = 2, .meter = {.numerator = 6, .denominator = 8}
-            },
-            common::core::TimeSignatureChange{
-                .measure = 3, .meter = {.numerator = 7, .denominator = 8}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}, {"3:1", 7, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7000),

@@ -1,7 +1,7 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
-**Status:** Not started — authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note
-Lock change (round once from the lock's origin; content frozen while locked), after which this plan
+**Status:** Phase 1 DONE 2026-10-09 (see its "As built" note); Phases 2–5 not started.
+Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
 file stores every position as a whole-note place, so a meter edit rewrites nothing but the meter)
@@ -675,6 +675,15 @@ suites. New files follow the placement procedure; comments follow
   document differs only in `tempoMap.timeSignatures`).
 - Behaviour change visible to the charter: none (nothing produces a short bar yet); the format
   changes once, here, so Q5's conversion runs after this phase.
+- **As built (2026-10-09).** `timeSignatureAtSeconds` was dead and is deleted; `timeSignatureAt`
+  returns the governing `MeterReign`. The short bar's beat is `lcm(d, den(r))`, the `max` above for
+  powers of two. A reign under one measure refuses as its own `TempoMapErrorCode::ReignTooShort`.
+  `parsePlaceToken` refuses an off-tick-lattice place at admission, because the normalizer runs
+  before the rules. The grammar is the formatter's fixpoint, so grid tokens' `+n/d` is canonical
+  too (`"4:1+2/4"` now refuses). The fixture helper is a list builder, `metersAt({...})`.
+  `timeSignatureText` moved to common core for the rules' messages. The new document property
+  still exempts section lines and the terminal line until Phase 2 deletes the snap and re-seat.
+  The conversion script is `C:\__MAIN__\Coding\__scratch__\plan67-convert\convert_places.py`.
 
 ### Phase 2 — The transform moves no time; the terminal stands where it lands
 

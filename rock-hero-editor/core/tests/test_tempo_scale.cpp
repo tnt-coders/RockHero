@@ -27,8 +27,8 @@ using common::core::Chart;
 using common::core::Fraction;
 using common::core::SongTimeline;
 using common::core::TempoMap;
-using common::core::TimeSignatureChange;
 using common::core::testing::anchor;
+using common::core::testing::metersAt;
 using testing::at;
 using testing::chartOf;
 using testing::checkTimesHeld;
@@ -133,12 +133,7 @@ TEST_CASE("Scale Tempo by 2 lands a meter at measure m on measure 2m-1", "[core]
     REQUIRE(after.has_value());
     const SongTimeline& scaled = *after;
     requireValid(scaled);
-    CHECK(
-        scaled.tempo_map.timeSignatures() ==
-        std::vector{
-            TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-            TimeSignatureChange{.measure = 5, .meter = {.numerator = 3, .denominator = 4}},
-        });
+    CHECK(scaled.tempo_map.timeSignatures() == metersAt({{"1:1", 4, 4}, {"5:1", 3, 4}}));
     CHECK(scaled.tempo_map.anchors().back() == anchor("11:1", 8500));
     REQUIRE(scaled.sections.size() == 2);
     CHECK(scaled.sections[1].position == at("7:1"));
@@ -152,10 +147,7 @@ TEST_CASE("Scale Tempo refuses an odd reign before a later meter", "[core][scale
     const SongTimeline before{
         .tempo_map =
             TempoMap{
-                {
-                    TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}},
-                    TimeSignatureChange{.measure = 4, .meter = {.numerator = 6, .denominator = 8}},
-                },
+                metersAt({{"1:1", 4, 4}, {"4:1", 6, 8}}),
                 {anchor("1:1", 0), anchor("6:1", 9000)},
             },
         .sections = {},

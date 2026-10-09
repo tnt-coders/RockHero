@@ -24,6 +24,8 @@ namespace
 {
 
 using rock_hero::common::core::testing::anchor;
+using rock_hero::common::core::testing::commonTime;
+using rock_hero::common::core::testing::metersAt;
 
 // Sixteen seconds of default 4/4, which is what every case here needs from the map: a stable
 // grid and a minimum sustain distance of a fortieth of a whole note (50 ms at 120 BPM).
@@ -2125,8 +2127,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // successor and rides inside it, so it would close nothing and this figure would stop
         // asking its question.
         const TempoMap meter_change{
-            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 6, .denominator = 8}},
-             TimeSignatureChange{.measure = 2, .meter = {.numerator = 4, .denominator = 4}}},
+            metersAt({{"1:1", 6, 8}, {"2:1", 4, 4}}),
             {anchor("1:1", 0), anchor("5:1", 20000)},
         };
         const std::vector<ChartNote> glide_into_chord = streamOf({
@@ -2172,7 +2173,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // onset — the convention — it is dropped by the strict test. Two spans is the pinned
         // answer; three would mean the read point had moved.
         const TempoMap into_a_fast_bar{
-            {TimeSignatureChange{.measure = 1, .meter = {.numerator = 4, .denominator = 4}}},
+            commonTime(),
             {anchor("1:1", 0), anchor("2:1", 4000), anchor("3:1", 4800), anchor("5:1", 6400)},
         };
         const std::vector<ChartNote> glide_into_the_fast_bar = streamOf({

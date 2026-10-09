@@ -1157,6 +1157,15 @@ total-extracted ceiling plus roughly a 200:1 ratio ceiling sits orders of magnit
 legitimate and would never fire on real content. Refuse with a typed error naming the limit rather
 than truncating, since a truncated extraction would then fail confusingly downstream.
 
+### No bound on a stored place's size — trigger: the same as the cap above
+
+`parseFractionToken` (`chart_tokens.cpp`) reads a place such as `"999999999"` into an `int`-backed
+`Fraction`, and the tempo-map arithmetic that addresses it can then overflow. A huge measure number
+did the same before plan 67 made every `at` a place, so the reader is no weaker than it was. It is
+accepted for the same reason as the extraction cap: every package is one the user chose. Remedy
+when the trigger fires: refuse at admission (`parseFractionToken`) any value past a song-length
+bound, with a typed error, before any arithmetic runs on it.
+
 ## Cross-platform packaging
 
 ### macOS bundle resource layout — trigger: macOS packaging of either product

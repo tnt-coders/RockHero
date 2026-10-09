@@ -20,30 +20,6 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief A time signature placed by where it starts in musical time rather than by measure number.
-
-Every whole-song edit holds time and states its new map on the whole-note axis, the one axis a meter
-change does not bend; the measure numbers are derived from these places (\ref readdressTimeline),
-never stated beside them.
-*/
-struct PlacedMeter
-{
-    /*! \brief Whole notes from the song's start to the meter's first downbeat. */
-    common::core::Fraction whole_note{};
-
-    /*! \brief The meter that governs from that place on. */
-    common::core::TimeSignature meter{};
-
-    /*!
-    \brief Compares two placed meters by their stored fields.
-    \param lhs Left-hand meter.
-    \param rhs Right-hand meter.
-    \return True when both store equal values.
-    */
-    friend bool operator==(const PlacedMeter& lhs, const PlacedMeter& rhs) = default;
-};
-
-/*!
 \brief A tempo anchor placed by where it stands in musical time rather than by grid token.
 
 The anchor's address under the new meters is derived from this place (\ref readdressTimeline).
@@ -83,13 +59,6 @@ it to that.
 \return The same place.
 */
 [[nodiscard]] common::core::Fraction keptPlace(common::core::Fraction whole_note);
-
-/*!
-\brief Reads a tempo map's time signatures at the places they start.
-\param tempo_map Map to read.
-\return One placed meter per time-signature change, in order.
-*/
-[[nodiscard]] std::vector<PlacedMeter> placedMetersOf(const common::core::TempoMap& tempo_map);
 
 /*!
 \brief Reads a tempo map's anchors at the places they stand.
@@ -142,9 +111,8 @@ object going where the content map sends it.
 
 THE one pass every whole-song edit runs: a meter edit, Scale Tempo and the Note Lock differ
 only in the map they state and where they send the content (plan 66 decision 5).
-- The new meters' measure numbers are derived by walking their places in order, the first standing
-  at measure 1; a place that is not a downbeat under the meters before it refuses the edit, naming
-  the meter where it stands now.
+- The new meters are the map's own placed changes; a place that is not a downbeat under the meters
+  before it refuses the edit, naming the meter where it stands now.
 - The new anchors' addresses are derived from their places, keeping their milliseconds.
 - Note onsets, fret-hand positions, tone region starts and tone automation points are mapped
   (\ref readdressedPosition).
@@ -166,7 +134,8 @@ judges it against the rules as it would any edit.
 \return The re-addressed timeline, or the refusal.
 */
 [[nodiscard]] std::expected<common::core::SongTimeline, ReaddressError> readdressTimeline(
-    const common::core::SongTimeline& timeline, std::span<const PlacedMeter> meters,
+    const common::core::SongTimeline& timeline,
+    std::span<const common::core::TimeSignatureChange> meters,
     std::span<const PlacedAnchor> anchors, const ContentMap& content);
 
 } // namespace rock_hero::editor::core

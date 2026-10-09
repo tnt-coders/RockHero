@@ -125,7 +125,7 @@ TEST_CASE("Keeping notes in time lays the new map's meters", "[core][keep-notes-
 {
     const SongTimeline before = testing::sliceTimeline();
     requireValid(before);
-    std::vector<PlacedMeter> meters = placedMetersOf(before.tempo_map);
+    std::vector<common::core::TimeSignatureChange> meters = before.tempo_map.timeSignatures();
     REQUIRE(meters.size() == 2);
     meters[1].meter = common::core::TimeSignature{.numerator = 2, .denominator = 4};
     const std::expected<SongTimeline, ReaddressError> remetered =

@@ -16,11 +16,11 @@
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/common/core/timeline/time_signature_text.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
-#include <rock_hero/editor/core/timeline/time_signature_text.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <span>
 #include <utility>
@@ -472,7 +472,9 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         if (const RulerChip* const chip = chipAt(m_signature_row.chips, g_signature_row_y, point))
         {
             m_listener->onTimeSignatureSelected(
-                m_tempo_map.timeSignatures()[chip->source_index].measure);
+                m_tempo_map
+                    .gridPositionAtWholeNote(m_tempo_map.timeSignatures()[chip->source_index].place)
+                    .measure);
             return;
         }
     }
@@ -801,9 +803,11 @@ void TimelineRuler::showSignatureContextMenu(const RulerChip* chip, const juce::
     std::function<void()> select_chip;
     if (chip != nullptr)
     {
-        select_chip = [this, selected = m_tempo_map.timeSignatures()[chip->source_index].measure] {
-            m_listener->onTimeSignatureSelected(selected);
-        };
+        select_chip = [this,
+                       selected = m_tempo_map
+                                      .gridPositionAtWholeNote(
+                                          m_tempo_map.timeSignatures()[chip->source_index].place)
+                                      .measure] { m_listener->onTimeSignatureSelected(selected); };
     }
     showMarkerMenu(signatureRows(click, chip != nullptr), select_chip);
 }
@@ -1234,15 +1238,16 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
     m_signature_row = placeChipRow(
         changes.size(),
         [this, &changes](const std::size_t index) {
-            return m_tempo_map.secondsAtBeat(changes[index].measure, 1);
+            return m_tempo_map.secondsAtWholeNote(changes[index].place);
         },
         [&changes](const std::size_t index) {
-            return juce::String{core::timeSignatureText(changes[index].meter)};
+            return juce::String{common::core::timeSignatureText(changes[index].meter)};
         },
         0,
         pinned_left_seconds,
         first_index_where(changes.size(), [this, &changes](const std::size_t index) {
-            return m_selected_signature_measure == changes[index].measure;
+            return m_selected_signature_measure ==
+                   m_tempo_map.gridPositionAtWholeNote(changes[index].place).measure;
         }));
 }
 

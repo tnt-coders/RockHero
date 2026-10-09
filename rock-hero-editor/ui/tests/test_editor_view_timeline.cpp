@@ -138,12 +138,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
 [[nodiscard]] common::core::TempoMap makeOneMeasureTempoMap(std::int64_t measure_milliseconds)
 {
     return common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1,
-                .meter = {.numerator = 4, .denominator = 4},
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             anchor("2:1", measure_milliseconds),
@@ -207,16 +202,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
 [[nodiscard]] common::core::TempoMap makeMeterChangeTempoMap()
 {
     return common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1,
-                .meter = {.numerator = 4, .denominator = 4},
-            },
-            common::core::TimeSignatureChange{
-                .measure = 2,
-                .meter = {.numerator = 3, .denominator = 4},
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 3, 4}}),
         std::vector{anchor("1:1", 0), anchor("4:1", 10000)},
     };
 }
@@ -759,11 +745,7 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
             });
     }
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::move(anchors),
     };
     constexpr common::core::Fraction grid_note_value{1, 4};
@@ -986,11 +968,7 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
     };
     // 401 px over 4 s is 100 px per second, so the 1:3 anchor at 2 s stands at x = 200.
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
     };
     constexpr common::core::Fraction grid_note_value{1, 4};
@@ -1082,11 +1060,7 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
     constexpr int content_width = 801;
     constexpr int view_x = 200;
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 8000),
@@ -1133,11 +1107,7 @@ TEST_CASE(
     constexpr int content_width = 801;
     constexpr int view_x = 385;
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 8000),
@@ -1184,11 +1154,7 @@ TEST_CASE(
     constexpr int content_width = 801;
     constexpr int view_x = 376;
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             anchor("2:1", 4000),
@@ -1236,14 +1202,7 @@ TEST_CASE(
     constexpr int content_width = 801;
     constexpr int view_x = 376;
     const common::core::TempoMap tempo_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-            common::core::TimeSignatureChange{
-                .measure = 2, .meter = {.numerator = 3, .denominator = 4}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 3, 4}}),
         std::vector{
             anchor("1:1", 0),
             anchor("2:1", 4000),
@@ -1316,11 +1275,7 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
     // Two 4/4 measures over 7.3s: measure 2's downbeat is not an anchor, so its seconds resolve
     // through anchor-span interpolation (4 of 8 beats = 3.65s) and the inverse is inexact.
     const common::core::TempoMap two_measure_map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-        },
+        common::core::testing::commonTime(),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7300),
@@ -2122,11 +2077,7 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
     setSessionTempoMap(
         state,
         common::core::TempoMap{
-            std::vector{
-                common::core::TimeSignatureChange{
-                    .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-                },
-            },
+            common::core::testing::commonTime(),
             std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
         });
     state.marker_edits_enabled = true;
@@ -2175,11 +2126,7 @@ TEST_CASE(
     view.setBounds(0, 0, 1280, 800);
     const auto map_with_third_beat_at = [](const std::int64_t milliseconds) {
         return common::core::TempoMap{
-            std::vector{
-                common::core::TimeSignatureChange{
-                    .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-                },
-            },
+            common::core::testing::commonTime(),
             std::vector{anchor("1:1", 0), anchor("1:3", milliseconds), anchor("2:1", 4000)},
         };
     };

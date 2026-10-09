@@ -241,14 +241,7 @@ TEST_CASE("A move gesture steps at each press's own meter", "[core][chart]")
     // one beat in 4/4 and two in 6/8, so a quarter-note grid step is worth 1 beat before the
     // boundary and 2 beats after it.
     common::core::TempoMap map{
-        std::vector{
-            common::core::TimeSignatureChange{
-                .measure = 1, .meter = {.numerator = 4, .denominator = 4}
-            },
-            common::core::TimeSignatureChange{
-                .measure = 3, .meter = {.numerator = 6, .denominator = 8}
-            },
-        },
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("21:1", 31000),

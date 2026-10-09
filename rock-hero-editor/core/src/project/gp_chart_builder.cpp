@@ -162,20 +162,20 @@ constexpr std::array<const char*, 12> g_midi_flat_note_names{
 [[nodiscard]] common::core::TempoMap buildTempoMap(
     const GpScore& score, std::vector<std::string>& notes)
 {
-    // One change wherever a master bar's meter differs from the bar before it, so the map's meter
-    // at every measure IS that master bar's: the builder reads its meters and downbeats from here.
+    // One change wherever a master bar's meter differs from the bar before it, placed at that
+    // bar's downbeat (the bars before it summed), so the map's meter at every measure IS that
+    // master bar's: the builder reads its meters and downbeats from here.
     const std::vector<GpMasterBar>& bars = score.master_bars;
     std::vector<common::core::TimeSignatureChange> signatures;
+    Fraction place{};
     for (std::size_t measure = 0; measure < bars.size(); ++measure)
     {
         if (measure == 0 || bars[measure].meter != bars[measure - 1].meter)
         {
             signatures.push_back(
-                common::core::TimeSignatureChange{
-                    .measure = static_cast<int>(measure) + 1,
-                    .meter = bars[measure].meter,
-                });
+                common::core::TimeSignatureChange{.place = place, .meter = bars[measure].meter});
         }
+        place = place + bars[measure].meter.measureWholeNotes();
     }
 
     // The grid without its timing: the whole-note axis every sync point is placed on and every
