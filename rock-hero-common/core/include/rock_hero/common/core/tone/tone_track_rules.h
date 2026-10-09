@@ -63,12 +63,12 @@ struct [[nodiscard]] ToneTrackError
 /*!
 \brief Validates the structural tone-track rules shared by editing and persistence.
 
-Checks region IDs (canonical, unique), start validity against the tempo map's grid, coverage
-(the first region starts at the song's first downbeat, every start lies before the terminal
-anchor), strictly ascending starts, and canonical tone document references. Whether consecutive
-regions share a tone is not a validation question: \ref coalesceToneRegions removes such a
-boundary wherever a track is built or edited. Referenced document existence is a persistence
-concern checked by package code, not here.
+Checks region IDs (canonical, unique), start validity against the tempo map's grid, the tone-track
+coverage rule (the first region starts at the song's first downbeat, every start lies before the
+terminal anchor), strictly ascending starts, and canonical tone document references. Whether
+consecutive regions share a tone is not a validation question: \ref coalesceToneRegions removes
+such a boundary wherever a track is built or edited. Referenced document existence is a
+persistence concern checked by package code, not here.
 
 \param tone_track Tone track to validate.
 \param tempo_map Tempo map the region endpoints must address.

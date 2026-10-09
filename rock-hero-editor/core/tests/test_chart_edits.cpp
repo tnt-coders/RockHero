@@ -434,8 +434,8 @@ TEST_CASE("planInsertNote refuses an occupied slot", "[core][chart]")
     }
 }
 
-// Every note rings, so a placement authors a duration: the session's grid step, clamped by the one
-// bound on a ring (40-Q2-B) when the string is struck again sooner than that.
+// Every note rings, so a placement authors a duration: the session's grid step, clamped by the
+// same-string clamp when the string is struck again sooner than that.
 TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
@@ -504,11 +504,11 @@ TEST_CASE("planInsertNote returns nullopt for an unchanged placement", "[core][c
         planInsertNote(chart, tempo_map, chart.notes[2], grid_of(chart.notes[2])).has_value());
 }
 
-// 40-Q2-B: inserting on a string whose earlier note's sustain rings across the new onset truncates
-// that sustain to end exactly at the onset, the statement at the ring's end riding back with it. A
-// truncation may SHORTEN a ring but never DELETE a statement: an insert that would erase a point
-// standing past the landing, or shed vibrato stated on it, is refused whole by the plan gate
-// (finalizePlan).
+// The same-string clamp: inserting on a string whose earlier note's sustain rings across the new
+// onset truncates that sustain to end exactly at the onset, the statement at the ring's end riding
+// back with it. A truncation may SHORTEN a ring but never DELETE a statement: an insert that would
+// erase a point standing past the landing, or shed vibrato stated on it, is refused whole by the
+// plan gate (finalizePlan).
 TEST_CASE(
     "planInsertNote truncates an overlapped sustain and refuses to erase a statement",
     "[core][chart]")
@@ -2251,9 +2251,9 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
     CHECK(std::holds_alternative<ChartPlanNoChange>(closed.error()));
 }
 
-// Growth stops at exact adjacency with the next onset on the note's OWN string — the one bound on
-// a ring (40-Q2-B) — and a note on another string never blocks it, because spacing a DRAWN tail
-// against any string is presentation's rule, not the ring's.
+// Growth stops at exact adjacency with the next onset on the note's OWN string — the same-string
+// clamp, the one bound on a ring — and a note on another string never blocks it, because spacing a
+// DRAWN tail against any string is presentation's rule, not the ring's.
 TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[core][chart]")
 {
     common::core::Chart chart;
@@ -3494,8 +3494,8 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
 
     SECTION("growth clamps at the next head on its string with its terminal on it")
     {
-        // A scrape's growth is clamped by the ONE bound on a ring (40-Q2-B) like any other note's,
-        // with no clause of its own: a step that reaches the next strike ends the gesture exactly
+        // A scrape's growth is clamped by the same-string clamp like any other note's, with no
+        // clause of its own: a step that reaches the next strike ends the gesture exactly
         // there and the terminal, which rides the end, lands on the head. That is what the store
         // says the pick did; the drawn chip is spaced before the head by presentation.
         common::core::Chart walled = chart;
@@ -3622,11 +3622,12 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
 }
 
 // A note placed on a scrape's path re-strikes the string, so the scrape ends there like any ring
-// (40-Q2-B) — and its terminal, which rides the end, lands on the new head, where the store says
-// the pick stopped. One normalization for every producer; the spacing that keeps the chip reachable
-// is presentation's, so the drawn gesture still ends one margin short. A scrape's turnaround is an
-// authored statement, so a landing whose terminal would ride over it refuses: landing exactly ON
-// the turnaround, the terminal's fret would overwrite the turnaround's (overlayKeyframe).
+// (the same-string clamp) — and its terminal, which rides the end, lands on the new head, where
+// the store says the pick stopped. One normalization for every producer; the spacing that keeps
+// the chip reachable is presentation's, so the drawn gesture still ends one margin short. A
+// scrape's turnaround is an authored statement, so a landing whose terminal would ride over it
+// refuses: landing exactly ON the turnaround, the terminal's fret would overwrite the
+// turnaround's (overlayKeyframe).
 TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[core][chart]")
 {
     common::core::Chart chart;

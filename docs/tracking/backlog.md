@@ -80,9 +80,8 @@ Reported by the migration (`42ab0397`) and not yet re-verified against the code;
   the successor's stored claim (`legatoClaimed` plus `predecessorHoldReaches`), never the resolved
   direction. Tail rule 4 does not say it; add it there if it is still true.
 - **Ambiguous citations left in place:** `test_chart_presentation.cpp:1977` ("rule 11's 'close
-  is the minimum' reading"), `test_chart_shapes.cpp:3336` ("rules 8 and 11"), `:697` ("corollary
-  4"), `:3028-3031` (the [D4] "flip" tags), `:3933` (a named ruling in `chart-ruleset.md`). They
-  go with the dangling [D1]-[D11] tags' migration.
+  is the minimum' reading") and `test_chart_shapes.cpp:3338` ("rules 8 and 11"), both counted in
+  a numbering the old chart-ruleset plan used and no ruleset keeps.
 
 ## Found while fixing the bracket-over-head draw order (2026-10-05)
 
@@ -237,8 +236,9 @@ armed caret) or where an entry recorded no focus. Re-check which of those reach
   sits on 31.50/31.50 — 0.65 px at span 4, 0.40 px at span 12 of drift against the head it
   brackets, against the every-cell-centred convention. Re-verify against the atlas before
   recentring the one cell (a texture-author task) and check the paired code compensation.
-- **Re-read the [D3]/[D4] reach families on a rig-only run.** The node-grip change moved their
-  basis to `handFretOf`/`fretFor` in the same commit as the law, so their movement is unattributed.
+- **Re-read the census's continuity and fold-in reach families on a rig-only run** (shape rules
+  3 and 1). The node-grip change moved their basis to `handFretOf`/`fretFor` in the same commit as
+  the law, so their movement is unattributed.
 - **The display-capability gate is blind to the PREDECESSOR a repeat box stands in for.** A plain
   chord at the same frets immediately after a PINCH chord in the same span still matches the
   repeat identity (a pinch's grip genuinely is its fret) and, carrying no marks of its own, draws
@@ -336,8 +336,8 @@ rest, each verified against the code, each a fix rather than a question unless m
   same day:** the fret cap (30 → 24), the open-string slide rules, the `capo + 1` slide floors,
   and (then) technique rule 25's muted tail are all REPAIRS of the one normalizer, so a project
   saved under the older rules opens, is repaired, reports what changed and where in a one-shot
-  notice, and opens dirty — it no longer refuses. The same-string ring bound (40-Q2-B,
-  `OverlappingTail`) joined that list on 2026-08-22.
+  notice, and opens dirty — it no longer refuses. The same-string clamp (`OverlappingTail`)
+  joined that list on 2026-08-22.
   **The note-sustain model added a THIRD token-level break on 2026-08-22:** `notes[].sustain` is
   required and must be strictly positive, because a note's ring is now the actual duration the
   string sounds and no repair can invent one. Every package written before that date is missing the
@@ -735,9 +735,8 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
 
 ## 2026-08-27 ruleset walkthrough
 
-- **Count the dropped strum-direction marks at GP import** (D7 ruling,
-  `docs/plans/in-progress/chart-ruleset.md`): the beat-level `Brush` element (with its
-  `Direction` child) and `PickStroke` currently vanish without a trace. Direction stays
+- **Count the dropped strum-direction marks at GP import**: the beat-level `Brush` element (with
+  its `Direction` child) and `PickStroke` currently vanish without a trace. Direction stays
   deliberately out of the chart record, but the drop gets a conversion count per the Feedback
   precedent — one aggregate notice per kind, mirroring the trill notices' style. Small importer
   change; the count also prices `docs/plans/todo/strum-direction-support.md` if that distant
@@ -796,16 +795,16 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
 ## 2026-09-01 bracket law (the clip/tail mini-seam) — CLOSED 2026-09-04
 
 - **`ChartShape::covers_travel` had NO READER — DELETED with the tail law (stage C, 2026-09-04).**
-  It was [D2] amendment 1 to C3, the ink-ownership rule: a span covering a member's glide owned no
-  member ink, because a standing mark and a travelling ribbon stop saying the same thing. The
-  entry's option (b) — "rule that a travelling span IS exempt" — is now answered BY CONSTRUCTION
-  rather than by a ruling: the tail law never hides a ring that STATES something, so a travelling
-  member is protected by the law's own PRESENCE disjunct and no span-level exemption exists to
-  give it. With the last reason to keep the field alive gone, option (a) was taken: the field, its
-  derivation arm in `deriveChartShapes`, and the assertions in `test_chart_shapes.cpp` and
-  `test_chart_presentation.cpp` are all gone.
+  It was the landing split's exemption to C3, the ink-ownership rule: a span covering a member's
+  glide owned no member ink, because a standing mark and a travelling ribbon stop saying the same
+  thing. The entry's option (b) — "rule that a travelling span IS exempt" — is now answered BY
+  CONSTRUCTION rather than by a ruling: the tail law never hides a ring that STATES something, so
+  a travelling member is protected by the law's own PRESENCE disjunct and no span-level exemption
+  exists to give it. With the last reason to keep the field alive gone, option (a) was taken: the
+  field, its derivation arm in `deriveChartShapes`, and the assertions in `test_chart_shapes.cpp`
+  and `test_chart_presentation.cpp` are all gone.
 
-- **Cover the [D2] derived+fronting overwrite arm in test_chart_projection.cpp** (2026-09-02): the projection assigns Revealed by authorship first and the [D2] displaced-digit arm OVERWRITES it to Posture for a tap fronting its bracket (chart_projection.cpp ~:373-377). The shipped suite covers authored+fronting (Posture) and derived+mid-span (Revealed) but not derived+fronting — the sighting-reel generator proved the law correct there against the real derivation; a permanent unit test should pin it (the reel fixture in the generator record is a ready-made template).
+- **Cover the displaced-digit derived+fronting overwrite arm in test_chart_projection.cpp** (2026-09-02): the projection assigns Revealed by authorship first and the displaced-digit arm OVERWRITES it to Posture for a tap fronting its bracket (chart_projection.cpp ~:373-377). The shipped suite covers authored+fronting (Posture) and derived+mid-span (Revealed) but not derived+fronting — the sighting-reel generator proved the law correct there against the real derivation; a permanent unit test should pin it (the reel fixture in the generator record is a ready-made template).
 
 ## Highway repeat-box membership reads the drawn extent (found 2026-09-04, UNVERIFIED population)
 

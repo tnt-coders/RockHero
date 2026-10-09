@@ -489,8 +489,8 @@ TEST_CASE("A walked-back nudge run under the Note Lock leaves no entry", "[core]
     CHECK(editor.undoEntryCount() == entries);
 }
 
-// With the switch off the grid is truth (plan 41): the same typed tempo keeps every address, so
-// the notes move with their beats.
+// With the switch off the grid is truth: the same typed tempo keeps every address, so the notes
+// move with their beats.
 TEST_CASE("With the Note Lock off a tempo edit keeps every address", "[core][tempo][note-lock]")
 {
     NoteLockEditor editor;

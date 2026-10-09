@@ -5,10 +5,10 @@ add_library(rock_hero::common::ui ALIAS rock_hero_common_ui)
 # consumers convert colors at their own boundary), the highway feature — the shared 3D
 # note-highway renderer and its runtime-rasterized atlases (promoted here so one renderer serves
 # the game and the editor preview instead of duplicated thin drawers) — and the tab feature:
-# the shared 2D notation paint core, lane layout, and layout manifest (plan 30 Phase 2). bgfx
-# gets the Tracktion isolation treatment (implementation files only, never a public header);
-# JUCE gets the same except the one designated juce_graphics-bearing paint-core header allowed
-# by the 30-Q1 amendment (architectural-principles.md "UI Modules").
+# the shared 2D notation paint core, lane layout, and layout manifest. bgfx gets the Tracktion
+# isolation treatment (implementation files only, never a public header); JUCE gets the same
+# except the one designated juce_graphics-bearing paint-core header that
+# architectural-principles.md "UI Modules" allows.
 target_sources(
     rock_hero_common_ui
     PRIVATE src/highway/bgfx_program.cpp
@@ -33,17 +33,16 @@ target_include_directories(
 # common core is public because the palette sizes its extended tier from g_max_chart_strings and
 # the highway renderer's public header consumes the shared highway view state. The render stack
 # (bgfx) stays PRIVATE per the isolation treatment above; juce_graphics is PUBLIC because the
-# designated paint-core header (tab_paint_core.h, 30-Q1) carries juce::Graphics types to its
-# consumers.
+# designated paint-core header (tab_paint_core.h) carries juce::Graphics types to its consumers.
 target_link_libraries(
     rock_hero_common_ui
     PUBLIC rock_hero::common::core rock_hero::juce_graphics
     PRIVATE rock_hero::build_policy rock_hero::bgfx)
 
-# Both product deploys copy the shared texture assets from here (44-Q3: shared asset sources under
-# common, deployed per product). The path is published as a target property rather than spelled at
-# each deploy site, so moving this directory fails the deploys at configure time instead of leaving
-# them copying nothing.
+# Both product deploys copy the shared texture assets from here (shared asset sources live under
+# common and deploy per product). The path is published as a target property rather than spelled
+# at each deploy site, so moving this directory fails the deploys at configure time instead of
+# leaving them copying nothing.
 set(rock_hero_common_ui_texture_dir "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures")
 set_target_properties(rock_hero_common_ui PROPERTIES ROCK_HERO_TEXTURE_DIR
                                                      "${rock_hero_common_ui_texture_dir}")

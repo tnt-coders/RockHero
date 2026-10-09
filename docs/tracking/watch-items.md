@@ -247,10 +247,11 @@ independent review.** As first shipped the lane's hold was not merely *longer* t
 was **unbounded**: the lane drew a ribbon straight to `display_hold_ends[i]` with no cap at all, so a
 sustainless chord under a whole-note span with the same string restruck at beats 2 and 3 drew string
 1's tail through both later heads and out the far side, tremolo teeth and vibrato sine riding the
-whole length — a picture 40-Q2-B guarantees no *stored* sustain can produce. The claim that "no chart
-data disagrees" was the wrong test; the right one was that the derived hold had no bound the stored one
-has. Paint and hit testing had also come apart: `tabNoteLayout` built its tail rectangle from
-`note.end_seconds`, so every span-extended ribbon was drawn and unclickable. Both are fixed —
+whole length — a picture the same-string clamp guarantees no *stored* sustain can produce. The
+claim that "no chart data disagrees" was the wrong test; the right one was that the derived hold
+had no bound the stored one has. Paint and hit testing had also come apart: `tabNoteLayout` built
+its tail rectangle from `note.end_seconds`, so every span-extended ribbon was drawn and
+unclickable. Both are fixed —
 the hold authority capped the span-implied hold at the next onset on the note's own string, and
 the layout manifest takes the same hold end the paint pass draws to. (Both caps are withdrawn as
 of 2026-08-29: with the lane off the hold since D1 the ribbon that needed bounding no longer
@@ -705,11 +706,11 @@ verb keyed off the caret's slot, which the caret peek already computes) or let t
 reveal carry a selection affordance, so the answer stays keyed on the edit position rather than on
 a rectangle that does not bound what the lane draws.
 
-### ~~Min-distance span exemption vs. 40-Q2-B same-string truncation~~ — RETIRED 2026-08-22
+### ~~Min-distance span exemption vs. the same-string clamp~~ — RETIRED 2026-08-22
 
 Found by the 2026-07-18 grid-native simplification audit: `planAdjustSustain`'s margin clamp
-exempted ANY-string span siblings from blocking a growing tail, but `finalizePlan`'s 40-Q2-B
-normalization then truncated SAME-string overlaps unconditionally — clawing back for same-string
+exempted ANY-string span siblings from blocking a growing tail, but `finalizePlan`'s same-string
+clamp then truncated SAME-string overlaps unconditionally — clawing back for same-string
 chug siblings exactly what the exemption granted. **Both halves of the contradiction are gone**:
 the note-sustain model's stage A4 deleted the margin clamp and the span exemption with it, so the
 growth verb now grows to exact adjacency with the next onset on the note's OWN string —
@@ -801,7 +802,7 @@ item watched invisible records, and there are none. The sweep itself retired 202
 
 ### Staggered keyframe landings open no successor span — trigger: a real chart carries a chord slide whose members land at different moments and the missing landing bracket reads wrong
 
-Under the D2-final landing-successor rule (`docs/plans/in-progress/chart-ruleset.md`), a
+Under the landing-successor rule as first ruled (now shape rule 4's landing open), a
 successor span opens only where a split span's travels have ALL landed with two or more members
 ringing on at stated stops. Members landing at DIFFERENT moments — staggered or converging
 slides — open nothing: the truth stays in the members' sliding tails, with the Alt reveal always
@@ -811,7 +812,7 @@ happens in practice but theoretically it could").
 Remedy: widen the successor rule to open at the LAST landing of the staggered group (membership
 reads the same keyframe statements; only the opening moment generalizes).
 
-**Population measured at the [D2] build (2026-08-28): 7 spans corpus-wide**, against the
+**Population measured at the travel-split build (2026-08-28): 7 spans corpus-wide**, against the
 successor population (854 after the 2026-08-29 landing-split amendment; the census's section [5]
 carries the live numbers every run) — the ruling's "I don't really think this happens in
 practice" priced at under one percent of the figure. Under the amendment the staggered group's
@@ -837,7 +838,7 @@ THREE survivors and a two-string chord slide therefore landed in no stated grip,
 user's 2-note-slide ruling is explicit.) The item's own figure — members landing at different
 moments — is unchanged by either turn. Same remedy, same trigger.
 
-### An absorbed landing opens nothing — trigger: the [D2] sighting of the known cross-voice
+### An absorbed landing opens nothing — trigger: the landing-split sighting of the known cross-voice
 figure reads wrong, or the census population grows past its measured 12
 
 Edge (e), ruled 2026-08-29 (one span at a time is DEFINITIVE — user's word) and unchanged in
@@ -1387,9 +1388,9 @@ concern (2026-08-29) was that TOTAL suppression might prove too blunt — "perha
 significantly suppressed manner" — and the span-final sighting is what fired it: a bracketed
 figure ending on a long hold showed no tail whatever.
 
-**Ruled 2026-09-01 (the bracket law) and RE-RULED 2026-09-04 (the tail law, chart ruleset LAW IV):
-a span may HIDE a tail, never shorten one.** The 2026-09-01 answer was to CLIP a bracketed
-member's ring at its next onset — a staircase for a picked run — and it retired because a ribbon
+**Ruled 2026-09-01 (the bracket law) and RE-RULED 2026-09-04 (the tail law, tail rule 4): a span
+may HIDE a tail, never shorten one.** The 2026-09-01 answer was to CLIP a bracketed member's ring
+at its next onset — a staircase for a picked run — and it retired because a ribbon
 whose length is a function of a NEIGHBOUR's position turns every "which neighbours count" question
 into a new ruling. The law in force rests a member's ribbon exactly where it states nothing of its
 own; it touches nothing else. (As first ruled the verdict also required ITS OWN SPAN to cover the

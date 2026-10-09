@@ -1392,8 +1392,8 @@ TEST_CASE(
     writeAudioFile(source_audio);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
-    // The tempo map terminates on the measure-3 downbeat, so a region opening there would be
-    // empty; only the second region can carry that start without tripping the coverage rule.
+    // The tempo map terminates on the measure-3 downbeat, so a region opening there would be empty;
+    // only the second region can carry that start without tripping the tone-track coverage rule.
     Song song = makeSongWithToneDocument(source_audio);
     song.arrangements.front().tone_track.regions = {
         ToneRegion{

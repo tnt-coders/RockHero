@@ -3,7 +3,7 @@ include_guard()
 # RockHeroRenderStack.cmake
 #
 # Render-stack dependency wiring for the SDL3 + bgfx game view and the editor 3D preview, per the
-# G20-RENDER gate decision (docs/plans/roadmap/20-game-architecture-and-render-stack.md § Gate record).
+# render-stack decision in docs/design/architecture.md ("Game View").
 #
 # Like the JUCE/Tracktion wrappers in RockHeroExternalModules.cmake, consumers link project-owned
 # rock_hero:: aliases instead of raw third-party targets. SDL3 and bgfx arrive precompiled through
@@ -25,7 +25,7 @@ target_link_libraries(rock_hero_bgfx INTERFACE bgfx::bgfx)
 # The classic CMakeDeps generator declares no EXECUTABLE targets for the tools the bgfx package
 # ships — it declares bgfx::shaderc as an interface library component, which is why the shader
 # helper below cannot lean on that target name. Locate the packaged shaderc binary off the
-# recipe-exported BGFX_SHADER_INCLUDE_PATH — the pattern proven by gate criterion S4 — and use
+# recipe-exported BGFX_SHADER_INCLUDE_PATH — the pattern the render-stack spike proved — and use
 # the cached program path directly. A bgfx package-revision bump relocates the Conan package
 # folder while the cached absolute path survives reconfigures, so a dangling cache entry is
 # cleared before the search re-runs.
@@ -36,9 +36,8 @@ cmake_path(GET BGFX_SHADER_INCLUDE_PATH PARENT_PATH _rock_hero_bgfx_include_root
 cmake_path(GET _rock_hero_bgfx_include_root PARENT_PATH _rock_hero_bgfx_package_root)
 find_program(ROCK_HERO_BGFX_SHADERC shaderc HINTS "${_rock_hero_bgfx_package_root}/bin" REQUIRED)
 
-# Compiles one bgfx .sc shader for one backend profile at build time (gate criterion S4,
-# productionized). Callers own output layout and the profile list, so adding a backend later is a
-# call-site list edit, not a redesign (plan 20 gate record, 0a memo requirement).
+# Compiles one bgfx .sc shader for one backend profile at build time. Callers own output layout and
+# the profile list, so adding a backend later is a call-site list edit, not a redesign.
 #
 # rock_hero_add_compiled_shader(
 #     OUTPUT <path to compiled .bin>
@@ -80,10 +79,10 @@ endfunction()
 # Stages the shared highway shader programs (rock-hero-common/ui/shaders) into
 # <staging_dir>/dx11 and creates <target_name> carrying the staged tree through the
 # ROCK_HERO_STAGING_DIR / ROCK_HERO_STAGED_FILES target properties (the resource-pack deploy
-# contract from plan 20 Phase 2). Both products call this so the shader program list lives in
-# exactly one place. Compilation is Windows-only: shaderc's HLSL backend needs the Windows D3D
-# compiler; non-Windows builds are compile/test hygiene, not shipped products, so they stage an
-# empty tree and the deploy still works.
+# contract). Both products call this so the shader program list lives in exactly one place.
+# Compilation is Windows-only: shaderc's HLSL backend needs the Windows D3D compiler; non-Windows
+# builds are compile/test hygiene, not shipped products, so they stage an empty tree and the deploy
+# still works.
 #
 # rock_hero_stage_highway_shaders(<target_name> <staging_dir>)
 function(rock_hero_stage_highway_shaders target_name staging_dir)

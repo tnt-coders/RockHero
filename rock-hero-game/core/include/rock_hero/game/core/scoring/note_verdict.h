@@ -1,6 +1,6 @@
 /*!
 \file note_verdict.h
-\brief The per-note scoring outcome vocabulary (plan 24 scoring contract).
+\brief The per-note scoring outcome vocabulary.
 */
 
 #pragma once

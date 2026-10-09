@@ -347,7 +347,7 @@ a keyframe's fret, so none of them can disagree about which keyframes exist on t
 }
 
 /*!
-\brief Which box treatment one onset group draws — LAW IV's answer for the chord-box family.
+\brief Which box treatment one onset group draws — shape rule 5's answer for the chord-box family.
 
 Three states rather than two booleans, because they are one decision with one answer: a group that
 draws no box cannot also be a repeat, and a repeat is not a second flag on top of a box but the
@@ -359,9 +359,9 @@ enum class HighwayChordBoxTreatment : std::uint8_t
     /*!
     \brief No box: the group draws as plain note heads.
 
-    Fewer than two fretting-hand members, and nothing else (LAW IV). A box marks SIMULTANEITY, so a
-    lone note has none to mark — while a partial restrike inside a span is still two strings struck
-    together and wears a box.
+    Fewer than two fretting-hand members, and nothing else (shape rule 5). A box marks SIMULTANEITY,
+    so a lone note has none to mark — while a partial restrike inside a span is still two strings
+    struck together and wears a box.
     */
     None,
 
@@ -659,12 +659,12 @@ struct HighwayViewState
 Pure over the seconds-resolved streams, so the board's fussiest display rules live where tests can
 reach them instead of inside the GPU path.
 
-A BOX MARKS SIMULTANEITY (LAW IV): any two-or-more-string strike wears one, inside and outside spans
-alike, and it is THE STANDARD box either way. That is the whole of whether a group is boxed at all —
-the derivation is not asked, because "these were struck together" is a fact about the strike and
-about nothing else. A single note stays boxless, and so does a fretted note under a simultaneous
-right-hand onset: the tapping hand is not the strumming hand, and a tapped dyad gets its own box
-from the tap onsets.
+A BOX MARKS SIMULTANEITY (shape rule 5): any two-or-more-string strike wears one, inside and
+outside spans alike, and it is THE STANDARD box either way. That is the whole of whether a group is
+boxed at all — the derivation is not asked, because "these were struck together" is a fact about
+the strike and about nothing else. A single note stays boxless, and so does a fretted note under a
+simultaneous right-hand onset: the tapping hand is not the strumming hand, and a tapped dyad gets
+its own box from the tap onsets.
 
 FULL OR REPEAT is the consecutiveness law: **an onset wears a repeat box iff it is identical to the
 IMMEDIATELY PRECEDING onset, within the same span, with no onset of any kind between.** The onsets

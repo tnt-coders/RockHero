@@ -928,9 +928,9 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     // One authority, resolved identically for either surface: the 2D projection answers the same
     // seconds. What differs is how each SPENDS it — the board pins the heads here, while the lane
     // draws every tail to the note's ink end and so draws none for these chugs at all (the
-    // chord box over the strum is what states the posture there). That division is ruling 3 of
-    // `docs/plans/in-progress/note-sustain-model.md`; the lane's side is pinned in the tab paint
-    // core's own suite.
+    // chord box over the strum is what states the posture there). That division is shape rule 3's
+    // tenure hold beside tail rule 4's "where the verdict binds"; the lane's side is pinned in the
+    // tab paint core's own suite.
     const ChartViewState lane = makeChartViewState(arrangement, map);
     REQUIRE(lane.display_hold_ends.size() == lane.notes.size());
     REQUIRE(lane.notes.size() == state.chart.notes.size());
@@ -2555,11 +2555,11 @@ TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[co
     CHECK(resolved.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
 }
 
-// A BOX MARKS SIMULTANEITY (LAW IV): any two-or-more-string strike wears one, inside a span and
-// outside one alike. A partial restrike is still two strings struck together, so it states its own
-// chord — and it wears THE STANDARD CHORD BOX, never a narrowed one, because the arpeggio
-// context is already carried by the span's borders and the brackets standing on the fretboard. What
-// keeps it from LYING is the identity law, not a missing box: a repeat only ever follows an
+// A BOX MARKS SIMULTANEITY (shape rule 5): any two-or-more-string strike wears one, inside a span
+// and outside one alike. A partial restrike is still two strings struck together, so it states its
+// own chord — and it wears THE STANDARD CHORD BOX, never a narrowed one, because the arpeggio
+// context is already carried by the span's borders and the brackets standing on the fretboard.
+// What keeps it from LYING is the identity law, not a missing box: a repeat only ever follows an
 // IDENTICAL preceding onset, and a partial is not the same notes as the whole.
 TEST_CASE("Highway chord groups box a partial strike with the standard box", "[core][highway]")
 {

@@ -94,9 +94,9 @@ A position the charter stores is an input to the derivation, never a patch on it
 always an event, fronting exactly where it stands, and no run crosses it.
 
 - **Its window** is `[fret, end fret]` where the end is stated. Otherwise the stated fret is the
-  floor, and the top is the highest of every stop gripped at its place and of the run it heads, never
-  under four frets. The run is cut at the first later instant reaching below the stated fret, because
-  the position never holds that instant.
+  floor, and the top is the highest of every stop gripped at its place and of the run it heads,
+  never under four frets. The run is cut at the first later instant reaching below the stated fret,
+  because the position never holds that instant.
 - **It stands until the chart contradicts it:** it takes its own instant whatever sounds there, and
   every later instant that fits inside its window, up to the next authored position or slide
   arrival. The numbered rules resume at the first instant that does not fit, and their fronts never

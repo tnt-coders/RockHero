@@ -1,6 +1,7 @@
-# Main game executable: SDL owns main() and the frame loop (plan 20 gate outcome L2); JUCE runs
-# as a library whose message queue the game shell drains every frame. PackageBuilder embeds the
-# Windows icon resource and registers the desktop metadata that juce_add_gui_app used to provide.
+# Main game executable: SDL owns main() and the frame loop (docs/design/architecture.md "Game
+# View"); JUCE runs as a library whose message queue the game shell drains every frame.
+# PackageBuilder embeds the Windows icon resource and registers the desktop metadata that
+# juce_add_gui_app used to provide.
 package_add_executable(
     rock_hero_game_exe
     main.cpp
@@ -26,10 +27,10 @@ target_link_options(rock_hero_game_exe PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/ENTRY:
 target_link_libraries(rock_hero_game_exe PRIVATE rock_hero::common rock_hero::game
                                                  rock_hero::build_policy)
 
-# Deploy the resource-pack tree next to the built executable (plan 20 Phase 2) through the shared
-# product-resource rule: compiled shaders from game/ui's staging dir, the shared texture assets, and
-# the asset directories that still ship empty (fonts and click samples arrive with plan 26's art
-# direction). The game loads everything under this tree through game/core's GameResources resolver.
+# Deploy the resource-pack tree next to the built executable through the shared product-resource
+# rule: compiled shaders from game/ui's staging dir, the shared texture assets, and the asset
+# directories that still ship empty (fonts and click samples arrive with plan 26's art direction).
+# The game loads everything under this tree through game/core's GameResources resolver.
 rock_hero_deploy_product_resources(
     TARGET
     rock_hero_game_exe

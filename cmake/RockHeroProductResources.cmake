@@ -3,11 +3,11 @@ include_guard()
 # RockHeroProductResources.cmake
 #
 # The one product resource-pack deploy rule, shared by the game executable and the editor
-# executable (plan 20 Phase 2 for the game, plan 44 for the editor preview). Both products ship the
-# same tree beside their executable — compiled highway shaders staged by
-# rock_hero_stage_highway_shaders, plus the shared texture assets committed under
-# rock-hero-common/ui — so the copy commands, the stamp contract, and the install layout live here
-# instead of being restated per product, where they had already drifted apart.
+# executable, whose 3D preview renders the same highway. Both products ship the same tree beside
+# their executable — compiled highway shaders staged by rock_hero_stage_highway_shaders, plus the
+# shared texture assets committed under rock-hero-common/ui — so the copy commands, the stamp
+# contract, and the install layout live here instead of being restated per product, where they had
+# already drifted apart.
 
 include(GNUInstallDirs)
 
@@ -46,7 +46,7 @@ function(rock_hero_deploy_product_resources)
     get_target_property(staged_shaders ${ARG_SHADER_TARGET} ROCK_HERO_STAGED_FILES)
 
     # The shared texture sources are owned by rock-hero-common/ui and read back from the target
-    # property it sets (44-Q3 outcome: shared asset sources under common, deployed per product).
+    # property it sets (shared asset sources live under common and deploy per product).
     # Reading the path rather than spelling it here is what makes moving that directory a
     # configure-time failure instead of a deploy that silently copies nothing.
     get_target_property(texture_dir rock_hero_common_ui ROCK_HERO_TEXTURE_DIR)

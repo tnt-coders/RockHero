@@ -29,8 +29,8 @@ seconds do not care about the signature's denominator. The value was sighted, no
 the highway's tip fade dissolving the last stretch of every tail, a shorter crop keeps more of a
 glide's arrival bend and ends where the fade does, and the 2D lane still reads at it. Scoring
 judges a sustain to its drawn end, so a legal early strike inside the hit window's early half can
-cut a sustain short of credit it could not have kept; roadmap plan 24 carries the sustain-drop
-leniency that covers the difference.
+cut a sustain short of credit it could not have kept; the scorer's planned sustain-drop leniency
+covers the difference.
 
 Beyond presentation it answers two questions founded on it deliberately, both asking what the
 smallest READABLE interval is: a never-restruck landed span is emitted only where its tenure

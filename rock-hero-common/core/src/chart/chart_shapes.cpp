@@ -668,7 +668,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         // observably moving, whether or not any span stands — the same-string clamp puts the
         // displaced ring's end exactly on the displacing strike, so this instant is the only one
         // at which the two coexist. A slide-out ring asserts no grip: by its end the finger is
-        // off the board (LAW I's exemption, mirrored from the import twin). Same stop is the tie
+        // off the board (the GP import figure law's exemption, mirrored). Same stop is the tie
         // doctrine and witnesses nothing. The witness feeds shape rule 3's foreign-ring break
         // below; the FOREIGN-SOUND record beside it is the dating floor's state, written here —
         // from the pre-instant table, before any verdict — so a span opening at this very slot

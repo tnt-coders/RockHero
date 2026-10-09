@@ -413,9 +413,9 @@ reveal draws on to \ref ring_end_seconds — the same note, more of it. Keyframe
 the two are in the ring's ENDING ZONE: stored, revealed at their true instants, and neither drawn
 nor judged otherwise.
 
-**Scored = drawn** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4): when the scorer
-exists it judges exactly what the board shows — every keyframe before the ink end at its instant,
-the leg crossing the ink end as far as it is drawn, and nothing past it. The derivation lives in
+**Scored = drawn** (the contract \ref ChartPresentation::ink_end states): when the scorer exists
+it judges exactly what the board shows — every keyframe before the ink end at its instant, the leg
+crossing the ink end as far as it is drawn, and nothing past it. The derivation lives in
 common/core rather than in a painter so the game can reach it without a surface.
 */
 struct NoteViewState
@@ -1115,8 +1115,8 @@ struct ChartViewState
     kept-sustain bound are simply absent there — the chord box over the strum already states how
     long the posture is fretted, and a ribbon repeating that would use the one mark that means
     "this string is still ringing" to say something else. The board has no chord box, so pinning the
-    heads is how it states the same fact (ruling 3 of
-    `docs/plans/in-progress/note-sustain-model.md`). One chart, one hold, two idioms.
+    heads is how it states the same fact (shape rule 3, what the tenure holds; tail rule 4, where
+    the verdict binds). One chart, one hold, two idioms.
 
     Resolved here from \ref chartHolds, the ONE authority for that rule, rather than recomputed in
     seconds: computing it twice — once in note values for the chart rules and once in seconds for

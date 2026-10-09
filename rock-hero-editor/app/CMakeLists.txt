@@ -22,7 +22,7 @@ endif()
 # Register the editor as a developer-facing desktop target in the package metadata.
 package_register_target(rock_hero_editor_exe DISPLAY_NAME "Rock Hero Editor")
 
-# Deploy the 3D preview's resources next to the editor executable (plan 44): the shared highway
+# Deploy the 3D preview's resources next to the editor executable: the shared highway
 # shaders compiled through the same staging contract the game uses, plus the shared texture assets.
 # The editor stages its own shader tree because it builds independently of the game's ui target;
 # everything after that is the shared product-resource deploy rule.

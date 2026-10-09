@@ -54,44 +54,45 @@ chords. Everything else is plumbing that keeps focus in the right place:
   the armed caret's slot, else a time selection's moving edge, else the paused cursor, with its
   measure's span; nothing while playing) and `EditorView::setState` fits that measure into view
   whenever the controller counts a move (`EditorViewState::keyboard_move_count`, bumped in
-  `Impl::updateView` when the position's time changed since the last publish) — a step, a click
-  that arms, Tab onto the next marker, an extend — through `TrackViewport::ensureMeasureVisible`,
-  the minimal shift in either direction, as Guitar Pro does. A whole-grid commit is never a move:
-  `commitGridModel` clears the baseline the count compares against, so a re-address that changes
-  the position's seconds while the keyboard stays on its music leaves the window alone. (2) *A verb on a selection centres it if it is not fully on screen.*
-  `EditorView::perform` is the one funnel for chords, menu items and presses forwarded from the 3D
-  preview; for a command `editorCommandActsOnSelection` classifies (read off the registry
-  category: the selection, authoring, value-entry and marker verbs; not navigation, file, history,
-  view, transport, grid or menu commands, nor the section and tone-change author chords, nor
-  Delete, which rule 4 keeps in sight because it destroys what it acted on) it reads,
-  BEFORE the command runs, the selection's first member
-  (`EditorViewState::selection_start_seconds` — the earliest selected note or point, the selected
-  marker's start, else the armed caret) and whether that was fully on screen: it asks the surface
-  that drew it for the glyph's bounds (`TimelineRuler::selectedChipBounds`,
-  `ToneTrackView::selectedRegionLabelBounds`, `TabView::selectedNoteHeadBounds`,
-  `ToneAutomationLanesView::selectedPointBounds` — a chip or label PINNED at the edge for a marker
-  standing elsewhere reports nothing, so the marker's own column answers) and puts them to
-  `TrackViewport::isSelectionVisible`. A selection that was on screen is left alone, even when the
-  verb moved it: `Alt+←` pushing a chip off the edge is followed by rule 1's measure fit of the
-  cursor that went with it. One that was not is centred (`TrackViewport::centerOnTime`) where the
-  verb left it. (3) *Selecting never scrolls*: a chip click, a click on an existing note
-  and a walk onto the marker that already holds the cursor publish no moved position and act on
-  nothing; a walk whose column rule seeks the cursor into a far-off marker is a move, and rule 1
-  follows it. (4) *An edit that asks keeps its result in sight.* An undo or redo selects what it
-  changed and moves the keyboard position onto it ("Undo is never blind" in \ref guide_undo); a
-  Delete of notes leaves the caret on the emptied slot, and one of an automation point leaves the
-  point's durable selection naming its place. The controller counts each edit that asks
-  (`EditorViewState::focus_count`); when the count changes, `EditorView::setState` centres
+  `Impl::updateView` when the position's time changed since the last publish) — a step, a click that
+  arms, Tab onto the next marker, an extend — through `TrackViewport::ensureMeasureVisible`, the
+  minimal shift in either direction, as Guitar Pro does. A whole-grid commit is never a move:
+  `commitGridModel` clears the baseline the count compares against, so a re-address that changes the
+  position's seconds while the keyboard stays on its music leaves the window alone. (2) *A verb on a
+  selection centres it if it is not fully on screen.* `EditorView::perform` is the one funnel for
+  chords, menu items and presses forwarded from the 3D preview; for a command
+  `editorCommandActsOnSelection` classifies (read off the registry category: the selection,
+  authoring, value-entry and marker verbs; not navigation, file, history, view, transport, grid or
+  menu commands, nor the section and tone-change author chords, nor Delete, which *an edit that asks
+  keeps its result in sight* covers because it destroys what it acted on) it reads, BEFORE the
+  command runs, the selection's first member (`EditorViewState::selection_start_seconds` — the
+  earliest selected note or point, the selected marker's start, else the armed caret) and whether
+  that was fully on screen: it asks the surface that drew it for the glyph's bounds
+  (`TimelineRuler::selectedChipBounds`, `ToneTrackView::selectedRegionLabelBounds`,
+  `TabView::selectedNoteHeadBounds`, `ToneAutomationLanesView::selectedPointBounds` — a chip or
+  label PINNED at the edge for a marker standing elsewhere reports nothing, so the marker's own
+  column answers) and puts them to `TrackViewport::isSelectionVisible`. A selection that was on
+  screen is left alone, even when the verb moved it: `Alt+←` pushing a chip off the edge is followed
+  by the measure fit of *a moved position keeps its measure in view*, applied to the cursor that
+  went with it. One that was not is centred (`TrackViewport::centerOnTime`) where the verb left it.
+  (3) *Selecting never scrolls*: a chip click, a click on an existing note and a walk onto the
+  marker that already holds the cursor publish no moved position and act on nothing; a walk whose
+  column rule seeks the cursor into a far-off marker is a move, and *a moved position keeps its
+  measure in view* follows it. (4) *An edit that asks keeps its result in sight.* An undo or redo
+  selects what it changed and moves the keyboard position onto it ("Undo is never blind" in
+  \ref guide_undo); a Delete of notes leaves the caret on the emptied slot, and one of an automation
+  point leaves the point's durable selection naming its place. The controller counts each edit that
+  asks (`EditorViewState::focus_count`); when the count changes, `EditorView::setState` centres
   `selection_start_seconds` if it is not on screen. A marker's Delete never asks: it only selects
-  the marker before it on its row, as a chip click does, so by rule 3 the view stays — even when
-  that chip is pinned off screen or nothing is left — and so does a marquee's Delete, which leaves
-  nothing selected and no caret. Judged AFTER the edit, unlike rule 2, because what the edit left is
-  the whole question — and keyed on the published count rather than on the command, because a
-  transition that loads a plugin completes later, one off the timeline focuses nothing, and the
-  ruler's context-menu Delete never passes through `EditorView::perform`. Zoom
-  (`applyZoomAroundCursor`) pivots on the cursor in place while it is on screen and centres on it
-  first when it is not, for keys and wheel alike. A new registry category must be classified in
-  `editorCommandActsOnSelection`.
+  the marker before it on its row, as a chip click does, so because *selecting never scrolls* the
+  view stays — even when that chip is pinned off screen or nothing is left — and so does a marquee's
+  Delete, which leaves nothing selected and no caret. Judged AFTER the edit, unlike *a verb on a
+  selection centres it if it is not fully on screen*, because what the edit left is the whole
+  question — and keyed on the published count rather than on the command, because a transition that
+  loads a plugin completes later, one off the timeline focuses nothing, and the ruler's context-menu
+  Delete never passes through `EditorView::perform`. Zoom (`applyZoomAroundCursor`) pivots on the
+  cursor in place while it is on screen and centres on it first when it is not, for keys and wheel
+  alike. A new registry category must be classified in `editorCommandActsOnSelection`.
 
 - **`MainWindow::keyPressed`** (`ui/src/main_window/main_window.cpp`) is where a press becomes a
   command, and it is gated on typing: it hands the press to the command manager's
@@ -882,11 +883,11 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    in the file's anonymous namespace; a file-scope helper outside it fails macOS CI's
    `-Wmissing-prototypes`.
 3. **Classify a NEW category** in `editorCommandActsOnSelection` (same file). It is what decides
-   whether a command triggers rule 2 of the window follow — read the selection's first member before
-   the command and centre it afterwards if it was off screen. Today Selection, Authoring, Value Entry
-   and Marker act on the selection; Navigation does not (the walk and the jumps SELECT, and selecting
-   never scrolls), nor do the section, tone-change and hand author chords (they act at the cursor),
-   nor Esc.
+   whether a command triggers the window follow's *a verb on a selection centres it if it is not
+   fully on screen* — read the selection's first member before the command and centre it afterwards
+   if it was off screen. Today Selection, Authoring, Value Entry and Marker act on the selection;
+   Navigation does not (the walk and the jumps SELECT, and selecting never scrolls), nor do the
+   section, tone-change and hand author chords (they act at the cursor), nor Esc.
    A category nobody classified silently falls to "does not act on the selection".
 4. **One owner per chord is a WRITE-side law, not a lookup-side one.** Every path that binds a chord
    goes through `assignKeyPressToCommand` (`keymap_ownership.h`), which strips the chord from

@@ -23,14 +23,15 @@ namespace rock_hero::editor::ui
 /*!
 \brief Hosts the shared highway renderer inside the preview window.
 
-Owns a native child window embedded in the preview window's peer (a pattern the G20-RENDER spike
-validated), the process bgfx device, and the shared highway renderer. Frames
-tick on the message thread at vblank cadence — the editor's established display-refresh
-mechanism — sampling song time from the playback clock while playing (block-quantized transport
-reads shimmer on a moving field) and from the marker rule while paused: the armed caret is THE
-paused position (the marker model), with the exact transport position as the passive fallback, so
-a paused seek or caret move always lands. Paused time glides toward its target with a short
-exponential settle, so navigation reads as motion down the highway, not a cut.
+Owns a native child window embedded in the preview window's peer (the spike-proven hosting
+docs/design/architecture.md "Game View" describes), the process bgfx device, and the shared
+highway renderer. Frames tick on the message thread at vblank cadence — the editor's established
+display-refresh mechanism — sampling song time from the playback clock while playing
+(block-quantized transport reads shimmer on a moving field) and from the marker rule while paused:
+the armed caret is THE paused position (the marker model), with the exact transport position as
+the passive fallback, so a paused seek or caret move always lands. Paused time glides toward its
+target with a short exponential settle, so navigation reads as motion down the highway, not a
+cut.
 
 Lifecycle: attach() brings the stack up against the current peer on first open and merely
 resumes frame ticks on later opens; suspend() stops the ticks when the window hides (JUCE keeps

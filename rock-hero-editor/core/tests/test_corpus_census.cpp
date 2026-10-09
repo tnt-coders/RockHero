@@ -1,6 +1,6 @@
-// The corpus census rig — the measurement instrument the chart ruleset's census gates read
-// (docs/plans/in-progress/chart-ruleset.md, including LAW I's let-ring figure law). The [D2] [D3]
-// [D4] [D6] tags name the gate families, and the printed report heads its sections with them.
+// The corpus census rig — the measurement instrument the shape rules and the GP import rules read
+// their corpus populations from, the GP import figure law included. The printed report heads each
+// section with the rule it measures.
 //
 // CORPUS FIREWALL (docs/plans/roadmap/23-detection-verification-harness.md, "Corpus firewall"):
 // this file names no song, no path and no per-song datum. It iterates whatever directory
@@ -274,13 +274,13 @@ struct ChainDiagnostics
 }
 
 // ---------------------------------------------------------------------------------------------
-// Guitar Pro's playback rule as the SOURCE states it, transcribed rather than invented (LAW I's
-// playback-truth principle). The import ships the same rule with its strike stop delegated to the
-// chart's own same-string clamp, so what this walk adds is the ATTRIBUTION the divergence
-// candidates need: which stop bounds each ring, and what the ring crosses on the way there. Where
-// the two part company is a same-string note the build merges away — a tie continuation, a
-// legato-slide landing — which this walk reads as a stop and the shipped import answers with the
-// merged ring instead, reaching the same end by a different route.
+// Guitar Pro's playback rule as the SOURCE states it, transcribed rather than invented (the GP
+// import figure law's playback-truth principle). The import ships the same rule with its strike
+// stop delegated to the chart's own same-string clamp, so what this walk adds is the ATTRIBUTION
+// the divergence candidates need: which stop bounds each ring, and what the ring crosses on the
+// way there. Where the two part company is a same-string note the build merges away — a tie
+// continuation, a legato-slide landing — which this walk reads as a stop and the shipped import
+// answers with the merged ring instead, reaching the same end by a different route.
 // ---------------------------------------------------------------------------------------------
 
 enum class LetRingStop : std::uint8_t
@@ -439,13 +439,13 @@ struct LetRingRegion
 // `chartShapeArrivals`, and what is written here is only the classification each gate asks for.
 // ---------------------------------------------------------------------------------------------
 
-// [D4]'s fold-in reach, kept as ONE family so it can be measured TWICE (Q8). The two populations
-// answer different questions and pooling them answers neither: a fold-in an EVENT-opened span
-// absorbs is the SOURCE-HYGIENE population, where the carried finger's distance from the fingers
-// the chord actually put down says whether a hand could have held both at once; a fold-in inside a
-// LANDING SUCCESSOR is every member that span has, by construction, so its distances measure the
-// arm's own shape and never a reach. Pooled, the landing arm swamps the histograms and leaves the
-// hygiene question unreadable.
+// The fold-in reach (shape rule 1), kept as ONE family so it can be measured TWICE. The two
+// populations answer different questions and pooling them answers neither: a fold-in an
+// EVENT-opened span absorbs is the SOURCE-HYGIENE population, where the carried finger's distance
+// from the fingers the chord actually put down says whether a hand could have held both at once; a
+// fold-in inside a LANDING SUCCESSOR is every member that span has, by construction, so its
+// distances measure the arm's own shape and never a reach. Pooled, the landing arm swamps the
+// histograms and leaves the hygiene question unreadable.
 //
 // Spelled once and instantiated twice rather than written out per arm: two field families that
 // must agree by hand are the defect this rig exists to report on.
@@ -490,18 +490,18 @@ struct DerivationCounters
     long long ii_claim_witness{0};
     long long ii_spans_arpeggio{0};
 
-    // What reconciles the row above with LAW III's own consequence — every span the WALK continues
-    // through a lone re-pick is an arpeggio, because the class rule asks whether that slot sounded
-    // fewer strings than the shape does and one always is fewer than two. This rig does not walk;
-    // it reads the FINISHED span and asks which of its slots LOOK like lone re-picks, and a slot
-    // sitting exactly on the span's own end is where the two readings part: the span stores its
-    // MUSICAL CLOSE, so the onset that CLOSED it sits exactly there — and so does the last strum
-    // the statement rode wherever its own ring is what ran out. The first kind is no continuation
-    // at all, and no window over a finished span can tell them apart.
+    // What reconciles the row above with shape rule 5's own consequence — every span the WALK
+    // continues through a lone re-pick is an arpeggio, because the class rule asks whether that
+    // slot sounded fewer strings than the shape does and one always is fewer than two. This rig
+    // does not walk; it reads the FINISHED span and asks which of its slots LOOK like lone
+    // re-picks, and a slot sitting exactly on the span's own end is where the two readings part:
+    // the span stores its MUSICAL CLOSE, so the onset that CLOSED it sits exactly there — and so
+    // does the last strum the statement rode wherever its own ring is what ran out. The first kind
+    // is no continuation at all, and no window over a finished span can tell them apart.
     long long ii_spans_end_slot_only{0};
     long long ii_spans_end_slot_only_boxed{0};
 
-    // [D3] — the continuity gates.
+    // Shape rule 3 — the continuity gates.
     // The gap re-pick's two witness arms are NEARLY DISJOINT BY CONSTRUCTION, which is what makes
     // the claim arm read as a rounding error rather than as an empty corpus. A gap re-pick is
     // always an INTERIOR slot — a re-pick sitting on the span's own end is where the reach ran
@@ -516,21 +516,21 @@ struct DerivationCounters
     long long ii_gap_repicks_claim{0};
     long long interior_gap_spans{0};
 
-    // [D4] — trigger 4, a carried ring folding into a span onset. The reach families are split by
-    // WHICH ARM absorbed the fold-in (\ref FoldInReach), so the source-hygiene population is a
-    // population again.
+    // Shape rules 1 and 5 — trigger 4, a carried ring folding into a span onset. The reach
+    // families are split by WHICH ARM absorbed the fold-in (\ref FoldInReach), so the
+    // source-hygiene population is a population again.
     long long trigger4_spans{0};
     long long trigger4_only_spans{0};
     FoldInReach foldins_event;
     FoldInReach foldins_successor;
 
-    // [D2] — travel and the breathing landing. These two are the SOURCE-side instrument: they read
-    // the fret channels alone, so they stay one ruler no span law can move.
+    // Shape rule 4 — travel and the breathing landing. These two are the SOURCE-side instrument:
+    // they read the fret channels alone, so they stay one ruler no span law can move.
     long long travel_spans{0};
     long long travel_breathing_spans{0};
 
-    // [D2] derived — the landed grip. `successor_spans` is the DERIVATION's own count and the
-    // authority here; everything beside it is the source-side reading that says which edge
+    // Shape rule 4 derived — the landed grip. `successor_spans` is the DERIVATION's own count and
+    // the authority here; everything beside it is the source-side reading that says which edge
     // suppressed a landing, which the finished spans do not record.
     long long successor_spans{0};
     long long successor_spans_arpeggio{0};
@@ -539,17 +539,18 @@ struct DerivationCounters
     long long travel_landings_staggered{0};
     long long travel_landings_crowded{0};
 
-    // [D2] — the landing split. `zero_length_spans` is the split's headline population (empty but
-    // for the span a hand alone states), and `travel_landings_absorbed` counts a landing the
-    // SOURCE side says should re-open, with no successor span standing at that instant.
+    // Shape rule 4 — the landing split. `zero_length_spans` is the split's headline population
+    // (empty but for the span a hand alone states), and `travel_landings_absorbed` counts a
+    // landing the SOURCE side says should re-open, with no successor span standing at that
+    // instant.
     //
-    // `travel_short_of_landing_spans` is the amendment's promise read as an INVARIANT rather than
-    // as a share. A span's extent is the minimum of its members' coverage, and a travelling
-    // member's coverage is already capped at its own arrival (`coverage_at` in chart_shapes.cpp),
-    // so the extent can never run PAST the earliest landing and a "covering" share could only
-    // ever read 100% or less. What remains to measure is the shortfall — an extent stopping at the
-    // departure instead of reaching the grip its members move to — and the amendment promises
-    // there is none.
+    // `travel_short_of_landing_spans` is shape rule 4's promise that the span covers the glide,
+    // read as an INVARIANT rather than as a share. A span's extent is the minimum of its members'
+    // coverage, and a travelling member's coverage is already capped at its own arrival
+    // (`coverage_at` in chart_shapes.cpp), so the extent can never run PAST the earliest landing
+    // and a "covering" share could only ever read 100% or less. What remains to measure is the
+    // shortfall — an extent stopping at the departure instead of reaching the grip its members
+    // move to — and the rule promises there is none.
     long long zero_length_spans{0};
     long long travel_short_of_landing_spans{0};
     long long travel_landings_absorbed{0};
@@ -561,9 +562,9 @@ struct DerivationCounters
     // sounding being judged per MEMBER — which is what makes that price nothing.
     long long travel_landings_outrun{0};
 
-    // Successors whose start falls ON a note slot, which is the blindness review F8 named: a
-    // reading that calls a span a successor only where NO slot sits at its position counts every
-    // one of these as an ordinary span.
+    // Successors whose start falls ON a note slot, the blind spot of a reading that calls a span a
+    // successor only where NO slot sits at its position: it counts every one of these as an
+    // ordinary span.
     long long successor_spans_at_slot{0};
 
     // THE SOURCE-SIDE READING of the same population, kept as the rig's independent second
@@ -657,10 +658,10 @@ struct DerivationCounters
     long long fhp_nonascending_fronts{0};
 };
 
-// The offsets at which a note's fret channel LANDS, in order — [D2]'s landings, read from the
-// SOURCE side through the channel reader itself (\ref common::core::statedStopFrom): asked again
-// from each landing, it answers the travel after it. A landing's statement covers its hold and the
-// glide out of it, so it runs to the next landing, or to the ring's end after the last one.
+// The offsets at which a note's fret channel LANDS, in order — shape rule 4's landings, read from
+// the SOURCE side through the channel reader itself (\ref common::core::statedStopFrom): asked
+// again from each landing, it answers the travel after it. A landing's statement covers its hold
+// and the glide out of it, so it runs to the next landing, or to the ring's end after the last one.
 //
 // Read per note rather than off the finished spans, for the reason the lone-re-pick member test
 // is: the spans record which landings OPENED and never which ones were suppressed, so a rig that
@@ -973,10 +974,10 @@ void countDerivation(
         const bool successor = shape.landing_opened;
         if (successor)
         {
-            // [D2]: the landing successor is the ONE span the model opens where nothing STATES it,
-            // read from the walk's own published mark. A landing is NOT a sounding, so a successor
-            // classifies by the ordinary triggers like every other span and the class count beside
-            // it is a real measurement of what the corpus's chord slides land in.
+            // Shape rule 4: the landing successor is the ONE span the model opens where nothing
+            // STATES it, read from the walk's own published mark. A landing is NOT a sounding, so
+            // a successor classifies by the ordinary triggers like every other span and the class
+            // count beside it is a real measurement of what the corpus's chord slides land in.
             ++out.successor_spans;
             out.successor_spans_arpeggio += arpeggio ? 1 : 0;
             out.successor_spans_at_slot += opening != index.slot_of.end() ? 1 : 0;
@@ -1103,10 +1104,11 @@ void countDerivation(
         const std::size_t position_bucket =
             shape_position <= 6 ? 0 : (shape_position <= 11 ? 1 : 2);
 
-        // ---- [D4] trigger 4: an earlier PRESENTED tail crossing the span start on a posture
-        // string with no onset at it. The fold-in is what puts that carried fret into the posture.
+        // ---- Shape rules 1 and 5, trigger 4: an earlier PRESENTED tail crossing the span start
+        // on a posture string with no onset at it. The fold-in is what puts that carried fret
+        // into the posture.
         //
-        // SPLIT BY ARM (Q8), because a LANDING SUCCESSOR's every member is a carried ring by
+        // SPLIT BY ARM, because a LANDING SUCCESSOR's every member is a carried ring by
         // construction: pooled in, they are the whole of the "no struck fret to measure" column
         // and the reach question is meaningless there (nothing was struck for the carry to be a
         // reach from). The flip count below is unaffected, because a successor strikes fewer than
@@ -1211,9 +1213,9 @@ void countDerivation(
                 }
                 struck_here.push_back(note);
 
-                // ---- [D3] the continuity law's own test, asked of every sounding member inside
-                // the span: a STORED ring that has ended with no same-string onset at its end is
-                // an authored statement of detachment.
+                // ---- Shape rule 3's own test, a member quitting, asked of every sounding member
+                // inside the span: a STORED ring that has ended with no same-string onset at its
+                // end is an authored statement of detachment.
                 const auto string_index = static_cast<std::size_t>(saved[note].string - 1);
                 if (string_index < posture.size() && posture[string_index].has_value())
                 {
@@ -1284,9 +1286,9 @@ void countDerivation(
                 ++out.ii_claim_witness;
             }
 
-            // ---- [D3] amendment 1: is this re-pick ADJACENT to its own string's prior ring, or
-            // does it follow a stored GAP? An adjacent re-pick is continuity itself; a gap re-pick
-            // is the population the narrowing would stop continuing.
+            // ---- Shape rule 2's adjacency scope: is this re-pick ADJACENT to its own string's
+            // prior ring, or does it follow a stored GAP? An adjacent re-pick is continuity itself;
+            // a gap re-pick meets a grip that has already broken, so the rule does not continue it.
             const std::optional<std::size_t> prior =
                 lastNoteBefore(index, saved[repick].string, now);
             if (!prior.has_value())
@@ -1320,8 +1322,8 @@ void countDerivation(
         }
         out.interior_gap_spans += interior_gap_here ? 1 : 0;
 
-        // ---- [D4] the flip: trigger 4 firing while no OTHER arrival trigger does, which is
-        // exactly a span that would print as a chord box without it.
+        // ---- Shape rule 5's box-to-arpeggio flip: trigger 4 firing while no OTHER arrival
+        // trigger does, which is exactly a span that would print as a chord box without it.
         if (foldins_here > 0)
         {
             ++out.trigger4_spans;
@@ -1337,10 +1339,10 @@ void countDerivation(
             continue;
         }
 
-        // ---- [D2] derived: which travel spans re-open, and which edge suppressed the rest. The
-        // margin is taken at the span's own measure, which is the landing's except where a glide
-        // crosses a barline into a changed signature — a rounding this attribution accepts, since
-        // `successor_spans` above is what the movement is actually counted by.
+        // ---- Shape rule 4 derived: which travel spans re-open, and which edge suppressed the
+        // rest. The margin is taken at the span's own measure, which is the landing's except where
+        // a glide crosses a barline into a changed signature — a rounding this attribution
+        // accepts, since `successor_spans` above is what the movement is actually counted by.
         std::optional<Fraction> common_landing;
         // The FIRST landing of the group, which is what bounds the extent when the landings are
         // staggered (edge c) and is the same instant as `common_landing` when they coincide.
@@ -1409,9 +1411,9 @@ void countDerivation(
             }
         }
 
-        // ---- [D2] the SOURCE-side instrument: every sounding member's fret channel states a
-        // differing stop, all of them land inside their own rings, and two or more rings continue
-        // past the last landing.
+        // ---- Shape rule 4, the SOURCE-side instrument: every sounding member's fret channel
+        // states a differing stop, all of them land inside their own rings, and two or more rings
+        // continue past the last landing.
         bool every_member_travels = true;
         bool every_travel_lands = true;
         Fraction last_landing{};
@@ -1515,16 +1517,16 @@ struct Census
     long long overfull_beats_skipped{0};
     long long denominator_changes{0};
 
-    // [D6] — a staccato ring is halved, so it is the one predecessor whose halving can take away
-    // the adjacency a successor's legato claim needs. The claim is the scarce thing, so the
-    // population is every same-string successor that makes one and the ruling's row is the share
+    // GP import rule 13 — a staccato ring is halved, so it is the one predecessor whose halving can
+    // take away the adjacency a successor's legato claim needs. The claim is the scarce thing, so
+    // the population is every same-string successor that makes one and the rule's row is the share
     // of those following a staccato note. The denominator is also the CONTROL that gives the
-    // ruling's zero its meaning: a predicate reading a claim field the model no longer stores, or
-    // a chain walk that finds no successors, empties it too and flags.
+    // rule's zero its meaning: a predicate reading a claim field the model no longer stores, or a
+    // chain walk that finds no successors, empties it too and flags.
     long long d6_legato_successors{0};
     long long d6_staccato_then_legato{0};
 
-    // LAW I — the let-ring stop reasons and what the rings they produce cross.
+    // The GP import figure law — the let-ring stop reasons and what the rings they produce cross.
     long long rings{0};
     long long stop_strike{0};
     long long stop_rest{0};
@@ -1788,14 +1790,14 @@ void walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
                     census.vibrato_wide += note.vibrato == common::core::VibratoState::Wide ? 1 : 0;
                     census.staccato_notes += note.staccato ? 1 : 0;
 
-                    // ---- [D6]: the next note on this string in this voice, and whether it
-                    // CLAIMS a legato connection. The claim is the scarce half of the ruling's
-                    // pair, so it is the denominator and the staccato predecessor is the share
-                    // read off it — the halving is what could take the adjacency the claim needs
-                    // away, and a claim nobody makes cannot be lost. Asking it of every note
+                    // ---- GP import rule 13: the next note on this string in this voice, and
+                    // whether it CLAIMS a legato connection. The claim is the scarce half of the
+                    // rule's pair, so it is the denominator and the staccato predecessor is the
+                    // share read off it — the halving is what could take the adjacency the claim
+                    // needs away, and a claim nobody makes cannot be lost. Asking it of every note
                     // rather than of staccato notes alone is what makes the denominator a
                     // CONTROL: it goes empty exactly when the fields or this walk stop working,
-                    // so the ruling's own row cannot read zero for a silent reason.
+                    // so the rule's own row cannot read zero for a silent reason.
                     for (std::size_t ahead = index + 1; ahead < chain.size(); ++ahead)
                     {
                         const GpNote* const successor =
@@ -1991,7 +1993,7 @@ void row(const char* const label, const long long value)
               << "\n";
 }
 
-// One arm of [D4]'s fold-in reach (\ref FoldInReach), printed identically for both so the two
+// One arm of the fold-in reach (\ref FoldInReach), printed identically for both so the two
 // populations can be read against each other line by line. Takes its arm by mutable reference for
 // \ref Samples::summary's reason: the spread is read by sorting the samples in place.
 void printFoldInReach(const char* const title, FoldInReach& reach)
@@ -2306,7 +2308,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "    of those, still a box                 : "
               << census.derivation.ii_spans_end_slot_only_boxed << "\n";
 
-    std::cout << "\n[3] [D4] TRIGGER 4 — a carried ring folding into a span onset\n";
+    std::cout << "\n[3] SHAPE RULES 1 AND 5, TRIGGER 4 — a ring carried into a span onset\n";
     row("spans", census.derivation.spans);
     row("spans classified arpeggio", census.derivation.spans_arpeggio);
     row("  natural harmonic notes (node touches)", census.derivation.natural_harmonic_notes);
@@ -2315,7 +2317,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("box -> arpeggio flips (trigger 4 alone)", census.derivation.trigger4_only_spans);
     row("fold-ins, both arms",
         census.derivation.foldins_event.foldins + census.derivation.foldins_successor.foldins);
-    std::cout << "  (SPLIT BY ARM below, Q8: a successor's every member is a carried ring by\n"
+    std::cout << "  (SPLIT BY ARM below: a successor's every member is a carried ring by\n"
                  "   construction, so its distances measure the arm and never a hand's reach —\n"
                  "   pooled in, they bury the source-hygiene population the question is about)\n";
     printFoldInReach(
@@ -2323,7 +2325,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     printFoldInReach(
         "LANDING SUCCESSORS — the arm's own shape", census.derivation.foldins_successor);
 
-    std::cout << "\n[4] [D3] CONTINUITY GATES\n";
+    std::cout << "\n[4] SHAPE RULE 3 — CONTINUITY GATES\n";
     row("gap re-picks under witnesses", census.derivation.ii_gap_repicks);
     row("  of those, a SOUND witness", census.derivation.ii_gap_repicks_sound);
     std::cout << "  (the CLAIM arm below is structurally tiny, not an absent corpus population: a\n"
@@ -2378,14 +2380,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
         census.derivation.fhp_pinned_finger_windows);
     row("  those pinned holds (ZERO)", census.derivation.fhp_pinned_finger_holds);
 
-    std::cout << "\n[5] [D2] TRAVEL AND THE LANDED GRIP — THE OPENING-CAUSE CENSUS\n";
+    std::cout << "\n[5] SHAPE RULE 4 — TRAVEL AND THE LANDED GRIP, THE OPENING-CAUSE CENSUS\n";
     std::cout << "  (keyed on `landing_opened`, the one opening-cause datum the walk publishes\n"
                  "   and the only honest key there is: a LANDED TRAVEL is the single onset-less\n"
                  "   open the grip-tenure law admits, and everything else is opened by an EVENT.\n"
                  "   Ring-out opens NOTHING, so a landing is this field's only cause.)\n";
     row("spans opened by a LANDING", census.derivation.successor_spans);
     row("  ... classified arpeggio", census.derivation.successor_spans_arpeggio);
-    row("  ... opening ON a note slot (F8)", census.derivation.successor_spans_at_slot);
+    row("  ... opening ON a note slot", census.derivation.successor_spans_at_slot);
     row("  ... their carried fold-ins", census.derivation.foldins_successor.foldins);
     row("spans opened by anything else (an EVENT)",
         census.derivation.spans - census.derivation.successor_spans);
@@ -2414,10 +2416,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("spans whose sounding members all travel", census.derivation.travel_spans);
     row("  ... with a breathing landing", census.derivation.travel_breathing_spans);
 
-    std::cout << "\n[6] [D6] STACCATO -> SAME-STRING LEGATO ADJACENCY\n";
+    std::cout << "\n[6] GP IMPORT RULE 13 — STACCATO -> SAME-STRING LEGATO ADJACENCY\n";
     std::cout << "  (the claim is the scarce half, so it is the denominator AND the control: it\n"
                  "   empties exactly when the claim fields or the chain walk stop working, which\n"
-                 "   is what keeps the ruling's own row below from reading zero for a silent\n"
+                 "   is what keeps the rule's own row below from reading zero for a silent\n"
                  "   reason.)\n";
     std::cout << "  staccato marked notes                   : " << census.staccato_notes << "\n";
     std::cout << "  same-string successors claiming legato  : " << census.d6_legato_successors
@@ -2574,22 +2576,22 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 15.0,
             },
             CrossCheck{
-                // [D6]'s DENOMINATOR, and the control that gives the row under it its meaning:
-                // same-string successors in one voice that CLAIM a legato connection. It is what
-                // says the claim fields and the chain walk are both alive — a predicate reading a
-                // field the model renamed empties this row too, which is the failure the ruling's
-                // zero could otherwise hide.
+                // GP import rule 13's DENOMINATOR, and the control that gives the row under it its
+                // meaning: same-string successors in one voice that CLAIM a legato connection. It
+                // is what says the claim fields and the chain walk are both alive — a predicate
+                // reading a field the model renamed empties this row too, which is the failure the
+                // rule's zero could otherwise hide.
                 .label = "same-string successors claiming legato",
                 .rig = static_cast<double>(census.d6_legato_successors),
                 .expected = 7538.0,
             },
             CrossCheck{
-                // [D6] ITSELF: of those claims, the ones whose predecessor is STACCATO — the one
-                // note whose halved ring can take away the adjacency a claim needs. It is zero,
-                // and with the control above standing that is the SOURCE's own answer rather than
-                // a dead predicate: the transcriber never writes a hammer or pull out of a note
-                // marked detached. Exact-match, because the ruling rests on the population being
-                // empty and a single member of it would have to be looked at.
+                // GP import rule 13 ITSELF: of those claims, the ones whose predecessor is
+                // STACCATO — the one note whose halved ring can take away the adjacency a claim
+                // needs. It is zero, and with the control above standing that is the SOURCE's own
+                // answer rather than a dead predicate: the transcriber never writes a hammer or
+                // pull out of a note marked detached. Exact-match, because the rule rests on the
+                // population being empty and a single member of it would have to be looked at.
                 .label = "  ... whose predecessor is STACCATO (ZERO)",
                 .rig = static_cast<double>(census.d6_staccato_then_legato),
                 .expected = 0.0,

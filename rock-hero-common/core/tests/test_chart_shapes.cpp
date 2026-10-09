@@ -694,7 +694,7 @@ TEST_CASE("Chart shape derivation rides a span through an articulation change", 
     CHECK(derived.shapes.front().place == Fraction{});
     CHECK(derived.shapes.front().sustain == Fraction{3, 8});
     CHECK(derived.shapes.front().posture == 0);
-    // Both strums sounded the shape WHOLE, so the class is untouched too (corollary 4): this is a
+    // Both strums sounded the shape WHOLE, so the class is untouched too (shape rule 5): this is a
     // chord box that happens to change gesture, not an arpeggio.
     CHECK_FALSE(derived.shapes.front().sounds_in_parts);
 }
@@ -1022,7 +1022,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
     }
 }
 
-// LAW III's CLASS rule asked of a span's INTERIOR: ARPEGGIO iff the shape's members sound
+// Shape rule 5's CLASS rule asked of a span's INTERIOR: ARPEGGIO iff the shape's members sound
 // SEPARATELY, so a span stays a box chain only while every sounding of it is the shape WHOLE. The
 // two figures the interior arm covers are one fact at two widths — a partial restrike and a lone
 // re-pick of a single member — which is why they need no clause each.
@@ -1595,7 +1595,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
     SECTION("an interior lone re-pick makes the successor an arpeggio")
     {
         // The other side of the same law: a successor is classified by what sounds INSIDE it, so a
-        // sounding that reaches only part of the landed grip is LAW III's class rule at its
+        // sounding that reaches only part of the landed grip is shape rule 5's class rule at its
         // ordinary width. One string of the landed grip is re-picked at its own landed stop, which
         // rides the successor and states its members arriving separately. Every ring
         // runs past the re-pick, so the successor's statement is still in force there — a re-pick
@@ -3026,13 +3026,14 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         everySpanIsPositive(derived);
     }
 
-    SECTION("DRONE UNDER STABS: the [D4] flip, as the accumulation law derives it")
+    SECTION("DRONE UNDER STABS: a carried drone folds in, as the accumulation law derives it")
     {
-        // The other habitat the law covers, and the one [D4]'s fold-in acceptance was argued
-        // over: a ringing drone crossed by struck chords. The flip [D4] accepted stands for the
-        // FIRST stab — the drone is a fresh ring, it joins the posture and the span reads ARPEGGIO
-        // — and what the accumulation law adds is the FRONT: the statement runs from the drone's
-        // own onset, because that is where the figure began and nothing precedes it.
+        // The other habitat the law covers: a ringing drone crossed by struck chords. A fresh ring
+        // folds in like any other member (shape rule 1), and a member carried in rather than
+        // struck makes the span an arpeggio (shape rule 5), so for the FIRST stab the drone joins
+        // the posture and the span reads ARPEGGIO — and what the accumulation law adds is the
+        // FRONT: the statement runs from the drone's own onset, because that is where the figure
+        // began and nothing precedes it.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 6, 0, Fraction{3, 2}),
             noteAt(2, Fraction{}, 1, 5, Fraction{1, 8}),
@@ -3692,7 +3693,7 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
 
     SECTION("A SLIDE-OUT ring asserts no grip at its junction")
     {
-        // The import twin's own exemption (LAW I), mirrored at read: by the ring's end the gliding
+        // The GP import figure law's own exemption, mirrored at read: by the ring's end the gliding
         // finger is off the board, so the fret the channel last stated is no standing grip and the
         // DISPLACEMENT witness stays silent at the junction — that silence is this section's
         // subject. The span still splits, at the tap, through THE TAP'S FLOOR rather than the
@@ -3931,8 +3932,8 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
         // STRUCK IN makes the two one case. Every ring under the release was struck inside the
         // span the release breaks, so the released 5 stands alone there and no successor founds,
         // whichever stop the scaffold holds. The LANDING is the one seam a member crosses — the
-        // grip itself moving, carried by fingers that slid — and a break is not a landing
-        // (chart-ruleset.md, THE LANDING'S TWO DOES NOT GENERALIZE): it is a new statement judged
+        // grip itself moving, carried by fingers that slid — and a break is not a landing (shape
+        // rule 4's landing open, at two, applies to a landing alone): it is a new statement judged
         // fresh. The rule this case is ABOUT is where the break falls, which is what the
         // up-position frame below records.
         const ChartShapes open_scaffold = deriveFrom(streamOf({

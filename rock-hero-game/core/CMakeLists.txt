@@ -1,10 +1,10 @@
 add_library(rock_hero_game_core STATIC)
 add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 
-# Resources feature: the typed resolver every game plan loads packaged assets through
-# (plan 20 Phase 2's resource-pack convention). Frame-clock feature: pure per-frame playback
-# clock consumption and pacing stats for the game loop (plan 20 Phase 3). Diagnostics feature:
-# headless dev-diagnostics state, intents, and the chart-source change detector (plan 20 Phase 4).
+# Resources feature: the typed resolver every game plan loads packaged assets through (the
+# resource-pack convention). Frame-clock feature: pure per-frame playback clock consumption and
+# pacing stats for the game loop. Diagnostics feature: headless dev-diagnostics state, intents, and
+# the chart-source change detector.
 # Session feature: the headless GameplaySession orchestration that loads a package, preloads the
 # tone rig, and drives playback through the shared audio ports (plan 21 Phase 2). Settings
 # feature: the game's one per-user persistence seam and the implicit v1 profile (plan 27
@@ -24,7 +24,7 @@ add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 # through game/core settings. Detection feature: the pure detection-event vocabulary — the plan 22
 # Phase 1 contract that scoring consumes without ever touching audio; DSP producers land later in
 # game/audio. Scoring feature: the versioned ruleset, verdict vocabulary, and pure window/ladder
-# math of plan 24 Phase 1; the provisional-hit machine builds on these in a later phase.
+# math; the provisional-hit machine builds on these in a later phase.
 target_sources(
     rock_hero_game_core
     PRIVATE src/audio/native_audio_setup.cpp

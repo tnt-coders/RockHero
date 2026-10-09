@@ -2,12 +2,12 @@ add_library(rock_hero_game_ui STATIC)
 add_library(rock_hero::game::ui ALIAS rock_hero_game_ui)
 
 # Game surface feature: the SDL window, the bgfx render device, and the L2 frame loop. SDL3Application
-# is the framework base owning the loop, the per-frame JUCE-queue drain, and the vsync pacing (plan
-# 20 gate outcome: SDL owns main; JUCE's queue is drained per frame); RockHeroGame is the composition
-# root that owns the window/device/resources and the Game content and fills the loop's hooks. The
-# highway renderer itself is shared (rock-hero-common/ui highway feature); this library composes it
-# with the game's resources. Dev feature + overlay: the --dev-package fixture session and the
-# diagnostics overlay content (plan 20 Phase 4).
+# is the framework base owning the loop, the per-frame JUCE-queue drain, and the vsync pacing (SDL
+# owns main; JUCE's queue is drained per frame, per docs/design/architecture.md "Game View");
+# RockHeroGame is the composition root that owns the window/device/resources and the Game content
+# and fills the loop's hooks. The highway renderer itself is shared (rock-hero-common/ui highway
+# feature); this library composes it with the game's resources. Dev feature + overlay: the
+# --dev-package fixture session and the diagnostics overlay content.
 target_sources(
     rock_hero_game_ui
     PRIVATE src/dev/dev_session.cpp
@@ -41,9 +41,8 @@ target_link_libraries(
             rock_hero::bgfx
             rock_hero::juce_events)
 
-# Shared highway shaders compile into the staging half of the resource-pack convention (plan 20
-# Phase 2); the app deploys the staged tree next to the executable. The program list and the
-# Windows-only HLSL caveat live in rock_hero_stage_highway_shaders, shared with the editor's
-# preview deploy.
+# Shared highway shaders compile into the staging half of the resource-pack convention; the app
+# deploys the staged tree next to the executable. The program list and the Windows-only HLSL caveat
+# live in rock_hero_stage_highway_shaders, shared with the editor's preview deploy.
 rock_hero_stage_highway_shaders(rock_hero_game_shaders
                                 "${CMAKE_CURRENT_BINARY_DIR}/resources/shaders")

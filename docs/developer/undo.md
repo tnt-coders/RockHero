@@ -115,7 +115,7 @@ list, which no section edit changes),
   is byte-identical to the file. THREE verbs run this shape today and share ONE authority
   (`commitChartGestureStep`, `chart_handlers.cpp`), which is what keeps them from drifting into three
   copies: the duration steps (`AdjustChartSustain`, ruled 2026-08-22 — before it, every step was its
-  own entry), the `Alt`+arrow move (`moveChartSelection`, ruling 8's own extension), and the
+  own entry), the `Alt`+arrow move (`moveChartSelection`, the same replayed gesture), and the
   fret-hand harmonic verb `H` (`ChooseChartHarmonic` / `SetChartHarmonicNode`, which joined
   2026-09-16 when it stopped being a toggle). The harmonic verb is the one with nothing to replay:
   its "gesture" is the LATEST CHOICE, planned from the pre-run chart, so `ChartHarmonicGesture` is an
@@ -212,7 +212,7 @@ before the selection repair (a recorded focus can name a silent point the undo d
   alone answers there. Plugin tiles have no selection yet.
 
 Skipped while the transport plays: playback follow owns the view and no caret may arm. The view
-half is rule 4 of the window rules in \ref guide_keyboard.
+half is the window rule *an edit that asks keeps its result in sight* in \ref guide_keyboard.
 
 # Where plugin edits come from
 

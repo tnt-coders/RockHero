@@ -104,9 +104,9 @@ struct GestureFixture
 
 } // namespace
 
-// Sustain growth stops at exact adjacency with the next onset on the note's OWN string (40-Q2-B,
-// the one bound on a ring), and a note on another string blocks nothing; shrinking stops one step
-// short of empty. A step at the tick lattice runs through the same verb.
+// Sustain growth stops at exact adjacency with the next onset on the note's OWN string (the
+// same-string clamp, the one bound on a ring), and a note on another string blocks nothing;
+// shrinking stops one step short of empty. A step at the tick lattice runs through the same verb.
 TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][chart]")
 {
     GestureFixture fixture;

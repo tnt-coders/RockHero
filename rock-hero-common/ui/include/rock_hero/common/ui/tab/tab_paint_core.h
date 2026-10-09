@@ -2,10 +2,10 @@
 \file tab_paint_core.h
 \brief Shared JUCE notation paint core rendering the 2D tablature for both products.
 
-The one designated juce_graphics-bearing public header in rock-hero-common/ui (the 30-Q1
-amendment in docs/design/architectural-principles.md "UI Modules"): the editor tab lane and the
-game tab strips must produce identical notation pixels, so the rasterizer itself is shared and
-each host supplies only bounds, timeline mapping, and state.
+The one designated juce_graphics-bearing public header in rock-hero-common/ui
+(docs/design/architectural-principles.md "UI Modules"): the editor tab lane and the game tab
+strips must produce identical notation pixels, so the rasterizer itself is shared and each host
+supplies only bounds, timeline mapping, and state.
 */
 
 #pragma once

@@ -578,7 +578,7 @@ that leave a statement there.
 
 The question every rule about gliding asks, and it is not "are there keyframes": a note whose only
 statements are a mid-ring curl or delayed vibrato never moves the hand, so an open string may keep
-them and a dead note's tail (technique rule 25) is not earned by them. Spelled once so the travel
+them and a dead note's tail (tail rule 3) is not earned by them. Spelled once so the travel
 rules and the presentation rules cannot drift about what travelling means.
 
 \param keyframes The note's keyframes.
@@ -633,8 +633,8 @@ struct ChartNote
     sound. Every surface draws this ring, but only as far as its ink end, derived once per chart
     revision by \ref chartPresentation: a chug inside the kept-sustain bound rings its notated
     length and shows nothing, and a dead note carries the duration of its damped stroke while
-    drawing no tail at all (technique rule 25). Storing the truth once is what keeps the
-    readability policy from being destruction that every later reader then has to guess back
+    drawing no tail unless it still makes noise (tail rule 3). Storing the truth once is what keeps
+    the readability policy from being destruction that every later reader then has to guess back
     (`docs/plans/in-progress/note-sustain-model.md`).
 
     Every note rings for some length, so zero is not an encoding — \ref validateChartNoteAlone

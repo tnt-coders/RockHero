@@ -45,10 +45,10 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        // A region ends where the next begins, so coverage is the first start being the song's
-        // and every start lying strictly before the terminal; starts order by exact musical
-        // position (measure, beat, then sub-beat offset), so strictly ascending starts leave no
-        // region empty and none reversed.
+        // A region ends where the next begins, so the tone-track coverage rule is the first start
+        // being the song's and every start lying strictly before the terminal; starts order by
+        // exact musical position (measure, beat, then sub-beat offset), so strictly ascending
+        // starts leave no region empty and none reversed.
         if (previous == nullptr && region.start != GridPosition{.measure = 1, .beat = 1})
         {
             return std::unexpected{ToneTrackError{

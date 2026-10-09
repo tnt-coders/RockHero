@@ -1568,8 +1568,7 @@ TEST_CASE(
 
 // A keyframe is a leg boundary and may carry any subset of its channels, none included: a bare
 // one is legal, and where it says nothing the commit law sweeps it. The channels it may state are
-// bounded — a fret is a real position, and a bend is a PUSH, which a finger cannot make downward
-// (W9-K).
+// bounded — a fret is a real position, and a bend is a PUSH, which a finger cannot make downward.
 TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -2691,9 +2690,9 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("every fret a slide gesture names sits above the capo")
     {
-        // W9-J: unpitched travel is travel along the SOUNDING string, so a scrape's start, its
-        // turnarounds, and every slide-out's exit obey the same floor a pressed stop does — a
-        // scrape at the nut is no scrape.
+        // The load normalizer's capo floor: unpitched travel is travel along the SOUNDING string,
+        // so a scrape's start, its turnarounds, and every slide-out's exit obey the same floor a
+        // pressed stop does — a scrape at the nut is no scrape.
         const auto make_scrape = [&make_note](const int start) {
             ChartNote scrape = make_note(1, 1, start);
             scrape.attack = NoteAttack::PickSlide;
@@ -2991,9 +2990,9 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         glide.keyframes.front().fret = 2;
         CHECK_FALSE(validate({glide}, 3).has_value());
 
-        // W9-J binds a scrape's turnaround too, unpitched travel or not — the pick travels the
-        // sounding string, so dipping below the capo is not a scrape. The same scrape with its
-        // turnaround above the capo stands.
+        // The capo floor binds a scrape's turnaround too, unpitched travel or not — the pick
+        // travels the sounding string, so dipping below the capo is not a scrape. The same scrape
+        // with its turnaround above the capo stands.
         ChartNote scrape = make_note(1, 1, 5);
         scrape.attack = NoteAttack::PickSlide;
         scrape.sustain = Fraction{1, 4};
@@ -4143,9 +4142,9 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     CHECK(validateChartRules(no_turnarounds, tempo_map).has_value());
 
     // A ring longer than the notated gesture is not a shape at all: the terminal IS the keyframe
-    // at the ring's end (W11), so a scrape's terminal rides a resize in BOTH directions and a ring
-    // outrunning its gesture cannot be written down. Resized through the one way a ring changes
-    // length, which is what carries the terminal along.
+    // at the ring's end (technique rule 2), so a scrape's terminal rides a resize in BOTH
+    // directions and a ring outrunning its gesture cannot be written down. Resized through the one
+    // way a ring changes length, which is what carries the terminal along.
     Chart longer_ring = makeFullChart();
     static_cast<void>(clipPayloadsToSustain(longer_ring.notes[scrape], Fraction{3, 8}));
     CHECK(longer_ring.notes[scrape].sustain == Fraction{3, 8});

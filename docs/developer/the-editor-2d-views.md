@@ -835,11 +835,11 @@ is deliberately single-sourced:
   the whole answer for what is drawn and judged, and the reveal shows the stored ring the span is
   carrying. The span-implied hold (`ChartViewState::display_hold_ends`) rides the same
   projection, but it is the **3D board's** — how long a pinned head lasts — and this lane must not
-  spend it (`docs/plans/in-progress/note-sustain-model.md` ruling 3). A chugged member of a strum a
-  hand-shape span holds therefore draws a bare head here and no ribbon: the chord box over the strum
-  already says how long the shape stays fretted, and repeating that in the one mark that means "this
-  string is still ringing" reads as sustain. The board has no chord box, so pinning its heads is how
-  it states the same fact. One chart, one hold, two idioms.
+  spend it (shape rule 3, what the tenure holds; tail rule 4, where the verdict binds). A chugged
+  member of a strum a hand-shape span holds therefore draws a bare head here and no ribbon: the
+  chord box over the strum already says how long the shape stays fretted, and repeating that in the
+  one mark that means "this string is still ringing" reads as sustain. The board has no chord box,
+  so pinning its heads is how it states the same fact. One chart, one hold, two idioms.
 
 **THE STRING LEGEND** names the lines: each string's own open-string pitch ("E2", "A2", "D3" —
 `ChartViewState::open_strings`, which is the chart tuning's array verbatim, so a drop or altered

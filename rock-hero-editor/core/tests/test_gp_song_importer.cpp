@@ -3213,9 +3213,9 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 
     SECTION("a slide-out marked note keeps its shipped ring")
     {
-        // The one exemption that stands: an unpitched slide-out states the ring's own end (LAW I
-        // — the slide-out IS the end, physically forced), so the mark extends nothing and the law's
-        // REACH is stated rather than assumed.
+        // The one exemption that stands: an unpitched slide-out states the ring's own end (the GP
+        // import figure law — the slide-out IS the end, physically forced), so the mark extends
+        // nothing and the law's REACH is stated rather than assumed.
         GpScore score = makeLinearScore(1, syncs);
         GpBeat slid = letRingBeat(quarter, 5);
         slid.notes.front().slide_flags = 4;
@@ -3430,11 +3430,11 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 // Guitar Pro's beat-level roll mark — engraving's vertical wavy line, which the file spells
 // `Arpeggio` — says one grip is sounded member by member, and the import writes exactly the sound:
 // each member struck at its turn over the stored spread, every one of them ringing to the end the
-// beat gave it. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST (Q7), so nothing further is needed
-// to READ it: the members' rings overlap and the ordinary opening law turns them into one arpeggio
-// span with no rule of its own, which THE GATE below is the proof of. The import states no held
-// stop at all — a stop stated under every member still to come would restate what the members' own
-// rings already say.
+// beat gave it. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST (GP import rule 10), so nothing
+// further is needed to READ it: the members' rings overlap and the ordinary opening law (shape
+// rule 1) turns them into one arpeggio span with no rule of its own, which THE GATE below is the
+// proof of. The import states no held stop at all — a stop stated under every member still to come
+// would restate what the members' own rings already say.
 TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{

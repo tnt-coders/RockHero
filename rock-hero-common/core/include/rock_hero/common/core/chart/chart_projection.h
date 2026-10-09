@@ -61,7 +61,7 @@ is; the 3D highway composes it and adds board-only structure (\ref makeHighwayVi
 The layers are taken, never derived, so a caller that keeps them (the editor's memo) pays for each
 once per revision. **Scored = drawn** is a property of this state, not a rule to remember: the ink
 end is what both surfaces stop at and what the scorer will judge to
-(`docs/plans/in-progress/note-sustain-model.md`, ruling 4).
+(\ref ChartPresentation::ink_end).
 
 \param chart Chart to display.
 \param resolutions The chart's notes layer, derived from its notes, capo and `tempo_map`.

@@ -3147,8 +3147,8 @@ void HighwayRenderer::Impl::draw(
         {
             // Which box this strum draws — or that it draws none — is the projection's one answer
             // (common::core::HighwayChordBoxTreatment), never a count re-read here. A box marks
-            // SIMULTANEITY (LAW IV), so only a group with fewer than two fretting-hand members
-            // arrives here as None.
+            // SIMULTANEITY (shape rule 5), so only a group with fewer than two fretting-hand
+            // members arrives here as None.
             if (group.box_treatment == common::core::HighwayChordBoxTreatment::None)
             {
                 continue;

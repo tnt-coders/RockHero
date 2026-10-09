@@ -67,8 +67,8 @@ takes the next one.
 4. **The tail law — a tail that shows no technique information RESTS.** The curtain owns everything
    past a note's last always-visible landmark. A verdict-only filter, applied LAST: it reads the
    stored stream, judges, and marks where each tail rests (`ChartPresentation::rested_from`),
-   skipping every tail that tail rules 2 and 3 already emptied, and it writes no length — every landmark
-   it marks lies at or inside the ink end.
+   skipping every tail that tail rules 2 and 3 already emptied, and it writes no length — every
+   landmark it marks lies at or inside the ink end.
    - **The curtain is universal.** Span furniture is no part of the question: every fretting-hand
      tail rests unless it is still stating at its own end, over open board exactly as under a
      bracket. A right-hand onset is neither a member nor a witness.

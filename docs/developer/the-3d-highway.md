@@ -340,7 +340,8 @@ the projection both surfaces read, but only the highway spends it: for a strum a
 holds it draws no tail and instead **pins the head at the hit line** until the hold ends. The 2D
 lane draws every tail to the note's own ink end and nothing further, so those chugs wear bare
 heads there — the span's own rails already state how long the posture is fretted, and a ribbon
-repeating that reads as sustain (`docs/plans/in-progress/note-sustain-model.md` ruling 3).
+repeating that reads as sustain (shape rule 3, what the tenure holds; tail rule 4, where the
+verdict binds).
 Per-surface idiom for one fact again: one hold, a pinned head here and a chord box there.
 
 The board draws no destination chip at the crop — the rail and the bend curve run their true path

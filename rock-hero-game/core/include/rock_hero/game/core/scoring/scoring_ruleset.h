@@ -1,6 +1,6 @@
 /*!
 \file scoring_ruleset.h
-\brief The versioned constants every scoring decision reads (plan 24 scoring contract).
+\brief The versioned constants every scoring decision reads.
 */
 
 #pragma once
@@ -19,8 +19,7 @@ together with the ruleset that produced it: every score record carries the versi
 ANY constant change bumps the version — records are self-describing, so old records stay honest
 and comparable per version. The member initializers ARE ruleset `rh-score-1`; construct with
 `ScoringRuleset{}` to score under the current rules. The named feel baseline for these constants
-is Guitar Hero: Warriors of Rock (plan 24 §1) — values documented only for earlier GH eras are
-proxies, recorded as such in the plan.
+is Guitar Hero: Warriors of Rock — values documented only for earlier GH eras are proxies.
 */
 struct ScoringRuleset
 {
@@ -108,12 +107,12 @@ struct ScoringRuleset
     Stars are the count of satisfied thresholds, so `{0.2, 0.6, 1.2, 2.0, 2.8}` awards 0 stars
     below 0.2, then 1/2/3/4/5 stars at 0.2/0.6/1.2/2.0/2.8. The lowest cutoff makes 0 and 1 stars
     reachable — in practice only in no-fail mode, since a fail-enabled run that would score that
-    low fails out before it can complete (plan 24 §6). A failed, incomplete run records 0 stars
-    by override at finalization, independent of these cutoffs. All five values are WoR-baseline
-    proxies (only the upper cutoffs have GH-era documentation; the 0.2 floor is RockHero's,
-    pending plan-23 tuning). Ratio stars cap at 5: a strict full combo (every note hit, zero
-    qualifying overstrums) is a separate predicate the state machine records as `fullCombo`, and
-    presentation renders it as 5 GOLD stars — never a sixth star, and never decided by a ratio.
+    low fails out before it can complete. A failed, incomplete run records 0 stars by override at
+    finalization, independent of these cutoffs. All five values are WoR-baseline proxies (only the
+    upper cutoffs have GH-era documentation; the 0.2 floor is RockHero's, pending plan-23 tuning).
+    Ratio stars cap at 5: a strict full combo (every note hit, zero qualifying overstrums) is a
+    separate predicate the state machine records as `fullCombo`, and presentation renders it as 5
+    GOLD stars — never a sixth star, and never decided by a ratio.
     */
     std::vector<double> star_ratio_thresholds{0.2, 0.6, 1.2, 2.0, 2.8};
 };

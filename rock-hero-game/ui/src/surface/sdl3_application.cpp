@@ -93,8 +93,7 @@ int SDL3Application::run()
 
         // Post-frame stamp: the frame boundary that paces the loop. It is a pacing anchor, not
         // photon time — bgfx presents the PREVIOUS frame at the top of each submit, and DXGI
-        // queues presents ahead; plan 13's video-offset calibration owns that quasi-constant
-        // chain (magnitudes recorded in plan 20).
+        // queues presents ahead; plan 13's video-offset calibration owns that quasi-constant chain.
         const std::chrono::nanoseconds frame_boundary_time =
             std::chrono::steady_clock::now().time_since_epoch();
         const std::optional<core::FramePacingSummary> summary = logFrameInstrumentation(

@@ -2,7 +2,7 @@ $input a_position, a_color0
 $output v_color0, v_world_z
 
 // Flat vertex-color surface program: the render surface's first visible draw and the proving
-// consumer of the resource-pack loading seam (plan 20 Phase 2).
+// consumer of the resource-pack loading seam.
 #include <bgfx_shader.sh>
 
 void main()
