@@ -1,7 +1,7 @@
 # Plan 54 — Highway Visual Theming
 
 **Status**: Revised 2026-10-07 against `master @ 6f87951f`. Not started. **Phase 0 is
-decision-gated** (54-Q5 to 54-Q18 below, each with a recommendation or a ruling). Phases 1 and 2 need only
+decision-gated** (54-Q5 to 54-Q19 below, each with a recommendation or a ruling). Phases 1 and 2 need only
 the role names, which this plan fixes. **Phases 1 to 5 gate the first public release.** This
 revision replaces the 2026-08-02 plan (baseline `182faedb`): its mechanism survives, but its
 inventory was two months stale, and its goal changed from "make today's look one selectable
@@ -334,6 +334,17 @@ Each carries a recommendation; none is decided until the user rules.
     tolerance. All three are fixed in Phase 2 by sighting the Phase 0 looks, which were authored
     as full per-string shades and are re-expressed as shading in Phase 2.
   - **The guardrails:** the string order and the palette's distinctness checks hold after shading.
+- **54-Q19 — head shape and the theme. Direction 2026-10-09 (user), mechanism open:** the head
+  shape becomes a player setting picked from a library, chosen independently of the theme just as
+  the string colors are; the theme supplies only the style (material) of the head art.
+  - **Library candidates:** rectangle, chamfered plate, stretched hexagon, flat emerald cut and
+    stadium, from Phase 0 sighting. Asymmetric shapes were rejected.
+  - **Recommended mechanism:** a load-time bake into the existing atlas. Each library shape is a
+    structural outline (coverage, edge distance, inner-line mask) and the theme supplies a
+    material profile (bands, rim, lift, core, line). One bake composes them, so any shape pairs
+    with any theme and no theme ships per-shape cells. The `notes.png` head-cell asset above then
+    becomes a material description, and the head contract is measured per library shape.
+  - **Marks:** they are notation, so one mark set must fit every library shape (S3, 54-Q8).
 
 ## Phased implementation
 
