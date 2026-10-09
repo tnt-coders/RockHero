@@ -1,7 +1,7 @@
 # Plan 54 — Highway Visual Theming
 
 **Status**: Revised 2026-10-07 against `master @ 6f87951f`. Not started. **Phase 0 is
-decision-gated** (54-Q5 to 54-Q17 below, each with a recommendation). Phases 1 and 2 need only
+decision-gated** (54-Q5 to 54-Q18 below, each with a recommendation or a ruling). Phases 1 and 2 need only
 the role names, which this plan fixes. **Phases 1 to 5 gate the first public release.** This
 revision replaces the 2026-08-02 plan (baseline `182faedb`): its mechanism survives, but its
 inventory was two months stale, and its goal changed from "make today's look one selectable
@@ -29,8 +29,10 @@ What a theme may change is decided once, below, by four tiers. The design rule b
 - Everything in the SHOULD NOT and COULD tiers below: geometry (`HighwayMetrics`), camera, timing,
   tail and light laws, the emphasis alphas, the atlas layout and what each cell means, shaders,
   fonts, backdrop art, inlay patterns (plan 58), the 2D lane's own chrome.
-- **String palettes.** Owned by `docs/plans/roadmap/45-editor-theme-and-string-colors.md`; a theme
-  may suggest a palette id and never override the user's choice (decision 7).
+- **String palettes.** Owned by `docs/plans/roadmap/45-editor-theme-and-string-colors.md` and
+  configured by the user separately from the theme; a theme may suggest a palette id and never
+  override the user's choice (decision 7). A theme may only shade the chosen palette within a
+  bound, never replace a hue (54-Q18).
 - **String orientation.** A player setting, never a theme key (54-Q5).
 - **Editor chrome (`EditorTheme`).** Plan 45 Phase 2; independent of the highway theme.
 - A marketplace or any network delivery. Packaged export/import moves to `docs/plans/todo/`
@@ -172,7 +174,8 @@ No key for any of these exists; they are unrepresentable rather than validated.
 - **Shaders** (17 `.sc` plus `highway_fade.sh`, eight programs; no color literals). The G channel
   adds unmodulated white (`fs_texture_tint.sc:13`), so no theme can tint the highlight — inherent
   to the structural channel scheme; recorded in the authoring notes.
-- **String palette and its derivation** (plan 45) and **display options** (`HighwayDisplayOptions`:
+- **String palette hues and their derivation** (plan 45; the bounded shading is 54-Q18) and
+  **display options** (`HighwayDisplayOptions`:
   mirror, orientation, lane minimum).
 
 ### COULD — out of v1
@@ -322,6 +325,15 @@ Each carries a recommendation; none is decided until the user rules.
 
   *Recommended: split.* Themes keep custom heads, and the head contract measures only heads. The
   cost is a second texture in the head pass, measured on `relwithdebinfo` in Phase 4.
+- **54-Q18 — string colors and the theme. RULED 2026-10-09 (user):** the base string colors are
+  the user's setting, separate from the theme. A theme may adjust their general shading so the
+  strings blend with its chrome, but never change a string to a different color.
+  - **The key:** one optional `string_shading` in `theme.json`, applied over whichever palette the
+    user chose, never six replacement colors.
+  - **The bound:** lightness and chroma move within a cap, and hue moves only within a small
+    tolerance. All three are fixed in Phase 2 by sighting the Phase 0 looks, which were authored
+    as full per-string shades and are re-expressed as shading in Phase 2.
+  - **The guardrails:** the string order and the palette's distinctness checks hold after shading.
 
 ## Phased implementation
 
@@ -368,7 +380,8 @@ renderer up. **Verification**: configure (new sources), build, touched tests.
 ### Phase 2 — Theme directories, contracts and selection
 
 - A theme is a directory: `theme.json` (`id`, `display_name`, optional `inherits`, optional
-  `string_palette` suggestion, `colors` keyed by role) plus any of the three PNGs.
+  `string_palette` suggestion, optional bounded `string_shading` per 54-Q18, `colors` keyed by
+  role) plus any of the three PNGs.
 - **One loader** for built-in and user themes. Built-ins deploy as directories under
   `resources/themes/<id>/` through `cmake/RockHeroProductResources.cmake` and fail loudly; user
   themes are scanned from per-user app data and dropped with a logged typed error.
