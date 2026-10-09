@@ -272,12 +272,12 @@ containing_tone_document_ref}`, and `section_chord_target` as nothing /
 `RenameSectionTarget{position, name}` / `InsertSectionTarget{downbeat}` — and the view opens the
 picker or prompt that variant names. The meter chord `Ctrl+/` (`InsertTimeSignature`, `0x1408`)
 has the section's shape: `time_signature_chord_target` is nothing /
-`SetTimeSignatureTarget{measure, meter_text}` / `InsertTimeSignatureTarget{measure, meter_text}`,
+`SetTimeSignatureTarget{position, meter_text}` / `InsertTimeSignatureTarget{position, meter_text}`,
 and both open one meter prompt ("Set Time Signature" or "Add Time Signature", one field typed as
 "7/8") whose raw text goes back through `onTimeSignatureSetRequested` for the core to parse. The
 chords read the CURSOR and never the selection: the armed
 caret, else the paused cursor (`cursorPosition(quantum)`, at the placement quantum for the tone's
-slot and at the tick for the section's measure downbeat). "Nothing" carries the playback and no-song
+slot and at the tick for the section's measure downbeat and the meter's beat). "Nothing" carries the playback and no-song
 gates, stated once in the projection rather than in five UI guards, so a chord typed while the
 transport rolls finds no verb to perform. `Ctrl+P` (the position chord) has nothing to prompt for,
 so it publishes no verb at all: its `perform` forwards `onFretHandPositionChordRequested()`, and

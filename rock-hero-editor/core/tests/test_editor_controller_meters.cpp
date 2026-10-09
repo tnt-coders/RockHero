@@ -28,6 +28,7 @@ using common::core::GridPosition;
 using common::core::SongSection;
 using common::core::TimeSignatureChange;
 using common::core::testing::beatAt;
+using common::core::testing::downbeat;
 using common::core::testing::metersAt;
 
 // The eight-measure song with a second arrangement, so a meter edit has a non-current one to
@@ -67,9 +68,11 @@ struct MeterEditor : SongEditorHarness
         return state().time_signature_chord_target;
     }
 
-    void set(int measure, const std::string& text)
+    // Answers the meter prompt for a position: a reign's first downbeat to state it, else the
+    // beat to insert at.
+    void set(const GridPosition& position, const std::string& text)
     {
-        controller.onTimeSignatureSetRequested(measure, text);
+        controller.onTimeSignatureSetRequested(position, text);
     }
 };
 
@@ -107,28 +110,40 @@ struct MeterEditor : SongEditorHarness
 
 } // namespace
 
-// The chord publishes its whole decision as the verb: an insert on the downbeat of the measure the
-// cursor is in, opened on the meter governing it, and — once that insert has landed and kept the
-// cursor in place — the restate of the meter standing there, so a second press opens the prompt.
-TEST_CASE("The meter chord inserts at the cursor's measure, then restates", "[core][meters]")
+// The chord publishes its whole decision as the verb: an insert at the BEAT the cursor is in,
+// opened on the meter governing it, and — once that insert has landed and kept the cursor in
+// place — the restate of the reign starting there, so a second press opens the prompt. The cursor
+// on 6:3 under 4/4 typing 7/8 puts the meter at whole note 5+1/2: measure 6 is a derived 2/4, the
+// 7/8 governs from measure 7, and the cursor, keeping its time, now stands on that downbeat.
+TEST_CASE("The meter chord inserts at the cursor's beat, then restates", "[core][meters]")
 {
     MeterEditor editor;
-    editor.seek(5.0); // inside measure 3
+    editor.seek(11.0); // 6:3
 
     const TimeSignatureChordTarget first = editor.chord();
     const auto* const insert = std::get_if<InsertTimeSignatureTarget>(&first);
     REQUIRE(insert != nullptr);
-    CHECK(insert->measure == 3);
+    CHECK(insert->position == beatAt(6, 3));
     CHECK(insert->meter_text == "4/4");
 
-    editor.set(3, "3/4");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
-    CHECK(editor.state().selected_time_signature_measure == std::optional{3});
+    editor.set(beatAt(6, 3), "7/8");
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:3", 7, 8}}));
+    CHECK(editor.meters().back().place == common::core::Fraction{11, 2});
+    CHECK(
+        editor.tempoMap().timeSignatureAt(6) == common::core::MeterReign{
+                                                    .first_measure = 6,
+                                                    .place = common::core::Fraction{5},
+                                                    .meter = {.numerator = 2, .denominator = 4},
+                                                    .derived = true,
+                                                });
+    CHECK(editor.tempoMap().timeSignatureAt(7).first_measure == 7);
+    CHECK_FALSE(editor.tempoMap().timeSignatureAt(7).derived);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{7});
     CHECK(editor.undoEntryCount() == 1);
     CHECK(editor.undoTopLabel() == "Add Time Signature");
-    CHECK_THAT(editor.transport.position().seconds, WithinAbs(5.0, 1e-9));
+    CHECK_THAT(editor.transport.position().seconds, WithinAbs(11.0, 1e-9));
 
-    const SetTimeSignatureTarget expected{.measure = 3, .meter_text = "3/4"};
+    const SetTimeSignatureTarget expected{.position = downbeat(7), .meter_text = "7/8"};
     const TimeSignatureChordTarget second = editor.chord();
     const auto* const restate = std::get_if<SetTimeSignatureTarget>(&second);
     REQUIRE(restate != nullptr);
@@ -138,10 +153,23 @@ TEST_CASE("The meter chord inserts at the cursor's measure, then restates", "[co
     REQUIRE(entered != nullptr);
     CHECK(*entered == expected);
 
-    editor.set(3, " 6 / 8 ");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}));
+    editor.set(downbeat(7), " 6 / 8 ");
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:3", 6, 8}}));
     CHECK(editor.undoEntryCount() == 2);
     CHECK(editor.undoTopLabel() == "Set Time Signature");
+}
+
+// A cursor between beats reads the beat it is IN, never the nearest: a quarter of a beat past 6:3
+// still inserts at 6:3.
+TEST_CASE("The meter chord reads the beat the cursor is in", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.seek(11.125);
+
+    const TimeSignatureChordTarget chord = editor.chord();
+    const auto* const insert = std::get_if<InsertTimeSignatureTarget>(&chord);
+    REQUIRE(insert != nullptr);
+    CHECK(insert->position == beatAt(6, 3));
 }
 
 // Inert exactly where the commit would refuse: on the terminal's measure, while the transport
@@ -172,11 +200,11 @@ TEST_CASE("A meter edit refuses bad text and records nothing for no change", "[c
     for (const char* const text : {"7", "x/8", "0/4", "4/0", "3/4/4", "", "4/3"})
     {
         INFO(text);
-        editor.set(3, text);
+        editor.set(downbeat(3), text);
         CHECK(editor.timeline() == before);
         CHECK(editor.undoEntryCount() == 0);
     }
-    editor.set(3, "4/4");
+    editor.set(downbeat(3), "4/4");
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == 0);
 }
@@ -194,7 +222,7 @@ TEST_CASE("Delete removes a meter and refuses the first", "[core][meters]")
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
     CHECK(editor.undoEntryCount() == 0);
 
-    editor.set(3, "3/4");
+    editor.set(downbeat(3), "3/4");
     REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
     editor.controller.onSelectionDeleteRequested();
     CHECK(editor.meters() == metersAt({{"1:1", 4, 4}}));
@@ -205,19 +233,92 @@ TEST_CASE("Delete removes a meter and refuses the first", "[core][meters]")
     CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
 }
 
-// Alt+arrows step a meter one measure, re-addressing everything after it, and a held run is ONE
-// undo entry. The tempo lock guards anchor times only, and a meter edit moves no anchor in time,
-// so the lock every open turns on blocks none of this.
-TEST_CASE("A meter moves a measure per press and a held run is one entry", "[core][meters]")
+// The row's objects are every reign start, the derived short bar's included: its ghost chip can be
+// selected, and a stating verb on it AUTHORS it — a stored meter is inserted at its place with the
+// typed meter, one undo entry, and the chip turns solid. 5/4 from measure 3 before the 4/4 at
+// whole note 3+1/2 fills one bar and leaves a quarter: measure 4 is a derived 1/4.
+TEST_CASE("A stating verb on a derived short bar authors it", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.set(downbeat(3), "3/4");
+    editor.set(downbeat(5), "4/4");
+    editor.set(downbeat(3), "5/4");
+    REQUIRE(editor.tempoMap().timeSignatureAt(4).derived);
+    REQUIRE(editor.tempoMap().reigns().size() == 4);
+    const std::size_t entries = editor.undoEntryCount();
+
+    editor.controller.onTimeSignatureSelected(4);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{4});
+    const RestateTarget enter = editor.state().restate_target;
+    const auto* const entered = std::get_if<SetTimeSignatureTarget>(&enter);
+    REQUIRE(entered != nullptr);
+    CHECK(*entered == SetTimeSignatureTarget{.position = downbeat(4), .meter_text = "1/4"});
+
+    editor.set(downbeat(4), "1/4");
+    CHECK(
+        editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 5, 4}, {"4:1", 1, 4}, {"5:1", 4, 4}}));
+    CHECK_FALSE(editor.tempoMap().timeSignatureAt(4).derived);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{4});
+    CHECK(editor.undoEntryCount() == entries + 1);
+    CHECK(editor.undoTopLabel() == "Set Time Signature");
+}
+
+// A derived short bar is never stored, so changing the meter that left it back makes it vanish by
+// itself.
+TEST_CASE("Changing a meter back makes the derived short bar vanish", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.set(downbeat(3), "3/4");
+    editor.set(downbeat(5), "4/4");
+    editor.set(downbeat(3), "5/4");
+    REQUIRE(editor.tempoMap().reigns().size() == 4);
+
+    editor.set(downbeat(3), "3/4");
+    CHECK(editor.tempoMap().reigns().size() == 3);
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}, {"5:1", 4, 4}}));
+}
+
+// Delete and the move need a STORED meter, so on a derived start both refuse: the chip glows red
+// and nothing is recorded, as on a derived fret-hand position.
+TEST_CASE("Delete and the move refuse a derived short bar", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.set(downbeat(3), "3/4");
+    editor.set(downbeat(5), "4/4");
+    editor.set(downbeat(3), "5/4");
+    REQUIRE(editor.tempoMap().timeSignatureAt(4).derived);
+    const common::core::SongTimeline authored = editor.timeline();
+    const std::size_t entries = editor.undoEntryCount();
+
+    editor.controller.onTimeSignatureSelected(4);
+    REQUIRE(editor.state().selected_time_signature_measure == std::optional{4});
+    editor.controller.onSelectionDeleteRequested();
+    CHECK(editor.timeline() == authored);
+    CHECK(editor.view.time_signature_refusal_flashes == std::vector{4});
+    editor.pressAlt(ChartStepDirection::Right);
+    editor.pressAlt(ChartStepDirection::Left);
+    CHECK(editor.timeline() == authored);
+    CHECK(editor.view.time_signature_refusal_flashes == std::vector{4, 4, 4});
+    CHECK(editor.undoEntryCount() == entries);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{4});
+}
+
+// Alt+arrows step a meter ONE BEAT of the meter before it, re-addressing everything after it, and a
+// held run is ONE undo entry: 2/4 from measure 3 stepped twice stands two quarter notes later, at
+// 3:3 as the 4/4 counted it, so measure 3 is a derived 2/4 and the 2/4 governs from measure 4. The
+// tempo lock guards anchor times only, and a meter edit moves no anchor in time, so the lock every
+// open turns on blocks none of this.
+TEST_CASE("A meter moves a beat per press and a held run is one entry", "[core][meters]")
 {
     MeterEditor editor;
     REQUIRE(editor.state().tempo_lock);
-    editor.set(3, "2/4");
+    editor.set(downbeat(3), "2/4");
     const common::core::SongTimeline inserted = editor.timeline();
 
     editor.pressAlt(ChartStepDirection::Right, 2);
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"5:1", 2, 4}}));
-    CHECK(editor.state().selected_time_signature_measure == std::optional{5});
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:3", 2, 4}}));
+    CHECK(editor.tempoMap().timeSignatureAt(3).derived);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{4});
     CHECK(editor.undoEntryCount() == 2);
     CHECK(editor.undoTopLabel() == "Move Time Signature");
 
@@ -231,41 +332,46 @@ TEST_CASE("A meter run walked back restores the song exactly", "[core][meters]")
 {
     MeterEditor editor;
     // 3/4 from measure 7 leaves the terminal's whole note 8 on 9:3, the song ending mid-measure.
-    editor.set(7, "3/4");
+    editor.set(downbeat(7), "3/4");
     REQUIRE(common::core::terminalGridPosition(editor.tempoMap()) == beatAt(9, 3));
     const common::core::SongTimeline inserted = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
 
     editor.pressAlt(ChartStepDirection::Left);
-    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:1", 3, 4}}));
+    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:4", 3, 4}}));
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == inserted);
     CHECK(editor.undoEntryCount() == entries);
 }
 
-// A step onto or past a neighbouring meter, or to or past the terminal, is refused and records
-// nothing, like a step of the measure-1 meter.
-TEST_CASE("A meter move refuses neighbours and the song's end", "[core][meters]")
+// A step that leaves a reign shorter than one of its measures is the tempo-map rules' refusal
+// (ReignTooShort), and a step to or past the terminal is refused too; neither records anything,
+// like a step of the measure-1 meter.
+TEST_CASE("A meter move refuses a reign too short and the song's end", "[core][meters]")
 {
     MeterEditor editor;
-    editor.set(3, "2/4");
-    editor.set(4, "3/4");
+    editor.set(downbeat(3), "2/4");
+    editor.set(downbeat(4), "3/4");
     const common::core::SongTimeline two = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
 
+    // One beat either way leaves the 2/4 a quarter note, less than one of its bars; each refusal
+    // flashes the chip that was stepped.
     editor.controller.onTimeSignatureSelected(4);
     editor.pressAlt(ChartStepDirection::Left);
     editor.controller.onTimeSignatureSelected(3);
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == two);
     CHECK(editor.undoEntryCount() == entries);
+    CHECK(editor.view.time_signature_refusal_flashes == std::vector{4, 3});
 
-    // 2/4 from measure 7 (whole note 6) steps once to measure 8 (whole note 7); one more step would
-    // land on the terminal's whole note 8.
+    // 2/4 from measure 8 (whole note 7) steps three quarter notes to 8:4; the fourth step would
+    // land on the terminal's whole note 8. The last bar before the terminal is a cut, never a
+    // short reign, so the 2/4 standing a quarter note before the end is legal.
     MeterEditor ending;
-    ending.set(7, "2/4");
-    ending.pressAlt(ChartStepDirection::Right);
-    REQUIRE(ending.meters() == metersAt({{"1:1", 4, 4}, {"8:1", 2, 4}}));
+    ending.set(downbeat(8), "2/4");
+    ending.pressAlt(ChartStepDirection::Right, 3);
+    REQUIRE(ending.meters() == metersAt({{"1:1", 4, 4}, {"8:4", 2, 4}}));
     const common::core::SongTimeline stepped = ending.timeline();
     ending.pressAlt(ChartStepDirection::Right);
     CHECK(ending.timeline() == stepped);
@@ -280,7 +386,7 @@ TEST_CASE("A meter edit's undo and redo restore the whole song", "[core][meters]
     const common::core::SongTimeline original = editor.timeline();
     const int loaded_mirrors = editor.audio.mirror_tempo_map_call_count;
 
-    editor.set(3, "3/4");
+    editor.set(downbeat(3), "3/4");
     const common::core::SongTimeline edited = editor.timeline();
     REQUIRE_FALSE(edited == original);
     CHECK(editor.audio.mirror_tempo_map_call_count == loaded_mirrors + 1);
@@ -307,26 +413,26 @@ TEST_CASE("A meter edit's undo and redo restore the whole song", "[core][meters]
 
 // A landed meter verb asks the view to flash the measure numbers it renumbered (decision 5): from
 // the first measure whose downbeat moved. 2/4 from measure 5 shortens measure 5, so measure 6 is
-// the first renumbered; each step of a move, and the delete, renumber from the measure after the
-// shorter one. A refusal, a no-change and an undo flash nothing.
+// the first renumbered; each beat step of the move cuts measure 4 short, moving measure 5's
+// downbeat, and the delete moves it back. A refusal, a no-change and an undo flash nothing.
 TEST_CASE("A landed meter verb flashes the renumbered measures", "[core][meters]")
 {
     MeterEditor editor;
-    editor.set(5, "2/4");
+    editor.set(downbeat(5), "2/4");
     CHECK(editor.view.renumber_flashes == std::vector{6});
 
     editor.pressAlt(ChartStepDirection::Left, 2);
-    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 4});
+    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 5});
 
     editor.controller.onSelectionDeleteRequested();
-    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 4, 4});
+    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 5, 5});
 
-    editor.set(4, "x/8");
-    editor.set(4, "4/4");
+    editor.set(downbeat(4), "x/8");
+    editor.set(downbeat(4), "4/4");
     editor.controller.onTimeSignatureSelected(1);
     editor.controller.onSelectionDeleteRequested();
     editor.controller.onUndoRequested();
-    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 4, 4});
+    CHECK(editor.view.renumber_flashes == std::vector{6, 5, 5, 5});
 }
 
 // A restate that keeps every measure's length moves no downbeat, so it lands and renumbers nothing:
@@ -334,10 +440,10 @@ TEST_CASE("A landed meter verb flashes the renumbered measures", "[core][meters]
 TEST_CASE("A meter restate that moves no downbeat flashes nothing", "[core][meters]")
 {
     MeterEditor editor;
-    editor.set(3, "3/4");
+    editor.set(downbeat(3), "3/4");
     REQUIRE(editor.view.renumber_flashes == std::vector{4});
 
-    editor.set(3, "6/8");
+    editor.set(downbeat(3), "6/8");
     CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}));
     CHECK(editor.undoTopLabel() == "Set Time Signature");
     CHECK(editor.view.renumber_flashes == std::vector{4});
@@ -350,7 +456,7 @@ TEST_CASE("A meter edit moves no resolved time in either arrangement", "[core][m
     MeterEditor editor;
     const std::vector<double> before = resolvedTimes(editor.controller.session().song());
 
-    editor.set(3, "3/4");
+    editor.set(downbeat(3), "3/4");
     const common::core::Song& song = editor.controller.session().song();
     const std::vector<double> after = resolvedTimes(song);
     REQUIRE(after.size() == before.size());
@@ -386,7 +492,7 @@ TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][
     const int publishes = editor.view.set_state_call_count;
     const std::uint64_t moves = editor.state().keyboard_move_count;
 
-    editor.set(3, "3/4");
+    editor.set(downbeat(3), "3/4");
     CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
     CHECK(editor.transport.seek_call_count == seeks);
     CHECK_THAT(editor.transport.position().seconds, WithinULP(10.0, 0));
@@ -402,7 +508,7 @@ TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][
 
     // The passive cursor between beats keeps its time just the same.
     editor.seek(13.25);
-    editor.set(8, "6/8");
+    editor.set(downbeat(8), "6/8");
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(13.25, 1e-9));
 }
 

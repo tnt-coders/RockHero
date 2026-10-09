@@ -1554,6 +1554,12 @@ void EditorView::flashTempoAnchorRefusal(const common::core::GridPosition positi
     m_track_viewport->flashTempoAnchorRefusal(position);
 }
 
+// A refused time-signature verb flashes on the ruler, the surface that draws signature chips.
+void EditorView::flashTimeSignatureRefusal(const int measure)
+{
+    m_track_viewport->flashTimeSignatureRefusal(measure);
+}
+
 // A landed meter edit flashes on the ruler, the surface that draws the measure numbers.
 void EditorView::flashRenumberedMeasures(const int from_measure)
 {
@@ -3884,7 +3890,7 @@ void EditorView::setTimeSignature(const core::SetTimeSignatureTarget& target)
 {
     promptTimeSignature(
         core::markerVerbLabel(core::MarkerVerb::SetTimeSignature),
-        target.measure,
+        target.position,
         target.meter_text);
 }
 
@@ -3894,14 +3900,16 @@ void EditorView::addTimeSignature(const core::InsertTimeSignatureTarget& target)
 {
     promptTimeSignature(
         core::markerVerbLabel(core::MarkerVerb::AddTimeSignature),
-        target.measure,
+        target.position,
         target.meter_text);
 }
 
 // One text field, opened on the meter the core published with the verb, so "7/8" is typed whole.
-// The text goes back raw with the measure the verb named: the core parses it and refuses bad text.
+// The text goes back raw with the position the verb named: the core parses it and refuses bad
+// text.
 void EditorView::promptTimeSignature(
-    const juce::String& title, const int measure, const std::string& meter_text)
+    const juce::String& title, const common::core::GridPosition position,
+    const std::string& meter_text)
 {
     showThemedTextPrompt(
         this,
@@ -3909,8 +3917,8 @@ void EditorView::promptTimeSignature(
         "Time signature (e.g. 7/8)",
         juce::String{meter_text},
         "Set",
-        [this, measure](const juce::String& text) {
-            m_controller.onTimeSignatureSetRequested(measure, text.toStdString());
+        [this, position](const juce::String& text) {
+            m_controller.onTimeSignatureSetRequested(position, text.toStdString());
         });
 }
 
@@ -3971,7 +3979,7 @@ void EditorView::onTempoAnchorInsertRequested(const common::core::GridPosition p
     m_controller.onTempoAnchorInsertRequested(position);
 }
 
-// The ruler menu's meter insert, the one the core's meter rule names at the measure the menu was
+// The ruler menu's meter insert, the one the core's meter rule names at the beat the menu was
 // opened over, so it opens exactly as the meter chord's insert does.
 void EditorView::onTimeSignatureInsertPromptRequested(const core::InsertTimeSignatureTarget& target)
 {

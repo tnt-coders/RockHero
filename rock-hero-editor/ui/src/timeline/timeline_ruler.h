@@ -195,13 +195,13 @@ public:
 
         /*!
         \brief Called when the signature row's menu asks to add a time signature at the clicked
-        measure.
+        beat.
 
         The listener owns the prompt: a time signature needs its meter typed, and the ruler must
         not raise one.
 
         \param target The insert the core's meter rule (\ref core::timeSignatureTargetAt) names
-        at the measure the menu was opened over; the menu offers the row only where it names one.
+        at the beat the menu was opened over; the menu offers the row only where it names one.
         */
         virtual void onTimeSignatureInsertPromptRequested(
             const core::InsertTimeSignatureTarget& target) = 0;
@@ -398,6 +398,17 @@ public:
     void flashTempoAnchorRefusal(common::core::GridPosition position);
 
     /*!
+    \brief Flashes the time-signature chip whose verb was refused: it glows red a couple of times,
+    then the row stands as it was.
+
+    Joins a running flash as \ref flashTempoAnchorRefusal does. The chip is found by its reign's
+    first measure at paint time, so a chip out of view draws no glow.
+
+    \param measure First measure of the refused chip's reign.
+    */
+    void flashTimeSignatureRefusal(int measure);
+
+    /*!
     \brief Flashes the measure numbers a time-signature edit renumbered: every number from a
     measure on lights in the accent once and fades back.
 
@@ -568,9 +579,9 @@ private:
 
     // Rebuilds the three chip rows: a section chip per section start, a metronome marking
     // (a quarter-note glyph taller than the chip-face digits beside it) for the span each
-    // non-terminal anchor starts, and a signature chip at each signature-change downbeat. The
-    // caller passes the view-left time when pinning is active (empty otherwise) so every pinned
-    // row shares one gate.
+    // non-terminal anchor starts, and a signature chip at each reign start, the derived short
+    // bar's included. The caller passes the view-left time when pinning is active (empty
+    // otherwise) so every pinned row shares one gate.
     void refreshChipRows(std::optional<double> pinned_left_seconds);
 
     // Places one chip row over a row's markers, ascending by start: the pinned active marker at
@@ -599,10 +610,21 @@ private:
     // blend and the rest in the plain ruler ink.
     void drawMeasureLabels(juce::Graphics& g);
 
-    // Draws one chip's rounded fill, outlined when it stands for the selected marker, and leaves
-    // the label color set; returns the chip's bounds for the label drawn into it.
-    [[nodiscard]] juce::Rectangle<float> drawChipFrame(
-        juce::Graphics& g, const RulerChip& chip, int row_y, juce::Colour fill) const;
+    // A placed chip's bounds on its row.
+    [[nodiscard]] juce::Rectangle<float> chipBounds(const RulerChip& chip, int row_y) const;
+
+    // Draws one chip's rounded fill and leaves the label color set, so the label can be drawn into
+    // the same bounds.
+    static void drawChipFill(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour fill);
+
+    // Outlines a chip that stands for the selected marker, drawn after the chip's face so a
+    // ghost's ring is as solid as any other.
+    static void drawChipSelectionRing(
+        juce::Graphics& g, const RulerChip& chip, juce::Rectangle<float> bounds);
+
+    // Draws the refusal glow spreading from a chip's outline at a running flash's level.
+    static void drawChipRefusalGlow(
+        juce::Graphics& g, juce::Rectangle<float> bounds, float refusal_level);
 
     // Draws one cached chip row with its labels centered.
     void drawChipRow(
@@ -612,8 +634,13 @@ private:
     // flash runs.
     void drawTempoChips(juce::Graphics& g);
 
-    // Retires the tempo refusal flash and the renumber flash once their pulses have run, and
-    // repaints what each lights while it runs.
+    // Draws the signature chip row: an authored change solid, the derived short bar as a ghost
+    // at the tab lane's ghost weight, and the refusal glow around a refused chip while its flash
+    // runs.
+    void drawSignatureChips(juce::Graphics& g);
+
+    // Retires the refusal flashes and the renumber flash once their pulses have run, and repaints
+    // what each lights while it runs.
     void stepFlashes();
 
     // Whether a point lies in a chip row's band, where its chips are drawn.
@@ -656,7 +683,7 @@ private:
     void showSignatureContextMenu(const RulerChip* chip, juce::Point<float> click);
 
     // The insert the signature menu's "Add Time Signature" opens for a right-click at a point: the
-    // core's meter rule read at the measure the click is in, when that rule names an insert; empty
+    // core's meter rule read at the beat the click is in, when that rule names an insert; empty
     // otherwise, or when the geometry cannot map the click.
     [[nodiscard]] std::optional<core::InsertTimeSignatureTarget> signatureInsertTargetAt(
         juce::Point<float> click) const;
@@ -680,6 +707,10 @@ private:
 
     // Tempo map used for ruler measure ticks and anchor positions.
     common::core::TempoMap m_tempo_map{};
+
+    // The map's reign table, the signature row's markers: derived once per pushed map, since the
+    // row rebuilds on every geometry refresh and a click reads the chip's reign back.
+    std::vector<common::core::MeterReign> m_reigns{};
 
     // Note value ruler clicks quantize onto, initialized to the editor's default grid because the
     // Fraction default of 0/1 is a degenerate step.
@@ -764,6 +795,10 @@ private:
     // The tempo refusal flash while it runs: every refused anchor it has joined, named by position
     // because a chip row rebuild reassigns chips, and its pulse.
     std::optional<PulsedFlash<std::vector<common::core::GridPosition>>> m_tempo_refusal{};
+
+    // The signature refusal flash while it runs: every refused reign it has joined, named by first
+    // measure for the same reason, and its pulse.
+    std::optional<PulsedFlash<std::vector<int>>> m_signature_refusal{};
 
     // The renumber flash while it runs: the first renumbered measure, the first whose number
     // lights, and its pulse.

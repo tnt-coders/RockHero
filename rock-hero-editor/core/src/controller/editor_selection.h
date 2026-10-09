@@ -53,12 +53,13 @@ struct TempoAnchorSelection
         default;
 };
 
-// A formally selected time-signature chip on the ruler: the change it marks, identified by the
-// measure it starts, since a signature changes only on a downbeat. Enter retypes its meter, Delete
-// removes it and Alt+arrows move it a measure, each re-addressing the whole song.
+// A formally selected time-signature chip on the ruler: the reign it marks, authored or the derived
+// short bar, identified by its first measure, since a reign starts on a downbeat. Enter types its
+// meter (authoring a derived one), Delete removes a stored change and Alt+arrows move it a beat,
+// each re-addressing the whole song; Delete and the move refuse a derived start.
 struct TimeSignatureSelection
 {
-    // Measure the signature change starts.
+    // First measure of the reign.
     int measure{1};
 
     friend bool operator==(const TimeSignatureSelection& lhs, const TimeSignatureSelection& rhs) =

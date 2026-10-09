@@ -897,17 +897,18 @@ struct EditorAction
     };
 
     /*!
-    \brief Put a meter at a measure's downbeat: restate the time signature standing there,
-    else insert one.
+    \brief Put a meter at a position: restate the time signature stored there, author the
+    derived short bar starting there, else insert one at that beat.
 
-    One verb for both, because both put a meter at a downbeat; the prompt that typed it was
-    opened on a measure the core published, so the verb never re-reads the cursor. Every
-    object keeps its time and the measures after the change renumber (plan 65).
+    One verb for all three, because each puts a meter at a place; the prompt that typed it was
+    opened on a position the core published, so the verb never re-reads the cursor. Every
+    object keeps its time and the measures after the change renumber; a meter put mid-measure
+    cuts the measure short, and the cut becomes the derived short bar.
     */
     struct SetTimeSignature
     {
-        /*! \brief Measure whose downbeat the meter starts, in the numbering before the edit. */
-        int measure{1};
+        /*! \brief Where the meter starts, addressed under the grid before the edit. */
+        common::core::GridPosition position{};
 
         /*! \brief The meter typed; one the tempo-map rules refuse refuses the edit. */
         common::core::TimeSignature meter{};

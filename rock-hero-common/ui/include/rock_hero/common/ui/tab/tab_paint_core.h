@@ -241,6 +241,55 @@ because the renderer snaps a line to a whole row and can spread the ink across i
 inline const juce::Colour g_chip_label_color{0xffffffff};
 
 /*!
+\brief The weight a 2D ghost keeps: a ghost note, and a chip standing for something DERIVED rather
+than stored (a derived fret-hand position, a derived short bar), is drawn whole and then composited
+at this opacity, so its colors stay its own and it reads as half light.
+*/
+inline constexpr float g_ghost_opacity{0.5f};
+
+/*!
+\brief Opens a JUCE transparency layer over a group's bounds and closes it after every nested
+graphics state has unwound.
+
+JUCE has no RAII form, while ending a layer before an inner `ScopedSaveState` is destroyed
+silently corrupts the composite. The saved outer state also normalizes Direct2D, which does not
+restore the graphics state on `endTransparencyLayer` as JUCE's API contract specifies.
+*/
+class ScopedTransparencyLayer
+{
+public:
+    /*!
+    \brief Clips to the group's bounds and begins the layer.
+    \param graphics Graphics context the group draws into.
+    \param group_bounds Bounds the group's ink stays within.
+    \param opacity Opacity the finished group composites at.
+    */
+    ScopedTransparencyLayer(
+        juce::Graphics& graphics, const juce::Rectangle<int> group_bounds, const float opacity)
+        : m_graphics(graphics)
+        , m_state(graphics)
+    {
+        m_graphics.reduceClipRegion(group_bounds);
+        m_graphics.beginTransparencyLayer(opacity);
+    }
+
+    ScopedTransparencyLayer(const ScopedTransparencyLayer&) = delete;
+    ScopedTransparencyLayer(ScopedTransparencyLayer&&) = delete;
+    ScopedTransparencyLayer& operator=(const ScopedTransparencyLayer&) = delete;
+    ScopedTransparencyLayer& operator=(ScopedTransparencyLayer&&) = delete;
+
+    /*! \brief Ends the layer; the saved outer state is restored after it closes. */
+    ~ScopedTransparencyLayer()
+    {
+        m_graphics.endTransparencyLayer();
+    }
+
+private:
+    juce::Graphics& m_graphics;
+    juce::Graphics::ScopedSaveState m_state;
+};
+
+/*!
 \brief Lane geometry plus the JUCE-only facts one paint call needs.
 
 Extends the framework-free TabLaneGeometry (which layout-manifest consumers share) with the

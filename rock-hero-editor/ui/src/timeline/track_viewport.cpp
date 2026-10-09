@@ -472,6 +472,12 @@ void TrackViewport::flashTempoAnchorRefusal(const common::core::GridPosition pos
     m_timeline_ruler.flashTempoAnchorRefusal(position);
 }
 
+// Forwards a refused time-signature verb to the ruler, which draws the chip that flashes.
+void TrackViewport::flashTimeSignatureRefusal(const int measure)
+{
+    m_timeline_ruler.flashTimeSignatureRefusal(measure);
+}
+
 // Forwards a landed time-signature edit to the ruler, which draws the measure numbers.
 void TrackViewport::flashRenumberedMeasures(const int from_measure)
 {

@@ -661,7 +661,7 @@ TEST_CASE(
     REQUIRE(curve_seconds() == Catch::Approx(2.25));
     const int seeded_writes = editor.tone_automation.write_call_count;
 
-    editor.controller.onTimeSignatureSetRequested(1, "8/8");
+    editor.controller.onTimeSignatureSetRequested(beatAt(1, 1), "8/8");
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.model().front().points.size() == 1);
     CHECK(editor.model().front().points.front().position == pointAt(2, 2));

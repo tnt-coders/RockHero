@@ -9,6 +9,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
@@ -224,6 +225,47 @@ void showMeterChangeMap(TimelineRuler& ruler)
         core::visibleTempoGridLines(
             tempo_map, grid_note_value, window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
+}
+
+// Builds 60 BPM measures whose 3/4 begins on beat 3 of measure 2 as the 4/4 counted it: measure 2
+// is a derived 2/4 (4 s to 6 s), the 3/4 governs from measure 3 (6 s), and the terminal stands on
+// 4:1 (9 s).
+[[nodiscard]] common::core::TempoMap makeShortBarTempoMap()
+{
+    return common::core::TempoMap{
+        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:3", 3, 4}}),
+        std::vector{anchor("1:1", 0), anchor("4:1", 9000)},
+    };
+}
+
+// Lays a ruler over the short-bar map across 401 px, 40 px per second: the signature chips stand
+// at x = 0 (4/4), x = 160 (the derived 2/4) and x = 240 (3/4).
+void showShortBarMap(TimelineRuler& ruler)
+{
+    constexpr common::core::TimeRange window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{10.0},
+    };
+    const common::core::TempoMap tempo_map = makeShortBarTempoMap();
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+}
+
+// Whether every channel of a pixel lies within `tolerance` of a colour's: how a pixel a translucent
+// layer composited is matched, since the renderer's 8-bit blend may land a step off the exact
+// blend.
+[[nodiscard]] bool nearColour(
+    const juce::Colour pixel, const juce::Colour expected, const int tolerance)
+{
+    return std::abs(int{pixel.getRed()} - int{expected.getRed()}) <= tolerance &&
+           std::abs(int{pixel.getGreen()} - int{expected.getGreen()}) <= tolerance &&
+           std::abs(int{pixel.getBlue()} - int{expected.getBlue()}) <= tolerance;
 }
 
 // The rows of a plain popup menu in order: each row's text and whether it is enabled.
@@ -854,9 +896,49 @@ TEST_CASE("TimelineRuler fills a tempo chip's height with its quarter note", "[u
     CHECK(glyph_ink_in_row(chip_bottom) == 0);
 }
 
-// The signature menu offers the rows that apply where it opens: Add on a measure whose downbeat
-// carries no time signature, Set and Delete over a chip. Every row is disabled while the marker
-// plane is closed, and building the menu selects nothing.
+// The signature row draws every reign start: an authored change as a solid chip, the derived short
+// bar as a ghost — the same chip at the tab lane's ghost weight, its fill composited over the
+// header at half opacity — printing the derived meter. The probes sit in each chip's left margin
+// at the row's mid-height, clear of the centred glyphs and the rounded corners.
+TEST_CASE("TimelineRuler draws a derived short bar as a ghost chip", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TimelineRuler ruler;
+    showShortBarMap(ruler);
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+    CHECK(image.getPixelAt(2, 35) == editorTheme().signature_chip);
+    CHECK(image.getPixelAt(242, 35) == editorTheme().signature_chip);
+    const juce::Colour ghost =
+        editorTheme().window_background.interpolatedWith(editorTheme().signature_chip, 0.5f);
+    const juce::Colour probed = image.getPixelAt(162, 35);
+    INFO(probed.toDisplayString(true));
+    CHECK(nearColour(probed, ghost, 3));
+    // The ghost prints its label, so the chip holds ink darker or lighter than its fill.
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{160, 30, 30, 11}, probed) > 0);
+}
+
+// A click on the ghost chip selects the derived reign by its first measure, as a click on an
+// authored chip does.
+TEST_CASE("TimelineRuler ghost chip reports its first measure", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TimelineRuler ruler;
+    RecordingRulerListener listener;
+    showShortBarMap(ruler);
+    ruler.setListener(listener);
+    ruler.setMarkerEditsEnabled(true);
+
+    ruler.mouseDown(makeMouseDownEvent(ruler, 164.0f, 35.0f));
+    CHECK(listener.last_selected_signature_measure == std::optional{2});
+    ruler.mouseDown(makeMouseDownEvent(ruler, 244.0f, 35.0f));
+    CHECK(listener.last_selected_signature_measure == std::optional{3});
+}
+
+// The signature menu offers the rows that apply where it opens: Add on a beat where no reign
+// starts — a beat inside a measure whose downbeat carries a chip included — and Set and Delete
+// over a chip. Every row is disabled while the marker plane is closed, and building the menu
+// selects nothing.
 TEST_CASE("TimelineRuler signature menu offers the rows that apply", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -874,6 +956,10 @@ TEST_CASE("TimelineRuler signature menu offers the rows that apply", "[ui][timel
     // Inside measure 3 (7.5 s), off every chip: only the insert.
     CHECK(
         menuRows(ruler.signatureMenuAt({300.0f, 35.0f})) == Rows{{"Add Time Signature...", true}});
+    // Beat 2 of measure 2 (5 s): the measure's downbeat carries the 3/4, the beat carries nothing,
+    // so the menu inserts at the beat.
+    CHECK(
+        menuRows(ruler.signatureMenuAt({200.0f, 35.0f})) == Rows{{"Add Time Signature...", true}});
     CHECK_FALSE(listener.last_selected_signature_measure.has_value());
 
     ruler.setMarkerEditsEnabled(false);

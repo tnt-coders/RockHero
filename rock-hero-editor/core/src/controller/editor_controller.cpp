@@ -1049,9 +1049,10 @@ void EditorController::onTempoSpanBpmRequested(
     m_impl->onTempoSpanBpmRequested(position, text);
 }
 
-void EditorController::onTimeSignatureSetRequested(const int measure, std::string text)
+void EditorController::onTimeSignatureSetRequested(
+    const common::core::GridPosition position, std::string text)
 {
-    m_impl->onTimeSignatureSetRequested(measure, text);
+    m_impl->onTimeSignatureSetRequested(position, text);
 }
 
 void EditorController::onScaleTempoRequested(std::string text)

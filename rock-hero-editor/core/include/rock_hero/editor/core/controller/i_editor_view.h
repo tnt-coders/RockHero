@@ -117,6 +117,19 @@ public:
     virtual void flashTempoAnchorRefusal(common::core::GridPosition position) = 0;
 
     /*!
+    \brief Asks the view to flash a time-signature chip whose verb was refused: the chip glows red
+    a couple of times and stays as it was.
+
+    The same one-shot refusal flash as \ref flashTempoAnchorRefusal, on the ruler surface that
+    draws the signature row. Asked for a Delete or a move of the derived short bar, which stores
+    nothing to delete or move, and for a refused step of an authored meter. Why the verb was
+    refused goes to the log, never to the view. With no view attached the flash is dropped.
+
+    \param measure First measure of the refused chip's reign, which names the chip.
+    */
+    virtual void flashTimeSignatureRefusal(int measure) = 0;
+
+    /*!
     \brief Asks the view to flash the measure numbers a landed time-signature edit renumbered:
     every number from the first renumbered measure on lights in the accent once and fades back.
 

@@ -387,6 +387,12 @@ public:
     void flashTempoAnchorRefusal(common::core::GridPosition position);
 
     /*!
+    \brief Forwards a refused time-signature verb to the pinned ruler, which flashes its chip.
+    \param measure First measure of the refused chip's reign.
+    */
+    void flashTimeSignatureRefusal(int measure);
+
+    /*!
     \brief Forwards a landed time-signature edit to the pinned ruler, which flashes the measure
     numbers it renumbered.
     \param from_measure The first renumbered measure, the first whose number lights.

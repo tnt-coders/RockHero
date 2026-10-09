@@ -462,9 +462,10 @@ public:
     }
 
     /*! \copydoc IEditorController::onTimeSignatureSetRequested */
-    void onTimeSignatureSetRequested(int measure, std::string text) override
+    void onTimeSignatureSetRequested(
+        const common::core::GridPosition position, std::string text) override
     {
-        last_time_signature_set_measure = measure;
+        last_time_signature_set_position = position;
         last_time_signature_set_text = std::move(text);
     }
 
@@ -1022,8 +1023,8 @@ public:
     /*! \brief Last tempo text reported through onTempoSpanBpmRequested(). */
     std::string last_tempo_span_bpm_text{};
 
-    /*! \brief Last measure reported through onTimeSignatureSetRequested(). */
-    std::optional<int> last_time_signature_set_measure{};
+    /*! \brief Last position reported through onTimeSignatureSetRequested(). */
+    std::optional<common::core::GridPosition> last_time_signature_set_position{};
 
     /*! \brief Last meter text reported through onTimeSignatureSetRequested(). */
     std::string last_time_signature_set_text{};

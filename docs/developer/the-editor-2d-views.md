@@ -132,20 +132,29 @@ the kept-sustain floor, a head margin) is off by the drag's tempo ratio until th
 re-derives it. Nothing is committed, resynced or re-projected per event, and the transport does
 not move, so the keep-the-measure-in-view scroll stays put. The ruler reports every release of a chip
 press (`TimelineRuler::Listener::onTempoAnchorDragReleased`), and the core, which alone knows
-whether the drag held a time, commits there once: the commit one `Alt+←/→` press makes. The time-signature chip
-carries the meter
-verbs (plan 65): `Enter` and a double-click open the meter prompt ("Set Time Signature", one field
-typed as "7/8") through the core's published restate verb, `Delete` removes the change, `Alt+←/→`
-moves it one measure, and a right-click on the signature row opens the rows that apply there — Add
-Time Signature on a measure whose downbeat carries none (`TimelineRuler::signatureMenuAt`), Set
-Time Signature... and Delete Time Signature over a chip — disabled while the marker plane is
-closed, like the section and tempo menus. A landed meter edit keeps every object's time and
-renumbers the measures after it, so the core asks the ruler to light the measure numbers once,
-from the first measure whose downbeat moved (`firstRenumberedMeasure` in `meter_edits.h`;
-`IEditorView::flashRenumberedMeasures`, drawn by `TimelineRuler::flashRenumberedMeasures`). A
-restate that moves no downbeat (4/4 to 8/8) and an undo do not flash. What a meter verb does at a
-measure — restate, insert or nothing — is one core rule, `timeSignatureTargetAt`, read by both
-`Ctrl+/` and the signature menu's Add row. The walk is not the only
+whether the drag held a time, commits there once: the commit one `Alt+←/→` press makes. The
+signature row draws a chip at every reign start of the map's reign table (`TempoMap::reigns`,
+cached by `TimelineRuler::setGrid`): an authored change solid, the derived short bar — the
+remainder a meter leaves before the next one — as a GHOST printing its derived meter ("2/4"), the
+tab lane's derived fret-hand chip treatment (`common::ui::g_ghost_opacity` through
+`common::ui::ScopedTransparencyLayer`, both in `tab_paint_core.h`), so the charter sees which
+meters the song stores. The time-signature chip carries the meter verbs: `Enter` and a
+double-click open the meter prompt ("Set Time Signature", one field typed as "7/8") through the
+core's published restate verb — on the ghost chip the typed meter AUTHORS the short bar, a stored
+change at its place — `Delete` removes the change, `Alt+←/→` moves it one beat of the meter before
+it, and a right-click on the signature row opens the rows that apply there — Add Time Signature
+on a beat where no reign starts (`TimelineRuler::signatureMenuAt`), Set Time Signature... and
+Delete Time Signature over a chip — disabled while the marker plane is closed, like the section
+and tempo menus. `Delete` and `Alt+←/→` on the ghost chip refuse, as they do on a derived
+fret-hand position, and every refused meter verb glows the chip red
+(`IEditorView::flashTimeSignatureRefusal`, drawn by `TimelineRuler::flashTimeSignatureRefusal`).
+A landed meter edit keeps every object's time and renumbers the measures after it, so the core
+asks the ruler to light the measure numbers once, from the first measure whose downbeat moved
+(`firstRenumberedMeasure` in `meter_edits.h`; `IEditorView::flashRenumberedMeasures`, drawn by
+`TimelineRuler::flashRenumberedMeasures`). A restate that moves no downbeat (4/4 to 8/8) and an
+undo do not flash. What a meter verb does at a beat — state the reign starting there, insert or
+nothing — is one core rule, `timeSignatureTargetAt`, read by both `Ctrl+/` (at the beat the cursor
+is in, `common::core::beatStart`) and the signature menu's Add row. The walk is not the only
 keyboard route onto a chip row: each kind's
 `Ctrl+Shift`+letter jump (`Ctrl+Shift+M`, `Ctrl+Shift+B`, `Ctrl+Shift+/`, built 2026-09-15) lands
 straight on that row through the walk's own landing, and is silent where the row holds nothing. A

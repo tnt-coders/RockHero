@@ -719,8 +719,8 @@ public:
     virtual void onTempoSpanBpmRequested(common::core::GridPosition position, std::string text) = 0;
 
     /*!
-    \brief Handles a typed meter for the downbeat of a measure: restate the time signature
-    standing there, else insert one.
+    \brief Handles a typed meter for a position: restate the time signature stored there, author
+    the derived short bar starting there, else insert one at that beat.
 
     The answer to the meter prompt, whichever published verb opened it (the time-signature chord's
     insert or restate, or Enter's restate). The text is parsed here, in the core, so the prompt
@@ -728,10 +728,12 @@ public:
     and logged, changing nothing. Every object keeps its time; the measures after the change
     renumber.
 
-    \param measure Measure whose downbeat the meter starts, as the published verb named it.
+    \param position Where the meter starts, as the published verb named it: a reign's first
+    downbeat to restate or author it, else the beat to insert at.
     \param text Meter as typed.
     */
-    virtual void onTimeSignatureSetRequested(int measure, std::string text) = 0;
+    virtual void onTimeSignatureSetRequested(
+        common::core::GridPosition position, std::string text) = 0;
 
     /*!
     \brief Handles a typed Scale Tempo factor: scale every grid address in the song by it, every

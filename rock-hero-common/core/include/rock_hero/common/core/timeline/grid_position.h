@@ -87,4 +87,18 @@ that snaps to one asks this rather than restating beat-1-no-offset.
     return measureDownbeat(position.measure);
 }
 
+/*!
+\brief The start of the beat a position falls in: the position with its sub-beat offset dropped.
+
+The beat twin of \ref measureDownbeat(GridPosition): what the meter verbs read, since a meter
+starts a bar and a bar is whole beats.
+
+\param position Any grid position inside the beat.
+\return That beat, with no sub-beat offset.
+*/
+[[nodiscard]] constexpr GridPosition beatStart(GridPosition position) noexcept
+{
+    return GridPosition{.measure = position.measure, .beat = position.beat, .offset = {}};
+}
+
 } // namespace rock_hero::common::core

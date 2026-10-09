@@ -296,7 +296,7 @@ TEST_CASE("Grid verbs under the Note Lock hold the lock's origin", "[core][tempo
     }
     SECTION("a meter edit")
     {
-        editor.controller.onTimeSignatureSetRequested(5, "3/4");
+        editor.controller.onTimeSignatureSetRequested(beatAt(5, 1), "3/4");
         CHECK(editor.tempoMap().timeSignatures().size() == 2);
     }
     editor.controller.onTempoSpanBpmRequested(g_typed_tempos[1].span, g_typed_tempos[1].bpm);

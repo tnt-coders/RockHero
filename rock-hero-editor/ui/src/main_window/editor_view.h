@@ -167,6 +167,9 @@ public:
     /*! \copydoc core::IEditorView::flashTempoAnchorRefusal */
     void flashTempoAnchorRefusal(common::core::GridPosition position) override;
 
+    /*! \copydoc core::IEditorView::flashTimeSignatureRefusal */
+    void flashTimeSignatureRefusal(int measure) override;
+
     /*! \copydoc core::IEditorView::flashRenumberedMeasures */
     void flashRenumberedMeasures(int from_measure) override;
 
@@ -529,15 +532,18 @@ private:
     // Opens the tempo prompt the core's published tempo verb names.
     void setTempo(const core::SetTempoTarget& target);
 
-    // Opens the meter prompt for the restate the core's published meter verb names.
+    // Opens the meter prompt for the restate (or the authoring of a derived short bar) the core's
+    // published meter verb names.
     void setTimeSignature(const core::SetTimeSignatureTarget& target);
 
     // Opens the meter prompt for the insert the core's published meter chord names.
     void addTimeSignature(const core::InsertTimeSignatureTarget& target);
 
-    // The one meter prompt behind both: a title, then the meter typed for a measure's downbeat,
-    // handed back raw for the core to parse.
-    void promptTimeSignature(const juce::String& title, int measure, const std::string& meter_text);
+    // The one meter prompt behind both: a title, then the meter typed for a position, handed back
+    // raw for the core to parse.
+    void promptTimeSignature(
+        const juce::String& title, common::core::GridPosition position,
+        const std::string& meter_text);
 
     // The Scale Tempo prompt: one factor typed for the whole song, handed back raw for the core to
     // parse. The ScaleTempo command opens it.

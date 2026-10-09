@@ -1,11 +1,12 @@
 /*!
 \file time_signature_target.h
-\brief The meter verbs a measure offers: restate the time signature standing on its downbeat,
-insert one there, or nothing.
+\brief The meter verbs a beat offers: restate or author the reign starting there, insert a time
+signature at that beat, or nothing.
 */
 
 #pragma once
 
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 #include <variant>
@@ -14,73 +15,77 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief The verb that restates the time signature standing at a measure: the meter prompt, opened
-on the meter the chip prints.
+\brief The verb that states the meter of the reign starting at a position: the meter prompt,
+opened on the meter the chip prints.
 
-Published as the time-signature chord's or the restate verb's answer
+On an authored change the typed meter restates it; on a derived short bar it AUTHORS it — a stored
+change is inserted at the bar's place — as a stating verb on a derived fret-hand position authors
+the position first. Published as the time-signature chord's or the restate verb's answer
 (\ref EditorViewState::time_signature_chord_target, \ref EditorViewState::restate_target); the
 prompt's typed text goes back through `IEditorController::onTimeSignatureSetRequested`.
 */
 struct SetTimeSignatureTarget
 {
-    /*! \brief Measure the time signature starts. */
-    int measure{1};
+    /*! \brief The reign's first downbeat. */
+    common::core::GridPosition position{};
 
     /*! \brief The meter as its chip prints it ("7/8"), the prompt's starting text. */
     std::string meter_text{};
 
     /*!
     \brief Compares two targets field by field.
-    \return True when both name the same time signature under the same printed meter.
+    \return True when both name the same reign under the same printed meter.
     */
     bool operator==(const SetTimeSignatureTarget&) const = default;
 };
 
 /*!
-\brief The verb that inserts a time signature at a measure downbeat found free and able to carry
-one: the meter prompt, opened on the meter governing that measure now.
+\brief The verb that inserts a time signature at a beat where no reign starts and a marker may
+stand: the meter prompt, opened on the meter governing that beat now.
 
 The typed text goes back through the same `IEditorController::onTimeSignatureSetRequested` the
-restate uses, since both put a meter at a measure's downbeat.
+restate uses, since both put a meter at a position.
 */
 struct InsertTimeSignatureTarget
 {
-    /*! \brief Measure whose downbeat the new time signature will start. */
-    int measure{1};
+    /*! \brief The beat the new time signature will start. */
+    common::core::GridPosition position{};
 
-    /*! \brief The meter governing that measure now, the prompt's starting text. */
+    /*! \brief The meter governing that beat now, the prompt's starting text. */
     std::string meter_text{};
 
     /*!
     \brief Compares two targets field by field.
-    \return True when both name the same measure under the same printed meter.
+    \return True when both name the same beat under the same printed meter.
     */
     bool operator==(const InsertTimeSignatureTarget&) const = default;
 };
 
 /*!
-\brief What a meter verb at a measure would do: restate the time signature standing on its
-downbeat, insert one there, or nothing.
+\brief What a meter verb at a beat would do: state the reign starting there, insert a time
+signature there, or nothing.
 
-The meter twin of `TempoChordTarget`. As `Ctrl+/`'s answer it is read at the measure the cursor
-is in, never from the selection, and it is nothing while the transport plays or with no song.
+The meter twin of `TempoChordTarget`. As `Ctrl+/`'s answer it is read at the beat the cursor is
+in, never from the selection, and it is nothing while the transport plays or with no song.
 */
 using TimeSignatureChordTarget =
     std::variant<std::monostate, SetTimeSignatureTarget, InsertTimeSignatureTarget>;
 
 /*!
-\brief The one rule for what a meter verb does at a measure, shared by `Ctrl+/` and the ruler's
+\brief The one rule for what a meter verb does at a beat, shared by `Ctrl+/` and the ruler's
 signature menu.
 
-The time signature governing the measure is read once: where it starts on this measure's downbeat
-it is restated, opened on its own meter; elsewhere one is inserted, opened on that governing meter,
-where a marker may start (not at the terminal anchor or past it); otherwise nothing.
+The reign governing the beat is read once: where it starts on this very beat — authored or
+derived — it is stated, opened on its own meter; elsewhere one is inserted at the beat, opened on
+that governing meter, where a marker may start (not at the terminal anchor or past it); otherwise
+nothing. A meter inserted mid-measure cuts the measure short, and the cut becomes the derived
+short bar.
 
-\param tempo_map Map the measure is read under.
-\param measure One-based measure.
-\return The restate, the insert, or nothing.
+\param tempo_map Map the beat is read under.
+\param beat The beat, with no sub-beat offset (\ref common::core::beatStart).
+\return The restate-or-author, the insert, or nothing.
 */
 [[nodiscard]] TimeSignatureChordTarget timeSignatureTargetAt(
-    const common::core::TempoMap& tempo_map, int measure);
+    const common::core::TempoMap& tempo_map, common::core::GridPosition beat);
 
 } // namespace rock_hero::editor::core

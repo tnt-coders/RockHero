@@ -2116,7 +2116,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     }
     if (const auto* const signature = std::get_if<TimeSignatureSelection>(&m_selection))
     {
-        // One measure per press: a meter starts on a downbeat and nowhere else.
+        // One beat of the meter before it per press: a meter starts a bar, and a bar is whole
+        // beats.
         const TimeSignatureSelection selected = *signature;
         moveSelectedTimeSignature(selected, direction);
         return;

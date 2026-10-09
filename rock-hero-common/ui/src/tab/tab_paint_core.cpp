@@ -218,48 +218,15 @@ enum class Ink : std::uint8_t
     Count
 };
 
-// A 2D ghost keeps the normal note's colors. Its finished note art is flattened before this weight
-// is applied, so the head covers its own tail. Fret plates then land at a middle weight while their
-// glyphs remain opaque.
-constexpr float g_ghost_opacity{0.5f};
+// A 2D ghost keeps the normal note's colors. Its finished note art is flattened before the ghost
+// weight (g_ghost_opacity) is applied, so the head covers its own tail. Fret plates then land at a
+// middle weight while their glyphs remain opaque.
 constexpr float g_ghost_fret_plate_opacity{0.75f};
 
 // A note stepped back behind the ring the charter is editing (TabNotePresence::recede), whole:
 // head, digit, tail and chips. Well under a ghost's weight, so it reads as background, not as a
 // quiet note.
 constexpr float g_receded_opacity{0.2f};
-
-// Opens a JUCE transparency layer and closes it after every nested graphics state has unwound.
-// JUCE has no RAII form, while ending a layer before an inner ScopedSaveState is destroyed silently
-// corrupts the composite. The saved outer state also normalizes Direct2D, which does not restore
-// the graphics state on endTransparencyLayer as JUCE's API contract specifies.
-class ScopedTransparencyLayer
-{
-public:
-    ScopedTransparencyLayer(
-        juce::Graphics& graphics, const juce::Rectangle<int> group_bounds, const float opacity)
-        : m_graphics(graphics)
-        , m_state(graphics)
-    {
-        m_graphics.reduceClipRegion(group_bounds);
-        m_graphics.beginTransparencyLayer(opacity);
-    }
-
-    ScopedTransparencyLayer(const ScopedTransparencyLayer&) = delete;
-    ScopedTransparencyLayer(ScopedTransparencyLayer&&) = delete;
-    ScopedTransparencyLayer& operator=(const ScopedTransparencyLayer&) = delete;
-    ScopedTransparencyLayer& operator=(ScopedTransparencyLayer&&) = delete;
-
-    ~ScopedTransparencyLayer()
-    {
-        m_graphics.endTransparencyLayer();
-    }
-
-private:
-    juce::Graphics& m_graphics;
-    // Restores the saved outer state after the destructor body closes the layer.
-    juce::Graphics::ScopedSaveState m_state;
-};
 
 // Bridges the shared Charter-exact style derivation to JUCE colors at this module's boundary;
 // the per-string entries match common::ui::StringLaneStyle one for one.

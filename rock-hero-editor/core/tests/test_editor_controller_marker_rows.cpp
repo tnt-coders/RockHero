@@ -920,7 +920,7 @@ TEST_CASE(
     const RestateTarget& meter_restate = editor.state().restate_target;
     const auto* const restate_meter = std::get_if<SetTimeSignatureTarget>(&meter_restate);
     REQUIRE(restate_meter != nullptr);
-    CHECK(*restate_meter == SetTimeSignatureTarget{.measure = 5, .meter_text = "3/4"});
+    CHECK(*restate_meter == SetTimeSignatureTarget{.position = downbeat(5), .meter_text = "3/4"});
     CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
 }
 

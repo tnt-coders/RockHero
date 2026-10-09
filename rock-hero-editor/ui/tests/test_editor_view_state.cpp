@@ -125,7 +125,7 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
     CHECK(controller.last_renamed_song_section_name.empty());
     CHECK(controller.last_renamed_tone_document_ref.empty());
     CHECK_FALSE(controller.last_inserted_tempo_anchor_position.has_value());
-    CHECK_FALSE(controller.last_time_signature_set_measure.has_value());
+    CHECK_FALSE(controller.last_time_signature_set_position.has_value());
     CHECK(juce::TopLevelWindow::getNumTopLevelWindows() == windows_before);
 }
 
@@ -215,8 +215,9 @@ TEST_CASE(
 
     core::EditorViewState state{};
     state.project_loaded = true;
+    constexpr common::core::GridPosition beat{.measure = 5, .beat = 3};
     state.time_signature_chord_target =
-        core::InsertTimeSignatureTarget{.measure = 5, .meter_text = "4/4"};
+        core::InsertTimeSignatureTarget{.position = beat, .meter_text = "4/4"};
     view.setState(state);
 
     acceptPrompt(
@@ -224,7 +225,7 @@ TEST_CASE(
         EditorCommandId::InsertTimeSignature,
         ShownPrompt{.title = "Add Time Signature", .text = "4/4"},
         "7/8");
-    CHECK(controller.last_time_signature_set_measure == std::optional{5});
+    CHECK(controller.last_time_signature_set_position == std::optional{beat});
     CHECK(controller.last_time_signature_set_text == "7/8");
 }
 
@@ -241,8 +242,9 @@ TEST_CASE(
 
     core::EditorViewState state{};
     state.project_loaded = true;
+    constexpr common::core::GridPosition start{.measure = 3, .beat = 1};
     state.time_signature_chord_target =
-        core::SetTimeSignatureTarget{.measure = 3, .meter_text = "3/4"};
+        core::SetTimeSignatureTarget{.position = start, .meter_text = "3/4"};
     view.setState(state);
 
     acceptPrompt(
@@ -250,7 +252,7 @@ TEST_CASE(
         EditorCommandId::InsertTimeSignature,
         ShownPrompt{.title = "Set Time Signature", .text = "3/4"},
         "6/8");
-    CHECK(controller.last_time_signature_set_measure == std::optional{3});
+    CHECK(controller.last_time_signature_set_position == std::optional{start});
     CHECK(controller.last_time_signature_set_text == "6/8");
 }
 
@@ -266,7 +268,8 @@ TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][e
 
     core::EditorViewState state{};
     state.project_loaded = true;
-    state.restate_target = core::SetTimeSignatureTarget{.measure = 7, .meter_text = "5/4"};
+    constexpr common::core::GridPosition start{.measure = 7, .beat = 1};
+    state.restate_target = core::SetTimeSignatureTarget{.position = start, .meter_text = "5/4"};
     view.setState(state);
 
     acceptPrompt(
@@ -274,7 +277,7 @@ TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][e
         EditorCommandId::RestateSelection,
         ShownPrompt{.title = "Set Time Signature", .text = "5/4"},
         " 7 / 8 ");
-    CHECK(controller.last_time_signature_set_measure == std::optional{7});
+    CHECK(controller.last_time_signature_set_position == std::optional{start});
     CHECK(controller.last_time_signature_set_text == " 7 / 8 ");
 }
 

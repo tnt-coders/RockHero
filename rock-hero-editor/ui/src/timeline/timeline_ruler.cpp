@@ -306,6 +306,7 @@ void TimelineRuler::setGrid(
     }
 
     m_tempo_map = tempo_map;
+    m_reigns = tempo_map.reigns();
     m_placement_quantum = placement_quantum;
 }
 
@@ -357,7 +358,7 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     drawChipRow(g, m_section_row.chips, editorTheme().section_chip, g_section_row_y);
     drawTempoChips(g);
-    drawChipRow(g, m_signature_row.chips, editorTheme().signature_chip, g_signature_row_y);
+    drawSignatureChips(g);
 
     drawCursor(g);
 }
@@ -471,10 +472,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         }
         if (const RulerChip* const chip = chipAt(m_signature_row.chips, g_signature_row_y, point))
         {
-            m_listener->onTimeSignatureSelected(
-                m_tempo_map
-                    .gridPositionAtWholeNote(m_tempo_map.timeSignatures()[chip->source_index].place)
-                    .measure);
+            m_listener->onTimeSignatureSelected(m_reigns[chip->source_index].first_measure);
             return;
         }
     }
@@ -742,9 +740,10 @@ void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Poin
     showMarkerMenu(tempoRows(click, chip != nullptr), select_chip);
 }
 
-// A time signature only ever starts on a downbeat, so the click is read at the tick, never rounded
-// into the next measure, and names the measure it is IN, as the meter chord reads the cursor; what
-// a meter verb does there is the core's one rule, timeSignatureTargetAt. Only its insert is Add's.
+// A time signature starts a bar, and a bar is whole beats, so the click is read at the tick, never
+// rounded into the next beat, and names the beat it is IN, as the meter chord reads the cursor;
+// what a meter verb does there is the core's one rule, timeSignatureTargetAt. Only its insert is
+// Add's.
 std::optional<core::InsertTimeSignatureTarget> TimelineRuler::signatureInsertTargetAt(
     const juce::Point<float> click) const
 {
@@ -755,7 +754,7 @@ std::optional<core::InsertTimeSignatureTarget> TimelineRuler::signatureInsertTar
         return std::nullopt;
     }
     core::TimeSignatureChordTarget target =
-        core::timeSignatureTargetAt(m_tempo_map, clicked->measure);
+        core::timeSignatureTargetAt(m_tempo_map, common::core::beatStart(*clicked));
     if (auto* const insert = std::get_if<core::InsertTimeSignatureTarget>(&target))
     {
         return std::move(*insert);
@@ -803,11 +802,9 @@ void TimelineRuler::showSignatureContextMenu(const RulerChip* chip, const juce::
     std::function<void()> select_chip;
     if (chip != nullptr)
     {
-        select_chip = [this,
-                       selected = m_tempo_map
-                                      .gridPositionAtWholeNote(
-                                          m_tempo_map.timeSignatures()[chip->source_index].place)
-                                      .measure] { m_listener->onTimeSignatureSelected(selected); };
+        select_chip = [this, selected = m_reigns[chip->source_index].first_measure] {
+            m_listener->onTimeSignatureSelected(selected);
+        };
     }
     showMarkerMenu(signatureRows(click, chip != nullptr), select_chip);
 }
@@ -867,6 +864,13 @@ void TimelineRuler::flashTempoAnchorRefusal(const common::core::GridPosition pos
 }
 
 // Rationale lives on the declaration in timeline_ruler.h.
+void TimelineRuler::flashTimeSignatureRefusal(const int measure)
+{
+    flashOrJoinRefusal(m_signature_refusal, std::vector{measure}, joinRefused<int>);
+    repaint();
+}
+
+// Rationale lives on the declaration in timeline_ruler.h.
 void TimelineRuler::flashRenumberedMeasures(const int from_measure)
 {
     m_renumber_flash = PulsedFlash<int>{
@@ -880,7 +884,10 @@ void TimelineRuler::flashRenumberedMeasures(const int from_measure)
 // measure-number row, so only that band repaints while it runs.
 void TimelineRuler::stepFlashes()
 {
-    if (retireFinishedFlash(m_tempo_refusal))
+    // Both chip flashes are stepped before the one repaint a frame retiring either makes.
+    const bool tempo_running = retireFinishedFlash(m_tempo_refusal);
+    const bool signature_running = retireFinishedFlash(m_signature_refusal);
+    if (tempo_running || signature_running)
     {
         repaint();
     }
@@ -1234,20 +1241,19 @@ void TimelineRuler::refreshChipRows(const std::optional<double> pinned_left_seco
             return m_selected_tempo_anchor == anchors[index].position;
         }));
 
-    const std::vector<common::core::TimeSignatureChange>& changes = m_tempo_map.timeSignatures();
+    // Every reign start, the derived short bar's included, printing its meter.
     m_signature_row = placeChipRow(
-        changes.size(),
-        [this, &changes](const std::size_t index) {
-            return m_tempo_map.secondsAtWholeNote(changes[index].place);
+        m_reigns.size(),
+        [this](const std::size_t index) {
+            return m_tempo_map.secondsAtWholeNote(m_reigns[index].place);
         },
-        [&changes](const std::size_t index) {
-            return juce::String{common::core::timeSignatureText(changes[index].meter)};
+        [this](const std::size_t index) {
+            return juce::String{common::core::timeSignatureText(m_reigns[index].meter)};
         },
         0,
         pinned_left_seconds,
-        first_index_where(changes.size(), [this, &changes](const std::size_t index) {
-            return m_selected_signature_measure ==
-                   m_tempo_map.gridPositionAtWholeNote(changes[index].place).measure;
+        first_index_where(m_reigns.size(), [this](const std::size_t index) {
+            return m_selected_signature_measure == m_reigns[index].first_measure;
         }));
 }
 
@@ -1318,38 +1324,57 @@ void TimelineRuler::drawMeasureLabels(juce::Graphics& g)
     }
 }
 
-// Draws one chip's rounded fill, then outlines it in the theme accent when it stands for the
-// selected marker — the same token the tone strip's selected region uses, so a selection reads the
-// same on every surface. A 1px stroke on the chip's own bounds, because the chip is only a label's
-// height and a heavier ring would swallow the fill it sits on.
-juce::Rectangle<float> TimelineRuler::drawChipFrame(
-    juce::Graphics& g, const RulerChip& chip, const int row_y, const juce::Colour fill) const
+juce::Rectangle<float> TimelineRuler::chipBounds(const RulerChip& chip, const int row_y) const
 {
-    const juce::Rectangle<float> bounds{
+    return juce::Rectangle<float>{
         static_cast<float>(chip.label.x),
         static_cast<float>(row_y),
         static_cast<float>(chip.label.width),
         static_cast<float>(m_chip_height)
     };
-    g.setColour(fill);
-    g.fillRoundedRectangle(bounds, g_chip_corner_radius);
-    if (chip.selected)
-    {
-        g.setColour(editorTheme().accent);
-        g.drawRoundedRectangle(bounds, g_chip_corner_radius, 1.0f);
-    }
-    g.setColour(common::ui::g_chip_label_color);
-    return bounds;
 }
 
-// Draws one cached chip row — rounded fill, centered label.
+void TimelineRuler::drawChipFill(
+    juce::Graphics& g, const juce::Rectangle<float> bounds, const juce::Colour fill)
+{
+    g.setColour(fill);
+    g.fillRoundedRectangle(bounds, g_chip_corner_radius);
+    g.setColour(common::ui::g_chip_label_color);
+}
+
+// The theme accent, the same token the tone strip's selected region uses, so a selection reads the
+// same on every surface. A 1px stroke on the chip's own bounds, because the chip is only a label's
+// height and a heavier ring would swallow the fill it sits on.
+void TimelineRuler::drawChipSelectionRing(
+    juce::Graphics& g, const RulerChip& chip, const juce::Rectangle<float> bounds)
+{
+    if (!chip.selected)
+    {
+        return;
+    }
+    g.setColour(editorTheme().accent);
+    g.drawRoundedRectangle(bounds, g_chip_corner_radius, 1.0f);
+}
+
+void TimelineRuler::drawChipRefusalGlow(
+    juce::Graphics& g, const juce::Rectangle<float> bounds, const float refusal_level)
+{
+    juce::Path outline;
+    outline.addRoundedRectangle(bounds, g_chip_corner_radius);
+    paintRefusalGlow(g, outline, bounds.getHeight(), refusal_level);
+}
+
+// Draws one cached chip row — rounded fill, centered label, the selection ring.
 void TimelineRuler::drawChipRow(
     juce::Graphics& g, const std::vector<RulerChip>& chips, const juce::Colour fill,
     const int row_y) const
 {
     for (const RulerChip& chip : chips)
     {
-        m_chip_font.draw(g, chip.label.text, drawChipFrame(g, chip, row_y, fill));
+        const juce::Rectangle<float> bounds = chipBounds(chip, row_y);
+        drawChipFill(g, bounds, fill);
+        m_chip_font.draw(g, chip.label.text, bounds);
+        drawChipSelectionRing(g, chip, bounds);
     }
 }
 
@@ -1370,23 +1395,60 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
     }
     for (const RulerChip& chip : m_tempo_row.chips)
     {
-        const juce::Rectangle<float> bounds =
-            drawChipFrame(g, chip, g_tempo_row_y, editorTheme().tempo_chip);
+        const juce::Rectangle<float> bounds = chipBounds(chip, g_tempo_row_y);
+        drawChipFill(g, bounds, editorTheme().tempo_chip);
+        drawChipSelectionRing(g, chip, bounds);
         if (const common::core::GridPosition& anchor =
                 m_tempo_map.anchors()[chip.source_index].position;
             std::ranges::any_of(
                 refused_anchors,
                 [&anchor](const common::core::GridPosition& refused) { return refused == anchor; }))
         {
-            juce::Path outline;
-            outline.addRoundedRectangle(bounds, g_chip_corner_radius);
-            paintRefusalGlow(g, outline, bounds.getHeight(), refusal_level);
+            drawChipRefusalGlow(g, bounds, refusal_level);
         }
+        g.setColour(common::ui::g_chip_label_color);
         g.fillPath(
             m_tempo_glyph,
             juce::AffineTransform::translation(
                 bounds.getX() + glyph_inset, bounds.getY() + common::ui::g_chip_ink_clearance));
         m_chip_font.draw(g, chip.label.text, bounds.withTrimmedLeft(glyph_lead));
+    }
+}
+
+// Draws the signature chip row. A DERIVED reign's chip draws as a ghost, an authored one solid, so
+// the charter sees which meters the song stores: the chip's fill and label are flattened and
+// composited at the tab lane's ghost weight, exactly as a derived fret-hand chip is. The selection
+// ring and the refusal glow draw after the ghost closes, so both read as solid as on any chip.
+void TimelineRuler::drawSignatureChips(juce::Graphics& g)
+{
+    // Read once ahead of the loop, so the loop never reaches into the optional flash.
+    std::span<const int> refused_measures;
+    float refusal_level{0.0f};
+    if (m_signature_refusal.has_value())
+    {
+        refused_measures = m_signature_refusal->subject;
+        refusal_level = m_signature_refusal->pulse.level();
+    }
+    for (const RulerChip& chip : m_signature_row.chips)
+    {
+        const common::core::MeterReign& reign = m_reigns[chip.source_index];
+        const juce::Rectangle<float> bounds = chipBounds(chip, g_signature_row_y);
+        {
+            std::optional<common::ui::ScopedTransparencyLayer> ghost;
+            if (reign.derived)
+            {
+                ghost.emplace(g, bounds.getSmallestIntegerContainer(), common::ui::g_ghost_opacity);
+            }
+            drawChipFill(g, bounds, editorTheme().signature_chip);
+            m_chip_font.draw(g, chip.label.text, bounds);
+        }
+        drawChipSelectionRing(g, chip, bounds);
+        if (std::ranges::any_of(refused_measures, [&reign](const int refused) {
+                return refused == reign.first_measure;
+            }))
+        {
+            drawChipRefusalGlow(g, bounds, refusal_level);
+        }
     }
 }
 

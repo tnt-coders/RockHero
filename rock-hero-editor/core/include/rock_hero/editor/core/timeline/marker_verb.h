@@ -43,13 +43,13 @@ enum class MarkerVerb : std::uint8_t
     /*! \brief Scales every grid address in the song by a typed factor. */
     ScaleTempo,
 
-    /*! \brief Adds a time signature on a measure's downbeat. */
+    /*! \brief Adds a time signature at a beat, cutting the measure short. */
     AddTimeSignature,
 
-    /*! \brief Restates a time signature. */
+    /*! \brief Restates a time signature, or authors the derived short bar. */
     SetTimeSignature,
 
-    /*! \brief Moves a time signature a measure. */
+    /*! \brief Moves a time signature a beat of the meter before it. */
     MoveTimeSignature,
 
     /*! \brief Deletes a time signature. */

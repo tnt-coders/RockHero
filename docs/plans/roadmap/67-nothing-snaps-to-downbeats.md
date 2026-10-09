@@ -1,6 +1,6 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
-**Status:** Phases 1 and 2 DONE 2026-10-09 (see their "As built" notes); Phases 3–5 not started.
+**Status:** Phases 1–3 DONE 2026-10-09 (see their "As built" notes); Phases 4–5 not started.
 Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
@@ -726,6 +726,15 @@ suites. New files follow the placement procedure; comments follow
   `Alt+→` steps an authored meter one beat and a step that leaves a reign under one measure
   refuses (`ReignTooShort`); the ruler's Add at a mid-measure click inserts at that beat.
 - ui-design-expert consulted if the ghost treatment does not read at chip size (§4).
+- **As built (2026-10-09).** The ghost is the hand-position ghost's own mechanism
+  (`ScopedTransparencyLayer` at `g_ghost_opacity`, now exported from `tab_paint_core.h`) and reads
+  at chip size, so no expert pass was needed; the selection ring and refusal glow stay solid. The
+  meter targets and `SetTimeSignature` carry a `GridPosition`; `beatStart` is the one beat rule,
+  and the action asks `timeSignatureTargetAt` for its verb, so the chord, the ruler's Add and the
+  commit share one rule. Every refused meter verb on a selected chip flashes it, through a new
+  `IEditorView::flashTimeSignatureRefusal`. The move keeps its neighbour check as the transform's
+  precondition (an unordered list would trip the transform's place assertion before the rules
+  run). Sighting: a derived reign's dotted leader draws in the full signature colour.
 
 ### Phase 4 — Sections off the downbeat
 

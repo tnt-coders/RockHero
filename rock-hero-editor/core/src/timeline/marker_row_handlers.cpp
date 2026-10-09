@@ -50,10 +50,11 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
         }
         case MarkerRow::TimeSignature:
         {
-            const common::core::TempoMap& tempo_map = session().song().tempo_map;
-            for (const common::core::TimeSignatureChange& change : tempo_map.timeSignatures())
+            // Every reign start, the derived short bar's included: the chips the ruler draws, so
+            // the walk lands on a ghost chip as it lands on an authored one.
+            for (const common::core::MeterReign& reign : session().song().tempo_map.reigns())
             {
-                starts.push_back(tempo_map.gridPositionAtWholeNote(change.place));
+                starts.push_back(common::core::measureDownbeat(reign.first_measure));
             }
             break;
         }

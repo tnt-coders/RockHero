@@ -7,24 +7,19 @@ namespace rock_hero::editor::core
 {
 
 TimeSignatureChordTarget timeSignatureTargetAt(
-    const common::core::TempoMap& tempo_map, const int measure)
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition beat)
 {
-    const common::core::MeterReign governing = tempo_map.timeSignatureAt(measure);
-    if (governing.first_measure == measure)
+    const common::core::MeterReign governing = tempo_map.timeSignatureAt(beat.measure);
+    const std::string meter_text = common::core::timeSignatureText(governing.meter);
+    if (beat == common::core::measureDownbeat(governing.first_measure))
     {
-        return SetTimeSignatureTarget{
-            .measure = measure,
-            .meter_text = common::core::timeSignatureText(governing.meter),
-        };
+        return SetTimeSignatureTarget{.position = beat, .meter_text = meter_text};
     }
-    if (!common::core::markerCanStartAt(common::core::measureDownbeat(measure), tempo_map))
+    if (!common::core::markerCanStartAt(beat, tempo_map))
     {
         return {};
     }
-    return InsertTimeSignatureTarget{
-        .measure = measure,
-        .meter_text = common::core::timeSignatureText(governing.meter),
-    };
+    return InsertTimeSignatureTarget{.position = beat, .meter_text = meter_text};
 }
 
 } // namespace rock_hero::editor::core

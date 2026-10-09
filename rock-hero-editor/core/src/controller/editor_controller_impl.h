@@ -685,18 +685,24 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const TempoAnchorSelection& selection, std::string_view gesture);
     // Time signatures (src/timeline/meter_handlers.cpp). Song-level like the tempo map they belong
     // to, and wider than any other marker: a meter edit keeps every object's time and re-addresses
-    // it in every arrangement, so each verb commits the whole song timeline.
-    void onTimeSignatureSetRequested(int measure, const std::string& text);
+    // it in every arrangement, so each verb commits the whole song timeline. The row's markers
+    // are every reign start, the derived short bar's included (TempoMap::reigns): a stating verb
+    // on a derived start authors it, Delete and the move refuse it.
+    void onTimeSignatureSetRequested(common::core::GridPosition position, const std::string& text);
     // What the time-signature chord would do at the cursor right now (the published verb; see
     // the definition for the rule it derives).
     [[nodiscard]] TimeSignatureChordTarget timeSignatureChordTarget() const;
-    // Moves the selected time signature one measure (the Alt+arrow dispatch for the meter
-    // alternative). Left or Right only; the move dispatch refuses a vertical direction for every
-    // marker kind.
+    // Moves the selected time signature one beat of the meter before it (the Alt+arrow dispatch
+    // for the meter alternative). Left or Right only; the move dispatch refuses a vertical
+    // direction for every marker kind.
     void moveSelectedTimeSignature(
         const TimeSignatureSelection& selection, ChartStepDirection direction);
     // Deletes the selected time signature (the Delete-key dispatch for the meter alternative).
     void deleteSelectedTimeSignature(const TimeSignatureSelection& selection);
+    // THE refusal of a verb on a selected time-signature chip: logged under the verb, and the chip
+    // glows red (IEditorView::flashTimeSignatureRefusal).
+    void refuseTimeSignatureVerb(
+        const TimeSignatureSelection& selection, MarkerVerb verb, const std::string& reason);
     // Brings the engine's tempo-derived caches up to the session's map when it changed (see the
     // definition).
     void syncTempoDerivedAudio();
