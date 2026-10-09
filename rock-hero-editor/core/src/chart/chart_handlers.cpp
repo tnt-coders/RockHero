@@ -57,8 +57,10 @@ constexpr std::uint32_t g_fret_entry_window_ms = 750;
 // be standing there. Not zero: 200 ms after a seek, even while paused, Tracktion writes its
 // playhead's sample-based position back over the one it was given
 // (tracktion_TransportControl.cpp:1083-1096), which moves it by up to half a sample. Any deliberate
-// move of the cursor is far larger. A whole-grid commit that holds time moves a carried column by
-// its lattice rounding alone, which this forgives at all but slow tempos (carryCursorTo).
+// move of the cursor is far larger. A whole-grid commit that holds time rounds a carried column
+// onto the tick lattice exactly as it rounds the content standing there, so where that rounding
+// passes this tolerance (a tick lasts a millisecond at about 60 BPM) the transport follows the
+// column and the cursor stays on what it stood on (carryCursorTo).
 constexpr double g_cursor_column_tolerance_seconds = 0.001;
 
 // The face a target addresses: an object's BEND CHIP, or the mark every other target is. A press

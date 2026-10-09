@@ -358,7 +358,8 @@ The commit carries the cursor as one more slice (`commitGridModel` takes the ver
 and asks `readdressedPosition`), so its column lands on what it stood on even where the terminal
 re-seat re-times the last span. The transport follows only where it no longer stands within the
 cursor's one-millisecond trust tolerance of that place (`carryCursorTo`), so an edit that holds
-time leaves it alone. Tempo edits are the contrast: there the grid is truth, and their content map,
+time moves it only by the tick rounding the content under it takes too, which passes a millisecond
+only at slow tempos. Tempo edits are the contrast: there the grid is truth, and their content map,
 `keptPlace`, keeps the cursor's musical place, so its time moves — unless the Note Lock is on. No
 grid commit is a keyboard move, so none of them scrolls the window
 (`EditorViewState::keyboard_move_count`).
