@@ -196,9 +196,8 @@ TEST_CASE("The meter chord is nothing where no meter can start", "[core][meters]
 
 // The prompt's text is parsed in the core: anything that is not two positive whole numbers around
 // a slash is refused before any edit, and a meter the tempo-map rules refuse (a beat no power of
-// two) is refused by the commit. Neither records anything; inserting the meter already governing
-// a measure is no change at all, since the commit drops a meter restating its predecessor.
-TEST_CASE("A meter edit refuses bad text and records nothing for no change", "[core][meters]")
+// two) is refused by the commit. Neither records anything.
+TEST_CASE("A meter edit refuses bad text and records nothing", "[core][meters]")
 {
     MeterEditor editor;
     const common::core::SongTimeline before = editor.timeline();
@@ -209,16 +208,166 @@ TEST_CASE("A meter edit refuses bad text and records nothing for no change", "[c
         CHECK(editor.timeline() == before);
         CHECK(editor.undoEntryCount() == 0);
     }
+}
+
+// Typing the prevailing meter on one of its own downbeats changes no measure, so the history holds
+// nothing — but the chip SHOWS, selected, so the charter can retype it: the chord that finds it
+// is the restate, and the retyped meter is one real change whose undo lands the song as it was,
+// never the chip.
+TEST_CASE(
+    "The meter chord restating the prevailing meter shows a chip it records nothing for",
+    "[core][meters]")
+{
+    MeterEditor editor;
+    const common::core::SongTimeline original = editor.timeline();
+    editor.seek(4.0); // 3:1
+
     editor.set(downbeat(3), "4/4");
-    CHECK(editor.timeline() == before);
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 4, 4}}));
+    CHECK(editor.state().selected_time_signature_measure == std::optional{3});
+    CHECK(editor.undoEntryCount() == 0);
+    CHECK(editor.view.renumber_flashes.empty());
+    CHECK_THAT(editor.transport.position().seconds, WithinAbs(4.0, 1e-9));
+
+    const TimeSignatureChordTarget chord = editor.chord();
+    const auto* const restate = std::get_if<SetTimeSignatureTarget>(&chord);
+    REQUIRE(restate != nullptr);
+    CHECK(*restate == SetTimeSignatureTarget{.position = downbeat(3), .meter_text = "4/4"});
+
+    editor.set(downbeat(3), "3/4");
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
+    CHECK(editor.undoEntryCount() == 1);
+    CHECK(editor.undoTopLabel() == "Set Time Signature");
+    CHECK(editor.view.renumber_flashes == std::vector{4});
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.timeline() == original);
+}
+
+// A chip restating its reign is authoring state the editor holds only while it is selected: the
+// selection leaving it — onto another chip, or cleared by a seek — dissolves it with no entry,
+// and nothing moves in time, since dropping it joins two reigns of one meter at a barline.
+TEST_CASE("A redundant meter chip dissolves when the selection leaves it", "[core][meters]")
+{
+    MeterEditor editor;
+    const common::core::SongTimeline original = editor.timeline();
+    const std::vector<double> times = resolvedTimes(editor.controller.session().song());
+
+    editor.set(downbeat(3), "4/4");
+    REQUIRE(editor.meters().size() == 2);
+    editor.controller.onTimeSignatureSelected(1);
+    CHECK(editor.timeline() == original);
+    CHECK(editor.undoEntryCount() == 0);
+    CHECK(editor.state().selected_time_signature_measure == std::optional{1});
+
+    editor.set(downbeat(5), "4/4");
+    REQUIRE(editor.meters().size() == 2);
+    editor.seek(2.0);
+    CHECK(editor.timeline() == original);
+    CHECK(editor.undoEntryCount() == 0);
+
+    const std::vector<double> settled = resolvedTimes(editor.controller.session().song());
+    REQUIRE(settled.size() == times.size());
+    for (std::size_t index = 0; index < times.size(); ++index)
+    {
+        CHECK_THAT(settled[index], WithinAbs(times[index], 1e-9));
+    }
+}
+
+// Alt+arrows can walk a repeat across its predecessor's downbeats without the chip vanishing
+// under the key: 4/4 at 3:3 cuts measure 3, and two beat steps put it on measure 4's own downbeat,
+// where it restates its reign. The run's entry holds the WRITTEN form — the chip gone — so a redo
+// lands the normal form; the chip itself stays while selected and dissolves on leaving only while
+// it still restates.
+TEST_CASE(
+    "A moved meter restating its reign stays while selected and dissolves on leaving",
+    "[core][meters]")
+{
+    MeterEditor editor;
+    const common::core::SongTimeline original = editor.timeline();
+    editor.set(beatAt(3, 3), "4/4");
+    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:3", 4, 4}}));
+    const common::core::SongTimeline inserted = editor.timeline();
+
+    editor.pressAlt(ChartStepDirection::Right, 2);
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:1", 4, 4}}));
+    CHECK(editor.state().selected_time_signature_measure == std::optional{4});
+    CHECK(editor.undoEntryCount() == 2);
+    CHECK(editor.undoTopLabel() == "Move Time Signature");
+
+    SECTION("leaving the downbeat dissolves it, and undo and redo never bring it back")
+    {
+        editor.controller.onTimeSignatureSelected(1);
+        CHECK(editor.timeline() == original);
+        CHECK(editor.undoEntryCount() == 2);
+
+        editor.controller.onUndoRequested();
+        CHECK(editor.timeline() == inserted);
+        editor.controller.onRedoRequested();
+        CHECK(editor.timeline() == original);
+    }
+    SECTION("one more step cuts the next bar, and the chip stays when the selection leaves")
+    {
+        editor.pressAlt(ChartStepDirection::Right);
+        CHECK(editor.undoEntryCount() == 2);
+        editor.controller.onTimeSignatureSelected(1);
+        CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:2", 4, 4}}));
+        CHECK(editor.undoEntryCount() == 2);
+    }
+    SECTION("the run walked back lands where it began")
+    {
+        editor.pressAlt(ChartStepDirection::Left, 2);
+        CHECK(editor.timeline() == inserted);
+        CHECK(editor.undoEntryCount() == 1);
+    }
+}
+
+// The history describes the written song, so a chip it never held goes before an undo replays:
+// Ctrl+Z over a focused redundant chip undoes the edit before it and leaves no chip behind.
+TEST_CASE("Undo never brings back a redundant meter chip", "[core][meters]")
+{
+    MeterEditor editor;
+    const common::core::SongTimeline original = editor.timeline();
+    editor.set(downbeat(3), "3/4");
+    const common::core::SongTimeline edited = editor.timeline();
+
+    editor.set(downbeat(2), "4/4");
+    REQUIRE(editor.meters().size() == 3);
+    REQUIRE(editor.undoEntryCount() == 1);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.timeline() == original);
+    editor.controller.onRedoRequested();
+    CHECK(editor.timeline() == edited);
+}
+
+// A save hands the writer the song as it stands, the focused chip included, and the writer sheds
+// it (the meter-edits suite reads the written file); the chip itself survives the save in memory,
+// still selected.
+TEST_CASE("A save while a redundant meter chip is focused keeps it in memory", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.set(downbeat(3), "4/4");
+    REQUIRE(editor.meters().size() == 2);
+
+    editor.controller.onSaveRequested();
+    REQUIRE(editor.project_services.save_call_count == 1);
+    REQUIRE(editor.project_services.last_saved_song.has_value());
+    if (editor.project_services.last_saved_song.has_value())
+    {
+        CHECK(editor.project_services.last_saved_song->tempo_map == editor.tempoMap());
+    }
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 4, 4}}));
+    CHECK(editor.state().selected_time_signature_measure == std::optional{3});
     CHECK(editor.undoEntryCount() == 0);
 }
 
 // A meter placed at a beat starts a bar there, so the prevailing meter repeated OFF its own
 // downbeat grid restates nothing: 4/4 at 4:3 cuts measure 4 to a derived 2/4 and renumbers every
 // bar after it, while every anchor, every span's tempo and every object keep their time, the
-// anchors under the cut re-addressed (5:3 is 6:1). Only a repeat ON the grid is dropped as no
-// change, before the cut and after it alike.
+// anchors under the cut re-addressed (5:3 is 6:1). A repeat ON the grid, before the cut and after
+// it alike, is a chip the history never holds: it lives while selected and dissolves when the
+// selection leaves it, leaving the song as the cut left it.
 TEST_CASE("A repeated meter off the downbeat grid cuts a bar and moves nothing", "[core][meters]")
 {
     using common::core::BeatAnchor;
@@ -280,7 +429,10 @@ TEST_CASE("A repeated meter off the downbeat grid cuts a bar and moves nothing",
 
     const common::core::SongTimeline cut = editor.timeline();
     editor.set(downbeat(3), "4/4");
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 4, 4}, {"4:3", 4, 4}}));
     editor.set(downbeat(7), "4/4");
+    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:3", 4, 4}, {"7:1", 4, 4}}));
+    editor.controller.onTimeSignatureSelected(1);
     CHECK(editor.timeline() == cut);
     CHECK(editor.undoEntryCount() == 1);
 }

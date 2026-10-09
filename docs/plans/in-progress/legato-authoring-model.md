@@ -185,7 +185,7 @@ a plain pick rather than refusing a document. Two flattens, split by class:
 
 ### Commit shape
 
-`settleChart` mutates the model only while the history cursor sits on top. There it folds via
+`settle` mutates the model only while the history cursor sits on top. There it folds via
 `replaceTop` when the top is this burst's chart-notes entry and not the clean state (so one `Ctrl+Z`
 restores the edit and the claim together); otherwise it pushes its own labeled entry, which at
 top-of-stack truncates nothing. At a mid-stack resting point — reachable only through undo — the

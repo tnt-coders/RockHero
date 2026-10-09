@@ -274,7 +274,11 @@ picker or prompt that variant names. The meter chord `Ctrl+/` (`InsertTimeSignat
 has the section's shape: `time_signature_chord_target` is nothing /
 `SetTimeSignatureTarget{position, meter_text}` / `InsertTimeSignatureTarget{position, meter_text}`,
 and both open one meter prompt ("Set Time Signature" or "Add Time Signature", one field typed as
-"7/8") whose raw text goes back through `onTimeSignatureSetRequested` for the core to parse. The
+"7/8") whose raw text goes back through `onTimeSignatureSetRequested` for the core to parse. Typing
+the prevailing meter on one of its own downbeats changes no measure and records nothing, but shows
+the chip, selected, so the charter can retype it: a time signature restating its reign is
+authoring state that lives while its chip is selected and dissolves when the selection leaves
+(the keyframe commit law's meter row, \ref guide_musical_time). The
 chords read the CURSOR and never the selection: the armed
 caret, else the paused cursor (`cursorPosition(quantum)`, at the placement quantum for the tone's,
 the section's and the tempo anchor's slot, and at the tick for the meter's beat). "Nothing" carries the playback and no-song

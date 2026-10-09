@@ -553,4 +553,46 @@ TEST_CASE("TempoMap re-times a moved first anchor's span by its tempo ratio", "[
     CHECK_THAT(moved.secondsRetimedFrom(origin, 17.25), WithinULP(17.25, std::uint64_t{0}));
 }
 
+// A stored change is redundant exactly when dropping it leaves every measure's length as it is:
+// the meter of the authored reign before it, from one of that reign's own downbeats. A repeat off
+// that grid cuts a bar and stays, a meter equal to the derived short bar before it stores what the
+// bar only derived and stays, and the first change opens no reign after another.
+TEST_CASE("TempoMap drops only a time signature restating its reign", "[core][tempo-map]")
+{
+    const auto placed = [](const Fraction place, const int numerator, const int denominator) {
+        return TimeSignatureChange{
+            .place = place, .meter = {.numerator = numerator, .denominator = denominator}
+        };
+    };
+    // 4/4 restated on its own downbeat, 4/4 cutting a bar at 3+1/2, 2/4 cutting the 4/4's bar at 5
+    // (so measure 6 is the derived 2/4 before it), and 2/4 restated on that reign's downbeat.
+    const std::vector<BeatAnchor> anchors{anchor("1:1", 0), anchor("9:1", 16000)};
+    const TempoMap map{
+        {placed(Fraction{}, 4, 4),
+         placed(Fraction{2}, 4, 4),
+         placed(Fraction{7, 2}, 4, 4),
+         placed(Fraction{5}, 2, 4),
+         placed(Fraction{11, 2}, 2, 4)},
+        anchors,
+    };
+    const std::vector<MeterReign> reigns = map.reigns();
+    const std::vector<TimeSignatureChange>& meters = map.timeSignatures();
+    REQUIRE(meters.size() == 5);
+    REQUIRE(map.timeSignatureAt(6).derived);
+    CHECK_FALSE(isRedundantTimeSignature(reigns, meters[0]));
+    CHECK(isRedundantTimeSignature(reigns, meters[1]));
+    CHECK_FALSE(isRedundantTimeSignature(reigns, meters[2]));
+    CHECK_FALSE(isRedundantTimeSignature(reigns, meters[3]));
+    CHECK(isRedundantTimeSignature(reigns, meters[4]));
+
+    const TempoMap written = withoutRedundantTimeSignatures(map);
+    CHECK(
+        written.timeSignatures() ==
+        std::vector{
+            placed(Fraction{}, 4, 4), placed(Fraction{7, 2}, 4, 4), placed(Fraction{5}, 2, 4)
+        });
+    CHECK(written.anchors() == anchors);
+    CHECK(withoutRedundantTimeSignatures(written) == written);
+}
+
 } // namespace rock_hero::common::core

@@ -122,6 +122,43 @@ std::optional<SetTimeSignatureTarget> EditorController::Impl::selectedTimeSignat
     };
 }
 
+// THE KEYFRAME COMMIT LAW's meter row. A time signature restating its reign changes no measure, so
+// the history and the file never hold it (writtenModel); it is authoring state the editor holds
+// while its chip is selected — which is what lets Alt+arrows walk a repeat across its
+// predecessor's downbeats without the chip vanishing under the key, and the meter chord show a
+// restated meter as a chip to retype — and no longer. Every such change but the focused one goes
+// here with NO history entry, because no entry ever held it. Dropping one joins two reigns of one
+// meter at a barline, so no place moves and nothing is re-addressed.
+bool EditorController::Impl::dissolveRedundantMeters(const TimeSignatureSelection* const focused)
+{
+    if (m_undo_history.hasPendingTransition())
+    {
+        return false;
+    }
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const std::optional<common::core::Fraction> focused_place =
+        focused == nullptr ? std::nullopt
+                           : std::optional{tempo_map.wholeNotePositionAt(
+                                 common::core::measureDownbeat(focused->measure))};
+    const std::vector<common::core::MeterReign> reigns = tempo_map.reigns();
+    std::vector<common::core::TimeSignatureChange> settled;
+    std::ranges::remove_copy_if(
+        tempo_map.timeSignatures(),
+        std::back_inserter(settled),
+        [&reigns, &focused_place](const common::core::TimeSignatureChange& change) {
+            return change.place != focused_place &&
+                   common::core::isRedundantTimeSignature(reigns, change);
+        });
+    if (settled.size() == tempo_map.timeSignatures().size())
+    {
+        return false;
+    }
+    m_session.setTempoMap(common::core::TempoMap{std::move(settled), tempo_map.anchors()});
+    syncTempoDerivedAudio();
+    updateView();
+    return true;
+}
+
 // The prompt hands back raw text, so the parse is the core's: text that is not one meter changes
 // nothing and records nothing, exactly as a refused commit does. Whether the meter is one a song
 // may hold is the tempo-map rules' question, asked at the commit.

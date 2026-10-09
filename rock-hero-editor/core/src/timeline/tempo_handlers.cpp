@@ -481,7 +481,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ToggleNoteLock /*ac
         updateView();
         return;
     }
-    static_cast<void>(settleChart());
+    static_cast<void>(settle());
     m_chart_notes_top.reset();
     disarmChartVerbWindow();
     engageNoteLock();

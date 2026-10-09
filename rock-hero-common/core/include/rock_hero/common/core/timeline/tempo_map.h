@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <span>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -572,5 +573,35 @@ private:
     // seconds stay linear in metronome time between anchors regardless of meter changes.
     std::vector<double> m_anchor_quarter_positions;
 };
+
+/*!
+\brief Reports whether a stored time signature is redundant: it restates the meter of the authored
+reign before it from one of that reign's own downbeats, so dropping it leaves every measure's
+length as it is.
+
+The reign table shows that as no derived short bar between the two. A repeat off that grid cuts a
+bar, and a meter equal to the derived short bar before it stores what that bar only derived; both
+carry information, so neither is redundant.
+
+\param reigns The map's reign table (\ref TempoMap::reigns), read once however many changes are
+       asked.
+\param change A change the map stores.
+\return True when the change restates its reign.
+*/
+[[nodiscard]] bool isRedundantTimeSignature(
+    std::span<const MeterReign> reigns, const TimeSignatureChange& change) noexcept;
+
+/*!
+\brief The map without its redundant time signatures (\ref isRedundantTimeSignature): the one form
+a file holds, written and read alike, and the form the editor's history holds.
+
+A redundant change is authoring state the editor keeps in memory only while its chip is selected.
+Dropping one joins two reigns of one meter at a barline, so no measure moves and every position
+addressed on the map keeps its token.
+
+\param tempo_map Any tempo map.
+\return The map with every redundant change dropped.
+*/
+[[nodiscard]] TempoMap withoutRedundantTimeSignatures(TempoMap tempo_map);
 
 } // namespace rock_hero::common::core

@@ -414,7 +414,7 @@ multi-digit fret entry does it with a PENDING model: the typed value is provisio
 full on every keystroke, and nothing reaches the chart until the entry settles — a second digit, the
 millisecond window elapsing (`g_fret_entry_window_ms`, `chart_handlers.cpp`), or any other action's
 settle prologue (`settleChartFretEntry`, called at the `runAction` gate for every action that does
-not CONTINUE the live entry, at `settleChart`'s head, and at the pointer gestures'
+not CONTINUE the live entry, at `settle`'s head, and at the pointer gestures'
 `armChartCaret` funnel). One commit, one entry, no mid-entry mutation to reverse.
 
 The disposition rule (`armOrSettleChartFretEntry`) decides per planned value whether the entry

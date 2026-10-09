@@ -37,6 +37,12 @@ the user picks which way the two surfaces reconcile.
   at `1:1` records a move that changed nothing; the lane-point nudge (~:2035-2049) guards it a
   third way through `direction_ok`. Make `steppedNudgePosition` return `std::optional` (nothing at
   the collapse) and refuse on it at every mover: three checks deleted, the tone case fixed.
+- **`MarkerCommit` has four states read as pairs** (`== Landed || == Silent`, `!= Unchanged` at
+  three sites). A `{landed, recorded}` pair would say what each caller asks.
+- **`dissolveRedundantMeters` repeats `withoutRedundantTimeSignatures`'s filter-and-rebuild**,
+  differing only by keeping the focused chip; the predicate itself is shared.
+- **Snapshots with nothing to normalize carry an empty `normalize()`** (`TempoMapSnapshot`,
+  `SongTimelineSnapshot`); the funnel protocol could make it optional.
 - **Section-move refusals do not flash.** The tempo, meter and hand-position chips glow red on a
   refused verb; a section chip only logs.
 - **`parseGridPositionToken` has no production caller** now that the file stores places: only

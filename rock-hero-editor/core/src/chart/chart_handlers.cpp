@@ -372,7 +372,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     // It ends a tempo-chip drag the same way, dropping the time the drag held.
     m_marker_move_origin.reset();
     m_held_tempo_anchor_milliseconds.reset();
-    static_cast<void>(settleChart());
+    static_cast<void>(settle());
     // The selection is one of the three inputs the audible tone is derived from (syncAudibleTone),
     // so every replacement re-derives it here: a selected region IS the active tone, and a
     // selection of any other kind hands the active tone back to the cursor.
@@ -771,7 +771,7 @@ void EditorController::Impl::armChartCaret(
     // too: this is the funnel behind every caret move — pointer, arrow, jump — and the marker
     // restore at project open, where the loaded chart is already settled and the sweep finds
     // nothing.
-    static_cast<void>(settleChart());
+    static_cast<void>(settle());
 }
 
 // Arms the caret on an automation lane row and re-derives the selection from what sits under
@@ -1279,7 +1279,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         dissolveChartCaretInPlace();
         // Both multi-select gestures change the selection without passing setSelection or
         // armChartCaret, so the settle event lands here too.
-        static_cast<void>(settleChart());
+        static_cast<void>(settle());
     }
     else if (event.clicks >= 2 && face == ChartCaretFace::BendChip)
     {
@@ -1294,7 +1294,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         chartSelectionMutable().replaceWith(group_at());
         dissolveChartCaretInPlace();
-        static_cast<void>(settleChart());
+        static_cast<void>(settle());
     }
     else if (!chartSelection().contains(*key))
     {
@@ -1432,7 +1432,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                 chartSelectionMutable().applyBox(keys, gesture.modifiers.shift);
             }
             dissolveChartCaretInPlace();
-            static_cast<void>(settleChart());
+            static_cast<void>(settle());
         }
         updateView();
         return;
@@ -4009,7 +4009,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJu
 void EditorController::Impl::onChartEscapePressed()
 {
     const bool consumed = consumeChartEscapeRung();
-    static_cast<void>(settleChart());
+    static_cast<void>(settle());
     if (consumed)
     {
         updateView();
@@ -4088,7 +4088,7 @@ bool EditorController::Impl::consumeChartEscapeRung()
 // holding an `Unjustified` claim in memory that no later event reaches (the sweep only ever visits
 // the current arrangement). Consequence is display-only, and accepted: every FILE is clean
 // regardless, because the document writer serializes the resolved form.
-bool EditorController::Impl::settleChart()
+bool EditorController::Impl::settle()
 {
     const bool settled = settleChartClaims();
     // The keyframe commit law's resting point, AFTER the claims: the fold reverses the burst record
@@ -4098,6 +4098,8 @@ bool EditorController::Impl::settleChart()
     // Focus is the note's, not the point's: a slide is authored as two points on one tail, and the
     // start says nothing until the landing exists.
     static_cast<void>(dissolveSilentKeyframes(chartNotesInFocus()));
+    // The same law's meter row: a chip's focus is its selection.
+    static_cast<void>(dissolveRedundantMeters(std::get_if<TimeSignatureSelection>(&m_selection)));
     return settled;
 }
 

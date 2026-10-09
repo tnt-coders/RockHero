@@ -48,10 +48,9 @@ struct SongTimelineSnapshot
     [[nodiscard]] bool applyTo(common::core::Session& session) const;
 
     /*!
-    \brief Drops every time signature that repeats the meter before it from one of that reign's own
-    downbeats, where it changes no measure's length (the `coalesceToneRegions` law), so inserting
-    the prevailing meter on a barline changes nothing and records nothing. A repeat placed off that
-    grid cuts the bar short and stays.
+    \brief Nothing: the verbs state the meter list in order, and a time signature restating its
+    reign stays in the live model while its chip is selected. The history's and the file's form
+    without it is the funnel's (`writtenModel`, \ref common::core::withoutRedundantTimeSignatures).
     */
     void normalize();
 

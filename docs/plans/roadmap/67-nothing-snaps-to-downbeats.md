@@ -1,7 +1,7 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
 **Status:** Phases 1–5 DONE 2026-10-09 (see their "As built" notes); Phase 6 (the user's
-settle ruling for redundant meter chips) added 2026-10-09, not started. The user's four projects
+settle ruling for redundant meter chips) added and built 2026-10-09. The user's four projects
 were converted 2026-10-09 (backed up beside each as `.bak`; Creed loads). Left for the user: the
 Phase 5 sighting checklist.
 Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
@@ -854,6 +854,18 @@ suites. New files follow the placement procedure; comments follow
   it on leaving only if it still restates; undo never brings back a redundant chip; a save while
   one is focused writes the normal form; retyping the focused redundant chip to another meter
   makes it a real change (one entry).
+- **As built (2026-10-09).** The redundancy rule is one common-core authority,
+  `isRedundantTimeSignature` / `withoutRedundantTimeSignatures` (`tempo_map.h`), applied by the
+  package writer, the package reader (a hand-edited restating meter loads as nothing, the tone
+  reader's coalesce precedent) and the marker funnel's WRITTEN form (`writtenModel`,
+  `writtenMarkerEdit` in `marker_model_commit.h`). Every history entry holds written forms, and a
+  landing whose written forms agree is `MarkerCommit::Silent`: live, recorded nowhere. This is
+  the keyframe law's shape: live holds the full form, history and file the written form.
+  `SongTimelineSnapshot::normalize` is empty. The settle (`settleChart`, renamed `settle`, since
+  it now settles two rows) runs `dissolveRedundantMeters(selected chip)` beside
+  `dissolveSilentKeyframes`; undo and redo run both with no focus. A held move run drops its entry
+  and ends whenever the entry would describe nothing, and the landing select now precedes the
+  publish in `commitMarkerMove`, so the moved chip is in focus when its own landing settles.
 
 
 - **Q1 — the camera zone for a mid-measure section.** (a) Cut at the downbeat of the measure the

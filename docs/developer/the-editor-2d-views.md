@@ -139,7 +139,12 @@ cached by `TimelineRuler::setGrid`): an authored change solid, the derived short
 remainder a meter leaves before the next one — as a GHOST printing its derived meter ("2/4"), the
 tab lane's derived fret-hand chip treatment (`common::ui::g_ghost_opacity` through
 `common::ui::ScopedTransparencyLayer`, both in `tab_paint_core.h`), so the charter sees which
-meters the song stores. The time-signature chip carries the meter verbs: `Enter` and a
+meters the song stores. One stored change the song never KEEPS: a time signature restating its
+reign (the same meter as the authored reign before it, on one of its downbeats) is authoring state
+that stands while its chip is selected — so `Alt+←/→` can walk a repeat across its predecessor's
+downbeats, and `Ctrl+/` typing the prevailing meter shows a chip to retype — and dissolves, with no
+undo entry, when the selection leaves it (the keyframe commit law's meter row,
+\ref guide_musical_time). The time-signature chip carries the meter verbs: `Enter` and a
 double-click open the meter prompt ("Set Time Signature", one field typed as "7/8") through the
 core's published restate verb — on the ghost chip the typed meter AUTHORS the short bar, a stored
 change at its place — `Delete` removes the change, `Alt+←/→` moves it one beat of the meter before

@@ -395,6 +395,16 @@ only at slow tempos. Tempo edits are the contrast: there the grid is truth, and 
 grid commit is a keyboard move, so none of them scrolls the window
 (`EditorViewState::keyboard_move_count`).
 
+A time signature RESTATING its reign — the same meter as the authored reign before it, on one of
+that reign's own downbeats — changes no measure, so it is the keyframe commit law's meter row: the
+history and every file hold the map without it (`withoutRedundantTimeSignatures`, applied by the
+marker funnel's written form, the package writer and the package reader), and the editor keeps it
+in memory only while its chip is selected, dissolving it with no entry when the selection leaves
+(`dissolveRedundantMeters`, at every settle and before every undo and redo). So `Alt+←/→` walks a
+repeat across its predecessor's downbeats without the chip vanishing under the key, and `Ctrl+/`
+typing the prevailing meter on a downbeat shows a selected chip to retype instead of doing nothing.
+A repeat placed off that grid cuts a bar short and is a real change.
+
 Every tempo-map edit (anchor insert, typed tempo, anchor delete, anchor move, and Scale Tempo's
 stretch) ends in one step, `commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make
 its new map from the session's map, and it commits either that map alone (`TempoMapSnapshot`,

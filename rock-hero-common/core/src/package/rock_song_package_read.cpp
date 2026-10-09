@@ -477,7 +477,9 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         return std::unexpected{validation_error.error()};
     }
 
-    return tempo_map;
+    // The writer never stores a time signature restating its reign, so one that arrives carries
+    // nothing and goes, exactly as the tone reader coalesces regions of one tone.
+    return withoutRedundantTimeSignatures(std::move(tempo_map));
 }
 
 // Reads the optional song-structure section markers and validates them against the tempo map.

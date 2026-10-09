@@ -7,6 +7,7 @@
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -668,6 +669,37 @@ double TempoMap::ForwardBeatTimeCursor::secondsAt(double global_beat_position) n
 bool operator==(const TempoMap& lhs, const TempoMap& rhs)
 {
     return lhs.m_time_signatures == rhs.m_time_signatures && lhs.m_anchors == rhs.m_anchors;
+}
+
+bool isRedundantTimeSignature(
+    const std::span<const MeterReign> reigns, const TimeSignatureChange& change) noexcept
+{
+    const auto opened = std::ranges::find(reigns, change.place, &MeterReign::place);
+    if (opened == reigns.begin() || opened == reigns.end())
+    {
+        return false;
+    }
+    const MeterReign& before = *std::prev(opened);
+    return !before.derived && before.meter == change.meter;
+}
+
+// The reign a dropped change opened is the same grid its predecessor's was, so the next change is
+// judged alike against either, and one pass over the table settles every change.
+TempoMap withoutRedundantTimeSignatures(TempoMap tempo_map)
+{
+    const std::vector<MeterReign> reigns = tempo_map.reigns();
+    std::vector<TimeSignatureChange> kept;
+    std::ranges::remove_copy_if(
+        tempo_map.timeSignatures(),
+        std::back_inserter(kept),
+        [&reigns](const TimeSignatureChange& change) {
+            return isRedundantTimeSignature(reigns, change);
+        });
+    if (kept.size() == tempo_map.timeSignatures().size())
+    {
+        return tempo_map;
+    }
+    return TempoMap{std::move(kept), tempo_map.anchors()};
 }
 
 } // namespace rock_hero::common::core

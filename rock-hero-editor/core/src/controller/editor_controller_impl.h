@@ -404,10 +404,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
     // consumed it (true = a rung consumed the press).
     bool consumeChartEscapeRung();
-    // The settle: the claims half below, then the keyframe commit law's resting point — every
-    // silent point whose note has left focus dissolves (dissolveSilentKeyframes). True when the
-    // claims half committed anything, which is what closes both coalescing windows.
-    bool settleChart();
+    // THE SETTLE, every settle event's one call: the chart's claims half below, then the commit
+    // law's resting points — every silent keyframe whose note has left focus dissolves
+    // (dissolveSilentKeyframes), and so does every meter restating its reign whose chip is not
+    // selected (dissolveRedundantMeters). True when the claims half committed anything, which is
+    // what closes both coalescing windows.
+    bool settle();
     // The settle sweep (the legato model's one relational mutation): flattens every connection
     // claim the chart no longer justifies, folding into this burst's chart-notes entry where the
     // history cursor allows and pushing its own entry otherwise. Deliberately DEFERS at a mid-stack
@@ -420,6 +422,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // history entry (none ever held them): the commit law's in-memory half. True when any point
     // went.
     bool dissolveSilentKeyframes(std::span<const ChartSlotKey> focus);
+    // The commit law's meter row: drops every time signature restating its reign but the one
+    // `focused` names (the selected chip; null keeps none), with no history entry (none ever held
+    // it). Defined in meter_handlers.cpp. True when any change went.
+    bool dissolveRedundantMeters(const TimeSignatureSelection* focused);
     [[nodiscard]] const common::core::ChartViewState* currentTabProjection() const;
     // Rebuilds the memoized chart layers and the tab and highway projections built from them when
     // the displayed arrangement or the revision each is keyed on moved on, and clears them while no
@@ -1663,6 +1669,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         Refused,
         // It matched the model it would replace: nothing changed and nothing was recorded.
         Unchanged,
+        // It landed, and writes as nothing (writtenModel): the model changed only in authoring
+        // state the history never holds, so no entry was pushed.
+        Silent,
         // It landed and was pushed as one undo entry (a refused push resets the history instead).
         Landed,
     };

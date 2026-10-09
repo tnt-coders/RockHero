@@ -41,16 +41,23 @@ validates it against one `MarkerJudgeContext` (`marker_judge_context.h`: the ses
 displayed chart's memoized notes layer, the same for every snapshot kind, so the funnel names no
 kind), refuses it whole, records nothing when nothing changed, releases a selection naming a
 marker that is gone, resyncs the audible tone and the engine's tempo-derived caches
-(`syncTempoDerivedAudio`) and publishes once. Verbs build their result on a
+(`syncTempoDerivedAudio`) and publishes once. The entry it pushes holds each side's WRITTEN form
+(`writtenModel`, `writtenMarkerEdit`): every model is its own, except the song timeline, which
+sheds a time signature restating its reign — authoring state the editor holds in memory only while
+its chip is selected (below) — so a commit whose two written forms agree lands in memory and
+records nothing (`MarkerCommit::Silent`). Verbs build their result on a
 COPY and hand both sides over, so a refusal leaves the live model untouched by construction —
 there is no restore path. Every marker MOVE verb (`Alt+←/→` on a section, tempo anchor, time
 signature, hand position or tone change) commits through `commitMarkerMove` beside it instead, which adds the
 held-run rule: a run of presses on one selected marker is ONE entry, however fast or slow, because
 a press continuing the run widens the run's entry (`replaceTop`) from the model before its first
-press, and a press that walks the run back to where it began drops the entry (`dropTop`). No timer
+press, and a press whose entry would describe nothing — walked back to where it began, or onto
+authoring state the history does not hold — drops the entry (`dropTop`) and ends the run, since a
+run owns the history's top or nothing. No timer
 decides it — the run ends at any other commit point: another edit, a selection change, undo or
-redo, a save. It makes the landing selection itself, since a selection change ends the run and
-only the funnel may survive its own. A move that is not invertible step by step builds each press
+redo, a save. It makes the landing selection itself, before the landing publishes, since a
+selection change ends the run and only the funnel may survive its own, and the landing select is
+a settle point the moved marker must be in focus for. A move that is not invertible step by step builds each press
 from the run's origin (`markerMoveRunOrigin`), so a run walked back lands that origin exactly.
 The tempo chip's pointer drag is NOT a run: it is one gesture whose events write nothing (they
 hold the move and publish a preview map, plan 66 decision 7), and its release makes the one
@@ -82,11 +89,18 @@ automation, behind the time-signature verbs, the locked Scale Tempo and every te
 the Note Lock on (a held nudge run and a chip drag included), since each re-addresses all of it in
 every arrangement and lands as ONE entry per command — under the lock, the content the lock holds
 re-addressed under the verb's map, so the entry's `before` and `after` both descend from the lock's
-origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` drops a
-meter repeating the one before it from one of that reign's own downbeats — a repeat placed off that
-grid cuts a bar short and stays — its `validate` runs the tempo-map, section and chart rules, and
-its apply is
-`Session::setSongTimeline()`, the one session write that reaches a non-current arrangement). Every
+origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` does nothing,
+its WRITTEN form drops a meter restating its reign — the same meter as the authored reign before
+it, from one of that reign's own downbeats (`withoutRedundantTimeSignatures`, common core, which
+the package writer and reader apply too; a repeat placed off that grid cuts a bar short and
+stays) — its `validate` runs the tempo-map, section and chart rules, and its apply is
+`Session::setSongTimeline()`, the one session write that reaches a non-current arrangement. Such a
+restating meter is the keyframe commit law's meter row: it stays in the live map while its chip is
+selected, so `Alt+←/→` can walk a repeat across its predecessor's downbeats and `Ctrl+/` typing the
+prevailing meter on a downbeat shows a selected chip to retype, and it dissolves with no entry
+when the selection leaves it (`dissolveRedundantMeters`, run by the settle and before every undo
+and redo, exactly as `dissolveSilentKeyframes` is). Retyping the focused chip is one real entry
+whose `before` is the written form, so no undo ever lands on the chip). Every
 grid commit (`commitGridModel`) lands through `landMarkerModel`, the funnel without its publish,
 carries the cursor as one more slice through the verb's content map (`carryCursorTo`, which seeks
 only where the transport no longer stands at the carried place), leaves the landed marker selected
@@ -145,7 +159,7 @@ list, which no section edit changes),
   never arrives on its own — a held stop states nothing only because some edit made it so, and the
   edit is right there to carry it.
 - The **legato settle sweep** is the one edit that arrives with no user gesture of its own, so its
-  commit shape is decided by where the cursor sits (`settleChart`, `chart_handlers.cpp`):
+  commit shape is decided by where the cursor sits (`settle`, `chart_handlers.cpp`):
   on top of history it FOLDS into the burst's own chart-notes entry via `replaceTop`, so one Ctrl+Z
   restores the edit and the claim it broke together; with no such entry it PUSHES its own (at
   top-of-stack a push truncates nothing) — and the burst has no such entry both when no chart edit

@@ -1043,6 +1043,25 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
     }
 }
 
+// A time signature restating its reign — the same meter as the authored reign before it, on one of
+// that reign's own downbeats — is never written, so one that arrives carries nothing and the reader
+// drops it; a repeat off that grid cuts a bar and is kept.
+TEST_CASE("Rock song package reader drops a meter restating its reign", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writePackageDirectoryWithTempoMap(
+        package_directory,
+        R"(
+            "tempoMap": { "timeSignatures": [ { "at": "0", "numerator": 4, "denominator": 4 }, { "at": "1", "numerator": 4, "denominator": 4 }, { "at": "2+1/2", "numerator": 4, "denominator": 4 } ], "anchors": [ { "at": "0", "seconds": 0.000 }, { "at": "4", "seconds": 8.000 } ] },
+)");
+
+    const auto read_song = readSong(package_directory);
+
+    REQUIRE(read_song.has_value());
+    CHECK(read_song->tempo_map.timeSignatures() == metersAt({{"1:1", 4, 4}, {"3:3", 4, 4}}));
+}
+
 // Verifies an anchor between two beats saves as its whole-note place (2:3+1/2 of 4/4 is one bar and
 // five eighths in) with its whole milliseconds written as three-decimal seconds, and loads back as
 // the same anchor.

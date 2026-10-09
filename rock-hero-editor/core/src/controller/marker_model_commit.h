@@ -33,6 +33,39 @@ template <typename Snapshot>
 inline constexpr bool g_states_grid =
     std::is_same_v<Snapshot, TempoMapSnapshot> || std::is_same_v<Snapshot, SongTimelineSnapshot>;
 
+// THE WRITTEN FORM of a marker model: what the history and the file hold. Every model is its own,
+// except the song timeline, which sheds a time signature restating its reign — that change is
+// authoring state the editor holds only while its chip is selected (the keyframe commit law's
+// meter row, dissolveRedundantMeters), so no entry ever holds it, and a verb that only planted or
+// moved one writes as nothing.
+template <typename Snapshot> [[nodiscard]] Snapshot writtenModel(Snapshot model)
+{
+    return model;
+}
+
+[[nodiscard]] inline SongTimelineSnapshot writtenModel(SongTimelineSnapshot model)
+{
+    model.timeline.tempo_map =
+        common::core::withoutRedundantTimeSignatures(std::move(model.timeline.tempo_map));
+    return model;
+}
+
+// The entry a landed model records, origin → now in the written form, or null where the two
+// written forms agree: the model changed only in authoring state, which the history never holds.
+template <typename Snapshot>
+[[nodiscard]] std::unique_ptr<MarkerModelEdit<Snapshot>> writtenMarkerEdit(
+    Snapshot before, Snapshot after, std::string label)
+{
+    Snapshot written_before = writtenModel(std::move(before));
+    Snapshot written_after = writtenModel(std::move(after));
+    if (written_after == written_before)
+    {
+        return nullptr;
+    }
+    return std::make_unique<MarkerModelEdit<Snapshot>>(
+        std::move(written_before), std::move(written_after), std::move(label));
+}
+
 // The funnel's front half: the produced model normalized, then validated, then compared with the
 // one it would replace. Stated once so the commit and a pending entry's red box cannot disagree
 // about what the commit would refuse. The Note Lock's refusal comes first, since it refuses the
@@ -62,11 +95,12 @@ std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerMod
     return after;
 }
 
-// Lands one marker-model change as one undo entry, publishing nothing. Every marker verb lands
-// here, whatever kind of marker it authored, so the commit rules live here once: the produced model
-// is normalized, then validated, and a model that breaks a rule is REFUSED whole — verbs build
-// their result on a copy, so a refusal leaves the live model untouched by construction and needs
-// no restore. A verb that changed nothing records nothing.
+// Lands one marker-model change, publishing nothing. Every marker verb lands here, whatever kind
+// of marker it authored, so the commit rules live here once: the produced model is normalized,
+// then validated, and a model that breaks a rule is REFUSED whole — verbs build their result on a
+// copy, so a refusal leaves the live model untouched by construction and needs no restore. A verb
+// that changed nothing records nothing, and so does one whose change writes as nothing
+// (writtenMarkerEdit): the live model moved, the history did not.
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
     Snapshot before, Snapshot after, std::string label)
@@ -88,9 +122,13 @@ EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
         return MarkerCommit::Refused;
     }
 
-    pushUndoEntry(
-        std::make_unique<MarkerModelEdit<Snapshot>>(
-            std::move(before), std::move(*judged), std::move(label)));
+    std::unique_ptr<MarkerModelEdit<Snapshot>> entry =
+        writtenMarkerEdit(std::move(before), std::move(*judged), std::move(label));
+    if (entry == nullptr)
+    {
+        return MarkerCommit::Silent;
+    }
+    pushUndoEntry(std::move(entry));
     return MarkerCommit::Landed;
 }
 
@@ -107,7 +145,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
 {
     const MarkerCommit committed =
         landMarkerModel(std::move(before), std::move(after), std::move(label));
-    if (committed == MarkerCommit::Landed)
+    if (committed == MarkerCommit::Landed || committed == MarkerCommit::Silent)
     {
         finishMarkerCommit();
     }
@@ -116,13 +154,17 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
 
 // The marker move verbs' commit: one held run of Alt+arrow presses on one selected marker is ONE
 // undo entry, describing the model before the run's first press → the model now (the run's law is
-// stated at m_marker_move_origin). A press that starts a run is an ordinary funnel commit, which
+// stated at m_marker_move_origin). A press that starts a run is an ordinary funnel landing, which
 // arms the run when it recorded an entry; a press that continues one is judged against the run's
-// ORIGIN by the funnel's own front half and replaces the run's entry — or, where it walks the run
-// back to its origin, drops it, so a run that went nowhere leaves no Ctrl+Z that changes nothing.
-// Either way the moved marker ends selected, made here rather than by the verb, because a
-// selection change ends the run and only this commit may survive its own. A refused press leaves
-// the model, the entry and the run exactly as they stood.
+// ORIGIN by the funnel's own front half and replaces the run's entry — or, where the entry would
+// describe nothing, drops it and ends the run, since a run owns the history's top or nothing: the
+// press walked the run back to its origin, or walked the marker onto authoring state the history
+// does not hold (a meter restating its reign). So a run that went nowhere leaves no Ctrl+Z that
+// changes nothing. Either way the moved marker ends selected, made here rather than by the verb,
+// because a selection change ends the run and only this commit may survive its own — and selected
+// BEFORE the landing publishes, because the landing select is a settle point and the moved marker
+// must be the one in focus when it settles. A refused press leaves the model, the entry and the run
+// exactly as they stood.
 template <typename Snapshot>
 bool EditorController::Impl::commitMarkerMove(
     Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed)
@@ -134,13 +176,16 @@ bool EditorController::Impl::commitMarkerMove(
 
     if (origin == nullptr)
     {
-        const MarkerCommit committed =
-            commitMarkerModel(before, std::move(after), std::move(label));
+        const MarkerCommit committed = landMarkerModel(before, std::move(after), std::move(label));
         if (committed == MarkerCommit::Refused)
         {
             return false;
         }
         selectMarker(landed);
+        if (committed != MarkerCommit::Unchanged)
+        {
+            finishMarkerCommit();
+        }
         if (committed == MarkerCommit::Landed)
         {
             m_marker_move_origin = std::move(before);
@@ -159,7 +204,6 @@ bool EditorController::Impl::commitMarkerMove(
         }
     }
     // A press that walks the run back to its origin lands the origin itself.
-    const bool walked_back = !judged.has_value();
     const Snapshot* const landing = judged.has_value() ? &*judged : origin;
     if (!landing->applyTo(m_session))
     {
@@ -168,19 +212,21 @@ bool EditorController::Impl::commitMarkerMove(
         return false;
     }
 
-    if (judged.has_value())
+    std::unique_ptr<MarkerModelEdit<Snapshot>> entry =
+        judged.has_value() ? writtenMarkerEdit(*origin, std::move(*judged), std::move(label))
+                           : nullptr;
+    const bool recorded = entry != nullptr;
+    if (recorded)
     {
-        static_cast<void>(replaceUndoTop(
-            std::make_unique<MarkerModelEdit<Snapshot>>(
-                *origin, std::move(*judged), std::move(label))));
+        static_cast<void>(replaceUndoTop(std::move(entry)));
     }
     else
     {
         static_cast<void>(dropUndoTop());
     }
-    finishMarkerCommit();
     selectMarker(landed);
-    if (!walked_back)
+    finishMarkerCommit();
+    if (recorded)
     {
         m_marker_move_origin = std::move(held);
     }
@@ -195,12 +241,12 @@ bool EditorController::Impl::commitMarkerMove(
 // one under the locked Scale Tempo. Carrying first is what demotes an armed caret onto its carried
 // place:
 // a select dissolves a caret by seeking to its address, and its OLD address under the new grid is
-// other music. The landed marker is selected next, only where it still stands, since normalization
-// may have dropped it, and otherwise nothing is: where every address moved, the old selection would
-// name other music. The carry is no keyboard move, so nothing the commit does to where the keyboard
-// stands asks the window to follow (m_published_keyboard_seconds). Everything settles before the
-// commit's one publish, which follows the funnel's publish rule: only when the model landed or a
-// marker was selected.
+// other music. The landed marker is selected next, where the verb landed one, and otherwise nothing
+// is: where every address moved, the old selection would name other music. That select is a settle
+// point, so a meter restating its reign lands in focus and stays. The carry is no keyboard move, so
+// nothing the commit does to where the keyboard stands asks the window to follow
+// (m_published_keyboard_seconds). Everything settles before the commit's one publish, which follows
+// the funnel's publish rule: only when the model moved or a marker was selected.
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
@@ -216,7 +262,8 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     {
         return committed;
     }
-    if (committed == MarkerCommit::Landed)
+    const bool moved = committed != MarkerCommit::Unchanged;
+    if (moved)
     {
         // Absent only while the transport plays, when no caret can be armed.
         if (place.has_value())
@@ -227,11 +274,11 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
         m_published_keyboard_seconds.reset();
     }
     const bool selected = landed.has_value() && selectMarkerStartingAt(landed_row, *landed);
-    if (committed == MarkerCommit::Landed && !selected)
+    if (moved && !selected)
     {
         clearSelection();
     }
-    if (selected || committed == MarkerCommit::Landed)
+    if (selected || moved)
     {
         finishMarkerCommit();
     }

@@ -1,5 +1,4 @@
 #include "timeline/meter_edits.h"
-#include "timeline/song_timeline_snapshot.h"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -25,6 +24,7 @@
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/testing/song_timeline_fixtures.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -430,13 +430,14 @@ struct WrittenPackage
     return std::ranges::any_of(tempo_map.reigns(), &common::core::MeterReign::derived);
 }
 
-// The path the editor takes: the transform's result normalized, as the commit funnel lands it.
+// The transform's result in its written form, as the history and the file hold it: every meter
+// restating its reign dropped.
 [[nodiscard]] SongTimeline landedUnderMeters(
     const SongTimeline& before, const std::vector<TimeSignatureChange>& meters)
 {
-    SongTimelineSnapshot landed{.timeline = readdressUnderMeters(before, meters)};
-    landed.normalize();
-    return landed.timeline;
+    SongTimeline landed = readdressUnderMeters(before, meters);
+    landed.tempo_map = common::core::withoutRedundantTimeSignatures(std::move(landed.tempo_map));
+    return landed;
 }
 
 } // namespace
@@ -505,7 +506,7 @@ TEST_CASE("Meter edits keep every object's time over random songs", "[core][mete
 }
 
 // ---------------------------------------------------------------------------------------------
-// The commit's normalize: which stored repeats carry nothing.
+// The written form: which stored repeats carry nothing.
 
 // A stored change is redundant exactly when dropping it leaves every measure's length as it is: it
 // repeats the meter of the authored reign before it from one of that reign's own downbeats. A
@@ -513,7 +514,7 @@ TEST_CASE("Meter edits keep every object's time over random songs", "[core][mete
 // before it, which stores nothing to repeat. The anchors stand under the cut, so dropping the
 // repeat after the re-address would move every one of them.
 TEST_CASE(
-    "Normalize drops only a repeated meter on its predecessor's downbeat grid",
+    "The written form drops only a repeated meter on its predecessor's downbeat grid",
     "[core][meter-edits]")
 {
     const SongTimeline before{
@@ -592,6 +593,28 @@ TEST_CASE("Meter edits change only the meter lines of a saved project", "[core][
             linesOutsideTimeSignatures(was.song_lines));
     }
     CHECK(compared >= 20);
+}
+
+// The file holds the written form: a meter restating its reign, which the editor keeps in memory
+// while its chip is selected, never reaches song.json, so the package written from a song holding
+// one is byte-identical to the package written without it.
+TEST_CASE("The writer sheds a meter restating its reign", "[core][meter-edits]")
+{
+    const SongTimeline before{
+        .tempo_map = common::core::testing::commonTimeMap({anchor("1:1", 0), anchor("9:1", 16000)}),
+        .sections = {},
+        .arrangements = {sliceArrangement("lead", {makeNote(at("4:4"), 1, 5, Fraction{1}, {})})},
+    };
+    SongTimeline restated = before;
+    restated.tempo_map =
+        TempoMap{{placed(Fraction{}, 4, 4), placed(Fraction{2}, 4, 4)}, before.tempo_map.anchors()};
+    requireValid(restated);
+
+    const TemporaryDirectory directory;
+    const WrittenPackage was = writtenPackage(directory.path() / "before", before);
+    const WrittenPackage now = writtenPackage(directory.path() / "restated", restated);
+    CHECK(now.song_lines == was.song_lines);
+    CHECK(now.chart_texts == was.chart_texts);
 }
 
 // ---------------------------------------------------------------------------------------------

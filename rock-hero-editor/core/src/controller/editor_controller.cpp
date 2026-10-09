@@ -1853,10 +1853,11 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
     // Undo/redo are deliberately not settle events, but they ARE context switches: the burst is
     // over, so no coalescing window may reach across one. Stated here rather than left to the
     // position proof, which an undo followed by a redo restores. And the history describes the
-    // WRITTEN chart (writtenChartPlan): a silent keyframe is authoring state no entry holds, so it
-    // goes before either direction replays — undo discards what was never committed, exactly as
-    // it discards an armed pending entry.
+    // WRITTEN song (writtenChartPlan, writtenModel): a silent keyframe and a meter restating its
+    // reign are authoring state no entry holds, so both go before either direction replays — undo
+    // discards what was never committed, exactly as it discards an armed pending entry.
     static_cast<void>(dissolveSilentKeyframes({}));
+    static_cast<void>(dissolveRedundantMeters(nullptr));
     m_chart_notes_top.reset();
     m_marker_move_origin.reset();
     disarmChartVerbWindow();
@@ -1869,6 +1870,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
 void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
 {
     static_cast<void>(dissolveSilentKeyframes({}));
+    static_cast<void>(dissolveRedundantMeters(nullptr));
     m_chart_notes_top.reset();
     m_marker_move_origin.reset();
     disarmChartVerbWindow();
@@ -2384,7 +2386,7 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
         // broke stops being transient before it can be heard as something it is not. The
         // clearSelection above usually settles it already; stated here so a selection that was
         // already empty still settles.
-        static_cast<void>(settleChart());
+        static_cast<void>(settle());
         activateToneAtCursor();
 
         // The bake is the LAST thing before the transport starts, and it must be: from the moment a
@@ -2424,7 +2426,7 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
     disarmChartMarker();
     // Moving the transport away is leaving the place being edited, so it settles too — after the
     // seek's own state changes, like every shared settle event.
-    static_cast<void>(settleChart());
+    static_cast<void>(settle());
     // The active tone follows the cursor: the region under the new position becomes the tone
     // context, and any formal selection is cleared so a stray Delete cannot remove a tone.
     activateToneAtCursor();

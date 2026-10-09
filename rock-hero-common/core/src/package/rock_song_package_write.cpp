@@ -720,9 +720,15 @@ struct SongDocumentForSave
         arrangement_ids.push_back(*arrangement_id);
     }
 
+    // The document holds the map's normal form: a time signature restating its reign is authoring
+    // state the editor keeps while its chip is selected, never document.
     return SongDocumentForSave{
         .contents = songDocumentContents(
-            song.metadata, song.tempo_map, song.sections, audio_assets, arrangements),
+            song.metadata,
+            withoutRedundantTimeSignatures(song.tempo_map),
+            song.sections,
+            audio_assets,
+            arrangements),
         .arrangement_ids = std::move(arrangement_ids),
     };
 }
