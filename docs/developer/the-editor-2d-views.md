@@ -92,8 +92,8 @@ verbs are the core's, never the ruler's own). A click on any chip reports a sele
 **section** row, the one chip row that is also an editing surface, adds a double-click rename prompt
 and the right-click section menu. The chip double-click is the pointer form of the rename; the
 keyboard forms are `Enter` and `Ctrl+R` on a selected chip, plus the section's own chord `Ctrl+M`,
-which reads the CURSOR and never the selection: a section standing on the downbeat of the measure
-the cursor is in is renamed, otherwise one is inserted there (2026-09-14; `F2` is gone as of
+which reads the CURSOR and never the selection: a section standing exactly on the cursor's
+placement slot is renamed, otherwise one is inserted there (2026-09-14; `F2` is gone as of
 2026-09-12). The tempo chip carries the tempo verbs (plan 41): `Enter` and a double-click open
 the BPM prompt through the core's published restate verb, `Alt+←/→` and a drag move its time
 freely (a drag is one gesture and one undo entry, below), and a right-click on the tempo row opens Add
@@ -225,13 +225,13 @@ and verbs (`Enter`, `Ctrl+R`, Delete, Alt+arrow moves) dispatch on whichever alt
 That dispatch is why the ruler's section chips needed almost no chords of their own: `Enter`
 restates the selected section, `Ctrl+R` renames it (`RenameSelection`, `0x1405`, which also renames
 a selected tone region's TONE and is silently inert on every kind with no name), `Delete` deletes it
-and `Alt+←/→` moves it one MEASURE (the section verbs place a section on a downbeat, so a
-measure is its step) — all by reaching a new alternative. The one chord a section owns is
-`Ctrl+M`, which under the marker grammar signed 2026-09-12 and re-ruled 2026-09-14 reads the cursor
-and never the selection: it restates the section standing at the cursor's measure downbeat, else
-inserts one there. `F2` is retired. A selected tone region answers `Alt+←/→` on its START, the
-tone
-change it opens, one placement-quantum line per press. Either marker's landed move ends in
+and `Alt+←/→` moves it one placement-quantum line (a section is a named instant anywhere on the
+grid, so its step is every marker start's) — all by reaching a new alternative. The one chord a
+section owns is `Ctrl+M`, which under the marker grammar signed 2026-09-12 and re-ruled 2026-09-14
+reads the cursor and never the selection: it restates the section standing exactly at the cursor's
+placement slot, else inserts one there. `F2` is retired. A selected tone region answers `Alt+←/→`
+on its START, the tone change it opens, one placement-quantum line per press. Either marker's
+landed move ends in
 `followMovedMarker`, which brings the paused cursor to the new start so the edit is in view; a
 pointer drag of a tone boundary leaves the cursor, since the edge is already under the mouse.
 

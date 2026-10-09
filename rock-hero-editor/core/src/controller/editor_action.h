@@ -964,16 +964,16 @@ struct EditorAction
     };
 
     /*!
-    \brief Insert a song-structure section at a position's measure downbeat.
+    \brief Insert a song-structure section at a position.
 
     Carries the position the surface captured AT THE PRESS, exactly as the tone-change insert
     does: a verb that puts a prompt between the key and the effect must not re-read the marker
     after the prompt closes, or a rolling transport lands the section wherever the playhead
-    drifted to while the charter typed. The snap to the measure downbeat is the verb's own.
+    drifted to while the charter typed.
     */
     struct InsertSongSection
     {
-        /*! \brief Position the section is asked for; snapped to its measure's downbeat. */
+        /*! \brief Position the section starts on. */
         common::core::GridPosition position;
 
         /*! \brief Name for the new section; an empty name refuses. */

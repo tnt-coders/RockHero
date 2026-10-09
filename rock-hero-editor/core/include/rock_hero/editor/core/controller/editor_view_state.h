@@ -425,7 +425,7 @@ Published as a marker chord's or a selection verb's answer
 */
 struct RenameSectionTarget
 {
-    /*! \brief Measure downbeat the section starts on; the rename addresses it by this. */
+    /*! \brief Position the section starts on; the rename addresses it by this. */
     common::core::GridPosition position{};
 
     /*! \brief The section's current name, the prompt's starting text. */
@@ -439,24 +439,24 @@ struct RenameSectionTarget
 };
 
 /*!
-\brief The verb that inserts a section at a downbeat the core has already found free and able to
-carry one.
+\brief The verb that inserts a section at a slot the core has already found free and able to carry
+one.
 */
 struct InsertSectionTarget
 {
-    /*! \brief Measure downbeat the new section will start on. */
-    common::core::GridPosition downbeat{};
+    /*! \brief Grid position the new section will start on. */
+    common::core::GridPosition position{};
 
     /*!
     \brief Compares two targets field by field.
-    \return True when both name the same downbeat.
+    \return True when both name the same position.
     */
     bool operator==(const InsertSectionTarget&) const = default;
 };
 
 /*!
-\brief What `Ctrl+M` would do right now: rename the section standing exactly at the cursor's
-downbeat, insert one there, or nothing.
+\brief What `Ctrl+M` would do right now: rename the section standing exactly at the cursor's slot,
+insert one there, or nothing.
 
 THE section chord's answer, derived once in the core from the cursor — the armed caret, else the
 paused cursor — and never from the selection. Nothing while the transport plays, with no song, or
@@ -1190,8 +1190,8 @@ struct EditorViewState
     \brief What the section chord (`Ctrl+M`) would do at the cursor right now.
 
     The marker grammar, published as the VERB rather than as a position for the view to reason
-    about: the core reads the cursor — the armed caret, else the paused cursor's tick, snapped to
-    its measure's downbeat — and answers rename-this, insert-here or nothing. The view opens the
+    about: the core reads the cursor — the armed caret, else the paused cursor at the placement
+    quantum — and answers rename-this, insert-here or nothing. The view opens the
     prompt the verb names; it never looks up a section itself, and it keeps no playback or no-song
     gate of its own, since "nothing" is that gate.
     */
@@ -1200,8 +1200,8 @@ struct EditorViewState
     /*!
     \brief What the tempo chord (`Ctrl+B`) would do at the cursor right now.
 
-    The tempo twin of \ref section_chord_target, read at the placement quantum: type the tempo of
-    the span the anchor standing there opens, insert an anchor there, or nothing.
+    The tempo twin of \ref section_chord_target, read at the same slot: type the tempo of the span
+    the anchor standing there opens, insert an anchor there, or nothing.
     */
     TempoChordTarget tempo_chord_target{};
 

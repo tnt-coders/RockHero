@@ -451,6 +451,53 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
     CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 40, 11}, row_background) == 0);
 }
 
+// A section is a named instant anywhere on the grid, and its mark in the ruler is its chip's
+// dotted leader at that instant — the mark every chip row's markers have, downbeat or not. Half a
+// beat past beat 2 the quarter grid draws no tick, so the leader is the only ink in that column:
+// the mark is the section's own, not a measure tick it happens to share.
+TEST_CASE("TimelineRuler marks a mid-measure section at its own instant", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setSectionLabels(
+        std::vector<RulerSectionLabel>{
+            RulerSectionLabel{
+                .seconds = 1.5,
+                .position =
+                    common::core::GridPosition{
+                        .measure = 1, .beat = 2, .offset = common::core::Fraction{1, 2}
+                    },
+                .name = "Pickup",
+                .selected = false,
+            },
+        });
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // One measure across 401px maps seconds * 100, so the section's column is x = 150: the
+    // leader's on-dot row inside the tempo row (y = 21) carries the section color, and the chip's
+    // left margin stands on the same column.
+    CHECK(image.getPixelAt(150, 21) == editorTheme().section_chip);
+    CHECK(image.getPixelAt(152, 7) == editorTheme().section_chip);
+    // The body below the leader is plain ruler chrome in both the measure band and the beat band:
+    // no tick stands there, so nothing but the leader marks the section.
+    CHECK(image.getPixelAt(150, 50) == editorTheme().timeline_ruler_background);
+    CHECK(image.getPixelAt(150, 62) == editorTheme().timeline_ruler_background);
+}
+
 // The tab lane's spans stand their label chips on the ruler's bottom edge, each at its own span's
 // start in its span's color, each printing the "?" of a span with no name.
 TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-ruler]")
@@ -732,10 +779,11 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     CHECK(listener.restate_count == 2);
 }
 
-// The tempo menu's "Add Tempo Anchor" reads the right-click at the placement quantum the core
-// published, the slot the tempo chord would read: the grid line with snap on, the tick with it off.
+// The tempo menu's "Add Tempo Anchor" and the section menu's "Insert Section Here" read the
+// right-click at the placement quantum the core published, the slot the tempo and section chords
+// would read: the grid line with snap on, the tick with it off.
 TEST_CASE(
-    "TimelineRuler tempo insert reads the click at the placement quantum", "[ui][timeline-ruler]")
+    "TimelineRuler marker inserts read the click at the placement quantum", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     constexpr common::core::TimeRange one_measure_window{
@@ -752,14 +800,14 @@ TEST_CASE(
     const juce::Point<float> click{160.0f, 21.0f};
     ruler.setGrid(tempo_map, common::core::Fraction{1, 8});
     CHECK(
-        ruler.tempoInsertPositionAt(click) ==
+        ruler.insertSlotAt(click) ==
         std::optional{common::core::GridPosition{
             .measure = 1, .beat = 2, .offset = common::core::Fraction{1, 2}
         }});
 
     ruler.setGrid(tempo_map, common::core::g_tick_quantum_note_value);
     CHECK(
-        ruler.tempoInsertPositionAt(click) ==
+        ruler.insertSlotAt(click) ==
         std::optional{common::core::GridPosition{
             .measure = 1, .beat = 2, .offset = common::core::Fraction{3, 5}
         }});

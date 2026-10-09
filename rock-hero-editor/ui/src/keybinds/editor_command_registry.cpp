@@ -189,9 +189,9 @@ constexpr int g_add_lane_key = 'a';
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertSongSection,
-            // Ctrl+M, the section's letter on the marker plane: the section on the cursor's
-            // downbeat is renamed, a free downbeat takes a new one (the digit law's
-            // create-or-retype, applied to markers).
+            // Ctrl+M, the section's letter on the marker plane: the section on the cursor's slot
+            // is renamed, a free slot takes a new one (the digit law's create-or-retype, applied
+            // to markers).
             .name = "Insert or Rename Section at Cursor",
             .category = "Section",
             .default_keypresses = {markerAuthorChord(g_section_key)},

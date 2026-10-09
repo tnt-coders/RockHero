@@ -2100,8 +2100,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     }
     if (const SongSectionSelection* const section = selectedSongSection())
     {
-        // One measure per press, not one grid step: a section starts on a downbeat and nowhere
-        // else, so the measure IS the section's step.
+        // One placement-quantum line per press, the step every marker start takes.
         const SongSectionSelection selected = *section;
         moveSelectedSongSection(selected, direction);
         return;

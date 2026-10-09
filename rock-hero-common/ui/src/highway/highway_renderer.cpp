@@ -5808,12 +5808,10 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
 // --- Beat and measure bars: Charter's gradient wings in its deep blue, clipped to
 // each beat's hand window. Measures get a sharp teal attack line on the downbeat with a
 // brief blue fade trailing into the measure; plain beats are two wings meeting at the
-// line. A downbeat a section starts on draws that same bar PROMOTED — full alpha in the section
-// green with a much longer trailing wing — because a section boundary is a downbeat, so the board
-// needs no second mark and no second rule for what a boundary looks like. Both ends of every bar
-// dissolve along x, the same taper the note lines under them take
-// (pushTaperedFloorQuad states it): a bar stopping flat at the window edge would draw a hard end
-// where the light beside it is already fading out. ---
+// line. A section draws nothing here: its name floating above the board (drawSectionLabels) is
+// its only mark. Both ends of every bar dissolve along x, the same taper the note lines under
+// them take (pushTaperedFloorQuad states it): a bar stopping flat at the window edge would draw a
+// hard end where the light beside it is already fading out. ---
 void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 {
     const bool mirrored = options.mirrored;

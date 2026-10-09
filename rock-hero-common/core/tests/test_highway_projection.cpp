@@ -711,6 +711,23 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
     CHECK(dense_state.camera_zone_starts[1] == Catch::Approx(4.0));
     CHECK(dense_state.camera_zone_starts[2] == Catch::Approx(8.0));
     CHECK(dense_state.camera_zone_starts[3] == Catch::Approx(12.0));
+
+    // A section starting mid-measure cuts at the downbeat of the measure it starts IN, so the
+    // framing is in place when its first notes arrive: the pickup on 2:3 (3.0 s) cuts measure 2
+    // (2.0 s), and the two-measure split counts on from there (measures 4 and 6), then the
+    // empty-tail transition at measure 7. The label itself stands at the section's own instant.
+    const GridPosition pickup{.measure = 2, .beat = 3};
+    const HighwayViewState pickup_state =
+        boardOf(dense, tempo_map, {SongSection{.position = pickup, .name = "pickup"}});
+    REQUIRE(pickup_state.camera_zone_starts.size() == 5);
+    CHECK(pickup_state.camera_zone_starts[0] == Catch::Approx(0.0));
+    CHECK(pickup_state.camera_zone_starts[1] == Catch::Approx(2.0));
+    CHECK(pickup_state.camera_zone_starts[2] == Catch::Approx(6.0));
+    CHECK(pickup_state.camera_zone_starts[3] == Catch::Approx(10.0));
+    CHECK(pickup_state.camera_zone_starts[4] == Catch::Approx(12.0));
+    REQUIRE(pickup_state.sections.size() == 1);
+    CHECK(pickup_state.sections[0].seconds == Catch::Approx(tempo_map.secondsAt(pickup)));
+    CHECK(pickup_state.sections[0].seconds == Catch::Approx(3.0));
 }
 
 // Without a chart the projection returns an empty board (beat bars included: no chart, no

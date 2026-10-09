@@ -115,15 +115,14 @@ enum class EditorCommandId : std::uint16_t
     InsertToneChange = 0x1401,
 
     /*!
-    \brief Insert a section at the cursor's measure, or rename the one starting there (`Ctrl+M`).
+    \brief Insert a section at the cursor, or rename the one starting exactly there (`Ctrl+M`).
 
-    Shares the tone change's marker grammar. The chord reads the MEASURE the cursor is in — its
-    downbeat is where the chord places a section — and renames the section standing on that
-    downbeat or inserts one where it is free, a prompt naming it; the terminal anchor, which can
-    carry no section, makes the press inert. The core publishes the verb
-    (`EditorViewState::section_chord_target`); the view opens the prompt it names. A second press
-    after an insert therefore renames what the first made, since the cursor is still in its
-    measure.
+    Shares the tone change's marker grammar. The chord reads the cursor's placement slot and
+    renames the section standing exactly there or inserts one where the slot is free, a prompt
+    naming it; at or past the terminal anchor, where no section can start, the press is inert. The
+    core publishes the verb (`EditorViewState::section_chord_target`); the view opens the prompt it
+    names. A second press after an insert therefore renames what the first made, since the cursor
+    is still on its slot.
     */
     InsertSongSection = 0x1402,
 

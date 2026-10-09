@@ -1,6 +1,6 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
-**Status:** Phases 1–3 DONE 2026-10-09 (see their "As built" notes); Phases 4–5 not started.
+**Status:** Phases 1–4 DONE 2026-10-09 (see their "As built" notes); Phase 5 not started.
 Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
@@ -746,6 +746,20 @@ suites. New files follow the placement procedure; comments follow
   walk cuts where Q1 rules; the ruler draws a section tick at a mid-measure instant (pixel test);
   the 3D label's seconds equal the section's.
 - The keymap matrix, grammar and developer-guide rows (§10) in the same change set.
+- **As built (2026-10-09).** The rules needed nothing (Phase 2's `OffGridOrPastTerminal`); the
+  Phase 4 test is their first direct suite, `test_song_section_rules.cpp`. `Ctrl+M` reads
+  `cursorPosition(placementQuantum())`, the tempo chord's read, and publishes
+  `InsertSectionTarget{position}` (the `downbeat` field renamed); the insert stores the position it
+  is handed. `Alt+←/→` steps through `steppedNudgePosition`, the tone-region start's step, and the
+  verb refuses the origin collapse itself as the fret-hand move does, since the commit would record
+  it as a move that changed nothing. The ruler's two slot inserts share one `insertSlotAt`
+  (`tempoInsertPositionAt` renamed); `clickedGridPosition` keeps a tick branch for the METER insert,
+  which Phase 3 put at the beat, so its comment was rewritten rather than cut. The zone walk cuts
+  on `seconds < measure_end − ε`. The 2D mark needed no drawing change: the chip and its leader
+  already stood at the section's seconds, and the measure tick was never a section's mark, so the
+  pixel test pins the leader at a mid-measure column with nothing in the body beneath it. The 3D
+  label needed none either. The random-timeline fixture now stands half its sections on beat 2, so
+  the time-holding and round-trip properties cover mid-measure sections.
 
 ### Phase 5 — Docs, the converter, the user's projects, the sighting
 

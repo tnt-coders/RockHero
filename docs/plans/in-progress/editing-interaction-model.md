@@ -330,8 +330,9 @@ its trusted column, else the nearest placement-quantum slot, which is exactly wh
 would arm — and nothing at all while the transport plays or with no song. The 2026-07-21 form read
 "else the transport position"; a rolling transport lands a marker a beat late, so the fallback is
 paused-only. Every `Ctrl`+letter marker chord follows this one rule, each applying its own quantum
-on top of it: a section and a meter snap to the downbeat of the measure the cursor is IN, read from
-the tick, and a tempo anchor stands on the slot itself (until 2026-10-03 it floored to the beat).
+on top of it: a section, a tone change and a tempo anchor stand on the slot itself (the tempo
+anchor floored to the beat until 2026-10-03, the section to its measure's downbeat until
+2026-10-09), and a meter stands on the beat the cursor is IN, read from the tick.
 Ctrl+T works from anywhere, with no caret required.
 
 **That family IS the marker grammar, signed 2026-09-12:** letters touch the note, `Ctrl` touches

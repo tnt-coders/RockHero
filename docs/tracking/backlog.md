@@ -28,8 +28,17 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
-## Found by plan 67 Phase 1 and the last rule-citation sweep (2026-10-09)
+## Found by plan 67 Phases 1–4 and the last rule-citation sweep (2026-10-09)
 
+- **The grid step's collapse at the song's start is handled three ways.** `steppedNudgePosition`
+  returns its origin when an earlier step from `1:1` has nowhere to go. `moveSelectedSongSection`
+  and `moveSelectedFretHandPosition` (`fret_hand_handlers.cpp` ~:291) each refuse `target == from`;
+  `moveSelectedToneRegionStart` (`tone_handlers.cpp` ~:987) does not, so a Left press on a region
+  at `1:1` records a move that changed nothing; the lane-point nudge (~:2035-2049) guards it a
+  third way through `direction_ok`. Make `steppedNudgePosition` return `std::optional` (nothing at
+  the collapse) and refuse on it at every mover: three checks deleted, the tone case fixed.
+- **Section-move refusals do not flash.** The tempo, meter and hand-position chips glow red on a
+  refused verb; a section chip only logs.
 - **`parseGridPositionToken` has no production caller** now that the file stores places: only
   tests state positions in it. Keep it as the readout grammar's inverse, or move it into the test
   fixture header.
@@ -1376,8 +1385,9 @@ against the tree on the date above.
   shows only the floating name. Sections read acceptably that way for now. When a boundary mark is
   wanted, design it against the rejections already recorded in `docs/developer/the-3d-highway.md`
   (a coplanar second pass, an arch over the board, a per-section floor tint) and the sub-pixel bar
-  calibration there; the projection's camera-zone walk still decides which downbeat a section
-  belongs to, so a new mark reads that decision rather than re-deriving it.
+  calibration there. A section may stand mid-measure, so a mark is at the section's own instant
+  (where the name already floats), never at a bar; the projection's camera-zone walk decides which
+  measure a section cuts the framing at, and a new mark must not re-derive that.
 
 ## Found while making undo focus its change (2026-09-27)
 

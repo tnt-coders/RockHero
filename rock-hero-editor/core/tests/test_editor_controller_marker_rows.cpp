@@ -850,7 +850,7 @@ TEST_CASE("Marker-row chords author at the cursor, not the holder", "[core][mark
         const SectionChordTarget target = editor.state().section_chord_target;
         const auto* const insert = std::get_if<InsertSectionTarget>(&target);
         REQUIRE(insert != nullptr);
-        CHECK(insert->downbeat == downbeat(4));
+        CHECK(insert->position == downbeat(4));
     }
 
     SECTION("the tone row splits at a cursor inside the selected region")

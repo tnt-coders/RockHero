@@ -611,8 +611,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // What the section chord would do at the cursor right now (the published verb; see the
     // definition for the rule it derives).
     [[nodiscard]] SectionChordTarget sectionChordTarget() const;
-    // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
-    // Left or Right only; the move dispatch refuses a vertical direction for every marker kind.
+    // Moves the selected section one placement-quantum line (the Alt+arrow dispatch for the section
+    // alternative). Left or Right only; the move dispatch refuses a vertical direction for every
+    // marker kind.
     void moveSelectedSongSection(
         const SongSectionSelection& selection, ChartStepDirection direction);
     // Deletes the selected section (the Delete-key dispatch for the section alternative).

@@ -119,8 +119,8 @@ whitespace is trimmed; a position on the grid and strictly before the terminal a
 (`markerCanStartAt`), since a section on the closing barline would name a passage of no length;
 and STRICTLY ascending positions, so two sections can never claim one position (which would leave
 every later which-section-governs-this-moment question answering arbitrarily). The section verbs
-place a section on its measure's downbeat; a meter edit keeps a section's place, so one may stand
-mid-measure after it.
+place a section on the cursor's grid slot, and a meter edit keeps a section's place, so a section
+stands wherever the charter put it, a measure downbeat or not.
 
 ## audioAssets[]
 

@@ -580,9 +580,8 @@ const TimelineRuler::RulerChip* TimelineRuler::chipAt(
     return nullptr;
 }
 
-// The click's own grid position at a quantum. The section insert reads at the tick lattice, so a
-// click just short of a bar line is never rounded into the next measure before its verb floors it
-// to the measure the click is IN.
+// The click's own grid position at a quantum: the placement quantum where the insert lands on the
+// slot itself, the tick where its verb reads the beat the click is IN.
 std::optional<common::core::GridPosition> TimelineRuler::clickedGridPosition(
     const juce::Point<float> click, const common::core::Fraction quantum) const
 {
@@ -594,9 +593,9 @@ std::optional<common::core::GridPosition> TimelineRuler::clickedGridPosition(
     return core::nearestTempoGridPosition(m_tempo_map, quantum, *clicked);
 }
 
-// The tempo insert places where the tempo chord would, at the published placement quantum, since
-// an anchor stands wherever a grid slot does.
-std::optional<common::core::GridPosition> TimelineRuler::tempoInsertPositionAt(
+// The tempo and section inserts place where their chords would, at the published placement
+// quantum, since an anchor or a section stands wherever a grid slot does.
+std::optional<common::core::GridPosition> TimelineRuler::insertSlotAt(
     const juce::Point<float> click) const
 {
     return clickedGridPosition(click, m_placement_quantum);
@@ -648,15 +647,14 @@ void TimelineRuler::showMarkerMenu(
 }
 
 // Opens the ruler's section menu. The add verb is offered wherever the click resolves to a grid
-// position, because it is the one that needs discovering, and it inserts at the CLICK's measure:
-// a pointer menu inserts where you pointed, and the marker-rule form is the keyboard chord's. The
-// rest act on the chip the click landed on, which the menu selects; Rename is the selection's
-// restate verb, as a double-click is.
+// slot, because it is the one that needs discovering, and it inserts at the CLICK's slot: a pointer
+// menu inserts where you pointed, and the marker-rule form is the keyboard chord's. The rest act on
+// the chip the click landed on, which the menu selects; Rename is the selection's restate verb, as
+// a double-click is, and the moves are Alt+arrows' one grid step.
 void TimelineRuler::showSectionContextMenu(const RulerChip* chip, const juce::Point<float> click)
 {
     std::vector<MarkerMenuRow> rows;
-    if (const std::optional<common::core::GridPosition> insert_position =
-            clickedGridPosition(click, common::core::g_tick_quantum_note_value);
+    if (const std::optional<common::core::GridPosition> insert_position = insertSlotAt(click);
         insert_position.has_value())
     {
         rows.push_back(
@@ -669,10 +667,10 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, const juce::Po
     {
         rows.push_back(
             {.text = "Rename", .action = [this] { m_listener->onSelectionRestateRequested(); }});
-        rows.push_back({.text = "Move a Measure Earlier", .action = [this] {
+        rows.push_back({.text = "Move a Grid Step Earlier", .action = [this] {
                             m_listener->onSelectionMoveRequested(false);
                         }});
-        rows.push_back({.text = "Move a Measure Later", .action = [this] {
+        rows.push_back({.text = "Move a Grid Step Later", .action = [this] {
                             m_listener->onSelectionMoveRequested(true);
                         }});
         rows.push_back(
@@ -692,8 +690,7 @@ std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::tempoRows(
     const juce::Point<float> click, const bool over_chip) const
 {
     std::vector<MarkerMenuRow> rows;
-    if (const std::optional<common::core::GridPosition> insert_position =
-            tempoInsertPositionAt(click);
+    if (const std::optional<common::core::GridPosition> insert_position = insertSlotAt(click);
         insert_position.has_value())
     {
         rows.push_back(

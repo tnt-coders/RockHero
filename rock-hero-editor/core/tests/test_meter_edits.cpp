@@ -718,4 +718,22 @@ TEST_CASE("Meter edit keeps a section left mid-measure", "[core][meter-edits]")
     CHECK(readdressUnderMeters(after, before.tempo_map.timeSignatures()) == before);
 }
 
+TEST_CASE("Meter round trip restores a section authored mid-measure", "[core][meter-edits]")
+{
+    // A pickup section on 2:3+1/2 of 4/4 (whole note 1 5/8) is 3:1+1/2 under 3/4 — never snapped
+    // to a barline either way — and the 4/4 restated restores it exactly.
+    const SongTimeline before{
+        .tempo_map = common::core::testing::commonTimeMap({anchor("1:1", 0), anchor("5:1", 8000)}),
+        .sections = {SongSection{.position = at("2:3+1/2"), .name = "Pickup"}},
+        .arrangements = {},
+    };
+    requireValid(before);
+    const SongTimeline after = readdressUnderMeters(before, std::vector{placed(Fraction{}, 3, 4)});
+    requireValid(after);
+    CHECK(
+        after.sections ==
+        std::vector<SongSection>{SongSection{.position = at("3:1+1/2"), .name = "Pickup"}});
+    CHECK(readdressUnderMeters(after, before.tempo_map.timeSignatures()) == before);
+}
+
 } // namespace rock_hero::editor::core

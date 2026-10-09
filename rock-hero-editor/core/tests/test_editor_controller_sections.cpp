@@ -181,10 +181,10 @@ TEST_CASE("EditorController adds a section at the marker's measure", "[core][sec
 }
 
 // The chord's whole decision is published as the VERB, so no surface reconstructs it: the core
-// reads the cursor, snaps it to its measure's downbeat, and answers insert-here or rename-this. The
-// cursor is the PAUSED cursor where no caret is armed and the caret where one is, so the chord is
-// reachable without arming first and the two readings are one rule rather than two.
-TEST_CASE("The published section chord names the verb at the cursor's measure", "[core][sections]")
+// reads the cursor's slot and answers insert-here or rename-this. The cursor is the PAUSED cursor
+// where no caret is armed and the caret where one is, so the chord is reachable without arming
+// first and the two readings are one rule rather than two.
+TEST_CASE("The published section chord names the verb at the cursor's slot", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
         {SongSection{.position = downbeat(3), .name = "Chorus"}})};
@@ -193,7 +193,7 @@ TEST_CASE("The published section chord names the verb at the cursor's measure", 
     const SectionChordTarget parked = editor.publishedSectionChordTarget();
     const auto* const parked_insert = std::get_if<InsertSectionTarget>(&parked);
     REQUIRE(parked_insert != nullptr);
-    CHECK(parked_insert->downbeat == downbeat(2));
+    CHECK(parked_insert->position == downbeat(2));
     // Nothing stands there, which is why the verb is an insert.
     CHECK(std::ranges::none_of(editor.publishedSections(), [](const SongSectionViewState& section) {
         return section.position == GridPosition{.measure = 2, .beat = 1};
@@ -204,39 +204,74 @@ TEST_CASE("The published section chord names the verb at the cursor's measure", 
     const SectionChordTarget armed = editor.publishedSectionChordTarget();
     const auto* const armed_insert = std::get_if<InsertSectionTarget>(&armed);
     REQUIRE(armed_insert != nullptr);
-    CHECK(armed_insert->downbeat == downbeat(2));
+    CHECK(armed_insert->position == downbeat(2));
 
-    // A cursor in the measure a section already opens renames it, on its own name — the name the
-    // core publishes with the verb, so the prompt needs no lookup of its own.
-    editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
+    // A cursor exactly on a section's start renames it, on its own name — the name the core
+    // publishes with the verb, so the prompt needs no lookup of its own.
+    editor.seekToMeasure(3);
     const SectionChordTarget over_section = editor.publishedSectionChordTarget();
     const auto* const rename = std::get_if<RenameSectionTarget>(&over_section);
     REQUIRE(rename != nullptr);
     CHECK(rename->position == downbeat(3));
     CHECK(rename->name == "Chorus");
+
+    // Inside the section but off its start the verb is an insert there: a section is an instant,
+    // not a measure, so standing in its passage addresses nothing.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
+    const SectionChordTarget inside = editor.publishedSectionChordTarget();
+    const auto* const inside_insert = std::get_if<InsertSectionTarget>(&inside);
+    REQUIRE(inside_insert != nullptr);
+    CHECK(inside_insert->position == GridPosition{.measure = 3, .beat = 3});
 }
 
-// The chord reads the cursor's TICK, not the slot an arrow press would take there: a cursor late in
-// a measure names the measure it is IN, where a section can actually start, even when the nearest
-// grid line lies in the next one. Snap moves the slot and never this, so the two states agree.
-TEST_CASE("The section chord names the measure the cursor is in", "[core][sections]")
+// The chord reads the slot an arrow press would arm on, exactly as the tone and tempo chords do:
+// the nearest line of the placement quantum with snap on, the tick with it off.
+TEST_CASE("The section chord names the cursor's placement slot", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
     editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
 
-    // 3.8 s is measure 2, three and a half beats in; the nearest quarter line is measure 3's
-    // downbeat, so reading the slot would author a measure late.
+    // 3.8 s is measure 2, 3.6 beats in; the nearest quarter line is measure 3's downbeat.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.8});
     const SectionChordTarget snapped = editor.publishedSectionChordTarget();
     const auto* const snapped_insert = std::get_if<InsertSectionTarget>(&snapped);
     REQUIRE(snapped_insert != nullptr);
-    CHECK(snapped_insert->downbeat == downbeat(2));
+    CHECK(snapped_insert->position == downbeat(3));
 
+    // With snap off the slot is the tick: three fifths of a beat past beat 4 of measure 2.
     turnGridSnapOff(editor.controller);
     const SectionChordTarget unsnapped = editor.publishedSectionChordTarget();
     const auto* const unsnapped_insert = std::get_if<InsertSectionTarget>(&unsnapped);
     REQUIRE(unsnapped_insert != nullptr);
-    CHECK(unsnapped_insert->downbeat == downbeat(2));
+    CHECK(
+        unsnapped_insert->position ==
+        GridPosition{.measure = 2, .beat = 4, .offset = common::core::Fraction{3, 5}});
+}
+
+// Ctrl+M at a mid-measure slot inserts THERE, and a second press at the same cursor renames what
+// the first made: the create-then-name double press works off any slot, not only a downbeat.
+TEST_CASE("The section chord inserts and then renames at a mid-measure slot", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong({})};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+    constexpr GridPosition pickup{.measure = 2, .beat = 3};
+
+    // 3.0 s is beat 3 of measure 2 exactly.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.0});
+    const SectionChordTarget first = editor.publishedSectionChordTarget();
+    const auto* const insert = std::get_if<InsertSectionTarget>(&first);
+    REQUIRE(insert != nullptr);
+    CHECK(insert->position == pickup);
+
+    editor.controller.onSongSectionInsertRequested(insert->position, "Pickup");
+    REQUIRE(editor.sections().size() == 1);
+    CHECK(editor.sections().front().position == pickup);
+
+    const SectionChordTarget second = editor.publishedSectionChordTarget();
+    const auto* const rename = std::get_if<RenameSectionTarget>(&second);
+    REQUIRE(rename != nullptr);
+    CHECK(rename->position == pickup);
+    CHECK(rename->name == "Pickup");
 }
 
 // The verb is nothing exactly where the commit would refuse it, so the press is inert rather than
@@ -282,7 +317,7 @@ TEST_CASE("The section chord ignores the selected chip", "[core][sections]")
     const SectionChordTarget target = editor.publishedSectionChordTarget();
     const auto* const insert = std::get_if<InsertSectionTarget>(&target);
     REQUIRE(insert != nullptr);
-    CHECK(insert->downbeat == downbeat(4));
+    CHECK(insert->position == downbeat(4));
 }
 
 // An insert leaves what it made selected, as a typed note does, so Enter, Delete and Alt+arrows act
@@ -343,22 +378,20 @@ TEST_CASE("A section rename selects the section it addressed", "[core][sections]
     CHECK(editor.undoEntryCount() == entries);
 }
 
-// A section starts on a downbeat and nowhere else, so a marker resting mid-measure snaps back to
-// that measure's downbeat instead of authoring a position the format would accept but the board
-// could not promote a bar for.
-TEST_CASE("Section insert snaps the marker to its measure downbeat", "[core][sections]")
+// A section is a named instant anywhere on the grid, so the insert stores the slot it was handed
+// and snaps nothing: a section half a measure into measure 2 starts half a measure into measure 2.
+TEST_CASE("Section insert keeps the slot it was handed", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
 
-    // Half a measure into measure 2: the verb snaps the position it was handed back to measure 2's
-    // downbeat.
-    editor.controller.onSongSectionInsertRequested(GridPosition{.measure = 2, .beat = 3}, "Verse");
+    constexpr GridPosition mid_measure{.measure = 2, .beat = 3};
+    editor.controller.onSongSectionInsertRequested(mid_measure, "Verse");
     REQUIRE(editor.sections().size() == 1);
-    CHECK(editor.sections().front().position == downbeat(2));
+    CHECK(editor.sections().front().position == mid_measure);
 }
 
-// Section insert refuses rather than overwriting: a blank name and a downbeat another section
-// already holds each leave the list alone and record no undo entry.
+// Section insert refuses rather than overwriting: a blank name and a slot another section already
+// holds each leave the list alone and record no undo entry.
 TEST_CASE("Section insert refuses an empty name and a duplicate", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
@@ -480,18 +513,20 @@ TEST_CASE("Section rename leaves the audible tone's published state alone", "[co
     CHECK(editor.sections().front().name == "Chorus");
 }
 
-// Alt+arrows move the selected section one MEASURE, because a measure is the section's step, and
-// bring the cursor to the downbeat it moved to, as every selection move of a marker does.
-TEST_CASE("EditorController moves the selected section a measure", "[core][sections]")
+// Alt+arrows move the selected section one line of the placement quantum, the step every marker
+// start takes, and bring the cursor to the slot it moved to, as every selection move of a marker
+// does.
+TEST_CASE("EditorController moves the selected section a placement line", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
         {SongSection{.position = downbeat(2), .name = "Verse"}})};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     editor.controller.onSongSectionSelected(downbeat(2));
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     REQUIRE(editor.sections().size() == 1);
-    CHECK(editor.sections().front().position == downbeat(3));
-    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+    CHECK(editor.sections().front().position == GridPosition{.measure = 2, .beat = 2});
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.5, 1e-9));
 
     // The position is the section's identity, so the selection moved with it and a second press
     // keeps going instead of losing its operand.
@@ -503,35 +538,41 @@ TEST_CASE("EditorController moves the selected section a measure", "[core][secti
     CHECK(editor.undoEntryCount() == 0);
 }
 
-// A section move refuses rather than swapping or merging: a step onto a downbeat another section
-// holds, past the last measure that can carry a section, or before measure 1 leaves it in place.
-TEST_CASE("Section move refuses an occupied downbeat and the song end", "[core][sections]")
+// A section move refuses rather than swapping or merging: a step onto a slot another section holds,
+// onto the terminal anchor, or earlier than the song's start leaves it in place.
+TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
         {SongSection{.position = downbeat(2), .name = "Verse"},
-         SongSection{.position = downbeat(3), .name = "Chorus"}})};
+         SongSection{.position = GridPosition{.measure = 2, .beat = 2}, .name = "Chorus"}})};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     editor.controller.onSongSectionSelected(downbeat(2));
 
-    // Measure 3 already holds a section: refused, not swapped and not merged, and the cursor stays.
+    // Beat 2 already holds a section: refused, not swapped and not merged, and the cursor stays.
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     REQUIRE(editor.sections().size() == 2);
     CHECK(editor.sections()[0].position == downbeat(2));
-    CHECK(editor.sections()[1].position == downbeat(3));
+    CHECK(editor.sections()[1].position == GridPosition{.measure = 2, .beat = 2});
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
 
-    // Measure 4 is the last that can carry a section; measure 5 is the closing barline.
-    editor.controller.onSongSectionSelected(downbeat(3));
+    // Beat 4 of measure 4 is the last slot that can carry a section, ten quarter lines on from 2:2;
+    // 5:1 is the closing barline, and the step onto it is refused.
+    constexpr GridPosition last_slot{.measure = 4, .beat = 4};
+    editor.controller.onSongSectionSelected(GridPosition{.measure = 2, .beat = 2});
+    editor.pressAlt(ChartStepDirection::Right, 10);
+    CHECK(editor.sections()[1].position == last_slot);
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(editor.sections()[1].position == downbeat(4));
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
-    CHECK(editor.sections()[1].position == downbeat(4));
+    CHECK(editor.sections()[1].position == last_slot);
 
-    // Measure 1 is the first: a step earlier from there leaves the grid.
+    // 1:1 is the first slot, four quarter lines back from 2:1: a step earlier from there has
+    // nowhere to go, so it is refused and records nothing on top of the run that got there.
     editor.controller.onSongSectionSelected(downbeat(2));
+    editor.pressAlt(ChartStepDirection::Left, 4);
+    CHECK(editor.sections()[0].position == downbeat(1));
+    const std::size_t entries = editor.undoEntryCount();
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(editor.sections()[0].position == downbeat(1));
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
-    CHECK(editor.sections()[0].position == downbeat(1));
+    CHECK(editor.undoEntryCount() == entries);
 }
 
 // Delete removes the selected section and round-trips exactly through undo and redo.

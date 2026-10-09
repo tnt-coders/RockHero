@@ -290,10 +290,10 @@ rather than taking as an argument. A hard end reads as an edge belonging to noth
 falls, wires included, and a harmonic's stop-to-node line does not stop on the wires that would give
 a slot line its flat ends in any case. There is no un-tapered floor line, and no way to ask for one.
 
-**A song section boundary draws nothing on the floor.** The authoring verbs place a section on a
-measure downbeat, so a boundary is usually a bar the board already draws, and the board draws it
-as any other downbeat; only the name above the board marks the section (a section left mid-measure
-by a meter edit has the name alone). A promoted bar
+**A song section boundary draws nothing on the floor.** A section stands at any grid position, a
+measure downbeat or not; its name above the board, at the section's own instant, is its only mark
+there, and the 2D ruler marks the same instant with the chip's dotted leader, so the two surfaces
+never disagree about where a section is. A promoted bar
 — the downbeat's attack line at full alpha in the section green with a trailing wing about three
 times as long — shipped 2026-09-12 and was removed 2026-09-24 after sighting: the green wing read
 as an awkward glow under the notes rather than as a boundary. How sections should read on the
@@ -301,8 +301,9 @@ board is an open backlog item; the earlier rejections still stand as inputs to i
 `drawSectionBars` pass (a second rule for what a downbeat looks like), an arch over the board
 (nothing vertical exists above the face except the label, and it would occlude approaching notes),
 and a per-section floor tint (the floor is the reading surface, already carrying the hand-window
-light and the strike glow). Which downbeat a section belongs to is still decided ONCE, in the
-camera-zone walk that snaps a mid-measure start forward for the framing cut.
+light and the strike glow). Which measure a section belongs to is decided ONCE, in the camera-zone
+walk, which cuts a zone at the downbeat of the measure the section starts IN, so the framing has
+settled by the time a mid-measure section's first notes arrive.
 
 The section's **name** floats above the board at `faceTopY() + 1.5 * string_distance`, riding its
 own z out among the notes but submitted with `alwaysDepth` so a nearer note cannot eat it. Every

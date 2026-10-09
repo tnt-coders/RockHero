@@ -349,9 +349,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectTimeSig
 
 // THE marker rule, for every marker kind: a marker verb authors at the cursor — the armed caret
 // where one is armed (a caret riding an automation lane included, since that is an armed caret
-// naming its lane), else the paused cursor read at the quantum the kind places on: the tick for a
-// section, which snaps to its measure's downbeat from there, the placement quantum for a tone
-// change, which lands where an arrow press would arm. Never the selection: the chords are
+// naming its lane), else the paused cursor read at the quantum the kind places on: the placement
+// quantum for a section, a tone change and a tempo anchor, which land where an arrow press would
+// arm, the tick for a meter, which names the beat it is in. Never the selection: the chords are
 // authoring verbs, and Enter and Ctrl+R are the selection's. Nothing while the transport plays —
 // the marker plane is paused-only, and a chord must not land a beat late off a moving transport —
 // and nothing with no song to hold a marker; those two gates live here, once, rather than in each

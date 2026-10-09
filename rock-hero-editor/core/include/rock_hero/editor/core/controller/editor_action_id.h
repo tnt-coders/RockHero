@@ -211,7 +211,7 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Select a song-structure section on the ruler (an empty position clears it). */
     SelectSongSection,
 
-    /*! \brief Insert a song-structure section at the marker's measure downbeat. */
+    /*! \brief Insert a song-structure section at a position. */
     InsertSongSection,
 
     /*! \brief Rename the song-structure section at a position. */

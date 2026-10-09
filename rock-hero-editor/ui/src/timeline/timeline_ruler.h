@@ -177,13 +177,12 @@ public:
         virtual void onTimeSignatureSelected(int measure) = 0;
 
         /*!
-        \brief Called when the ruler menu asks to add a section at the clicked measure.
+        \brief Called when the ruler menu asks to add a section at the clicked slot.
 
         The listener owns the prompt: a section needs a name, and the ruler must not raise one. A
         pointer menu inserts where the pointer is; the keyboard chord is the marker-rule form.
 
-        \param position Grid position the menu was opened over; the verb snaps it to its
-        measure's downbeat.
+        \param position Grid position the menu was opened over, read at the placement quantum.
         */
         virtual void onSongSectionInsertPromptRequested(common::core::GridPosition position) = 0;
 
@@ -228,8 +227,8 @@ public:
 
         /*!
         \brief Called when the section menu asks to move the section it has just selected one
-        measure.
-        \param later True to move a measure later, false to move a measure earlier.
+        placement-quantum line, the step `Alt+←/→` takes.
+        \param later True to move a line later, false to move a line earlier.
         */
         virtual void onSelectionMoveRequested(bool later) = 0;
 
@@ -467,15 +466,17 @@ public:
     [[nodiscard]] std::optional<juce::Rectangle<int>> selectedChipBounds() const;
 
     /*!
-    \brief Where the tempo menu's "Add Tempo Anchor" inserts for a right-click at a point.
+    \brief The slot a right-click at a point inserts on: where the tempo menu's "Add Tempo Anchor"
+    and the section menu's "Insert Section Here" place.
 
     The click read at the placement quantum the core published (\ref setGrid), the slot the tempo
-    chord would read at a cursor standing there, so the pointer and the keyboard place alike.
+    and section chords would read at a cursor standing there, so the pointer and the keyboard place
+    alike.
 
     \param click Point in this ruler's coordinates.
     \return The insert's grid position, or empty when the geometry cannot map the click.
     */
-    [[nodiscard]] std::optional<common::core::GridPosition> tempoInsertPositionAt(
+    [[nodiscard]] std::optional<common::core::GridPosition> insertSlotAt(
         juce::Point<float> click) const;
 
     /*!
@@ -693,9 +694,9 @@ private:
     [[nodiscard]] std::vector<MarkerMenuRow> signatureRows(
         juce::Point<float> click, bool over_chip) const;
 
-    // The click's grid position read at a quantum: the placement quantum for the tempo insert, the
-    // tick for the section insert, which floors it to its measure; empty when the geometry cannot
-    // map the click.
+    // The click's grid position read at a quantum: the placement quantum for the tempo and section
+    // inserts, the tick for the meter insert, which names the beat it is in; empty when the
+    // geometry cannot map the click.
     [[nodiscard]] std::optional<common::core::GridPosition> clickedGridPosition(
         juce::Point<float> click, common::core::Fraction quantum) const;
 

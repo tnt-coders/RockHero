@@ -2250,7 +2250,7 @@ bool EditorView::performCommand(const InvocationInfo& info)
                     std::get_if<core::InsertSectionTarget>(&m_state.section_chord_target)
             )
             {
-                onSongSectionInsertPromptRequested(insert->downbeat);
+                onSongSectionInsertPromptRequested(insert->position);
             }
             return true;
         }
@@ -3835,8 +3835,8 @@ void EditorView::onTimeSignatureSelected(const int measure)
     m_controller.onTimeSignatureSelected(measure);
 }
 
-// Prompts for a name and asks the controller to add a section at a position's measure downbeat —
-// the marker for the chord, the click for the ruler menu. The position is carried through the
+// Prompts for a name and asks the controller to add a section at a position — the cursor's slot
+// for the chord, the click's for the ruler menu. The position is carried through the
 // prompt rather than re-read when it closes, as the tone insert carries its own. The prompt
 // starts empty rather than with a default: an unnamed section is refused, and a placeholder name
 // would be worse than none on a chip meant to be read at a glance.

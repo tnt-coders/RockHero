@@ -493,6 +493,8 @@ TEST_CASE("A tempo edit moves the projected notes", "[core][tempo]")
 TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][tempo]")
 {
     TempoEditor editor;
+    // A quarter grid, so a section's placement-line step is one beat.
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
 
     SECTION("a section")
     {
@@ -500,7 +502,7 @@ TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][
         editor.controller.onSongSectionSelected(beatAt(2, 1));
         editor.pressAlt(ChartStepDirection::Right, 3);
         REQUIRE(editor.sections().size() == 2);
-        CHECK(editor.sections().front().position == beatAt(5, 1));
+        CHECK(editor.sections().front().position == beatAt(2, 4));
         CHECK(editor.undoEntryCount() == 1);
         CHECK(editor.undoTopLabel() == "Move Section");
         editor.controller.onUndoRequested();
@@ -535,6 +537,7 @@ TEST_CASE("A held marker move is one undo entry for every marker kind", "[core][
 TEST_CASE("A marker move run ends at every other commit point", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     const std::vector<SongSection> original = editor.sections();
 
     SECTION("a selection change")
@@ -562,7 +565,7 @@ TEST_CASE("A marker move run ends at every other commit point", "[core][tempo]")
         REQUIRE(editor.project_services.save_call_count == 1);
         editor.pressAlt(ChartStepDirection::Right);
         CHECK(editor.undoEntryCount() == 2);
-        CHECK(editor.sections().front().position == beatAt(4, 1));
+        CHECK(editor.sections().front().position == beatAt(2, 3));
     }
 }
 
@@ -572,14 +575,15 @@ TEST_CASE("A marker move run ends at every other commit point", "[core][tempo]")
 TEST_CASE("A marker move run ends when the selection leaves and returns", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     editor.controller.onSongSectionSelected(beatAt(2, 1));
     editor.pressAlt(ChartStepDirection::Right);
-    REQUIRE(editor.sections().front().position == beatAt(3, 1));
+    REQUIRE(editor.sections().front().position == beatAt(2, 2));
 
     editor.controller.onRowObjectStepRequested(true, false);
     editor.controller.onRowObjectStepRequested(false, false);
     editor.pressAlt(ChartStepDirection::Right);
-    CHECK(editor.sections().front().position == beatAt(4, 1));
+    CHECK(editor.sections().front().position == beatAt(2, 3));
     CHECK(editor.undoEntryCount() == 2);
 }
 
@@ -605,14 +609,15 @@ TEST_CASE("A typed tempo between two anchor moves ends the run", "[core][tempo]"
 TEST_CASE("A press after an undo mid-run records a new entry", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     editor.controller.onSongSectionSelected(beatAt(2, 1));
     editor.pressAlt(ChartStepDirection::Right, 2);
-    REQUIRE(editor.sections().front().position == beatAt(4, 1));
+    REQUIRE(editor.sections().front().position == beatAt(2, 3));
 
     editor.controller.onUndoRequested();
     REQUIRE(editor.sections().front().position == beatAt(2, 1));
     editor.pressAlt(ChartStepDirection::Right);
-    CHECK(editor.sections().front().position == beatAt(3, 1));
+    CHECK(editor.sections().front().position == beatAt(2, 2));
     CHECK(editor.undoEntryCount() == 1);
     CHECK(editor.undoTopLabel() == "Move Section");
 

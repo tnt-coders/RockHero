@@ -24,6 +24,7 @@ add_executable(
     test_chart_shapes.cpp
     test_session.cpp
     test_song.cpp
+    test_song_section_rules.cpp
     test_song_timeline.cpp
     test_arrangement.cpp
     test_application_identity.cpp

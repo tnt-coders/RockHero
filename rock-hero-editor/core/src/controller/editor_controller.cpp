@@ -2755,8 +2755,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     state.focus_count = m_focus_count;
     // Where a marker verb would land, from the one authority that decides it, so no surface needs
-    // a marker rule of its own: the raw position the tone chord compares against region starts,
-    // and the measure downbeat the section chord snaps to.
+    // a marker rule of its own.
     state.section_chord_target = sectionChordTarget();
     state.tempo_chord_target = tempoChordTarget();
     state.time_signature_chord_target = timeSignatureChordTarget();

@@ -530,8 +530,9 @@ Q1–Q12 here, cited elsewhere in this plan as "§9 Qn"; they are not the 60-Q i
   ring.
 
 1. **Q1 — the reference re-run.** The 88.09% run breaks at bars AND at sections and
-   phrase-iterations (`rules12_13.py`: `bars + sects`); the port breaks at bar lines only (item
-   1a: a section always starts on a downbeat, `song_section_rules.cpp:42-51`). **FINAL:** the
+   phrase-iterations (`rules12_13.py`: `bars + sects`); the port breaks at bar lines only (ruled;
+   item 1a — a section may stand anywhere on the grid since plan 67, and was never an input).
+   **FINAL:** the
    port's reference is `rules12_13.py` RE-RUN with `bars` alone AND with every other input choice
    the port makes — the option-B source demand (Q2), slid sources planted (Q2), legato sources rung
    as the converter rings them, and the slide-out exclusion (Q3, Q5). The ±0.05 check (Q12) then

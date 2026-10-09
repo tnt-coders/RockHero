@@ -6,7 +6,6 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
-#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <string>
 #include <utility>
@@ -34,34 +33,32 @@ const SongSectionSelection* EditorController::Impl::selectedSongSection() const
     return std::get_if<SongSectionSelection>(&m_selection);
 }
 
-// The section chord authors at the cursor and never reads the selection: the measure the cursor is
-// IN, read from the tick so a cursor near a barline is not rounded into the next measure, snapped
-// to that measure's downbeat, where the chord places a section. A section already standing there
-// is restated (renamed) — which is what makes the double press work: the first inserts and
-// selects, the second finds that section in the cursor's measure. Where none stands and a section
-// may start, the verb is an insert; at the terminal anchor it is nothing, so the chord is inert
-// exactly where the commit would refuse it rather than prompting for a name it cannot use.
+// The section chord authors at the cursor and never reads the selection: the cursor's placement
+// slot, the tone and tempo chords' read — the grid line with snap on, the tick with snap off. A
+// section already standing exactly there is restated (renamed) — which is what makes the double
+// press work: the first inserts and selects, and since the commit keeps the cursor on its slot, the
+// second finds that section there. Where none stands and a section may start, the verb is an
+// insert; at or past the terminal anchor it is nothing, so the chord is inert exactly where the
+// commit would refuse it rather than prompting for a name it cannot use.
 SectionChordTarget EditorController::Impl::sectionChordTarget() const
 {
-    const std::optional<common::core::GridPosition> position =
-        cursorPosition(common::core::g_tick_quantum_note_value);
+    const std::optional<common::core::GridPosition> position = cursorPosition(placementQuantum());
     if (!position.has_value())
     {
         return {};
     }
-    const common::core::GridPosition downbeat = common::core::measureDownbeat(*position);
     const std::vector<common::core::SongSection>& sections = session().song().sections;
     if (const auto standing =
-            std::ranges::find(sections, downbeat, &common::core::SongSection::position);
+            std::ranges::find(sections, *position, &common::core::SongSection::position);
         standing != sections.end())
     {
-        return RenameSectionTarget{.position = downbeat, .name = standing->name};
+        return RenameSectionTarget{.position = *position, .name = standing->name};
     }
-    if (!common::core::markerCanStartAt(downbeat, session().song().tempo_map))
+    if (!common::core::markerCanStartAt(*position, session().song().tempo_map))
     {
         return {};
     }
-    return InsertSectionTarget{.downbeat = downbeat};
+    return InsertSectionTarget{.position = *position};
 }
 
 void EditorController::Impl::onSongSectionSelected(
@@ -100,27 +97,26 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectSongSec
     updateView();
 }
 
-// Adds a section at the measure downbeat of the position the press captured. Every failure is a
-// refusal, not a clamp and not a silent overwrite: an empty name, a downbeat outside the song,
-// and a downbeat another section already holds each leave the list exactly as it was (rename is
-// the verb for the last of those) — all three are section rules, so the commit refuses them rather
-// than this verb restating them. Like every insert, it leaves what it made SELECTED — the caret it
-// was typed from demotes in place — so Enter, Delete and Alt+arrows act on the new section next,
-// and an arrow re-arms the caret where it stood.
+// Adds a section at the position the press captured. Every failure is a refusal, not a clamp and
+// not a silent overwrite: an empty name, a position off the grid or at or past the terminal, and a
+// position another section already holds each leave the list exactly as it was (rename is the verb
+// for the last of those) — all three are section rules, so the commit refuses them rather than this
+// verb restating them. Like every insert, it leaves what it made SELECTED — the caret it was typed
+// from demotes in place — so Enter, Delete and Alt+arrows act on the new section next, and an
+// arrow re-arms the caret where it stood.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSection& action)
 {
-    const common::core::GridPosition downbeat = common::core::measureDownbeat(action.position);
     const std::string name = common::core::trimmedSongSectionName(action.name);
     SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
     SongSectionsSnapshot after = before;
-    after.sections.push_back(common::core::SongSection{.position = downbeat, .name = name});
+    after.sections.push_back(common::core::SongSection{.position = action.position, .name = name});
 
     if (commitMarkerModel(std::move(before), std::move(after), "Add " + name) !=
         MarkerCommit::Refused)
     {
         // The insert selects what it made, and a selection made after the commit publishes with
         // this refresh: the commit's own publish ran before it existed.
-        selectMarker(SongSectionSelection{.position = downbeat});
+        selectMarker(SongSectionSelection{.position = action.position});
         updateView();
     }
 }
@@ -156,21 +152,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
     }
 }
 
-// Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
-// Refused rather than clamped when the target leaves the song or another section already holds
-// that downbeat: both are section rules, so the commit is what refuses them. A landed move brings
-// the paused cursor to the new downbeat, as every selection move of a marker does.
+// Moves the selected section one placement-quantum line, the step every marker start takes (the
+// Alt+arrow dispatch for the section alternative). Refused rather than clamped onto the terminal or
+// a position another section already holds — both section rules, so the commit is what refuses them
+// — and off the song's start here, because the grid step collapses onto the start it came from
+// there and the commit would record that as a move that changed nothing. A landed move brings the
+// paused cursor to the new position, as every selection move of a marker does.
 void EditorController::Impl::moveSelectedSongSection(
     const SongSectionSelection& selection, const ChartStepDirection direction)
 {
-    // Left or Right, always: a marker moves horizontally only, and the move dispatch refuses a
-    // vertical direction for every marker kind before it reaches here.
-    const int delta = direction == ChartStepDirection::Left ? -1 : 1;
-
-    // Stepped by MEASURE, then put through the one downbeat snap: the step is the only part of the
-    // target this verb decides, and where a section may sit is not its rule to restate.
-    const common::core::GridPosition target = common::core::measureDownbeat(
-        common::core::GridPosition{.measure = selection.position.measure + delta});
+    const std::string label = markerVerbLabel(MarkerVerb::MoveSection);
     SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
     SongSectionsSnapshot after = before;
     const auto match = findSection(after.sections, selection.position);
@@ -179,13 +170,19 @@ void EditorController::Impl::moveSelectedSongSection(
         // The selection went stale; moving nothing is the answer.
         return;
     }
+    // Left or Right, always: a marker moves horizontally only, and the move dispatch refuses a
+    // vertical direction for every marker kind before it reaches here.
+    const common::core::GridPosition target =
+        steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
+    if (target == selection.position)
+    {
+        m_refusal_log.markerEdit(label, "section would leave the song");
+        return;
+    }
 
     match->position = target;
     if (commitMarkerMove(
-            std::move(before),
-            std::move(after),
-            markerVerbLabel(MarkerVerb::MoveSection),
-            SongSectionSelection{.position = target}))
+            std::move(before), std::move(after), label, SongSectionSelection{.position = target}))
     {
         // The position IS the section's identity, so the commit selects the moved section under
         // its new one; followMovedMarker publishes it together with the cursor it brings along.

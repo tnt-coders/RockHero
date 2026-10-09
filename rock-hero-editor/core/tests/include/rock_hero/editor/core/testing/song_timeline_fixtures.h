@@ -57,6 +57,7 @@ using common::core::ToneAutomationPoint;
 using common::core::ToneParameterAutomation;
 using common::core::ToneRegion;
 using common::core::testing::anchor;
+using common::core::testing::beatAt;
 using common::core::testing::downbeat;
 using common::core::testing::metersAt;
 
@@ -495,8 +496,15 @@ inline constexpr std::array<int, 6> g_grids{16, 12, 24, 32, 20, 3840};
     }
     for (const int measure : measures)
     {
+        // A section is an instant anywhere on the grid, so half of them stand on beat 2 of their
+        // measure where it has one, to put the round trip through a mid-measure section too.
+        const bool on_beat_two =
+            dice.roll(0, 1) == 1 && tempo_map.timeSignatureAt(measure).meter.numerator >= 2;
         sections.push_back(
-            SongSection{.position = downbeat(measure), .name = std::format("Section {}", measure)});
+            SongSection{
+                .position = on_beat_two ? beatAt(measure, 2) : downbeat(measure),
+                .name = std::format("Section {}", measure),
+            });
     }
     std::vector<ArrangementTimeline> arrangements;
     arrangements.push_back(randomArrangement(dice, tempo_map, "lead", 1));

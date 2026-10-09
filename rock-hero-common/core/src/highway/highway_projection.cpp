@@ -631,11 +631,13 @@ HighwayViewState makeHighwayViewState(
         }
         const bool empty =
             note_cursor >= notes.size() || notes[note_cursor].start_seconds >= measure_end;
-        // A section starting since the previous downbeat (mid-measure starts snap forward to
-        // this one) restarts the grouping.
+        // A section starting inside this measure, its downbeat included, restarts the grouping
+        // here: a mid-measure section cuts at the downbeat of the measure it starts IN, so the
+        // framing has settled by the time its first notes arrive. One at the next downbeat belongs
+        // to the next measure, whatever floating noise its seconds carry.
         bool section_cut = false;
         while (section_cursor < state.sections.size() &&
-               state.sections[section_cursor].seconds <= measure_start + g_onset_match_epsilon)
+               state.sections[section_cursor].seconds < measure_end - g_onset_match_epsilon)
         {
             section_cut = true;
             ++section_cursor;

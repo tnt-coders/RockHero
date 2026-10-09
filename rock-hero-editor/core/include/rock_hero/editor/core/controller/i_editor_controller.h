@@ -674,12 +674,11 @@ public:
 
     The surface captures \p position at the press — the published marker position, which is the
     rule the tone-change insert follows too — and carries it through its name prompt, so a
-    rolling transport cannot move the section while the charter types. The verb snaps it to that
-    measure's downbeat, the only place a section can start. Refused, never clamped or merged, when
-    the name is empty, the downbeat lies outside the song, or another section already holds it
-    (rename is the verb for that last case).
+    rolling transport cannot move the section while the charter types. Refused, never clamped or
+    merged, when the name is empty, the position is off the grid or at or past the terminal
+    anchor, or another section already holds it (rename is the verb for that last case).
 
-    \param position Position the section is asked for; snapped to its measure's downbeat.
+    \param position Position the section starts on.
     \param name Name for the new section; an empty name refuses.
     */
     virtual void onSongSectionInsertRequested(

@@ -53,9 +53,10 @@ And four rules ride along with it:
   it.** These are the shared selection verbs, reaching a new alternative rather than gaining a chord
   of their own. `Ctrl+R` (ruled 2026-09-14) acts only where the kind has a name — a section's own
   name, a tone region's TONE — and is inert elsewhere; it is a selection verb, not a marker chord, as
-  R is no marker's letter. `Alt+←/→` moves a marker's START by the kind's step (a section a measure,
-  a tone region's start a placement-quantum line), and a landed move brings the paused cursor to
-  the new start so the edit is in view (built 2026-09-14). Proposed with it, not ruled: `Enter` on
+  R is no marker's letter. `Alt+←/→` moves a marker's START by the kind's step (a section and a
+  tone region's start one placement-quantum line each; a section stepped a measure until plan 67
+  Phase 4, 2026-10-09), and a landed move brings the paused cursor to the new start so the edit is
+  in view (built 2026-09-14). Proposed with it, not ruled: `Enter` on
   a selected tone region drills into that tone's signal chain once the chain has a keyboard model,
   leaving the region's retone to `Ctrl+T` at its start.
 - **A verb that authors or restates a marker leaves it SELECTED**, so the next verb acts on what
@@ -129,10 +130,11 @@ lane — which the core knew all along and the view had been reconstructing.
   making that ARMED-AWARE finished the fold, and it is what gives Phase 4c's planned `focusColumn()`
   one authority instead of a second.
 
-Each verb applies its OWN quantum to it and nothing re-derives the rule: a chord reads the placement
-quantum — the slot an arrow press would arm on — while a section and a meter read the TICK
-(`g_tick_quantum_note_value`) and snap to the downbeat of the measure the cursor is IN, so a cursor
-paused just before a barline does not round into the next measure. `EditorViewState`'s
+Each verb applies its OWN quantum to it and nothing re-derives the rule: the section, tone and
+tempo chords read the placement quantum — the slot an arrow press would arm on — while a meter
+reads the TICK (`g_tick_quantum_note_value`) and names the beat the cursor is IN, so a cursor
+paused just before a barline does not round a meter into the next measure (the section read the
+tick and snapped to its measure's downbeat until plan 67 Phase 4, 2026-10-09). `EditorViewState`'s
 `marker_grid_position` and `section_marker_downbeat` are deleted with the projection below: the view
 needs no position at all, because it is handed a verb.
 
@@ -149,13 +151,13 @@ in availability, because the pointer inserts share the actions:
 
 Before the ruling, caret-only settled the playback question without a gate, because arming requires
 a paused transport; the ruling moves that answer into the authority. The ruler's own menu inserts at
-the CLICK's measure ("Insert Section Here"), the pointer form, so it needs neither gate.
+the CLICK's slot ("Insert Section Here"), the pointer form, so it needs neither gate.
 
 ### One precedence, published as a verb
 
 The precedence lives in the CORE, once, and reaches each surface as the VERB that chord would
 perform. `EditorViewState::section_chord_target` is nothing /
-`RenameSectionTarget{position, name}` / `InsertSectionTarget{downbeat}`;
+`RenameSectionTarget{position, name}` / `InsertSectionTarget{position}`;
 `EditorViewState::tone_chord_target` is nothing /
 `RetoneRegionTarget{region_id, tone_document_ref}` /
 `SplitToneRegionTarget{position, containing_tone_document_ref}`. The UI opens the prompt or picker
@@ -177,7 +179,7 @@ a UI ladder arm.
 
 Each kind's "exactly at the cursor" predicate is the core's, stated once where the verb is chosen:
 
-- **Section** — a section whose position equals the downbeat of the measure the cursor is in.
+- **Section** — a section whose position equals the cursor's placement slot.
 - **Tone change** — a region whose `grid_start` equals the cursor's slot, because a region's
   start *is* the tone change that opens it. Anywhere else inside a region still splits.
 
@@ -307,7 +309,7 @@ file — kept and collected at the song export, as every removed tone's is.
 
 `Enter`, `Ctrl+M` and, since 2026-09-14, `Ctrl+R` restate a section through one member (then
 `restateSongSection`, now `EditorView::renameSection` over the published `RenameSectionTarget`), so
-the three cannot drift. The section insert now captures its downbeat AT THE PRESS and carries it through the
+the three cannot drift. The section insert now captures its position AT THE PRESS and carries it through the
 prompt (`InsertSongSection` gained a position), the shape the tone insert already had; the
 recorded drift is fixed and its backlog entry removed.
 
