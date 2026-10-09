@@ -77,7 +77,7 @@ enum class EditorActionId : std::uint8_t
 
     /*!
     \brief Flip the session's Note Lock switch, under which a tempo edit holds every
-    object's time and re-addresses it.
+    object's time and re-addresses it, and every content edit is refused.
     */
     ToggleNoteLock,
 

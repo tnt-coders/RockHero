@@ -20,12 +20,14 @@ ContentMap timeKeptPlaces(common::core::TempoMap old_map, common::core::TempoMap
     };
 }
 
+// Meters and anchors alike are the new map's: the content is only ever addressed by TIME, so the
+// map it came from contributes nothing but those times.
 std::expected<common::core::SongTimeline, ReaddressError> timeKeptTimeline(
     const common::core::SongTimeline& timeline, const common::core::TempoMap& tempo_map)
 {
     return readdressTimeline(
         timeline,
-        placedMetersOf(timeline.tempo_map),
+        placedMetersOf(tempo_map),
         placedAnchorsOf(tempo_map),
         timeKeptPlaces(timeline.tempo_map, tempo_map));
 }

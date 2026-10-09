@@ -67,6 +67,14 @@ could have touched — is a second rule that would have to agree with the first 
 void rebuildDerivedToneCurves(const EditorEditContext& context);
 
 /*!
+\brief The label an automation points edit carries: the undo entry's, and the refusal log's where
+the edit is refused before it exists.
+\param param_name User-facing parameter name; empty where the parameter no longer resolves.
+\return "Automate <name>", or "Automate Parameter" for an empty name.
+*/
+[[nodiscard]] std::string automationPointsLabel(const std::string& param_name);
+
+/*!
 \brief Replaces one tone-chain plugin parameter's automation points, undoably.
 
 The memento captures the full musical point list before and after; undo and redo write the model

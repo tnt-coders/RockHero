@@ -189,13 +189,15 @@ public:
     virtual void onTempoLockToggleRequested() = 0;
 
     /*!
-    \brief Handles a request to flip the Note Lock, the session switch that decides what a
-    tempo edit moves.
+    \brief Handles a request to flip the Note Lock, the session switch that holds the song's
+    content where it sounds.
 
-    While it is on, a tempo edit that changes a time — a typed tempo, a deleted anchor, a moved
-    anchor — keeps every object's time and re-addresses its grid position, so the grid moves under
-    the notes instead of the notes moving with the beat. The switch is session-only like grid snap:
-    nothing persists it, and every project boundary resets it off.
+    While it is on, every tempo edit — an inserted, typed, deleted or moved anchor — keeps every
+    object's time and re-addresses its grid position, so the grid moves under the notes instead of
+    the notes moving with the beat; each edit re-addresses the content as it stood when the lock
+    engaged, so the rounding onto the tick lattice never stacks across edits. Every edit that would
+    change a note, a marker or an automation point is refused while it is on. The switch is
+    session-only like grid snap: nothing persists it, and every project boundary resets it off.
     */
     virtual void onNoteLockToggleRequested() = 0;
 

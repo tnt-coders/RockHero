@@ -325,8 +325,10 @@ see the tempo verbs in \ref guide_2d_views.
 
 `ToggleNoteLock` (`0x1907`, the Note Lock) is its pair, in the same group with the same shape: no default
 chord, a toolbar button 4 px right of the lock's whose click runs the command, and a ticked menu
-row. It is OFF at every song open. While it is on, the tempo verbs that change a time keep every
-object's time instead of moving it with the beat (\ref guide_musical_time).
+row. It is OFF at every song open. While it is on, the song's content is frozen where it sounds:
+the tempo verbs keep every object's time instead of moving it with the beat, and every chord, digit
+and move that would change a note, a marker or an automation point is refused with the usual
+refusal flash and log line (\ref guide_musical_time).
 
 `ScaleTempo` (`0x1409`, "Scale Tempo...", category Tempo) has no default chord either: a whole-song
 grid repair is rare and deliberate, so its surfaces are the Edit menu item and the tempo row's

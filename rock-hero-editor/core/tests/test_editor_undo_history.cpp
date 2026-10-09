@@ -423,4 +423,129 @@ TEST_CASE("EditorUndoHistory mark clean emits a clean event", "[core][editor-und
     CHECK_FALSE(history.hasUnsavedEdits());
 }
 
+// The base holds on the base itself and on every entry pushed over it, through undo and redo
+// within that run; nothing holds before a base is marked.
+TEST_CASE("EditorUndoHistory base holds across its own run", "[core][editor-undo-history]")
+{
+    EditorUndoHistory history;
+    pushEntry(history, "Before");
+    CHECK_FALSE(history.holdsBase());
+
+    history.markBase();
+    CHECK(history.holdsBase());
+    pushEntry(history, "Run 1");
+    pushEntry(history, "Run 2");
+    CHECK(history.holdsBase());
+
+    commitUndo(history);
+    CHECK(history.holdsBase());
+    commitUndo(history);
+    CHECK(history.holdsBase());
+    commitRedo(history);
+    commitRedo(history);
+    CHECK(history.holdsBase());
+
+    // A widened top is still the run's own entry, and a dropped top shortens the run to the cursor.
+    REQUIRE(
+        history.replaceTop(makeEdit("Run 2 wider")).status == EditorUndoTransitionStatus::Applied);
+    CHECK(history.holdsBase());
+    REQUIRE(history.dropTop().status == EditorUndoTransitionStatus::Applied);
+    CHECK(history.undoDepth() == 2);
+    CHECK(history.holdsBase());
+    commitUndo(history);
+    CHECK(history.holdsBase());
+    commitUndo(history);
+    CHECK_FALSE(history.holdsBase());
+}
+
+// Below the base the state predates it, so the base does not hold; redoing back onto the run
+// restores the hold, and an entry redone from before the base's marking is not the run's.
+TEST_CASE(
+    "EditorUndoHistory base is lost below it and regained above", "[core][editor-undo-history]")
+{
+    EditorUndoHistory history;
+    pushEntry(history, "Before");
+    pushEntry(history, "Undone before marking");
+    commitUndo(history);
+    history.markBase();
+    pushEntry(history, "Run 1");
+
+    commitUndo(history);
+    CHECK(history.holdsBase());
+    commitUndo(history);
+    CHECK_FALSE(history.holdsBase());
+    commitRedo(history);
+    CHECK(history.holdsBase());
+    commitRedo(history);
+    CHECK(history.holdsBase());
+
+    // The redo branch that stood above the base when it was marked predates it.
+    EditorUndoHistory branched;
+    pushEntry(branched, "Older");
+    commitUndo(branched);
+    branched.markBase();
+    CHECK(branched.holdsBase());
+    commitRedo(branched);
+    CHECK_FALSE(branched.holdsBase());
+    commitUndo(branched);
+    CHECK(branched.holdsBase());
+}
+
+// A push below the base discards the base with the redo branch, the depth bound ends the run once
+// it drops the base's position, and a reset forgets the base with everything else.
+TEST_CASE(
+    "EditorUndoHistory base ends with its branch, the bound or a reset",
+    "[core][editor-undo-history]")
+{
+    SECTION("a push below the base")
+    {
+        EditorUndoHistory history;
+        pushEntry(history, "Before");
+        history.markBase();
+        pushEntry(history, "Run 1");
+        commitUndo(history);
+        commitUndo(history);
+        pushEntry(history, "Other branch");
+        CHECK_FALSE(history.holdsBase());
+        history.markBase();
+        CHECK(history.holdsBase());
+    }
+
+    SECTION("the depth bound shifts the run down with the stack")
+    {
+        EditorUndoHistory history{2};
+        pushEntry(history, "A");
+        history.markBase();
+        pushEntry(history, "B");
+        pushEntry(history, "C");
+        CHECK(history.holdsBase());
+        // A is evicted, so the stack's baseline is now the state after A: the base itself.
+        commitUndo(history);
+        commitUndo(history);
+        CHECK(history.undoDepth() == 0);
+        CHECK(history.holdsBase());
+    }
+
+    SECTION("the depth bound drops the base")
+    {
+        EditorUndoHistory history{2};
+        history.markBase();
+        pushEntry(history, "A");
+        pushEntry(history, "B");
+        CHECK(history.holdsBase());
+        // A is evicted, and the state before it — the base — can no longer be reached.
+        pushEntry(history, "C");
+        CHECK_FALSE(history.holdsBase());
+    }
+
+    SECTION("a reset")
+    {
+        EditorUndoHistory history;
+        history.markBase();
+        pushEntry(history, "Run 1");
+        static_cast<void>(history.reset());
+        CHECK_FALSE(history.holdsBase());
+    }
+}
+
 } // namespace rock_hero::editor::core

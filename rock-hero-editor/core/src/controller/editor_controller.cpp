@@ -2292,6 +2292,14 @@ void EditorController::Impl::resetUndoHistory(std::string_view context)
     disarmChartVerbWindow();
     const EditorUndoTransitionResult result = m_undo_history.reset();
     logEditorUndoTransitionResult(context, result);
+    // A reset forgets the entries, not the song: nothing but the lock's own commits has moved
+    // content since it engaged, so what it holds is still what the song shows, and the empty
+    // history's baseline is where its run now begins. The project boundaries reset the grid
+    // session first, so the lock is already off there; this is the arrangement switch's case.
+    if (m_grid_session.note_lock.has_value())
+    {
+        m_undo_history.markBase();
+    }
 }
 
 // Marks the current undo position as matching the saved project state. A save is a commit point,
@@ -2524,6 +2532,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .transport_playing = transport_state.playing,
         .has_chart_selection = !chartSelection().empty(),
         .has_armed_caret = armedChartCaret() != nullptr,
+        .note_locked = m_grid_session.note_lock.has_value(),
     };
 }
 
@@ -2697,7 +2706,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.tempo_map = session().song().tempo_map;
     const std::optional<common::core::TempoMap> drag_preview = tempoDragPreview();
     state.grid_map = drag_preview.value_or(state.tempo_map);
-    state.content_map = m_grid_session.note_lock ? state.tempo_map : state.grid_map;
+    state.content_map = m_grid_session.note_lock.has_value() ? state.tempo_map : state.grid_map;
     // The cursor rides the dragged chip, drawn where the release's followMovedMarker seeks it.
     if (const auto* const dragged = std::get_if<TempoAnchorSelection>(&m_selection);
         drag_preview.has_value() && dragged != nullptr)
@@ -2757,7 +2766,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.grid_snap = m_grid_session.snap;
     state.grid_snap_warning_prompt = m_grid_session.snap_warning_prompt;
     state.tempo_lock = m_grid_session.tempo_lock;
-    state.note_lock = m_grid_session.note_lock;
+    state.note_lock = m_grid_session.note_lock.has_value();
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
     state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;

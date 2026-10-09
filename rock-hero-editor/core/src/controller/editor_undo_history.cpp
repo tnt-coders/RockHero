@@ -90,6 +90,17 @@ bool EditorUndoHistory::canCoalesceTop() const noexcept
            !isAtCleanState();
 }
 
+// A fresh run: the base alone, until a push from inside it widens the run upward.
+void EditorUndoHistory::markBase()
+{
+    m_base = BaseRun{.position = m_position, .frontier = m_position};
+}
+
+bool EditorUndoHistory::holdsBase() const noexcept
+{
+    return m_base.has_value() && m_base->position <= m_position && m_position <= m_base->frontier;
+}
+
 std::optional<std::string> EditorUndoHistory::undoLabel() const
 {
     if (!canUndo())
@@ -145,6 +156,12 @@ EditorUndoTransitionResult EditorUndoHistory::push(std::unique_ptr<IEdit> edit)
     const std::string label = edit->label();
     m_entries.push_back(std::move(edit));
     m_position = m_entries.size();
+    // A push from inside the run (any other was below the base, which the truncation above ended)
+    // widens the run onto the new entry.
+    if (m_base.has_value())
+    {
+        m_base->frontier = m_position;
+    }
     events.push_back(
         EditorUndoEvent{
             .type = EditorUndoEventType::EntryPushed,
@@ -206,6 +223,19 @@ EditorUndoTransitionResult EditorUndoHistory::dropTop()
     const std::string label = m_entries.back()->label();
     m_entries.pop_back();
     m_position -= 1;
+    // The dropped entry was the run's top: the run ends where the cursor now stands, or with the
+    // base itself when that is what was dropped from.
+    if (m_base.has_value())
+    {
+        if (m_position < m_base->position)
+        {
+            m_base.reset();
+        }
+        else
+        {
+            m_base->frontier = std::min(m_base->frontier, m_position);
+        }
+    }
     events.push_back(
         EditorUndoEvent{
             .type = EditorUndoEventType::EntryDropped,
@@ -373,6 +403,7 @@ EditorUndoTransitionResult EditorUndoHistory::reset()
     m_position = 0;
     m_clean_marker_state = CleanMarkerState::None;
     m_clean_position = 0;
+    m_base.reset();
     m_pending.reset();
 
     return EditorUndoTransitionResult{
@@ -402,6 +433,11 @@ void EditorUndoHistory::truncateRedo(std::vector<EditorUndoEvent>& events)
     if (m_clean_marker_state == CleanMarkerState::Reachable && m_clean_position > m_position)
     {
         makeCleanMarkerUnreachable(events);
+    }
+    // A base in the discarded branch is gone with it.
+    if (m_base.has_value() && m_base->position > m_position)
+    {
+        m_base.reset();
     }
 
     m_entries.erase(m_entries.begin() + static_cast<std::ptrdiff_t>(m_position), m_entries.end());
@@ -434,6 +470,20 @@ void EditorUndoHistory::enforceMaxEntries(std::vector<EditorUndoEvent>& events)
             else
             {
                 --m_clean_position;
+            }
+        }
+
+        // The run shifts down with the stack, and ends when the bound drops its base.
+        if (m_base.has_value())
+        {
+            if (m_base->position == 0)
+            {
+                m_base.reset();
+            }
+            else
+            {
+                --m_base->position;
+                --m_base->frontier;
             }
         }
     }

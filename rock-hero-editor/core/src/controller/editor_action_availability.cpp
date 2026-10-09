@@ -347,7 +347,6 @@ using Verdict = std::optional<ActionUnavailableReason>;
                 require(conditions.has_plugin_insert_capacity, Reason::PluginChainFull),
             });
         }
-        case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
         case EditorAction::Id::SetSignalChainPlacement:
         case EditorAction::Id::SetPluginDisplayTypeOverride:
@@ -356,6 +355,15 @@ using Verdict = std::optional<ActionUnavailableReason>;
             return firstFailure({
                 require(live_chain, Reason::NoLoadedArrangement),
                 require(conditions.has_loaded_plugins, Reason::NoLoadedPlugins),
+            });
+        }
+        // Removing a plugin takes its automation points out of the song, which the Note Lock holds.
+        case EditorAction::Id::RemovePlugin:
+        {
+            return firstFailure({
+                require(live_chain, Reason::NoLoadedArrangement),
+                require(conditions.has_loaded_plugins, Reason::NoLoadedPlugins),
+                require(!conditions.note_locked, Reason::NoteLocked),
             });
         }
         case EditorAction::Id::NewToneDocument:
@@ -656,6 +664,10 @@ std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noex
         case Reason::NoLoadedPlugins:
         {
             return "no-loaded-plugins";
+        }
+        case Reason::NoteLocked:
+        {
+            return "note-locked";
         }
     }
 

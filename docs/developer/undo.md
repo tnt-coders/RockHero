@@ -80,8 +80,11 @@ and leaves the notes revision, so the notes layer survives), and
 common-core `SongTimeline`: the map, the sections and every arrangement's chart, tone track and
 automation, behind the time-signature verbs, Scale Tempo and every tempo edit made with the
 Note Lock on (a held nudge run and a chip drag included), since each re-addresses all of it in
-every arrangement and lands as ONE entry per command; its `normalize` drops a meter restating the
-one before it, its `validate` runs the tempo-map, section and chart rules, and its apply is
+every arrangement and lands as ONE entry per command — under the lock, the content the lock holds
+re-addressed under the verb's map, so the entry's `before` and `after` both descend from the lock's
+origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` drops a
+meter restating the one before it, its `validate` runs the tempo-map, section and chart rules, and
+its apply is
 `Session::setSongTimeline()`, the one session write that reaches a non-current arrangement). Every
 grid commit (`commitGridModel`) lands through `landMarkerModel`, the funnel without its publish,
 carries the cursor as one more slice through the verb's content map (`carryCursorTo`, which seeks

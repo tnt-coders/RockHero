@@ -9,6 +9,7 @@
 #include "tone/tone_automation_edits.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -65,16 +66,14 @@ namespace
 } // namespace
 
 // Rationale lives on the declaration in editor_controller_impl.h. Both branches land through one
-// `land`, so each verb states its commit once, whichever the toggle chose. The base may be the
-// snapshot captured here, so every read of it happens before `before` is handed over.
+// `land`, so each verb states its commit once, whichever the toggle chose. The new map is built
+// from the session's map in both: a held nudge run needs no origin of its own, since a move states
+// its anchor's time absolutely, and under the lock the content's origin is the lock's.
 template <typename Edit>
 void EditorController::Impl::commitTempoEdit(
     const std::string_view verb, const Edit& edit, const TempoCommit& landing)
 {
     const auto* const moved = std::get_if<TempoAnchorSelection>(&landing);
-    const auto base_of = [this, moved](const auto& found) -> const auto& {
-        return moved != nullptr ? runBase(found) : found;
-    };
     const auto land = [this, verb, moved, &landing](
                           auto before,
                           auto after,
@@ -98,42 +97,72 @@ void EditorController::Impl::commitTempoEdit(
             content);
     };
 
-    if (!m_grid_session.note_lock)
-    {
-        TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-        TempoMapEditResult edited = edit(base_of(before).tempo_map);
-        if (!edited.has_value())
-        {
-            m_refusal_log.markerEdit(verb, edited.error().message);
-            return;
-        }
-        const common::core::TempoMap tempo_map = std::move(*edited);
-        land(std::move(before), TempoMapSnapshot{.tempo_map = tempo_map}, tempo_map, keptPlace);
-        return;
-    }
-
-    SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
-    const common::core::SongTimeline& base = base_of(before).timeline;
-    TempoMapEditResult edited = edit(base.tempo_map);
+    const common::core::TempoMap& current = session().song().tempo_map;
+    TempoMapEditResult edited = edit(current);
     if (!edited.has_value())
     {
         m_refusal_log.markerEdit(verb, edited.error().message);
         return;
     }
     const common::core::TempoMap tempo_map = std::move(*edited);
-    std::expected<common::core::SongTimeline, ReaddressError> readdressed =
-        timeKeptTimeline(base, tempo_map);
-    if (!readdressed.has_value())
+    if (!m_grid_session.note_lock.has_value())
     {
-        m_refusal_log.markerEdit(verb, readdressed.error().message);
+        land(
+            TempoMapSnapshot::capture(session()),
+            TempoMapSnapshot{.tempo_map = tempo_map},
+            tempo_map,
+            keptPlace);
         return;
     }
-    const ContentMap content = timeKeptPlaces(base.tempo_map, tempo_map);
-    land(
-        std::move(before),
-        SongTimelineSnapshot{.timeline = std::move(*readdressed)},
-        tempo_map,
-        content);
+
+    // The cursor is no content: it is carried from where it stands now to the same time under the
+    // new map, which is one rounding per edit of a place the transport trusts to a millisecond.
+    const ContentMap content = timeKeptPlaces(current, tempo_map);
+    std::optional<SongTimelineSnapshot> after = timeKeptSnapshot(tempo_map, verb);
+    if (!after.has_value())
+    {
+        return;
+    }
+    land(SongTimelineSnapshot::capture(session()), std::move(*after), tempo_map, content);
+}
+
+// Holds the song as it stands, and marks the history there so holdsBase can say whether a later
+// position still descends from it.
+const common::core::SongTimeline& EditorController::Impl::engageNoteLock()
+{
+    m_undo_history.markBase();
+    return m_grid_session.note_lock.emplace(common::core::makeSongTimeline(session().song()));
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h. The re-address can refuse only
+// where a meter stands off a downbeat, which no map a tempo verb makes has, so the refusal branch
+// is the transform's contract being honoured rather than a case the lock expects.
+std::optional<SongTimelineSnapshot> EditorController::Impl::timeKeptSnapshot(
+    const common::core::TempoMap& tempo_map, const std::string_view verb)
+{
+    const std::optional<common::core::SongTimeline>& held = m_grid_session.note_lock;
+    assert(held.has_value() && "asked only while the Note Lock is on");
+    const common::core::SongTimeline& origin =
+        held.has_value() && m_undo_history.holdsBase() ? *held : engageNoteLock();
+    std::expected<common::core::SongTimeline, ReaddressError> kept =
+        timeKeptTimeline(origin, tempo_map);
+    if (!kept.has_value())
+    {
+        m_refusal_log.markerEdit(verb, kept.error().message);
+        return std::nullopt;
+    }
+    return SongTimelineSnapshot{.timeline = std::move(*kept)};
+}
+
+std::optional<ChartPlanInvalid> EditorController::Impl::noteLockRefusal() const
+{
+    if (!m_grid_session.note_lock.has_value())
+    {
+        return std::nullopt;
+    }
+    return ChartPlanInvalid{
+        "Note Lock is on: the song's content is frozen while it holds the notes in time"
+    };
 }
 
 // The tempo chord authors at the cursor and never reads the selection: the cursor's placement slot,
@@ -204,27 +233,26 @@ void EditorController::Impl::onTempoSpanBpmRequested(
         });
 }
 
-// Adds an anchor at a grid position, pinning the time the map already gives it, so the insert moves
-// nothing audible. Like every insert, it leaves what it made SELECTED, so Enter, Delete and
-// Alt+arrows act on the new anchor next. An occupied position, or one at or past the terminal, is
-// the edit's refusal.
+// Adds an anchor at a grid position, pinning the time the map already gives it to the nearest whole
+// millisecond, so the insert moves nothing audible — by less than half a millisecond with the grid
+// as truth, and by nothing but the lattice rounding under the Note Lock, where the content keeps
+// its time like under every other tempo verb. Like every insert, it leaves what it made SELECTED,
+// so Enter, Delete and Alt+arrows act on the new anchor next. An occupied position, or one at or
+// past the terminal, is the edit's refusal.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAnchor& action)
 {
-    const std::string label = markerVerbLabel(MarkerVerb::AddTempoAnchor);
-    TempoMapSnapshot before = TempoMapSnapshot::capture(session());
-    TempoMapEditResult inserted = insertTempoAnchor(before.tempo_map, action.position);
-    if (!inserted.has_value())
-    {
-        m_refusal_log.markerEdit(label, inserted.error().message);
-        return;
-    }
-    commitGridModel(
-        std::move(before),
-        TempoMapSnapshot{.tempo_map = std::move(*inserted)},
-        label,
-        MarkerRow::Tempo,
-        action.position,
-        keptPlace);
+    commitTempoEdit(
+        markerVerbLabel(MarkerVerb::AddTempoAnchor),
+        [&action](const common::core::TempoMap& tempo_map) {
+            return insertTempoAnchor(tempo_map, action.position);
+        },
+        TempoGridCommit{
+            .label =
+                [](const common::core::TempoMap& /*tempo_map*/) {
+                    return markerVerbLabel(MarkerVerb::AddTempoAnchor);
+                },
+            .anchor = action.position,
+        });
 }
 
 // Types the tempo of the span an anchor opens: the anchor stays put and every later anchor ripples
@@ -267,7 +295,10 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
 
 // Scales every grid address in the song while every time holds: one whole-song re-address, one
 // commit, one entry. It moves no anchor in time, so the Tempo Lock does not apply. Nothing is
-// selected after it, because every address the old selection held now names other music.
+// selected after it, because every address the old selection held now names other music. Under the
+// Note Lock it scales the song as it stands, like every other time, and then the lock re-engages on
+// what it wrote: a free factor rounds the content it scaled, so the lock's origin would otherwise
+// no longer be what the song shows.
 void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& action)
 {
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
@@ -278,13 +309,17 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::ScaleTempo), scaled.error().message);
         return;
     }
-    commitGridModel(
+    const MarkerCommit committed = commitGridModel(
         std::move(before),
         SongTimelineSnapshot{.timeline = std::move(*scaled)},
         markerVerbLabel(MarkerVerb::ScaleTempo),
         MarkerRow::Tempo,
         std::nullopt,
         scaledPlaces(action.factor));
+    if (committed == MarkerCommit::Landed && m_grid_session.note_lock.has_value())
+    {
+        engageNoteLock();
+    }
 }
 
 // Moves the selected anchor one on-screen pixel at the reported zoom (at least a millisecond), in
@@ -426,9 +461,22 @@ void EditorController::Impl::onNoteLockToggleRequested()
     runAction(EditorAction::ToggleNoteLock{});
 }
 
+// Engaging is a context switch like an undo: the chart settles first — a silent point says
+// nothing, and a claim the last burst broke is flattened — so the lock holds a chart nothing is
+// still waiting to write, and the chart verbs' coalescing windows close, since their next press
+// would write the chart directly, past the refusal every planned edit meets.
 void EditorController::Impl::performActionImpl(EditorAction::ToggleNoteLock /*action*/)
 {
-    m_grid_session.note_lock = !m_grid_session.note_lock;
+    if (m_grid_session.note_lock.has_value())
+    {
+        m_grid_session.note_lock.reset();
+        updateView();
+        return;
+    }
+    static_cast<void>(settleChart());
+    m_chart_notes_top.reset();
+    disarmChartVerbWindow();
+    engageNoteLock();
     updateView();
 }
 

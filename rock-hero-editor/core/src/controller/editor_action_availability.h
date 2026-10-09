@@ -92,6 +92,15 @@ struct ActionConditions
 
     /*! \brief True when the chart caret is armed on some slot, string or lane. */
     bool has_armed_caret{false};
+
+    /*!
+    \brief True while the Note Lock holds the song's content in time.
+
+    The content verbs refuse at their commit funnels under it, where the refusal can name and flash
+    what it turned down; the one action gated here is the plugin removal, which takes the plugin's
+    automation points out of the song with it.
+    */
+    bool note_locked{false};
 };
 
 /*!
@@ -158,6 +167,9 @@ enum class ActionUnavailableReason : std::uint8_t
 
     /*! \brief The live rig has no loaded plugin instances. */
     NoLoadedPlugins,
+
+    /*! \brief The Note Lock is on, and the action would take content out of the song. */
+    NoteLocked,
 };
 
 /*!

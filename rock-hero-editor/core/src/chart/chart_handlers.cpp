@@ -986,10 +986,26 @@ bool EditorController::Impl::applyChartEditPlan(
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
 // so every projection rebuilds), seeds the notes-layer memo with the gate's own derivation of the
-// stream it landed, and records it as one undo entry.
+// stream it landed, and records it as one undo entry. The Note Lock refuses here, where every
+// planned edit lands whatever planned it, naming the notes the plan would rewrite or remove as
+// the refusal's subject — an insert at an empty slot names none and logs alone.
 bool EditorController::Impl::applyChartEditPlan(
     JudgedChartPlan plan, std::optional<std::vector<ChartSelectionKey>> select_exactly)
 {
+    if (const std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
+    {
+        std::vector<ChartSelectionKey> rewritten;
+        rewritten.reserve(plan.plan.removed.size());
+        for (const common::core::ChartNote& note : plan.plan.removed)
+        {
+            rewritten.emplace_back(ChartNoteKey{.slot = chartSlotKeyOf(note)});
+        }
+        ChartSelection subject;
+        subject.replaceWith(rewritten);
+        reportChartPlanRefusal(*refusal, subject);
+        return false;
+    }
+
     // Where the charter stands before anything moves, which is exactly where undo returns them.
     std::optional<ChartEditFocus> before = chartEditFocusOf(chartSelection().keys());
     const std::optional<std::expected<void, EditorUndoFailureCode>> applied = m_session.writeChart(
@@ -2534,6 +2550,12 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
         return std::unexpected{ChartPlanInvalid{"no chart is loaded"}};
+    }
+    // Refused at the plan, not only at the settle, so the pending box is red while the value is
+    // typed: what the commit would refuse is what the box shows.
+    if (std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
+    {
+        return std::unexpected{std::move(*refusal)};
     }
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
@@ -4181,6 +4203,13 @@ bool EditorController::Impl::settleChartClaims()
     // closing here — it settled at this function's head, before the sweep judged the chart.
     m_chart_notes_top.reset();
     disarmChartVerbWindow();
+    // The one content write the Note Lock admits besides its own: a tempo edit under the lock can
+    // leave a claim's gap, measured in beats, no longer justifying it, and the flatten is the
+    // chart's normal form, so it lands and the lock re-engages on the chart as written.
+    if (m_grid_session.note_lock.has_value())
+    {
+        engageNoteLock();
+    }
     updateView();
     return true;
 }

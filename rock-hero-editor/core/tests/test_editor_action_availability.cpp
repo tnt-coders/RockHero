@@ -52,6 +52,32 @@ TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-acti
     CHECK_FALSE(isActionAvailable(ActionId::CancelBusyOperation, non_cancellable_busy));
 }
 
+// The Note Lock holds the song's automation with the rest of its content, so removing a plugin,
+// which takes the plugin's automation out of the song, waits for the lock; the other chain verbs
+// change no content and stay open.
+TEST_CASE("The Note Lock closes only the plugin removal", "[core][editor-action]")
+{
+    ActionConditions conditions{
+        .has_project = true,
+        .has_loaded_arrangement = true,
+        .has_plugin_candidates = true,
+        .has_plugin_insert_capacity = true,
+        .has_loaded_plugins = true,
+        .note_locked = true,
+    };
+
+    CHECK(
+        whyUnavailable(ActionId::RemovePlugin, conditions) == ActionUnavailableReason::NoteLocked);
+    CHECK(actionUnavailableReasonTag(ActionUnavailableReason::NoteLocked) == "note-locked");
+    CHECK(isActionAvailable(ActionId::MovePlugin, conditions));
+    CHECK(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
+    CHECK(isActionAvailable(ActionId::OpenPlugin, conditions));
+    CHECK(isActionAvailable(ActionId::ToggleNoteLock, conditions));
+
+    conditions.note_locked = false;
+    CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
+}
+
 // Verifies that project write and close actions are disabled without a loaded project.
 TEST_CASE("Project actions require an open project", "[core][editor-action]")
 {

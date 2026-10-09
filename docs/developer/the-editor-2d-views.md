@@ -107,9 +107,11 @@ the refusal flash on the chip and a log line, and inserting, deleting and typing
 available. Its toggle is the toolbar button right of the grid selector (`ModeToggleButton`,
 `ui/src/shared/mode_toggle_button.h`) and the ticked "Tempo Lock" row under "Grid & Zoom" in the
 chart menu, one command (`ToggleTempoLock`) behind both. Its pair, 4 px to its right, is the **Note
-Lock** (`ToggleNoteLock`), off at every song open and never saved: while it is on,
-a typed tempo, a delete and a move keep every object's time and re-address it instead of moving it
-with the beat (\ref guide_musical_time). A chip drag, with the Note Lock on or off, writes
+Lock** (`ToggleNoteLock`), off at every song open and never saved: while it is on, the song's
+content is frozen where it sounds — every tempo verb keeps every object's time and re-addresses
+it instead of moving it with the beat, each from the content the lock engaged on so the rounding
+never stacks, and every verb that would change a note, a marker or an automation point is refused
+(\ref guide_musical_time). A chip drag, with the Note Lock on or off, writes
 nothing until the release (plan 66 decision 7): each pointer event holds the move, and the core
 publishes two maps beside the session's `tempo_map`. The **grid map** is the map the release would
 land; `EditorView::setState` hands it to `TrackViewport::setGrid`, so the canvas grid lines and

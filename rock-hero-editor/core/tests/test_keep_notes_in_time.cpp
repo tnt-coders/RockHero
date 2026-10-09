@@ -1,4 +1,5 @@
 #include "timeline/keep_notes_in_time.h"
+#include "timeline/meter_edits.h"
 #include "timeline/tempo_map_edits.h"
 #include "timeline/timeline_readdress.h"
 
@@ -114,6 +115,32 @@ TEST_CASE("Keeping notes in time holds every time over random songs", "[core][ke
     }
     // The dice must land most edits, or the property proves less than it claims.
     CHECK(landed > 50);
+}
+
+// The meters are the new map's, not the song's: a song held since before a meter edit is laid under
+// the edited meters, every time still held. Restating the slice fixture's 3/4 at measure 3 as 2/4
+// renumbers every measure after it, and the one note past the change lands in the measure its
+// time now falls in.
+TEST_CASE("Keeping notes in time lays the new map's meters", "[core][keep-notes-in-time]")
+{
+    const SongTimeline before = testing::sliceTimeline();
+    requireValid(before);
+    std::vector<PlacedMeter> meters = placedMetersOf(before.tempo_map);
+    REQUIRE(meters.size() == 2);
+    meters[1].meter = common::core::TimeSignature{.numerator = 2, .denominator = 4};
+    const std::expected<SongTimeline, ReaddressError> remetered =
+        readdressUnderMeters(before, meters);
+    REQUIRE(remetered.has_value());
+
+    const std::expected<SongTimeline, ReaddressError> held =
+        timeKeptTimeline(before, remetered->tempo_map);
+    REQUIRE(held.has_value());
+    CHECK(held->tempo_map == remetered->tempo_map);
+    CHECK(held->tempo_map.timeSignatures() == remetered->tempo_map.timeSignatures());
+    checkTimesHeld(before, *held, 0.0);
+    // The 4:2 note of the lead arrangement, one whole note past the change (a 3/4 measure and a
+    // quarter), is two 2/4 measures past it: 5:1.
+    CHECK(chartOf(*held, 0).notes[1].position == at("5:1"));
 }
 
 // 4/4 at 120 BPM with anchors on 1:1, 3:1 and 5:1. Pulling 3:1 from 4 s to 3 s plays the first two

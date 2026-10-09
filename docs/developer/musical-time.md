@@ -342,10 +342,17 @@ through the content map (`readdressedPosition`), rounding onto the tick lattice
 - **Scale Tempo** — `scaledTimeline` (`tempo_scale.h`): meters, anchors and content all at f
   times their place (`scaledPlaces`); x2 is exact, /2 and free factors such as 3/2 round. The
   factor's terms are each at most 16 once reduced (`parseScaleFactor`).
-- **the Note Lock** — `timeKeptTimeline` (`keep_notes_in_time.h`): meters where they stood,
-  the tempo verb's new anchors, and the content map `timeKeptPlaces`, which sends each place to
-  the tick nearest, under the new map, to the instant the old map gave it. Every place rounds once,
-  to within half a tick of its old time.
+- **the Note Lock** — `timeKeptTimeline` (`keep_notes_in_time.h`): the new map's meters and
+  anchors, and the content map `timeKeptPlaces`, which sends each place to the tick nearest, under
+  the new map, to the instant the old map gave it. Every place rounds once, to within half a tick
+  of its old time — and once per LOCK, not once per edit: the lock holds the song's content as it
+  stood when it engaged (its origin, `GridSession::note_lock`), and every tempo verb lays its map
+  under that one content (`timeKeptSnapshot`), so twenty separate edits round each place exactly as
+  one edit to the final map would. Re-addressing the song as it stands instead would round the
+  already-rounded places again at every edit; a probe over random songs measured that stacking at a
+  median 0.65 ms and a maximum 46.8 ms of drift after forty edits, against 0.22 ms and 1.03 ms for
+  one rounding. The origin stays true because nothing else moves content while the lock is on
+  (below).
 
 A ring's `sustain` and a keyframe's `offset` are note values — differences on the whole-note axis
 — so a meter edit, whose content map keeps every place, leaves them untouched. Scale Tempo and the
@@ -364,12 +371,39 @@ only at slow tempos. Tempo edits are the contrast: there the grid is truth, and 
 grid commit is a keyboard move, so none of them scrolls the window
 (`EditorViewState::keyboard_move_count`).
 
-Every tempo verb that changes a time (typed tempo, anchor delete, anchor move) ends in one step,
-`commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make its new map from a map,
-and it commits either that map alone (`TempoMapSnapshot`, `keptPlace`) or, with the toggle on, the
-whole song re-addressed under it (`SongTimelineSnapshot`, `timeKeptPlaces`), as one entry either
-way. A held `Alt+←/→` run re-addresses from the run's origin, as the meter move does, so it rounds
-once. A chip drag, with the toggle on or off, writes nothing per pointer event: the core holds the
+Every tempo verb (anchor insert, typed tempo, anchor delete, anchor move) ends in one step,
+`commitTempoEdit` (`tempo_handlers.cpp`): the verb hands it how to make its new map from the
+session's map, and it commits either that map alone (`TempoMapSnapshot`, `keptPlace`) or, with the
+toggle on, the lock's origin laid under it (`SongTimelineSnapshot`; the cursor carried by
+`timeKeptPlaces` from where it stands), as one entry either way. A held `Alt+←/→` run coalesces
+into one entry like the meter move's, but needs no run origin of its own: a move states its anchor's
+time absolutely, and the content's origin is the lock's.
+
+**While the Note Lock is on, the song's content is frozen.** Every verb that would change it is
+refused through the one authority `noteLockRefusal` — the marker funnel's judge refuses every
+marker model but the two that state the grid (`g_states_grid`: the tempo map and the whole
+timeline), the chart funnel `applyChartEditPlan` refuses every planned chart edit, naming the
+notes it would rewrite, the pending fret entry's plan refuses so the typed value's box is red, and
+the automation points verb refuses — and the plugin removal, which takes a plugin's automation out
+of the song, is unavailable (`ActionConditions::note_locked`). Two writes the lock admits move
+content, and each re-engages the lock on what it wrote (`engageNoteLock`): Scale Tempo, whose free
+factor rounds the content it scales, and the settle sweep, whose flatten is the chart's normal
+form. A meter edit keeps every place exactly, so it runs as it always does and the origin stays
+true through it; `timeKeptTimeline` reads its meters from the verb's map for that reason.
+
+Whether the history still stands on the origin is the history's own fact. Engaging marks the
+cursor as the history's **base** (`EditorUndoHistory::markBase`), and the lock's commits push over
+it; `holdsBase` answers true while the cursor is on the base or on an entry pushed over it since,
+and false once an undo has gone below the lock-on point, a redo has landed on an entry made before
+it, a push below the base has discarded it, or the depth bound has dropped it. The next tempo edit
+asks before it reads the origin and, where the base no longer holds, re-engages on the content as
+it stands — the undone note stays undone, the redone one stays — so a stale origin is never read.
+An arrangement switch resets the history, and since the switch changes no content the controller
+marks the base again on the empty history (`resetUndoHistory`); every project boundary resets the
+grid session first, which leaves the lock off. Toggling the lock off drops its origin, and on again
+engages it on the content as it then stands.
+
+A chip drag, with the toggle on or off, writes nothing per pointer event: the core holds the
 move and publishes the map it would make as `EditorViewState::grid_map`, which the grid lines and
 the ruler draw from (the cursor rides the chip, `drag_cursor_seconds`), and as
 `EditorViewState::content_map` when the toggle is off, so

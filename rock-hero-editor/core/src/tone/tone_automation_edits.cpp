@@ -90,9 +90,15 @@ std::expected<void, EditorUndoFailureCode> ToneAutomationPointsEdit::redo(
     return applyPoints(context, after);
 }
 
-std::string ToneAutomationPointsEdit::label() const
+// Stated once so the entry and a refusal of the same edit cannot name it differently.
+std::string automationPointsLabel(const std::string& param_name)
 {
     return "Automate " + (param_name.empty() ? std::string{"Parameter"} : param_name);
+}
+
+std::string ToneAutomationPointsEdit::label() const
+{
+    return automationPointsLabel(param_name);
 }
 
 EditFocus ToneAutomationPointsEdit::focus(const EditorUndoDirection direction) const

@@ -1276,11 +1276,12 @@ struct EditorViewState
 
     /*!
     \brief Whether the Note Lock is on: a tempo edit then holds every object's time and moves
-    the grid under it, instead of moving it with the beat.
+    the grid under it, instead of moving it with the beat, and every edit that would change the
+    song's content is refused.
 
     A session fact like grid_snap: never persisted, and reset to false at every project boundary.
     The toolbar button and the menu tick render it; the controller alone decides what an edit
-    moves.
+    moves and what it refuses.
     */
     bool note_lock{false};
 

@@ -20,19 +20,34 @@ member template needs its body where every marker handler translation unit can s
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
 namespace rock_hero::editor::core
 {
 
+// The marker models that state the grid itself and so address the rest — the two commitGridModel
+// lands. Every other model is content, which the Note Lock freezes.
+template <typename Snapshot>
+inline constexpr bool g_states_grid =
+    std::is_same_v<Snapshot, TempoMapSnapshot> || std::is_same_v<Snapshot, SongTimelineSnapshot>;
+
 // The funnel's front half: the produced model normalized, then validated, then compared with the
 // one it would replace. Stated once so the commit and a pending entry's red box cannot disagree
-// about what the commit would refuse.
+// about what the commit would refuse. The Note Lock's refusal comes first, since it refuses the
+// edit whatever model it produced.
 template <typename Snapshot>
 std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerModel(
     const Snapshot& before, Snapshot after) const
 {
+    if constexpr (!g_states_grid<Snapshot>)
+    {
+        if (std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
+        {
+            return std::unexpected{std::move(*refusal)};
+        }
+    }
     after.normalize();
     if (std::optional<std::string> violation = after.validate(
             MarkerJudgeContext{.session = session(), .notes_layer = chartResolutions()});
@@ -186,10 +201,11 @@ bool EditorController::Impl::commitMarkerMove(
 // commit's one publish, which follows the funnel's publish rule: only when the model landed or a
 // marker was selected.
 template <typename Snapshot>
-void EditorController::Impl::commitGridModel(
+EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
     const std::optional<common::core::GridPosition> landed, const ContentMap& content)
 {
+    static_assert(g_states_grid<Snapshot>, "a grid commit lands a model that states the grid");
     const std::optional<common::core::GridPosition> place =
         cursorPosition(common::core::g_tick_quantum_note_value);
     const common::core::TempoMap old_map = session().song().tempo_map;
@@ -197,7 +213,7 @@ void EditorController::Impl::commitGridModel(
         landMarkerModel(std::move(before), std::move(after), std::move(label));
     if (committed == MarkerCommit::Refused)
     {
-        return;
+        return committed;
     }
     if (committed == MarkerCommit::Landed)
     {
@@ -218,6 +234,7 @@ void EditorController::Impl::commitGridModel(
     {
         finishMarkerCommit();
     }
+    return committed;
 }
 
 // A run continues only while its origin is held, the history's top is still the run's own entry,

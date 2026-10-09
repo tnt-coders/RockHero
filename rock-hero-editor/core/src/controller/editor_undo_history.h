@@ -428,6 +428,29 @@ public:
     [[nodiscard]] bool canCoalesceTop() const noexcept;
 
     /*!
+    \brief Marks the current position as a base: a state a caller keeps building on across the
+    entries it pushes from here.
+
+    The Note Lock's seam. The lock holds the song's content as it stood when it engaged and lays
+    every tempo edit's map under that one content, so each entry it pushes descends from the base;
+    whether the cursor still stands on a descendant is a fact about the history, answered by
+    \ref holdsBase. One base at a time: marking again replaces it.
+    */
+    void markBase();
+
+    /*!
+    \brief Reports whether the cursor stands on the base or on an entry pushed over it since.
+
+    False once the cursor has undone below the base, redone onto an entry that preceded the base's
+    marking, pushed below the base (which discards it with the redo branch), lost it to the depth
+    bound, or seen the history reset — every way the state at the cursor can stop descending from
+    the base. A base that no longer holds is simply gone; the caller marks a new one.
+
+    \return True while the cursor's state descends from the base.
+    */
+    [[nodiscard]] bool holdsBase() const noexcept;
+
+    /*!
     \brief Returns the label of the entry that would be undone next.
     \return Entry label, or empty when nothing can be undone.
     */
@@ -531,6 +554,16 @@ private:
         Unreachable,
     };
 
+    // The positions whose states descend from the base (markBase): the base itself and every entry
+    // pushed over it since, which is the run [position, frontier]. The frontier rises with each
+    // push from a position inside the run and falls with a dropped top; a truncation below the
+    // base or the depth bound dropping it ends the run, which is this being absent.
+    struct BaseRun
+    {
+        std::size_t position{};
+        std::size_t frontier{};
+    };
+
     [[nodiscard]] EditorUndoTransitionResult begin(EditorUndoDirection direction);
     [[nodiscard]] EditorUndoTransitionResult nonCommitFailure(
         EditorUndoFailureCode failure_code) const;
@@ -545,6 +578,7 @@ private:
     std::size_t m_max_entries{100};
     CleanMarkerState m_clean_marker_state{CleanMarkerState::None};
     std::size_t m_clean_position{};
+    std::optional<BaseRun> m_base;
     std::optional<EditorUndoPendingTransition> m_pending;
     std::uint64_t m_next_pending_token{1};
 };
