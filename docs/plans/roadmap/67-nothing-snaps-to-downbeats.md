@@ -4,9 +4,10 @@
 Lock change (round once from the lock's origin; content frozen while locked), after which this plan
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
-file stores every position as a whole-note place, so a meter edit rewrites nothing but the meter);
-§9 records the user's decisions Q1–Q7. Supersedes plan 65's Q3 and Q4 and plan 66's Q2 and decision 6; the sighting of plans 65
-and 66 can run on this plan's result instead of theirs.
+file stores every position as a whole-note place, so a meter edit rewrites nothing but the meter)
+— a recommendation the user has NOT yet ruled on; Phase 1 waits on it. §9 records the user's
+decisions Q1–Q7. Supersedes plan 65's Q3 and Q4 and plan 66's Q2 and decision 6; the sighting of
+plans 65 and 66 can run on this plan's result instead of theirs.
 
 ## Goal
 
