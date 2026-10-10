@@ -4,7 +4,7 @@
 2026-10-09 against `602d5504`, then re-sequenced again the same day so the default look is
 sighted before theme loading exists, and 54-Q18/Q19 recast as theme choices the player can pin.
 Not started. **Phase 0 has a direction for the default look**
-(below) and still gates the art phases (54-Q5 to 54-Q20, each with a recommendation or a ruling).
+(below) and still gates the art phases (54-Q5 to 54-Q21, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
 sighting"). **Phases 1 to 5 gate the first public release.** This
@@ -461,6 +461,32 @@ Each carries a recommendation; none is decided until the user rules.
 
   *Recommended:* decide at the first sighting with both in motion. If B wins, it stays one
   renderer constant, not a theme key, because the fade is a light law.
+- **54-Q21 — the anticipation ring: keep or drop.** The ring is a hollow copy of the head, parked
+  at the hit line on the note's landing slot, that grows to full head size as the note arrives
+  (`highway_renderer.cpp:5208-5261`; `g_anticipation_seconds` :233; the hollow cells 2 and 5,
+  `highway_atlas.h:140, 271`). It came from the inspiring game's notation by way of Charter (its
+  growth law is Charter's `drawNoteAnticipation`, line for line), and the user doubts it adds real
+  readability.
+  - **The legal side does not decide it** (IP assessment, 2026-10-09, kept in the local dossier):
+    the cue is an idea with genre precedent, and its protectable part is the hollow art, which
+    the head redesign replaces anyway. Dropping it gains only marginally against a copyright,
+    takedown or trade-dress claim. If it stays, its timing is re-derived from RockHero's own
+    sighting instead of the ported law, and the reason is recorded in the code.
+  - **Decided by sighting, side by side** (Phase 1b), on the new default look:
+    - two local builds run at once, the normal one and a throwaway variant with the ring's draw
+      block disabled (never committed), on the same chart and section, in the game and the
+      editor preview;
+    - the material covers what the ring might help with: dense single-note runs, fast position
+      shifts, chords, pre-bends, harmonics, and far-off-window landings, at full and reduced
+      speed.
+  - **If dropped:** delete the ring's draw block and `g_anticipation_seconds`. The hollow cells
+    stay, because the pre-bend target outline (`highway_renderer.cpp:5263`) draws with them, so
+    they are renamed after what they still are (a hollow twin, not an anticipation cell). The
+    plans that describe the ring (25, 44) and `highway-note-art-state.md` are updated.
+  - **If kept:** retime it as above; a reshape (a ring that shrinks onto the slot, or a slot
+    highlight) is a further option only if the user wants more distance.
+
+  *Recommended:* none until the sighting; the user leans toward dropping it.
 
 ## Phased implementation
 
@@ -487,8 +513,9 @@ cannot be selected in-app until Phase 2a lands, and comparing the two looks mean
    build with garish values.
 2. **Phase 1b, the switch:** today's look is saved as files outside the tree; the default takes
    the ice-blue values, the rectangle head art and RockHero's circle inlay. **This is the first
-   sighting**, in both products, with today's marks and repeat cells. 54-Q20, the inlay's opacity
-   and whether ice blue reads too close to today's look are decided there from local variants.
+   sighting**, in both products, with today's marks and repeat cells. 54-Q20, the inlay's
+   opacity, whether ice blue reads too close to today's look, and whether the anticipation ring
+   stays (54-Q21) are decided there from local variants.
 3. **Phase 4a:** the box chord device and posts in code. With it the default look is complete and
    sighted again.
 
@@ -506,7 +533,7 @@ Phase 0 produces:
 - the accent family (54-Q9);
 - several rendered candidates for every redesigned item (heads, marks, chord device), made through
   the `texture-author` agent, so each settles by comparison rather than on paper;
-- the user's rulings on 54-Q5 to Q20.
+- the user's rulings on 54-Q5 to Q21.
 
 The default look's direction is in "Phase 0 direction". The scratch mock bakes its theme values
 and head cells, and the sighting theme is built from them. The mark brief stays open and
@@ -547,15 +574,17 @@ sources), build, touched tests.
   already uses the 23 role names), and the pinned test values move with them. The default palette
   is unchanged.
 - **The interim art**, baked by the `texture-author` agent at true size:
-  - `notes.png` takes the rectangle head in the default's material, in today's atlas layout, and
-    keeps today's mark cells until the Phase 4b split; the head contract measures the new cells;
+  - `notes.png` takes the rectangle head in the default's material, with its hollow twins derived
+    from it, in today's atlas layout, and keeps today's mark cells until the Phase 4b split; the
+    head contract measures the new cells;
   - `inlays.png` takes RockHero's own circle dot (54-Q15), so `textures/LICENSE.txt` narrows to
     the mark cells. Its generator is committed.
 
   No release ships before Phase 5, and the tree already carries those mark cells.
 - **STOP: the first sighting**, in motion in both products. Decided there from local variants:
-  54-Q20, the inlay's opacity (`inlay_tint`'s alpha), and whether ice blue reads too close to
-  today's look beside the other accents.
+  54-Q20, the inlay's opacity (`inlay_tint`'s alpha), whether ice blue reads too close to
+  today's look beside the other accents, and 54-Q21, the anticipation ring, with and without it
+  side by side. If 54-Q21 drops it, the deletion is its own commit.
 
 **Verification**: build, touched tests.
 
