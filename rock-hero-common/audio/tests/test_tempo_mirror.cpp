@@ -20,9 +20,8 @@ namespace
 
 using rock_hero::common::core::testing::anchor;
 
-// Owns the Tracktion objects needed to exercise the tempo mirror against a real edit headlessly.
-// RockHeroEngineBehavior matters here: it pins the edit's beat unit to quarter notes, which the
-// mirror's quarter-position math relies on.
+// Owns the Tracktion objects needed to exercise the tempo mirror against a real edit headlessly,
+// under the application's own engine behaviour.
 struct TempoMirrorHarness
 {
     juce::ScopedJuceInitialiser_GUI gui;
@@ -54,6 +53,31 @@ struct TempoMirrorHarness
             anchor("2:1", 2000),
             anchor("3:1", 3000),
         },
+    };
+}
+
+// What the host hands a plugin at a time: the bar and beat it counts, and the song position in
+// quarter notes (ppq) with the quarter at which the bar began.
+struct HostPosition
+{
+    int bar{};
+    double beat{};
+    double ppq{};
+    double ppq_of_bar_start{};
+};
+
+[[nodiscard]] HostPosition hostPositionAt(
+    const tracktion::TempoSequence& sequence, const double seconds)
+{
+    const tracktion::TimePosition time = tracktion::TimePosition::fromSeconds(seconds);
+    const tracktion::tempo::BarsAndBeats bars_beats = sequence.toBarsAndBeats(time);
+    tracktion::tempo::Sequence::Position position{sequence.getInternalSequence()};
+    position.set(time);
+    return HostPosition{
+        .bar = bars_beats.bars,
+        .beat = bars_beats.beats.inBeats(),
+        .ppq = position.getPPQTime(),
+        .ppq_of_bar_start = position.getPPQTimeOfBarStart(),
     };
 }
 
@@ -90,13 +114,15 @@ TEST_CASE("Tempo mirror writes one flat step per anchor span", "[audio][tempo-mi
     CHECK(second_sig->numerator.get() == 6);
     CHECK(second_sig->denominator.get() == 8);
 
-    // The rebuilt sequence must reproduce the map's seconds at every anchor and inside spans.
+    // The rebuilt sequence must reproduce the map's seconds at every anchor and inside spans. A
+    // beat of the 6/8 bar is an eighth, so measure 3 is beat 4 + 6 and its middle beat 4 + 3.
     CHECK(
         sequence.toTime(tracktion::BeatPosition::fromBeats(4.0)).inSeconds() == Catch::Approx(2.0));
     CHECK(
-        sequence.toTime(tracktion::BeatPosition::fromBeats(7.0)).inSeconds() == Catch::Approx(3.0));
+        sequence.toTime(tracktion::BeatPosition::fromBeats(10.0)).inSeconds() ==
+        Catch::Approx(3.0));
     CHECK(
-        sequence.toTime(tracktion::BeatPosition::fromBeats(5.5)).inSeconds() == Catch::Approx(2.5));
+        sequence.toTime(tracktion::BeatPosition::fromBeats(7.0)).inSeconds() == Catch::Approx(2.5));
 }
 
 TEST_CASE("Tempo mirror steps the tempo at a sub-beat anchor", "[audio][tempo-mirror]")
@@ -194,6 +220,61 @@ TEST_CASE("Tempo mirror writes a derived short bar as a time signature", "[audio
     CHECK(seven_eight->getStartBeat().inBeats() == Catch::Approx(5.0));
     CHECK(seven_eight->numerator.get() == 7);
     CHECK(seven_eight->denominator.get() == 8);
+}
+
+// The host counts the bars the editor shows and the quarters the song holds, in x/8 meters too:
+// one bar of 6/8 is three quarters, so at 120 quarter-note BPM the 4/4 after it begins at 1.5 s as
+// the second bar's downbeat, three quarters into the song. A beat is the meter's own note value
+// (an eighth in 6/8), as a host reports it.
+TEST_CASE(
+    "Tempo mirror counts x/8 bars and quarter-note positions as the map does",
+    "[audio][tempo-mirror]")
+{
+    const TempoMirrorHarness harness;
+    tracktion::TempoSequence& sequence = harness.edit->tempoSequence;
+
+    mirrorTempoMapIntoSequence(
+        sequence,
+        core::TempoMap{
+            core::testing::metersAt({{"1:1", 6, 8}, {"2:1", 4, 4}}),
+            {anchor("1:1", 0), anchor("4:1", 5500)},
+        });
+
+    const HostPosition inside = hostPositionAt(sequence, 0.75);
+    CHECK(inside.bar == 0);
+    CHECK(inside.beat == Catch::Approx(3.0));
+    CHECK(inside.ppq == Catch::Approx(1.5));
+
+    const HostPosition second_bar = hostPositionAt(sequence, 1.5);
+    CHECK(second_bar.bar == 1);
+    CHECK(second_bar.beat == Catch::Approx(0.0).margin(1e-9));
+    CHECK(second_bar.ppq == Catch::Approx(3.0));
+    CHECK(second_bar.ppq_of_bar_start == Catch::Approx(3.0));
+
+    const HostPosition third_bar = hostPositionAt(sequence, 3.5);
+    CHECK(third_bar.bar == 2);
+    CHECK(third_bar.beat == Catch::Approx(0.0).margin(1e-9));
+    CHECK(third_bar.ppq == Catch::Approx(7.0));
+}
+
+// A bar of 7/8 ends between two quarters: the 4/4 after it begins three and a half quarters in, at
+// 1.75 s, and the host counts that instant as the second bar's downbeat.
+TEST_CASE("Tempo mirror places a meter that starts between quarters", "[audio][tempo-mirror]")
+{
+    const TempoMirrorHarness harness;
+    tracktion::TempoSequence& sequence = harness.edit->tempoSequence;
+
+    mirrorTempoMapIntoSequence(
+        sequence,
+        core::TempoMap{
+            core::testing::metersAt({{"1:1", 7, 8}, {"2:1", 4, 4}}),
+            {anchor("1:1", 0), anchor("4:1", 5750)},
+        });
+
+    const HostPosition downbeat = hostPositionAt(sequence, 1.75);
+    CHECK(downbeat.bar == 1);
+    CHECK(downbeat.beat == Catch::Approx(0.0).margin(1e-9));
+    CHECK(downbeat.ppq == Catch::Approx(3.5));
 }
 
 TEST_CASE("Tempo mirror leaves maps without tempo information alone", "[audio][tempo-mirror]")

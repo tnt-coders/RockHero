@@ -16,11 +16,12 @@ namespace rock_hero::common::audio
 
 Write-only derived output: hosted plugins read host tempo and meter from the edit's sequence, and
 Rock Hero never reads the sequence back into project state. Each anchor span becomes one flat
-tempo step (curve 1.0) at its quarter-note position, matching the metronome-linear
-changes-only-at-anchors model exactly in shape; the edit's beat unit must be pinned to quarter
-notes via RockHeroEngineBehavior::lengthOfOneBeatDependsOnTimeSignature(). All writes go through
-non-remapping removals and clamp-free CachedValue assignment or insertTempo, so >300 BPM charts
-mirror faithfully and nothing in the edit beat-shifts.
+tempo step (curve 1.0) at quarter-note BPM, matching the metronome-linear changes-only-at-anchors
+model exactly in shape, and every reign one time signature. Positions are written in Tracktion's
+own beat, the governing meter's note value, so the host counts x/8 bars and quarter-note song
+positions as the map does. All writes go through non-remapping removals and clamp-free
+CachedValue assignment or insertTempo, so >300 BPM charts mirror faithfully and nothing in the
+edit beat-shifts.
 
 Maps with fewer than two anchors define no tempo and leave the sequence untouched.
 

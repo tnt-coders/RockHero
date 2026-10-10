@@ -1,7 +1,8 @@
 #include "tracktion/tempo_mirror.h"
 
+#include <algorithm>
 #include <cstddef>
-#include <rock_hero/common/core/timeline/grid_position.h>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -10,13 +11,22 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// Quarter-note position of a reign's first downbeat, where its time signature takes effect. The
-// edit's beat unit is pinned to quarters, so every address mirrors through the map's own quarter
-// axis.
-[[nodiscard]] double downbeatQuarterPosition(
-    const core::TempoMap& tempo_map, const core::MeterReign& reign)
+// A whole-note place in the edit's beats. Tracktion's beat is the governing meter's note value (an
+// eighth in 6/8), which is what lets it count x/8 bars and quarter-note song positions right, so
+// each reign before the place adds its length counted in its own beat. Exact rationals; every
+// reign starts on a bar line, so every time signature lands on a whole beat.
+[[nodiscard]] double editBeatsAt(
+    const std::vector<core::MeterReign>& reigns, const core::Fraction place)
 {
-    return tempo_map.quarterPositionAt(core::measureDownbeat(reign.first_measure));
+    core::Fraction beats{};
+    for (std::size_t index = 0; index < reigns.size() && reigns[index].place < place; ++index)
+    {
+        const core::Fraction end =
+            index + 1 < reigns.size() ? std::min(place, reigns[index + 1].place) : place;
+        beats =
+            beats + (end - reigns[index].place) * core::Fraction{reigns[index].meter.denominator};
+    }
+    return beats.toDouble();
 }
 
 } // namespace
@@ -34,10 +44,11 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
     const std::vector<core::MeterReign> signatures = tempo_map.reigns();
 
     // One flat tempo step per anchor span: Rock Hero tempo is constant between anchors, and the
-    // final span's tempo simply extends past the terminal anchor.
+    // final span's tempo simply extends past the terminal anchor. The tempo is quarter-note BPM,
+    // which is what Tracktion's BPM means in every meter.
     struct TempoStep
     {
-        double start_quarters{};
+        double start_beats{};
         double bpm{};
     };
     std::vector<TempoStep> steps;
@@ -55,7 +66,8 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
         }
         steps.push_back(
             TempoStep{
-                .start_quarters = from_quarters,
+                .start_beats =
+                    editBeatsAt(signatures, tempo_map.wholeNotePositionAt(from.position)),
                 .bpm = (to_quarters - from_quarters) / span_seconds * 60.0,
             });
     }
@@ -79,30 +91,29 @@ void mirrorTempoMapIntoSequence(tracktion::TempoSequence& sequence, const core::
     if (tracktion::TempoSetting* const first_tempo = sequence.getTempo(0))
     {
         first_tempo->startBeatNumber =
-            tracktion::BeatPosition::fromBeats(steps.front().start_quarters);
+            tracktion::BeatPosition::fromBeats(steps.front().start_beats);
         first_tempo->bpm = steps.front().bpm;
         first_tempo->curve = 1.0F;
     }
     for (std::size_t index = 1; index < steps.size(); ++index)
     {
         sequence.insertTempo(
-            tracktion::BeatPosition::fromBeats(steps[index].start_quarters),
-            steps[index].bpm,
-            1.0F);
+            tracktion::BeatPosition::fromBeats(steps[index].start_beats), steps[index].bpm, 1.0F);
     }
 
     if (tracktion::TimeSigSetting* const first_signature = sequence.getTimeSig(0))
     {
-        first_signature->startBeatNumber = tracktion::BeatPosition::fromBeats(
-            downbeatQuarterPosition(tempo_map, signatures.front()));
+        first_signature->startBeatNumber =
+            tracktion::BeatPosition::fromBeats(editBeatsAt(signatures, signatures.front().place));
         first_signature->numerator = signatures.front().meter.numerator;
         first_signature->denominator = signatures.front().meter.denominator;
     }
+    // insertTimeSig rounds its start to the nearest whole beat, which a start on a bar line already
+    // is.
     for (std::size_t index = 1; index < signatures.size(); ++index)
     {
         const tracktion::TimeSigSetting::Ptr inserted = sequence.insertTimeSig(
-            tracktion::BeatPosition::fromBeats(
-                downbeatQuarterPosition(tempo_map, signatures[index])));
+            tracktion::BeatPosition::fromBeats(editBeatsAt(signatures, signatures[index].place)));
         if (inserted != nullptr)
         {
             inserted->numerator = signatures[index].meter.numerator;

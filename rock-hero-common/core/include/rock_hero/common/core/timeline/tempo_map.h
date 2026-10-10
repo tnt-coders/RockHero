@@ -358,7 +358,7 @@ public:
     \brief Converts a grid position to its quarter-note (metronome) position.
 
     THE one statement that a quarter is a quarter of a whole note: the axis every time query
-    interpolates on and the unit an audio engine pinned to quarter beats reads.
+    interpolates on.
 
     \param position Valid grid position.
     \return Quarter notes from measure 1 beat 1.
