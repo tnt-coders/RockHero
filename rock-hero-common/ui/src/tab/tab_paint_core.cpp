@@ -30,8 +30,8 @@ namespace
 {
 
 // The string-color palette and its Charter-exact derivation chain live beside this core in
-// rock-hero-common/ui; the drawers consume the Charter Classic preset and convert to JUCE
-// colors at this module's boundary.
+// rock-hero-common/ui; the drawers consume the palette the host passes in (TabLaneMetrics) and
+// convert to JUCE colors at this module's boundary.
 
 // Charter modern-theme fixed colors.
 const juce::Colour g_note_background_color{0xff101010};     // NOTE_BACKGROUND
