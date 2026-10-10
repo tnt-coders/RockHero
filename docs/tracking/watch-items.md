@@ -635,6 +635,20 @@ regression, then re-pin.
 
 ## Chart editing (tab lane)
 
+### A meter edit sometimes nudges the cursor slightly back — trigger: it reproduces
+
+Seen once by the user (2026-10-09): on writing a new value into a time-signature chip the cursor
+sometimes stepped back very slightly instead of staying on the chip; not reproducible since. The
+core carry is ruled out: `commitGridModel` reads the cursor's place at the tick
+(`nearestTempoGridPosition`), a meter edit keeps that place exactly (`keptPlace`), and
+`carryCursorTo` seeks only past the 1 ms tolerance, so the core cannot move it visibly. The suspect
+is the engine: every meter edit re-mirrors the tempo map (`syncTempoDerivedAudio`), which rebuilds
+Tracktion's playback graph, and Tracktion's playhead can write its own position back into the
+transport (`TransportControl::setPosition`'s comment on `lastUserDragTime`), so a stale or
+block-rounded write-back would read as a small step back. When it reproduces, note which edit
+(retype, insert at a beat, or typing onto a ghost chip), the size of the step, and snap state,
+then probe the real engine: seek, re-mirror, pump the message loop, read `Engine::position()`.
+
 ### Scale Tempo under the Note Lock refuses a factor that would put a meter off the meter lattice — trigger: a refusal that reads as wrong in use
 
 The locked form (the relabel; unlocked, Scale Tempo re-places nothing and never refuses for a
