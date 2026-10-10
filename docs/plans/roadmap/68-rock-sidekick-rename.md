@@ -1,7 +1,7 @@
 # Plan 68 — Rename the editor to Rock Sidekick
 
-**Status:** Drafted 2026-10-10 against `master @ 8855db1d`; not started. Decisions 68-Q1..Q5 (§7)
-are open, each with a recommendation. The inventory in §3 was taken by two read-only reviews
+**Status:** Drafted 2026-10-10 against `master @ 8855db1d`; not started. 68-Q2 is decided
+(`.rsk`); 68-Q1 and 68-Q3..Q5 (§7) are open, each with a recommendation. The inventory in §3 was taken by two read-only reviews
 (code and build; strings, data, docs and tooling) and spot-checked against the tree.
 
 ## 1. Goal
@@ -241,9 +241,12 @@ executable, the window, the files.
    read a C++ constant, and feeding the constant from CMake would need a PUBLIC compile definition
    on `common/core`, putting both product names into every target. It is two spellings in two
    known files, both named in this plan; a stated, accepted cost.
-4. Per 68-Q2: rename `.rhp` and the "Rock Hero Project" dialog strings.
+4. Per 68-Q2, the project extension becomes `.rsk`: replace `rhp` → `rsk`, `Rhp` → `Rsk`
+   (`pathWithRhpExtension`), `RHP` → `RSK` (two test names) and "Rock Hero Project" →
+   "Rock Sidekick Project" (the open/save dialogs), tree-wide including docs. Every match of
+   `\w*rhp\w*` today is one of these tokens, so the replacement cannot hit an unrelated word.
 5. Build; run the common core, sidekick core and sidekick ui suites.
-6. Acceptance: `rg -n "Rock Hero Editor|RockHeroEditor|editorApplicationName|EditorSettings|\"editor\."`
+6. Acceptance: `rg -n -i "Rock Hero Editor|RockHeroEditor|editorApplicationName|EditorSettings|\"editor\.|rhp|Rock Hero Project"`
    outside `external/` and `project-config/` returns zero; a fresh run shows "Rock Sidekick" in
    the title and writes `Rock Sidekick.log` and `Rock Sidekick.settings`.
 
@@ -269,7 +272,7 @@ executable, the window, the files.
 
 1. Rename `%APPDATA%/Rock Hero/Rock Hero Editor.settings` to `Rock Sidekick.settings` (keeps the
    keymap, last project and per-project markers); delete the old log. Rename the user's `.rhp`
-   projects if 68-Q2 renames the extension.
+   projects to `.rsk`, and the last-project path inside the settings file with them.
 2. CLion: reload the CMake project (the tree moved; `.idea/` is untracked).
 3. Update the 11 auto-memory files that name editor paths, and record the product/role rule as a
    memory so later sessions name new code correctly.
@@ -297,9 +300,13 @@ no switches). What remains:
   **Recommendation (a):** (b) costs ~5,000 occurrences and 57 file renames to produce names that
   describe the product instead of what the type does.
 - **68-Q2 The project-file extension.** `.rhp` glosses as "Rock Hero Project", which a Sidekick
-  project is not. (a) Rename now, while the no-migration rule makes it free — avoid `.rsp`, the
-  compiler response-file extension; `.sidekick` is unambiguous. (b) Keep `.rhp`. **Recommendation
-  (a)**, spelling the user's call.
+  project is not. **DECIDED 2026-10-10 (user): `.rsk`**, renamed now while the no-migration rule
+  makes it free. Considered: `.sidekick` (unambiguous, long), `.rocksk` (reads as a variant of the
+  `.rock` song it exports to), `.rockproj` (names the game's format, not Sidekick); `.rsp`,
+  `.skp` and `.rsdk` are taken by compiler response files, SketchUp and the Retro Engine SDK.
+  `.rsk`'s existing uses — RBR Ruskin oceanographic logger data, enterprise risk-analysis tools,
+  internal SQLite stores — are not on a guitarist's machine; the residual cost is web-search
+  noise for "what is an .rsk file".
 - **68-Q3 The shared data folder.** `%APPDATA%/Rock Hero/` is shared by both apps (one audio
   store, one plugin scan), so it must stay one folder; the question is its name. (a) Keep
   "Rock Hero" as the family's folder — zero cost; a Sidekick-only user sees a folder named for a
