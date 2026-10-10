@@ -66,24 +66,6 @@ it to that.
 [[nodiscard]] std::vector<PlacedAnchor> placedAnchorsOf(const common::core::TempoMap& tempo_map);
 
 /*!
-\brief Maps one position from the old map to the new: THE path every slice takes.
-
-The position's whole-note place under \p from, sent by the content map, rounded onto the tick
-lattice only where it lies off it, and read as a token under \p to. Only \p to's meters are read,
-so a map whose anchors are still the old ones addresses alike. The commit carries the cursor down
-the same path, so it lands on what it stood on.
-
-\param from Map the position is addressed under.
-\param to Map holding the new meters.
-\param content Where each old whole-note place goes.
-\param position Valid grid position under \p from.
-\return The mapped position under \p to.
-*/
-[[nodiscard]] common::core::GridPosition readdressedPosition(
-    const common::core::TempoMap& from, const common::core::TempoMap& to, const ContentMap& content,
-    common::core::GridPosition position);
-
-/*!
 \brief Re-addresses the whole song timeline under a new map stated on the whole-note axis, every
 object going where the content map sends it and nothing moving in time.
 
@@ -93,8 +75,9 @@ whole number of its measures ends in a derived short bar (\ref common::core::Tem
 and a terminal left mid-measure stands, the song ending on a short final bar.
 - The new meters are the map's own placed changes.
 - The new anchors' addresses are derived from their places, keeping their milliseconds.
-- Sections, note onsets, fret-hand positions, tone region starts and tone automation points are
-  mapped (\ref readdressedPosition).
+- Sections, note onsets, fret-hand positions, tone region starts and tone automation points each
+  go where the content map sends their place, rounded onto the tick lattice only where it lands
+  off it, and read as a token under the new meters.
 - A note's ring and its keyframe offsets are note values from its onset, so each becomes the
   distance between where its two instants are sent: a meter edit leaves them untouched, Scale Tempo
   scales them, and the Note Lock re-rounds them with the places they join.

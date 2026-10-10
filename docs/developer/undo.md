@@ -102,10 +102,12 @@ when the selection leaves it (`dissolveRedundantMeters`, run by the settle and b
 and redo, exactly as `dissolveSilentKeyframes` is). Retyping the focused chip is one real entry
 whose `before` is the written form, so no undo ever lands on the chip). Every
 grid commit (`commitGridModel`) lands through `landMarkerModel`, the funnel without its publish,
-carries the cursor as one more slice through the verb's content map (`carryCursorTo`, which seeks
-only where the transport no longer stands at the carried place), leaves the landed marker selected
-or nothing, because where every address moved the old selection would name other music, and then
-publishes once.
+carries the keyboard by the model's own rule (`carryKeyboardAcrossGrid` with the snapshot's
+`GridCarry`, through `carryCursorTo`, which seeks only where the transport no longer stands at the
+carried place), leaves the landed marker selected or nothing, because where every address moved
+the old selection would name other music, and then publishes once. Undo and redo of a grid entry
+make the same carry (`applyPendingEdit` asks `IEdit::gridCarry`), so neither leaves the keyboard
+on an address that now names other music, and neither counts as a keyboard move.
 Whole-model in every case because a tone delete or retone can MERGE regions and a section or
 placement move re-sorts the list, so an inverse command would have to know every record the edit
 took; a handful of small structs costs nothing to copy, and the round trip is exact by assignment.

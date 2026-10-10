@@ -384,16 +384,18 @@ there; a terminal left mid-measure stays too, the song ending on a short final b
 refuses nothing — a reign left shorter than one of its measures is the tempo-map rules' refusal
 (`ReignTooShort`), asked at the commit — and the locked Scale Tempo alone refuses a factor that
 would carry a meter off the meter lattice (`isOnMeterLattice`), naming the meter where it stands
-now. The
-commit carries the cursor as one more slice (`commitGridModel` takes the verb's content map and
-asks `readdressedPosition`), so its column lands on what it stood on. The transport follows only
-where it no longer stands within the
-cursor's one-millisecond trust tolerance of that place (`carryCursorTo`), so an edit that holds
-time moves it only by the tick rounding the content under it takes too, which passes a millisecond
-only at slow tempos. Tempo edits are the contrast: there the grid is truth, and their content map,
-`keptPlace`, keeps the cursor's musical place, so its time moves — unless the Note Lock is on. No
-grid commit is a keyboard move, so none of them scrolls the window
-(`EditorViewState::keyboard_move_count`).
+now.
+
+The keyboard crosses every landing of a grid model by the model's own rule (`GridCarry`, stated
+by each snapshot and applied by `carryKeyboardAcrossGrid`). A song-timeline landing (a meter edit,
+the locked Scale Tempo, a tempo edit under the Note Lock) holds every time, so the keyboard keeps
+its time. A tempo-map landing (a tempo edit with the lock off, the unlocked Scale Tempo) makes the
+grid truth, so the keyboard keeps its address and its time moves with its beat. The verb's commit
+(`commitGridModel`) and its undo and redo (`applyPendingEdit`) carry it alike, so an undo puts the
+cursor back on what it stood on. The transport follows only where it no longer stands within the
+cursor's one-millisecond trust tolerance of the carried place (`carryCursorTo`). No carry is a
+keyboard move, so none of them scrolls the window (`EditorViewState::keyboard_move_count`); an
+undo's focus on the marker it changed still does.
 
 A time signature RESTATING its reign — the same meter as the authored reign before it, on one of
 that reign's own downbeats — changes no measure, so it is the keyframe commit law's meter row: the

@@ -28,6 +28,9 @@ struct TempoMapSnapshot
     /*! \brief The song's tempo map. */
     common::core::TempoMap tempo_map;
 
+    /*! \brief The grid is truth: content and the keyboard keep their addresses across a landing. */
+    static constexpr GridCarry grid_carry = GridCarry::KeepAddress;
+
     /*!
     \brief Reads the song's current tempo map.
     \param session Session owning the song.

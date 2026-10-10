@@ -8,6 +8,7 @@
 #include "controller/editor_undo_history.h"
 
 #include <expected>
+#include <optional>
 #include <rock_hero/common/core/session/session.h>
 #include <string>
 #include <utility>
@@ -89,6 +90,22 @@ template <typename Snapshot> struct [[nodiscard]] MarkerModelEdit final : IEdit
         }
         return direction == EditorUndoDirection::Undo ? before.focusReplacing(after)
                                                       : after.focusReplacing(before);
+    }
+
+    /*!
+    \brief Reports how the keyboard crosses the transition, as the model's kind states it.
+    \return The snapshot's carry for a model that states the grid, else nothing.
+    */
+    [[nodiscard]] std::optional<GridCarry> gridCarry() const override
+    {
+        if constexpr (requires { Snapshot::grid_carry; })
+        {
+            return Snapshot::grid_carry;
+        }
+        else
+        {
+            return std::nullopt;
+        }
     }
 
     /*! \brief Marker model as it stood before the verb ran. */

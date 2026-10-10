@@ -177,6 +177,20 @@ public:
         return {};
     }
 
+    /*!
+    \brief Reports how the keyboard crosses this edit's landing, where the edit states the grid.
+
+    An edit that replaces the tempo map or the song timeline moves what every grid address means,
+    so its undo and redo carry the keyboard exactly as its commit did (GridCarry) rather than
+    leaving it on an address that now names other music. Every other edit keeps the default.
+
+    \return The carry, or nothing for an edit that does not state the grid.
+    */
+    [[nodiscard]] virtual std::optional<GridCarry> gridCarry() const
+    {
+        return std::nullopt;
+    }
+
 protected:
     /*! \brief Allows construction only through derived edit objects. */
     IEdit() = default;

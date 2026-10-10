@@ -75,10 +75,7 @@ void EditorController::Impl::commitTempoEdit(
 {
     const auto* const moved = std::get_if<TempoAnchorSelection>(&landing);
     const auto land = [this, verb, moved, &landing](
-                          auto before,
-                          auto after,
-                          const common::core::TempoMap& edited,
-                          const ContentMap& content) {
+                          auto before, auto after, const common::core::TempoMap& edited) {
         if (moved != nullptr)
         {
             if (commitMarkerMove(std::move(before), std::move(after), std::string{verb}, *moved))
@@ -94,7 +91,6 @@ void EditorController::Impl::commitTempoEdit(
             grid.label(edited),
             MarkerRow::Tempo,
             grid.anchor,
-            content,
             grid.focus);
     };
 
@@ -111,15 +107,10 @@ void EditorController::Impl::commitTempoEdit(
         land(
             TempoMapSnapshot::capture(session()),
             TempoMapSnapshot{.tempo_map = tempo_map},
-            tempo_map,
-            keptPlace);
+            tempo_map);
         return;
     }
-
-    // The cursor is no content: it is carried from where it stands now to the same time under the
-    // new map, which is one rounding per edit of a place the transport trusts to a millisecond.
-    const ContentMap content = timeKeptPlaces(current, tempo_map);
-    land(SongTimelineSnapshot::capture(session()), timeKeptSnapshot(tempo_map), tempo_map, content);
+    land(SongTimelineSnapshot::capture(session()), timeKeptSnapshot(tempo_map), tempo_map);
 }
 
 // Holds the song as it stands, and marks the history there so holdsBase can say whether a later
@@ -327,7 +318,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         label,
         MarkerRow::Tempo,
         std::nullopt,
-        scaledPlaces(action.factor),
         EntryFocus::None);
     if (committed == MarkerCommit::Landed)
     {

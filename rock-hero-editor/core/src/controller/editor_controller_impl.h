@@ -1699,16 +1699,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed);
 
     // The commit every whole-grid verb ends in (a tempo map, a meter list, Scale Tempo):
-    // landMarkerModel, then the cursor carried as one more slice through the verb's `content` map
-    // (readdressedPosition, carryCursorTo), then the marker on `landed_row` starting at `landed`
-    // selected where it still stands (else nothing), and one publish. `focus` is what the entry's
-    // undo and redo bring into view: nothing for a whole-song verb. Returns what the funnel did.
-    // Defined beside the funnel in marker_model_commit.h, where its order rule is written down.
+    // landMarkerModel, then the keyboard carried as the model's kind states
+    // (carryKeyboardAcrossGrid), then the marker on `landed_row` starting at `landed` selected
+    // where it still stands (else nothing), and one publish. `focus` is what the entry's undo and
+    // redo bring into view: nothing for a whole-song verb. Returns what the funnel did. Defined
+    // beside the funnel in marker_model_commit.h, where its order rule is written down.
     template <typename Snapshot>
     MarkerCommit commitGridModel(
         Snapshot before, Snapshot after, std::string label, MarkerRow landed_row,
-        std::optional<common::core::GridPosition> landed, const ContentMap& content,
-        EntryFocus focus);
+        std::optional<common::core::GridPosition> landed, EntryFocus focus);
+
+    // Carries the keyboard across a landing of a model that states the grid, from `place` (read at
+    // the tick under `old_map`, before the landing; absent while the transport plays) onto the
+    // session's new map as `carry` says, and makes that carry no keyboard move. The one statement
+    // of the carry for a grid model's commit and for its undo and redo alike.
+    void carryKeyboardAcrossGrid(
+        const common::core::TempoMap& old_map, std::optional<common::core::GridPosition> place,
+        GridCarry carry);
 
     // The model a held run of marker moves started from, while the next move press would continue
     // that run (commitMarkerMove's own test); nothing when it would start one. Defined beside the

@@ -510,6 +510,30 @@ void EditorController::Impl::carryCursorTo(const common::core::GridPosition posi
     moveCursorTo(position);
 }
 
+// The landed map is already the session's. The carried place is the new baseline the next publish
+// compares against, so the carry itself is no keyboard move while a focus move after it (an undo
+// that selects what it changed) still counts as one.
+void EditorController::Impl::carryKeyboardAcrossGrid(
+    const common::core::TempoMap& old_map, const std::optional<common::core::GridPosition> place,
+    const GridCarry carry)
+{
+    if (!place.has_value())
+    {
+        m_published_keyboard_seconds.reset();
+        return;
+    }
+    const common::core::TempoMap& new_map = session().song().tempo_map;
+    const common::core::GridPosition carried =
+        carry == GridCarry::KeepAddress
+            ? *place
+            : nearestTempoGridPosition(
+                  new_map,
+                  common::core::g_tick_quantum_note_value,
+                  common::core::TimePosition{old_map.secondsAt(*place)});
+    carryCursorTo(carried);
+    m_published_keyboard_seconds = new_map.secondsAt(carried);
+}
+
 // Compared in SECONDS because that is the only currency the transport and a musical column share —
 // the write-back the tolerance forgives is a sample rounding, which has no musical spelling.
 bool EditorController::Impl::transportStandsAt(const common::core::GridPosition column) const

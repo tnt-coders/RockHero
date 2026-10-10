@@ -52,6 +52,7 @@
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
@@ -1909,9 +1910,26 @@ void EditorController::Impl::dispatchUndoTransition(const EditorUndoBeginResult&
 std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyPendingEdit(
     const EditorUndoPendingTransition& pending)
 {
+    // A transition that replaces the grid carries the keyboard exactly as its commit did, read
+    // before the apply as the commit reads it, so undo and redo leave it on what it stood on.
+    const std::optional<GridCarry> carry = pending.edit->gridCarry();
+    std::optional<common::core::TempoMap> old_map;
+    std::optional<common::core::GridPosition> place;
+    if (carry.has_value())
+    {
+        old_map = session().song().tempo_map;
+        place = cursorPosition(common::core::g_tick_quantum_note_value);
+    }
+
     EditorEditContext context = editContext();
-    return pending.direction == EditorUndoDirection::Undo ? pending.edit->undo(context)
-                                                          : pending.edit->redo(context);
+    std::expected<void, EditorUndoFailureCode> applied =
+        pending.direction == EditorUndoDirection::Undo ? pending.edit->undo(context)
+                                                       : pending.edit->redo(context);
+    if (applied.has_value() && carry.has_value() && old_map.has_value())
+    {
+        carryKeyboardAcrossGrid(*old_map, place, *carry);
+    }
+    return applied;
 }
 
 // Aborts a pending transition and centralizes the history log, fault, and view-refresh policy.

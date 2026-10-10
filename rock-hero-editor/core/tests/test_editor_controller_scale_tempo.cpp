@@ -144,22 +144,46 @@ TEST_CASE("Locked Scale Tempo's undo and redo restore the whole song", "[core][s
     CHECK(editor.timeline() == scaled);
 }
 
-// Scale Tempo changes the whole song, so no one marker is what its undo or redo changed: in either
-// form the step focuses nothing and the window stays where it stands, as the verb itself left it.
-TEST_CASE("Scale Tempo's undo and redo focus nothing", "[core][scale-tempo]")
+// Scale Tempo changes the whole song, so no one marker is what its undo or redo changed, and the
+// window stays where it stands, as the verb itself left it: neither step focuses anything or moves
+// the keyboard. Each carries the keyboard as the verb did instead, onto what it stood on: back on
+// its music (the unlocked stretch kept it there, so it returns to 5 s) or at its time (the locked
+// relabel held 5 s). Asked of the passive cursor and of a caret armed after the verb, whose
+// address would otherwise name other music under the restored map.
+TEST_CASE(
+    "Scale Tempo's undo and redo leave the window and the keyboard on their music",
+    "[core][scale-tempo]")
 {
     const bool note_lock = GENERATE(true, false);
-    CAPTURE(note_lock);
-    ScaleEditor editor{note_lock};
+    const bool caret = GENERATE(false, true);
+    CAPTURE(note_lock, caret);
+    ScaleEditor editor{note_lock, makeThreeSpanSong()};
     editor.seek(5.0);
+    REQUIRE(editor.state().keyboard_position.has_value());
+    const double before = editor.state().keyboard_position->seconds;
 
     editor.scale("2");
     REQUIRE(editor.undoEntryCount() == 1);
+    if (caret)
+    {
+        editor.armCaretAtCursor();
+    }
+    REQUIRE(editor.state().keyboard_position.has_value());
+    const double after = editor.state().keyboard_position->seconds;
+    CHECK_THAT(after, WithinAbs(note_lock ? 5.0 : 2.5, 1e-3));
+    const std::uint64_t moves = editor.state().keyboard_move_count;
     const std::uint64_t focused = editor.state().focus_count;
 
     editor.controller.onUndoRequested();
+    REQUIRE(editor.state().keyboard_position.has_value());
+    CHECK_THAT(editor.state().keyboard_position->seconds, WithinAbs(before, 1e-3));
+    CHECK(editor.state().keyboard_move_count == moves);
     CHECK(editor.state().focus_count == focused);
+
     editor.controller.onRedoRequested();
+    REQUIRE(editor.state().keyboard_position.has_value());
+    CHECK_THAT(editor.state().keyboard_position->seconds, WithinAbs(after, 1e-3));
+    CHECK(editor.state().keyboard_move_count == moves);
     CHECK(editor.state().focus_count == focused);
 }
 

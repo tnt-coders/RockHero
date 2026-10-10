@@ -229,7 +229,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
         label,
         MarkerRow::TimeSignature,
         landed,
-        keptPlace,
         EntryFocus::FirstChange);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
@@ -280,7 +279,6 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
         markerVerbLabel(MarkerVerb::DeleteTimeSignature),
         MarkerRow::TimeSignature,
         std::nullopt,
-        keptPlace,
         EntryFocus::FirstChange);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }

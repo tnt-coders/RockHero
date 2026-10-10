@@ -33,6 +33,9 @@ struct SongTimelineSnapshot
     /*! \brief The song's timeline. */
     common::core::SongTimeline timeline;
 
+    /*! \brief Every time is held: content and the keyboard keep their times across a landing. */
+    static constexpr GridCarry grid_carry = GridCarry::KeepTime;
+
     /*!
     \brief Reads the song's current timeline.
     \param session Session owning the song.

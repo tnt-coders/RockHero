@@ -11,7 +11,6 @@ member template needs its body where every marker handler translation unit can s
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_judge_context.h"
 #include "controller/marker_model_edit.h"
-#include "timeline/timeline_readdress.h"
 
 #include <expected>
 #include <memory>
@@ -20,18 +19,17 @@ member template needs its body where every marker handler translation unit can s
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <variant>
 
 namespace rock_hero::editor::core
 {
 
-// The marker models that state the grid itself and so address the rest — the two commitGridModel
-// lands. Every other model is content, which the Note Lock freezes.
+// The marker models that state the grid itself and so address the rest — the ones commitGridModel
+// lands, each stating how the keyboard crosses its landing (GridCarry). Every other model is
+// content, which the Note Lock freezes.
 template <typename Snapshot>
-inline constexpr bool g_states_grid =
-    std::is_same_v<Snapshot, TempoMapSnapshot> || std::is_same_v<Snapshot, SongTimelineSnapshot>;
+inline constexpr bool g_states_grid = requires { Snapshot::grid_carry; };
 
 // THE WRITTEN FORM of a marker model: what the history and the file hold. Every model is its own,
 // except the song timeline, which sheds a time signature restating its reign — that change is
@@ -238,24 +236,19 @@ bool EditorController::Impl::commitMarkerMove(
 
 // THE ORDER RULE of a grid commit, for every model that addresses the rest (a tempo map, a meter
 // list): the cursor's place is read at the tick BEFORE the commit, and once the model has landed
-// the cursor is carried onto the new grid FIRST, as one more slice down the path the content took
-// (readdressedPosition with the verb's content map), so it stands on what it stood on: a kept place
-// where the grid is truth or a meter edit holds time, a time-kept one under the Note Lock, a scaled
-// one under the locked Scale Tempo. Carrying first is what demotes an armed caret onto its carried
-// place:
-// a select dissolves a caret by seeking to its address, and its OLD address under the new grid is
-// other music. The landed marker is selected next, where the verb landed one, and otherwise nothing
-// is: where every address moved, the old selection would name other music. That select is a settle
-// point, so a meter restating its reign lands in focus and stays. The carry is no keyboard move, so
-// nothing the commit does to where the keyboard stands asks the window to follow
-// (m_published_keyboard_seconds). Everything settles before the commit's one publish, which follows
-// the funnel's publish rule: only when the model moved or a marker was selected. `focus` is what
-// the entry's undo and redo bring into view (EntryFocus).
+// the cursor is carried onto the new grid FIRST, as the model's kind states
+// (carryKeyboardAcrossGrid), so it stands on what it stood on. Carrying first is what demotes an
+// armed caret onto its carried place: a select dissolves a caret by seeking to its address, and its
+// OLD address under the new grid is other music. The landed marker is selected next, where the
+// verb landed one, and otherwise nothing is: where every address moved, the old selection would
+// name other music. That select is a settle point, so a meter restating its reign lands in focus
+// and stays. Everything settles before the commit's one publish, which follows the funnel's publish
+// rule: only when the model moved or a marker was selected. `focus` is what the entry's undo and
+// redo bring into view (EntryFocus); their carry is the same one (applyPendingEdit).
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
-    const std::optional<common::core::GridPosition> landed, const ContentMap& content,
-    const EntryFocus focus)
+    const std::optional<common::core::GridPosition> landed, const EntryFocus focus)
 {
     static_assert(g_states_grid<Snapshot>, "a grid commit lands a model that states the grid");
     const std::optional<common::core::GridPosition> place =
@@ -270,13 +263,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     const bool moved = committed != MarkerCommit::Unchanged;
     if (moved)
     {
-        // Absent only while the transport plays, when no caret can be armed.
-        if (place.has_value())
-        {
-            carryCursorTo(
-                readdressedPosition(old_map, session().song().tempo_map, content, *place));
-        }
-        m_published_keyboard_seconds.reset();
+        carryKeyboardAcrossGrid(old_map, place, Snapshot::grid_carry);
     }
     const bool selected = landed.has_value() && selectMarkerStartingAt(landed_row, *landed);
     if (moved && !selected)

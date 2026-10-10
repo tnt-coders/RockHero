@@ -34,6 +34,16 @@ namespace
     return position;
 }
 
+// THE path every slice takes: its whole-note place under `from`, sent by the content map, read as a
+// token under `to`. Only `to`'s meters are read, so a map whose anchors are still the old ones
+// addresses alike.
+[[nodiscard]] common::core::GridPosition readdressedPosition(
+    const common::core::TempoMap& from, const common::core::TempoMap& to, const ContentMap& content,
+    const common::core::GridPosition position)
+{
+    return addressOf(to, mappedPlace(content, from.wholeNotePositionAt(position)));
+}
+
 } // namespace
 
 std::vector<PlacedAnchor> placedAnchorsOf(const common::core::TempoMap& tempo_map)
@@ -55,13 +65,6 @@ common::core::Fraction keptPlace(const common::core::Fraction whole_note)
 {
     assert(common::core::isOnTickLattice(whole_note) && "a kept place is never rounded");
     return whole_note;
-}
-
-common::core::GridPosition readdressedPosition(
-    const common::core::TempoMap& from, const common::core::TempoMap& to, const ContentMap& content,
-    const common::core::GridPosition position)
-{
-    return addressOf(to, mappedPlace(content, from.wholeNotePositionAt(position)));
 }
 
 common::core::SongTimeline readdressTimeline(

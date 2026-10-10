@@ -101,6 +101,24 @@ enum class EntryFocus : std::uint8_t
 };
 
 /*!
+\brief How the keyboard position crosses a landing of a model that states the grid, so it stands
+on what it stood on.
+
+The rule is the model's: a tempo-map edit makes the grid truth, so content keeps its address and
+moves with its beat, and the keyboard does too; a song-timeline edit re-addresses the content with
+every time held, so the keyboard keeps its time. The verb's commit and its undo and redo carry it
+alike, and none of them is a keyboard move.
+*/
+enum class GridCarry : std::uint8_t
+{
+    /*! \brief The keyboard keeps its grid address and moves with its beat. */
+    KeepAddress,
+
+    /*! \brief The keyboard keeps its time and takes the address the new grid gives it. */
+    KeepTime,
+};
+
+/*!
 \brief One record a transition changed, and whether the side it landed on still holds it.
 \tparam Record Marker or point record type.
 */
