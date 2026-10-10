@@ -387,7 +387,10 @@ colorblind player needs the note palette swap regardless of chrome taste).
 
 - `IEditorSettings::stringColorPreset()/setStringColorPreset(std::string)` plus the same
   controller/view-state/menu chain as Phase 2 ("String Colors" submenu listing
-  `stringColorPalettes()`); unknown ids fall back to Charter Classic.
+  `stringColorPalettes()`); unknown ids fall back to Charter Classic. Per plan 54's 54-Q18 the
+  setting's absent value means "Theme's choice", the submenu's top entry reading
+  `Theme's choice (<resolved palette>)`, and any concrete pick pins; until plan 54 Phase 2a lands
+  that entry resolves to the default palette.
 - `TabView` receives the active palette (extend `setState(...)` or add a setter beside
   `setVisibleTimeline`) and derives its `StringLaneStyle` set from it; repaint on change.
 

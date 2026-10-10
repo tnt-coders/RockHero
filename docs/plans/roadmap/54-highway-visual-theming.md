@@ -1,7 +1,9 @@
 # Plan 54 — Highway Visual Theming
 
 **Status**: Revised 2026-10-07 against `master @ 6f87951f`; re-verified and re-sequenced
-2026-10-09 against `602d5504`. Not started. **Phase 0 has a direction for the default look**
+2026-10-09 against `602d5504`, then re-sequenced again the same day so the default look is
+sighted before theme loading exists, and 54-Q18/Q19 recast as theme choices the player can pin.
+Not started. **Phase 0 has a direction for the default look**
 (below) and still gates the art phases (54-Q5 to 54-Q20, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
@@ -34,9 +36,15 @@ detailed inventory; this is the summary they resolve to.
 
 | Owner | What it holds |
 |---|---|
-| **The theme** (`theme.json` plus its assets) | The 23 color roles (backdrop, board chrome, hand window, fret numbers, chord box and attack line, picking-hand furniture, both hands' strike pops, full-mute mark, arpeggio, capo, inlay tint and opacity, label text); one bounded `string_shading` over the player's string colors (54-Q18); the head **material** (54-Q19); the repeat-box art (`chords.png`) |
-| **The player** (settings, per product) | String colors (plan 45; the theme may only suggest a palette); head **shape** from the library and inlay **art** from the library (54-Q19); string orientation (54-Q5); display options; which theme is active |
-| **RockHero, fixed** (code and one fixed sheet) | The technique marks (S3); the chord device and open-bar posts (S1, S2); every geometry, camera, timing, tail, light and emphasis law; shaders; the atlas layout and cell meanings |
+| **The theme** (`theme.json` plus its assets) | The 23 color roles (backdrop, board chrome, hand window, fret numbers, chord box and attack line, picking-hand furniture, both hands' strike pops, full-mute mark, arpeggio, capo, inlay tint and opacity, label text); the head **material** (54-Q19); the repeat-box art (`chords.png`); and its **choices** of string palette, head shape and inlay (54-Q18, 54-Q19), which the player may pin |
+| **The player** (settings, per product) | One pinnable setting each for string palette, head shape and inlay, defaulting to "Theme's choice"; string orientation (54-Q5); display options; which theme is active |
+| **RockHero, fixed** (code and one fixed sheet) | The technique marks (S3); the chord device and open-bar posts (S1, S2); every geometry, camera, timing, tail, light and emphasis law; shaders; the atlas layout and cell meanings; the palette, shape and inlay libraries' contracts |
+
+**Theme's choice, or pinned.** String palette, head shape and inlay each resolve by one rule: the
+player's pick if they made one, otherwise the active theme's choice. Each is one setting whose
+default entry is "Theme's choice"; picking any concrete entry pins it, and picking "Theme's
+choice" unpins it. There is no separate pin flag that could disagree with the value. The resolved
+palette is computed once and passed to both the 3D highway and the 2D lane.
 
 A theme cannot add elements: a backdrop is one flat color, and backdrop art, animation and bloom
 are out of v1 (COULD tier).
@@ -46,10 +54,9 @@ are out of v1 (COULD tier).
 - Everything in the SHOULD NOT and COULD tiers below: geometry (`HighwayMetrics`), camera, timing,
   tail and light laws, the emphasis alphas, the atlas layout and what each cell means, shaders,
   fonts, backdrop art, inlay patterns (plan 58), the 2D lane's own chrome.
-- **String palettes.** Owned by `docs/plans/roadmap/45-editor-theme-and-string-colors.md` and
-  configured by the user separately from the theme; a theme may suggest a palette id and never
-  override the user's choice (decision 7). A theme may only shade the chosen palette within a
-  bound, never replace a hue (54-Q18).
+- **The string-palette registry.** Owned by
+  `docs/plans/roadmap/45-editor-theme-and-string-colors.md`. A theme chooses a palette, or ships
+  one into that registry; a palette the player pinned always wins (54-Q18).
 - **String orientation.** A player setting, never a theme key (54-Q5).
 - **Editor chrome (`EditorTheme`).** Plan 45 Phase 2; independent of the highway theme.
 - A marketplace or any network delivery. Packaged export/import moves to `docs/plans/todo/`
@@ -191,7 +198,8 @@ No key for any of these exists; they are unrepresentable rather than validated.
 - **Shaders** (17 `.sc` plus `highway_fade.sh`, eight programs; no color literals). The G channel
   adds unmodulated white (`fs_texture_tint.sc:13`), so no theme can tint the highlight — inherent
   to the structural channel scheme; recorded in the authoring notes.
-- **String palette hues and their derivation** (plan 45; the bounded shading is 54-Q18) and
+- **String palette hues and their derivation** as color roles (plan 45; a theme chooses or ships
+  a whole registry palette instead, 54-Q18) and
   **display options** (`HighwayDisplayOptions`:
   mirror, orientation, lane minimum).
 
@@ -262,8 +270,9 @@ and the 2D fixed colors are still at :37-42.
 - **Kept**: built-ins fail loudly, user files fall back; preset ids are stable strings persisted
   per product through one registry (plan 45 decision 7); art owns structure and the theme owns
   color, now covering `notes.png` through `head_art_profile`; formats change in place; geometry is
-  not themeable (now the tiers above); the user's palette choice always wins over a theme's
-  suggestion (54-Q2 A); themes are found by scanning a folder (54-Q3 A); two built-in themes
+  not themeable (now the tiers above); the palette stays its own selection, and the user's pinned
+  palette always wins over the theme's choice (54-Q2 A, recast by 54-Q18 so a theme may also
+  ship a palette); themes are found by scanning a folder (54-Q3 A); two built-in themes
   (54-Q4 B).
 - **Changed**: "built-in themes are complete" now means a complete theme directory; 54-Q1 C
   (inheritance from any theme) narrows if 54-Q11 is taken; the byte-identical extraction holds for
@@ -285,7 +294,7 @@ kept locally, outside the tree. The user's picks from them:
   - chord device: the "box" device;
   - inlay: RockHero's own circle dot, possibly opaque.
 
-  Whether ice blue reads too close to today's look is settled at the Phase 3 sighting, beside the
+  Whether ice blue reads too close to today's look is settled at the first sighting, beside the
   other accents.
 - **The vector construction:**
   - the ground is black and the board off the hand window is dark and nearly neutral;
@@ -297,6 +306,9 @@ kept locally, outside the tree. The user's picks from them:
 - **Head library candidates:** rectangle, capsule, stretched hexagon, emerald cut, chamfered plate.
 - **Inlay library candidates:** a plain dot like today's, redrawn by RockHero; a hollow ring; and
   the whole-look concepts' style-drawn inlay.
+- **Pickers (54-Q18, 54-Q19):** string palette, head shape and inlay each default to "Theme's
+  choice" and are pinned by picking a concrete entry. The game's theme preview shows the player's
+  pins applied; the later theme editor's preview ignores them so an author sees their own choices.
 - **Harmonics (feeds 54-Q8):**
   - the lean is a natural-harmonic diamond with an inner line, or a string-colored diamond with a
     light inner border, plus a dark diamond printed on the ordinary head for the pinch;
@@ -369,7 +381,9 @@ Each carries a recommendation; none is decided until the user rules.
   accents in "Phase 0 direction" are the built-ins, and ice blue is the default candidate.
 - **54-Q10 — today's look after it leaves the tree. RULED 2026-10-08 (user):** it is kept as the
   user's private theme, loadable in both products, and never committed or distributed in any form,
-  because the repository is public. Phase 3 exports it before any of its values leave the default.
+  because the repository is public. It is saved as files outside the tree before any of its values
+  leave the default, and loads in-app once Phase 2a lands (Phase 3); until then the user accepts
+  that it cannot be selected (2026-10-09).
   - **What it holds:** today's 23 colors, `notes.png` (heads only after the Phase 4b split),
     `inlays.png`, `chords.png`, and the Charter license notice.
   - **What it cannot hold:** the code-drawn parts (S1 chord-box holders and gradient bars, S2
@@ -389,8 +403,8 @@ Each carries a recommendation; none is decided until the user rules.
   *Recommended.* A plain circle is generic fretboard furniture, so RockHero's own circle keeps
   today's form. Its opacity is `inlay_tint`'s alpha, a theme value.
 - **54-Q16 — game-side picker.** Plan 26's settings surface, or a launch flag at v1. *Recommended:
-  plan 26.* The first sighting needs neither: Phase 2a selects a theme through the stored settings
-  id alone.
+  plan 26.* The first sighting needs neither: the new look is the compiled default, and Phase 2a
+  later selects a theme through the stored settings id alone.
 - **54-Q17 — where the marks live (S3).** Two options:
   - **Split the sheet.** The mark cells become a fixed `marks.png`, a fourth `HighwayTexture` that
     no theme directory may carry, beside a heads-only `notes.png` that themes may replace.
@@ -399,25 +413,37 @@ Each carries a recommendation; none is decided until the user rules.
 
   *Recommended: split.* Themes keep custom heads, and the head contract measures only heads. The
   cost is a second texture in the head pass, measured on `relwithdebinfo` in Phase 4b.
-- **54-Q18 — string colors and the theme. RULED 2026-10-09 (user):** the base string colors are
-  the user's setting, separate from the theme. A theme may adjust their general shading so the
-  strings blend with its chrome, but never change a string to a different color.
-  - **The key:** one optional `string_shading` in `theme.json`, applied over whichever palette the
-    user chose, never six replacement colors.
-  - **The bound:** lightness and chroma move within a cap, and hue moves only within a small
-    tolerance. All three are fixed in Phase 2a by sighting the Phase 0 looks. The vector looks
-    already use this form: lightness +4, chroma ×1.04, hue +1°, which moves no string's hue by more
-    than 1.2°.
-  - **The guardrails:** the string order and the palette's distinctness checks hold after shading.
-- **54-Q19 — head shape and the theme. Direction 2026-10-09 (user), mechanism open:** the head
-  shape becomes a player setting picked from a library, chosen independently of the theme just as
-  the string colors are; the theme supplies only the style (material) of the head art.
+- **54-Q18 — string colors and the theme. RULED 2026-10-09 (user), recast the same day:** each
+  theme chooses its string palette, and the player may pin one so it survives theme switches.
+  This replaces the first ruling, a bounded `string_shading` over the user's palette: a theme that
+  wants a variation of the usual colors ships that variation as its palette, so shading had
+  nothing left to do and is deleted.
+  - **The key:** an optional `string_palette` in `theme.json` naming a registry palette id, or a
+    palette file inside the theme directory in the user-palette format (Phase 2b), registered into
+    plan 45's one registry. Absent, the theme takes the default palette.
+  - **The setting:** one per product, defaulting to "Theme's choice"; picking a concrete palette
+    pins it (see "Theme's choice, or pinned"). Most themes will carry a variation of the same
+    colors, and one that does not has a reason; a player who learned the strings, or needs a
+    colorblind-safe palette, pins theirs with one pick.
+  - **The labels:** the default entry reads `Theme's choice (<resolved palette>)`, naming what it
+    resolves to, never the theme, and carrying the colorblind-safe flag when the palette has it.
+    "Theme default" (collides with "the default theme") and "Match theme" (reads as an action)
+    are not used. No separate Pin button: a concrete pick already pins in one click.
+  - **The guardrails:** every palette, a theme's included, passes the string-order and
+    distinctness checks. A pinned palette may clash with a theme's accent; that is the player's
+    choice.
+- **54-Q19 — head shape and the theme. Direction 2026-10-09 (user), recast with 54-Q18:** the
+  theme names a head shape from a shared library and the player may pin one, under the same
+  "Theme's choice" rule; the theme always supplies the head's style (material), so any shape pairs
+  with any theme.
   - **Library candidates:** the rectangle (default), capsule, chamfered plate, stretched hexagon
     and flat emerald cut, from Phase 0 sighting. The emerald's material reads as a different style
     from the others. The stadium is a reserve. Asymmetric shapes were rejected. The stretched
     hexagon needs the head contract to gain one parameter, its tip run; the others fit it as is.
-  - **Inlays follow the same split:** the player picks the inlay art from a small library, and the
-    theme tints it.
+  - **Inlays follow the same rule:** the theme names an inlay from a small library, the player may
+    pin one, and `inlay_tint` tints it.
+  - **Library ids only at v1:** a theme names library entries and never ships its own shape or
+    inlay outline; new entries join the library. Custom shapes wait for the theme editor.
   - **Recommended mechanism:** a load-time bake into the existing atlas. Each library shape is a
     structural outline (coverage, edge distance, inner-line mask) and the theme supplies a
     material profile (bands, rim, lift, core, line). One bake composes them, so any shape pairs
@@ -433,13 +459,13 @@ Each carries a recommendation; none is decided until the user rules.
     24) fade like today's. Because it is not a theme value, B also dims today's look in the
     private theme.
 
-  *Recommended:* decide at the Phase 3 sighting with both in motion. If B wins, it stays one
+  *Recommended:* decide at the first sighting with both in motion. If B wins, it stays one
   renderer constant, not a theme key, because the fade is a light law.
 
 ## Phased implementation
 
-Dependencies: 1 ← 0 (role names); 2a ← 1; 3 ← 2a; 4a ← 1 and 54-Q7; sighting ← 3, 4a; 2b ← 2a;
-4b ← 1; 5 ← the sighting, 4b and the brief; 6 ← 5.
+Dependencies: 1 ← 0 (role names); 1b ← 1; 4a ← 1 and 54-Q7; 2a ← 1; 3 ← 1b and 2a; 2b ← 2a;
+4b ← 1; 5 ← 1b, 4a, 4b and the brief; 6 ← 5.
 
 **Release gate.** Phases 1 to 5 gate the first public release
 (`docs/plans/in-progress/first-releasable-editor.md`): no tagged release ships today's chrome
@@ -452,20 +478,25 @@ with proof that every themable color is routed. The elements the scratch mock co
 seen there for the first time: fret numbers, strike pops, picking-hand furniture, capo, arpeggio
 and labels.
 
-1. **Phase 1:** every color is a theme read, with zero visual change.
-2. **Phase 2a:** theme directories load and validate, and the settings id selects one.
-3. **Phase 3, export and coverage:** today's look as the private theme matches the default
-   exactly, and the coverage theme shows no unrouted element.
-4. **Phase 4a:** the box chord device and posts in code.
-5. **The sighting:** the vector ice-blue theme is selected in both products: its colors,
-   `string_shading`, rectangle heads in its material, and the circle inlay. Until the Phase 4b
-   split, its `notes.png` carries today's mark cells beside the new heads, so it loads as a user
-   theme outside the tree, not as a committed built-in. It still uses today's repeat cells. Then the default switch (Phase 3) and 54-Q20 are decided with the
-   accents side by side.
+The new look becomes the compiled default before theme loading exists. Nothing is redone later:
+the default's values stay in code until Phase 5 in either order, and both products share the one
+renderer, so every step shows in both. The cost, accepted by the user on 2026-10-09: today's look
+cannot be selected in-app until Phase 2a lands, and comparing the two looks means two builds.
 
-Theme pickers, inheritance and user palette files (Phase 2b), the 2D theme reads and the mark-sheet
-split (Phase 4b), the shape library, the new marks (Phase 5) and the remaining built-ins (Phase 6)
-follow. Today's look still loads as the private theme before any of its values leave the default.
+1. **Phase 1:** every color is a theme read, with zero visual change, proven by a throwaway local
+   build with garish values.
+2. **Phase 1b, the switch:** today's look is saved as files outside the tree; the default takes
+   the ice-blue values, the rectangle head art and RockHero's circle inlay. **This is the first
+   sighting**, in both products, with today's marks and repeat cells. 54-Q20, the inlay's opacity
+   and whether ice blue reads too close to today's look are decided there from local variants.
+3. **Phase 4a:** the box chord device and posts in code. With it the default look is complete and
+   sighted again.
+
+Phases 1b and 4a may run in either order; 1b first puts the colors in front of the user soonest.
+
+Theme directories and the private theme loading in-app (Phases 2a and 3), pickers, inheritance and
+user palette files (Phase 2b), the 2D theme reads and the mark-sheet split (Phase 4b), the shape
+and inlay libraries and the new marks (Phase 5), and the remaining built-ins (Phase 6) follow.
 
 ### Phase 0 — Design brief and decisions
 
@@ -497,13 +528,42 @@ Phase 5 begins.**
 
 **Tests**: `test_highway_theme.cpp` pins all 23 roles' current values including alpha; the
 backdrop conversion round-trips `0x000000ff`; the smoke and render-device tests still bring the
-renderer up. **Verification**: configure (new sources), build, touched tests.
+renderer up. **Coverage, before any loader exists:** a throwaway local build gives every role a
+distinct, garish value and is sighted once in both products; any element that keeps its old color
+reads a constant, not the theme. It is never committed. **Verification**: configure (new
+sources), build, touched tests.
+
+### Phase 1b — Today's look saved; the default becomes the new look
+
+- **Save today's look (outside the repository).** Write a theme directory into the per-user
+  themes folder Phase 2a will scan, in Phase 2a's format:
+  - a `theme.json` holding today's 23 values, read from Phase 1's pinned test values;
+  - today's `notes.png`, `inlays.png` and `chords.png`;
+  - a copy of `textures/LICENSE.txt`, whose notice travels with the Charter-adapted art.
+
+  It is never committed, shipped or posted (54-Q10), and the user keeps a private backup. It
+  cannot load until Phase 2a; the commit before this switch is the second copy.
+- **The switch.** The compiled default takes the ice-blue values (54-Q9; the scratch look file
+  already uses the 23 role names), and the pinned test values move with them. The default palette
+  is unchanged.
+- **The interim art**, baked by the `texture-author` agent at true size:
+  - `notes.png` takes the rectangle head in the default's material, in today's atlas layout, and
+    keeps today's mark cells until the Phase 4b split; the head contract measures the new cells;
+  - `inlays.png` takes RockHero's own circle dot (54-Q15), so `textures/LICENSE.txt` narrows to
+    the mark cells. Its generator is committed.
+
+  No release ships before Phase 5, and the tree already carries those mark cells.
+- **STOP: the first sighting**, in motion in both products. Decided there from local variants:
+  54-Q20, the inlay's opacity (`inlay_tint`'s alpha), and whether ice blue reads too close to
+  today's look beside the other accents.
+
+**Verification**: build, touched tests.
 
 ### Phase 2a — Theme directories, contracts and selection by setting
 
 - A theme is a directory: `theme.json` (`id`, `display_name`, optional `inherits`, optional
-  `string_palette` suggestion, optional bounded `string_shading` per 54-Q18, `colors` keyed by
-  role) plus any of the three PNGs.
+  `string_palette` naming a registry palette id per 54-Q18, `colors` keyed by role) plus any of
+  the three PNGs.
 - **One loader** for built-in and user themes. Built-ins deploy as directories under
   `resources/themes/<id>/` through `cmake/RockHeroProductResources.cmake` and fail loudly; user
   themes are scanned from per-user app data and dropped with a logged typed error.
@@ -511,8 +571,10 @@ renderer up. **Verification**: configure (new sources), build, touched tests.
   measurements, each error naming the asset and the violated expectation (including
   `AlphaBearingImage`, the likeliest user mistake). The guardrails above as `distinct()` and the
   luma order.
-- `string_shading` (54-Q18) applied over the injected palette, with its bound and the palette
-  guardrails checked after shading.
+- **The resolved palette** (54-Q18): the player's stored palette id if there is one (plan 45
+  Phase 3's setting, whose absent value now means "Theme's choice"), otherwise the active theme's
+  `string_palette`, otherwise the default palette. It is resolved once and injected into both
+  surfaces through Phase 1's seam.
 - The registry and a theme id in `IEditorSettings`/`IGameSettings`. An unknown id falls back to the
   default. Selection at this phase is the stored id alone, with no picker.
 - A theme switch recreates the renderer through the existing bring-up path, so a bad user atlas
@@ -520,8 +582,9 @@ renderer up. **Verification**: configure (new sources), build, touched tests.
 
 **Tests**: `test_highway_texture_contract.cpp`, `test_highway_theme_file.cpp` over fixture
 directories — full, colors-only, assets-only; malformed JSON, unknown role key, missing id,
-contract-violating asset, every guardrail violation, a shading outside its bound; each failure
-drops only the offender and leaves the registry usable. Settings round-trip. **Verification**:
+contract-violating asset, every guardrail violation, an unknown `string_palette` id; each failure
+drops only the offender and leaves the registry usable. Palette resolution: pinned, theme's
+choice, and neither. Settings round-trip. **Verification**:
 configure, build, touched tests.
 
 ### Phase 2b — Pickers, inheritance and user palettes
@@ -531,40 +594,37 @@ configure, build, touched tests.
 - A color-only switch calls `setTheme` without recreating the renderer.
 - User string-palette files (the schema absorbed from plan 45's withdrawn Phase 6) register into
   plan 45's restored registry; a user file can never claim `colorblind_safe`, and an extended tier
-  of the wrong length is dropped with the expected count in the error.
+  of the wrong length is dropped with the expected count in the error. A theme directory may carry
+  one such file as its own palette (54-Q18), registered through the same path; built-in themes
+  ship theirs the same way.
+- **The palette picker** in both products, per 54-Q18: `Theme's choice (<resolved palette>)`, a
+  separator, then the registry's palettes; a concrete pick pins, the top entry unpins. The game's
+  theme preview draws with the player's pins applied.
 
-**Tests**: inheriting and unknown-base fixtures in `test_highway_theme_file.cpp`; controller state
-for both pickers. **Verification**: build, touched tests.
+**Tests**: inheriting and unknown-base fixtures in `test_highway_theme_file.cpp`; a theme carrying
+its own palette file; controller state for the theme and palette pickers, including that a theme
+switch leaves a pinned palette alone and moves an unpinned one. **Verification**: build, touched
+tests.
 
-### Phase 3 — Today's look becomes a private theme; the default colors change
+### Phase 3 — Today's look loads as the private theme; the coverage fixture
 
-- **Export (outside the repository).** Write a user theme directory into the per-user themes
-  folder Phase 2a scans:
-  - a `theme.json` holding today's 23 values, read from Phase 1's pinned test values;
-  - today's `notes.png`, `inlays.png` and `chords.png`;
-  - a copy of `textures/LICENSE.txt`, whose notice travels with the Charter-adapted art.
+- **Verify the private theme.** Phase 1b's saved directory now loads. Select it in both products
+  and A/B it in motion against a build of the commit before Phase 1b's switch. It must match
+  exactly, apart from the code-drawn parts Phase 4a already replaced (54-Q10) and 54-Q20's
+  ribbon tier if it changed.
+- **Coverage fixture.** Phase 1's garish values become a test fixture theme, sighted once more
+  through the loader in both products, and kept as a fixture for the loader tests.
 
-  It is never committed, shipped or posted (54-Q10). The user keeps a private backup.
-- **Verify.** Select it in both products and A/B it in motion against the built-in default, which
-  still draws today's look. It must match exactly. A missed role shows up here, while the old
-  values still exist to compare against.
-- **Coverage.** A test fixture theme gives every role a distinct, garish color. Any element that
-  keeps its old color when it is selected reads a constant, not the theme. It is sighted once in
-  both products, and its file stays as a fixture for the loader tests.
-- **Switch, after the sighting** in "Path to the first in-app sighting": the built-in default's
-  colors take the chosen accent (54-Q9), and the pinned test values move with them. 54-Q20 is
-  decided at the same sighting. The textures stay in the tree until Phase 5, because the built-in
-  default still draws them.
-
-**STOP: the new chrome sighted in motion in both products; user sign-off.** **Verification**:
-build, touched tests.
+**STOP: the private theme sighted in motion in both products; user sign-off.**
+**Verification**: build, touched tests.
 
 ### Phase 4a — The chord device in code
 
 - **S1 and S2 per 54-Q7**: the box device, prototyped in motion, and the user settles it. Any
   losing prototype is deleted before commit.
 
-**STOP: sighting in motion in both products.** **Verification**: build, touched tests.
+**STOP: sighting in motion in both products**; with Phase 1b landed, this is the complete default
+look. **Verification**: build, touched tests.
 
 ### Phase 4b — One authority for the 2D lane; the mark sheet splits
 
@@ -581,11 +641,13 @@ build, touched tests.
 - **The head library (54-Q19):**
   - the library shapes as structural outlines;
   - each theme's head material;
-  - the load-time bake that composes the player's shape with the active theme's material into the
+  - the load-time bake that composes the resolved shape with the active theme's material into the
     atlas, with the head contract measured per shape;
-  - the player's shape setting in both products.
-- **The inlay library:** RockHero's own circle dot as the default (54-Q15), plus the library
-  alternatives, tinted by `inlay_tint`, and the player's inlay setting.
+  - the theme's `head_shape` key and the player's shape setting in both products, resolved and
+    picked as the palette is (54-Q18, 54-Q19).
+- **The inlay library:** Phase 1b's circle dot as the default, plus the library alternatives,
+  tinted by `inlay_tint`; the theme's `inlay` key and the player's inlay setting, resolved and
+  picked the same way.
 - **The art:** the redrawn fixed mark sheet (S3) from the mark brief, sized to fit every library
   shape, and `chords.png` if the device changed its repeat cells. Every generator is committed.
 - **The default theme:** its `theme.json`, now a committed built-in.
@@ -593,7 +655,7 @@ build, touched tests.
   commit.**
 - Then, in the same change set:
   - delete the Charter-adapted art from the tree; the private theme already holds it;
-  - delete or shrink `textures/LICENSE.txt` (54-Q15);
+  - delete `textures/LICENSE.txt`, which since Phase 1b covers only the old mark cells (54-Q15);
   - rewrite the provenance comments;
   - update `docs/plans/in-progress/highway-note-art-state.md`'s provenance lines and the developer
     guide.
@@ -631,8 +693,9 @@ clang-tidy only when the user asks for it.
 - **Phase 2a** creates the one external compatibility surface — role names and the manifest shape.
   Formats change in place, so a later rename invalidates user files by design; the themes folder
   is user data, and dropping the feature leaves built-ins working.
-- **Phase 3** changes only the default's color values; one revert. The private theme lives outside
-  the repository and is untouched by any revert.
+- **Phase 1b** changes the default's values and two textures; one revert restores today's look.
+  The private theme lives outside the repository and is untouched by any revert.
+- **Phase 3** adds only a fixture and a sighting.
 - **Phases 2b and 4** are each revertible per commit; Phase 4a's device sits behind a sighting.
 - **Phase 5** deletes the old art from the tree. It remains in git history and in the private
   theme; a revert restores it.
@@ -645,7 +708,8 @@ clang-tidy only when the user asks for it.
   textured-element fan-out (:699-709) gains the theme-directory contract step. Updated in the phase
   that changes them.
 - `docs/plans/roadmap/45-editor-theme-and-string-colors.md` — palette injection lands in 54
-  Phase 1; 54-Q13's shade retune if ruled.
+  Phase 1; its Phase 3 palette setting defaults to "Theme's choice" (54-Q18); 54-Q13's shade
+  retune if ruled.
 - `docs/plans/roadmap/58-user-fretboard-art.md` — the theme directory is its home.
 - `docs/plans/roadmap/56-head-atlas-mipmapping.md` — the atlas edge convention is stated by the
   Phase 2a contract.
