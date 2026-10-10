@@ -1,8 +1,9 @@
 # Plan 66 — Tempo Repair Tools
 
-**Status:** BUILT 2026-10-04, awaiting the user's sighting; Phase 4 (Scale Tempo obeys the Note
-Lock) BUILT 2026-10-09: the unlocked stretch rides the typed tempo's commit path
-(`scaleTempoMap` in `tempo_map_edits`), and the locked relabel is unchanged. Phase 1 (`73ffab27`, the Tempo
+**Status:** DONE 2026-10-09, sighted by the user (the Note Lock, Scale Tempo in both forms, and
+Scale Tempo's undo leaving the window and the cursor in place, `1beb3e5f`). Phase 4 (Scale Tempo
+obeys the Note Lock): the unlocked stretch rides the typed tempo's commit path (`scaleTempoMap`
+in `tempo_map_edits`), and the locked relabel is unchanged. Phase 1 (`73ffab27`, the Tempo
 Lock), Phase 2 (`799d2a12`, Scale Tempo, on the generalized `readdressTimeline`), and Phase 3 (the
 Note Lock, the commit after `4f1cb4c9`; renamed from "Keep Notes in Time" on 2026-10-04). Open
 for the user:

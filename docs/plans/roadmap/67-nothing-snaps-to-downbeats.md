@@ -1,9 +1,10 @@
 # Plan 67 — Nothing snaps to downbeats: mid-measure sections and derived short bars
 
-**Status:** Phases 1–5 DONE 2026-10-09 (see their "As built" notes); Phase 6 (the user's
-settle ruling for redundant meter chips) added and built 2026-10-09. The user's four projects
-were converted 2026-10-09 (backed up beside each as `.bak`; Creed loads). Left for the user: the
-Phase 5 sighting checklist.
+**Status:** DONE 2026-10-09: Phases 1–6 built (see their "As built" notes) and sighted by the
+user, with the follow-ups the sighting found fixed: a repeated meter that cuts a bar is kept
+(`53863575`), and the window and the caret share the terminal as the chart's end (`25430629`).
+The user's four projects were converted 2026-10-09 (Creed loads; the backups are deleted). The 3D
+section label and camera cut are sighted in play as they come up.
 Authored 2026-10-08 against `master @ 3915d023` plus the in-flight Note Lock change (round once from the lock's origin; content frozen while locked), after which this plan
 is sequenced. Rulings A, B and C below are the user's (2026-10-08); the storage design is this
 plan's recommendation, with its rejected alternatives recorded, revised the same day by §1a (the
