@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -12,6 +13,37 @@
 
 namespace rock_hero::editor::core
 {
+
+/*! \brief A chip row of the timeline ruler. */
+enum class RulerChipRow : std::uint8_t
+{
+    /*! \brief The section row. */
+    Section,
+
+    /*! \brief The tempo-anchor row. */
+    Tempo,
+
+    /*! \brief The time-signature row. */
+    TimeSignature,
+};
+
+/*! \brief A ruler chip, named by its row and its marker's start. */
+struct RulerChipKey
+{
+    /*! \brief The row the chip stands in. */
+    RulerChipRow row{RulerChipRow::Section};
+
+    /*! \brief Where the chip's marker starts; a meter reign's chip names its first downbeat. */
+    common::core::GridPosition start{};
+
+    /*!
+    \brief Compares two chip names.
+    \param lhs Left-hand chip.
+    \param rhs Right-hand chip.
+    \return True when both name the same chip.
+    */
+    friend bool operator==(const RulerChipKey& lhs, const RulerChipKey& rhs) = default;
+};
 
 /*!
 \brief Project-owned boundary for applying editor state and transient effects to a view.
@@ -105,29 +137,16 @@ public:
     virtual void flashChartRefusal(ChartRefusalFlash flash) = 0;
 
     /*!
-    \brief Asks the view to flash a tempo chip whose anchor move was refused: the chip glows red a
-    couple of times and stays as it was.
+    \brief Asks the view to flash a ruler chip whose verb was refused: the chip glows red a couple
+    of times and stays as it was.
 
-    The same one-shot refusal flash as \ref flashChartRefusal, on the ruler surface that draws
-    tempo anchors. Why the move was refused goes to the log, never to the view. With no view
-    attached the flash is dropped.
+    The same one-shot refusal flash as \ref flashChartRefusal, on the ruler: a section, tempo or
+    time-signature chip whose move, delete or restate was refused. Why the verb was refused goes to
+    the log, never to the view. With no view attached the flash is dropped.
 
-    \param position Grid position of the refused anchor, as the tempo map stores it.
+    \param chip The refused chip.
     */
-    virtual void flashTempoAnchorRefusal(common::core::GridPosition position) = 0;
-
-    /*!
-    \brief Asks the view to flash a time-signature chip whose verb was refused: the chip glows red
-    a couple of times and stays as it was.
-
-    The same one-shot refusal flash as \ref flashTempoAnchorRefusal, on the ruler surface that
-    draws the signature row. Asked for a Delete or a move of the derived short bar, which stores
-    nothing to delete or move, and for a refused step of an authored meter. Why the verb was
-    refused goes to the log, never to the view. With no view attached the flash is dropped.
-
-    \param measure First measure of the refused chip's reign, which names the chip.
-    */
-    virtual void flashTimeSignatureRefusal(int measure) = 0;
+    virtual void flashRulerChipRefusal(RulerChipKey chip) = 0;
 
     /*!
     \brief Asks the view to flash the measure numbers a landed time-signature edit renumbered:

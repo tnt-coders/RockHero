@@ -153,7 +153,7 @@ on a beat where no reign starts (`TimelineRuler::signatureMenuAt`), Set Time Sig
 Delete Time Signature over a chip — disabled while the marker plane is closed, like the section
 and tempo menus. `Delete` and `Alt+←/→` on the ghost chip refuse, as they do on a derived
 fret-hand position, and every refused meter verb glows the chip red
-(`IEditorView::flashTimeSignatureRefusal`, drawn by `TimelineRuler::flashTimeSignatureRefusal`).
+(`IEditorView::flashRulerChipRefusal`, drawn by `TimelineRuler::flashRulerChipRefusal`).
 A landed meter edit keeps every object's time and renumbers the measures after it, so the core
 asks the ruler to light the measure numbers once, from the first measure whose downbeat moved
 (`firstRenumberedMeasure` in `meter_edits.h`; `IEditorView::flashRenumberedMeasures`, drawn by
@@ -300,9 +300,12 @@ included, leaves the one record `RefusalLog::chartEdit` writes,
 WHAT. A held key or a drag refuses once per event, so `RefusalLog` (`shared/refusal_log.h`, the one
 writer of chart and marker refusals) writes a run of identical records once and counts the rest:
 the run's count line, the record again with `repeats=N` appended, goes out when a different record
-ends the run or the controller goes. A visible bound, such as a move stopping at the next head, is not a refusal and flashes nothing. The ruler flashes too: a tempo-anchor move the
-Tempo Lock refuses glows the anchor's chip (`IEditorView::flashTempoAnchorRefusal`, drawn by
-`TimelineRuler::flashTempoAnchorRefusal`). Both surfaces run one pulse and one glow
+ends the run or the controller goes. A visible bound, such as a move stopping at the next head, is not a refusal and flashes nothing. The ruler flashes too: every refused verb on a section,
+tempo or time-signature chip glows that chip — a tempo-anchor move the Tempo Lock refuses, a meter
+step or delete, a section move off the song's ends or onto another section — through one
+`IEditorView::flashRulerChipRefusal`, which names the chip by its row and its marker's start
+(`RulerChipKey`) and is drawn by `TimelineRuler::flashRulerChipRefusal`. Both surfaces run one
+pulse and one glow
 (`FlashPulse` on `g_refusal_flash_train`, and `paintRefusalGlow`, in `ui/src/shared/flash_pulse.h`);
 the ruler's renumber flash runs on the same `FlashPulse` with a train of its own. The design record
 is `docs/plans/in-progress/refusal-flash.md`.

@@ -22,7 +22,6 @@
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
-#include <span>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -356,7 +355,7 @@ void TimelineRuler::paint(juce::Graphics& g)
         common::ui::drawTabSpanChip(g, m_chip_font, chip);
     }
 
-    drawChipRow(g, m_section_row.chips, editorTheme().section_chip, g_section_row_y);
+    drawSectionChips(g);
     drawTempoChips(g);
     drawSignatureChips(g);
 
@@ -853,18 +852,22 @@ void TimelineRuler::setSelectedTempoMapChips(
 }
 
 // Rationale lives on the declaration in timeline_ruler.h.
-void TimelineRuler::flashTempoAnchorRefusal(const common::core::GridPosition position)
+void TimelineRuler::flashRulerChipRefusal(const core::RulerChipKey chip)
 {
-    flashOrJoinRefusal(
-        m_tempo_refusal, std::vector{position}, joinRefused<common::core::GridPosition>);
+    flashOrJoinRefusal(m_chip_refusal, std::vector{chip}, joinRefused<core::RulerChipKey>);
     repaint();
 }
 
-// Rationale lives on the declaration in timeline_ruler.h.
-void TimelineRuler::flashTimeSignatureRefusal(const int measure)
+std::optional<float> TimelineRuler::chipRefusalLevel(const core::RulerChipKey& chip) const
 {
-    flashOrJoinRefusal(m_signature_refusal, std::vector{measure}, joinRefused<int>);
-    repaint();
+    if (!m_chip_refusal.has_value() ||
+        std::ranges::none_of(m_chip_refusal->subject, [&chip](const core::RulerChipKey& refused) {
+            return refused == chip;
+        }))
+    {
+        return std::nullopt;
+    }
+    return m_chip_refusal->pulse.level();
 }
 
 // Rationale lives on the declaration in timeline_ruler.h.
@@ -881,10 +884,7 @@ void TimelineRuler::flashRenumberedMeasures(const int from_measure)
 // measure-number row, so only that band repaints while it runs.
 void TimelineRuler::stepFlashes()
 {
-    // Both chip flashes are stepped before the one repaint a frame retiring either makes.
-    const bool tempo_running = retireFinishedFlash(m_tempo_refusal);
-    const bool signature_running = retireFinishedFlash(m_signature_refusal);
-    if (tempo_running || signature_running)
+    if (retireFinishedFlash(m_chip_refusal))
     {
         repaint();
     }
@@ -1361,17 +1361,25 @@ void TimelineRuler::drawChipRefusalGlow(
     paintRefusalGlow(g, outline, bounds.getHeight(), refusal_level);
 }
 
-// Draws one cached chip row — rounded fill, centered label, the selection ring.
-void TimelineRuler::drawChipRow(
-    juce::Graphics& g, const std::vector<RulerChip>& chips, const juce::Colour fill,
-    const int row_y) const
+// Draws the section chip row — rounded fill, centered label, the selection ring — each chip glowing
+// while a refusal of its section runs.
+void TimelineRuler::drawSectionChips(juce::Graphics& g) const
 {
-    for (const RulerChip& chip : chips)
+    for (const RulerChip& chip : m_section_row.chips)
     {
-        const juce::Rectangle<float> bounds = chipBounds(chip, row_y);
-        drawChipFill(g, bounds, fill);
+        const juce::Rectangle<float> bounds = chipBounds(chip, g_section_row_y);
+        drawChipFill(g, bounds, editorTheme().section_chip);
         m_chip_font.draw(g, chip.label.text, bounds);
         drawChipSelectionRing(g, chip, bounds);
+        const std::optional<float> refusal_level = chipRefusalLevel(
+            core::RulerChipKey{
+                .row = core::RulerChipRow::Section,
+                .start = m_section_source[chip.source_index].position,
+            });
+        if (refusal_level.has_value())
+        {
+            drawChipRefusalGlow(g, bounds, *refusal_level);
+        }
     }
 }
 
@@ -1382,26 +1390,19 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
 {
     const auto glyph_lead = static_cast<float>(tempoGlyphLead(m_tempo_glyph));
     const float glyph_inset = static_cast<float>(g_label_width_pad) / 2.0f;
-    // Read once ahead of the loop, so the loop never reaches into the optional flash.
-    std::span<const common::core::GridPosition> refused_anchors;
-    float refusal_level{0.0f};
-    if (m_tempo_refusal.has_value())
-    {
-        refused_anchors = m_tempo_refusal->subject;
-        refusal_level = m_tempo_refusal->pulse.level();
-    }
     for (const RulerChip& chip : m_tempo_row.chips)
     {
         const juce::Rectangle<float> bounds = chipBounds(chip, g_tempo_row_y);
         drawChipFill(g, bounds, editorTheme().tempo_chip);
         drawChipSelectionRing(g, chip, bounds);
-        if (const common::core::GridPosition& anchor =
-                m_tempo_map.anchors()[chip.source_index].position;
-            std::ranges::any_of(
-                refused_anchors,
-                [&anchor](const common::core::GridPosition& refused) { return refused == anchor; }))
+        const std::optional<float> refusal_level = chipRefusalLevel(
+            core::RulerChipKey{
+                .row = core::RulerChipRow::Tempo,
+                .start = m_tempo_map.anchors()[chip.source_index].position,
+            });
+        if (refusal_level.has_value())
         {
-            drawChipRefusalGlow(g, bounds, refusal_level);
+            drawChipRefusalGlow(g, bounds, *refusal_level);
         }
         g.setColour(common::ui::g_chip_label_color);
         g.fillPath(
@@ -1418,14 +1419,6 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
 // ring and the refusal glow draw after the ghost closes, so both read as solid as on any chip.
 void TimelineRuler::drawSignatureChips(juce::Graphics& g)
 {
-    // Read once ahead of the loop, so the loop never reaches into the optional flash.
-    std::span<const int> refused_measures;
-    float refusal_level{0.0f};
-    if (m_signature_refusal.has_value())
-    {
-        refused_measures = m_signature_refusal->subject;
-        refusal_level = m_signature_refusal->pulse.level();
-    }
     for (const RulerChip& chip : m_signature_row.chips)
     {
         const common::core::MeterReign& reign = m_reigns[chip.source_index];
@@ -1440,11 +1433,14 @@ void TimelineRuler::drawSignatureChips(juce::Graphics& g)
             m_chip_font.draw(g, chip.label.text, bounds);
         }
         drawChipSelectionRing(g, chip, bounds);
-        if (std::ranges::any_of(refused_measures, [&reign](const int refused) {
-                return refused == reign.first_measure;
-            }))
+        const std::optional<float> refusal_level = chipRefusalLevel(
+            core::RulerChipKey{
+                .row = core::RulerChipRow::TimeSignature,
+                .start = common::core::measureDownbeat(reign.first_measure),
+            });
+        if (refusal_level.has_value())
         {
-            drawChipRefusalGlow(g, bounds, refusal_level);
+            drawChipRefusalGlow(g, bounds, *refusal_level);
         }
     }
 }

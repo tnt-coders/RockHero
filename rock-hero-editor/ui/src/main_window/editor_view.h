@@ -164,11 +164,8 @@ public:
     /*! \copydoc core::IEditorView::flashChartRefusal */
     void flashChartRefusal(core::ChartRefusalFlash flash) override;
 
-    /*! \copydoc core::IEditorView::flashTempoAnchorRefusal */
-    void flashTempoAnchorRefusal(common::core::GridPosition position) override;
-
-    /*! \copydoc core::IEditorView::flashTimeSignatureRefusal */
-    void flashTimeSignatureRefusal(int measure) override;
+    /*! \copydoc core::IEditorView::flashRulerChipRefusal */
+    void flashRulerChipRefusal(core::RulerChipKey chip) override;
 
     /*! \copydoc core::IEditorView::flashRenumberedMeasures */
     void flashRenumberedMeasures(int from_measure) override;

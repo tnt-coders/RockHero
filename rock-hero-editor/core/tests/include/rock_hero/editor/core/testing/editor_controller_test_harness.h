@@ -140,16 +140,10 @@ public:
         refusal_flashes.push_back(std::move(flash));
     }
 
-    // Records each tempo-chip refusal flash, in request order.
-    void flashTempoAnchorRefusal(common::core::GridPosition position) override
+    // Records each ruler-chip refusal flash, in request order.
+    void flashRulerChipRefusal(const RulerChipKey chip) override
     {
-        tempo_anchor_refusal_flashes.push_back(position);
-    }
-
-    // Records each signature-chip refusal flash, in request order.
-    void flashTimeSignatureRefusal(const int measure) override
-    {
-        time_signature_refusal_flashes.push_back(measure);
+        ruler_chip_refusal_flashes.push_back(chip);
     }
 
     // Records each renumber flash, in request order.
@@ -236,8 +230,7 @@ public:
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
     std::vector<ChartBendPicker> shown_bend_pickers{};
     std::vector<ChartRefusalFlash> refusal_flashes{};
-    std::vector<common::core::GridPosition> tempo_anchor_refusal_flashes{};
-    std::vector<int> time_signature_refusal_flashes{};
+    std::vector<RulerChipKey> ruler_chip_refusal_flashes{};
     std::vector<int> renumber_flashes{};
     int timeline_start_reveal_count{0};
 
@@ -490,6 +483,29 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 [[nodiscard]] inline const BusyViewState* busyOrNull(const EditorViewState& state) noexcept
 {
     return state.busy.has_value() ? &*state.busy : nullptr;
+}
+
+/*!
+\brief Names a tempo chip as a ruler refusal flash does.
+\param anchor The chip's anchor position.
+\return The chip's name.
+*/
+[[nodiscard]] inline RulerChipKey tempoChip(const common::core::GridPosition anchor)
+{
+    return RulerChipKey{.row = RulerChipRow::Tempo, .start = anchor};
+}
+
+/*!
+\brief Names a time-signature chip as a ruler refusal flash does: by its reign's first downbeat.
+\param first_measure The reign's first measure.
+\return The chip's name.
+*/
+[[nodiscard]] inline RulerChipKey meterChip(const int first_measure)
+{
+    return RulerChipKey{
+        .row = RulerChipRow::TimeSignature,
+        .start = common::core::measureDownbeat(first_measure),
+    };
 }
 
 /*!

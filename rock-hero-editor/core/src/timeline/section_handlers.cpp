@@ -141,23 +141,26 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
     const std::string before_name = match->name;
     const std::string name = common::core::trimmedSongSectionName(action.name);
     match->name = name;
+    const SongSectionSelection section{.position = action.position};
     if (commitMarkerModel(
             std::move(before),
             std::move(after),
-            markerVerbLabel(MarkerVerb::RenameSection) + " " + before_name + " to " + name) !=
+            markerVerbLabel(MarkerVerb::RenameSection) + " " + before_name + " to " + name) ==
         MarkerCommit::Refused)
     {
-        selectMarker(SongSectionSelection{.position = action.position});
-        updateView();
+        flashSongSectionChip(section);
+        return;
     }
+    selectMarker(section);
+    updateView();
 }
 
 // Moves the selected section one placement-quantum line, the step every marker start takes (the
-// Alt+arrow dispatch for the section alternative). Refused rather than clamped onto the terminal or
-// a position another section already holds — both section rules, so the commit is what refuses them
-// — and off the song's start here, because the grid step collapses onto the start it came from
-// there and the commit would record that as a move that changed nothing. A landed move brings the
-// paused cursor to the new position, as every selection move of a marker does.
+// Alt+arrow dispatch for the section alternative). Refused rather than clamped, with the chip
+// glowing red: onto the terminal or a position another section already holds — both section rules,
+// so the commit is what refuses them — and here where the grid step has nowhere to go, off either
+// end of the song (steppedNudgePosition). A landed move brings the paused cursor to the new
+// position, as every selection move of a marker does.
 void EditorController::Impl::moveSelectedSongSection(
     const SongSectionSelection& selection, const ChartStepDirection direction)
 {
@@ -172,22 +175,26 @@ void EditorController::Impl::moveSelectedSongSection(
     }
     // Left or Right, always: a marker moves horizontally only, and the move dispatch refuses a
     // vertical direction for every marker kind before it reaches here.
-    const common::core::GridPosition target =
+    const std::optional<common::core::GridPosition> step =
         steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
-    if (target == selection.position)
+    if (!step.has_value())
     {
         m_refusal_log.markerEdit(label, "section would leave the song");
+        flashSongSectionChip(selection);
         return;
     }
+    const common::core::GridPosition target = *step;
 
     match->position = target;
-    if (commitMarkerMove(
+    if (!commitMarkerMove(
             std::move(before), std::move(after), label, SongSectionSelection{.position = target}))
     {
-        // The position IS the section's identity, so the commit selects the moved section under
-        // its new one; followMovedMarker publishes it together with the cursor it brings along.
-        followMovedMarker(target);
+        flashSongSectionChip(selection);
+        return;
     }
+    // The position IS the section's identity, so the commit selects the moved section under its new
+    // one; followMovedMarker publishes it together with the cursor it brings along.
+    followMovedMarker(target);
 }
 
 // Deletes the selected section (the Delete-key dispatch for the section alternative). Nothing
@@ -204,7 +211,21 @@ void EditorController::Impl::deleteSelectedSongSection(const SongSectionSelectio
 
     const std::string name = match->name;
     after.sections.erase(match);
-    commitMarkerModel(std::move(before), std::move(after), "Delete " + name);
+    if (commitMarkerModel(std::move(before), std::move(after), "Delete " + name) ==
+        MarkerCommit::Refused)
+    {
+        flashSongSectionChip(selection);
+    }
+}
+
+// The commit has already logged the refusal; the chip glows red to say it was this one.
+void EditorController::Impl::flashSongSectionChip(const SongSectionSelection& selection)
+{
+    if (m_view != nullptr)
+    {
+        m_view->flashRulerChipRefusal(
+            RulerChipKey{.row = RulerChipRow::Section, .start = selection.position});
+    }
 }
 
 } // namespace rock_hero::editor::core

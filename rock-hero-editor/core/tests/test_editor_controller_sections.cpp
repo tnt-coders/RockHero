@@ -465,6 +465,9 @@ TEST_CASE("Section rename refuses an empty name", "[core][sections]")
     editor.controller.onSongSectionRenameRequested(downbeat(2), "  ");
     CHECK(editor.sections().front().name == "Verse");
     CHECK_FALSE(editor.undoAvailable());
+    CHECK(
+        editor.view.ruler_chip_refusal_flashes ==
+        std::vector{RulerChipKey{.row = RulerChipRow::Section, .start = downbeat(2)}});
 
     // A position no section starts at names nothing to rename.
     editor.controller.onSongSectionRenameRequested(downbeat(3), "Chorus");
@@ -539,9 +542,13 @@ TEST_CASE("EditorController moves the selected section a placement line", "[core
 }
 
 // A section move refuses rather than swapping or merging: a step onto a slot another section holds,
-// onto the terminal anchor, or earlier than the song's start leaves it in place.
+// onto the terminal anchor, or earlier than the song's start leaves it in place, and each refusal
+// glows the section's chip, as a refused tempo, meter or hand-position chip does.
 TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][sections]")
 {
+    const auto section_chip = [](const GridPosition start) {
+        return RulerChipKey{.row = RulerChipRow::Section, .start = start};
+    };
     LoadedSectionEditor editor{makeSectionSong(
         {SongSection{.position = downbeat(2), .name = "Verse"},
          SongSection{.position = GridPosition{.measure = 2, .beat = 2}, .name = "Chorus"}})};
@@ -554,6 +561,7 @@ TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][s
     CHECK(editor.sections()[0].position == downbeat(2));
     CHECK(editor.sections()[1].position == GridPosition{.measure = 2, .beat = 2});
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
+    CHECK(editor.view.ruler_chip_refusal_flashes == std::vector{section_chip(downbeat(2))});
 
     // Beat 4 of measure 4 is the last slot that can carry a section, ten quarter lines on from 2:2;
     // 5:1 is the closing barline, and the step onto it is refused.
@@ -573,6 +581,7 @@ TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][s
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(editor.sections()[0].position == downbeat(1));
     CHECK(editor.undoEntryCount() == entries);
+    CHECK(editor.view.ruler_chip_refusal_flashes.back() == section_chip(downbeat(1)));
 }
 
 // Delete removes the selected section and round-trips exactly through undo and redo.

@@ -381,16 +381,10 @@ public:
         std::optional<int> signature_measure);
 
     /*!
-    \brief Forwards a refused tempo-anchor move to the pinned ruler, which flashes its chip.
-    \param position Grid position of the refused anchor.
+    \brief Forwards a refused verb on a ruler chip to the pinned ruler, which flashes the chip.
+    \param chip The refused chip.
     */
-    void flashTempoAnchorRefusal(common::core::GridPosition position);
-
-    /*!
-    \brief Forwards a refused time-signature verb to the pinned ruler, which flashes its chip.
-    \param measure First measure of the refused chip's reign.
-    */
-    void flashTimeSignatureRefusal(int measure);
+    void flashRulerChipRefusal(core::RulerChipKey chip);
 
     /*!
     \brief Forwards a landed time-signature edit to the pinned ruler, which flashes the measure

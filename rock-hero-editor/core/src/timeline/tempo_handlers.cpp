@@ -498,7 +498,8 @@ bool EditorController::Impl::refuseLockedTempoAnchorMove(
             common::core::formatGridPositionToken(selection.position) + " is blocked");
     if (m_view != nullptr)
     {
-        m_view->flashTempoAnchorRefusal(selection.position);
+        m_view->flashRulerChipRefusal(
+            RulerChipKey{.row = RulerChipRow::Tempo, .start = selection.position});
     }
     return true;
 }

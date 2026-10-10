@@ -270,10 +270,10 @@ void EditorController::Impl::flashFretHandChip(const common::core::GridPosition&
 
 // Steps the selected placement one placement-quantum line, the tone change's step. Refused rather
 // than clamped, with the chip glowing red: onto a start another placement holds, past the song's
-// end, or onto a gripped note the window does not cover, by the stream's rules at the commit; off
-// the chart's start here, because the grid step collapses onto the start it came from there and the
-// commit would record that as a move that changed nothing. A landed move brings the paused cursor
-// to the new start, as every selection move of a marker does.
+// end, or onto a gripped note the window does not cover, by the stream's rules at the commit; and
+// here where the grid step has nowhere to go, off either end of the chart (steppedNudgePosition).
+// A landed move brings the paused cursor to the new start, as every selection move of a marker
+// does.
 void EditorController::Impl::moveSelectedFretHandPosition(
     const FretHandPositionSelection& selection, const ChartStepDirection direction)
 {
@@ -286,14 +286,15 @@ void EditorController::Impl::moveSelectedFretHandPosition(
         refuseDerivedFretHandPosition(selection, MarkerVerb::MoveHandPosition);
         return;
     }
-    const common::core::GridPosition target =
+    const std::optional<common::core::GridPosition> step =
         steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
-    if (target == selection.position)
+    if (!step.has_value())
     {
         m_refusal_log.markerEdit(label, "fret-hand position would leave the chart");
         flashFretHandChip(selection.position);
         return;
     }
+    const common::core::GridPosition target = *step;
 
     match->position = target;
     if (!commitMarkerMove(

@@ -240,7 +240,11 @@ void EditorController::Impl::refuseTimeSignatureVerb(
     m_refusal_log.markerEdit(markerVerbLabel(verb), reason);
     if (m_view != nullptr)
     {
-        m_view->flashTimeSignatureRefusal(selection.measure);
+        m_view->flashRulerChipRefusal(
+            RulerChipKey{
+                .row = RulerChipRow::TimeSignature,
+                .start = common::core::measureDownbeat(selection.measure),
+            });
     }
 }
 
@@ -345,7 +349,11 @@ void EditorController::Impl::moveSelectedTimeSignature(
     {
         if (m_view != nullptr)
         {
-            m_view->flashTimeSignatureRefusal(selection.measure);
+            m_view->flashRulerChipRefusal(
+                RulerChipKey{
+                    .row = RulerChipRow::TimeSignature,
+                    .start = common::core::measureDownbeat(selection.measure),
+                });
         }
         return;
     }

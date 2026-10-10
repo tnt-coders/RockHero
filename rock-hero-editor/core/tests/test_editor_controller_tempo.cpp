@@ -925,7 +925,7 @@ TEST_CASE("The tempo lock refuses an anchor nudge", "[core][tempo][tempo-lock]")
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(editor.view.tempo_anchor_refusal_flashes == std::vector{beatAt(3, 1)});
+    CHECK(editor.view.ruler_chip_refusal_flashes == std::vector{tempoChip(beatAt(3, 1))});
 }
 
 // A drag is refused from its first event: nothing lands, no entry opens, and the chip the press
@@ -944,7 +944,9 @@ TEST_CASE("The tempo lock refuses a tempo-chip drag", "[core][tempo][tempo-lock]
     editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8300);
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(editor.view.tempo_anchor_refusal_flashes == std::vector{beatAt(5, 1), beatAt(5, 1)});
+    CHECK(
+        editor.view.ruler_chip_refusal_flashes ==
+        std::vector{tempoChip(beatAt(5, 1)), tempoChip(beatAt(5, 1))});
 }
 
 // The lock guards anchor TIMES only: inserting, typing a tempo and deleting all work while it is
@@ -964,7 +966,7 @@ TEST_CASE(
     editor.controller.onSelectionDeleteRequested();
     CHECK_FALSE(editor.anchorMilliseconds(beatAt(3, 1)).has_value());
     CHECK(editor.undoTopLabel() == "Delete Tempo Anchor");
-    CHECK(editor.view.tempo_anchor_refusal_flashes.empty());
+    CHECK(editor.view.ruler_chip_refusal_flashes.empty());
 }
 
 // Each refused gesture leaves the marker refusal record under the move's own label, naming the

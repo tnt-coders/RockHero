@@ -984,8 +984,14 @@ void EditorController::Impl::moveSelectedToneRegionStart(
     {
         return;
     }
-    const common::core::GridPosition target =
+    const std::optional<common::core::GridPosition> step =
         steppedNudgePosition(region->start, direction == ChartStepDirection::Right);
+    if (!step.has_value())
+    {
+        m_refusal_log.markerEdit("Move Tone Boundary", "tone change would leave the song");
+        return;
+    }
+    const common::core::GridPosition target = *step;
     ToneModelSnapshot before = ToneModelSnapshot::capture(session());
     ToneModelSnapshot after = before;
     if (!movedToneBoundary(after, region_id, target))
@@ -2031,22 +2037,26 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
         // A refused time step (map edge, neighbor collision, window edge) still creates at the
         // caret itself: the grab succeeded, only the pull refused. The step clamps strictly
         // between the caret slot's neighboring points, like every point nudge.
-        const bool later = direction == ChartStepDirection::Right;
-        const common::core::GridPosition stepped = steppedNudgePosition(caret.position, later);
-        const double stepped_seconds = session().song().tempo_map.secondsAt(stepped);
-        const bool direction_ok = later ? caret.position < stepped : stepped < caret.position;
-        const auto next_neighbor =
-            std::ranges::find_if(plan->points, [&](const common::core::ToneAutomationPoint& point) {
-                return caret.position < point.position;
-            });
-        const bool inside_neighbors =
-            (next_neighbor == plan->points.end() || stepped < next_neighbor->position) &&
-            (next_neighbor == plan->points.begin() || std::prev(next_neighbor)->position < stepped);
-        const common::core::TimeRange window = activeToneRegionWindow();
-        if (direction_ok && inside_neighbors && stepped_seconds >= window.start.seconds &&
-            stepped_seconds < window.end.seconds)
+        const std::optional<common::core::GridPosition> step =
+            steppedNudgePosition(caret.position, direction == ChartStepDirection::Right);
+        if (step.has_value())
         {
-            position = stepped;
+            const common::core::GridPosition stepped = *step;
+            const double stepped_seconds = session().song().tempo_map.secondsAt(stepped);
+            const auto next_neighbor = std::ranges::find_if(
+                plan->points, [&](const common::core::ToneAutomationPoint& point) {
+                    return caret.position < point.position;
+                });
+            const bool inside_neighbors =
+                (next_neighbor == plan->points.end() || stepped < next_neighbor->position) &&
+                (next_neighbor == plan->points.begin() ||
+                 std::prev(next_neighbor)->position < stepped);
+            const common::core::TimeRange window = activeToneRegionWindow();
+            if (inside_neighbors && stepped_seconds >= window.start.seconds &&
+                stepped_seconds < window.end.seconds)
+            {
+                position = stepped;
+            }
         }
     }
     plantLanePoint(*caret.lane, std::move(*plan), position, value);
@@ -2055,10 +2065,17 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
 // One keyboard nudge time-step, exact rational end to end: the adjacent line of the placement
 // quantum's lattice through the shared adjacentTempoGridPosition primitive (the same walk the caret
 // steps with), so a nudge and a caret step can never land on different slots for the same motion.
-common::core::GridPosition EditorController::Impl::steppedNudgePosition(
+// Nothing where the walk has nowhere to go: earlier from the grid origin, later from the terminal.
+std::optional<common::core::GridPosition> EditorController::Impl::steppedNudgePosition(
     const common::core::GridPosition& from, bool later) const
 {
-    return adjacentTempoGridPosition(session().song().tempo_map, placementQuantum(), from, later);
+    const common::core::GridPosition stepped =
+        adjacentTempoGridPosition(session().song().tempo_map, placementQuantum(), from, later);
+    if (stepped == from)
+    {
+        return std::nullopt;
+    }
+    return stepped;
 }
 
 // The active tone region's time window — the span automation edits clamp inside. Resolved
@@ -2191,13 +2208,13 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         return;
     }
 
-    const bool later = direction == ChartStepDirection::Right;
-    const common::core::GridPosition new_position = steppedNudgePosition(selection.position, later);
-    if (new_position == selection.position || (later && new_position < selection.position) ||
-        (!later && selection.position < new_position))
+    const std::optional<common::core::GridPosition> step =
+        steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
+    if (!step.has_value())
     {
         return;
     }
+    const common::core::GridPosition new_position = *step;
     if (point != lane_points->begin() && !(std::prev(point)->position < new_position))
     {
         return;

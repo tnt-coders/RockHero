@@ -709,9 +709,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Deletes the selected time signature (the Delete-key dispatch for the meter alternative).
     void deleteSelectedTimeSignature(const TimeSignatureSelection& selection);
     // THE refusal of a verb on a selected time-signature chip: logged under the verb, and the chip
-    // glows red (IEditorView::flashTimeSignatureRefusal).
+    // glows red (IEditorView::flashRulerChipRefusal).
     void refuseTimeSignatureVerb(
         const TimeSignatureSelection& selection, MarkerVerb verb, const std::string& reason);
+    // Glows a refused section chip red (IEditorView::flashRulerChipRefusal), for every refused
+    // verb on a selected section: the move off the song's ends and each commit the section rules
+    // refuse.
+    void flashSongSectionChip(const SongSectionSelection& selection);
     // Brings the engine's tempo-derived caches up to the session's map when it changed (see the
     // definition).
     void syncTempoDerivedAudio();
@@ -760,9 +764,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // edge, neighbor collision, window edge) are silent no-ops.
     void moveSelectedAutomationPoint(
         const AutomationPointSelection& selection, ChartStepDirection direction);
-    // One keyboard time-step for a nudged lane point or tone change, through the beat axis so the
-    // result stays an exact rational: the adjacent line of the placement quantum's lattice.
-    [[nodiscard]] common::core::GridPosition steppedNudgePosition(
+    // One keyboard time-step for a moved marker start or lane point, through the beat axis so the
+    // result stays an exact rational: the adjacent line of the placement quantum's lattice, or
+    // nothing where the walk has nowhere to go (earlier from the origin, later from the terminal),
+    // which every mover refuses.
+    [[nodiscard]] std::optional<common::core::GridPosition> steppedNudgePosition(
         const common::core::GridPosition& from, bool later) const;
     // The active tone region's time window — the span automation edits clamp inside (the lane
     // is authored per tone but edited per region instance). Empty when no region is active.

@@ -30,29 +30,13 @@ the user picks which way the two surfaces reconcile.
 
 ## Found by plan 67 Phases 1–4 and the last rule-citation sweep (2026-10-09)
 
-- **Finish the custom-song converter's move to the place format** (`custom-song-importer`, not
-  this repo; never committed from here). Its working tree already writes every `at`, `sustain` and
-  `offset` as a canonical mixed number, with the validator and the FHP harness reading it
-  (plan 67 Phase 5's as-built note lists the files). Still open: commit it there; decide whether
-  it keeps snapping sections to the nearest downbeat now that the editor allows any grid position;
-  give its three copies of the mixed-number grammar one shared module (`tools/rock_format.py`);
-  then regenerate the scored FHP corpus (`ROCKHERO_FHP_SCORED_CORPUS_DIR`), which the reader
-  refuses until it is rewritten.
-- **The grid step's collapse at the song's start is handled three ways.** `steppedNudgePosition`
-  returns its origin when an earlier step from `1:1` has nowhere to go. `moveSelectedSongSection`
-  and `moveSelectedFretHandPosition` (`fret_hand_handlers.cpp` ~:291) each refuse `target == from`;
-  `moveSelectedToneRegionStart` (`tone_handlers.cpp` ~:987) does not, so a Left press on a region
-  at `1:1` records a move that changed nothing; the lane-point nudge (~:2035-2049) guards it a
-  third way through `direction_ok`. Make `steppedNudgePosition` return `std::optional` (nothing at
-  the collapse) and refuse on it at every mover: three checks deleted, the tone case fixed.
-- **`MarkerCommit` has four states read as pairs** (`== Landed || == Silent`, `!= Unchanged` at
-  three sites). A `{landed, recorded}` pair would say what each caller asks.
-- **`dissolveRedundantMeters` repeats `withoutRedundantTimeSignatures`'s filter-and-rebuild**,
-  differing only by keeping the focused chip; the predicate itself is shared.
-- **Snapshots with nothing to normalize carry an empty `normalize()`** (`TempoMapSnapshot`,
-  `SongTimelineSnapshot`); the funnel protocol could make it optional.
-- **Section-move refusals do not flash.** The tempo, meter and hand-position chips glow red on a
-  refused verb; a section chip only logs.
+- **Commit the custom-song converter's move to the place format** (`custom-song-importer`, not
+  this repo; never committed from here). Its working tree writes every `at`, `sustain` and
+  `offset` as a canonical mixed number through one shared grammar (`tools/rock_format.py`, which
+  the validator and the FHP harness read through too), and the scored FHP corpus
+  (`ROCKHERO_FHP_SCORED_CORPUS_DIR`, 1301 packages) is converted, each with a `.bak` beside it, and
+  passes the converter's validator. Still open: the commit there, and whether the converter keeps
+  snapping sections to the nearest downbeat now that the editor allows any grid position.
 - **`parseGridPositionToken` has no production caller** now that the file stores places: only
   tests state positions in it. Keep it as the readout grammar's inverse, or move it into the test
   fixture header.

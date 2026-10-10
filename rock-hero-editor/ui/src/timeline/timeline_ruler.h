@@ -18,6 +18,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
+#include <rock_hero/editor/core/controller/i_editor_view.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/time_signature_target.h>
 #include <vector>
@@ -385,27 +386,16 @@ public:
         std::optional<int> signature_measure);
 
     /*!
-    \brief Flashes the tempo chip whose anchor move was refused: it glows red a couple of times,
-    then the row stands as it was.
+    \brief Flashes the ruler chip whose verb was refused: it glows red a couple of times, then the
+    row stands as it was.
 
     A flash arriving while one runs joins it on the running pulse, so a drag or a held key reads as
-    one pulse train. The chip is found by its anchor at paint time, so a chip out of view draws no
-    glow.
+    one pulse train. The chip is found by its row and its marker's start at paint time, so a chip
+    out of view draws no glow.
 
-    \param position Grid position of the refused anchor.
+    \param chip The refused chip.
     */
-    void flashTempoAnchorRefusal(common::core::GridPosition position);
-
-    /*!
-    \brief Flashes the time-signature chip whose verb was refused: it glows red a couple of times,
-    then the row stands as it was.
-
-    Joins a running flash as \ref flashTempoAnchorRefusal does. The chip is found by its reign's
-    first measure at paint time, so a chip out of view draws no glow.
-
-    \param measure First measure of the refused chip's reign.
-    */
-    void flashTimeSignatureRefusal(int measure);
+    void flashRulerChipRefusal(core::RulerChipKey chip);
 
     /*!
     \brief Flashes the measure numbers a time-signature edit renumbered: every number from a
@@ -627,9 +617,12 @@ private:
     static void drawChipRefusalGlow(
         juce::Graphics& g, juce::Rectangle<float> bounds, float refusal_level);
 
-    // Draws one cached chip row with its labels centered.
-    void drawChipRow(
-        juce::Graphics& g, const std::vector<RulerChip>& chips, juce::Colour fill, int row_y) const;
+    // The running refusal flash's level where it has joined the chip, else nothing.
+    [[nodiscard]] std::optional<float> chipRefusalLevel(const core::RulerChipKey& chip) const;
+
+    // Draws the section chip row with its labels centered, and the refusal glow around a refused
+    // chip while its flash runs.
+    void drawSectionChips(juce::Graphics& g) const;
 
     // Draws the tempo chip row, and the refusal glow around the refused anchor's chip while its
     // flash runs.
@@ -793,13 +786,9 @@ private:
     ChipRow m_tempo_row{};
     ChipRow m_signature_row{};
 
-    // The tempo refusal flash while it runs: every refused anchor it has joined, named by position
-    // because a chip row rebuild reassigns chips, and its pulse.
-    std::optional<PulsedFlash<std::vector<common::core::GridPosition>>> m_tempo_refusal{};
-
-    // The signature refusal flash while it runs: every refused reign it has joined, named by first
-    // measure for the same reason, and its pulse.
-    std::optional<PulsedFlash<std::vector<int>>> m_signature_refusal{};
+    // The chip refusal flash while it runs: every refused chip it has joined, named by row and
+    // start because a chip row rebuild reassigns chips, and its pulse.
+    std::optional<PulsedFlash<std::vector<core::RulerChipKey>>> m_chip_refusal{};
 
     // The renumber flash while it runs: the first renumbered measure, the first whose number
     // lights, and its pulse.

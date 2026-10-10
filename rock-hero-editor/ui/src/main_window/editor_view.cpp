@@ -1548,16 +1548,10 @@ void EditorView::flashChartRefusal(core::ChartRefusalFlash flash)
     m_tab_view.flashRefusal(std::move(flash));
 }
 
-// A refused tempo-anchor move flashes on the ruler, the surface that draws tempo chips.
-void EditorView::flashTempoAnchorRefusal(const common::core::GridPosition position)
+// A refused verb on a ruler chip flashes on the ruler, the surface that draws its chips.
+void EditorView::flashRulerChipRefusal(const core::RulerChipKey chip)
 {
-    m_track_viewport->flashTempoAnchorRefusal(position);
-}
-
-// A refused time-signature verb flashes on the ruler, the surface that draws signature chips.
-void EditorView::flashTimeSignatureRefusal(const int measure)
-{
-    m_track_viewport->flashTimeSignatureRefusal(measure);
+    m_track_viewport->flashRulerChipRefusal(chip);
 }
 
 // A landed meter edit flashes on the ruler, the surface that draws the measure numbers.
