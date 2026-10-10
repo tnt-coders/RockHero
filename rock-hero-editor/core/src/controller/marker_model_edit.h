@@ -33,11 +33,15 @@ template <typename Snapshot> struct [[nodiscard]] MarkerModelEdit final : IEdit
     \param before_value Marker model as it stood before the verb ran.
     \param after_value Marker model the verb produced.
     \param label_value User-visible label naming the verb and its marker.
+    \param focus_value Whether undo and redo focus the marker the step changed.
     */
-    MarkerModelEdit(Snapshot before_value, Snapshot after_value, std::string label_value)
+    MarkerModelEdit(
+        Snapshot before_value, Snapshot after_value, std::string label_value,
+        const EntryFocus focus_value)
         : before(std::move(before_value))
         , after(std::move(after_value))
         , edit_label(std::move(label_value))
+        , entry_focus(focus_value)
     {}
 
     /*!
@@ -74,10 +78,15 @@ template <typename Snapshot> struct [[nodiscard]] MarkerModelEdit final : IEdit
     /*!
     \brief Brings into focus the marker the direction changed, as the model it lands on reports it.
     \param direction Undo lands on the model before the verb, redo on the one it produced.
-    \return The marker focus, or nothing when the two models hold the same markers.
+    \return The marker focus, or nothing when the two models hold the same markers or the step
+            changed the whole song.
     */
     [[nodiscard]] EditFocus focus(const EditorUndoDirection direction) const override
     {
+        if (entry_focus == EntryFocus::None)
+        {
+            return {};
+        }
         return direction == EditorUndoDirection::Undo ? before.focusReplacing(after)
                                                       : after.focusReplacing(before);
     }
@@ -90,6 +99,9 @@ template <typename Snapshot> struct [[nodiscard]] MarkerModelEdit final : IEdit
 
     /*! \brief User-visible label naming the verb and its marker. */
     std::string edit_label;
+
+    /*! \brief Whether undo and redo focus the marker the step changed. */
+    EntryFocus entry_focus;
 
 private:
     // Assignment is the whole apply, in either direction; a snapshot that has nowhere to land (no

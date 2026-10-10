@@ -220,7 +220,9 @@ before the selection repair (a recorded focus can name a silent point the undo d
   `focusReplacing(replaced)`): the marker the transition added, moved or rewrote is selected with
   the cursor at its start; one it removed leaves nothing selected and the cursor where it stood.
   `firstChangedRecord` is the one diff every snapshot uses; the tone model falls back to the first
-  region sounding a renamed tone when only the catalog changed.
+  region sounding a renamed tone when only the catalog changed. A whole-song verb (Scale Tempo)
+  records `EntryFocus::None`: it changed every marker, so no one of them is what its undo changed,
+  and the transition focuses nothing and leaves the window where it stands, as the verb did.
 - **Tone automation** (`ToneAutomationPointsEdit::focus`): the lane caret lands on the changed
   point's slot and selects the point if it is still there.
 - **Off the timeline** (plugin chain, Tone Designer): the default, nothing; the selection repair

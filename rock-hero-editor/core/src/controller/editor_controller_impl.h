@@ -654,6 +654,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     {
         std::function<std::string(const common::core::TempoMap&)> label;
         std::optional<common::core::GridPosition> anchor;
+        EntryFocus focus;
     };
     using TempoCommit = std::variant<TempoGridCommit, TempoAnchorSelection>;
     // THE step every tempo-map edit ends in (an insert, a typed tempo, a delete, a move, Scale
@@ -1677,10 +1678,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
 
     // The one landing every marker verb of every kind makes: the commit rules, the model applied
-    // and one undo entry pushed, with nothing published. Defined in marker_model_commit.h, which is
-    // where the rules it enforces are written down.
+    // and one undo entry pushed, with nothing published; `focus` is what the entry's undo and redo
+    // bring into view. Defined in marker_model_commit.h, which is where the rules it enforces are
+    // written down.
     template <typename Snapshot>
-    MarkerCommit landMarkerModel(Snapshot before, Snapshot after, std::string label);
+    MarkerCommit landMarkerModel(
+        Snapshot before, Snapshot after, std::string label, EntryFocus focus);
 
     // The commit a marker verb ends in: landMarkerModel, then finishMarkerCommit where the model
     // landed. Defined beside it in marker_model_commit.h, with the publish rule.
@@ -1698,13 +1701,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The commit every whole-grid verb ends in (a tempo map, a meter list, Scale Tempo):
     // landMarkerModel, then the cursor carried as one more slice through the verb's `content` map
     // (readdressedPosition, carryCursorTo), then the marker on `landed_row` starting at `landed`
-    // selected where it still stands (else nothing), and one publish. Returns what the funnel
-    // did. Defined beside the funnel in marker_model_commit.h, where its order rule is written
-    // down.
+    // selected where it still stands (else nothing), and one publish. `focus` is what the entry's
+    // undo and redo bring into view: nothing for a whole-song verb. Returns what the funnel did.
+    // Defined beside the funnel in marker_model_commit.h, where its order rule is written down.
     template <typename Snapshot>
     MarkerCommit commitGridModel(
         Snapshot before, Snapshot after, std::string label, MarkerRow landed_row,
-        std::optional<common::core::GridPosition> landed, const ContentMap& content);
+        std::optional<common::core::GridPosition> landed, const ContentMap& content,
+        EntryFocus focus);
 
     // The model a held run of marker moves started from, while the next move press would continue
     // that run (commitMarkerMove's own test); nothing when it would start one. Defined beside the

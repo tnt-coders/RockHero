@@ -224,7 +224,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
     const common::core::GridPosition landed =
         after.timeline.tempo_map.gridPositionAtWholeNote(place);
     commitGridModel(
-        std::move(before), std::move(after), label, MarkerRow::TimeSignature, landed, keptPlace);
+        std::move(before),
+        std::move(after),
+        label,
+        MarkerRow::TimeSignature,
+        landed,
+        keptPlace,
+        EntryFocus::FirstChange);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
@@ -274,7 +280,8 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
         markerVerbLabel(MarkerVerb::DeleteTimeSignature),
         MarkerRow::TimeSignature,
         std::nullopt,
-        keptPlace);
+        keptPlace,
+        EntryFocus::FirstChange);
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 

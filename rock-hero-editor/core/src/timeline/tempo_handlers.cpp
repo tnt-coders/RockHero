@@ -94,7 +94,8 @@ void EditorController::Impl::commitTempoEdit(
             grid.label(edited),
             MarkerRow::Tempo,
             grid.anchor,
-            content);
+            content,
+            grid.focus);
     };
 
     const common::core::TempoMap& current = session().song().tempo_map;
@@ -238,6 +239,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAn
                     return markerVerbLabel(MarkerVerb::AddTempoAnchor);
                 },
             .anchor = action.position,
+            .focus = EntryFocus::FirstChange,
         });
 }
 
@@ -263,6 +265,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
                            spanBpmTextAt(tempo_map, action.position).value_or("");
                 },
             .anchor = action.position,
+            .focus = EntryFocus::FirstChange,
         });
 }
 
@@ -305,6 +308,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
             TempoGridCommit{
                 .label = [&label](const common::core::TempoMap& /*tempo_map*/) { return label; },
                 .anchor = std::nullopt,
+                .focus = EntryFocus::None,
             });
         return;
     }
@@ -323,7 +327,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         label,
         MarkerRow::Tempo,
         std::nullopt,
-        scaledPlaces(action.factor));
+        scaledPlaces(action.factor),
+        EntryFocus::None);
     if (committed == MarkerCommit::Landed)
     {
         engageNoteLock();
@@ -538,6 +543,7 @@ void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelectio
                     return markerVerbLabel(MarkerVerb::DeleteTempoAnchor);
                 },
             .anchor = std::nullopt,
+            .focus = EntryFocus::FirstChange,
         });
 }
 

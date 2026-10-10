@@ -54,7 +54,7 @@ template <typename Snapshot> [[nodiscard]] Snapshot writtenModel(Snapshot model)
 // written forms agree: the model changed only in authoring state, which the history never holds.
 template <typename Snapshot>
 [[nodiscard]] std::unique_ptr<MarkerModelEdit<Snapshot>> writtenMarkerEdit(
-    Snapshot before, Snapshot after, std::string label)
+    Snapshot before, Snapshot after, std::string label, const EntryFocus focus)
 {
     Snapshot written_before = writtenModel(std::move(before));
     Snapshot written_after = writtenModel(std::move(after));
@@ -63,7 +63,7 @@ template <typename Snapshot>
         return nullptr;
     }
     return std::make_unique<MarkerModelEdit<Snapshot>>(
-        std::move(written_before), std::move(written_after), std::move(label));
+        std::move(written_before), std::move(written_after), std::move(label), focus);
 }
 
 // The funnel's front half: the produced model normalized, then validated, then compared with the
@@ -103,7 +103,7 @@ std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerMod
 // (writtenMarkerEdit): the live model moved, the history did not.
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
-    Snapshot before, Snapshot after, std::string label)
+    Snapshot before, Snapshot after, std::string label, const EntryFocus focus)
 {
     std::expected<Snapshot, ChartPlanRefusal> judged = judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
@@ -123,7 +123,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
     }
 
     std::unique_ptr<MarkerModelEdit<Snapshot>> entry =
-        writtenMarkerEdit(std::move(before), std::move(*judged), std::move(label));
+        writtenMarkerEdit(std::move(before), std::move(*judged), std::move(label), focus);
     if (entry == nullptr)
     {
         return MarkerCommit::Silent;
@@ -143,8 +143,8 @@ template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
     Snapshot before, Snapshot after, std::string label)
 {
-    const MarkerCommit committed =
-        landMarkerModel(std::move(before), std::move(after), std::move(label));
+    const MarkerCommit committed = landMarkerModel(
+        std::move(before), std::move(after), std::move(label), EntryFocus::FirstChange);
     if (committed == MarkerCommit::Landed || committed == MarkerCommit::Silent)
     {
         finishMarkerCommit();
@@ -176,7 +176,8 @@ bool EditorController::Impl::commitMarkerMove(
 
     if (origin == nullptr)
     {
-        const MarkerCommit committed = landMarkerModel(before, std::move(after), std::move(label));
+        const MarkerCommit committed =
+            landMarkerModel(before, std::move(after), std::move(label), EntryFocus::FirstChange);
         if (committed == MarkerCommit::Refused)
         {
             return false;
@@ -213,8 +214,10 @@ bool EditorController::Impl::commitMarkerMove(
     }
 
     std::unique_ptr<MarkerModelEdit<Snapshot>> entry =
-        judged.has_value() ? writtenMarkerEdit(*origin, std::move(*judged), std::move(label))
-                           : nullptr;
+        judged.has_value()
+            ? writtenMarkerEdit(
+                  *origin, std::move(*judged), std::move(label), EntryFocus::FirstChange)
+            : nullptr;
     const bool recorded = entry != nullptr;
     if (recorded)
     {
@@ -246,18 +249,20 @@ bool EditorController::Impl::commitMarkerMove(
 // point, so a meter restating its reign lands in focus and stays. The carry is no keyboard move, so
 // nothing the commit does to where the keyboard stands asks the window to follow
 // (m_published_keyboard_seconds). Everything settles before the commit's one publish, which follows
-// the funnel's publish rule: only when the model moved or a marker was selected.
+// the funnel's publish rule: only when the model moved or a marker was selected. `focus` is what
+// the entry's undo and redo bring into view (EntryFocus).
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
-    const std::optional<common::core::GridPosition> landed, const ContentMap& content)
+    const std::optional<common::core::GridPosition> landed, const ContentMap& content,
+    const EntryFocus focus)
 {
     static_assert(g_states_grid<Snapshot>, "a grid commit lands a model that states the grid");
     const std::optional<common::core::GridPosition> place =
         cursorPosition(common::core::g_tick_quantum_note_value);
     const common::core::TempoMap old_map = session().song().tempo_map;
     const MarkerCommit committed =
-        landMarkerModel(std::move(before), std::move(after), std::move(label));
+        landMarkerModel(std::move(before), std::move(after), std::move(label), focus);
     if (committed == MarkerCommit::Refused)
     {
         return committed;

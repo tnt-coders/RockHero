@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -141,6 +142,25 @@ TEST_CASE("Locked Scale Tempo's undo and redo restore the whole song", "[core][s
     CHECK(editor.timeline() == original);
     editor.controller.onRedoRequested();
     CHECK(editor.timeline() == scaled);
+}
+
+// Scale Tempo changes the whole song, so no one marker is what its undo or redo changed: in either
+// form the step focuses nothing and the window stays where it stands, as the verb itself left it.
+TEST_CASE("Scale Tempo's undo and redo focus nothing", "[core][scale-tempo]")
+{
+    const bool note_lock = GENERATE(true, false);
+    CAPTURE(note_lock);
+    ScaleEditor editor{note_lock};
+    editor.seek(5.0);
+
+    editor.scale("2");
+    REQUIRE(editor.undoEntryCount() == 1);
+    const std::uint64_t focused = editor.state().focus_count;
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.state().focus_count == focused);
+    editor.controller.onRedoRequested();
+    CHECK(editor.state().focus_count == focused);
 }
 
 // Text that is not a positive factor, a playing transport, and a factor of one all leave the song

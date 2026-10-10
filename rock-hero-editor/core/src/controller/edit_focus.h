@@ -9,6 +9,7 @@
 #include "controller/editor_selection.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -82,6 +83,22 @@ that is not on the timeline.
 */
 using EditFocus =
     std::variant<std::monostate, ChartEditFocus, MarkerEditFocus, AutomationEditFocus>;
+
+/*!
+\brief Whether undoing or redoing a marker-model entry brings the marker it changed into focus.
+
+A verb on one marker changes that marker, and its undo shows it. A whole-song verb (Scale Tempo)
+changes every marker at once, so no one of them is what the step changed: its undo and redo focus
+nothing and leave the window where it stands, as the verb itself did.
+*/
+enum class EntryFocus : std::uint8_t
+{
+    /*! \brief Focus the first marker the step changed. */
+    FirstChange,
+
+    /*! \brief Focus nothing; the step changed the whole song. */
+    None,
+};
 
 /*!
 \brief One record a transition changed, and whether the side it landed on still holds it.
