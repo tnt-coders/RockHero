@@ -38,7 +38,6 @@ const juce::Colour g_note_background_color{0xff101010};     // NOTE_BACKGROUND
 const juce::Colour g_hand_shape_color{0xff3157a7};          // HAND_SHAPE
 const juce::Colour g_hand_shape_arpeggio_color{0xff8559b7}; // HAND_SHAPE_ARPEGGIO
 const juce::Colour g_vibrato_sine_color{0xffb6b6b6};        // java Color.GRAY.brighter()
-const juce::Colour g_mute_border_color{0xff808080};         // java Color.GRAY
 const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
 
 // The lane's hand axis: a mark's hand signature is its FILL POLARITY, not its shape — dark ink
@@ -61,17 +60,17 @@ struct PlatePalette
     juce::Colour ink;
 };
 
-// Every plate's rim, both hands. An outline is only as visible as its POORER neighbour, and this
-// rim has two: the plate's own fill inside, the lane outside. Equalising those two contrasts is
-// what balances the polarities, and it is not the same thing as equalising the rim against its
-// fill alone: an ink-matched rim, which reads as a blazing outline on the dark plate and no
-// outline at all beside the light one, scores a perfect zero on that rule (100 either way in CIE
-// L*), yet against the LANE it measures L* 95.3 on one hand and 4.7 on the other.
+// Every mark's outline: the mute X, the mute number plate and every letter plate, both hands. Each
+// sits between a white or near-black fill and the dark lane (or, for the mute plate, the X's own
+// white or near-black fill), so one grey serves them all. An outline is only as visible as its
+// POORER neighbour, so balancing the two polarities means equalising rim-to-lane with
+// rim-to-white-fill, not matching the rim to its fill alone: an ink-matched rim reads as a blazing
+// outline on the dark plate and no outline at all beside the light one.
 //
-// The weakest side is therefore largest, and equal for both hands, where rim-to-lane equals
-// rim-to-white-fill: L* (100 + 4.68) / 2 = 52.34, which is this grey (L* 52.41). Measured weakest
-// sides are 47.7 dark and 47.6 light, against 48.9 / 46.4 for a plain mid-grey.
-const juce::Colour g_plate_rim{0xff7d7d7d};
+// The balance point is L* (100 + 4.68) / 2 = 52.34. This plain mid-grey sits at L* 53.6, so its
+// weakest sides measure 48.9 against the lane and 46.4 against white, about 1.2 L* short of the
+// balanced 47.6, which a one-to-two-pixel outline does not show.
+const juce::Colour g_mark_rim{0xff808080};
 
 // Defined below the ink set it reads from; see \ref StringStyle.
 struct StringStyle;
@@ -209,9 +208,8 @@ enum class Ink : std::uint8_t
     Digit,         // fret numbers, on the head and on the floating chips
     TechniqueLine, // slide diagonals and the bend polyline
     VibratoSine,   // the sine riding a tail
-    MuteBorder,    // the mute X's outline, and every mute number-plate's rim
+    MarkRim,       // every mark's outline: the mute X, the mute number plate, every letter plate
     PalmMuteInner, // the palm mute X's fill
-    PlateRim,      // every letter plate's rim, both hands
     PlateDark,     // the picking hand's plate fill and the fretting hand's letter ink
     PlateLight,    // the fretting hand's plate fill and the picking hand's letter ink
 
@@ -270,9 +268,8 @@ struct StringStyle
         set(Ink::Digit, juce::Colours::white);
         set(Ink::TechniqueLine, juce::Colours::white);
         set(Ink::VibratoSine, g_vibrato_sine_color);
-        set(Ink::MuteBorder, g_mute_border_color);
+        set(Ink::MarkRim, g_mark_rim);
         set(Ink::PalmMuteInner, g_palm_mute_inner_color);
-        set(Ink::PlateRim, g_plate_rim);
         set(Ink::PlateDark, juce::Colours::black);
         set(Ink::PlateLight, juce::Colours::white);
         // An ink never assigned stays default-constructed — fully transparent — and would then
@@ -1629,7 +1626,7 @@ void drawMuteIcon(
     // outline, so the extra width eats inward as much as outward and the silhouette grows by only
     // half of it.
     const bool both_mutes = palm_mute && dead;
-    g.setColour(both_mutes ? style[Ink::PalmMuteInner] : style[Ink::MuteBorder]);
+    g.setColour(both_mutes ? style[Ink::PalmMuteInner] : style[Ink::MarkRim]);
     g.strokePath(
         x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f) * (both_mutes ? 2.0f : 1.0f)});
 }
@@ -1712,7 +1709,7 @@ void drawLetterPlate(
 
     g.setColour(palette.fill);
     g.fillRoundedRectangle(plate, radius);
-    g.setColour(style[Ink::PlateRim]);
+    g.setColour(style[Ink::MarkRim]);
     g.drawRoundedRectangle(plate, radius, border);
 
     const float ink = metrics.fret_font.inkHeight();
@@ -1937,7 +1934,7 @@ void drawNoteHeadFretPlate(
     }
     g.setColour(mute_plate.fill);
     g.fillRect(box);
-    g.setColour(style[Ink::MuteBorder]);
+    g.setColour(style[Ink::MarkRim]);
     g.drawRect(box, 1.0f);
 }
 
