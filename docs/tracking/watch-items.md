@@ -1203,6 +1203,20 @@ resolver needs a bundle-aware branch.
 
 ## Audio / plugin state
 
+### The host's bar position is wrong in x/8 meters — trigger: a bar-synced plugin misbehaves, or anything is built on Tracktion's bars
+
+Measured 2026-10-09 against the real engine. The edit's beat is pinned to a quarter note
+(`RockHeroEngineBehavior`, so tempo and seconds mirror exactly), and under that pin Tracktion's
+`toBarsAndBeats` miscounts every x/8 bar: 6/8 then 4/4 read bar 0 beat 1 at the second bar's
+downbeat. `insertTimeSig` also rounds a meter's start to a whole quarter
+(`tracktion_TempoSequence.cpp:241`). Writing the exact start beat was tried and fixed the start
+but not the bar count, so it was reverted. Nothing in the app reads Tracktion's bars today: the
+editor and game count bars from the RockHero `TempoMap`, and plan 59 now says its clicks must too.
+The live exposure is a plugin that syncs to the host's bar start (a bar-synced LFO or gate) in an
+x/8 song; tempo-synced plugins read only the BPM, which is right. Remedy if it bites: unpin the
+beat unit and mirror tempo in Tracktion's per-denominator beats, which changes every mirrored
+position and needs its own plan.
+
 ### Play with default tones — trigger: a default-tone mechanism exists
 
 21-Q1 settled missing-plugin handling as **refuse-to-start**: the game currently refuses to start a

@@ -108,6 +108,14 @@ never *where*. The transport begins exactly where the cursor already was.
     `rock-hero-common/audio/src/engine/engine_song_audio.cpp:242`). So Tracktion's click
     *times* would be right; only its count-length rule and its roll-backwards mechanism are wrong.
     That split is what makes 59-Q1 a real choice rather than a formality.
+  - **Corrected 2026-10-09 (measured):** Tracktion's BAR arithmetic is wrong for any x/8 meter.
+    `RockHeroEngineBehavior` pins the edit's beat to a quarter note, and Tracktion's
+    `toBarsAndBeats` then miscounts: under 6/8 then 4/4 it read bar 0 beat 1 at the second bar's
+    downbeat, and its beat went backwards across the bar. `insertTimeSig` also rounds a meter's
+    start to a whole quarter (`tracktion_TempoSequence.cpp:241`), so a meter after a 7/8 bar
+    lands an eighth late. Tempo and seconds mirror correctly; bars and accents do not. So the
+    count-in, and any later click track, take every beat and every accent from the RockHero
+    `TempoMap` (`reigns()`, the beat positions), never from Tracktion's bars and beats.
 
 ## 6. Dependencies and the ownership split
 
