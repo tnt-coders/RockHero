@@ -30,13 +30,6 @@ the user picks which way the two surfaces reconcile.
 
 ## Found by plan 67 Phases 1–4 and the last rule-citation sweep (2026-10-09)
 
-- **Commit the custom-song converter's move to the place format** (`custom-song-importer`, not
-  this repo; never committed from here). Its working tree writes every `at`, `sustain` and
-  `offset` as a canonical mixed number through one shared grammar (`tools/rock_format.py`, which
-  the validator and the FHP harness read through too), and the scored FHP corpus
-  (`ROCKHERO_FHP_SCORED_CORPUS_DIR`, 1301 packages) is converted, each with a `.bak` beside it, and
-  passes the converter's validator. Still open: the commit there, and whether the converter keeps
-  snapping sections to the nearest downbeat now that the editor allows any grid position.
 - **`parseGridPositionToken` has no production caller** now that the file stores places: only
   tests state positions in it. Keep it as the readout grammar's inverse, or move it into the test
   fixture header.
