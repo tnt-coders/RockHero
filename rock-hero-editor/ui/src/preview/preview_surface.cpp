@@ -7,6 +7,8 @@
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <utility>
 
 #if JUCE_WINDOWS
@@ -190,7 +192,11 @@ bool PreviewSurface::bringUpRenderer()
         return false;
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
-        common::ui::HighwayRenderer::create(*shaders, loadPreviewHighwayTextures());
+        common::ui::HighwayRenderer::create(
+            *shaders,
+            loadPreviewHighwayTextures(),
+            common::ui::defaultHighwayTheme(),
+            common::ui::charterClassicPalette());
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);

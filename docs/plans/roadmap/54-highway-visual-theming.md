@@ -3,7 +3,8 @@
 **Status**: Revised 2026-10-07 against `master @ 6f87951f`; re-verified and re-sequenced
 2026-10-09 against `602d5504`, then re-sequenced again the same day so the default look is
 sighted before theme loading exists, and 54-Q18/Q19 recast as theme choices the player can pin.
-Not started. **Phase 0 has a direction for the default look**
+**Executing:** Phase 1 landed 2026-10-10 (`HighwayTheme` and `defaultHighwayTheme()`; the string
+palette is a separate `create` argument); its garish coverage sighting is still owed. **Phase 0 has a direction for the default look**
 (below) and still gates the art phases (54-Q5 to 54-Q21, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app

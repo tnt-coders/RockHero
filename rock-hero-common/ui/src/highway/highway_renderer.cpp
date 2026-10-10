@@ -1,3 +1,4 @@
+#include "highway/bgfx_color.h"
 #include "highway/bgfx_program.h"
 #include "highway/box_mute_profile.h"
 #include "highway/head_art_profile.h"
@@ -60,18 +61,12 @@ constexpr bgfx::ViewId g_background_view = 0;
 constexpr bgfx::ViewId g_board_view = 1;
 constexpr bgfx::ViewId g_overlay_view = 2;
 
-// Backdrop clear color behind the whole scene (0xRRGGBBAA); cleared to black.
-constexpr std::uint32_t g_backdrop_color = 0x000000ff;
-
-// Board-furniture colors (0xAARRGGBB).
-constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alike
-
-// Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp
-// chord-box-teal attack line exactly where they occur, then a brief beat-blue fade trailing
-// away down the measure — a trailing wing only, never a symmetric pair.
+// Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp attack
+// line exactly where they occur, then a brief beat-bar fade trailing away down the measure — a
+// trailing wing only, never a symmetric pair.
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
-constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright
+constexpr double g_attack_line_alpha = 0.85; // the full attack line read slightly too bright
 
 // The lighting plane every floor light shares: the fretting hand's window and the tapping hand's.
 // Between the lane ribbons (0.004) and the beat bars (0.015) — the floor itself stays at y = 0 and
@@ -79,13 +74,6 @@ constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too brig
 // than moving the plane. Named once so a third light cannot land on a third literal.
 constexpr double g_floor_light_y = 0.008;
 
-// The board's lit lane appearance: what each lane's surface looks like where the hand-window
-// light reveals it (plain lanes the runway blue, inlay-dotted lanes distinctly darker — the
-// intrinsic board pattern). The light carries these as vertex color and the per-fragment mask
-// reveals them, the physically honest reading: nothing is painted over or under the light, and
-// away from it the board draws nothing and stays dark.
-constexpr ArgbColor g_lit_lane_color = 0x402590E8;
-constexpr ArgbColor g_lit_lane_dotted_color = 0x40185C94;
 // The falloff band the light dissolves across, centered on each eased edge (half strength at
 // the edge, gone half a band outside, full half a band inside), in world units. The centered
 // placement carries the lit region's width; this constant alone sets settled-edge sharpness.
@@ -189,29 +177,16 @@ draws.
     return (2.0 * metrics.note_half_height) / (static_cast<double>(layout.cell_size) - 1.0);
 }
 
-// The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
-// so the tapping hand's light reads apart from the fretting hand's window at a glance.
+// How far the tap light leans the lit lane tint toward the theme's fret_number_target (the tap
+// floor numbers' color), so the tapping hand's light reads apart from the fretting hand's window at
+// a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
-constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
-constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
-constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
 
-// Scrolling fret-number colors (Charter's PREVIEW_3D palette): a bright blue for a dotted fret
-// inside the current hand range, the lane-border teal at half alpha elsewhere, and the FHP
-// orange for hand-position arrivals and the current hand's numbers at the hit line.
-constexpr ArgbColor g_fret_number_active_color = 0xFF87DDF6;
-constexpr ArgbColor g_fret_number_dim_color = 0x8007928F;
-constexpr ArgbColor g_fret_number_fhp_color = 0xFFFFA821;
-
-// Capo display (a deliberately simple treatment): the dead zone the capo silences between
-// the nut and its fret line, dimmed over the face; and the clamp itself, a steel bar with a
-// dark rim laid across the strings just behind its fret, overhanging the string grid so it
-// reads as hardware rather than another fret line.
-constexpr ArgbColor g_capo_dead_zone_color = 0xB4000000;
-constexpr ArgbColor g_capo_bar_color = 0xFFB9BEC6;
-constexpr ArgbColor g_capo_bar_rim_color = 0xFF14161A;
-// The clamp's span in fret-line coordinates behind the capo's line, and its overhang past the
-// string grid in string distances.
+// Capo display (a deliberately simple treatment): the dead zone the capo silences between the nut
+// and its fret line, shaded over the face; and the clamp itself, a bar with a rim laid across the
+// strings just behind its fret, overhanging the string grid so it reads as hardware rather than
+// another fret line. The clamp's span in fret-line coordinates behind the capo's line, and its
+// overhang past the string grid in string distances.
 constexpr double g_capo_bar_near_fraction = 0.08;
 constexpr double g_capo_bar_far_fraction = 0.45;
 constexpr double g_capo_bar_overhang_strings = 0.3;
@@ -219,12 +194,10 @@ constexpr double g_capo_bar_overhang_strings = 0.3;
 constexpr double g_capo_bar_rim_fraction = 0.05;
 
 // Strike glow (the additive hit light; its release and trough guard live in core beside
-// highwayHitGlowRelease, where the pops are derived): the light's color (a hot orange whose
-// blue-channel lift lets a peak white out over already-lit content), the soft-edge falloff, the
-// hot-core half-width of a fret-line strip, and the fade toward the face top that grounds the light
-// at the strings' crossing. The window-light mask reaches 1.0 only falloff / 2 inside an edge, so a
-// strip needs core_half >= falloff / 2 to actually peak at full intensity.
-constexpr ArgbColor g_hit_glow_color = 0xFFFFB040;
+// highwayHitGlowRelease, where the pops are derived): the soft-edge falloff, the hot-core
+// half-width of a fret-line strip, and the fade toward the face top that grounds the light at the
+// strings' crossing. The window-light mask reaches 1.0 only falloff / 2 inside an edge, so a strip
+// needs core_half >= falloff / 2 to actually peak at full intensity.
 constexpr double g_hit_glow_falloff = 0.2;
 constexpr double g_hit_glow_core_half = g_hit_glow_falloff / 2.0;
 constexpr double g_hit_glow_top_fade = 0.35;
@@ -412,37 +385,36 @@ constexpr double g_open_post_foot_length = 0.5;
 constexpr double g_tail_pixels_per_sample = 4.0;
 constexpr std::size_t g_tail_sample_cap = 256;
 
-// Chord-box palette and geometry (Charter's values): a translucent teal panel per strummed
-// chord, with corner holders, gradient frame bars, and mute-cross variants.
-constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
-constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
-
-// The frame's own opacity, shared by the gradient frame bars and by the mute marks drawn against
-// them. The palm mark's rim has to composite identically to the border it stops against, so the
-// value gets one home rather than two places that agree by coincidence.
-constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
-
+// The chord box (Charter's model): a translucent panel per strummed chord in its hand's box colors,
+// with corner holders, gradient frame bars, and mute-cross variants.
+//
 // Repeat-box mute marks render through the SDF shader (fs_box_mute). chords.png carries their
 // STRUCTURE only — tint weighting, rim/core structure, and coverage, in the same channel scheme
 // the note atlas uses — which the renderer measures at creation into a two-row ramp the shader
 // samples by exact distance from the arm centerlines (see box_mute_profile.h for the authoring
-// contract). Hue and opacity both arrive as vertex color from the constants here, never from the
-// art: the palm mark wears the frame's own color and alpha so the two stay equal wherever they
-// meet, and a hue baked into the pixels could not follow a retune of it. The distance field is
-// evaluated per fragment because the X's arm angle changes with every box aspect — a shape no
-// fixed bitmap contains — so where bitmap stretching would distort line weight with the box, this
-// holds the measured weights everywhere.
-constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
+// contract). Hue and opacity both arrive as vertex color from the theme (chord_box and
+// chord_box_dark for the palm mark, full_mute_mark for the full one), never from the art: the palm
+// mark wears the frame's own colors and alpha so the two stay equal wherever they meet, and a hue
+// baked into the pixels could not follow a retune of it. The distance field is evaluated per
+// fragment because the X's arm angle changes with every box aspect — a shape no fixed bitmap
+// contains — so where bitmap stretching would distort line weight with the box, this holds the
+// measured weights everywhere.
+//
+// The frame's own opacity, shared by the gradient frame bars and by the mute marks drawn against
+// them. The palm mark's rim has to composite identically to the border it stops against, so the
+// value gets one home rather than two places that agree by coincidence.
+constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 
 // Hand-shape rails on the floor, drawn as LIGHT: each rail is an emitter line along its hand
 // window's edge, lit per fragment by the accent light's own program (fs_accent_glow: a signed
 // distance to the emitter, a falloff shaped by an exponent, and radiance over one clipped per
 // channel, which is what walks a bright color's core to white) and ADDED to the board rather than
 // painted over it. A rail wears its hand's furniture color (HandLightStyle::rail_color), except
-// that an arpeggio span's rails wear Charter's purple, which names a kind of span rather than a
-// hand; every rail takes one intensity, so the hands' rails move together. The constants below are
-// sighting knobs; painted stripes in their place read as paint rather than as a light source.
-constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
+// that an arpeggio span's rails wear the theme's arpeggio color, which names a kind of span rather
+// than a hand; every rail takes one intensity, so the hands' rails move together. The constants
+// below are sighting knobs; painted stripes in their place read as paint rather than as a light
+// source.
+//
 // The emitter's half-width: the line the light comes from.
 constexpr double g_shape_rail_emitter_half_width = 0.03;
 // How far the light reaches past the emitter, and the shape of its falloff (see fs_accent_glow).
@@ -619,17 +591,6 @@ struct GlowShape
     return out;
 }
 
-// Packs the palette's 0xAARRGGBB into the 0xAABBGGRR vertex color bgfx consumes, scaling alpha.
-[[nodiscard]] std::uint32_t packAbgr(const ArgbColor argb, const double alpha_scale = 1.0)
-{
-    const auto alpha = static_cast<std::uint32_t>(
-        std::clamp(static_cast<double>((argb >> 24U) & 0xFFU) * alpha_scale, 0.0, 255.0));
-    const std::uint32_t red = (argb >> 16U) & 0xFFU;
-    const std::uint32_t green = (argb >> 8U) & 0xFFU;
-    const std::uint32_t blue = argb & 0xFFU;
-    return (alpha << 24U) | (blue << 16U) | (green << 8U) | red;
-}
-
 // Linear blend between two 0xAARRGGBB colors (the fret hit-flash mix).
 [[nodiscard]] ArgbColor mixArgb(const ArgbColor from, const ArgbColor to, const double weight)
 {
@@ -662,30 +623,22 @@ struct GlowShape
 }
 
 // THE PICKING HAND'S FURNITURE RULE. A hand's box and rails wear the hand's furniture color: the
-// fretting hand's is the teal family, the picking hand's is the board's one WHITE — the achromatic
-// string color the 8th string wears (g_achromatic_string_color) — so the two hands read apart at
-// a glance: a teal box says strum, a white one says tap, the same reason the picking light leans
-// warm and its pops are white.
-//
-// "As bright as the teal" is matched in PERCEIVED lightness — CIELAB L* with the Fairchild-Pirrotta
-// Helmholtz-Kohlrausch correction — never in luma: a saturated color looks brighter than its
-// luminance, so a neutral matched to the teal by luma, or by an alpha computed on gamma values,
-// looks darker and reads as grey. Against the teal box's 81 and the teal rail's 61, the white is
-// the achromatic string color's hue cooled a touch (a faint blue cast reads white where a neutral
-// reads dirty on the cool board, the bluing effect) and lifted to 81 — the box wears it under the
-// box's own alphas, exactly as the teal box wears its teal — and the rail is that white at the
-// alpha whose blend over the dark board lands 61. Derived offline; re-derive both if either teal
-// moves. The rim is the grey at the teal rim's luma (its job is to be dark, where the correction is
-// small). Sighting knobs.
-constexpr ArgbColor g_picking_furniture_white = 0xFFC0C7D8;
+// fretting hand's is the theme's chord-box family, the picking hand's is the theme's
+// pick_furniture, so the two hands read apart at a glance — a chord-box-colored box says strum, a
+// pick_furniture one says tap, the same reason the picking light leans warm and the hands' pops
+// differ. The picking box wears pick_furniture under the box's own alphas, exactly as the fretting
+// box wears chord_box. Its rim is the fretting rim with its hue removed (a rim's job is to be dark,
+// so no perceptual correction is needed), and its rails are pick_furniture at this fixed alpha:
+// the one whose blend over the dark board lands the default white rail at the default teal rail's
+// perceived lightness (CIELAB L* 61). A sighting knob.
 constexpr ArgbColor g_picking_rail_alpha = 0xBA;
 
 // What one hand looks like, stated once so both hands draw through one path and differ only here:
-// the lit lanes' lean toward the FHP orange, the color the hand's pops wear, and the hand's
-// furniture colors — its chord box and its rails.
+// the lit lanes' lean toward the theme's fret_number_target, the color the hand's pops wear, and
+// the hand's furniture colors — its chord box and its rails.
 struct HandLightStyle
 {
-    // How far the lit lane tint leans toward the FHP orange; zero keeps the lanes' own tint.
+    // How far the lit lane tint leans toward fret_number_target; zero keeps the lanes' own tint.
     double warm_mix;
     // The color this hand's strike pops wear. Not the furniture's: a pop is additive glow, while
     // the box and the rails are solid marks that wear box_color, box_dark_color and rail_color.
@@ -694,28 +647,35 @@ struct HandLightStyle
     // its accent light takes.
     ArgbColor box_color;
     ArgbColor box_dark_color;
-    // The hand's rails (drawHandShapeRails); an arpeggio span's rails wear g_arpeggio_color.
+    // The hand's rails (drawHandShapeRails); an arpeggio span's rails wear the theme's arpeggio.
     ArgbColor rail_color;
 };
 
-// The fretting hand keeps the lanes' own tint, pops in the hit-glow amber, and wears the teal box
-// family (the rails the opaque lane-border teal). The picking hand's light leans warm, its pops are
-// white, and its box and rails wear the board's white by the furniture rule above.
-constexpr HandLightStyle g_fretting_hand_light{
-    .warm_mix = 0.0,
-    .mark_color = g_hit_glow_color,
-    .box_color = g_chord_box_color,
-    .box_dark_color = g_chord_box_dark_color,
-    .rail_color = g_lane_border_color | 0xFF000000U,
-};
-constexpr HandLightStyle g_picking_hand_light{
-    .warm_mix = g_tap_light_warm_mix,
-    .mark_color = 0xFFFFFFFF,
-    .box_color = g_picking_furniture_white,
-    .box_dark_color = hueless(g_fretting_hand_light.box_dark_color),
-    .rail_color = withAlpha(g_picking_furniture_white, g_picking_rail_alpha),
-};
-static_assert(g_picking_hand_light.box_dark_color == 0xFF2A2A2AU);
+// The fretting hand keeps the lanes' own tint, pops in strike_fretting, and wears the chord-box
+// family, its rails in lane_border.
+[[nodiscard]] HandLightStyle frettingHandStyle(const HighwayTheme& theme)
+{
+    return HandLightStyle{
+        .warm_mix = 0.0,
+        .mark_color = theme.strike_fretting,
+        .box_color = theme.chord_box,
+        .box_dark_color = theme.chord_box_dark,
+        .rail_color = theme.lane_border,
+    };
+}
+
+// The picking hand's light leans warm, it pops in strike_picking, and its box and rails follow the
+// furniture rule above.
+[[nodiscard]] HandLightStyle pickingHandStyle(const HighwayTheme& theme)
+{
+    return HandLightStyle{
+        .warm_mix = g_tap_light_warm_mix,
+        .mark_color = theme.strike_picking,
+        .box_color = theme.pick_furniture,
+        .box_dark_color = hueless(theme.chord_box_dark),
+        .rail_color = withAlpha(theme.pick_furniture, g_picking_rail_alpha),
+    };
+}
 
 /*
 Gives an accent light's color the broadband pedestal every real emitter has.
@@ -1592,7 +1552,7 @@ void pushChordBoxPanel(
     const std::uint32_t dark_faint = packAbgr(style.box_dark_color, (32.0 / 255.0) * alpha_scale);
     const std::uint32_t box_clear = packAbgr(style.box_color, 0.0);
 
-    // Corner-holder fan outlines (Charter's ChordBoxHolderModel): a teal L behind a dark L, at
+    // Corner-holder fan outlines (Charter's ChordBoxHolderModel): a box-color L behind a dark L, at
     // each bottom corner. Local coordinates; the right corner mirrors in X. The L legs are
     // sized for a full-height box, so a half-height repeat box scales them to half vertically
     // and a bit narrower horizontally to keep the brackets proportioned to the panel.
@@ -1823,7 +1783,7 @@ struct BoxDraw
     // picking hand's for a tapped chord box.
     std::reference_wrapper<const std::vector<common::core::HighwayHandArrival>> track;
     // The same hand's style, whose furniture colors the box wears (HandLightStyle::box_color).
-    std::reference_wrapper<const HandLightStyle> style;
+    HandLightStyle style;
     // Build position, the sort's tiebreak: onset alone is not a total order (a
     // tap-and-strum instant emits two boxes), and the deterministic build order is what
     // keeps their overlap from flickering frame to frame.
@@ -2078,6 +2038,10 @@ struct HighwayRenderer::Impl
     // How the board maps the state onto the screen: the renderer's own setting, never part of the
     // projected state, so changing it re-derives nothing the projection built.
     common::core::HighwayDisplayOptions options{};
+    // The look: the theme every frame reads its colors from, and the string palette the retained
+    // string lines and the per-frame string surfaces derive from.
+    HighwayTheme theme{};
+    StringColorPalette palette{};
     // The displayed lane count and the padding below the chart's strings, resolved from the
     // chart's own count and the display minimum (displayedStringCount / displayedLane) whenever
     // either changes: the scene keeps chart strings, and every lane the board draws goes through
@@ -2117,8 +2081,8 @@ struct HighwayRenderer::Impl
     // named, so every layer draws both through one path.
     template <typename Visit> void forEachHand(const Visit& visit) const
     {
-        visit(state->fret_hand, g_fretting_hand_light);
-        visit(state->pick_hand, g_picking_hand_light);
+        visit(state->fret_hand, frettingHandStyle(theme));
+        visit(state->pick_hand, pickingHandStyle(theme));
     }
 
     // One hand's lights whose lit interval on a layer fading over `decay_seconds` reaches
@@ -2484,9 +2448,12 @@ struct HighwayRenderer::Impl
 };
 
 std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
-    const HighwayShaderSet& shaders, const HighwayTextureSet& textures)
+    const HighwayShaderSet& shaders, const HighwayTextureSet& textures, HighwayTheme theme,
+    StringColorPalette palette)
 {
     auto impl = std::make_unique<Impl>();
+    impl->theme = theme;
+    impl->palette = palette;
 
     // Link every program in the shared table, so adding one is a table row rather than another
     // link site here. The first bad binary fails creation: a broken install is broken whichever
@@ -2669,6 +2636,12 @@ void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOption
     m_impl->rebuildBoardFace();
 }
 
+// Every theme color is read per frame, so the next frame simply draws with the new one.
+void HighwayRenderer::setTheme(HighwayTheme theme)
+{
+    m_impl->theme = theme;
+}
+
 bool HighwayRenderer::Impl::seatLanes()
 {
     const int count = common::core::displayedStringCount(
@@ -2706,7 +2679,6 @@ void HighwayRenderer::Impl::rebuildBoardFace()
 
     const bool mirrored = options.mirrored;
     const bool invert = options.invert_string_order;
-    const StringColorPalette& palette = charterClassicPalette();
 
     std::vector<PosColorVertex> vertices;
     std::vector<std::uint16_t> indices;
@@ -2762,7 +2734,7 @@ void HighwayRenderer::Impl::draw(
         bgfx::setViewMode(view, bgfx::ViewMode::Sequential);
     }
     bgfx::setViewClear(
-        g_background_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, g_backdrop_color, 1.0F, 0);
+        g_background_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, packRgba(theme.backdrop), 1.0F, 0);
     bgfx::setViewClear(g_board_view, BGFX_CLEAR_DEPTH, 0, 1.0F, 0);
     bgfx::setViewClear(g_overlay_view, BGFX_CLEAR_NONE);
     bgfx::setViewTransform(g_board_view, board_matrix.data(), nullptr);
@@ -2775,7 +2747,6 @@ void HighwayRenderer::Impl::draw(
     const bool invert = options.invert_string_order;
     const double span_end_seconds = now_seconds + lookaheadSeconds();
     const double span_start_seconds = now_seconds - g_passed_fade_seconds;
-    const StringColorPalette& palette = charterClassicPalette();
 
     // One FALLOFF is shared by every lit subject — fretted heads, open strings, and chord box
     // frames — and exactly two numbers differ per subject. The EMITTER DEPTH separates a solid
@@ -3123,7 +3094,7 @@ void HighwayRenderer::Impl::draw(
                     .dead = false,
                     .arpeggio_shape = &shape,
                     .track = std::cref(state->fret_hand.track),
-                    .style = std::cref(g_fretting_hand_light),
+                    .style = frettingHandStyle(theme),
                     .build_index = boxes.size(),
                 });
         }
@@ -3181,7 +3152,7 @@ void HighwayRenderer::Impl::draw(
                     .dead = group.all_dead,
                     .arpeggio_shape = nullptr,
                     .track = std::cref(state->fret_hand.track),
-                    .style = std::cref(g_fretting_hand_light),
+                    .style = frettingHandStyle(theme),
                     .build_index = boxes.size(),
                 });
         }
@@ -3218,7 +3189,7 @@ void HighwayRenderer::Impl::draw(
                     .dead = false,
                     .arpeggio_shape = nullptr,
                     .track = std::cref(state->pick_hand.track),
-                    .style = std::cref(g_picking_hand_light),
+                    .style = pickingHandStyle(theme),
                     .build_index = boxes.size(),
                 });
         }
@@ -3304,7 +3275,7 @@ void HighwayRenderer::Impl::draw(
                 };
             if (dead_mark)
             {
-                const std::uint32_t tint = packAbgr(g_full_mute_mark_color);
+                const std::uint32_t tint = packAbgr(theme.full_mute_mark);
                 pushQuad(
                     box_marker_vertices,
                     box_marker_indices,
@@ -3322,8 +3293,8 @@ void HighwayRenderer::Impl::draw(
                     x1,
                     y0,
                     y1,
-                    packAbgr(g_chord_box_color, g_chord_box_frame_alpha),
-                    packAbgr(g_chord_box_dark_color, g_chord_box_frame_alpha),
+                    packAbgr(theme.chord_box, g_chord_box_frame_alpha),
+                    packAbgr(theme.chord_box_dark, g_chord_box_frame_alpha),
                     make_corner);
             }
             const bgfx::TextureHandle ramp = box_mute_ramp.get();
@@ -3369,10 +3340,10 @@ void HighwayRenderer::Impl::draw(
                 const ChordBoxFrame box_frame = chordBoxFrame(
                     full_height_y1, box.box_only, box.with_top, metrics.string_grid_base_y);
                 // The box's own color (its hand's box_color), given the same broadband pedestal
-                // a string's light gets: teal light laid on a teal frame is the least perceptible
-                // change available, and the pedestal is what lets it whiten. The box shares the
-                // note light's spectrum outright and carries no number of its own.
-                const std::uint32_t lit = packAbgr(emitterSpectrum(box.style.get().box_color), 1.0);
+                // a string's light gets: a frame's own color laid on it as light is the least
+                // perceptible change available, and the pedestal is what lets it whiten. The box
+                // shares the note light's spectrum outright and carries no number of its own.
+                const std::uint32_t lit = packAbgr(emitterSpectrum(box.style.box_color), 1.0);
                 const double half_w = (light_x1 - light_x0) / 2.0;
                 const double center_x = (light_x0 + light_x1) / 2.0;
 
@@ -3415,7 +3386,7 @@ void HighwayRenderer::Impl::draw(
                     .corner = 0.0,
                     .rhombus = false,
                 };
-                const std::uint32_t clear = packAbgr(box.style.get().box_color, 0.0);
+                const std::uint32_t clear = packAbgr(box.style.box_color, 0.0);
                 const double out_w = half_w + g_accent_reach;
                 const auto push_span = [&](const double y_low,
                                            const double y_high,
@@ -3454,7 +3425,7 @@ void HighwayRenderer::Impl::draw(
                 box.with_top,
                 box_alpha,
                 metrics.string_grid_base_y,
-                box.style.get());
+                box.style);
             if (common::core::isAccented(box.emphasis))
             {
                 flush_box_panels();
@@ -3724,7 +3695,7 @@ void HighwayRenderer::Impl::draw(
                     .seconds = series.begin_seconds,
                     .z = time_to_z(series.begin_seconds),
                     .stop = common::core::nodeStop(series.node),
-                    .base = g_fret_number_fhp_color,
+                    .base = theme.fret_number_target,
                     .fade = true,
                     .alpha = 1.0,
                 });
@@ -3786,8 +3757,7 @@ void HighwayRenderer::Impl::draw(
                         .seconds = beat.seconds,
                         .z = z,
                         .stop = common::core::frettedStop(fret),
-                        .base =
-                            mixArgb(g_fret_number_dim_color, g_fret_number_active_color, coverage),
+                        .base = mixArgb(theme.fret_number_dim, theme.fret_number_lit, coverage),
                         .fade = true,
                         .alpha = 1.0,
                     });
@@ -3808,13 +3778,13 @@ void HighwayRenderer::Impl::draw(
                     .seconds = seconds,
                     .z = time_to_z(seconds),
                     .stop = common::core::frettedStop(fret),
-                    .base = g_fret_number_fhp_color,
+                    .base = theme.fret_number_target,
                     .fade = true,
                     .alpha = 1.0,
                 });
         };
 
-        // Upcoming hand-position arrivals, in the FHP orange. An arrival on a harmonic series'
+        // Upcoming hand-position arrivals, in fret_number_target. An arrival on a harmonic series'
         // own fret yields to the node number — the placement exists BECAUSE the hand goes to the
         // node, so the decimal label already states everything the integer would, and more.
         for (const common::core::FhpViewState& fhp : std::ranges::subrange(
@@ -3921,7 +3891,7 @@ void HighwayRenderer::Impl::draw(
                         .seconds = now_seconds,
                         .z = 0.0,
                         .stop = common::core::frettedStop(fret),
-                        .base = g_fret_number_fhp_color,
+                        .base = theme.fret_number_target,
                         .fade = false,
                         .alpha = coverage,
                     });
@@ -4843,8 +4813,8 @@ void HighwayRenderer::Impl::draw(
             };
 
         // Fret-span line: a floor line under this single note, spanning the fret slots it
-        // occupies — the measure lines' exact treatment (sharp teal attack on the landing z,
-        // brief blue fade trailing toward the horizon), just clipped to the note's frets.
+        // occupies — the measure lines' exact treatment (sharp attack line on the landing z,
+        // brief beat-bar fade trailing toward the horizon), just clipped to the note's frets.
         // Drawn into the shadow batch so all other note geometry composites over it. As a
         // strike transient it keeps the onset anchor and fade while the head pins.
         //
@@ -4864,7 +4834,7 @@ void HighwayRenderer::Impl::draw(
                 0.02,
                 core_from_z,
                 core_to_z,
-                g_chord_box_color,
+                theme.attack_line,
                 g_attack_line_alpha * attack_fade,
                 g_attack_line_alpha * attack_fade);
             pushTaperedFloorQuad(
@@ -4875,7 +4845,7 @@ void HighwayRenderer::Impl::draw(
                 0.02,
                 core_to_z,
                 core_to_z + g_attack_fade_length,
-                g_beat_bar_color,
+                theme.beat_bar,
                 attack_fade,
                 0.0);
         };
@@ -4901,7 +4871,7 @@ void HighwayRenderer::Impl::draw(
                 0.02,
                 kf_z - g_attack_line_half_length,
                 kf_z + g_attack_line_half_length,
-                g_chord_box_color,
+                theme.attack_line,
                 g_attack_line_alpha * fade,
                 g_attack_line_alpha * fade);
         };
@@ -5635,7 +5605,7 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
         const double bright = lit_now.at(static_cast<std::size_t>(line));
         const auto tint = [&](const double mid) {
             const double base = 0.125 + (0.25 * mid);
-            return packAbgr(g_lane_border_color | 0xFF000000U, base + ((1.0 - base) * bright));
+            return packAbgr(theme.lane_border, base + ((1.0 - base) * bright));
         };
         const double x = common::core::highwayFretLineX(line, metrics, mirrored);
         pushFloorQuad(
@@ -5705,7 +5675,8 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 // (appendLightSampleTimes). The lanes drawn reach the spill lane past each edge, so the soft band
 // fades fully on both sides: a light drawn only over the slots it touches ends in a hard
 // half-strength line on its edge. One batch per hand, the fretting hand's first; the picking
-// hand's lanes lean toward the FHP orange (HandLightStyle::warm_mix) so the two hands read apart.
+// hand's lanes lean toward fret_number_target (HandLightStyle::warm_mix) so the two hands read
+// apart.
 // Two lights at one place composite in submission order, so they cannot sum toward white. ---
 void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
 {
@@ -5764,14 +5735,16 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
                         {
                             continue;
                         }
-                        // Lean the hue only: the mix target takes the lane's own alpha so a warm
-                        // light keeps the lanes' base opacity (mixArgb blends all four channels,
-                        // and the FHP orange is opaque). A zero mix is the lane's tint exactly.
+                        // The lane's lit surface, carried as vertex color for the per-fragment mask
+                        // to reveal: nothing is painted over or under the light, and away from it
+                        // the board stays dark. Lean the hue only: the mix target takes the lane's
+                        // own alpha so a warm light keeps the lanes' base opacity (mixArgb blends
+                        // all four channels). A zero mix is the lane's tint exactly.
                         const ArgbColor base =
-                            isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
+                            isDottedFret(fret) ? theme.lit_lane_dotted : theme.lit_lane;
                         const ArgbColor lane_color = mixArgb(
                             base,
-                            (base & 0xFF000000U) | (g_fret_number_fhp_color & 0x00FFFFFFU),
+                            (base & 0xFF000000U) | (theme.fret_number_target & 0x00FFFFFFU),
                             style.warm_mix);
                         const auto vertex = [&](const double x,
                                                 const double z,
@@ -5805,9 +5778,9 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
     });
 }
 
-// --- Beat and measure bars: Charter's gradient wings in its deep blue, clipped to
-// each beat's hand window. Measures get a sharp teal attack line on the downbeat with a
-// brief blue fade trailing into the measure; plain beats are two wings meeting at the
+// --- Beat and measure bars: Charter's gradient wings in the beat_bar color, clipped to
+// each beat's hand window. Measures get a sharp attack line on the downbeat with a
+// brief beat-bar fade trailing into the measure; plain beats are two wings meeting at the
 // line. A section draws nothing here: its name floating above the board (drawSectionLabels) is
 // its only mark. Both ends of every bar dissolve along x, the same taper the note lines under
 // them take (pushTaperedFloorQuad states it): a bar stopping flat at the window edge would draw a
@@ -5844,7 +5817,7 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
                 0.015,
                 z - g_attack_line_half_length,
                 z + g_attack_line_half_length,
-                g_chord_box_color,
+                theme.attack_line,
                 g_attack_line_alpha,
                 g_attack_line_alpha);
             pushTaperedFloorQuad(
@@ -5855,16 +5828,16 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
                 0.015,
                 z + g_attack_line_half_length,
                 z + g_attack_line_half_length + g_attack_fade_length,
-                g_beat_bar_color,
+                theme.beat_bar,
                 1.0,
                 0.0);
         }
         else
         {
             pushTaperedFloorQuad(
-                vertices, indices, x0, x1, 0.015, z - 0.1, z, g_beat_bar_color, 0.0, 1.0);
+                vertices, indices, x0, x1, 0.015, z - 0.1, z, theme.beat_bar, 0.0, 1.0);
             pushTaperedFloorQuad(
-                vertices, indices, x0, x1, 0.015, z, z + 0.1, g_beat_bar_color, 1.0, 0.0);
+                vertices, indices, x0, x1, 0.015, z, z + 0.1, theme.beat_bar, 1.0, 0.0);
         }
     }
     submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
@@ -5874,8 +5847,8 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 // start to its end, riding the hit line while active. One pass draws every rail as (track, from,
 // to, color), fed by both hands: the fretting hand's posture spans over its track, and the
 // picking hand's tapped chords over its track from the strike to the struck notes' ring end. Every
-// rail wears its hand's furniture color (HandLightStyle::rail_color: the teal for the fretting
-// hand, the same teal hue-less for the picking hand), except an arpeggio span's, whose purple names
+// rail wears its hand's furniture color (HandLightStyle::rail_color: lane_border for the fretting
+// hand, pick_furniture for the picking hand), except an arpeggio span's, whose arpeggio color names
 // a kind of span. A strike carries its own hold end (HighwayTapOnsetViewState::release_seconds),
 // so the picking hand needs no spans. ---
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
@@ -5945,7 +5918,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
             state->fret_hand.track,
             shape.start_seconds,
             shape.drawn_end_seconds,
-            shape.arpeggio ? g_arpeggio_color : g_fretting_hand_light.rail_color);
+            shape.arpeggio ? theme.arpeggio : frettingHandStyle(theme).rail_color);
     }
     // Tapped chords whose hold reaches the drawn span: strikes ascend by onset but their holds
     // overlap freely, so the range is visibleEventRange over the prefix maximum of the holds — the
@@ -5961,7 +5934,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
                 state->pick_hand.track,
                 tap.start_seconds,
                 tap.release_seconds,
-                g_picking_hand_light.rail_color);
+                pickingHandStyle(theme).rail_color);
         }
     }
     const std::array<float, 4> rail_light{
@@ -6023,7 +5996,7 @@ void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
     {
         const double x = common::core::highwayFretLineX(line, metrics, mirrored);
         const ArgbColor color = mixArgb(
-            g_fret_inactive_color, g_fret_active_color, active.at(static_cast<std::size_t>(line)));
+            theme.fret_line, theme.fret_line_lit, active.at(static_cast<std::size_t>(line)));
         const double half = line == 0 ? 0.05 : 0.025;
         pushFaceQuad(
             vertices, indices, x - half, x + half, face_bottom_y, face_top_y, 0.0, packAbgr(color));
@@ -6069,15 +6042,15 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
         const double quad_half = metrics.first_fret_distance / 2.0;
         const double middle_y = (face_bottom_y + face_top_y) / 2.0;
         const double double_offset = g_inlay_double_string_spacings * metrics.string_distance;
-        const std::uint32_t white = packAbgr(0xFFFFFFFF);
+        const std::uint32_t tint = packAbgr(theme.inlay_tint);
         const auto push_dot = [&](const double center_x, const double center_y) {
             pushQuad(
                 vertices,
                 indices,
-                makeUvVertex(center_x - quad_half, center_y - quad_half, 0.0, white, u0, v1),
-                makeUvVertex(center_x + quad_half, center_y - quad_half, 0.0, white, u1, v1),
-                makeUvVertex(center_x + quad_half, center_y + quad_half, 0.0, white, u1, v0),
-                makeUvVertex(center_x - quad_half, center_y + quad_half, 0.0, white, u0, v0));
+                makeUvVertex(center_x - quad_half, center_y - quad_half, 0.0, tint, u0, v1),
+                makeUvVertex(center_x + quad_half, center_y - quad_half, 0.0, tint, u1, v1),
+                makeUvVertex(center_x + quad_half, center_y + quad_half, 0.0, tint, u1, v0),
+                makeUvVertex(center_x - quad_half, center_y + quad_half, 0.0, tint, u0, v0));
         };
         for (int fret = 1; fret <= g_face_fret_count; ++fret)
         {
@@ -6136,7 +6109,7 @@ void HighwayRenderer::Impl::drawCapo()
             face_bottom_y,
             face_top_y,
             0.0,
-            packAbgr(g_capo_dead_zone_color));
+            packAbgr(theme.capo_shade));
 
         const double near_x =
             common::core::highwayFretLineX(capo_line - g_capo_bar_near_fraction, metrics, mirrored);
@@ -6161,9 +6134,9 @@ void HighwayRenderer::Impl::drawCapo()
             bar_y0 - rim,
             bar_y1 + rim,
             0.0,
-            packAbgr(g_capo_bar_rim_color));
+            packAbgr(theme.capo_bar_rim));
         pushFaceQuad(
-            vertices, indices, bar_x0, bar_x1, bar_y0, bar_y1, 0.0, packAbgr(g_capo_bar_color));
+            vertices, indices, bar_x0, bar_x1, bar_y0, bar_y1, 0.0, packAbgr(theme.capo_bar));
         // Board face, z = 0: above every note by construction, and it says so (drawStringLines).
         submitBatch(
             vertices,
@@ -6235,7 +6208,7 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
             section_y,
             label_z,
             0.5,
-            packAbgr(0xFFFFFFFF, 0.85 * label_fade));
+            packAbgr(theme.label_text, 0.85 * label_fade));
     }
 
     const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
@@ -6260,8 +6233,8 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
 // silhouettes through a glow drawn earlier, and the hit-line text would dim it. The envelope is a
 // stateless function of now - onset, per-onset with an inter-onset release clamp (applied once in
 // core), so fast sections keep a discrete pop per strike instead of fusing into a shimmer. Each
-// hand pops in its own mark color (HandLightStyle::mark_color): amber for the fretting hand, white
-// for the picking hand. ---
+// hand pops in its own mark color (HandLightStyle::mark_color): strike_fretting for the fretting
+// hand, strike_picking for the picking hand. ---
 void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
 {
     const bool mirrored = options.mirrored;

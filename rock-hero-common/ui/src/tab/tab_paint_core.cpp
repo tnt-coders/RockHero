@@ -416,8 +416,8 @@ void drawStringLines(
     for (int displayed_string = 1; displayed_string <= metrics.displayed_count; ++displayed_string)
     {
         const float y = tabLaneCenterY(displayed_string, metrics.displayed_count, metrics.bounds);
-        g.setColour(
-            charterMultiply(tabStringColor(displayed_string, metrics.displayed_count), 0.8));
+        g.setColour(charterMultiply(
+            tabStringColor(displayed_string, metrics.displayed_count, metrics.palette), 0.8));
         // The lane centre IS a row centre (tabLaneCenterY snaps it), so the row this line fills
         // is that centre less half a row. Deriving it rather than snapping again with `(int)y`
         // keeps one authority for the fact: a second snap agrees until one of the two moves.
@@ -2346,10 +2346,10 @@ float chipHeight(const TabLaneFont& label_font)
 
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
 // lane-window logic lives with the palette (string_color_palette.h).
-juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
+juce::Colour tabStringColor(
+    int displayed_string, int displayed_string_count, const StringColorPalette& palette)
 {
-    return juce::Colour{stringLaneColor(
-        displayed_string, displayed_string_count, charterClassicPalette())};
+    return juce::Colour{stringLaneColor(displayed_string, displayed_string_count, palette)};
 }
 
 // Rationale lives on the declaration in tab_paint_core.h. The silhouette comes from headShapeFor,
@@ -2493,12 +2493,13 @@ juce::Colour tabShapeMarkColor(bool arpeggio)
 // Base color for a chart string, accounting for extra user lanes below the chart.
 juce::Colour TabLaneMetrics::baseColor(int chart_string) const
 {
-    return tabStringColor(common::core::displayedLane(chart_string, extra_lanes), displayed_count);
+    return tabStringColor(
+        common::core::displayedLane(chart_string, extra_lanes), displayed_count, palette);
 }
 
 TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
-    int chart_string_count, TabLaneStyle style)
+    int chart_string_count, StringColorPalette palette, TabLaneStyle style)
 {
     // The header states these as preconditions and the geometry below DIVIDES by both, so a
     // violation is undefined behaviour rather than a wrong picture: an empty bounds zeroes the
@@ -2525,6 +2526,7 @@ TabLaneMetrics makeTabLaneMetrics(
     metrics.fret_font = boldFont(metrics.fretTextHeight());
     metrics.fraction_font = boldFont(metrics.fretTextHeight() * g_bend_fraction_scale);
     metrics.chip_font = chipLabelFont();
+    metrics.palette = palette;
     return metrics;
 }
 

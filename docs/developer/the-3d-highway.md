@@ -177,7 +177,8 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 |---|---|---|
 | Projection + camera math | `rock_hero::common::core` | public dep of `common::ui` |
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
-| String colors (Charter rules) | `common/ui` `string_color_palette.h` | renderer + 2D tab lane |
+| String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes the palette to `HighwayRenderer::create` and `makeTabLaneMetrics` |
+| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes `defaultHighwayTheme()` to `HighwayRenderer::create`; `setTheme` swaps it without a rebuild |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
 | Resource deploy + install | `rock_hero_deploy_product_resources` | both call it per executable |
@@ -541,7 +542,7 @@ hand, each with its `HandLightStyle`), and visits one hand's lights in the drawn
   stretch where the light follows its track — that stretch's track samples,
   `highwayTrackSampleTimes`), through the per-fragment soft x edges (`fs_window_light`,
   `g_window_light_falloff`), with the spill lane drawn past each edge so the soft band fades fully.
-  One batch per hand; the picking hand's lanes lean toward the FHP orange
+  One batch per hand; the picking hand's lanes lean toward the theme's `fret_number_target`
   (`HandLightStyle::warm_mix`). Alpha-blended rather than additive, so two lights at one position
   composite in submission order instead of summing toward white.
 - **`drawLaneBorderRibbons`** — the bright tier is the rule at now (`lineLightAt`); the mid tier is
@@ -583,17 +584,18 @@ Three marks beside the lights, all on the raw window:
   its node).
 - **Furniture colours** — a hand's chord box (`box_color`, `box_dark_color`, which its accent
   light takes too) and its rails (`rail_color`) wear the hand's furniture colour on its
-  `HandLightStyle`. The fretting hand's is the teal family; the picking hand's is the board's one
-  white — the achromatic string colour the 8th string wears, `g_achromatic_string_color` — so a
-  teal box says strum and a white one says tap, the same reason the picking light leans warm and
-  its pops are white. "As bright as the teal" is matched in PERCEIVED lightness (CIELAB L* with
-  the Fairchild-Pirrotta Helmholtz-Kohlrausch correction), never in luma: a saturated colour looks
-  brighter than its luminance, so a luma-matched neutral looks darker and reads grey. The white is
-  the 8th string's hue cooled a touch (the bluing effect) and lifted to the teal box's perceived
-  81, worn under the box's own alphas; the rail is that white at the alpha whose blend over the
-  dark board lands the teal rail's 61; the rim is the grey at the teal rim's luma (`hueless`): box
-  `0xFFC0C7D8`, rim `0xFF2A2A2A`, rails `0xBAC0C7D8`. The pops' `mark_color` is a
-  separate colour, because a pop is additive glow and the furniture is solid.
+  `HandLightStyle`, derived from the theme by `frettingHandStyle` and `pickingHandStyle`. The
+  fretting hand's is the chord-box family (`chord_box`, `chord_box_dark`, rails in `lane_border`);
+  the picking hand's is `pick_furniture`, so in the default look a teal box says strum and a white
+  one says tap, the same reason the picking light leans warm and the hands' pops differ. Only the
+  box colour is a role: the picking rim is `hueless(chord_box_dark)`, and the picking rails are
+  `pick_furniture` at a fixed alpha. The default white is matched to the teal in PERCEIVED
+  lightness (CIELAB L* with the Fairchild-Pirrotta Helmholtz-Kohlrausch correction), never in luma:
+  a saturated colour looks brighter than its luminance, so a luma-matched neutral looks darker and
+  reads grey. It is the 8th string's grey cooled a touch (the bluing effect) and lifted to the teal
+  box's perceived 81; the rail alpha lands the teal rail's 61 over the dark board: box
+  `0xFFC0C7D8`, rim `0xFF2A2A2A`, rails `0xBAC0C7D8`. The pops' `mark_color` (`strike_fretting`,
+  `strike_picking`) is a separate colour, because a pop is additive glow and the furniture is solid.
 - **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
   landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar
   spans the window) its box's two sides. They are chart facts, `HighwayHandLight::pops`
@@ -604,8 +606,8 @@ Three marks beside the lights, all on the raw window:
   its hand landing on the same strips (the same fret's wires, or the box sides — every box pop of a
   hand lights its live window's sides), so a fast run keeps a discrete pop per strike; pops at one
   instant are one strike and never clamp each other. `drawStrikeGlow` only reads each hand's
-  still-fading run, draws it in the hand's `mark_color` — amber for the fretting hand, white for
-  the picking hand — max-resolving a wire two pops of one hand share, while the two hands' strips
+  still-fading run, draws it in the hand's `mark_color` — `strike_fretting` for the fretting
+  hand, `strike_picking` for the picking hand — max-resolving a wire two pops of one hand share, while the two hands' strips
   add; the box sides stand at the hand's live window.
 
 The **FHP silence fade** — the backlight going out through a left-hand rest and returning ahead of

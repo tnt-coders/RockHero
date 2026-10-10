@@ -15,7 +15,9 @@
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/render/render_device.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
 #include <rock_hero/game/core/resources/game_resources.h>
 #include <string>
@@ -151,7 +153,11 @@ std::optional<int> RockHeroGame::onInit()
         }
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
-        common::ui::HighwayRenderer::create(*highway_shaders, highway_textures);
+        common::ui::HighwayRenderer::create(
+            *highway_shaders,
+            highway_textures,
+            common::ui::defaultHighwayTheme(),
+            common::ui::charterClassicPalette());
     if (!renderer.has_value())
     {
         std::println(stderr, "rock-hero: {}", renderer.error().message);

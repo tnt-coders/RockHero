@@ -1,8 +1,8 @@
 # Catch2 covers the shared string-color palette data, the Charter-exact derivation math, the
-# highway atlas layout arithmetic, the head-mark decisions, floor-mark rules and glide path the 3D
-# draw pass reads, the highway renderer's own headless lifecycle on bgfx's Noop backend, and the
-# tab feature: lane geometry, the layout manifest, and the notation paint core's software-rasterized
-# pixel output.
+# highway theme's default colors and the backdrop's clear-color packing, the highway atlas layout
+# arithmetic, the head-mark decisions, floor-mark rules and glide path the 3D draw pass reads, the
+# highway renderer's own headless lifecycle on bgfx's Noop backend, and the tab feature: lane
+# geometry, the layout manifest, and the notation paint core's software-rasterized pixel output.
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
@@ -16,6 +16,7 @@ add_executable(
     test_highway_head_marks.cpp
     test_highway_renderer_smoke.cpp
     test_highway_slide_path.cpp
+    test_highway_theme.cpp
     test_render_device.cpp
     test_string_color_palette.cpp
     test_tab_lane_layout.cpp

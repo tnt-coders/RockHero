@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <string>
@@ -157,7 +158,8 @@ struct RecordingRulerListener final : TimelineRuler::Listener
             .end = common::core::TimePosition{4.0},
         },
         6,
-        6);
+        6,
+        common::ui::charterClassicPalette());
 }
 
 // A blank span chip's width in that lane: a one-figure fret-hand chip's.

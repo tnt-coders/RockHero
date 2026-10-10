@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/testing/view_state_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
@@ -219,28 +220,6 @@ TEST_CASE("TabView resolves the displayed string count", "[ui][tab-view]")
     CHECK(common::core::displayedStringCount(8, 6) == 8);
 }
 
-// The six highest lanes keep Charter's default set anchored at red on the sixth-highest lane, so
-// a bass keeps red-orange and extended-range strings extend downward through our tertiary tier.
-TEST_CASE("TabView colors strings by their standard-window position", "[ui][tab-view]")
-{
-    const juce::Colour red = tabStringColor(1, 6);
-    const juce::Colour purple = tabStringColor(6, 6);
-    CHECK(red == juce::Colour{0xffed0000});
-    CHECK(purple == juce::Colour{0xffd22cf8});
-
-    // A four-string bass keeps the same low-string colors as a guitar's bottom four.
-    CHECK(tabStringColor(1, 4) == red);
-    CHECK(tabStringColor(4, 4) == juce::Colour{0xffff870a});
-
-    // Extended-range lanes push the standard window up and take tertiary colors below it.
-    CHECK(tabStringColor(2, 7) == red);
-    CHECK(tabStringColor(1, 7) == juce::Colour{0xff00b5a0});
-    // The eighth string takes the achromatic near-white; the seventh keeps teal. Eight is the lane
-    // cap (g_max_chart_strings), so no ninth-or-beyond colors are exercised.
-    CHECK(tabStringColor(1, 8) == juce::Colour{0xffb6b6b6});
-    CHECK(tabStringColor(2, 8) == juce::Colour{0xff00b5a0});
-}
-
 // Standard tablature orientation: the highest string takes the top lane. Lanes evenly fill the
 // row, and the host sizes the row in proportion to the string count, so the per-lane spacing is
 // identical (20px here) whether it is a four-string bass, a six-string guitar, or an eight-string.
@@ -436,7 +415,8 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
     view.setVisibleContentLeft(60);
     const juce::Image pinned = renderOverCanvas(view);
     const juce::Rectangle<int> pinned_column = view.legendBounds();
-    const juce::Colour top_string_ink = tabStringColor(6, 6);
+    const juce::Colour top_string_ink =
+        common::ui::tabStringColor(6, 6, common::ui::charterClassicPalette());
     REQUIRE(top_string_ink.getBlue() > top_string_ink.getGreen() + 150);
     CHECK(anyPixelIn(
         pinned,
@@ -531,8 +511,8 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
 
     const juce::Rectangle<int> column = view.legendBounds();
     REQUIRE_FALSE(column.isEmpty());
-    const common::ui::TabLaneMetrics metrics =
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6, common::ui::charterClassicPalette());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const juce::Rectangle<float> chip =
         common::ui::tabFhpChipBounds(metrics, fixture->fret_hand_positions.front(), 0.0f);
@@ -588,7 +568,12 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
 
     // The column the lane really draws, measured by the paint core rather than guessed here.
     const juce::Rectangle<int> column = common::ui::tabStringLegendBounds(
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
+        common::ui::makeTabLaneMetrics(
+            juce::Rectangle<int>{0, 0, 200, 120},
+            timeline,
+            6,
+            6,
+            common::ui::charterClassicPalette()),
         common::core::testing::standardTuning(),
         0);
     REQUIRE_FALSE(column.isEmpty());
@@ -874,7 +859,12 @@ TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view
     view.setEditState(
         core::ChartEditViewState{.caret = core::ChartCaretViewState{.seconds = 1.0, .string = 1}});
     const common::ui::TabLayoutRect square = common::ui::tabSlotHeadSquare(
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
+        common::ui::makeTabLaneMetrics(
+            juce::Rectangle<int>{0, 0, 200, 120},
+            timeline,
+            6,
+            6,
+            common::ui::charterClassicPalette()),
         1.0,
         1);
     const auto square_left = static_cast<int>(std::floor(square.x));
@@ -1567,7 +1557,12 @@ TEST_CASE(
             makeCroppedKeyframeState(ring_end_seconds, keyframe);
         view.setState(state, 0);
         return common::ui::tabKeyframeLayout(
-            common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
+            common::ui::makeTabLaneMetrics(
+                juce::Rectangle<int>{0, 0, 200, 120},
+                timeline,
+                6,
+                6,
+                common::ui::charterClassicPalette()),
             state->notes[0],
             state->notes[0].keyframes.front(),
             ring_end_seconds,
@@ -1741,7 +1736,8 @@ TEST_CASE(
                     .end = common::core::TimePosition{20.0},
                 },
                 6,
-                6),
+                6,
+                common::ui::charterClassicPalette()),
             landing)
             .center_y);
 
@@ -1816,8 +1812,8 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
         return image;
     };
 
-    const common::ui::TabLaneMetrics metrics =
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6);
+    const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6, common::ui::charterClassicPalette());
     const std::optional<common::ui::TabLayoutRect> chip =
         common::ui::tabKeyframeLayout(
             metrics, note, note.keyframes.front(), note.ink_end_seconds, true)
@@ -1911,8 +1907,8 @@ TEST_CASE("TabView draws a selected note's bend chip over the caret square", "[u
         return image;
     };
 
-    const common::ui::TabLaneMetrics metrics =
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6);
+    const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6, common::ui::charterClassicPalette());
     const std::optional<common::ui::TabLayoutRect> chip =
         common::ui::tabNoteLayout(metrics, note).bend_chip;
     REQUIRE(chip.has_value());
@@ -2118,8 +2114,8 @@ TEST_CASE("TabView reports a press on a fret-hand chip as its placement", "[ui][
 
     // The second placement's chip starts at its own column, 12.0s of a 20s window over 200 pixels,
     // well clear of the legend panel at the window's left.
-    const common::ui::TabLaneMetrics metrics =
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6, common::ui::charterClassicPalette());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<float> chip =
@@ -2160,8 +2156,8 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
     view.setEditState(core::ChartEditViewState{.selected_fret_hand_position = 1});
     const juce::Image selected = renderOverCanvas(view);
 
-    const common::ui::TabLaneMetrics metrics =
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6, common::ui::charterClassicPalette());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<int> chip =
@@ -2225,8 +2221,8 @@ TEST_CASE("TabView draws a fret-hand entry's box on its chip", "[ui][tab-view]")
         });
     const juce::Image pending = renderOverCanvas(view);
 
-    const common::ui::TabLaneMetrics metrics =
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6, common::ui::charterClassicPalette());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<int> chip =

@@ -13,6 +13,8 @@
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -116,11 +118,14 @@ public:
     \param shaders Compiled stage binaries for the highway programs.
     \param textures Texture assets; every member is required, and a missing or invalid one
            fails creation with TextureAssetInvalid.
+    \param theme Colors the board draws with until \ref setTheme replaces them.
+    \param palette String colors every per-string surface derives from.
     \return The renderer, or a typed error naming the failed program or invalid texture
             asset.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
-        const HighwayShaderSet& shaders, const HighwayTextureSet& textures);
+        const HighwayShaderSet& shaders, const HighwayTextureSet& textures, HighwayTheme theme,
+        StringColorPalette palette);
 
     /*! \brief Destroys every owned GPU resource; must run before bgfx shutdown. */
     ~HighwayRenderer();
@@ -182,6 +187,16 @@ public:
     \param options Display mapping to apply from the next frame.
     */
     void setDisplayOptions(common::core::HighwayDisplayOptions options);
+
+    /*!
+    \brief Replaces the colors the board draws with, from the next frame.
+
+    Changes no geometry, texture or string color, so a look that differs only in color never
+    recreates the renderer.
+
+    \param theme Colors to draw with.
+    */
+    void setTheme(HighwayTheme theme);
 
     /*!
     \brief Encodes one frame of the highway into the render views.

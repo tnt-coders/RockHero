@@ -61,7 +61,9 @@
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/render/render_device.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -465,8 +467,8 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
     // The renderer lives in an inner scope so its GPU handles are destroyed while bgfx is still
     // up: its contract is create only against a live device, destroy before bgfx shutdown.
     {
-        std::expected<HighwayRenderer, HighwayRendererError> renderer =
-            HighwayRenderer::create(shaders, loadShippedTextureSet());
+        std::expected<HighwayRenderer, HighwayRendererError> renderer = HighwayRenderer::create(
+            shaders, loadShippedTextureSet(), defaultHighwayTheme(), charterClassicPalette());
         REQUIRE(renderer.has_value());
 
         // Encoding frames before any content is the state both products are in between device
@@ -560,6 +562,14 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
             std::make_shared<const common::core::HighwayViewState>(makeHighwayViewState(
                 makeChartViewState(swap_arrangement, tempo_map), tempo_map, makeSmokeSections())));
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 60);
+
+        // A look that differs only in color, swapped in mid-sweep: setTheme rebuilds nothing, and
+        // the frames after it encode under the new colors.
+        HighwayTheme recolored = defaultHighwayTheme();
+        recolored.backdrop = 0xFF202040U;
+        recolored.chord_box = 0xFFFF00FFU;
+        renderer->setTheme(recolored);
+        drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 30);
 
         // An arrangement with no chart at all: empty scene, no beats, no camera zones — the
         // state the editor preview holds when its song has no arrangement loaded. Back under the

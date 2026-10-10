@@ -37,19 +37,6 @@ see common::ui::tabLaneCenterY.
 inline constexpr int g_tab_reference_string_count{6};
 
 /*!
-\brief Returns the base display color for one string lane.
-
-Delegates to common::ui::tabStringColor, which owns the rule and the palette; the editor keeps this
-name so its lane and ruler code reads in its own vocabulary. Do not restate the derivation here —
-the shared declaration is the one place it is described.
-
-\param displayed_string Lane's string position, 1 = lowest displayed lane.
-\param displayed_string_count Total number of displayed lanes.
-\return Base lane color the tablature style derives its surfaces from.
-*/
-[[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
-
-/*!
 \brief Returns the vertical center of one string lane inside the tablature bounds.
 
 Delegates to common::ui::tabLaneCenterY, which owns the lane stacking and spacing rule. The editor

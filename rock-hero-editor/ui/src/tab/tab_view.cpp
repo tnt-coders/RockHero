@@ -14,6 +14,7 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/shared/displayed_strings.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -67,11 +68,6 @@ bool stepToward(float& progress, const float target, const float step) noexcept
 // The notation rasterizer lives in the shared paint core (rock-hero-common/ui tab/), one
 // authority for the editor lane and the game tab strips; these free functions are thin delegates
 // that let editor widgets and tests read the shared rules in the editor's own vocabulary.
-
-juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
-{
-    return common::ui::tabStringColor(displayed_string, displayed_string_count);
-}
 
 float tabLaneCenterY(
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept
@@ -1044,11 +1040,13 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
         return std::nullopt;
     }
 
+    // The lane draws in the default string palette, which no setting changes.
     common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
         bounds,
         m_visible_timeline,
         common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
-        tab->stringCount());
+        tab->stringCount(),
+        common::ui::charterClassicPalette());
     metrics.retime = m_retime;
     return DrawableLane{.metrics = std::move(metrics), .tab = *tab};
 }

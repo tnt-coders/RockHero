@@ -14,6 +14,7 @@ supplies only bounds, timeline mapping, and state.
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <string>
@@ -43,15 +44,17 @@ inline constexpr float g_lane_chip_corner_radius = 2.0f;
 /*!
 \brief Returns the base display color for one string lane as a JUCE color.
 
-The six highest lanes take the Charter Classic preset's standard colors anchored at the
-sixth-highest lane; lower lanes continue with the extended tier (see stringLaneColor). This is
-the paint core's JUCE conversion of the shared palette authority.
+The six highest lanes take the palette's standard colors anchored at the sixth-highest lane; lower
+lanes continue with the extended tier (see stringLaneColor). This is the paint core's JUCE
+conversion of the shared palette authority.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
+\param palette Preset supplying the lane colors.
 \return Base lane color the tablature style derives its surfaces from.
 */
-[[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
+[[nodiscard]] juce::Colour tabStringColor(
+    int displayed_string, int displayed_string_count, const StringColorPalette& palette);
 
 /*!
 \brief Returns the ink of a span's rails and of its label chip.
@@ -290,10 +293,11 @@ private:
 };
 
 /*!
-\brief Lane geometry plus the JUCE-only facts one paint call needs.
+\brief Lane geometry plus the paint-only facts one paint call needs.
 
 Extends the framework-free TabLaneGeometry (which layout-manifest consumers share) with the
-component bounds and the derived fonts, so every drawer of one paint call reads one authority.
+component bounds, the derived fonts and the string palette, so every drawer of one paint call reads
+one authority.
 */
 struct TabLaneMetrics : TabLaneGeometry
 {
@@ -317,6 +321,9 @@ struct TabLaneMetrics : TabLaneGeometry
     */
     TabLaneFont fraction_font;
 
+    /*! \brief String colors every per-string surface of the lane derives from. */
+    StringColorPalette palette{};
+
     /*!
     \brief Base color for a chart string, accounting for extra user lanes below the chart.
     \param chart_string One-based chart string, 1 = the chart's lowest string.
@@ -332,12 +339,13 @@ struct TabLaneMetrics : TabLaneGeometry
 \param visible_timeline Timeline range represented by the width; must have positive duration.
 \param displayed_count Number of displayed lanes; must be positive.
 \param chart_string_count String count declared by the displayed chart.
+\param palette String colors the lane draws with.
 \param style Optional style variants; the default reproduces the editor lane exactly.
 \return Metrics every drawer of the paint call reads.
 */
 [[nodiscard]] TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
-    int chart_string_count, TabLaneStyle style = {});
+    int chart_string_count, StringColorPalette palette, TabLaneStyle style = {});
 
 /*!
 \brief Returns the outline of the silhouette this note's head is drawn with.

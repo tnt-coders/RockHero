@@ -4,8 +4,9 @@ add_library(rock_hero::common::ui ALIAS rock_hero_common_ui)
 # Shared presentation both products consume: the string-color palette data (JUCE-free by design;
 # consumers convert colors at their own boundary), the highway feature — the shared 3D
 # note-highway renderer and its runtime-rasterized atlases (promoted here so one renderer serves
-# the game and the editor preview instead of duplicated thin drawers) — and the tab feature:
-# the shared 2D notation paint core, lane layout, and layout manifest. bgfx gets the Tracktion
+# the game and the editor preview instead of duplicated thin drawers) — the highway theme (the
+# color roles that renderer draws with, JUCE-free like the palette), and the tab feature: the
+# shared 2D notation paint core, lane layout, and layout manifest. bgfx gets the Tracktion
 # isolation treatment (implementation files only, never a public header); JUCE gets the same
 # except the one designated juce_graphics-bearing paint-core header that
 # architectural-principles.md "UI Modules" allows.
@@ -17,6 +18,7 @@ target_sources(
             src/highway/highway_atlas.cpp
             src/highway/highway_renderer.cpp
             src/highway/structural_art.cpp
+            src/highway_theme/highway_theme.cpp
             src/render/render_device.cpp
             src/string_colors/string_color_palette.cpp
             src/tab/tab_lane_layout.cpp

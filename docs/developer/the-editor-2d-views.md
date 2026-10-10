@@ -699,7 +699,9 @@ String colors come from the **shared palette** in
 `rock-hero-common/ui/.../string_colors/string_color_palette.h` — a JUCE-free authority (colors are
 `uint32_t`) that derives each string's seven surfaces (lane, borders, tail, accent...) from one base
 color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore both products all
-color strings through it. The glyph renderer itself is the **shared notation paint core** in
+color strings through it. Neither surface fetches a palette itself: the host passes one in
+(`makeTabLaneMetrics` carries it on `TabLaneMetrics`; `TabView` passes `charterClassicPalette()`).
+The glyph renderer itself is the **shared notation paint core** in
 `rock-hero-common/ui` `tab/`: `tab_lane_layout.h` holds the framework-free `TabLaneGeometry` and
 lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing,
 and the same for a linked keyframe's head, and for the painter a bracket's **satellite column** —
@@ -739,7 +741,7 @@ because a host puts chrome between them**: `paintTabLane` draws the lane's CONTE
 standing for chart events at their own instants) and `paintTabLaneFurniture` the marks stating what
 is IN FORCE across a stretch — the hand-shape rails, the capo chip, the fret-hand chips. A host with
 nothing to interleave calls them back to back. The editor keeps thin delegate functions
-(`tabStringColor`, `tabLaneCenterY`, ...) on its own surface so editor widgets and tests are
+(`tabLaneCenterY`, ...) on its own surface so editor widgets and tests are
 unaffected; the paint core's pixel output is pinned by exact-color tests in
 `rock_hero_common_ui_tests`. Those delegates carry no documentation of their own rules —
 `tab_view.h` points at the shared declarations instead, because a delegate that restates the rule it
