@@ -2,8 +2,9 @@
 
 ## Status
 
-**Sub-plan of `docs/plans/roadmap/60-the-hand.md`, split out 2026-10-04.** Phases 0, 1 and 2 are
-DONE (Phase 1 closed 2026-10-04 at 88.213% exact, identical to its reference). The master's
+**Sub-plan of `docs/plans/roadmap/60-the-hand.md`, split out 2026-10-04.** **DONE 2026-10-09:**
+Phase 3's sighting is signed (the position row's grayed derived chips walk, authored chips draw
+solid, Prune drops what states nothing). Phases 0, 1 and 2 are DONE (Phase 1 closed 2026-10-04 at 88.213% exact, identical to its reference). The master's
 rename sweep is DONE (`c910b8d8`). **Phase 2 is DONE 2026-10-08, its sighting included (sighted
 2026-10-07):** `16878e2f` the derivation takes authored positions; `3b8966db` positions derive at
 read; `b8eb6f82` and `959fcb9c` the slide-out ride; `3d8bb3a1` the row over every position, with
@@ -388,8 +389,8 @@ with their tests in `test_editor_controller_marker_rows.cpp` and `test_tab_paint
 (`6d2cdc01`): the row walking the derived windows of a chart storing no position, a stored
 position on a derived front as one row object, and the strictly-ascending-fronts invariant in
 `test_chart_fret_hand.cpp` with its census ZERO row (0 over the GP corpus); the rail and span
-tests moved to `60b-holds.md` with item 3. Only the user's sighting (§8's brief) remains, and the
-phase is not done until it is signed.
+tests moved to `60b-holds.md` with item 3. The user's sighting (§8's brief) was signed
+2026-10-09, so the phase is DONE.
 
 **REVISED 2026-10-04 (§1a).** The row is the POSITION row, and its items read so: item 1 (the
 derived events as the row's objects) and item 2 (the authored tell) stand, for positions; item 3

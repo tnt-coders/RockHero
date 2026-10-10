@@ -5,8 +5,8 @@
 The hand is one design built as two plans, in this order (user, 2026-10-04):
 
 1. **The rename sweep** — below. DONE 2026-10-04 (`c910b8d8`).
-2. **`docs/plans/roadmap/60a-fret-hand-positions.md`** — where the hand is. Phases 0, 1 and 2 are
-   DONE; Phase 3 is next.
+2. **`docs/plans/roadmap/60a-fret-hand-positions.md`** — where the hand is. DONE: Phases 0–3,
+   Phase 3's sighting signed 2026-10-09.
 3. **`docs/plans/roadmap/60b-holds.md`** — what the hand holds. NOT STARTED; Phases 4 and 5.
 4. **Phase 6, the let-ring hand coupling** (§7 here) — after Phase 4, because it needs the
    positions and the hold; it needs nothing from Phase 5, which may follow it (§10).
