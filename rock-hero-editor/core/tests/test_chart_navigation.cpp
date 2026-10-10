@@ -27,20 +27,26 @@ TEST_CASE("Chart navigation resolves caret destinations", "[core][chart]")
 
     SECTION("the measure jump lands on downbeats the Guitar Pro way")
     {
+        const common::core::GridPosition chart_end{.measure = 9, .beat = 3, .offset = {}};
         const common::core::GridPosition mid{.measure = 3, .beat = 2, .offset = {}};
         CHECK(
-            measureJumpPosition(mid, true) ==
+            measureJumpPosition(mid, true, chart_end) ==
             common::core::GridPosition{.measure = 4, .beat = 1, .offset = {}});
         // Earlier from mid-measure is the current downbeat; from a downbeat, the previous one.
         CHECK(
-            measureJumpPosition(mid, false) ==
+            measureJumpPosition(mid, false, chart_end) ==
             common::core::GridPosition{.measure = 3, .beat = 1, .offset = {}});
         const common::core::GridPosition downbeat{.measure = 3, .beat = 1, .offset = {}};
         CHECK(
-            measureJumpPosition(downbeat, false) ==
+            measureJumpPosition(downbeat, false, chart_end) ==
             common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}});
         // The first measure has no predecessor.
-        CHECK(measureJumpPosition(chartStartPosition(), false) == chartStartPosition());
+        CHECK(measureJumpPosition(chartStartPosition(), false, chart_end) == chartStartPosition());
+        // The chart ends at its terminal, mid-measure here: the last jump lands on it, and from it
+        // there is nothing later.
+        const common::core::GridPosition last_downbeat{.measure = 9, .beat = 1, .offset = {}};
+        CHECK(measureJumpPosition(last_downbeat, true, chart_end) == chart_end);
+        CHECK(measureJumpPosition(chart_end, true, chart_end) == chart_end);
     }
 
     SECTION("the adjacent section stop is the nearest strictly past the reference")

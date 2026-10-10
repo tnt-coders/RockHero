@@ -188,7 +188,7 @@ public:
     void setProjectLoaded(bool project_loaded);
 
     /*!
-    \brief Stores the full timeline used to size zoomable content and resets zoom on changes.
+    \brief Stores the full timeline used to size zoomable content, keeping the zoom.
 
     An unchanged range returns early: every controller state push repeats the range, and the
     relayout would otherwise pay a redundant grid rescan per push.

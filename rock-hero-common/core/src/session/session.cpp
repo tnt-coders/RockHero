@@ -4,23 +4,13 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::core
 {
 
 namespace
 {
-
-// Derives the displayed timeline from the current arrangement audio. The timeline always begins
-// at the song's first beat and runs through the end of the audio, which a positive asset offset
-// pushes later (silence fills the gap before the audio starts).
-[[nodiscard]] TimeRange calculateTimeline(const Arrangement& arrangement) noexcept
-{
-    return TimeRange{
-        .start = TimePosition{},
-        .end = arrangement.audioTimelineRange().end,
-    };
-}
 
 // Reports whether backend audio loading prepared the arrangement for a playable session.
 [[nodiscard]] bool hasLoadedAudio(const Arrangement& arrangement) noexcept
@@ -49,7 +39,6 @@ void Session::reset()
 {
     m_song = Song{};
     m_current_arrangement_index = 0;
-    m_timeline = TimeRange{};
 }
 
 // Exposes the full loaded song aggregate for read-only editor and test observation.
@@ -64,10 +53,24 @@ const std::vector<Arrangement>& Session::arrangements() const noexcept
     return m_song.arrangements;
 }
 
-// Exposes current-arrangement timeline mapping without letting callers mutate it independently.
+// Derived on every read, so no edit can leave it stale. It begins at the song's first beat and runs
+// to whichever ends later: the current arrangement's audio, which a positive asset offset pushes
+// later (silence fills the gap before the audio starts), or the tempo map's terminal anchor, the
+// end of everything the grid addresses, so the whole chart is reachable on screen.
 TimeRange Session::timeline() const noexcept
 {
-    return m_timeline;
+    const Arrangement* const arrangement = currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return TimeRange{};
+    }
+    const std::vector<BeatAnchor>& anchors = m_song.tempo_map.anchors();
+    const double terminal_seconds = anchors.empty() ? 0.0 : anchors.back().seconds();
+    return TimeRange{
+        .start = TimePosition{},
+        .end =
+            TimePosition{std::max(arrangement->audioTimelineRange().end.seconds, terminal_seconds)},
+    };
 }
 
 // Returns the arrangement shown by the current single-arrangement editor surface.
@@ -94,12 +97,9 @@ bool Session::loadSong(Song song, std::size_t selected_arrangement)
         return false;
     }
 
-    const Arrangement& arrangement = song.arrangements[selected_arrangement];
-    const TimeRange timeline = calculateTimeline(arrangement);
     m_song = std::move(song);
     ++m_notes_revision;
     m_current_arrangement_index = selected_arrangement;
-    m_timeline = timeline;
     return true;
 }
 

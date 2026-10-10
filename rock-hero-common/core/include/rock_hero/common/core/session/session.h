@@ -48,8 +48,9 @@ public:
     [[nodiscard]] const std::vector<Arrangement>& arrangements() const noexcept;
 
     /*!
-    \brief Returns the timeline range covered by the current arrangement content.
-    \return Current arrangement timeline range.
+    \brief Returns the timeline range the song covers: from its first beat to the later of the
+    current arrangement's audio end and the tempo map's terminal anchor.
+    \return The song's timeline range, empty without an arrangement.
     */
     [[nodiscard]] TimeRange timeline() const noexcept;
 
@@ -243,9 +244,6 @@ private:
 
     // Index of the arrangement currently shown by the single-arrangement editor surface.
     std::size_t m_current_arrangement_index{0};
-
-    // Canonical timeline range for the current arrangement content.
-    TimeRange m_timeline{};
 
     // Every write that changes a projection advances exactly one of these two, so their sum,
     // chartRevision(), advances on each. Both deliberately survive loadSong/reset so neither the

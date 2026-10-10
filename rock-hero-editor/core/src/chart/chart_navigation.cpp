@@ -18,13 +18,16 @@ CaretTimeBounds caretTimeBounds(
 }
 
 common::core::GridPosition measureJumpPosition(
-    const common::core::GridPosition& from, const bool later) noexcept
+    const common::core::GridPosition& from, const bool later,
+    const common::core::GridPosition& chart_end) noexcept
 {
+    if (later)
+    {
+        return std::max(std::min(common::core::measureDownbeat(from.measure + 1), chart_end), from);
+    }
     const bool at_measure_start = common::core::measureDownbeat(from) == from;
-    const int target_measure = later              ? from.measure + 1
-                               : at_measure_start ? std::max(1, from.measure - 1)
-                                                  : from.measure;
-    return common::core::measureDownbeat(target_measure);
+    return common::core::measureDownbeat(
+        at_measure_start ? std::max(1, from.measure - 1) : from.measure);
 }
 
 // One binary search either way; the strictness is what makes "previous" from inside a span land on

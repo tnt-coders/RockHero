@@ -1757,7 +1757,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     {
         // The Guitar Pro measure jump, shared with the time-selection extend so the two never
         // drift on the same motion.
-        stepped = measureJumpPosition(caret.position, sign > 0);
+        stepped = measureJumpPosition(
+            caret.position,
+            sign > 0,
+            common::core::terminalGridPosition(session().song().tempo_map));
     }
     else
     {
@@ -2046,7 +2049,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
         }
         case TimeSelectionExtent::Measure:
         {
-            next_focus = measureJumpPosition(focus, later);
+            next_focus =
+                measureJumpPosition(focus, later, common::core::terminalGridPosition(tempo_map));
             break;
         }
         case TimeSelectionExtent::Section:

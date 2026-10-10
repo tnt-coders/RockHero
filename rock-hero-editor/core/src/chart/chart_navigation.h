@@ -69,13 +69,18 @@ The caret jumps and the time-selection extend both resolve their target through 
 verbs can never land on different positions for the same motion — the same "shared adjacent-line
 primitive" law the plain grid step already follows.
 
+Forward, the chart ends at its terminal: a jump past it lands on it, and from the terminal itself
+the result equals the input, the refusal callers already treat as nothing to do.
+
 \param from Position the jump starts from.
 \param later True for the forward direction.
+\param chart_end The chart's last position, the terminal anchor's.
 
-\return The destination downbeat.
+\return The destination downbeat, or the chart's end.
 */
 [[nodiscard]] common::core::GridPosition measureJumpPosition(
-    const common::core::GridPosition& from, bool later) noexcept;
+    const common::core::GridPosition& from, bool later,
+    const common::core::GridPosition& chart_end) noexcept;
 
 /*!
 \brief The chart's first position (measure 1, beat 1) — the Home / chart-start destination.

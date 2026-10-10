@@ -264,8 +264,10 @@ stepping and re-snapping, which is what makes the walk exactly reversible on eve
 back from any line returns to the line it was stepped from, even where the measure length leaves
 the last line an odd half-step short of the next downbeat (a 1/4 grid in 7/8).
 
-The grid origin has no earlier line, so stepping earlier from it returns the position unchanged;
-callers treat a result equal to the input as a refusal. Note-value validity policy stays with the
+The grid origin has no earlier line, so stepping earlier from it returns the position unchanged,
+and the chart ends at the terminal anchor (\ref terminalGridPosition): a later line past it lands
+on the terminal, and stepping later from the terminal returns the position unchanged. Callers
+treat a result equal to the input as a refusal. Note-value validity policy stays with the
 caller as for \ref snapGridPosition: a note value under a tick or a degenerate signature also
 returns the position unchanged.
 

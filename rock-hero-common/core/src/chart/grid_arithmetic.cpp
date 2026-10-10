@@ -269,8 +269,12 @@ GridPosition adjacentGridPosition(
     if (later)
     {
         // The line after the last one at or before the position is the first strictly beyond it,
-        // whether the position sits on a line or between two.
-        return linePosition(*lattice, position.measure, index + 1);
+        // whether the position sits on a line or between two. The chart ends at the terminal
+        // anchor: a line past it is clamped onto it, and from the terminal itself there is nothing
+        // later, the mirror of the origin's refusal below.
+        const GridPosition next = linePosition(*lattice, position.measure, index + 1);
+        const GridPosition terminal = terminalGridPosition(tempo_map);
+        return next <= terminal ? next : std::max(position, terminal);
     }
 
     // Earlier: the last line at or before the position — unless the position sits ON it, where the

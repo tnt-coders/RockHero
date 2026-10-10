@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/song/song_timeline.h>
+#include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <utility>
 #include <vector>
@@ -152,6 +153,24 @@ TEST_CASE("Session timeline extends past offset audio from zero", "[core][sessio
                                   .start = TimePosition{},
                                   .end = TimePosition{9.5},
                               });
+}
+
+// The timeline reaches the tempo map's terminal anchor where it stands past the audio, so the
+// whole chart the grid addresses is on screen, and it follows the map as an edit moves the
+// terminal: it is derived on every read, never cached at load.
+TEST_CASE("Session timeline reaches a terminal anchor past the audio", "[core][session]")
+{
+    using rock_hero::common::core::testing::anchor;
+    using rock_hero::common::core::testing::commonTimeMap;
+    Session session;
+    REQUIRE(session.loadSong(
+        makeSongWithAudio(std::filesystem::path{"full_mix.wav"}, TimeDuration{7.5}), 0));
+
+    session.setTempoMap(commonTimeMap({anchor("1:1", 0), anchor("6:1", 10000)}));
+    CHECK(session.timeline() == TimeRange{.start = TimePosition{}, .end = TimePosition{10.0}});
+
+    session.setTempoMap(commonTimeMap({anchor("1:1", 0), anchor("3:1", 4000)}));
+    CHECK(session.timeline() == TimeRange{.start = TimePosition{}, .end = TimePosition{7.5}});
 }
 
 // Verifies loading a later song replaces the previous aggregate.

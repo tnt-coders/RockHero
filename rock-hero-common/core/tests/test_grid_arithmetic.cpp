@@ -396,6 +396,28 @@ TEST_CASE("Grid stepping crosses a downbeat onto the previous meter's last line"
     CHECK(adjacentGridPosition(map, downbeat, Fraction{}, true) == downbeat);
 }
 
+// The chart ends at its terminal anchor, the mirror of the origin: a later step lands on the
+// terminal where the next line would pass it — mid-measure here, between two quarter lines on an
+// eighth — and from the terminal itself there is nothing later. A terminal on a downbeat is reached
+// as the line it is.
+TEST_CASE("Grid stepping stops at the terminal anchor", "[core][chart]")
+{
+    const Fraction quarter_grid{1, 4};
+    const GridPosition last_line{.measure = 5, .beat = 3, .offset = {}};
+
+    const GridPosition mid_terminal{.measure = 5, .beat = 3, .offset = Fraction{1, 2}};
+    const TempoMap mid = TempoMap{commonTime(), {anchor("1:1", 0), anchor("5:3+1/2", 9250)}};
+    CHECK(adjacentGridPosition(mid, last_line, quarter_grid, true) == mid_terminal);
+    CHECK(adjacentGridPosition(mid, mid_terminal, quarter_grid, true) == mid_terminal);
+    CHECK(adjacentGridPosition(mid, mid_terminal, quarter_grid, false) == last_line);
+
+    const GridPosition downbeat_terminal{.measure = 6, .beat = 1, .offset = {}};
+    const TempoMap whole = TempoMap{commonTime(), {anchor("1:1", 0), anchor("6:1", 10000)}};
+    const GridPosition last_beat{.measure = 5, .beat = 4, .offset = {}};
+    CHECK(adjacentGridPosition(whole, last_beat, quarter_grid, true) == downbeat_terminal);
+    CHECK(adjacentGridPosition(whole, downbeat_terminal, quarter_grid, true) == downbeat_terminal);
+}
+
 // THE ONE ROUNDING RULE: the nearest whole tick, a tie going to the earlier one, and whole ticks
 // passing through untouched.
 TEST_CASE("The tick rounding rule takes the nearest tick and the earlier on a tie", "[core][chart]")

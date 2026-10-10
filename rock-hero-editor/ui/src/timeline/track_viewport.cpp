@@ -320,9 +320,10 @@ void TrackViewport::setProjectLoaded(bool project_loaded)
     repaint();
 }
 
-// Stores the full timeline used to size zoomable content and resets zoom on range changes.
-// An unchanged range returns early: every controller state push repeats the range, and the
-// relayout would otherwise pay a redundant grid rescan per push.
+// Stores the full timeline used to size zoomable content, keeping the zoom: the range grows and
+// shrinks with the song's end (a typed tempo can move it), and the relayout clamps the zoom into
+// the new range. An unchanged range returns early: every controller state push repeats the range,
+// and the relayout would otherwise pay a redundant grid rescan per push.
 void TrackViewport::setTimelineRange(common::core::TimeRange timeline_range)
 {
     if (m_timeline_range == timeline_range)
@@ -331,7 +332,6 @@ void TrackViewport::setTimelineRange(common::core::TimeRange timeline_range)
     }
 
     m_timeline_range = timeline_range;
-    m_pixels_per_second = g_default_pixels_per_second;
     layoutScaledCanvas();
 }
 
