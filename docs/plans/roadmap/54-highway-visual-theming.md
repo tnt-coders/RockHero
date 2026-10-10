@@ -222,7 +222,9 @@ cannot collapse a distinction:
 - `fret_number_lit`, `fret_number_dim`, `fret_number_target` — pairwise;
 - `strike_fretting` vs `strike_picking` — the two hands' pops;
 - plus one order check: luma(`fret_line_lit`) exceeds luma(`fret_line`) by a margin, since the hand
-  window is read from it.
+  window is read from it;
+- from Phase 4b, `distinct()` between the two 2D shape inks derived from `lane_border` and
+  `arpeggio`, which share a luminance by construction.
 
 Texture contracts: the two existing measurements (`measureHeadArtProfile`,
 `measureBoxMuteProfiles`) plus a grid-dimension check per asset.
@@ -658,8 +660,25 @@ look. **Verification**: build, touched tests.
 
 ### Phase 4b — One authority for the 2D lane; the mark sheet splits
 
-- **The 2D paint core** reads `chord_box`, `arpeggio` and `full_mute_mark` from the active theme
-  instead of `tab_paint_core.cpp:37-42`, so a distinction both surfaces draw has one authority.
+- **The 2D shape inks follow the theme's hues.** The 2D shape rails echo the 3D shape rails, so
+  their sources are the roles those rails wear: `lane_border` for a held shape and `arpeggio` for
+  an arpeggio span (`highway_renderer.cpp:5921`), never `chord_box`. The 2D lane derives each ink
+  by one fixed law, the way a string's surfaces derive from its palette color:
+  - The ink also grounds the span chip's opaque white label (`tab_paint_core.cpp:2728-2734`), so
+    the law sets the relative luminance that gives white the lane's designed label contrast
+    (about 4.45:1, a luminance near 0.186).
+  - A base brighter than that is scaled in linear light, which keeps its hue and saturation
+    exactly; a darker one that cannot scale up without a channel passing full is blended toward
+    white, keeping hue and giving up a little saturation.
+  - `tabShapeMarkColor` takes the base; `g_hand_shape_color`, `g_hand_shape_arpeggio_color` and
+    the two hand-tuned scales (:151-155) are deleted.
+  - The result reads on any editor background, so no backdrop or light-theme rule is needed.
+  - **The one added guardrail:** the two derived inks share a luminance by construction, so
+    `distinct()` also holds between them, not only between their bases.
+  - The mute inks stay the lane's own: `full_mute_mark` tints only the 3D full-mute X, while the
+    2D mute rim is shared by every mute mark and carries no palm/dead distinction.
+  - Under today's values the 2D rails turn from Charter's blue and purple to a darkened teal and
+    purple; the Phase 4b sighting judges both themes in both surfaces.
 - **S3's sheet split** per 54-Q17 moves today's mark cells unchanged, which is zero visual change,
   and measures the second texture's cost. The private theme's `notes.png` is re-cut locally to the
   heads-only layout so it still passes the contract.
