@@ -4,7 +4,7 @@
 2026-10-09 against `602d5504`, then re-sequenced again the same day so the default look is
 sighted before theme loading exists, and 54-Q18/Q19 recast as theme choices the player can pin.
 **Executing:** Phase 1 landed 2026-10-10 (`HighwayTheme` and `defaultHighwayTheme()`; the string
-palette is a separate `create` argument); its garish coverage sighting is still owed. **Phase 0 has a direction for the default look**
+palette is a separate `create` argument); its coverage check moved to Phase 3's fixture. **Phase 0 has a direction for the default look**
 (below) and still gates the art phases (54-Q5 to 54-Q21, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
@@ -272,7 +272,9 @@ Texture contracts: the two existing measurements (`measureHeadArtProfile`,
 
 Re-verified at `602d5504`: every color constant and its value is unchanged. Renderer lines after
 :5808 sit two lower than cited here, the 2D lane's palette fetch is at `tab_paint_core.cpp:2352`,
-and the 2D fixed colors are still at :37-42.
+and the 2D fixed colors are still at :37-42. **This section is the pre-Phase-1 baseline.** Phase 1
+(`3b98a871`) replaced the color constants with `HighwayTheme` reads, gave `create` the theme and
+the palette, and injected the palette into both surfaces; renderer line numbers below predate it.
 
 - **Renderer**: `HighwayRenderer::create(const HighwayShaderSet&, const HighwayTextureSet&)`,
   `setViewState`, `draw`, plus `resetCamera`, `cameraPose`, `setDisplayOptions`
@@ -560,17 +562,10 @@ Phase 2a moves the default's values into its `theme.json` by copying them, and b
 share the one renderer, so every step shows in both. The cost, accepted by the user on 2026-10-09: today's look
 cannot be selected in-app until Phase 2a lands, and comparing the two looks means two builds.
 
-1. **Phase 1:** every color is a theme read, with zero visual change, proven by a throwaway local
-   build with garish values.
-2. **Phase 1b, the switch:** today's look is saved as files outside the tree; the default takes
-   the ice-blue values, the rectangle head art and RockHero's circle inlay. **This is the first
-   sighting**, in both products, with today's marks and repeat cells. 54-Q20, the inlay's
-   opacity, whether ice blue reads too close to today's look, and whether the anticipation ring
-   stays (54-Q21) are decided there from local variants.
+1. **Phase 1:** every color is a theme read, with zero visual change (landed).
+2. **Phase 1b, the switch and the first sighting** (below).
 3. **Phase 4a:** the box chord device and posts in code. With it the default look is complete and
-   sighted again.
-
-Phases 1b and 4a may run in either order; 1b first puts the colors in front of the user soonest.
+   sighted again. It follows 1b because its sighting judges the device in the switched colors.
 
 Theme directories, the default theme as a file and the private theme loading in-app (Phases 2a
 and 3), pickers and inheritance (Phase 2b), the 2D theme reads and the mark-sheet split (Phase 4b), the shape
@@ -606,10 +601,12 @@ Phase 5 begins.**
 
 **Tests**: `test_highway_theme.cpp` pins all 23 roles' current values including alpha; the
 backdrop conversion round-trips `0x000000ff`; the smoke and render-device tests still bring the
-renderer up. **Coverage, before any loader exists:** a throwaway local build gives every role a
-distinct, garish value and is sighted once in both products; any element that keeps its old color
-reads a constant, not the theme. It is never committed. **Verification**: configure (new
-sources), build, touched tests.
+renderer up. **Coverage** is proven without a sighting here: every former constant is deleted, so
+a missed read cannot compile; every role has a theme read; no color literal remains in the
+renderer beyond channel masks and the tail-shading law's white and black; the shaders carry
+none; and the glyph and head atlases are tinted per vertex. The ice sighting shows any element
+whose role changes hue, and Phase 3's garish fixture covers the rest through the loader.
+**Verification**: configure (new sources), build, touched tests.
 
 ### Phase 1b — Today's look saved; the default becomes the new look
 
@@ -622,21 +619,32 @@ sources), build, touched tests.
 
   It is never committed, shipped or posted (54-Q10), and the user keeps a private backup. It
   cannot load until Phase 2a; the commit before this switch is the second copy.
-- **The switch.** The compiled default takes the ice-blue values (54-Q9; the scratch look file
-  already uses the 23 role names), and the pinned test values move with them. The default palette
-  is unchanged.
-- **The interim art**, baked by the `texture-author` agent at true size:
-  - `notes.png` takes the rectangle head in the default's material, with its hollow twins derived
-    from it, in today's atlas layout, and keeps today's mark cells until the Phase 4b split; the
-    head contract measures the new cells;
-  - `inlays.png` takes RockHero's own circle dot (54-Q15), so `textures/LICENSE.txt` narrows to
-    the mark cells. Its generator is committed.
+- **The switch.** The compiled default takes the ice-blue values (54-Q9). The scratch look file
+  uses the 23 role names and packed `#AARRGGBB` hex, which maps one-to-one onto the C++ literal
+  (the theme file's `#RRGGBBAA` order applies from Phase 2a). The default palette is unchanged.
+  Phase 1's 23-value pin test is deleted here, its job (proving the extraction equal to the
+  deleted constants) done; the backdrop conversion test stays.
+- **The interim art**, composed by the `texture-author` agent at true size from the Phase 0 cells
+  the user picked:
+  - `notes.png` takes the rectangle head in the default's material in cells 0, 1 and 2 (base,
+    tech, the rectangle's hollow) and the diamond family in 4 and 5 (the node base and its
+    hollow), so no head wears the old material beside the new; every other cell, today's marks
+    included until the Phase 4b split, stays byte-identical. The head contract measures the new
+    cells;
+  - `inlays.png` takes RockHero's own untinted circle dot (54-Q15), one file: its opacity is
+    `inlay_tint`'s alpha, a theme value;
+  - `textures/LICENSE.txt` narrows to `notes.png`'s mark cells. The generators are committed with
+    Phase 5's art.
 
   No release ships before Phase 5, and the tree already carries those mark cells.
-- **STOP: the first sighting**, in motion in both products. Decided there from local variants:
-  54-Q20, the inlay's opacity (`inlay_tint`'s alpha), whether ice blue reads too close to
-  today's look beside the other accents, and 54-Q21, the anticipation ring, with and without it
-  side by side. If 54-Q21 drops it, the deletion is its own commit.
+- **STOP: the first sighting**, in motion in both products. Theme-valued variants (the other
+  accents, the inlay's opacity) are compared live in one throwaway local build, a key cycling
+  them through `setTheme` in the same frame and light state; only the renderer constants run as
+  separate local builds beside it: 54-Q20's tier at 1/16 and 54-Q21's ring removed, the latter
+  side by side. Nothing of either is committed. Decided there: 54-Q20, the inlay's opacity,
+  whether ice blue reads too close to today's look, and 54-Q21. If 54-Q21 drops the ring, the
+  deletion is its own commit. The 2D lane still draws Charter's shape blue and purple until
+  Phase 4b, an expected seam.
 
 **Verification**: build, touched tests.
 
@@ -652,9 +660,10 @@ sources), build, touched tests.
 - **The default theme becomes a file.** Phase 1b's compiled values move into
   `resources/themes/ice/theme.json` with today's eight string colors, and in the same change
   `defaultHighwayTheme()` and `g_charter_classic_palette` are deleted: the file is the one
-  authority for both, and both construction sites take the theme from the loader. Phase 1's
-  value-pinning test retires with them; a test that loads every shipped built-in and passes its
-  contracts replaces it, and code-built fixture themes serve the renderer tests.
+  authority for both, and both construction sites take the theme from the loader. A test that
+  loads every shipped built-in and passes its contracts stands in for Phase 1's retired value pin,
+  and code-built fixture themes serve the renderer tests. The move rotates the scratch file's
+  `#AARRGGBB` into the theme file's `#RRGGBBAA`.
 - Contract validation as one entry point: grid dimensions per asset plus the two existing
   measurements, each error naming the asset and the violated expectation (including
   `AlphaBearingImage`, the likeliest user mistake). The guardrails above as `distinct()` and the
@@ -700,8 +709,9 @@ tests.
   and A/B it in motion against a build of the commit before Phase 1b's switch. It must match
   exactly, apart from the code-drawn parts Phase 4a already replaced (54-Q10) and 54-Q20's
   ribbon tier if it changed.
-- **Coverage fixture.** Phase 1's garish values become a test fixture theme, sighted once more
-  through the loader in both products, and kept as a fixture for the loader tests.
+- **Coverage fixture.** A test fixture theme gives every role a distinct, garish value. It is
+  selected once in both products, where any element that keeps a normal color reads something
+  other than its role, and it stays as a fixture for the loader tests.
 
 **STOP: the private theme sighted in motion in both products; user sign-off.**
 **Verification**: build, touched tests.
