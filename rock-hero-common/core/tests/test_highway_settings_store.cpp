@@ -45,6 +45,7 @@ TEST_CASE("HighwaySettingsStore round-trips an update", "[core][highway-settings
     HighwaySettingsStore store{shared};
     const HighwayPlayerSettings picked{
         .theme_id = std::string{"ice"},
+        .pinned_palette_id = std::string{"mine"},
         .view = HighwayViewPreferences{.mirrored = true, .invert_string_order = false},
     };
 
@@ -57,20 +58,29 @@ TEST_CASE("HighwaySettingsStore round-trips an update", "[core][highway-settings
     CHECK(HighwaySettingsStore{reopened}.read() == picked);
 }
 
-// Unpicking the theme removes its key, so the theme reads as never picked.
-TEST_CASE("HighwaySettingsStore clears the picked theme", "[core][highway-settings]")
+// Unpicking the theme or unpinning the palette removes its key, so it reads as never picked.
+TEST_CASE("HighwaySettingsStore clears the theme and the palette pin", "[core][highway-settings]")
 {
     const ScopedSettingsFile settings_file{"highway_settings_clear_theme.settings"};
     SharedSettingsFile shared{settings_file.path()};
     HighwaySettingsStore store{shared};
-    REQUIRE(store.update([](HighwayPlayerSettings& settings) { settings.theme_id = "ice"; })
+    REQUIRE(store
+                .update([](HighwayPlayerSettings& settings) {
+                    settings.theme_id = "ice";
+                    settings.pinned_palette_id = "ice";
+                })
                 .has_value());
 
-    REQUIRE(store.update([](HighwayPlayerSettings& settings) { settings.theme_id.reset(); })
+    REQUIRE(store
+                .update([](HighwayPlayerSettings& settings) {
+                    settings.theme_id.reset();
+                    settings.pinned_palette_id.reset();
+                })
                 .has_value());
 
-    CHECK_FALSE(store.read().theme_id.has_value());
+    CHECK(store.read() == HighwayPlayerSettings{});
     CHECK_FALSE(shared.open().containsKey("highway.theme"));
+    CHECK_FALSE(shared.open().containsKey("highway.palette"));
 }
 
 // Each setting is its own key: an unreadable one reads as its default and the rest keep theirs.

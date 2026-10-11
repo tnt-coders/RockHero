@@ -69,12 +69,11 @@ LRESULT CALLBACK previewChildWindowProc(HWND hwnd, UINT message, WPARAM w_param,
 
 PreviewSurface::PreviewSurface(
     const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
-    const common::ui::LoadedHighwayTheme& highway_theme,
-    const common::core::HighwayViewPreferences highway_view)
+    const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette)
     : m_transport{transport}
     , m_playback_clock{playback_clock}
-    , m_highway_theme{highway_theme}
-    , m_display_options{.view = highway_view, .minimum_string_count = 0}
+    , m_theme{&theme}
+    , m_palette{palette}
 {
     setOpaque(true);
     // Hold the preview window's keyboard focus so transport shortcuts (space/F3) reach
@@ -180,7 +179,7 @@ void PreviewSurface::attach()
 #endif
 }
 
-// Loads the highway shaders and creates the renderer, in the surface's theme, against the live
+// Loads the highway shaders and creates the renderer, in the surface's look, against the live
 // device. On failure it logs and leaves the renderer empty (renderFrame then presents nothing and
 // the black fallback shows) without touching the device, so the caller can retry on a later open
 // without re-initializing bgfx. Returns whether the renderer is now live.
@@ -195,7 +194,7 @@ bool PreviewSurface::bringUpRenderer()
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
-            *shaders, m_highway_theme.textures, m_highway_theme.colors, m_highway_theme.strings);
+            *shaders, m_theme->textures, m_theme->colors, m_palette);
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);
@@ -247,13 +246,36 @@ void PreviewSurface::resetCamera()
     m_camera_reset_pending = true;
 }
 
-void PreviewSurface::setMinimumStringCount(const int count)
+void PreviewSurface::setDisplayOptions(const common::core::HighwayDisplayOptions options)
 {
-    m_display_options.minimum_string_count = count;
+    m_display_options = options;
     if (m_renderer.has_value())
     {
         m_renderer->setDisplayOptions(m_display_options);
     }
+}
+
+// Art is what the renderer uploads at creation, so only a change of art needs a new renderer;
+// colors swap in place. Without a live renderer the next bring-up takes the new look.
+void PreviewSurface::setLook(
+    const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette)
+{
+    const bool same_art = theme.textures == m_theme->textures;
+    m_theme = &theme;
+    m_palette = palette;
+    if (!m_renderer.has_value())
+    {
+        return;
+    }
+    if (same_art)
+    {
+        m_renderer->setTheme(m_theme->colors, m_palette);
+        return;
+    }
+    // Released first so the failure mode is the black fallback, never the old art under new
+    // colors.
+    m_renderer.reset();
+    bringUpRenderer();
 }
 
 void PreviewSurface::setCaretSeconds(const std::optional<double> seconds)

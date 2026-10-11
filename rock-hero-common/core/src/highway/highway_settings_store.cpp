@@ -13,6 +13,7 @@ namespace
 // Every key the store owns. The shared "highway." prefix is the whole defense against another
 // area's keys in the same file.
 constexpr const char* g_theme_key{"highway.theme"};
+constexpr const char* g_pinned_palette_key{"highway.palette"};
 constexpr const char* g_mirrored_key{"highway.mirrored"};
 constexpr const char* g_invert_string_order_key{"highway.invertStringOrder"};
 
@@ -31,36 +32,51 @@ constexpr const char* g_invert_string_order_key{"highway.invertStringOrder"};
     return fallback;
 }
 
+// Reads an optional text setting, which is absent exactly when its key is.
+[[nodiscard]] std::optional<std::string> readText(
+    const juce::PropertiesFile& properties, const char* key)
+{
+    if (!properties.containsKey(key))
+    {
+        return std::nullopt;
+    }
+    return properties.getValue(key).toStdString();
+}
+
+// Stores an optional text setting, removing its key when it is absent.
+void writeText(
+    juce::PropertiesFile& properties, const char* key, const std::optional<std::string>& text)
+{
+    if (text.has_value())
+    {
+        properties.setValue(key, juce::String::fromUTF8(text->c_str()));
+    }
+    else
+    {
+        properties.removeValue(key);
+    }
+}
+
 // Reads every setting from one opened copy of the file, each falling back on its own.
 [[nodiscard]] HighwayPlayerSettings readFrom(const juce::PropertiesFile& properties)
 {
     const HighwayViewPreferences defaults{};
-    HighwayPlayerSettings settings{
-        .theme_id = std::nullopt,
+    return HighwayPlayerSettings{
+        .theme_id = readText(properties, g_theme_key),
+        .pinned_palette_id = readText(properties, g_pinned_palette_key),
         .view = HighwayViewPreferences{
             .mirrored = readFlag(properties, g_mirrored_key, defaults.mirrored),
             .invert_string_order =
                 readFlag(properties, g_invert_string_order_key, defaults.invert_string_order),
         },
     };
-    if (properties.containsKey(g_theme_key))
-    {
-        settings.theme_id = properties.getValue(g_theme_key).toStdString();
-    }
-    return settings;
 }
 
-// Writes every setting into one opened copy of the file; no pick removes the theme key.
+// Writes every setting into one opened copy of the file.
 void writeTo(juce::PropertiesFile& properties, const HighwayPlayerSettings& settings)
 {
-    if (settings.theme_id.has_value())
-    {
-        properties.setValue(g_theme_key, juce::String::fromUTF8(settings.theme_id->c_str()));
-    }
-    else
-    {
-        properties.removeValue(g_theme_key);
-    }
+    writeText(properties, g_theme_key, settings.theme_id);
+    writeText(properties, g_pinned_palette_key, settings.pinned_palette_id);
     properties.setValue(g_mirrored_key, settings.view.mirrored);
     properties.setValue(g_invert_string_order_key, settings.view.invert_string_order);
 }

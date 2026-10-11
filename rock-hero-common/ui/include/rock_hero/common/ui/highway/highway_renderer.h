@@ -181,12 +181,13 @@ public:
     /*!
     \brief Replaces the colors the board draws with, from the next frame.
 
-    Changes no geometry, texture or string color, so a look that differs only in color never
-    recreates the renderer.
+    Changes no geometry or texture, so a look that differs only in color never recreates the
+    renderer; a changed palette rebuilds only the retained string lines.
 
     \param theme Colors to draw with.
+    \param palette String colors every per-string surface derives from.
     */
-    void setTheme(HighwayTheme theme);
+    void setTheme(HighwayTheme theme, StringColorPalette palette);
 
     /*!
     \brief Encodes one frame of the highway into the render views.

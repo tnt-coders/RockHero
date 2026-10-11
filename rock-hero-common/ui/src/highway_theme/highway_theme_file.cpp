@@ -88,13 +88,44 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return {};
 }
 
-// Reads every color role from `colors`, through the one role table.
-[[nodiscard]] std::expected<HighwayTheme, HighwayThemeError> readRoles(const juce::var& colors)
+// Finds the theme `inherits` names among the bases; null when the file inherits nothing.
+[[nodiscard]] std::expected<const LoadedHighwayTheme*, HighwayThemeError> readBase(
+    const juce::var& document, const std::span<const LoadedHighwayTheme> bases)
 {
-    HighwayTheme theme{};
+    const juce::var& inherits = Json::value(document, g_inherits_key);
+    if (inherits.isVoid())
+    {
+        return nullptr;
+    }
+    // A value that is not a string names no theme, like an id no base has.
+    const std::string base_id = inherits.isString() ? inherits.toString().toStdString() : "";
+    const auto base = std::ranges::find(bases, base_id, &LoadedHighwayTheme::id);
+    if (base == bases.end())
+    {
+        return std::unexpected{HighwayThemeError{
+            HighwayThemeErrorCode::UnknownBase,
+            std::format(
+                "\"inherits\" is {}, which names no theme this one may inherit: a user theme "
+                "inherits a built-in, and a built-in inherits nothing",
+                juce::JSON::toString(inherits, true).toStdString()),
+        }};
+    }
+    return &*base;
+}
+
+// Reads every color role from `colors`, through the one role table; a role the file leaves out
+// is the base's.
+[[nodiscard]] std::expected<HighwayTheme, HighwayThemeError> readRoles(
+    const juce::var& colors, const LoadedHighwayTheme* const base)
+{
+    HighwayTheme theme = base != nullptr ? base->colors : HighwayTheme{};
     for (const HighwayThemeRole& role : g_highway_theme_roles)
     {
         const juce::var& value = Json::value(colors, role.name);
+        if (value.isVoid() && base != nullptr)
+        {
+            continue;
+        }
         if (value.isVoid())
         {
             return std::unexpected{HighwayThemeError{
@@ -165,15 +196,43 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return palette;
 }
 
-// Reads every art file beside theme.json and holds it to the texture contract.
-[[nodiscard]] std::expected<HighwayTextureSet, HighwayThemeError> readTextures(
-    const std::filesystem::path& theme_directory)
+// Reads the theme's palette: its own `strings`, named by the theme, or else its base's whole.
+[[nodiscard]] std::expected<HighwayThemePalette, HighwayThemeError> readPalette(
+    const juce::var& colors, const std::string& id, const std::string& name,
+    const LoadedHighwayTheme* const base)
 {
-    HighwayTextureSet textures;
+    const juce::var& strings = Json::value(colors, g_strings_key);
+    if (strings.isVoid() && base != nullptr)
+    {
+        return base->palette;
+    }
+    if (strings.isVoid())
+    {
+        return std::unexpected{HighwayThemeError{
+            HighwayThemeErrorCode::MissingKey,
+            "colors lacks \"strings\"",
+        }};
+    }
+    return readStrings(strings).transform([&id, &name](const StringColorPalette& palette) {
+        return HighwayThemePalette{.source_id = id, .name = name, .colors = palette};
+    });
+}
+
+// Reads every art file beside theme.json, taking each one the directory lacks from the base, and
+// holds the resolved set to the texture contract.
+[[nodiscard]] std::expected<HighwayTextureSet, HighwayThemeError> readTextures(
+    const std::filesystem::path& theme_directory, const LoadedHighwayTheme* const base)
+{
+    HighwayTextureSet textures = base != nullptr ? base->textures : HighwayTextureSet{};
     for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
     {
         const std::string_view file_name = common::core::highwayTextureFileName(texture);
-        const std::optional<juce::MemoryBlock> block = readFile(theme_directory / file_name);
+        const std::filesystem::path path = theme_directory / file_name;
+        if (base != nullptr && !common::core::juceFileFromPath(path).exists())
+        {
+            continue;
+        }
+        const std::optional<juce::MemoryBlock> block = readFile(path);
         if (!block.has_value())
         {
             return std::unexpected{HighwayThemeError{
@@ -199,11 +258,11 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return textures;
 }
 
-// Loads the directory in the order a reader would check it: identity, the file's shape, its
-// colors, their legibility, then the art. Messages name what failed but not the directory, which
-// loadHighwayTheme adds once.
+// Loads the directory in the order a reader would check it: identity, the file's shape, its base,
+// its colors, their legibility, then the art. Messages name what failed but not the directory,
+// which loadHighwayTheme adds once.
 [[nodiscard]] std::expected<LoadedHighwayTheme, HighwayThemeError> readThemeDirectory(
-    const std::filesystem::path& theme_directory)
+    const std::filesystem::path& theme_directory, const std::span<const LoadedHighwayTheme> bases)
 {
     const std::string id = common::core::utf8FromPath(theme_directory.filename());
     if (!isThemeId(id))
@@ -246,12 +305,11 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     {
         return std::unexpected{keys.error()};
     }
-    if (!Json::value(*document, g_inherits_key).isVoid())
+    const std::expected<const LoadedHighwayTheme*, HighwayThemeError> base =
+        readBase(*document, bases);
+    if (!base.has_value())
     {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::InheritanceUnsupported,
-            "a theme cannot inherit another; it states every key itself",
-        }};
+        return std::unexpected{base.error()};
     }
 
     const juce::var& name = Json::value(*document, g_name_key);
@@ -270,55 +328,55 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         }};
     }
 
+    // An inheriting theme may leave out `colors` whole; whatever it does hold is still strict.
     const juce::var& colors = Json::value(*document, g_colors_key);
-    if (colors.isVoid())
+    if (colors.isVoid() && *base == nullptr)
     {
         return std::unexpected{HighwayThemeError{
             HighwayThemeErrorCode::MissingKey,
             std::format("{} lacks \"colors\"", g_theme_file_name),
         }};
     }
-    const juce::DynamicObject* const colors_object = colors.getDynamicObject();
-    if (colors_object == nullptr)
+    if (!colors.isVoid())
     {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::MalformedJson,
-            "\"colors\" must be a JSON object",
-        }};
+        const juce::DynamicObject* const colors_object = colors.getDynamicObject();
+        if (colors_object == nullptr)
+        {
+            return std::unexpected{HighwayThemeError{
+                HighwayThemeErrorCode::MalformedJson,
+                "\"colors\" must be a JSON object",
+            }};
+        }
+        if (const std::expected<void, HighwayThemeError> keys =
+                refuseUnknownKeys(*colors_object, g_color_keys, g_colors_key);
+            !keys.has_value())
+        {
+            return std::unexpected{keys.error()};
+        }
     }
-    if (const std::expected<void, HighwayThemeError> keys =
-            refuseUnknownKeys(*colors_object, g_color_keys, g_colors_key);
-        !keys.has_value())
-    {
-        return std::unexpected{keys.error()};
-    }
-    std::expected<HighwayTheme, HighwayThemeError> roles = readRoles(colors);
+    std::expected<HighwayTheme, HighwayThemeError> roles = readRoles(colors, *base);
     if (!roles.has_value())
     {
         return std::unexpected{std::move(roles.error())};
     }
-    const juce::var& strings_value = Json::value(colors, g_strings_key);
-    if (strings_value.isVoid())
+    const std::string name_text = name.toString().toStdString();
+    std::expected<HighwayThemePalette, HighwayThemeError> palette =
+        readPalette(colors, id, name_text, *base);
+    if (!palette.has_value())
     {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::MissingKey,
-            "colors lacks \"strings\"",
-        }};
-    }
-    std::expected<StringColorPalette, HighwayThemeError> strings = readStrings(strings_value);
-    if (!strings.has_value())
-    {
-        return std::unexpected{std::move(strings.error())};
+        return std::unexpected{std::move(palette.error())};
     }
 
+    // The guardrails hold the colors the theme draws with, whichever file stated each one.
     if (std::expected<void, HighwayThemeError> legible =
-            checkHighwayThemeGuardrails(*roles, *strings);
+            checkHighwayThemeGuardrails(*roles, palette->colors);
         !legible.has_value())
     {
         return std::unexpected{std::move(legible.error())};
     }
 
-    std::expected<HighwayTextureSet, HighwayThemeError> textures = readTextures(theme_directory);
+    std::expected<HighwayTextureSet, HighwayThemeError> textures =
+        readTextures(theme_directory, *base);
     if (!textures.has_value())
     {
         return std::unexpected{std::move(textures.error())};
@@ -326,9 +384,9 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
 
     return LoadedHighwayTheme{
         .id = id,
-        .name = name.toString().toStdString(),
+        .name = name_text,
         .colors = *roles,
-        .strings = *strings,
+        .palette = std::move(*palette),
         .textures = std::move(*textures),
     };
 }
@@ -359,9 +417,9 @@ std::optional<ArgbColor> parseCssHexColor(const std::string_view text)
 
 // Loads the directory and names it in any failure, so a logged error points at the theme.
 std::expected<LoadedHighwayTheme, HighwayThemeError> loadHighwayTheme(
-    const std::filesystem::path& theme_directory)
+    const std::filesystem::path& theme_directory, const std::span<const LoadedHighwayTheme> bases)
 {
-    return readThemeDirectory(theme_directory)
+    return readThemeDirectory(theme_directory, bases)
         .transform_error([&theme_directory](const HighwayThemeError& error) {
             return HighwayThemeError{
                 error.code,

@@ -60,5 +60,8 @@ Two menu kinds, two conventions — both build their items from *published view 
 - **The menu bar** is `MenuBarModel` in `editor_view.cpp` (`getMenuBarNames` /
   `getMenuForIndex`): command-backed items are `addCommandItem` rows whose name, enablement,
   tick state, and live shortcut text all come from the command registry's `getCommandInfo`
-  (\ref guide_keyboard); only the tablature lane-count submenu still uses raw item ids routed
-  through `menuItemSelected`. Theming stays with `MenuLookAndFeel`.
+  (\ref guide_keyboard). Every other item — the tablature lane-count, highway theme and
+  string-color pickers — carries its own action, a `SafePointer`-guarded lambda that hands the
+  pick to the controller, so no item needs an id range and `menuItemSelected` stays empty. The
+  two highway pickers list the themes the view's `HighwayThemeRegistry` holds and tick what the
+  published highway settings resolve to. Theming stays with `MenuLookAndFeel`.

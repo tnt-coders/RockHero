@@ -57,7 +57,7 @@ template <> struct StringMaker<std::optional<double>>
 namespace rock_hero::editor::ui
 {
 
-using common::ui::testing::fixtureLoadedHighwayTheme;
+using common::ui::testing::fixtureHighwayThemeRegistry;
 using testing::findDescendant;
 using testing::findRequiredDescendant;
 using testing::makeMouseDownEvent;

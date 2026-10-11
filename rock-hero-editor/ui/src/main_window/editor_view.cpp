@@ -27,12 +27,14 @@
 #include <optional>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
@@ -48,11 +50,6 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-// Command-backed menu items use the registry's EditorCommandId values as their item ids; only
-// the tablature lane-count submenu keeps raw ids. Its ids encode the requested minimum as an
-// offset from this base, with the base itself meaning "match the chart" (a zero minimum). The
-// range must never collide with the 0x1000+ command-id space.
-constexpr int g_tab_strings_command_base{210};
 constexpr int g_arrangement_selector_width{132};
 // Wide enough for "Arrangement" at the default label font plus the label's side insets;
 // anything narrower makes juce::Label shrink-to-fit the text below the "Grid" caption size.
@@ -418,13 +415,23 @@ constexpr int g_track_viewport_min_height{80};
     return "Save changes before continuing?";
 }
 
+// How the 3D preview maps the board: the player's reading choices, its lanes padded to the tab's
+// minimum as the tab pads its own.
+[[nodiscard]] common::core::HighwayDisplayOptions previewDisplayOptions(
+    const core::EditorViewState& state)
+{
+    return common::core::HighwayDisplayOptions{
+        .view = state.highway_settings.view,
+        .minimum_string_count = state.tab_minimum_displayed_strings,
+    };
+}
+
 } // namespace
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
 EditorView::EditorView(
     core::IEditorController& controller, AudioPorts audio_ports, juce::File input_calibration_guide,
-    const common::ui::LoadedHighwayTheme& highway_theme,
-    const common::core::HighwayViewPreferences highway_view)
+    const common::ui::HighwayThemeRegistry& highway_themes)
     : m_controller(controller)
     , m_audio_devices(audio_ports.audio_devices)
     , m_audio_config_store(audio_ports.audio_config_store)
@@ -432,8 +439,7 @@ EditorView::EditorView(
     , m_transport(audio_ports.transport)
     , m_playback_clock(audio_ports.playback_clock)
     , m_input_calibration_guide(std::move(input_calibration_guide))
-    , m_highway_theme(highway_theme)
-    , m_highway_view(highway_view)
+    , m_highway_themes(highway_themes)
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_grid_spacing_selector(*this)
@@ -451,7 +457,7 @@ EditorView::EditorView(
               BinaryData::lock_note_open_svg, BinaryData::lock_note_open_svgSize))
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
-    , m_tab_view(highway_theme.strings)
+    , m_tab_view(highway_themes.paletteFor(m_state.highway_settings).colors)
     , m_tone_track_view(*this, m_state.tempo_map, m_state.content_map, audio_ports.transport)
     , m_tone_automation_lanes_view(
           *this, m_state.tempo_map, m_state.content_map, audio_ports.tone_automation)
@@ -735,10 +741,23 @@ void EditorView::setState(const core::EditorViewState& state)
     {
         m_preview_window->resetCamera();
     }
-    // The 3D board pads its lanes to the tab's minimum; restating an unchanged value costs nothing.
+    // A theme or palette pick redraws both surfaces in the look the registry resolves; the 3D board
+    // also follows the player's reading choices and pads its lanes to the tab's minimum, where
+    // restating an unchanged mapping costs nothing.
+    if (previous_state.highway_settings != m_state.highway_settings)
+    {
+        const common::ui::HighwayThemePalette& palette =
+            m_highway_themes.paletteFor(m_state.highway_settings);
+        m_tab_view.setStringColors(palette.colors);
+        if (m_preview_window != nullptr)
+        {
+            m_preview_window->setLook(
+                m_highway_themes.themeFor(m_state.highway_settings), palette.colors);
+        }
+    }
     if (m_preview_window != nullptr)
     {
-        m_preview_window->setMinimumStringCount(m_state.tab_minimum_displayed_strings);
+        m_preview_window->setDisplayOptions(previewDisplayOptions(m_state));
     }
 
     // The paused preview shows the marker-rule time (the armed caret is THE paused position),
@@ -1309,8 +1328,8 @@ void EditorView::togglePreviewWindow()
                 return m_command_manager.invokeDirectly(command, false);
             },
             getTopLevelComponent(),
-            m_highway_theme,
-            m_highway_view);
+            m_highway_themes.themeFor(m_state.highway_settings),
+            m_highway_themes.paletteFor(m_state.highway_settings).colors);
     }
 
     if (m_preview_window->isVisible())
@@ -1320,7 +1339,7 @@ void EditorView::togglePreviewWindow()
     else
     {
         m_preview_window->setHighwayState(m_state.highway);
-        m_preview_window->setMinimumStringCount(m_state.tab_minimum_displayed_strings);
+        m_preview_window->setDisplayOptions(previewDisplayOptions(m_state));
         m_preview_window->setCaretSeconds(
             m_state.chart_edit.caret.has_value()
                 ? std::optional<double>{m_state.chart_edit.caret->seconds}
@@ -1701,44 +1720,108 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleUndoHistory);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::TogglePreview3D);
 
-        // The lane-count submenu offers "match the chart" plus explicit minimums up to the
-        // format's string cap; picking fewer lanes than the chart has can never hide notes
-        // because the chart's own count floors the displayed count.
         const bool has_chart = m_state.tab != nullptr && m_state.tab->stringCount() > 0;
-        juce::PopupMenu strings_menu;
-        strings_menu.addItem(
-            g_tab_strings_command_base,
-            "Match Chart",
-            has_chart,
-            m_state.tab_minimum_displayed_strings == 0);
-        for (int count = 4; count <= common::core::g_max_chart_strings; ++count)
-        {
-            strings_menu.addItem(
-                g_tab_strings_command_base + count,
-                juce::String{count} + " Strings",
-                has_chart,
-                m_state.tab_minimum_displayed_strings == count);
-        }
-        menu.addSubMenu("Tablature Strings", strings_menu, has_chart);
+        menu.addSubMenu("Tablature Strings", tablatureStringsMenu(has_chart), has_chart);
+        menu.addSeparator();
+        menu.addSubMenu("Highway Theme", highwayThemeMenu());
+        menu.addSubMenu("String Colors", stringPaletteMenu());
         return menu;
     }
 
     return {};
 }
 
-// Routes raw-id menu selections. Command-backed items dispatch through the command manager
-// (their selection lands in perform), so only the tablature lane-count submenu routes here.
-void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/)
+// "Match the chart" plus explicit minimums up to the format's string cap; picking fewer lanes than
+// the chart has can never hide notes, because the chart's own count floors the displayed count.
+// Each item carries its own pick, as the highway pickers' do.
+juce::PopupMenu EditorView::tablatureStringsMenu(const bool has_chart)
 {
-    // Lane-count submenu ids encode the requested minimum as an offset from the base; the base
-    // itself requests a zero minimum (match the chart).
-    if (menu_item_id >= g_tab_strings_command_base &&
-        menu_item_id <= g_tab_strings_command_base + common::core::g_max_chart_strings)
+    const auto pick =
+        [self = juce::Component::SafePointer<EditorView>{this}](const int minimum_strings) {
+            return [self, minimum_strings] {
+                if (self != nullptr)
+                {
+                    self->m_controller.onTabMinimumDisplayedStringsChangeRequested(minimum_strings);
+                }
+            };
+        };
+
+    juce::PopupMenu menu;
+    menu.addItem("Match Chart", has_chart, m_state.tab_minimum_displayed_strings == 0, pick(0));
+    for (int count = 4; count <= common::core::g_max_chart_strings; ++count)
     {
-        m_controller.onTabMinimumDisplayedStringsChangeRequested(
-            menu_item_id - g_tab_strings_command_base);
+        menu.addItem(
+            juce::String{count} + " Strings",
+            has_chart,
+            m_state.tab_minimum_displayed_strings == count,
+            pick(count));
     }
+    return menu;
 }
+
+// Each item carries its own pick, so a theme list of any length needs no id range. The tick is the
+// theme the highway draws, which is the default for a pick no loaded theme has.
+juce::PopupMenu EditorView::highwayThemeMenu()
+{
+    const common::ui::LoadedHighwayTheme& drawn =
+        m_highway_themes.themeFor(m_state.highway_settings);
+    juce::PopupMenu menu;
+    for (const common::ui::LoadedHighwayTheme& theme : m_highway_themes.themes())
+    {
+        menu.addItem(
+            juce::String::fromUTF8(theme.name.c_str()),
+            true,
+            &theme == &drawn,
+            [self = juce::Component::SafePointer<EditorView>{this}, theme_id = theme.id] {
+                if (self != nullptr)
+                {
+                    self->m_controller.onHighwayThemeChangeRequested(theme_id);
+                }
+            });
+    }
+    return menu;
+}
+
+// The top entry names the palette it resolves to, never the theme, and is ticked whenever no pin
+// draws, a pin no loaded theme states included; a concrete entry is ticked only while it is pinned.
+juce::PopupMenu EditorView::stringPaletteMenu()
+{
+    const common::ui::HighwayThemePalette* const pinned =
+        m_highway_themes.pinnedPaletteFor(m_state.highway_settings);
+    const common::ui::HighwayThemePalette& themes_choice =
+        m_highway_themes.themeFor(m_state.highway_settings).palette;
+    const auto pick = [self = juce::Component::SafePointer<EditorView>{this}](
+                          std::optional<std::string> pinned_palette_id) {
+        return [self, owned_id = std::move(pinned_palette_id)] {
+            if (self != nullptr)
+            {
+                self->m_controller.onStringPaletteChangeRequested(owned_id);
+            }
+        };
+    };
+
+    juce::PopupMenu menu;
+    menu.addItem(
+        "Theme's choice (" + juce::String::fromUTF8(themes_choice.name.c_str()) + ")",
+        true,
+        pinned == nullptr,
+        pick(std::nullopt));
+    menu.addSeparator();
+    for (const common::ui::HighwayThemePalette& palette : m_highway_themes.palettes())
+    {
+        menu.addItem(
+            juce::String::fromUTF8(palette.name.c_str()),
+            true,
+            pinned == &palette,
+            pick(palette.source_id));
+    }
+    return menu;
+}
+
+// Empty because MenuBarModel requires it: command items dispatch through the command manager and
+// every other item carries its own action.
+void EditorView::menuItemSelected(int /*menu_item_id*/, int /*top_level_menu_index*/)
+{}
 
 // Exposes the one editor-wide command manager the window shell dispatches key presses through.
 juce::ApplicationCommandManager& EditorView::commandManager() noexcept

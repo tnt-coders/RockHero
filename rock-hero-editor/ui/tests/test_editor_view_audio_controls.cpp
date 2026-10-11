@@ -25,8 +25,7 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setState(
@@ -55,8 +54,7 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     showOnScreen(view);
@@ -120,8 +118,7 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     showOnScreen(view);
 
@@ -152,8 +149,7 @@ TEST_CASE("Calibration Apply sends the shown gain", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     showOnScreen(view);
 
@@ -192,8 +188,7 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setState(
@@ -229,8 +224,7 @@ TEST_CASE("Pan knob previews then commits the stage with the stored level", "[ui
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setState(
@@ -298,8 +292,7 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setState(
@@ -351,8 +344,7 @@ TEST_CASE("Calibration prompt for another route retires the open window", "[ui][
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     showOnScreen(view);
@@ -382,8 +374,7 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -417,8 +408,7 @@ TEST_CASE("Audio settings window asked for at startup waits for busy to clear", 
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -452,8 +442,7 @@ TEST_CASE("Device-lost notice asked for at startup waits for busy to clear", "[u
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -487,8 +476,7 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     showOnScreen(view);
 

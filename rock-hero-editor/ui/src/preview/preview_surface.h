@@ -13,11 +13,11 @@
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
-#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/common/ui/render/render_device.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 
 namespace rock_hero::editor::ui
 {
@@ -51,14 +51,13 @@ public:
     \brief Creates the surface; no native or GPU state is touched until attach().
     \param transport Read-only transport for exact paused-cursor time.
     \param playback_clock Playback-time telemetry sampled while playing.
-    \param highway_theme The theme every renderer bring-up draws with; must outlive the surface.
-    \param highway_view How the player reads the highway.
+    \param theme The theme the highway draws with until \ref setLook; must outlive the surface.
+    \param palette The string colors the highway draws with until \ref setLook.
     */
     PreviewSurface(
         const common::audio::ITransport& transport,
         const common::audio::IPlaybackClock& playback_clock,
-        const common::ui::LoadedHighwayTheme& highway_theme,
-        common::core::HighwayViewPreferences highway_view);
+        const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette);
 
     /*! \brief Detaches (if attached) and destroys the surface. */
     ~PreviewSurface() override;
@@ -99,10 +98,24 @@ public:
     void resetCamera();
 
     /*!
-    \brief Pads the board to at least this many string lanes, as the 2D tab pads its own.
-    \param count The tab's "show at least N strings" setting.
+    \brief Sets how the board maps onto the screen: the player's reading choices and the lane
+    minimum the 2D tab pads to.
+    \param options Display mapping, handed to the renderer now and at every later bring-up.
     */
-    void setMinimumStringCount(int count);
+    void setDisplayOptions(common::core::HighwayDisplayOptions options);
+
+    /*!
+    \brief Switches the highway to another look.
+
+    A look with the same art only recolors the live renderer. Other art recreates the renderer
+    through the bring-up path, which keeps the device: a failure logs and leaves the black
+    fallback until the next open retries.
+
+    \param theme The theme to draw with; must outlive the surface.
+    \param palette The string colors to draw with.
+    */
+    void setLook(
+        const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette);
 
     /*!
     \brief Publishes the armed caret's timeline position for the paused-time marker rule.
@@ -146,8 +159,11 @@ private:
     const common::audio::ITransport& m_transport;
     const common::audio::IPlaybackClock& m_playback_clock;
 
-    // The colors, string colors and art each renderer bring-up creates the renderer with.
-    const common::ui::LoadedHighwayTheme& m_highway_theme;
+    // The look each renderer bring-up creates the renderer with: the theme's colors and art, never
+    // null, and the string colors resolved for it, which a pinned palette may take from another
+    // theme.
+    const common::ui::LoadedHighwayTheme* m_theme;
+    common::ui::StringColorPalette m_palette;
 
     // Native child window handle (HWND) bgfx renders into; null while detached. maybe_unused:
     // every consumer sits behind JUCE_WINDOWS, so non-Windows compile-hygiene builds never
@@ -160,9 +176,9 @@ private:
     std::shared_ptr<const common::core::HighwayViewState> m_state;
 
     // How the preview maps the board: the player's view preferences, padded to the tab's
-    // displayed-string minimum. Handed to the renderer when it comes up and whenever the minimum is
-    // restated; the renderer ignores an unchanged set.
-    common::core::HighwayDisplayOptions m_display_options;
+    // displayed-string minimum. Handed to the renderer when it comes up and whenever the editor
+    // restates it; the renderer ignores an unchanged set.
+    common::core::HighwayDisplayOptions m_display_options{};
 
     // The armed caret's timeline seconds while the marker is armed; the paused frame shows it
     // (the marker rule) and falls back to the transport position while passive.

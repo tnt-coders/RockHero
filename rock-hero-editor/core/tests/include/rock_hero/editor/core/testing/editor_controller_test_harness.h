@@ -40,7 +40,9 @@
 #include <rock_hero/common/audio/transport/transport_state.h>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/highway/highway_settings_store.h>
 #include <rock_hero/common/core/session/session.h>
+#include <rock_hero/common/core/shared/shared_settings_file.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/song/song_timeline.h>
@@ -322,19 +324,37 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 [[nodiscard]] common::audio::LiveInputMonitor& defaultLiveInputMonitor() noexcept;
 
 /*!
-\brief Builds the required service bundle, choosing which store and monitor the controller uses.
+\brief Returns the highway settings store for controller tests that never pick a theme or palette.
+
+The real store over a build-local file no test writes, so every controller built over it reads the
+player's defaults. Tests that pick build their own store over their own file and inject it.
+
+\return Process-lifetime highway settings store.
+*/
+[[nodiscard]] inline common::core::HighwaySettingsStore& defaultHighwaySettingsStore()
+{
+    static const common::core::testing::ScopedSettingsFile g_file{"default_highway.settings"};
+    static common::core::SharedSettingsFile g_shared_file{g_file.path()};
+    static common::core::HighwaySettingsStore g_store{g_shared_file};
+    return g_store;
+}
+
+/*!
+\brief Builds the required service bundle, choosing which stores and monitor the controller uses.
 \param settings Settings port used by the controller under test.
 \param task_runner Task runner used by the controller under test.
 \param message_thread_scheduler Message-thread scheduler used by the controller under test.
 \param audio_config_store Audio-config store used by the controller under test.
 \param live_input_monitor Live-input monitor injected into the controller under test.
+\param highway_settings_store Highway settings store used by the controller under test.
 \return Controller service bundle.
 */
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings, IEditorTaskRunner& task_runner,
     IMessageThreadScheduler& message_thread_scheduler,
     common::audio::IAudioConfigStore& audio_config_store,
-    common::audio::LiveInputMonitor& live_input_monitor = defaultLiveInputMonitor()) noexcept
+    common::audio::LiveInputMonitor& live_input_monitor = defaultLiveInputMonitor(),
+    common::core::HighwaySettingsStore& highway_settings_store = defaultHighwaySettingsStore())
 {
     return EditorController::Services{
         .settings = settings,
@@ -342,6 +362,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
         .message_thread_scheduler = message_thread_scheduler,
         .audio_config_store = audio_config_store,
         .live_input_monitor = live_input_monitor,
+        .highway_settings_store = highway_settings_store,
     };
 }
 
@@ -355,7 +376,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 */
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings, common::audio::IAudioConfigStore& audio_config_store,
-    common::audio::LiveInputMonitor& live_input_monitor) noexcept
+    common::audio::LiveInputMonitor& live_input_monitor)
 {
     return controllerServices(
         settings,
@@ -374,7 +395,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 */
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorTaskRunner& task_runner, common::audio::IAudioConfigStore& audio_config_store,
-    common::audio::LiveInputMonitor& live_input_monitor) noexcept
+    common::audio::LiveInputMonitor& live_input_monitor)
 {
     return controllerServices(
         nullEditorSettings(),
@@ -393,7 +414,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 */
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings, IEditorTaskRunner& task_runner,
-    IMessageThreadScheduler& message_thread_scheduler) noexcept
+    IMessageThreadScheduler& message_thread_scheduler)
 {
     return controllerServices(
         settings, task_runner, message_thread_scheduler, defaultAudioConfigStore());
@@ -406,7 +427,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 \return Controller service bundle.
 */
 [[nodiscard]] inline EditorController::Services controllerServices(
-    IEditorSettings& settings, IEditorTaskRunner& task_runner) noexcept
+    IEditorSettings& settings, IEditorTaskRunner& task_runner)
 {
     return controllerServices(settings, task_runner, immediateMessageThreadScheduler());
 }
@@ -415,7 +436,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 \brief Builds the default no-op service bundle for tests that only exercise controller state policy.
 \return Controller service bundle using shared no-op/synchronous fakes.
 */
-[[nodiscard]] inline EditorController::Services defaultControllerServices() noexcept
+[[nodiscard]] inline EditorController::Services defaultControllerServices()
 {
     return controllerServices(nullEditorSettings(), immediateTaskRunner());
 }
@@ -425,8 +446,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 \param settings Settings port used by the controller under test.
 \return Controller service bundle.
 */
-[[nodiscard]] inline EditorController::Services controllerServices(
-    IEditorSettings& settings) noexcept
+[[nodiscard]] inline EditorController::Services controllerServices(IEditorSettings& settings)
 {
     return controllerServices(settings, immediateTaskRunner());
 }
@@ -438,7 +458,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 \return Controller service bundle.
 */
 [[nodiscard]] inline EditorController::Services controllerServices(
-    IEditorSettings& settings, common::audio::IAudioConfigStore& audio_config_store) noexcept
+    IEditorSettings& settings, common::audio::IAudioConfigStore& audio_config_store)
 {
     return controllerServices(
         settings, immediateTaskRunner(), immediateMessageThreadScheduler(), audio_config_store);
@@ -449,8 +469,7 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 \param task_runner Task runner used by the controller under test.
 \return Controller service bundle.
 */
-[[nodiscard]] inline EditorController::Services controllerServices(
-    IEditorTaskRunner& task_runner) noexcept
+[[nodiscard]] inline EditorController::Services controllerServices(IEditorTaskRunner& task_runner)
 {
     return controllerServices(nullEditorSettings(), task_runner);
 }

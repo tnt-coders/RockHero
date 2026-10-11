@@ -2603,10 +2603,17 @@ void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOption
     m_impl->rebuildBoardFace();
 }
 
-// Every theme color is read per frame, so the next frame simply draws with the new one.
-void HighwayRenderer::setTheme(HighwayTheme theme)
+// Every theme color and every per-frame string surface is read per frame, so the next frame simply
+// draws with the new ones; only the retained string lines are built from the palette.
+void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette)
 {
     m_impl->theme = theme;
+    if (palette.colors == m_impl->palette.colors)
+    {
+        return;
+    }
+    m_impl->palette = palette;
+    m_impl->rebuildBoardFace();
 }
 
 bool HighwayRenderer::Impl::seatLanes()

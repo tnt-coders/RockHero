@@ -6,12 +6,14 @@
 #include <cassert>
 #include <cstddef>
 #include <format>
+#include <optional>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/shared/user_data_folders.h>
-#include <span>
+#include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::ui
 {
@@ -42,33 +44,11 @@ constexpr std::string_view g_themes_folder_name = "themes";
     return directories;
 }
 
-// Whether a loaded theme already has the id.
-[[nodiscard]] bool hasThemeId(
-    const std::span<const LoadedHighwayTheme> themes, const std::string_view id)
+// A theme is a palette when its own file states its strings, which is when the palette it carries
+// names the theme itself.
+[[nodiscard]] bool statesOwnPalette(const LoadedHighwayTheme& theme)
 {
-    return std::ranges::find(themes, id, &LoadedHighwayTheme::id) != themes.end();
-}
-
-// Loads one user theme through the one loader, refusing an id a loaded theme already has.
-[[nodiscard]] std::expected<LoadedHighwayTheme, HighwayThemeError> loadUserTheme(
-    const std::filesystem::path& theme_directory, const std::span<const LoadedHighwayTheme> loaded)
-{
-    return loadHighwayTheme(theme_directory)
-        .and_then(
-            [&theme_directory, loaded](
-                LoadedHighwayTheme theme) -> std::expected<LoadedHighwayTheme, HighwayThemeError> {
-                if (hasThemeId(loaded, theme.id))
-                {
-                    return std::unexpected{HighwayThemeError{
-                        HighwayThemeErrorCode::DuplicateId,
-                        std::format(
-                            "Highway theme {}: a loaded theme already has the id \"{}\"",
-                            common::core::utf8FromPath(theme_directory),
-                            theme.id),
-                    }};
-                }
-                return theme;
-            });
+    return theme.palette.source_id == theme.id;
 }
 
 } // namespace
@@ -87,7 +67,8 @@ HighwayThemeFolders highwayThemeFolders(const std::filesystem::path& resources_r
     };
 }
 
-// Built-ins first, so a user theme can never take a built-in's id, then the user's own.
+// Built-ins first, each inheriting nothing; then the user's own, each free to inherit a built-in
+// as shipped, and only then may a user theme take a built-in's place.
 std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::load(
     const HighwayThemeFolders& folders)
 {
@@ -105,7 +86,8 @@ std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::loa
     std::vector<LoadedHighwayTheme> themes;
     for (const std::filesystem::path& directory : themeDirectoriesIn(folders.built_in))
     {
-        std::expected<LoadedHighwayTheme, HighwayThemeError> theme = loadHighwayTheme(directory);
+        std::expected<LoadedHighwayTheme, HighwayThemeError> theme =
+            loadHighwayTheme(directory, {});
         if (!theme.has_value())
         {
             return std::unexpected{std::move(theme.error())};
@@ -124,46 +106,94 @@ std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::loa
                 g_default_highway_theme_id),
         }};
     }
-    // User themes only append, so the default keeps this index.
+    // A user theme either takes a built-in's slot or appends, so the default keeps this index.
     const auto default_index = static_cast<std::size_t>(default_theme - themes.begin());
 
+    std::vector<LoadedHighwayTheme> user_themes;
     for (const std::filesystem::path& directory : themeDirectoriesIn(folders.user))
     {
         std::expected<LoadedHighwayTheme, HighwayThemeError> theme =
-            loadUserTheme(directory, themes);
+            loadHighwayTheme(directory, themes);
         if (!theme.has_value())
         {
             RH_LOG_WARNING("ui.theme", "Dropped a user theme: {}", theme.error().message);
             continue;
         }
-        themes.push_back(std::move(*theme));
+        user_themes.push_back(std::move(*theme));
+    }
+    // Folder names are unique, so a user theme's id can only repeat a built-in's.
+    for (LoadedHighwayTheme& user_theme : user_themes)
+    {
+        const auto built_in = std::ranges::find(themes, user_theme.id, &LoadedHighwayTheme::id);
+        if (built_in == themes.end())
+        {
+            themes.push_back(std::move(user_theme));
+            continue;
+        }
+        RH_LOG_INFO(
+            "ui.theme",
+            "The user theme \"{}\" shadows the built-in theme of that id",
+            user_theme.id);
+        *built_in = std::move(user_theme);
     }
 
     return HighwayThemeRegistry{std::move(themes), default_index};
-}
-
-// The index was found when the built-ins loaded, so no lookup happens here.
-const LoadedHighwayTheme& HighwayThemeRegistry::defaultTheme() const
-{
-    return m_themes.at(m_default_index);
-}
-
-// The one place an unknown or absent pick falls back, so both products draw the same theme for it.
-const LoadedHighwayTheme& HighwayThemeRegistry::themeOrDefault(
-    const std::optional<std::string>& theme_id) const
-{
-    if (!theme_id.has_value())
-    {
-        return defaultTheme();
-    }
-    const auto picked = std::ranges::find(m_themes, *theme_id, &LoadedHighwayTheme::id);
-    return picked != m_themes.end() ? *picked : defaultTheme();
 }
 
 // Every loaded theme, read-only.
 std::span<const LoadedHighwayTheme> HighwayThemeRegistry::themes() const noexcept
 {
     return m_themes;
+}
+
+// Every theme whose own file states its strings, in theme order.
+std::vector<std::reference_wrapper<const HighwayThemePalette>> HighwayThemeRegistry::palettes()
+    const
+{
+    std::vector<std::reference_wrapper<const HighwayThemePalette>> palettes;
+    for (const LoadedHighwayTheme& theme : m_themes)
+    {
+        if (statesOwnPalette(theme))
+        {
+            palettes.emplace_back(theme.palette);
+        }
+    }
+    return palettes;
+}
+
+// The one place an unknown or absent pick falls back, so both products draw the same theme for it.
+const LoadedHighwayTheme& HighwayThemeRegistry::themeFor(
+    const common::core::HighwayPlayerSettings& settings) const
+{
+    const std::optional<std::string>& theme_id = settings.theme_id;
+    if (!theme_id.has_value())
+    {
+        return m_themes.at(m_default_index);
+    }
+    const auto picked = std::ranges::find(m_themes, *theme_id, &LoadedHighwayTheme::id);
+    return picked != m_themes.end() ? *picked : m_themes.at(m_default_index);
+}
+
+// A pin draws only while it names a palette; any other pin is the theme's choice.
+const HighwayThemePalette* HighwayThemeRegistry::pinnedPaletteFor(
+    const common::core::HighwayPlayerSettings& settings) const
+{
+    const std::optional<std::string>& pinned_id = settings.pinned_palette_id;
+    if (!pinned_id.has_value())
+    {
+        return nullptr;
+    }
+    // Ids are unique, so the theme with the pin's id is the only palette the pin can name.
+    const auto theme = std::ranges::find(m_themes, *pinned_id, &LoadedHighwayTheme::id);
+    return theme != m_themes.end() && statesOwnPalette(*theme) ? &theme->palette : nullptr;
+}
+
+// The pin wins over every theme; without one, the theme's own choice draws.
+const HighwayThemePalette& HighwayThemeRegistry::paletteFor(
+    const common::core::HighwayPlayerSettings& settings) const
+{
+    const HighwayThemePalette* const pinned = pinnedPaletteFor(settings);
+    return pinned != nullptr ? *pinned : themeFor(settings).palette;
 }
 
 HighwayThemeRegistry::HighwayThemeRegistry(

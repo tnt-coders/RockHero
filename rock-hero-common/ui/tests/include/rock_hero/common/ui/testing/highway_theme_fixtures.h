@@ -1,16 +1,18 @@
 /*!
 \file highway_theme_fixtures.h
-\brief Code-built highway looks, and where the shipped themes live in the source tree.
+\brief Code-built highway looks, and the shipped themes the source tree holds.
 */
 
 #pragma once
 
+#include <expected>
 #include <filesystem>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
-#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
+#include <stdexcept>
+#include <utility>
 
 namespace rock_hero::common::ui::testing
 {
@@ -73,32 +75,35 @@ rather than read from a shipped theme, whose colors change with its design.
 }
 
 /*!
-\brief A loaded theme of fixture colors and no art, for hosts that never bring a renderer up.
-
-The editor's views take the theme their preview and tab lane draw with; their suites never attach
-the preview's GPU surface, so the art is empty rather than a copy of a shipped theme's.
-
-\return The fixture theme, valid for the life of the test process.
-*/
-[[nodiscard]] inline const LoadedHighwayTheme& fixtureLoadedHighwayTheme()
-{
-    static const LoadedHighwayTheme g_theme{
-        .id = "fixture",
-        .name = "Fixture",
-        .colors = fixtureHighwayTheme(),
-        .strings = fixtureStringColors(),
-        .textures = {},
-    };
-    return g_theme;
-}
-
-/*!
 \brief Returns the source tree's folder of built-in themes, which the products deploy.
 \return The folder holding one directory per shipped theme.
 */
 [[nodiscard]] inline std::filesystem::path builtInThemesDirectory()
 {
     return common::core::pathFromUtf8(ROCK_HERO_BUILT_IN_THEMES_DIR);
+}
+
+/*!
+\brief The shipped built-in themes and no user themes, for hosts that resolve the player's look.
+
+The editor's views take the registry their pickers list and their preview and tab lane resolve
+against; it is loaded once per test process.
+
+\return The registry, valid for the life of the test process.
+*/
+[[nodiscard]] inline const HighwayThemeRegistry& fixtureHighwayThemeRegistry()
+{
+    static const HighwayThemeRegistry g_registry = [] {
+        // An empty user folder path names no folder, so it contributes no themes.
+        std::expected<HighwayThemeRegistry, HighwayThemeError> loaded = HighwayThemeRegistry::load(
+            HighwayThemeFolders{.built_in = builtInThemesDirectory(), .user = {}});
+        if (!loaded.has_value())
+        {
+            throw std::runtime_error{loaded.error().message};
+        }
+        return std::move(*loaded);
+    }();
+    return g_registry;
 }
 
 /*!

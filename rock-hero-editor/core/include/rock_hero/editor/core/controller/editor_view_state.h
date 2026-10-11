@@ -13,6 +13,7 @@
 #include <optional>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -1358,6 +1359,15 @@ struct EditorViewState
     preview reads it too, padding its board's lanes the same way.
     */
     int tab_minimum_displayed_strings{0};
+
+    /*!
+    \brief The player's highway settings as last stored: the picked theme, the pinned string
+    palette and how they read the highway.
+
+    Shared with the game, so never project content. The view resolves the theme and palette the 3D
+    preview and the tablature lane draw with, and the pickers' ticks, against its theme registry.
+    */
+    common::core::HighwayPlayerSettings highway_settings{};
 
     /*! \brief Current signal-chain view state. */
     SignalChainViewState signal_chain{};

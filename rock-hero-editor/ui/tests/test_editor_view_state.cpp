@@ -1,6 +1,16 @@
 #include "keybinds/editor_command_registry.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <functional>
+#include <iterator>
+#include <optional>
+#include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
+#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
+#include <span>
+#include <string>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -79,8 +89,7 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     constexpr common::core::GridPosition chorus{.measure = 3, .beat = 1};
@@ -147,8 +156,7 @@ TEST_CASE("EditorView forwards the tempo chord's published insert", "[ui][editor
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     constexpr common::core::GridPosition beat{.measure = 2, .beat = 3};
@@ -185,8 +193,7 @@ TEST_CASE("EditorView opens the tempo prompt the tempo chord publishes", "[ui][e
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state{};
@@ -211,8 +218,7 @@ TEST_CASE("EditorView opens the tempo prompt Enter's restate publishes", "[ui][e
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state{};
@@ -239,8 +245,7 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state{};
@@ -272,8 +277,7 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state{};
@@ -304,8 +308,7 @@ TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][e
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state{};
@@ -338,8 +341,7 @@ TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     const int scale_command = toJuceCommandId(EditorCommandId::ScaleTempo);
 
@@ -378,8 +380,7 @@ TEST_CASE("EditorView titles the Scale Tempo prompt by the Note Lock", "[ui][edi
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -408,8 +409,7 @@ TEST_CASE("EditorView forwards the fret-hand position chord to the core", "[ui][
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::InsertFretHandPosition)};
@@ -431,8 +431,7 @@ TEST_CASE("EditorView forwards the hand end clear while a selection stands", "[u
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::ClearHandPositionEndFret)};
@@ -458,8 +457,7 @@ TEST_CASE("EditorView Prune Hand Positions forwards the prune", "[ui][editor-vie
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     const int prune_command = toJuceCommandId(EditorCommandId::PruneHandPositions);
     const juce::ApplicationCommandTarget::InvocationInfo info{prune_command};
@@ -492,8 +490,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     CHECK(thumbnail_factory.create_call_count == 1);
@@ -549,8 +546,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     const auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
@@ -1022,8 +1018,7 @@ TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][k
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
@@ -1070,8 +1065,7 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     constexpr int command_shift =
@@ -1128,8 +1122,7 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state;
@@ -1175,8 +1168,7 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state;
@@ -1215,8 +1207,7 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     const auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
 
@@ -1253,8 +1244,7 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     const auto& selection_count_chip =
         findRequiredDescendant<juce::Label>(view, "chart_selection_count_display");
@@ -1337,8 +1327,7 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -1385,8 +1374,7 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -1431,8 +1419,7 @@ TEST_CASE("EditorView opens the interrupted-restore prompt once on screen", "[ui
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -1446,6 +1433,116 @@ TEST_CASE("EditorView opens the interrupted-restore prompt once on screen", "[ui
         juce::ModalComponentManager::getInstance()->getModalComponent(0);
     REQUIRE(prompt != nullptr);
     CHECK(prompt->getName() == "Project did not finish opening");
+}
+
+// The View menu's highway pickers list what the registry holds, tick what the pushed settings
+// resolve to, and hand each pick to the controller: the palette's top entry names the palette it
+// resolves to and unpins. The lane-count picker hands its picks over the same way.
+TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureHighwayThemeRegistry()
+    };
+    // The items of one View submenu, in order, separators included.
+    const auto submenu_items = [&view](const juce::String& name) {
+        std::vector<juce::PopupMenu::Item> items;
+        const juce::PopupMenu menu = view.getMenuForIndex(2, "View");
+        juce::PopupMenu::MenuItemIterator top_level{menu};
+        while (top_level.next())
+        {
+            const juce::PopupMenu::Item& item = top_level.getItem();
+            if (item.text != name || item.subMenu == nullptr)
+            {
+                continue;
+            }
+            juce::PopupMenu::MenuItemIterator entries{*item.subMenu};
+            while (entries.next())
+            {
+                items.push_back(entries.getItem());
+            }
+        }
+        return items;
+    };
+
+    // Every built-in lists, so the default theme's entries are found rather than counted.
+    const common::ui::HighwayThemeRegistry& registry = fixtureHighwayThemeRegistry();
+    const std::span<const common::ui::LoadedHighwayTheme> listed_themes = registry.themes();
+    const auto default_theme = static_cast<std::size_t>(std::distance(
+        listed_themes.begin(),
+        std::ranges::find(
+            listed_themes,
+            common::ui::g_default_highway_theme_id,
+            &common::ui::LoadedHighwayTheme::id)));
+    REQUIRE(default_theme < listed_themes.size());
+    const std::vector<std::reference_wrapper<const common::ui::HighwayThemePalette>>
+        listed_palettes = registry.palettes();
+    const auto default_palette = static_cast<std::size_t>(std::distance(
+        listed_palettes.begin(),
+        std::ranges::find_if(listed_palettes, [](const common::ui::HighwayThemePalette& palette) {
+            return palette.source_id == common::ui::g_default_highway_theme_id;
+        })));
+    REQUIRE(default_palette < listed_palettes.size());
+    const juce::String default_name =
+        juce::String::fromUTF8(listed_themes[default_theme].palette.name.c_str());
+
+    view.setState(core::EditorViewState{});
+    const std::vector<juce::PopupMenu::Item> themes = submenu_items("Highway Theme");
+    REQUIRE(themes.size() == listed_themes.size());
+    for (std::size_t index = 0; index < themes.size(); ++index)
+    {
+        CHECK(themes[index].text == juce::String::fromUTF8(listed_themes[index].name.c_str()));
+        CHECK(themes[index].isTicked == (index == default_theme));
+    }
+    std::vector<juce::PopupMenu::Item> palettes = submenu_items("String Colors");
+    REQUIRE(palettes.size() == listed_palettes.size() + 2);
+    CHECK(palettes[0].text == "Theme's choice (" + default_name + ")");
+    CHECK(palettes[0].isTicked);
+    CHECK(palettes[1].isSeparator);
+    const juce::PopupMenu::Item& default_palette_item = palettes[default_palette + 2];
+    CHECK(default_palette_item.text == default_name);
+    CHECK_FALSE(default_palette_item.isTicked);
+
+    REQUIRE(themes[default_theme].action != nullptr);
+    themes[default_theme].action();
+    CHECK(
+        controller.last_highway_theme_id ==
+        std::optional<std::string>{std::string{common::ui::g_default_highway_theme_id}});
+    REQUIRE(default_palette_item.action != nullptr);
+    default_palette_item.action();
+    CHECK(
+        controller.last_pinned_palette_id == std::optional<std::optional<std::string>>{
+                                                 std::string{common::ui::g_default_highway_theme_id}
+                                             });
+
+    core::EditorViewState pinned;
+    pinned.highway_settings.pinned_palette_id = std::string{common::ui::g_default_highway_theme_id};
+    view.setState(pinned);
+    palettes = submenu_items("String Colors");
+    REQUIRE(palettes.size() == listed_palettes.size() + 2);
+    CHECK_FALSE(palettes[0].isTicked);
+    CHECK(palettes[default_palette + 2].isTicked);
+    REQUIRE(palettes[0].action != nullptr);
+    palettes[0].action();
+    CHECK(
+        controller.last_pinned_palette_id ==
+        std::optional<std::optional<std::string>>{std::optional<std::string>{}});
+
+    // "Match Chart", then a minimum of 4 strings and up.
+    const std::vector<juce::PopupMenu::Item> lane_counts = submenu_items("Tablature Strings");
+    REQUIRE(lane_counts.size() >= 3);
+    CHECK(lane_counts[0].text == "Match Chart");
+    CHECK(lane_counts[0].isTicked);
+    CHECK(lane_counts[2].text == "5 Strings");
+    REQUIRE(lane_counts[2].action != nullptr);
+    lane_counts[2].action();
+    CHECK(controller.last_tab_minimum_displayed_strings == std::optional<int>{5});
 }
 
 } // namespace rock_hero::editor::ui

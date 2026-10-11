@@ -25,6 +25,9 @@
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
 #include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/highway/highway_settings_store.h>
+#include <rock_hero/common/core/shared/shared_settings_file.h>
+#include <rock_hero/common/core/testing/scoped_settings_file.h>
 #include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
@@ -493,6 +496,11 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
     common::audio::LiveInputMonitor live_input_monitor{
         audio_ports, audio_ports, audio_config_store
     };
+    const common::core::testing::ScopedSettingsFile shared_settings{
+        "editor_wiring_shared.settings"
+    };
+    common::core::SharedSettingsFile shared_settings_file{shared_settings.path()};
+    common::core::HighwaySettingsStore highway_settings_store{shared_settings_file};
 
     Editor editor{
         Editor::AudioPorts{
@@ -513,8 +521,8 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
             .message_thread_scheduler = message_thread_scheduler,
             .audio_config_store = audio_config_store,
             .live_input_monitor = live_input_monitor,
-            .highway_theme = common::ui::testing::fixtureLoadedHighwayTheme(),
-            .highway_view = common::core::HighwayViewPreferences{},
+            .highway_settings_store = highway_settings_store,
+            .highway_themes = common::ui::testing::fixtureHighwayThemeRegistry(),
         },
         [] {}
     };

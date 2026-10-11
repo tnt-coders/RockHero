@@ -93,6 +93,12 @@ public:
     explicit TabView(common::ui::StringColorPalette string_colors);
 
     /*!
+    \brief Redraws the lane in other string colors.
+    \param string_colors The string colors every lane surface derives from.
+    */
+    void setStringColors(common::ui::StringColorPalette string_colors);
+
+    /*!
     \brief Installs the sink that receives the lane's chart pointer intents.
     \param on_pointer_event Callback invoked for every gesture phase; empty disables forwarding.
     */

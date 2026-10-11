@@ -1390,8 +1390,7 @@ TEST_CASE("EditorView transport readout tracks the transport position", "[ui][ed
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1422,8 +1421,7 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1458,8 +1456,7 @@ TEST_CASE("EditorView default zoom maps four seconds", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1503,8 +1500,7 @@ TEST_CASE("EditorView draws the first beat's head whole at leftmost scroll", "[u
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1600, 1000);
@@ -1565,8 +1561,7 @@ TEST_CASE("EditorView project load centers restored cursor", "[ui][editor-view]"
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1596,8 +1591,7 @@ TEST_CASE("EditorView failed open keeps viewport position", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1631,8 +1625,7 @@ TEST_CASE("EditorView project reload centers on new load id", "[ui][editor-view]
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1671,8 +1664,7 @@ TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1706,8 +1698,7 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1781,8 +1772,7 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1841,8 +1831,7 @@ TEST_CASE("EditorView quiets the tempo grid while snap is off", "[ui][editor-vie
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1902,8 +1891,7 @@ TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1938,8 +1926,7 @@ TEST_CASE("EditorView wheel zoom holds the visible cursor's column", "[ui][edito
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -1989,8 +1976,7 @@ TEST_CASE("EditorView wheel zoom centers an offscreen cursor", "[ui][editor-view
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -2041,8 +2027,7 @@ TEST_CASE("EditorView keeps a Delete in sight only when the core asks", "[ui][ed
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -2096,8 +2081,7 @@ TEST_CASE("EditorView fits the keyboard's measure only when the core moves it", 
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -2150,8 +2134,7 @@ TEST_CASE("EditorView Ctrl-click seeks the same slot as a plain click", "[ui][ed
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1600, 1000);
     view.setState(
@@ -2239,8 +2222,7 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1600, 1000);
@@ -2286,8 +2268,7 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1600, 1000);
@@ -2332,8 +2313,7 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1600, 1000);
@@ -2389,8 +2369,7 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -2473,8 +2452,7 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1600, 1000);
@@ -2538,8 +2516,7 @@ TEST_CASE("EditorView ruler Ctrl-click seeks the same slot as a plain click", "[
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1600, 1000);
@@ -2584,8 +2561,7 @@ TEST_CASE("EditorView right-click does not seek the timeline", "[ui][editor-view
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1600, 1000);
@@ -2618,8 +2594,7 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     CHECK(view.getWantsKeyboardFocus());
@@ -2641,8 +2616,7 @@ TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2669,8 +2643,7 @@ TEST_CASE("EditorView routes the ring-plane entry keys to their own intents", "[
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2707,8 +2680,7 @@ TEST_CASE("EditorView routes Ctrl+Up and Ctrl+Down to the reaching row step", "[
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2748,8 +2720,7 @@ TEST_CASE("EditorView routes Tab to the row object step", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2797,8 +2768,7 @@ TEST_CASE("EditorView routes the Ctrl+Shift row jumps to the focus-row jump", "[
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2858,8 +2828,7 @@ TEST_CASE("EditorView routes Ctrl+R to the selection rename", "[ui][editor-view]
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2901,8 +2870,7 @@ TEST_CASE("EditorView routes Shift+L to the junction toggle", "[ui][editor-view]
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2936,8 +2904,7 @@ TEST_CASE("EditorView routes the attack letters to their verbs", "[ui][editor-vi
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -2977,8 +2944,7 @@ TEST_CASE("EditorView routes the harmonic letter to the harmonic verb", "[ui][ed
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -3006,8 +2972,7 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);

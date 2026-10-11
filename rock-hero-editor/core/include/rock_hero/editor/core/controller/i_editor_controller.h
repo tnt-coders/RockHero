@@ -232,6 +232,26 @@ public:
     virtual void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings) = 0;
 
     /*!
+    \brief Handles the player picking the highway theme both the 3D preview and the game draw with.
+
+    A player setting shared with the game, never project content. The string palette follows the
+    new theme unless the player pinned one.
+
+    \param theme_id The picked theme's id, as the theme registry lists it.
+    */
+    virtual void onHighwayThemeChangeRequested(std::string theme_id) = 0;
+
+    /*!
+    \brief Handles the player pinning a string palette, or picking "Theme's choice" to unpin.
+
+    A player setting shared with the game, never project content. A pinned palette draws on the 3D
+    preview and the tablature lane whichever theme is picked.
+
+    \param pinned_palette_id The id of the theme whose strings to pin; empty for "Theme's choice".
+    */
+    virtual void onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id) = 0;
+
+    /*!
     \brief Handles switching the editor to another arrangement of the loaded song.
     \param arrangement_id Stable arrangement id selected by the user.
     */

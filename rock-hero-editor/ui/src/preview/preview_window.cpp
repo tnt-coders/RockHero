@@ -22,8 +22,8 @@ constexpr int g_default_height = 720;
 PreviewWindow::PreviewWindow(
     const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
     std::function<bool(const juce::KeyPress&)> forward_key_press,
-    juce::Component* centering_component, const common::ui::LoadedHighwayTheme& highway_theme,
-    const common::core::HighwayViewPreferences highway_view)
+    juce::Component* centering_component, const common::ui::LoadedHighwayTheme& theme,
+    const common::ui::StringColorPalette& palette)
     : juce::DocumentWindow(
           "3D Preview", editorTheme().window_background, juce::DocumentWindow::allButtons)
     , m_forward_key_press{std::move(forward_key_press)}
@@ -32,8 +32,7 @@ PreviewWindow::PreviewWindow(
     setUsingNativeTitleBar(true);
     setResizable(true, false);
 
-    auto surface =
-        std::make_unique<PreviewSurface>(transport, playback_clock, highway_theme, highway_view);
+    auto surface = std::make_unique<PreviewSurface>(transport, playback_clock, theme, palette);
     m_surface = surface.get();
     setContentOwned(surface.release(), false);
 
@@ -99,10 +98,17 @@ void PreviewWindow::resetCamera()
     m_surface->resetCamera();
 }
 
-// Forwards the tab's displayed-string minimum to the surface's board.
-void PreviewWindow::setMinimumStringCount(const int count)
+// Forwards the board's display mapping to the surface.
+void PreviewWindow::setDisplayOptions(const common::core::HighwayDisplayOptions options)
 {
-    m_surface->setMinimumStringCount(count);
+    m_surface->setDisplayOptions(options);
+}
+
+// Forwards the look to the surface, which decides whether its renderer must be recreated.
+void PreviewWindow::setLook(
+    const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette)
+{
+    m_surface->setLook(theme, palette);
 }
 
 // Forwards the armed caret's position to the surface's paused-time marker rule.

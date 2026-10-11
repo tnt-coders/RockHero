@@ -12,9 +12,8 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
-#include <rock_hero/common/core/highway/highway_view_preferences.h>
+#include <rock_hero/common/core/highway/highway_settings_store.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
-#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 
 namespace rock_hero::common::audio
@@ -112,12 +111,16 @@ public:
         common::audio::LiveInputMonitor& live_input_monitor;
 
         /*!
-        \brief The theme the 3D preview and the tablature lane draw with, string colors included.
+        \brief The player's highway settings both products share, which the theme and palette
+        pickers write.
         */
-        const common::ui::LoadedHighwayTheme& highway_theme;
+        common::core::HighwaySettingsStore& highway_settings_store;
 
-        /*! \brief How the player reads the highway, which the 3D preview draws with. */
-        common::core::HighwayViewPreferences highway_view;
+        /*!
+        \brief Every loaded highway theme: what the pickers list and what the stored settings
+        resolve against for the 3D preview and the tablature lane. Must outlive the editor.
+        */
+        const common::ui::HighwayThemeRegistry& highway_themes;
     };
 
     /*! \brief Optional project IO operations used by the composed editor workflow. */

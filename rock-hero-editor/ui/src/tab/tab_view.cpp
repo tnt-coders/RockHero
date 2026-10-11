@@ -79,6 +79,13 @@ TabView::TabView(common::ui::StringColorPalette string_colors)
     : m_string_colors{string_colors}
 {}
 
+// Every paint derives the lane's surfaces from the palette, so a repaint is the whole change.
+void TabView::setStringColors(common::ui::StringColorPalette string_colors)
+{
+    m_string_colors = string_colors;
+    repaint();
+}
+
 void TabView::setPointerEventCallback(PointerEventCallback on_pointer_event)
 {
     m_on_pointer_event = std::move(on_pointer_event);

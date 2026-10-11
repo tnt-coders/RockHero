@@ -61,7 +61,10 @@ public:
         /*! \brief True activates the dev-diagnostics layer (overlay, hot-reload, section seeks). */
         bool dev_mode{false};
 
-        /*! \brief The player's highway settings: the theme to draw with and how to read it. */
+        /*!
+        \brief The player's highway settings: the theme and string palette to draw with and how to
+        read the highway.
+        */
         common::core::HighwayPlayerSettings highway_settings{};
 
         /*!

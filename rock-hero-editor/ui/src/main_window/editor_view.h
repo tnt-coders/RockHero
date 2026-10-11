@@ -34,9 +34,8 @@
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
-#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -118,14 +117,12 @@ public:
     \param audio_ports Required audio ports consumed directly by this view.
     \param input_calibration_guide The guide the calibration window's "?" opens; one that does not
            exist disables the "?".
-    \param highway_theme The theme the 3D preview and the tablature lane draw with, string colors
-           included; must outlive the view.
-    \param highway_view How the player reads the highway, which the 3D preview draws with.
+    \param highway_themes Every loaded highway theme, which the theme and palette pickers list and
+           the pushed highway settings resolve against; must outlive the view.
     */
     EditorView(
         core::IEditorController& controller, AudioPorts audio_ports,
-        juce::File input_calibration_guide, const common::ui::LoadedHighwayTheme& highway_theme,
-        common::core::HighwayViewPreferences highway_view);
+        juce::File input_calibration_guide, const common::ui::HighwayThemeRegistry& highway_themes);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
@@ -243,7 +240,8 @@ public:
         int top_level_menu_index, const juce::String& menu_name) override;
 
     /*!
-    \brief Handles a selected editor menu item.
+    \brief Does nothing: command items dispatch through the command manager, and every other item
+    carries its own action.
     \param menu_item_id Selected menu item identifier.
     \param top_level_menu_index Index of the top-level menu that produced the selection.
     */
@@ -653,6 +651,16 @@ private:
     // Shows or hides the 3D preview window (View > 3D Preview, or F3).
     void togglePreviewWindow();
 
+    // The View menu's tablature lane-count picker, enabled only while a chart shows.
+    [[nodiscard]] juce::PopupMenu tablatureStringsMenu(bool has_chart);
+
+    // The View menu's highway theme picker: every loaded theme by name, the drawn one ticked.
+    [[nodiscard]] juce::PopupMenu highwayThemeMenu();
+
+    // The View menu's string palette picker: "Theme's choice (<palette it resolves to>)", then
+    // every palette by name; the drawn choice ticked.
+    [[nodiscard]] juce::PopupMenu stringPaletteMenu();
+
     // Opens the actions window (Edit > Actions..., default `?`), creating it on first use; the
     // window survives closes so its tree state is kept.
     void showActionsWindow();
@@ -702,12 +710,9 @@ private:
     // The guide each calibration window's "?" opens.
     juce::File m_input_calibration_guide;
 
-    // The theme the 3D preview draws with when it opens; the tab lane took its string colors at
-    // construction.
-    const common::ui::LoadedHighwayTheme& m_highway_theme;
-
-    // How the player reads the highway, which the 3D preview draws with when it opens.
-    common::core::HighwayViewPreferences m_highway_view;
+    // Every loaded highway theme. The theme and string colors the preview and the tab lane draw
+    // with are always this registry's answer for m_state's highway settings, never kept apart.
+    const common::ui::HighwayThemeRegistry& m_highway_themes;
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};

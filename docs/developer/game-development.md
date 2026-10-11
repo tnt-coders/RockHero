@@ -114,7 +114,8 @@ production store) and the test double `NullGameSettings`
 A setting that describes the player or the machine rather than the game's own workspace is
 deliberately *not* here: the game and the editor share one settings file, so they can never
 disagree about it. The audio device configuration lives there through `AudioConfigStore`
-(\ref guide_audio_device), and the highway theme, mirroring and string order through
+(\ref guide_audio_device), and the highway theme, string palette pin, mirroring and string order
+through
 `HighwaySettingsStore` (`common/core` `highway/highway_settings_store.h`).
 
 # Packaged resources and the deploy contract
@@ -126,7 +127,9 @@ asset's enumerator and file name in the shared table (`common/core` `highway/hig
 for render assets — the game does not keep its own copy of that vocabulary), and the
 root-resolution seam `deployedResourcesRoot` in the shell. Highway textures are the exception:
 they belong to a theme, so the shell loads them with the theme from the same root through the
-shared `HighwayThemeRegistry` (\ref guide_3d_highway), and draws with its default theme.
+shared `HighwayThemeRegistry` (\ref guide_3d_highway), and draws with the theme and string palette
+the player's shared highway settings resolve to (`themeFor` and `paletteFor`), as the editor's
+pickers left them.
 
 The **CMake deploy** is shared, not per product: `rock_hero_deploy_product_resources`
 (`cmake/RockHeroProductResources.cmake`) is called once by each executable and owns the copy

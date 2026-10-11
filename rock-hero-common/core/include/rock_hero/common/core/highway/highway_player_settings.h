@@ -28,6 +28,16 @@ struct HighwayPlayerSettings
     */
     std::optional<std::string> theme_id;
 
+    /*!
+    \brief The string palette the player pinned, by the id of the theme whose file states it;
+    absent for "Theme's choice".
+
+    A pinned palette draws over every theme until the player picks "Theme's choice" again. A pin
+    no loaded theme states (one since removed, or one that now inherits its strings) draws the
+    theme's choice too.
+    */
+    std::optional<std::string> pinned_palette_id;
+
     /*! \brief How the player reads the highway. */
     HighwayViewPreferences view{};
 

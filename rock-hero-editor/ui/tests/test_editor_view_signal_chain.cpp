@@ -205,8 +205,7 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     auto& calibrate_button =
@@ -252,8 +251,7 @@ TEST_CASE("Pan knob sits above the output fader in its lane", "[ui][editor-view]
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 720);
 
@@ -285,8 +283,7 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
@@ -309,8 +306,7 @@ TEST_CASE("Tone designer strip shows in designer mode and emits intents", "[ui][
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     auto& new_button = findRequiredDescendant<juce::TextButton>(view, "tone_new_button");
@@ -360,8 +356,7 @@ TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -398,8 +393,7 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory, meter_source),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     view.setState(core::EditorViewState{});
@@ -425,8 +419,7 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     auto& calibrate_button =
@@ -460,8 +453,7 @@ TEST_CASE("Signal-chain action buttons do not take keyboard focus", "[ui][editor
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
@@ -498,8 +490,7 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
@@ -628,8 +619,7 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
@@ -1401,8 +1391,7 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
@@ -1478,8 +1467,7 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
@@ -1513,8 +1501,7 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
@@ -1573,8 +1560,7 @@ TEST_CASE("Signal-chain explains disabled live input on the input controls", "[u
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
     view.setState(

@@ -11,9 +11,9 @@
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
-#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 
 namespace rock_hero::editor::ui
 {
@@ -45,15 +45,15 @@ public:
     \param playback_clock Playback-time telemetry sampled while playing.
     \param forward_key_press Callback that offers key presses to the main view's handler.
     \param centering_component Optional component used to position the window on first show.
-    \param highway_theme The theme the highway draws with; must outlive the window.
-    \param highway_view How the player reads the highway.
+    \param theme The theme the highway draws with until \ref setLook; must outlive the window.
+    \param palette The string colors the highway draws with until \ref setLook.
     */
     PreviewWindow(
         const common::audio::ITransport& transport,
         const common::audio::IPlaybackClock& playback_clock,
         std::function<bool(const juce::KeyPress&)> forward_key_press,
-        juce::Component* centering_component, const common::ui::LoadedHighwayTheme& highway_theme,
-        common::core::HighwayViewPreferences highway_view);
+        juce::Component* centering_component, const common::ui::LoadedHighwayTheme& theme,
+        const common::ui::StringColorPalette& palette);
 
     /*!
     \brief Detaches the key listener, then runs close(), which suspends the surface and hides the
@@ -92,10 +92,19 @@ public:
     void resetCamera();
 
     /*!
-    \brief Pads the board to at least this many string lanes, as the 2D tab pads its own.
-    \param count The tab's "show at least N strings" setting.
+    \brief Sets how the board maps onto the screen: the player's reading choices and the lane
+    minimum the 2D tab pads to.
+    \param options Display mapping; an unchanged one costs nothing.
     */
-    void setMinimumStringCount(int count);
+    void setDisplayOptions(common::core::HighwayDisplayOptions options);
+
+    /*!
+    \brief Switches the highway to another look.
+    \param theme The theme to draw with; must outlive the window.
+    \param palette The string colors to draw with.
+    */
+    void setLook(
+        const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette);
 
     /*!
     \brief Publishes the armed caret's timeline position for the surface's paused marker rule.

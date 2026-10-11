@@ -573,12 +573,14 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
                 makeChartViewState(swap_arrangement, tempo_map), tempo_map, makeSmokeSections())));
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 60);
 
-        // A look that differs only in color, swapped in mid-sweep: setTheme rebuilds nothing, and
-        // the frames after it encode under the new colors.
+        // A look that differs only in color, swapped in mid-sweep: setTheme rebuilds only the
+        // string lines, and the frames after it encode under the new colors.
         HighwayTheme recolored = testing::fixtureHighwayTheme();
         recolored.backdrop = 0xFF202040U;
         recolored.chord_box = 0xFFFF00FFU;
-        renderer->setTheme(recolored);
+        StringColorPalette recolored_strings = testing::fixtureStringColors();
+        recolored_strings.colors.front() = 0xFF40FF40U;
+        renderer->setTheme(recolored, recolored_strings);
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 30);
 
         // An arrangement with no chart at all: empty scene, no beats, no camera zones — the

@@ -147,8 +147,7 @@ TEST_CASE("addEditorCommandItem renders shortcuts through the formatter", "[ui][
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setState(core::EditorViewState{});
 
@@ -192,8 +191,7 @@ TEST_CASE("addEditorCommandItem dedupes display-equal chords", "[ui][keybinds]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setState(core::EditorViewState{});
 
@@ -226,8 +224,7 @@ TEST_CASE("commandChordText names the live binding", "[ui][keybinds]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
     view.setState(core::EditorViewState{});
 

@@ -680,6 +680,24 @@ public:
         last_tab_minimum_displayed_strings = minimum_strings;
     }
 
+    /*!
+    \brief Records the picked highway theme.
+    \param theme_id The picked theme's id.
+    */
+    void onHighwayThemeChangeRequested(std::string theme_id) override
+    {
+        last_highway_theme_id = std::move(theme_id);
+    }
+
+    /*!
+    \brief Records the requested string palette pin.
+    \param pinned_palette_id The pinned palette's id; empty for "Theme's choice".
+    */
+    void onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id) override
+    {
+        last_pinned_palette_id = std::move(pinned_palette_id);
+    }
+
     /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
     void onPluginBrowserRequested() override
     {
@@ -1178,6 +1196,15 @@ public:
 
     /*! \brief Last minimum requested through onTabMinimumDisplayedStringsChangeRequested(). */
     std::optional<int> last_tab_minimum_displayed_strings{};
+
+    /*! \brief Last theme picked through onHighwayThemeChangeRequested(). */
+    std::optional<std::string> last_highway_theme_id{};
+
+    /*!
+    \brief Last pin requested through onStringPaletteChangeRequested(): absent until one is, then
+    the requested pin, itself empty for "Theme's choice".
+    */
+    std::optional<std::optional<std::string>> last_pinned_palette_id{};
 
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_selected_plugin_id{};

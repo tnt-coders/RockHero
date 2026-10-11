@@ -8,13 +8,20 @@
 #include <juce_core/juce_core.h>
 #include <juce_graphics/juce_graphics.h>
 #include <optional>
+#include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
+#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
+#include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::common::ui
 {
@@ -92,12 +99,19 @@ public:
         return path() / id;
     }
 
-    // Writes a theme directory whose theme.json holds the given text.
+    // Writes a theme directory holding only a theme.json with the given document, as a theme that
+    // inherits its art does.
+    void addThemeFileOnly(const std::string_view id, const juce::var& document) const
+    {
+        writeThemeJson(id, juce::JSON::toString(document));
+    }
+
+    // Writes a theme directory whose theme.json holds the given text, beside a copy of the default
+    // theme's art.
     void addTheme(const std::string_view id, const juce::String& theme_json) const
     {
+        writeThemeJson(id, theme_json);
         const juce::File directory = common::core::juceFileFromPath(themeAt(id));
-        REQUIRE(directory.createDirectory());
-        REQUIRE(directory.getChildFile("theme.json").replaceWithText(theme_json));
         const juce::File art = common::core::juceFileFromPath(testing::defaultThemeDirectory());
         for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
         {
@@ -114,13 +128,61 @@ public:
     }
 
 private:
+    // Writes a theme directory holding only a theme.json with the given text.
+    void writeThemeJson(const std::string_view id, const juce::String& theme_json) const
+    {
+        const juce::File directory = common::core::juceFileFromPath(themeAt(id));
+        REQUIRE(directory.createDirectory());
+        REQUIRE(directory.getChildFile("theme.json").replaceWithText(theme_json));
+    }
+
     juce::File m_root;
 };
 
-// Loads a theme directory and returns why it failed, or nothing when it loaded.
+// A theme document that inherits the default theme and states only its name.
+[[nodiscard]] juce::var inheritingDocument(const std::string_view name)
+{
+    const juce::DynamicObject::Ptr document{new juce::DynamicObject{}};
+    document->setProperty("name", juce::String{std::string{name}});
+    document->setProperty("inherits", juce::String{std::string{g_default_highway_theme_id}});
+    return juce::var{document.get()};
+}
+
+// Sets one color of a document that may not hold `colors` yet.
+void setOwnColor(const juce::var& document, const std::string_view key, const juce::var& value)
+{
+    if (!document["colors"].isObject())
+    {
+        const juce::DynamicObject::Ptr colors{new juce::DynamicObject{}};
+        setKey(document, "colors", juce::var{colors.get()});
+    }
+    setColor(document, key, value);
+}
+
+// Loads the registry over a built-in folder and a user folder; a failure throws its message, which
+// fails the test.
+[[nodiscard]] HighwayThemeRegistry registryOver(
+    const std::filesystem::path& built_in, const std::filesystem::path& user)
+{
+    std::expected<HighwayThemeRegistry, HighwayThemeError> registry =
+        HighwayThemeRegistry::load(HighwayThemeFolders{.built_in = built_in, .user = user});
+    if (!registry.has_value())
+    {
+        throw std::runtime_error{registry.error().message};
+    }
+    return std::move(*registry);
+}
+
+// The id of a palette, or empty for "Theme's choice".
+[[nodiscard]] std::string pinnedIdOf(const HighwayThemePalette* const palette)
+{
+    return palette != nullptr ? palette->source_id : std::string{};
+}
+
+// Loads a theme directory with no bases and returns why it failed, or nothing when it loaded.
 [[nodiscard]] std::optional<HighwayThemeErrorCode> failureOf(const std::filesystem::path& theme)
 {
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded = loadHighwayTheme(theme);
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded = loadHighwayTheme(theme, {});
     if (loaded.has_value())
     {
         return std::nullopt;
@@ -179,7 +241,7 @@ TEST_CASE("A complete theme directory loads", "[ui][highway-theme]")
     const ThemeFolder folder;
     folder.addTheme("night-drive-2", defaultThemeDocument());
     const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
-        loadHighwayTheme(folder.themeAt("night-drive-2"));
+        loadHighwayTheme(folder.themeAt("night-drive-2"), {});
     REQUIRE(loaded.has_value());
     if (!loaded.has_value())
     {
@@ -190,8 +252,10 @@ TEST_CASE("A complete theme directory loads", "[ui][highway-theme]")
     CHECK(loaded->colors.backdrop == 0xFF000000U);
     CHECK(loaded->colors.lit_lane == 0x495978FFU);
     CHECK(loaded->colors.inlay_tint == 0xE68691B2U);
-    CHECK(loaded->strings.colors.front() == 0xFFE03CFFU);
-    CHECK(loaded->strings.colors.back() == 0xFFC1C1C1U);
+    CHECK(loaded->palette.source_id == "night-drive-2");
+    CHECK(loaded->palette.name == "Ice");
+    CHECK(loaded->palette.colors.colors.front() == 0xFFE03CFFU);
+    CHECK(loaded->palette.colors.colors.back() == 0xFFC1C1C1U);
     for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
     {
         CHECK_FALSE(loaded->textures.at(common::core::indexOf(texture)).empty());
@@ -199,7 +263,8 @@ TEST_CASE("A complete theme directory loads", "[ui][highway-theme]")
 }
 
 // The file's shape is strict: what it cannot parse, a key it does not define (including the head
-// shape and inlay choices it has no key for), and inheritance are each refused by name.
+// shape and inlay choices it has no key for), and a base it may not inherit are each refused by
+// name. A theme loaded with no bases, as a built-in is, may inherit nothing.
 TEST_CASE("A theme file outside the format is refused", "[ui][highway-theme]")
 {
     {
@@ -217,7 +282,7 @@ TEST_CASE("A theme file outside the format is refused", "[ui][highway-theme]")
           }) == HighwayThemeErrorCode::UnknownKey);
     CHECK(failureAfter([](const juce::var& document) {
               setKey(document, "inherits", "ice");
-          }) == HighwayThemeErrorCode::InheritanceUnsupported);
+          }) == HighwayThemeErrorCode::UnknownBase);
     CHECK(failureAfter([](const juce::var& document) {
               setKey(document, "colors", "#FFFFFF");
           }) == HighwayThemeErrorCode::MalformedJson);
@@ -320,8 +385,8 @@ TEST_CASE("A theme that collapses a color distinction is refused", "[ui][highway
           }) == HighwayThemeErrorCode::GuardrailViolated);
 }
 
-// Every built-in the products ship loads through the one loader, and the set holds the default
-// theme.
+// Every built-in the products ship loads through the one loader as a complete theme, and the set
+// holds the default theme.
 TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
 {
     const std::filesystem::path built_in = testing::builtInThemesDirectory();
@@ -331,7 +396,7 @@ TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
     {
         INFO(common::core::utf8FromPath(entry.path()));
         const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
-            loadHighwayTheme(entry.path());
+            loadHighwayTheme(entry.path(), {});
         if (!loaded.has_value())
         {
             FAIL(loaded.error().message);
@@ -341,18 +406,13 @@ TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
     CHECK(theme_count > 0);
 
     const ThemeFolder no_user_themes;
-    const std::expected<HighwayThemeRegistry, HighwayThemeError> registry =
-        HighwayThemeRegistry::load(
-            HighwayThemeFolders{.built_in = built_in, .user = no_user_themes.path() / "absent"});
-    REQUIRE(registry.has_value());
-    if (registry.has_value())
-    {
-        CHECK(registry->defaultTheme().id == g_default_highway_theme_id);
-    }
+    const HighwayThemeRegistry registry = registryOver(built_in, no_user_themes.path() / "absent");
+    CHECK(
+        registry.themeFor(common::core::HighwayPlayerSettings{}).id == g_default_highway_theme_id);
 }
 
-// A user folder is untrusted: each theme that fails is dropped alone, a theme reusing a built-in's
-// id cannot replace it, and what is left loads normally.
+// A user folder is untrusted: each theme that fails is dropped alone, including one inheriting a
+// theme that is not a built-in, and what is left loads normally.
 TEST_CASE("A broken user theme is dropped and the registry stays usable", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
@@ -366,52 +426,146 @@ TEST_CASE("A broken user theme is dropped and the registry stays usable", "[ui][
     const juce::var unknown_key = defaultThemeDocument();
     setKey(unknown_key, "glow", true);
     user.addTheme("unknown-key", unknown_key);
-    const juce::var imposter = defaultThemeDocument();
-    setKey(imposter, "name", "Imposter");
-    user.addTheme(std::string{g_default_highway_theme_id}, imposter);
     user.addTheme("Bad Name", defaultThemeDocument());
+    const juce::var unknown_base = inheritingDocument("Unknown Base");
+    setKey(unknown_base, "inherits", "nowhere");
+    user.addThemeFileOnly("unknown-base", unknown_base);
+    const juce::var user_base = inheritingDocument("User Base");
+    setKey(user_base, "inherits", "mine");
+    user.addThemeFileOnly("user-base", user_base);
 
-    const std::expected<HighwayThemeRegistry, HighwayThemeError> registry =
-        HighwayThemeRegistry::load(
-            HighwayThemeFolders{.built_in = built_in.path(), .user = user.path()});
-    REQUIRE(registry.has_value());
-    if (!registry.has_value())
-    {
-        return;
-    }
-    REQUIRE(registry->themes().size() == 2);
-    CHECK(registry->themes()[0].id == g_default_highway_theme_id);
-    CHECK(registry->themes()[0].name == "Ice");
-    CHECK(registry->themes()[1].id == "mine");
-    CHECK(registry->themes()[1].name == "Mine");
-    CHECK(registry->defaultTheme().name == "Ice");
+    const HighwayThemeRegistry registry = registryOver(built_in.path(), user.path());
+    REQUIRE(registry.themes().size() == 2);
+    CHECK(registry.themes()[0].id == g_default_highway_theme_id);
+    CHECK(registry.themes()[0].name == "Ice");
+    CHECK(registry.themes()[1].id == "mine");
+    CHECK(registry.themes()[1].name == "Mine");
+    CHECK(failureOf(user.themeAt("unknown-base")) == HighwayThemeErrorCode::UnknownBase);
 }
 
-// Every loaded theme is a palette of its own strings, and the hosts draw with the default
-// theme's.
-TEST_CASE("Each theme's strings are its palette", "[ui][highway-theme]")
+// An inheriting theme takes each role it leaves out from its base one by one, and its strings and
+// art whole, so it is no palette of its own; its name is its own.
+TEST_CASE("An inheriting theme takes what it leaves out from its base", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
     built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
-    const juce::var other = defaultThemeDocument();
-    colorOf(other, "strings").getArray()->set(0, "#FF00FF");
-    built_in.addTheme("other", other);
-
     const ThemeFolder user;
-    const std::expected<HighwayThemeRegistry, HighwayThemeError> registry =
-        HighwayThemeRegistry::load(
-            HighwayThemeFolders{.built_in = built_in.path(), .user = user.path()});
-    REQUIRE(registry.has_value());
-    if (!registry.has_value())
+    const juce::var tweak = inheritingDocument("Tweak");
+    setOwnColor(tweak, "beat_bar", "#102030");
+    user.addThemeFileOnly("tweak", tweak);
+
+    const HighwayThemeRegistry registry = registryOver(built_in.path(), user.path());
+    REQUIRE(registry.themes().size() == 2);
+    const LoadedHighwayTheme& base = registry.themes()[0];
+    const LoadedHighwayTheme& inheriting = registry.themes()[1];
+    CHECK(inheriting.id == "tweak");
+    CHECK(inheriting.name == "Tweak");
+    CHECK(inheriting.colors.beat_bar == 0xFF102030U);
+    CHECK(inheriting.colors.lit_lane == base.colors.lit_lane);
+    CHECK(inheriting.colors.label_text == base.colors.label_text);
+    CHECK(inheriting.palette.source_id == g_default_highway_theme_id);
+    CHECK(inheriting.palette.name == "Ice");
+    CHECK(inheriting.palette.colors.colors == base.palette.colors.colors);
+    CHECK(inheriting.textures == base.textures);
+    REQUIRE(registry.palettes().size() == 1);
+    CHECK(registry.palettes().front().get().source_id == g_default_highway_theme_id);
+}
+
+// A theme that states only its strings registers a palette named by itself, beside its base's.
+TEST_CASE("A strings-only theme is a palette of its own", "[ui][highway-theme]")
+{
+    const ThemeFolder built_in;
+    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    const ThemeFolder user;
+    const juce::var my_strings = inheritingDocument("My Strings");
+    setOwnColor(my_strings, "strings", colorOf(defaultThemeDocument(), "strings"));
+    colorOf(my_strings, "strings").getArray()->set(0, "#FF00FF");
+    user.addThemeFileOnly("my-strings", my_strings);
+
+    const HighwayThemeRegistry registry = registryOver(built_in.path(), user.path());
+    REQUIRE(registry.themes().size() == 2);
+    const LoadedHighwayTheme& own = registry.themes()[1];
+    CHECK(own.colors.beat_bar == registry.themes()[0].colors.beat_bar);
+    CHECK(own.palette.source_id == "my-strings");
+    CHECK(own.palette.name == "My Strings");
+    CHECK(own.palette.colors.colors.front() == 0xFFFF00FFU);
+    const std::vector<std::reference_wrapper<const HighwayThemePalette>> palettes =
+        registry.palettes();
+    REQUIRE(palettes.size() == 2);
+    CHECK(palettes[0].get().source_id == g_default_highway_theme_id);
+    CHECK(palettes[1].get().source_id == "my-strings");
+}
+
+// What an inheriting theme does state is held to the same rules, and the guardrails and the
+// texture contract judge the theme it resolves to.
+TEST_CASE("An inheriting theme stays strict", "[ui][highway-theme]")
+{
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> ice =
+        loadHighwayTheme(testing::defaultThemeDirectory(), {});
+    REQUIRE(ice.has_value());
+    if (!ice.has_value())
     {
         return;
     }
-    REQUIRE(registry->themes().size() == 2);
-    CHECK(registry->themes()[0].id == g_default_highway_theme_id);
-    CHECK(registry->themes()[0].strings.colors.front() == 0xFFE03CFFU);
-    CHECK(registry->themes()[1].id == "other");
-    CHECK(registry->themes()[1].strings.colors.front() == 0xFFFF00FFU);
-    CHECK(registry->defaultTheme().strings.colors.front() == 0xFFE03CFFU);
+    const std::span<const LoadedHighwayTheme> bases{&*ice, 1};
+    const auto failure = [bases](const juce::var& document) {
+        const ThemeFolder folder;
+        folder.addThemeFileOnly("inheriting", document);
+        const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
+            loadHighwayTheme(folder.themeAt("inheriting"), bases);
+        return loaded.has_value() ? std::nullopt
+                                  : std::optional<HighwayThemeErrorCode>{loaded.error().code};
+    };
+
+    CHECK_FALSE(failure(inheritingDocument("Plain")).has_value());
+    const juce::var unknown_role = inheritingDocument("Unknown Role");
+    setOwnColor(unknown_role, "glow", "#FFFFFF");
+    CHECK(failure(unknown_role) == HighwayThemeErrorCode::UnknownKey);
+    const juce::var nameless = inheritingDocument("Nameless");
+    nameless.getDynamicObject()->removeProperty("name");
+    CHECK(failure(nameless) == HighwayThemeErrorCode::MissingKey);
+    const juce::var collapsed = inheritingDocument("Collapsed");
+    setOwnColor(collapsed, "pick_furniture", colorOf(defaultThemeDocument(), "chord_box"));
+    CHECK(failure(collapsed) == HighwayThemeErrorCode::GuardrailViolated);
+
+    // Art the theme does carry must load and keep the contract, whatever its base holds.
+    const ThemeFolder folder;
+    folder.addThemeFileOnly("empty-art", inheritingDocument("Empty Art"));
+    REQUIRE(
+        common::core::juceFileFromPath(folder.themeAt("empty-art") / "notes.png")
+            .replaceWithText(""));
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> empty_art =
+        loadHighwayTheme(folder.themeAt("empty-art"), bases);
+    CHECK((!empty_art.has_value() && empty_art.error().code == HighwayThemeErrorCode::MissingFile));
+}
+
+// A user theme with a built-in's id takes its place, so the default resolves to it; it still
+// inherits the built-in itself.
+TEST_CASE("A user theme with a built-in's id shadows the built-in", "[ui][highway-theme]")
+{
+    const ThemeFolder built_in;
+    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    const ThemeFolder user;
+    const juce::var shadow = inheritingDocument("Ice Tweaked");
+    setOwnColor(shadow, "beat_bar", "#102030");
+    user.addThemeFileOnly(g_default_highway_theme_id, shadow);
+
+    const HighwayThemeRegistry registry = registryOver(built_in.path(), user.path());
+    REQUIRE(registry.themes().size() == 1);
+    const LoadedHighwayTheme& drawn = registry.themeFor(common::core::HighwayPlayerSettings{});
+    CHECK(&drawn == registry.themes().data());
+    CHECK(drawn.name == "Ice Tweaked");
+    CHECK(drawn.colors.beat_bar == 0xFF102030U);
+    CHECK(drawn.palette.name == "Ice");
+    REQUIRE(registry.palettes().size() == 1);
+    CHECK(&registry.palettes().front().get() == &drawn.palette);
+    // Its inherited strings still list, and pin, under the built-in's id and name.
+    const common::core::HighwayPlayerSettings pinned{
+        .theme_id = std::nullopt,
+        .pinned_palette_id = std::string{g_default_highway_theme_id},
+        .view = common::core::HighwayViewPreferences{},
+    };
+    CHECK(registry.pinnedPaletteFor(pinned) == &drawn.palette);
 }
 
 // The player's pick draws when a loaded theme has it; no pick, or a pick no theme has, draws the
@@ -425,21 +579,65 @@ TEST_CASE("A picked theme resolves to itself or to the default", "[ui][highway-t
     setKey(mine, "name", "Mine");
     user.addTheme("mine", mine);
 
-    const std::expected<HighwayThemeRegistry, HighwayThemeError> registry =
-        HighwayThemeRegistry::load(
-            HighwayThemeFolders{.built_in = built_in.path(), .user = user.path()});
-    REQUIRE(registry.has_value());
-    if (!registry.has_value())
-    {
-        return;
-    }
-    CHECK(registry->themeOrDefault(std::string{"mine"}).name == "Mine");
-    CHECK(registry->themeOrDefault(std::nullopt).id == g_default_highway_theme_id);
-    CHECK(registry->themeOrDefault(std::string{"removed"}).id == g_default_highway_theme_id);
+    const HighwayThemeRegistry registry = registryOver(built_in.path(), user.path());
+    const auto theme_named = [&registry](std::optional<std::string> theme_id) {
+        return registry
+            .themeFor(
+                common::core::HighwayPlayerSettings{
+                    .theme_id = std::move(theme_id),
+                    .pinned_palette_id = std::nullopt,
+                    .view = common::core::HighwayViewPreferences{},
+                })
+            .name;
+    };
+    CHECK(theme_named("mine") == "Mine");
+    CHECK(theme_named(std::nullopt) == "Ice");
+    CHECK(theme_named("removed") == "Ice");
+}
+
+// Unpinned, the palette is the drawn theme's choice and moves with a theme switch; pinned, it stays
+// across every theme. A pin naming no palette, whether its theme is gone or now inherits its
+// strings, is the theme's choice.
+TEST_CASE("A palette resolves to its pin or to the theme's choice", "[ui][highway-theme]")
+{
+    const ThemeFolder built_in;
+    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    const juce::var other = defaultThemeDocument();
+    setKey(other, "name", "Other");
+    colorOf(other, "strings").getArray()->set(0, "#FF00FF");
+    built_in.addTheme("other", other);
+    const ThemeFolder user;
+    user.addThemeFileOnly("tweak", inheritingDocument("Tweak"));
+
+    const HighwayThemeRegistry registry = registryOver(built_in.path(), user.path());
+    const auto resolved = [&registry](const char* theme_id, std::optional<std::string> pin) {
+        const common::core::HighwayPlayerSettings settings{
+            .theme_id = std::string{theme_id},
+            .pinned_palette_id = std::move(pin),
+            .view = common::core::HighwayViewPreferences{},
+        };
+        return std::pair{
+            registry.paletteFor(settings).source_id,
+            pinnedIdOf(registry.pinnedPaletteFor(settings)),
+        };
+    };
+
+    // Theme's choice follows the theme, through an inheriting theme to the base that wrote it.
+    CHECK(resolved("ice", std::nullopt) == std::pair{std::string{"ice"}, std::string{}});
+    CHECK(resolved("other", std::nullopt) == std::pair{std::string{"other"}, std::string{}});
+    CHECK(resolved("tweak", std::nullopt) == std::pair{std::string{"ice"}, std::string{}});
+
+    // A pin draws over every theme.
+    CHECK(resolved("ice", "other") == std::pair{std::string{"other"}, std::string{"other"}});
+    CHECK(resolved("tweak", "other") == std::pair{std::string{"other"}, std::string{"other"}});
+
+    // A pin that names no palette falls back to the theme's choice.
+    CHECK(resolved("other", "removed") == std::pair{std::string{"other"}, std::string{}});
+    CHECK(resolved("other", "tweak") == std::pair{std::string{"other"}, std::string{}});
 }
 
 // A broken install fails loudly: no built-in folder, no default theme, or any built-in that does
-// not load fails the whole registry.
+// not load, one that inherits included, fails the whole registry.
 TEST_CASE("A broken built-in set fails the whole registry", "[ui][highway-theme]")
 {
     const ThemeFolder user;
@@ -463,6 +661,11 @@ TEST_CASE("A broken built-in set fails the whole registry", "[ui][highway-theme]
     setColor(broken, "beat_bar", "#nothex");
     with_broken.addTheme("broken", broken);
     CHECK(failure(with_broken.path()) == HighwayThemeErrorCode::InvalidColor);
+
+    const ThemeFolder with_inheriting;
+    with_inheriting.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    with_inheriting.addThemeFileOnly("accent", inheritingDocument("Accent"));
+    CHECK(failure(with_inheriting.path()) == HighwayThemeErrorCode::UnknownBase);
 }
 
 } // namespace rock_hero::common::ui

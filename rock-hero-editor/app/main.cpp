@@ -8,7 +8,6 @@
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
-#include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/core/highway/highway_settings_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -137,13 +136,13 @@ public:
             std::make_unique<rock_hero::editor::core::JuceMessageThreadScheduler>();
 
         // The settings both products share: the audio device route and input calibrations, and the
-        // player's highway settings, read once here for the preview.
+        // player's highway settings, which the editor's theme and palette pickers write.
         m_shared_settings_file = std::make_unique<rock_hero::common::core::SharedSettingsFile>(
             rock_hero::common::core::sharedSettingsFile());
         m_audio_config_store =
             std::make_unique<rock_hero::common::audio::AudioConfigStore>(*m_shared_settings_file);
-        const rock_hero::common::core::HighwayPlayerSettings highway_settings =
-            rock_hero::common::core::HighwaySettingsStore{*m_shared_settings_file}.read();
+        m_highway_settings_store = std::make_unique<rock_hero::common::core::HighwaySettingsStore>(
+            *m_shared_settings_file);
 
         // The engine implements both ILiveInput and IAudioDeviceConfiguration; the shared monitor
         // and the controller both read the audio settings through the one store.
@@ -158,8 +157,8 @@ public:
                 .message_thread_scheduler = *m_message_thread_scheduler,
                 .audio_config_store = *m_audio_config_store,
                 .live_input_monitor = *m_live_input_monitor,
-                .highway_theme = highway_themes.themeOrDefault(highway_settings.theme_id),
-                .highway_view = highway_settings.view,
+                .highway_settings_store = *m_highway_settings_store,
+                .highway_themes = highway_themes,
             },
             &juce::JUCEApplicationBase::quit);
 
@@ -174,6 +173,7 @@ public:
     {
         m_main_window.reset();
         m_live_input_monitor.reset();
+        m_highway_settings_store.reset();
         m_audio_config_store.reset();
         m_shared_settings_file.reset();
         m_message_thread_scheduler.reset();
@@ -215,16 +215,20 @@ private:
     // Owns app-local editor settings persistence used by controller restore policy.
     std::unique_ptr<rock_hero::editor::core::EditorSettings> m_editor_settings;
 
-    // Every highway theme that loaded; the editor draws with the default one, so the registry is
-    // released after the window that holds that theme by reference.
+    // Every highway theme that loaded. The window lists them and draws with them by reference, so
+    // the registry is released after it.
     std::optional<rock_hero::common::ui::HighwayThemeRegistry> m_highway_themes;
 
-    // Owns the settings file both products share. Released after the store over it.
+    // Owns the settings file both products share. Released after the stores over it.
     std::unique_ptr<rock_hero::common::core::SharedSettingsFile> m_shared_settings_file;
 
     // Owns the audio-config store both products share. Released after the monitor and editor that
     // read through it.
     std::unique_ptr<rock_hero::common::audio::AudioConfigStore> m_audio_config_store;
+
+    // Owns the player's highway settings store both products share. Released after the editor that
+    // reads and writes through it.
+    std::unique_ptr<rock_hero::common::core::HighwaySettingsStore> m_highway_settings_store;
 
     // Owns the shared calibrate-first live-input monitoring service the controller drives. Composed
     // over the engine's live-input/device ports and the audio-config store, and released before

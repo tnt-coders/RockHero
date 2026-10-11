@@ -35,6 +35,11 @@ class ITransport;
 class LiveInputMonitor;
 } // namespace rock_hero::common::audio
 
+namespace rock_hero::common::core
+{
+class HighwaySettingsStore;
+} // namespace rock_hero::common::core
+
 namespace rock_hero::editor::core
 {
 
@@ -146,6 +151,12 @@ public:
 
         /*! \brief Shared calibrate-first live-input monitoring service driven by the controller. */
         common::audio::LiveInputMonitor& live_input_monitor;
+
+        /*!
+        \brief The player's highway settings both products share: read at construction, written
+        by the theme and palette picks.
+        */
+        common::core::HighwaySettingsStore& highway_settings_store;
 
         /*!
         \brief Monotonic millisecond clock used to coalesce multi-digit fret entry.
@@ -432,6 +443,12 @@ public:
 
     /*! \copydoc IEditorController::onTabMinimumDisplayedStringsChangeRequested */
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings) override;
+
+    /*! \copydoc IEditorController::onHighwayThemeChangeRequested */
+    void onHighwayThemeChangeRequested(std::string theme_id) override;
+
+    /*! \copydoc IEditorController::onStringPaletteChangeRequested */
+    void onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id) override;
 
     /*! \copydoc IEditorController::onArrangementSelected */
     void onArrangementSelected(std::string arrangement_id) override;

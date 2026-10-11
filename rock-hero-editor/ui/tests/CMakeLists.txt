@@ -53,5 +53,9 @@ target_link_libraries(
     PRIVATE rock_hero::editor::ui rock_hero::common::audio_testing rock_hero::editor::core_testing
             rock_hero::editor::ui_testing rock_hero::build_policy Catch2::Catch2WithMain)
 
+# Keep the settings files the suites open inside the build tree.
+target_compile_definitions(rock_hero_editor_ui_tests
+                           PRIVATE TEST_SETTINGS_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_editor_ui_tests ADD_TAGS_AS_LABELS)

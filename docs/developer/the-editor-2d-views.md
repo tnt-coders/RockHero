@@ -700,8 +700,9 @@ String colors come from the **shared palette** in
 `uint32_t`) that derives each string's seven surfaces (lane, borders, tail, accent...) from one base
 color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore both products all
 color strings through it. Neither surface fetches a palette itself: the host passes one in
-(`makeTabLaneMetrics` carries it on `TabLaneMetrics`; `TabView` passes the string colors it was
-constructed with, the default highway theme's `strings`).
+(`makeTabLaneMetrics` carries it on `TabLaneMetrics`; `TabView` passes the string colors
+`EditorView` gave it, the palette `HighwayThemeRegistry::paletteFor` resolves from the player's
+highway settings, restated through `setStringColors` when a theme or palette pick changes them).
 The glyph renderer itself is the **shared notation paint core** in
 `rock-hero-common/ui` `tab/`: `tab_lane_layout.h` holds the framework-free `TabLaneGeometry` and
 lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing,

@@ -58,6 +58,8 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/highway/highway_player_settings.h>
+#include <rock_hero/common/core/highway/highway_settings_store.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
@@ -178,6 +180,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimelineZoomChanged(double pixels_per_second);
     void onWaveformVisibleChangeRequested(bool visible);
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
+    void onHighwayThemeChangeRequested(std::string theme_id);
+    void onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id);
     void onArrangementSelected(std::string arrangement_id);
     void onChartPointerDown(const ChartPointerEvent& event);
     void onChartPointerDrag(const ChartPointerEvent& event);
@@ -1150,6 +1154,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The audio-config store both products share, used to persist and restore the device route.
     common::audio::IAudioConfigStore& m_audio_config_store;
+
+    // The player's highway settings both products share, written by the theme and palette picks.
+    common::core::HighwaySettingsStore& m_highway_settings_store;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and the report helpers tolerate the null view because startup work in the
@@ -2182,6 +2189,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // and persisted on change; never part of project content.
     bool m_waveform_visible{true};
     int m_tab_minimum_displayed_strings{0};
+
+    // The player's highway settings as last stored, read at construction and replaced by each pick
+    // with the record the store returns, so a change the game made since comes along.
+    common::core::HighwayPlayerSettings m_highway_settings{};
 
     // Present only while a live slider preview is waiting for its final commit.
     std::optional<common::audio::ToneOutput> m_tone_output_preview_before{};

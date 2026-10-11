@@ -9,7 +9,8 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <optional>
+#include <functional>
+#include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <span>
 #include <string>
@@ -34,7 +35,10 @@ enum class HighwayThemeErrorCode : std::uint8_t
     /*! \brief The directory's name, which is the theme's id, is not `[a-z0-9-]+`. */
     InvalidFolderName,
 
-    /*! \brief `theme.json` or one of the art files is absent, unreadable or empty. */
+    /*!
+    \brief `theme.json` is absent, a file present is unreadable or empty, or a theme that inherits
+    nothing lacks an art file.
+    */
     MissingFile,
 
     /*! \brief `theme.json` is not JSON, or does not have the theme file's object shape. */
@@ -43,7 +47,10 @@ enum class HighwayThemeErrorCode : std::uint8_t
     /*! \brief The file carries a key the format does not define, top level or color role. */
     UnknownKey,
 
-    /*! \brief The file leaves out `name`, `colors`, a color role or `strings`. */
+    /*!
+    \brief The file leaves out `name`, or a theme that inherits nothing leaves out `colors`, a color
+    role or `strings`.
+    */
     MissingKey,
 
     /*! \brief `name` is not a non-blank string. */
@@ -55,17 +62,17 @@ enum class HighwayThemeErrorCode : std::uint8_t
     /*! \brief `strings` is not exactly one opaque color per string the chart format allows. */
     InvalidStringColors,
 
-    /*! \brief The file names a base theme in `inherits`; every theme states all of its keys. */
-    InheritanceUnsupported,
+    /*!
+    \brief `inherits` names no theme this one may inherit: a user theme inherits only a built-in,
+    and a built-in inherits nothing.
+    */
+    UnknownBase,
 
     /*! \brief An art file breaks the texture contract its renderer use requires. */
     AssetContractViolated,
 
     /*! \brief The colors collapse a distinction the notation reads by color alone. */
     GuardrailViolated,
-
-    /*! \brief A user theme's id is already taken by a loaded theme. */
-    DuplicateId,
 };
 
 /*! \brief Typed failure of one theme directory or of the built-in set, naming what failed. */
@@ -104,10 +111,11 @@ struct HighwayThemeFolders
 [[nodiscard]] HighwayThemeFolders highwayThemeFolders(const std::filesystem::path& resources_root);
 
 /*!
-\brief Every theme that loaded, built-ins first, holding the default theme by construction.
+\brief Every theme that loaded, holding the default theme by construction, and the one place the
+player's settings resolve to what the highway draws with.
 
-Every theme states its own string colors, so the registry is also the palette registry: each
-theme's strings are one palette, named by the theme.
+The registry is also the palette registry: every theme that states its own strings is one palette,
+named by the theme.
 */
 class HighwayThemeRegistry
 {
@@ -115,10 +123,12 @@ public:
     /*!
     \brief Loads every theme directory in both folders through the one theme loader.
 
-    Built-ins fail loudly: any that does not load, a missing built-in folder, or no theme with the
-    default id fails the whole load. User themes are untrusted input: one that does not load, or
-    whose id a loaded theme already has, is logged with its typed error and dropped, and a missing
-    user folder simply contributes none.
+    Built-ins are complete and fail loudly: any that does not load, a missing built-in folder, or
+    no theme with the default id fails the whole load. User themes are untrusted input and may
+    inherit a built-in: one that does not load is logged with its typed error and dropped, one
+    whose id a built-in has takes that built-in's place (logged), and a missing user folder simply
+    contributes none. A theme inheriting a built-in reads the built-in itself, never a user theme
+    in its place.
 
     \param folders The built-in and user theme folders.
     \return The registry, or the error of the first built-in failure.
@@ -127,32 +137,49 @@ public:
         const HighwayThemeFolders& folders);
 
     /*!
-    \brief Returns the built-in theme both products draw with.
-    \return The theme with the default id; valid for the registry's lifetime.
-    */
-    [[nodiscard]] const LoadedHighwayTheme& defaultTheme() const;
-
-    /*!
-    \brief Returns the theme the player picked, or the default when there is none to draw.
-    \param theme_id The picked theme's id, as the player's settings store it; absent when the
-           player never picked one.
-    \return The loaded theme with that id; the default theme when the id is absent or no loaded
-            theme has it (a user theme since removed). Valid for the registry's lifetime.
-    */
-    [[nodiscard]] const LoadedHighwayTheme& themeOrDefault(
-        const std::optional<std::string>& theme_id) const;
-
-    /*!
     \brief Returns every theme that loaded.
-    \return Built-ins then user themes, each group in id order; ids are unique.
+    \return The built-ins, each replaced by any user theme with its id, then the other user themes;
+            each group in id order, and ids are unique.
     */
     [[nodiscard]] std::span<const LoadedHighwayTheme> themes() const noexcept;
+
+    /*!
+    \brief Returns every palette the player can pin: the strings of each theme that states its own.
+    \return The palettes in the order of themes(), each valid for the registry's lifetime.
+    */
+    [[nodiscard]] std::vector<std::reference_wrapper<const HighwayThemePalette>> palettes() const;
+
+    /*!
+    \brief Returns the theme the player's settings draw with.
+    \param settings The player's highway settings.
+    \return The loaded theme the settings pick; the default theme when they pick none or one no
+            loaded theme has (a user theme since removed). Valid for the registry's lifetime.
+    */
+    [[nodiscard]] const LoadedHighwayTheme& themeFor(
+        const common::core::HighwayPlayerSettings& settings) const;
+
+    /*!
+    \brief Returns the palette the player's settings pin, when one draws.
+    \param settings The player's highway settings.
+    \return The pinned palette, or null for "Theme's choice": no pin, or a pin no loaded theme
+            states (one since removed, or one that now inherits its strings).
+    */
+    [[nodiscard]] const HighwayThemePalette* pinnedPaletteFor(
+        const common::core::HighwayPlayerSettings& settings) const;
+
+    /*!
+    \brief Returns the string colors the player's settings draw with.
+    \param settings The player's highway settings.
+    \return The pinned palette when one draws, otherwise the palette of the theme they draw with.
+    */
+    [[nodiscard]] const HighwayThemePalette& paletteFor(
+        const common::core::HighwayPlayerSettings& settings) const;
 
 private:
     // Only load() builds a registry, after finding the default theme among the themes.
     HighwayThemeRegistry(std::vector<LoadedHighwayTheme> themes, std::size_t default_index);
 
-    // Built-ins then user themes, each group in id order; ids are unique.
+    // As themes() returns them.
     std::vector<LoadedHighwayTheme> m_themes;
 
     // Where the default theme sits in m_themes.

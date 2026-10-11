@@ -292,6 +292,34 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
     CHECK(image.getPixelAt(10, 20).getARGB() == 0);
 }
 
+// A theme or palette pick hands the lane other string colors, and its next paint draws every
+// surface from them.
+TEST_CASE("TabView redraws in the string colors it is given", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{common::ui::testing::fixtureStringColors()};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    setFixtureState(view);
+    view.setVisibleContentLeft(180);
+    common::ui::StringColorPalette recolored = common::ui::testing::fixtureStringColors();
+    constexpr common::ui::ArgbColor low_e_green = 0xff00ff00;
+    recolored.colors.at(5) = low_e_green;
+
+    view.setStringColors(recolored);
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
+    juce::Graphics graphics{image};
+    view.paint(graphics);
+
+    // The low E's string line, at the same probe the case above reads its red line from.
+    CHECK(
+        image.getPixelAt(160, 110) == juce::Colour{common::ui::StringLaneStyle{low_e_green}.lane});
+}
+
 // THE STRING LEGEND: every string's own pitch name, in that string's own colour, standing on that
 // string's line at the window's left edge, over one panel spanning the whole lane.
 //

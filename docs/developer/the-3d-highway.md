@@ -71,7 +71,7 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    static std::expected<HighwayRenderer, HighwayRendererError>
        create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
               HighwayTheme theme, StringColorPalette palette);
-   void setTheme(HighwayTheme theme);
+   void setTheme(HighwayTheme theme, StringColorPalette palette);
    void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
    void resetCamera() noexcept;
    void setDisplayOptions(common::core::HighwayDisplayOptions options);
@@ -175,16 +175,23 @@ and `EditorView` pushes the resulting shared pointer into the preview window, wh
 pointer to the renderer — the board is never copied on its way to the GPU. The 2D tab lane's scene
 pointer aliases the same state's `chart` member, so the two surfaces read one build.
 
+The look arrives the same way. The published view state carries the player's highway settings,
+and `EditorView` resolves them against its `HighwayThemeRegistry` whenever they change, handing
+the theme and the resolved palette to the preview (`setLook`) and the palette to the tab lane.
+`PreviewSurface::setLook` recolors the live renderer through `setTheme` when the new theme's art
+is the old one's, and otherwise recreates the renderer through `bringUpRenderer()`, the same path
+and the same failure policy as a first open.
+
 # The sharing mechanics, precisely
 
 | Piece | Owner | Both consumers get it by |
 |---|---|---|
 | Projection + camera math | `rock_hero::common::core` | public dep of `common::ui` |
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
-| String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes the player's theme's `strings` to `HighwayRenderer::create` and `makeTabLaneMetrics` |
-| Player's highway settings (theme id, view preferences) | `common/core` `highway/highway_settings_store.h` | each composition root reads `HighwaySettingsStore` over the shared settings file once at launch |
-| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps it without a rebuild |
-| Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeOrDefault(<the player's theme id>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `themes/` (`themesFolder()`) |
+| String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes `HighwayThemeRegistry::paletteFor(<the player's settings>)` — the pinned palette, else the theme's — to `HighwayRenderer::create` and `makeTabLaneMetrics` |
+| Player's highway settings (theme id, palette pin, view preferences) | `common/core` `highway/highway_settings_store.h` | the game reads `HighwaySettingsStore` over the shared settings file once at launch; the editor's controller reads it at construction and writes each theme and palette pick through `update` |
+| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps them and the palette without a rebuild |
+| Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeFor(<the player's settings>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `themes/` (`themesFolder()`), where one may inherit a built-in (`inherits`) or shadow it by taking its id |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
 | Resource deploy + install | `rock_hero_deploy_product_resources` | both call it per executable |
@@ -194,8 +201,8 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 What differs per consumer is exactly what should differ: the window (SDL top-level vs JUCE child
 HWND), the frame driver (main loop vs vblank ticks), device lifetime policy (process-long vs
 survives-hides), and display options (each consumer calls `setDisplayOptions` itself, with the
-player's stored view preferences: the game once at construction, the editor preview at each
-renderer bring-up with its 2D tab lane's minimum string count).
+player's stored view preferences: the game once at construction, the editor preview on every state
+push and at each renderer bring-up, padded to its 2D tab lane's minimum string count).
 
 # The fretboard axis: one function, and a deliberate stop/node split
 

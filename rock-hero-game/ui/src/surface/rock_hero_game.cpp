@@ -140,11 +140,15 @@ std::optional<int> RockHeroGame::onInit()
         std::println(stderr, "rock-hero: {}", highway_themes.error().message);
         return 1;
     }
+    // The player's theme and palette, as the editor's pickers stored them.
     const common::ui::LoadedHighwayTheme& highway_theme =
-        highway_themes->themeOrDefault(m_config.highway_settings.theme_id);
+        highway_themes->themeFor(m_config.highway_settings);
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
-            *highway_shaders, highway_theme.textures, highway_theme.colors, highway_theme.strings);
+            *highway_shaders,
+            highway_theme.textures,
+            highway_theme.colors,
+            highway_themes->paletteFor(m_config.highway_settings).colors);
     if (!renderer.has_value())
     {
         std::println(stderr, "rock-hero: {}", renderer.error().message);

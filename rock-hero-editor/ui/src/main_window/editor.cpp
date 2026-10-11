@@ -57,6 +57,7 @@ Editor::Editor(
               .message_thread_scheduler = services.message_thread_scheduler,
               .audio_config_store = services.audio_config_store,
               .live_input_monitor = services.live_input_monitor,
+              .highway_settings_store = services.highway_settings_store,
           },
           std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(
@@ -71,7 +72,7 @@ Editor::Editor(
                   .meter_source = audio_ports.meter_source,
                   .tone_automation = audio_ports.tone_automation,
               },
-              installedInputCalibrationGuide(), services.highway_theme, services.highway_view))
+              installedInputCalibrationGuide(), services.highway_themes))
 {
     m_controller.attachView(*m_view);
     // After view construction so every command is registered before the stored keymap restores

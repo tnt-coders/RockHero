@@ -874,6 +874,16 @@ void EditorController::onTabMinimumDisplayedStringsChangeRequested(int minimum_s
     m_impl->onTabMinimumDisplayedStringsChangeRequested(minimum_strings);
 }
 
+void EditorController::onHighwayThemeChangeRequested(std::string theme_id)
+{
+    m_impl->onHighwayThemeChangeRequested(std::move(theme_id));
+}
+
+void EditorController::onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id)
+{
+    m_impl->onStringPaletteChangeRequested(std::move(pinned_palette_id));
+}
+
 void EditorController::onArrangementSelected(std::string arrangement_id)
 {
     m_impl->onArrangementSelected(std::move(arrangement_id));
@@ -1343,6 +1353,7 @@ EditorController::Impl::Impl(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
     , m_audio_config_store(services.audio_config_store)
+    , m_highway_settings_store(services.highway_settings_store)
     , m_live_input_monitor(services.live_input_monitor)
     , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
@@ -1426,6 +1437,7 @@ EditorController::Impl::Impl(
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
     m_tab_minimum_displayed_strings = std::clamp(
         m_settings.tabMinimumDisplayedStrings().value_or(0), 0, common::core::g_max_chart_strings);
+    m_highway_settings = m_highway_settings_store.read();
     common::audio::IAudioDeviceConfiguration::Listener& self_as_listener = *this;
     m_audio_device_listener = std::make_unique<common::audio::ScopedListener<
         common::audio::IAudioDeviceConfiguration,
@@ -2790,6 +2802,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
     state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;
+    state.highway_settings = m_highway_settings;
     state.signal_chain = SignalChainViewState{
         .insert_plugin_enabled =
             isActionAvailable(EditorAction::Id::BeginPluginInsert, action_conditions),

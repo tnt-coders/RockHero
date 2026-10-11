@@ -8,7 +8,8 @@ palette is a separate `create` argument); its coverage check moved to Phase 3's 
 1b's switch landed 2026-10-11 (ice-blue values, interim heads and inlay, `fs_texture`
 premultiplying its tint so `inlay_tint`'s alpha is the inlays' opacity); its sighting is pending.
 Phase 2a landed 2026-10-11: the default is `resources/themes/ice/`, loaded with any user themes
-through one strict loader; no stored theme id until plan 70 Phase 2. **Phase 0 has a direction for the default look**
+through one strict loader. Phase 2b landed 2026-10-11: inheritance from built-ins, and the
+editor's theme and string-color pickers over plan 70's shared settings. **Phase 0 has a direction for the default look**
 (below) and still gates the art phases (54-Q5 to 54-Q22, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
@@ -729,6 +730,15 @@ configure, build, touched tests.
   separator, then every theme that states `strings` and the code-owned accessibility palettes; a
   concrete pick pins, the top entry unpins. The game's theme preview draws with the player's pins
   applied.
+
+*As built (2026-10-11):* the editor's View menu carries "Highway Theme" and "String Colors";
+each pick writes the shared `highway.*` keys through the store and re-resolves the look against the
+theme registry, the one resolution authority both products use (`themeFor`, `paletteFor`). The pin
+is `highway.palette`, naming the theme whose file states the strings. A pick whose art bytes match
+recolors through `setTheme(theme, palette)`; any other recreates the renderer. No game-side picker
+(54-Q16 waits on plan 26): the game draws the shared picks at launch. Built-in themes inherit
+nothing yet; Phase 6's accent built-ins add built-in-to-built-in inheritance. No code-owned
+palettes exist yet, so the palette list is the themes that state their own strings.
 
 **Tests**: inheriting and unknown-base fixtures in `test_highway_theme_file.cpp`, including a
 strings-only theme; controller state for the theme and palette pickers, including that a theme

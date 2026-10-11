@@ -20,8 +20,7 @@ TEST_CASE("PluginWindowShortcutSync mirrors the trio bindings", "[ui][keybinds]"
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme(),
-        common::core::HighwayViewPreferences{}
+        fixtureHighwayThemeRegistry()
     };
 
     const PluginWindowShortcutSync sync{view.commandManager(), plugin_host};
