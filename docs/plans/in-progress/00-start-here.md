@@ -38,9 +38,11 @@ the highway theming sightings below.
 **Plan 54 (highway theming), owed by the user, in this order:**
 
 1. **Phase 1b, the first look at the ice-blue default** (landed `b6fb1134`), in motion in the game
-   and the editor preview. Ask Claude first to build the comparison aids, which are throwaway and
-   never committed: a key cycling the other accents and the inlay opacity live, and two variant
-   builds. Decide:
+   and the editor preview. The comparisons need no throwaway code now: the other accents and an
+   opaque-inlay ice are user themes in `%APPDATA%\Rock Hero\themes\sight-*` (each inherits ice),
+   picked from View > Highway Theme; the ring is View > Highway Display > its toggle; 54-Q20's
+   lane-line tier is cycled live by the Phase 4a sighting build's keys. Delete the `sight-*`
+   folders after ruling. Decide:
    - whether ice blue reads too close to today's look, beside the other accents;
    - the inlay opacity: `inlay_tint` alpha `0xE6` (the mock) or `0xFF` (opaque);
    - 54-Q20, the far lane lines at today's 1/8 tier or at 1/16 (variant build);
