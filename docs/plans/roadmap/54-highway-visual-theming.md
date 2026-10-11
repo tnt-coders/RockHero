@@ -555,10 +555,13 @@ Each carries a recommendation; none is decided until the user rules.
 - **54-Q22 — the glow posts' redesign (S4). Added 2026-10-11 (user).** The user wants the posts
   under the notes redesigned as well as the open-bar posts (S2), and has seen no alternative for
   either. Phase 4a renders candidates for both beside today's, in the switched colors, and the
-  user rules from them in motion. Candidates to start from: today's ribbon stem; a thinner single
-  line; a stem that stops short of the head; a floor dot or short floor dash at the note's slot
-  with no stem; no post at all. What the post must keep doing: tie a high head to its slot on the
-  board at distance, and stay quieter than the head.
+  user rules from them in motion. **The glow post's geometry stays (user, 2026-10-11):** the
+  vertical space it takes and its vertical fade were carefully tuned, so its candidates vary only
+  its STYLE within today's footprint (a solid band, two edge rails, a soft light-like falloff, a
+  brightened core), beside today's ribbon; the earlier geometry candidates (a thinner line, a
+  shorter stem, a floor dash, none) remain in the sighting build only as references. What the post
+  must keep doing: stand as a vertical post beneath the note, tying a high head to its slot at
+  distance, and stay quieter than the head.
   *Recommended:* none until the sighting.
 
 ## Phased implementation
