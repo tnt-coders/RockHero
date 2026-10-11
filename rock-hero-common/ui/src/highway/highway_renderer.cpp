@@ -1683,6 +1683,20 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
     return program;
 }
 
+// The options with every reading aid at its default: the part the retained board face and the
+// camera's framing are laid out from. An aid only decides whether one element draws, read per
+// frame, so two option sets that differ in aids alone lay the board out identically. An aid left
+// out here would cost a needless re-frame, never a missed one.
+[[nodiscard]] common::core::HighwayDisplayOptions boardLayoutOf(
+    common::core::HighwayDisplayOptions options)
+{
+    const common::core::HighwayViewPreferences defaults{};
+    options.view.show_anticipation_ring = defaults.show_anticipation_ring;
+    options.view.show_note_rotation = defaults.show_note_rotation;
+    options.view.show_arpeggio_brackets = defaults.show_arpeggio_brackets;
+    return options;
+}
+
 } // namespace
 
 /*
@@ -2589,15 +2603,17 @@ common::core::HighwayCameraPose HighwayRenderer::cameraPose() const noexcept
     return m_impl->camera.pose(m_impl->metrics);
 }
 
-// An unchanged set does nothing; a change rebuilds the board face and re-frames the camera, since
-// the mirror moves what it frames.
+// Every option is read per frame, so storing the set is all a reading aid needs; a change to the
+// layout also rebuilds the board face and re-frames the camera, since the mirror moves what it
+// frames, where an aid alone leaves the camera gliding.
 void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOptions options)
 {
-    if (options == m_impl->options)
+    const bool relaid = boardLayoutOf(options) != boardLayoutOf(m_impl->options);
+    m_impl->options = options;
+    if (!relaid)
     {
         return;
     }
-    m_impl->options = options;
     m_impl->camera.reset();
     static_cast<void>(m_impl->seatLanes());
     m_impl->rebuildBoardFace();
@@ -3020,8 +3036,15 @@ void HighwayRenderer::Impl::draw(
             // defers to its first interior sounding — and one that never sounds interiorly draws
             // none at all. Bound to a local so the presence test and every read below are provably
             // the same object.
+            //
+            // The mark is a player reading aid, and off it goes WHOLE, panel and brackets alike:
+            // a bracketless panel would read as a chord box, which marks simultaneity (shape rule
+            // 5), around what may be one note of a broken chord. The rails still mark the span,
+            // and a strum the mark would have stood in for wears its own box, because the
+            // coincidence test below finds no mark to defer to.
             const std::optional<double>& mark = shape.bracket_seconds;
-            if (!shape.arpeggio || !mark.has_value() || shape.drawn_end_seconds < now_seconds)
+            if (!options.view.show_arpeggio_brackets || !shape.arpeggio || !mark.has_value() ||
+                shape.drawn_end_seconds < now_seconds)
             {
                 continue;
             }
@@ -5159,9 +5182,11 @@ void HighwayRenderer::Impl::draw(
         //
         // The landing spot is the chart-truth station: a pre-bend's ring sits on the TARGET
         // outline, not on the still-rising head, so the ring names the destination while the head
-        // is still on its way to it.
+        // is still on its way to it. A player reading aid that can be turned off; the hollow cell
+        // above stays either way, since the pre-bend outline below draws with it too.
         const double seconds_out = note.start_seconds - now_seconds;
-        if (seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
+        if (options.view.show_anticipation_ring && seconds_out > 0.0 &&
+            seconds_out < g_anticipation_seconds)
         {
             double ring_scale =
                 std::min(1.0, 1.0 - (0.5 * ((seconds_out - 0.25) / g_anticipation_seconds)));
@@ -5264,8 +5289,11 @@ void HighwayRenderer::Impl::draw(
         // makes.
         //
         // The clock (flip_remaining) is computed beside the head station, where the pre-bend
-        // reveal shares it, so a head rises onto a pre-bent station and rolls on one clock.
-        const double rotation = in_chord ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
+        // reveal shares it, so a head rises onto a pre-bent station and rolls on one clock. The
+        // roll is a player reading aid: off, every head travels flat as a chord's does, and the
+        // clock still runs the reveal, so nothing else about the approach changes.
+        const bool rolls = options.view.show_note_rotation && !in_chord;
+        const double rotation = rolls ? (std::numbers::pi / 2.0) * flip_remaining : 0.0;
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
 

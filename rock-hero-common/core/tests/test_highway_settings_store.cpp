@@ -37,7 +37,8 @@ TEST_CASE("HighwaySettingsStore reads the defaults from an empty file", "[core][
     CHECK(store.read() == HighwayPlayerSettings{});
 }
 
-// A change is stored and returned, and reads back the same through another product's file.
+// A change is stored and returned, and reads back the same through another product's file. Every
+// setting differs from its default, so one the store forgot to write would read back as default.
 TEST_CASE("HighwaySettingsStore round-trips an update", "[core][highway-settings]")
 {
     const ScopedSettingsFile settings_file{"highway_settings_round_trip.settings"};
@@ -46,7 +47,13 @@ TEST_CASE("HighwaySettingsStore round-trips an update", "[core][highway-settings
     const HighwayPlayerSettings picked{
         .theme_id = std::string{"ice"},
         .pinned_palette_id = std::string{"mine"},
-        .view = HighwayViewPreferences{.mirrored = true, .invert_string_order = false},
+        .view = HighwayViewPreferences{
+            .mirrored = true,
+            .invert_string_order = false,
+            .show_anticipation_ring = false,
+            .show_note_rotation = false,
+            .show_arpeggio_brackets = false,
+        },
     };
 
     const std::expected<HighwayPlayerSettings, HighwaySettingsError> updated =
@@ -91,13 +98,20 @@ TEST_CASE("HighwaySettingsStore resets only an unreadable setting", "[core][high
     writeRawSetting(shared, "highway.theme", "dusk");
     writeRawSetting(shared, "highway.mirrored", "sideways");
     writeRawSetting(shared, "highway.invertStringOrder", "0");
+    writeRawSetting(shared, "highway.showAnticipationRing", "0");
+    writeRawSetting(shared, "highway.showNoteRotation", "yes");
+    writeRawSetting(shared, "highway.showArpeggioBrackets", "0");
     const HighwaySettingsStore store{shared};
 
     const HighwayPlayerSettings settings = store.read();
 
+    const HighwayViewPreferences defaults{};
     CHECK(settings.theme_id == std::optional<std::string>{"dusk"});
-    CHECK(settings.view.mirrored == HighwayViewPreferences{}.mirrored);
+    CHECK(settings.view.mirrored == defaults.mirrored);
     CHECK_FALSE(settings.view.invert_string_order);
+    CHECK_FALSE(settings.view.show_anticipation_ring);
+    CHECK(settings.view.show_note_rotation == defaults.show_note_rotation);
+    CHECK_FALSE(settings.view.show_arpeggio_brackets);
 }
 
 // An update rereads the file under the lock, so it keeps what the other product changed since this

@@ -14,6 +14,7 @@
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_sample.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
@@ -698,6 +699,16 @@ public:
         last_pinned_palette_id = std::move(pinned_palette_id);
     }
 
+    /*!
+    \brief Records the requested highway view choice.
+    \param flag The choice to set.
+    \param on The value to store.
+    */
+    void onHighwayViewFlagChangeRequested(common::core::HighwayViewFlag flag, bool on) override
+    {
+        last_highway_view_flag = HighwayViewFlagChange{.flag = flag, .on = on};
+    }
+
     /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
     void onPluginBrowserRequested() override
     {
@@ -1205,6 +1216,28 @@ public:
     the requested pin, itself empty for "Theme's choice".
     */
     std::optional<std::optional<std::string>> last_pinned_palette_id{};
+
+    /*! \brief One request made through onHighwayViewFlagChangeRequested(). */
+    struct HighwayViewFlagChange
+    {
+        /*! \brief The choice to set. */
+        common::core::HighwayViewFlag flag{};
+
+        /*! \brief The value to store. */
+        bool on{false};
+
+        /*!
+        \brief Compares two requests by their stored fields.
+        \param lhs Left-hand request.
+        \param rhs Right-hand request.
+        \return True when both name the same choice and the same value.
+        */
+        friend bool operator==(const HighwayViewFlagChange& lhs, const HighwayViewFlagChange& rhs) =
+            default;
+    };
+
+    /*! \brief Last request made through onHighwayViewFlagChangeRequested(). */
+    std::optional<HighwayViewFlagChange> last_highway_view_flag{};
 
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_selected_plugin_id{};

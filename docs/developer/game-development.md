@@ -114,8 +114,8 @@ production store) and the test double `NullGameSettings`
 A setting that describes the player or the machine rather than the game's own workspace is
 deliberately *not* here: the game and the editor share one settings file, so they can never
 disagree about it. The audio device configuration lives there through `AudioConfigStore`
-(\ref guide_audio_device), and the highway theme, string palette pin, mirroring and string order
-through
+(\ref guide_audio_device), and the highway theme, string palette pin, mirroring, string order and
+reading aids through
 `HighwaySettingsStore` (`common/core` `highway/highway_settings_store.h`).
 
 # Packaged resources and the deploy contract

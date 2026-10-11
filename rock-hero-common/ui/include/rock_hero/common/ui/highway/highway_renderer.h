@@ -166,15 +166,16 @@ public:
     [[nodiscard]] common::core::HighwayCameraPose cameraPose() const noexcept;
 
     /*!
-    \brief Sets how the board maps onto the screen: the lefty mirror, the string-order invert and
-    the displayed-lane minimum.
+    \brief Sets how the board draws: the lefty mirror, the string-order invert, the reading aids
+    and the displayed-lane minimum.
 
     The renderer's own setting rather than part of the view state, because none of it changes the
-    projected chart. An unchanged set does nothing; a changed one re-resolves the lanes, rebuilds
-    the board face and re-frames the camera, since the mirror moves what it frames. Defaults to the
+    projected chart. A change of layout — anything but a reading aid — re-resolves the lanes,
+    rebuilds the board face and re-frames the camera, since the mirror moves what it frames; a
+    reading aid alone takes effect from the next frame with the camera gliding on. Defaults to the
     value-initialized options until first called.
 
-    \param options Display mapping to apply from the next frame.
+    \param options Display options to apply from the next frame.
     */
     void setDisplayOptions(common::core::HighwayDisplayOptions options);
 

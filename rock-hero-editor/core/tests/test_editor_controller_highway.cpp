@@ -52,7 +52,13 @@ TEST_CASE("EditorController publishes the stored highway settings", "[core][edit
     const HighwayPlayerSettings stored{
         .theme_id = std::string{"night"},
         .pinned_palette_id = std::string{"ice"},
-        .view = HighwayViewPreferences{.mirrored = true, .invert_string_order = false},
+        .view = HighwayViewPreferences{
+            .mirrored = true,
+            .invert_string_order = false,
+            .show_anticipation_ring = false,
+            .show_note_rotation = false,
+            .show_arpeggio_brackets = false,
+        },
     };
     REQUIRE(store.update([&stored](HighwayPlayerSettings& settings) { settings = stored; })
                 .has_value());
@@ -120,6 +126,50 @@ TEST_CASE("A palette pick pins and Theme's choice unpins", "[core][editor-contro
     CHECK(shownSettings(view).theme_id == std::optional<std::string>{"night"});
 }
 
+// Each reading aid turns off and back on by itself: the request sets the one named choice, which
+// is stored and shown, and every other choice stays as it was.
+TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-controller]")
+{
+    const ScopedSettingsFile settings_file{"controller_highway_view_flag.settings"};
+    SharedSettingsFile shared_file{settings_file.path()};
+    HighwaySettingsStore store{shared_file};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    EditorController controller{
+        audioPorts(transport, audio), servicesOver(store), noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const HighwayViewPreferences ring_off{
+        .mirrored = false,
+        .invert_string_order = true,
+        .show_anticipation_ring = false,
+        .show_note_rotation = true,
+        .show_arpeggio_brackets = true,
+    };
+    const HighwayViewPreferences only_ring{
+        .mirrored = false,
+        .invert_string_order = true,
+        .show_anticipation_ring = true,
+        .show_note_rotation = false,
+        .show_arpeggio_brackets = false,
+    };
+
+    controller.onHighwayViewFlagChangeRequested(
+        &HighwayViewPreferences::show_anticipation_ring, false);
+    CHECK(shownSettings(view).view == ring_off);
+    CHECK(store.read() == shownSettings(view));
+
+    controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_rotation, false);
+    controller.onHighwayViewFlagChangeRequested(
+        &HighwayViewPreferences::show_arpeggio_brackets, false);
+    controller.onHighwayViewFlagChangeRequested(
+        &HighwayViewPreferences::show_anticipation_ring, true);
+    CHECK(shownSettings(view).view == only_ring);
+    CHECK(store.read() == shownSettings(view));
+}
+
 // A pick writes through the shared file's lock, so it keeps what the game changed since the editor
 // last read, and the view shows the record as stored.
 TEST_CASE("A highway pick keeps the game's change", "[core][editor-controller]")
@@ -145,6 +195,18 @@ TEST_CASE("A highway pick keeps the game's change", "[core][editor-controller]")
     CHECK(shownSettings(view).view.mirrored);
     CHECK(shownSettings(view).theme_id == std::optional<std::string>{"night"});
     CHECK(game_store.read() == shownSettings(view));
+
+    // A view choice writes only itself, so the game's other choices survive it the same way.
+    REQUIRE(game_store
+                .update([](HighwayPlayerSettings& settings) {
+                    settings.view.invert_string_order = false;
+                })
+                .has_value());
+    controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_rotation, false);
+
+    CHECK_FALSE(shownSettings(view).view.invert_string_order);
+    CHECK_FALSE(shownSettings(view).view.show_note_rotation);
+    CHECK(game_store.read() == shownSettings(view));
 }
 
 // A pick the shared file cannot store still applies for the session, as the editor's other display
@@ -169,9 +231,12 @@ TEST_CASE("A highway pick that cannot be saved still applies", "[core][editor-co
 
     controller.onHighwayThemeChangeRequested("night");
     controller.onStringPaletteChangeRequested("ice");
+    controller.onHighwayViewFlagChangeRequested(
+        &HighwayViewPreferences::show_arpeggio_brackets, false);
 
     CHECK(shownSettings(view).theme_id == std::optional<std::string>{"night"});
     CHECK(shownSettings(view).pinned_palette_id == std::optional<std::string>{"ice"});
+    CHECK_FALSE(shownSettings(view).view.show_arpeggio_brackets);
     CHECK(store.read() == HighwayPlayerSettings{});
 }
 

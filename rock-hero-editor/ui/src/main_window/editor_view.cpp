@@ -1725,6 +1725,7 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         menu.addSeparator();
         menu.addSubMenu("Highway Theme", highwayThemeMenu());
         menu.addSubMenu("String Colors", stringPaletteMenu());
+        menu.addSubMenu("Highway Display", highwayDisplayMenu());
         return menu;
     }
 
@@ -1814,6 +1815,47 @@ juce::PopupMenu EditorView::stringPaletteMenu()
             true,
             pinned == &palette,
             pick(palette.source_id));
+    }
+    return menu;
+}
+
+// Each item names its aid by the member that stores it and asks for the opposite of its tick.
+juce::PopupMenu EditorView::highwayDisplayMenu()
+{
+    struct ReadingAidItem
+    {
+        const char* text;
+        common::core::HighwayViewFlag flag;
+    };
+    static constexpr std::array g_reading_aids{
+        ReadingAidItem{
+            .text = "Anticipation Ring",
+            .flag = &common::core::HighwayViewPreferences::show_anticipation_ring,
+        },
+        ReadingAidItem{
+            .text = "Note Rotation",
+            .flag = &common::core::HighwayViewPreferences::show_note_rotation,
+        },
+        ReadingAidItem{
+            .text = "Arpeggio Brackets",
+            .flag = &common::core::HighwayViewPreferences::show_arpeggio_brackets,
+        },
+    };
+
+    juce::PopupMenu menu;
+    for (const ReadingAidItem& item : g_reading_aids)
+    {
+        const bool shown = m_state.highway_settings.view.*item.flag;
+        menu.addItem(
+            item.text,
+            true,
+            shown,
+            [self = juce::Component::SafePointer<EditorView>{this}, flag = item.flag, shown] {
+                if (self != nullptr)
+                {
+                    self->m_controller.onHighwayViewFlagChangeRequested(flag, !shown);
+                }
+            });
     }
     return menu;
 }

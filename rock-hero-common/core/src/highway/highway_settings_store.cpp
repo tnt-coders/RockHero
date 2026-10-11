@@ -1,5 +1,6 @@
 #include "highway/highway_settings_store.h"
 
+#include <array>
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 #include <string>
@@ -10,12 +11,40 @@ namespace rock_hero::common::core
 namespace
 {
 
+// One on/off view choice and the key it is stored under.
+struct ViewFlagKey
+{
+    const char* key;
+    HighwayViewFlag flag;
+};
+
 // Every key the store owns. The shared "highway." prefix is the whole defense against another
-// area's keys in the same file.
+// area's keys in the same file. Each view choice is paired with its key once, here, and both
+// directions walk the pairs, so a read and a write can never disagree about a key.
 constexpr const char* g_theme_key{"highway.theme"};
 constexpr const char* g_pinned_palette_key{"highway.palette"};
-constexpr const char* g_mirrored_key{"highway.mirrored"};
-constexpr const char* g_invert_string_order_key{"highway.invertStringOrder"};
+constexpr std::array g_view_flag_keys{
+    ViewFlagKey{
+        .key = "highway.mirrored",
+        .flag = &HighwayViewPreferences::mirrored,
+    },
+    ViewFlagKey{
+        .key = "highway.invertStringOrder",
+        .flag = &HighwayViewPreferences::invert_string_order,
+    },
+    ViewFlagKey{
+        .key = "highway.showAnticipationRing",
+        .flag = &HighwayViewPreferences::show_anticipation_ring,
+    },
+    ViewFlagKey{
+        .key = "highway.showNoteRotation",
+        .flag = &HighwayViewPreferences::show_note_rotation,
+    },
+    ViewFlagKey{
+        .key = "highway.showArpeggioBrackets",
+        .flag = &HighwayViewPreferences::show_arpeggio_brackets,
+    },
+};
 
 // JUCE stores a bool as "1" or "0"; anything else is unreadable and reads as the default.
 [[nodiscard]] bool readFlag(const juce::PropertiesFile& properties, const char* key, bool fallback)
@@ -60,15 +89,16 @@ void writeText(
 // Reads every setting from one opened copy of the file, each falling back on its own.
 [[nodiscard]] HighwayPlayerSettings readFrom(const juce::PropertiesFile& properties)
 {
-    const HighwayViewPreferences defaults{};
+    // Each view choice starts at its default, which is also what it falls back on.
+    HighwayViewPreferences view{};
+    for (const ViewFlagKey& entry : g_view_flag_keys)
+    {
+        view.*entry.flag = readFlag(properties, entry.key, view.*entry.flag);
+    }
     return HighwayPlayerSettings{
         .theme_id = readText(properties, g_theme_key),
         .pinned_palette_id = readText(properties, g_pinned_palette_key),
-        .view = HighwayViewPreferences{
-            .mirrored = readFlag(properties, g_mirrored_key, defaults.mirrored),
-            .invert_string_order =
-                readFlag(properties, g_invert_string_order_key, defaults.invert_string_order),
-        },
+        .view = view,
     };
 }
 
@@ -77,8 +107,10 @@ void writeTo(juce::PropertiesFile& properties, const HighwayPlayerSettings& sett
 {
     writeText(properties, g_theme_key, settings.theme_id);
     writeText(properties, g_pinned_palette_key, settings.pinned_palette_id);
-    properties.setValue(g_mirrored_key, settings.view.mirrored);
-    properties.setValue(g_invert_string_order_key, settings.view.invert_string_order);
+    for (const ViewFlagKey& entry : g_view_flag_keys)
+    {
+        properties.setValue(entry.key, settings.view.*entry.flag);
+    }
 }
 
 } // namespace

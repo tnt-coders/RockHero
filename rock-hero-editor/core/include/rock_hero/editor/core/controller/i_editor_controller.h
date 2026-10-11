@@ -14,6 +14,7 @@
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_sample.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -250,6 +251,17 @@ public:
     \param pinned_palette_id The id of the theme whose strings to pin; empty for "Theme's choice".
     */
     virtual void onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id) = 0;
+
+    /*!
+    \brief Handles the player turning one of the highway's on/off view choices on or off.
+
+    A player setting shared with the game, never project content. Only the named choice is
+    written, so a choice the game changed since stays as the game stored it.
+
+    \param flag The choice to set, as the member that stores it; never null.
+    \param on The value to store.
+    */
+    virtual void onHighwayViewFlagChangeRequested(common::core::HighwayViewFlag flag, bool on) = 0;
 
     /*!
     \brief Handles switching the editor to another arrangement of the loaded song.

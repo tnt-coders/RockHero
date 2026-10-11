@@ -63,4 +63,16 @@ void EditorController::Impl::onStringPaletteChangeRequested(
     updateView();
 }
 
+// The change sets the one named choice on the record as stored, so the game's other choices stay.
+void EditorController::Impl::onHighwayViewFlagChangeRequested(
+    common::core::HighwayViewFlag flag, bool on)
+{
+    m_highway_settings = changedHighwaySettings(
+        m_highway_settings_store,
+        m_highway_settings,
+        [flag, on](common::core::HighwayPlayerSettings& settings) { settings.view.*flag = on; },
+        "save highway view choice");
+    updateView();
+}
+
 } // namespace rock_hero::editor::core

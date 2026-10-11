@@ -450,6 +450,9 @@ public:
     /*! \copydoc IEditorController::onStringPaletteChangeRequested */
     void onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id) override;
 
+    /*! \copydoc IEditorController::onHighwayViewFlagChangeRequested */
+    void onHighwayViewFlagChangeRequested(common::core::HighwayViewFlag flag, bool on) override;
+
     /*! \copydoc IEditorController::onArrangementSelected */
     void onArrangementSelected(std::string arrangement_id) override;
 

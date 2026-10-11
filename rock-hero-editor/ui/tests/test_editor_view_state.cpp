@@ -1437,7 +1437,8 @@ TEST_CASE("EditorView opens the interrupted-restore prompt once on screen", "[ui
 
 // The View menu's highway pickers list what the registry holds, tick what the pushed settings
 // resolve to, and hand each pick to the controller: the palette's top entry names the palette it
-// resolves to and unpins. The lane-count picker hands its picks over the same way.
+// resolves to and unpins. The lane-count picker hands its picks over the same way, and each
+// reading aid is ticked while it draws and asks for the opposite.
 TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1543,6 +1544,34 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
     REQUIRE(lane_counts[2].action != nullptr);
     lane_counts[2].action();
     CHECK(controller.last_tab_minimum_displayed_strings == std::optional<int>{5});
+
+    // The reading aids, in the menu's order, under settings with only the rotation turned off.
+    core::EditorViewState rotation_off;
+    rotation_off.highway_settings.view.show_note_rotation = false;
+    view.setState(rotation_off);
+    const std::vector<juce::PopupMenu::Item> aids = submenu_items("Highway Display");
+    REQUIRE(aids.size() == 3);
+    CHECK(aids[0].text == "Anticipation Ring");
+    CHECK(aids[0].isTicked);
+    CHECK(aids[1].text == "Note Rotation");
+    CHECK_FALSE(aids[1].isTicked);
+    CHECK(aids[2].text == "Arpeggio Brackets");
+    CHECK(aids[2].isTicked);
+    using RequestedFlag = core::testing::RecordingEditorController::HighwayViewFlagChange;
+    REQUIRE(aids[1].action != nullptr);
+    aids[1].action();
+    CHECK(
+        controller.last_highway_view_flag ==
+        std::optional{RequestedFlag{
+            .flag = &common::core::HighwayViewPreferences::show_note_rotation, .on = true
+        }});
+    REQUIRE(aids[2].action != nullptr);
+    aids[2].action();
+    CHECK(
+        controller.last_highway_view_flag ==
+        std::optional{RequestedFlag{
+            .flag = &common::core::HighwayViewPreferences::show_arpeggio_brackets, .on = false
+        }});
 }
 
 } // namespace rock_hero::editor::ui

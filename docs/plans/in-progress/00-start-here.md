@@ -53,7 +53,11 @@ the highway theming sightings below.
 2. **Phase 4a, the box chord device and the posts**, once built: settle the device in motion,
    and rule on the open-bar posts (54-Q7) and the glow posts under each note (54-Q22) from the
    candidates shown live; losing prototypes are deleted before commit.
-3. **Phase 3**: the private Classic theme A/B against a build of the commit before `b6fb1134`
+3. **Plan 69's display toggles** (landed): in the editor, View > Highway Display, flip Anticipation
+   Ring, Note Rotation and Arpeggio Brackets in motion. Rule 69-Q2: brackets off also hides the
+   arpeggio's panel (a bracket-less panel would read as a chord box); confirm, or hide only the
+   brackets.
+4. **Phase 3**: the private Classic theme A/B against a build of the commit before `b6fb1134`
    (select it by setting `highway.theme` to `classic` in `settings/shared.settings`), and the
    garish coverage fixture selected once in both products.
 

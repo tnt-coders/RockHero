@@ -7,9 +7,10 @@
 // API layer whatever backend is active, so a corrupt or stale binary still fails here), uploads
 // and MEASURES the shipped textures, then accepts real projected view states and encodes several
 // hundred frames across them. It covers the lifecycle and the encode path end to end: content
-// before/inside/after the drawn span, a resize mid-sweep, a content swap mid-sweep, a paused
-// redraw at dt = 0, an empty view state, the overlay pass, a large-batch capacity probe, and the
-// teardown order the renderer's contract requires (renderer dies before bgfx shutdown).
+// before/inside/after the drawn span, a resize mid-sweep, a sweep with every reading aid off, a
+// content swap mid-sweep, a paused redraw at dt = 0, an empty view state, the overlay pass, a
+// large-batch capacity probe, and the teardown order the renderer's contract requires (renderer
+// dies before bgfx shutdown).
 //
 // The signal is bgfx's own instrumentation, not ours. The debug preset compiles bgfx with
 // BX_CONFIG_DEBUG=1, so its internal BX_ASSERTs are live: an invalid handle, a view id past the
@@ -163,8 +164,9 @@ using common::core::NoteEmphasis;
 // tremolo tail, a vibrato, an accented head, a ghosted tail carrying both a bend point and a
 // pitched glide, a dead palm-muted stop, an open string on a harmonic node over the capo, a
 // legato pair resolving to a hammer-on and a pull-off, a tapped pair (the tapping-hand light and
-// its box), and a long accented open tail. Two fret-hand placements a wide jump apart give the
-// hand window both a settled span and a transition sweep.
+// its box), a long accented open tail, and a strum restruck in part under a ringing string (an
+// arpeggio span: its posture mark and its rails). Two fret-hand placements a wide jump apart give
+// the hand window both a settled span and a transition sweep.
 [[nodiscard]] common::core::Arrangement makeFamiliesArrangement()
 {
     common::core::Chart chart;
@@ -329,6 +331,47 @@ using common::core::NoteEmphasis;
             .fret = 0,
             .sustain = Fraction{1},
             .emphasis = NoteEmphasis::Accent,
+            .bend = {},
+            .keyframes = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 7, .beat = 1},
+            .string = 1,
+            .fret = 12,
+            .sustain = Fraction{1, 4},
+            .bend = {},
+            .keyframes = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 7, .beat = 1},
+            .string = 2,
+            .fret = 13,
+            .sustain = Fraction{1, 4},
+            .bend = {},
+            .keyframes = {},
+        },
+        // Rings through the restrike below, which therefore sounds the shape only in part.
+        ChartNote{
+            .position = GridPosition{.measure = 7, .beat = 1},
+            .string = 3,
+            .fret = 14,
+            .sustain = Fraction{1, 2},
+            .bend = {},
+            .keyframes = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 7, .beat = 2},
+            .string = 1,
+            .fret = 12,
+            .sustain = Fraction{1, 4},
+            .bend = {},
+            .keyframes = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 7, .beat = 2},
+            .string = 2,
+            .fret = 13,
+            .sustain = Fraction{1, 4},
             .bend = {},
             .keyframes = {},
         },
@@ -501,6 +544,12 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // A tapped CHORD, not only a tap: the picking hand's box, its rails and its box-side pop
         // draw only for two or more taps struck together.
         CHECK(std::ranges::any_of(families.tap_onsets, common::core::tappedChord));
+        // An arpeggio whose posture mark draws, or the mark and its reading-aid switch go unswept.
+        CHECK(
+            std::ranges::any_of(
+                families.chart.shapes, [](const common::core::ShapeViewState& shape) {
+                    return shape.arpeggio && shape.bracket_seconds.has_value();
+                }));
         CHECK_FALSE(families.beats.empty());
         CHECK_FALSE(families.sections.empty());
         CHECK(
@@ -557,6 +606,27 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         drawFrames(*renderer, *device, zone_starts.back(), 0.0, 1);
         CHECK_FALSE(same_pose(renderer->cameraPose(), gliding));
 
+        // The reading aids only decide whether an element draws, so turning them off mid-glide
+        // leaves the camera where it is; the sweep after it draws the whole content with every
+        // aid off — no anticipation ring, no rolling flip, no arpeggio mark.
+        drawFrames(*renderer, *device, zone_starts.front(), 1.0 / 60.0, 1);
+        const common::core::HighwayCameraPose before_aids_off = renderer->cameraPose();
+        renderer->setDisplayOptions(
+            common::core::HighwayDisplayOptions{
+                .view =
+                    common::core::HighwayViewPreferences{
+                        .mirrored = false,
+                        .invert_string_order = true,
+                        .show_anticipation_ring = false,
+                        .show_note_rotation = false,
+                        .show_arpeggio_brackets = false,
+                    },
+                .minimum_string_count = 0,
+            });
+        drawFrames(*renderer, *device, zone_starts.front(), 0.0, 1);
+        CHECK(same_pose(renderer->cameraPose(), before_aids_off));
+        drawFrames(*renderer, *device, -2.0, 2.0 * sweep_step_seconds, 150);
+
         // A content swap mid-sweep, under the non-default display mapping.
         const common::core::Arrangement swap_arrangement = makeSwapArrangement();
         renderer->setDisplayOptions(
@@ -565,6 +635,9 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
                     common::core::HighwayViewPreferences{
                         .mirrored = true,
                         .invert_string_order = false,
+                        .show_anticipation_ring = true,
+                        .show_note_rotation = true,
+                        .show_arpeggio_brackets = true,
                     },
                 .minimum_string_count = 7,
             });

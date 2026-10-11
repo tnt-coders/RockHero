@@ -61,7 +61,9 @@ Two menu kinds, two conventions — both build their items from *published view 
   `getMenuForIndex`): command-backed items are `addCommandItem` rows whose name, enablement,
   tick state, and live shortcut text all come from the command registry's `getCommandInfo`
   (\ref guide_keyboard). Every other item — the tablature lane-count, highway theme and
-  string-color pickers — carries its own action, a `SafePointer`-guarded lambda that hands the
-  pick to the controller, so no item needs an id range and `menuItemSelected` stays empty. The
-  two highway pickers list the themes the view's `HighwayThemeRegistry` holds and tick what the
-  published highway settings resolve to. Theming stays with `MenuLookAndFeel`.
+  string-color pickers and the Highway Display toggles — carries its own action, a
+  `SafePointer`-guarded lambda that hands the pick to the controller, so no item needs an id range
+  and `menuItemSelected` stays empty. The two highway pickers list the themes the view's
+  `HighwayThemeRegistry` holds and tick what the published highway settings resolve to; each
+  Highway Display toggle is ticked while its reading aid draws. Theming stays with
+  `MenuLookAndFeel`.

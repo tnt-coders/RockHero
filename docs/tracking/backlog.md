@@ -33,6 +33,10 @@ the user picks which way the two surfaces reconcile.
 - **`preview_surface.cpp:356` breaks the identifier-naming rule:** `static const auto empty` is a
   static local, which `readability-identifier-naming` spells with the `g_` prefix; a per-file
   clang-tidy run reports it and a Windows CI lint run will. Rename it (and its uses).
+- **`grid_carry` breaks the identifier-naming rule:** `static constexpr GridCarry grid_carry` in
+  `rock-hero-editor/core/src/timeline/song_timeline_snapshot.h:37` and `tempo_map_snapshot.h:32`
+  (from `1beb3e5f`) is reported by a per-file clang-tidy run against `build/release`; a static
+  member constant takes the `g_` prefix. It may fail CI lint; rename both.
 
 ## Found by plan 67 Phases 1–4 and the last rule-citation sweep (2026-10-09)
 

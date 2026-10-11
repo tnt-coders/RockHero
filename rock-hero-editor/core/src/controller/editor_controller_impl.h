@@ -182,6 +182,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
     void onHighwayThemeChangeRequested(std::string theme_id);
     void onStringPaletteChangeRequested(std::optional<std::string> pinned_palette_id);
+    void onHighwayViewFlagChangeRequested(common::core::HighwayViewFlag flag, bool on);
     void onArrangementSelected(std::string arrangement_id);
     void onChartPointerDown(const ChartPointerEvent& event);
     void onChartPointerDrag(const ChartPointerEvent& event);

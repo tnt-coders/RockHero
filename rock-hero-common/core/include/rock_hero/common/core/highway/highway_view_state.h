@@ -27,14 +27,14 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Display-mapping settings the renderer applies while drawing: the renderer's own setting.
+\brief Display settings the renderer applies while drawing: the renderer's own setting.
 
 The player's view preferences are read per frame in `highway_renderer.cpp` — the fret axis
-reflects, the lanes stack — and the lane minimum is resolved whenever the options or the state
-change; none of them changes the projected scene, so they are handed to the renderer directly
-(`HighwayRenderer::setDisplayOptions`) rather than riding the memoized \ref HighwayViewState:
-changing one never re-projects the chart, and the chart scene underneath stays one chart fact that
-no consumer projects a second, per-display copy of.
+reflects, the lanes stack, a reading aid draws or not — and the lane minimum is resolved whenever
+the options or the state change; none of them changes the projected scene, so they are handed to
+the renderer directly (`HighwayRenderer::setDisplayOptions`) rather than riding the memoized
+\ref HighwayViewState: changing one never re-projects the chart, and the chart scene underneath
+stays one chart fact that no consumer projects a second, per-display copy of.
 */
 struct HighwayDisplayOptions
 {

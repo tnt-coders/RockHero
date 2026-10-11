@@ -1,6 +1,7 @@
 # Plan 69 — Highway Display Toggles
 
-**Status:** Drafted 2026-10-11 against `master @ 9aec2de0`; not started. The user wants three
+**Status:** Drafted 2026-10-11 against `master @ 9aec2de0`. **Phases 1 and 2 landed 2026-10-11**
+(View > Highway Display; shared `highway.show*` keys); the Phase 2 sighting is pending. The user wants three
 reading aids to be player choices rather than fixed behavior. Where the choices are stored is open
 (69-Q1) is answered by plan 70's shared settings file; the toggles themselves are decided.
 
@@ -43,7 +44,10 @@ the ring, whose default 54-Q21 now decides in place of keep-or-drop.
   single note travels flat for its whole approach, exactly as it lands today; nothing else about
   the head's placement changes.
 - **Arpeggio brackets off** hides the bracket cells. Whether the bracket's printed posture and stop
-  hide with them is 69-Q2. The arpeggio rails still mark the span either way.
+  hide with them is 69-Q2. The arpeggio rails still mark the span either way. It also hides the
+  arpeggio-styled panel the cells sit on: without its brackets that panel reads as a chord box,
+  which marks simultaneity (shape rule 5), drawn around what may be one note of a broken chord. A
+  strum the mark stood in for wears its own chord box again.
 - **Both products** expose the three toggles: the editor's View menu and the game's options
   (plan 26's settings surface, 54-Q16's precedent). The editor preview follows the editor's
   setting.
@@ -60,7 +64,10 @@ never by the type name.
 - **69-Q2 — what "arpeggio brackets off" hides.** (A) Only the bracket cells; the posture and stop
   printed beside them stay. (B) The bracket and everything it prints. *Recommended: B*, since the
   printed stop reads as part of the bracket and would float unanchored without it; the rails keep
-  the span visible.
+  the span visible. *Found at implementation:* the 3D board prints no posture digit or satellite
+  (only the 2D lane reads `ShapeStringViewState::digit`); a 3D bracket states its stop by where it
+  sits. So on the board A and B hide the same thing, and the question only bites if 3D ever gains
+  the digit.
 - **69-Q3 — the ring's default.** Taken from 54-Q21's side-by-side sighting.
 
 ## Phases

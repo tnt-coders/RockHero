@@ -84,12 +84,15 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    A host that shows *other* content calls `resetCamera`, and the next frame snaps to its target
    at rest: the game after each chart load and hot reload, the editor preview on a project load,
    an arrangement switch (both judged in `EditorView::setState`) and a reopen. A display-option
-   change re-frames on its own, since the mirror moves what the camera frames.
+   change that moves the layout re-frames on its own, since the mirror moves what the camera
+   frames; a reading aid alone leaves the camera gliding.
 
-   The display options — the player's view preferences (the lefty mirror and the string-order
-   invert, `HighwayViewPreferences`) and the displayed-lane minimum — are the renderer's own
-   setting rather than part of the view state: none of them changes the projected chart, so
-   changing one re-projects nothing.
+   The display options — the player's view preferences (`HighwayViewPreferences`: the lefty mirror,
+   the string-order invert, and the three reading aids, which turn the anticipation ring, the
+   single-note roll and the arpeggio posture mark on or off) and the displayed-lane minimum — are
+   the renderer's own setting rather than part of the view state: none of them changes the
+   projected chart, so changing one re-projects nothing. Each aid is read at its one draw site in
+   `highway_renderer.cpp`.
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
    consumer decides where they load from. What each program and asset *is*, and the file name it
@@ -189,7 +192,7 @@ and the same failure policy as a first open.
 | Projection + camera math | `rock_hero::common::core` | public dep of `common::ui` |
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
 | String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes `HighwayThemeRegistry::paletteFor(<the player's settings>)` — the pinned palette, else the theme's — to `HighwayRenderer::create` and `makeTabLaneMetrics` |
-| Player's highway settings (theme id, palette pin, view preferences) | `common/core` `highway/highway_settings_store.h` | the game reads `HighwaySettingsStore` over the shared settings file once at launch; the editor's controller reads it at construction and writes each theme and palette pick through `update` |
+| Player's highway settings (theme id, palette pin, view preferences) | `common/core` `highway/highway_settings_store.h` | the game reads `HighwaySettingsStore` over the shared settings file once at launch; the editor's controller reads it at construction and writes each theme pick, palette pick and View > Highway Display toggle through `update` |
 | Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps them and the palette without a rebuild |
 | Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeFor(<the player's settings>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `themes/` (`themesFolder()`), where one may inherit a built-in (`inherits`) or shadow it by taking its id |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |

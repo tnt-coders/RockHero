@@ -884,6 +884,11 @@ void EditorController::onStringPaletteChangeRequested(std::optional<std::string>
     m_impl->onStringPaletteChangeRequested(std::move(pinned_palette_id));
 }
 
+void EditorController::onHighwayViewFlagChangeRequested(common::core::HighwayViewFlag flag, bool on)
+{
+    m_impl->onHighwayViewFlagChangeRequested(flag, on);
+}
+
 void EditorController::onArrangementSelected(std::string arrangement_id)
 {
     m_impl->onArrangementSelected(std::move(arrangement_id));
