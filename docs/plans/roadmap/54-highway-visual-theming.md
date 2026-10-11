@@ -386,7 +386,9 @@ Each carries a recommendation; none is decided until the user rules.
   - it keeps today's panel geometry, its place along the highway, the frame alpha and the fill;
   - it drops the corner holders and the gradient on the bars, which become flat;
   - the palm X takes the flat frame color, and the side columns start above the bottom bar;
-  - the open-bar L posts lose their foot and keep the upright leg;
+  - the open-bar L posts lose their foot and keep the upright leg: a PROPOSAL from the Phase 0
+    mock, never sighted or ruled (user, 2026-10-11); Phase 4a renders post candidates beside it
+    for the user to rule on;
   - the repeat X stays today's `chords.png` cells, tinted per theme.
   - Every candidate drops the corner holders and the end-to-middle gradient.
   - The repeat boxes (S1) and the open-bar posts (S2) follow whichever device wins.
