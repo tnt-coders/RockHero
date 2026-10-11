@@ -114,7 +114,7 @@ struct HighwayTheme
     /*! \brief The rim around the capo's bar. */
     ArgbColor capo_bar_rim;
 
-    /*! \brief The tint the inlay art is multiplied by. */
+    /*! \brief The tint the inlay art is multiplied by; its alpha is the inlays' opacity. */
     ArgbColor inlay_tint;
 
     /*! \brief The section labels above the board. */

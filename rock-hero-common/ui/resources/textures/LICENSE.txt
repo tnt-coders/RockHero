@@ -1,13 +1,13 @@
-This license covers EXACTLY the following files in this directory, which are adapted from
+This license covers EXACTLY the following art in this directory, which is adapted from
 Charter (https://github.com/Lordszynencja/Charter) and redistributed under the BSD 3-Clause
 License below:
 
-  - notes.png
-  - inlays.png
+  - notes.png, its technique-mark cells (rows 2 to 4); its head cells (rows 0 and 1) are
+    original Rock Hero art
 
 They ship with Rock Hero as runtime resources; this notice must accompany them in source and
-binary distributions. Every other file in this directory (currently chords.png) is original
-Rock Hero art, NOT covered by this license, and carries the repository's own license.
+binary distributions. Every other file in this directory (currently chords.png and inlays.png)
+is original Rock Hero art, NOT covered by this license, and carries the repository's own license.
 
 BSD 3-Clause License
 

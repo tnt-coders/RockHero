@@ -9,6 +9,7 @@ include(Catch)
 add_executable(
     rock_hero_common_ui_tests
     noop_render_device.cpp
+    test_bgfx_color.cpp
     test_box_mute_profile.cpp
     test_head_art_profile.cpp
     test_highway_atlas.cpp
@@ -16,7 +17,6 @@ add_executable(
     test_highway_head_marks.cpp
     test_highway_renderer_smoke.cpp
     test_highway_slide_path.cpp
-    test_highway_theme.cpp
     test_render_device.cpp
     test_string_color_palette.cpp
     test_tab_lane_layout.cpp
