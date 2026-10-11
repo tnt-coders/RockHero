@@ -259,7 +259,8 @@ Mirror all four into `docs/plans/roadmap/00-roadmap.md` Decisions-needed.
 3. **v1 theme delivery scope. RESOLVED A (2026-08-02).** (A) Built-in presets only (Default Dark
    ships; more are data); (B) file-based user themes at v1. This plan ships built-ins only. File
    delivery is not deferred — it moved: `docs/plans/roadmap/54-highway-visual-theming.md` Phase 2
-   owns user theme and palette files for both products, and packaging moves to a todo plan
+   owns user theme files for both products, and a theme's `colors.strings` is the only string
+   palette file (54-Q18, recast 2026-10-11), and packaging moves to a todo plan
    (54-Q12). This plan's Phase 6 is withdrawn accordingly.
 4. **When to raise `g_max_chart_strings` to 10.** (A) Execute Phase 5 immediately after Phase 4
    (colors exist; the raise is accept-more and unblocks the format's 10-string target for GP
@@ -390,7 +391,10 @@ colorblind player needs the note palette swap regardless of chrome taste).
   `stringColorPalettes()`); unknown ids fall back to Charter Classic. Per plan 54's 54-Q18 the
   setting's absent value means "Theme's choice", the submenu's top entry reading
   `Theme's choice (<resolved palette>)`, and any concrete pick pins; until plan 54 Phase 2a lands
-  that entry resolves to the default palette.
+  that entry resolves to the default palette. The stored pin names its source, a theme id or a
+  code palette id: from plan 54 Phase 2a every theme that states `colors.strings` is a palette,
+  `charter-classic` moves into the default theme's file, and code keeps only the accessibility
+  palettes (Phase 4).
 - `TabView` receives the active palette (extend `setState(...)` or add a setter beside
   `setVisibleTimeline`) and derives its `StringLaneStyle` set from it; repaint on change.
 
@@ -446,12 +450,13 @@ toggle.
   constant), `editor_controller.cpp:989,1253` (clamps auto-extend), `editor_view.cpp:707,817`
   (menu loop and command range auto-extend), `test_editor_controller_state.cpp:766–785`,
   `test_tab_view.cpp:85` comment, TrackViewport proportional row sizing at 10 lanes.
-  **If `docs/plans/roadmap/54-highway-visual-theming.md` Phase 2 has landed, add user palette
-  files to this survey**: built-in presets fail to *compile* when the cap rises (the Phase 1
-  array-sizing coupling working as designed), but a user-authored palette file sized for the old
-  cap has no compile step — it silently becomes wrong-length and is dropped at load. That is a
-  user-visible consequence of the raise, not a code one: every existing user palette stops
-  appearing until re-authored. Decide before 5b whether the raise ships with a migration note, a
+  **If `docs/plans/roadmap/54-highway-visual-theming.md` Phase 2a has landed, add theme files to
+  this survey**: code-owned palettes fail to *compile* when the cap rises (the Phase 1
+  array-sizing coupling working as designed), but a theme's `colors.strings` array sized for the
+  old cap has no compile step — it becomes wrong-length and the theme is rejected at load (a
+  built-in fails loudly, a user theme is dropped). That is a user-visible consequence of the raise,
+  not only a code one: every existing user theme that states its strings stops appearing until
+  re-authored. Decide before 5b whether the raise ships with a migration note, a
   load-time pad of the missing lanes, or an accepted break, and say which in the sign-off. Confirm
   against `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` that an accept-more validation
   change needs no formatVersion bump. Local-only corpus checks (never CI): all 39 `.rock`
