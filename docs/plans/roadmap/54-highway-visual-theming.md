@@ -9,7 +9,7 @@ palette is a separate `create` argument); its coverage check moved to Phase 3's 
 premultiplying its tint so `inlay_tint`'s alpha is the inlays' opacity); its sighting is pending.
 Phase 2a landed 2026-10-11: the default is `resources/themes/ice/`, loaded with any user themes
 through one strict loader; no stored theme id until plan 70 Phase 2. **Phase 0 has a direction for the default look**
-(below) and still gates the art phases (54-Q5 to 54-Q21, each with a recommendation or a ruling).
+(below) and still gates the art phases (54-Q5 to 54-Q22, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
 sighting"). **Phases 1 to 5 gate the first public release.** This
@@ -220,6 +220,10 @@ is the simple model, so these change once for every theme:
   cells. Each mark is redrawn once from the 54-Q8 brief. The cells move off the theme's head sheet
   per 54-Q17, so no theme directory can carry them. `highwayHeadMarks` stays the one stacking
   authority.
+- **S4 — the glow posts** (`highway_renderer.cpp`, the "Glow post" block and its constants
+  `g_shadow_post_*`): the upright stem of the tail's ribbon under each single note, from the board
+  up toward the head, the note's shadow. Added 2026-10-11 (user): redesigned once in code like S1
+  and S2, per 54-Q22, never a theme key; it wears its string's color as today.
 
 ### SHOULD NOT — not representable in the schema
 
@@ -547,6 +551,15 @@ Each carries a recommendation; none is decided until the user rules.
 
   *Recommended:* none until the sighting; the user leans toward off.
 
+- **54-Q22 — the glow posts' redesign (S4). Added 2026-10-11 (user).** The user wants the posts
+  under the notes redesigned as well as the open-bar posts (S2), and has seen no alternative for
+  either. Phase 4a renders candidates for both beside today's, in the switched colors, and the
+  user rules from them in motion. Candidates to start from: today's ribbon stem; a thinner single
+  line; a stem that stops short of the head; a floor dot or short floor dash at the note's slot
+  with no stem; no post at all. What the post must keep doing: tie a high head to its slot on the
+  board at distance, and stay quieter than the head.
+  *Recommended:* none until the sighting.
+
 ## Phased implementation
 
 Dependencies: 1 ← 0 (role names); 1b ← 1; 4a ← 1 and 54-Q7; 2a ← 1; 3 ← 1b and 2a; 2b ← 2a;
@@ -585,7 +598,7 @@ Phase 0 produces:
 - the accent family (54-Q9);
 - several rendered candidates for every redesigned item (heads, marks, chord device), made through
   the `texture-author` agent, so each settles by comparison rather than on paper;
-- the user's rulings on 54-Q5 to Q21.
+- the user's rulings on 54-Q5 to Q22.
 
 The default look's direction is in "Phase 0 direction". The scratch mock bakes its theme values
 and head cells, and the sighting theme is built from them. The mark brief stays open and
@@ -740,6 +753,9 @@ tests.
 
 - **S1 and S2 per 54-Q7**: the box device, prototyped in motion, and the user settles it. Any
   losing prototype is deleted before commit.
+- **S2 and S4 candidates**: the open-bar posts and the glow posts are shown as several
+  candidates each (54-Q7, 54-Q22), switchable live in one throwaway local build, and the user
+  rules on each; only the winners are committed.
 
 **STOP: sighting in motion in both products**; with Phase 1b landed, this is the complete default
 look. **Verification**: build, touched tests.
