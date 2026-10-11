@@ -18,7 +18,8 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     const juce::Component* const overlay = view.findChildWithID("busy_overlay");
@@ -143,7 +144,8 @@ TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
@@ -188,7 +190,8 @@ TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState busy_state;

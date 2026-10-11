@@ -1510,12 +1510,6 @@ against the tree on the date above.
   `chartStringIndex` (`common/core/chart/chart_rules.h`), the one range authority. Route it through
   `chartStringIndex` and size the array `g_max_chart_strings`, so the two cannot come to disagree
   about which strings exist. Raised by the review of plan 64's fix 6c.
-- **The highway renderer's default display options are a state no caller wants.**
-  `HighwayDisplayOptions::invert_string_order` (`common/core/highway/highway_view_state.h`)
-  defaults to `false`, while both production callers — the game's constructor and the editor
-  preview — set `true`, so until its first `setDisplayOptions` the renderer stacks the strings the
-  way neither product draws them. Either default it to `true`, or delete the field outright: only
-  the renderer smoke test draws with `false`. Raised by the review of plan 64's fix 6a.
 
 ## Found while gating the startup windows behind busy (2026-10-05)
 

@@ -79,7 +79,8 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     constexpr common::core::GridPosition chorus{.measure = 3, .beat = 1};
@@ -146,7 +147,8 @@ TEST_CASE("EditorView forwards the tempo chord's published insert", "[ui][editor
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     constexpr common::core::GridPosition beat{.measure = 2, .beat = 3};
@@ -183,7 +185,8 @@ TEST_CASE("EditorView opens the tempo prompt the tempo chord publishes", "[ui][e
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state{};
@@ -208,7 +211,8 @@ TEST_CASE("EditorView opens the tempo prompt Enter's restate publishes", "[ui][e
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state{};
@@ -235,7 +239,8 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state{};
@@ -267,7 +272,8 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state{};
@@ -298,7 +304,8 @@ TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][e
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state{};
@@ -331,7 +338,8 @@ TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const int scale_command = toJuceCommandId(EditorCommandId::ScaleTempo);
 
@@ -370,7 +378,8 @@ TEST_CASE("EditorView titles the Scale Tempo prompt by the Note Lock", "[ui][edi
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
@@ -399,7 +408,8 @@ TEST_CASE("EditorView forwards the fret-hand position chord to the core", "[ui][
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::InsertFretHandPosition)};
@@ -421,7 +431,8 @@ TEST_CASE("EditorView forwards the hand end clear while a selection stands", "[u
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::ClearHandPositionEndFret)};
@@ -447,7 +458,8 @@ TEST_CASE("EditorView Prune Hand Positions forwards the prune", "[ui][editor-vie
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const int prune_command = toJuceCommandId(EditorCommandId::PruneHandPositions);
     const juce::ApplicationCommandTarget::InvocationInfo info{prune_command};
@@ -480,7 +492,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     CHECK(thumbnail_factory.create_call_count == 1);
@@ -536,7 +549,8 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     const auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
@@ -1008,7 +1022,8 @@ TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][k
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
@@ -1055,7 +1070,8 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     constexpr int command_shift =
@@ -1112,7 +1128,8 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state;
@@ -1158,7 +1175,8 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     core::EditorViewState state;
@@ -1197,7 +1215,8 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
 
@@ -1234,7 +1253,8 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const auto& selection_count_chip =
         findRequiredDescendant<juce::Label>(view, "chart_selection_count_display");
@@ -1317,7 +1337,8 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -1364,7 +1385,8 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     view.setBounds(0, 0, 1280, 800);
 
@@ -1409,7 +1431,8 @@ TEST_CASE("EditorView opens the interrupted-restore prompt once on screen", "[ui
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     view.setBounds(0, 0, 1280, 800);
 

@@ -69,10 +69,12 @@ LRESULT CALLBACK previewChildWindowProc(HWND hwnd, UINT message, WPARAM w_param,
 
 PreviewSurface::PreviewSurface(
     const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
-    const common::ui::LoadedHighwayTheme& highway_theme)
+    const common::ui::LoadedHighwayTheme& highway_theme,
+    const common::core::HighwayViewPreferences highway_view)
     : m_transport{transport}
     , m_playback_clock{playback_clock}
     , m_highway_theme{highway_theme}
+    , m_display_options{.view = highway_view, .minimum_string_count = 0}
 {
     setOpaque(true);
     // Hold the preview window's keyboard focus so transport shortcuts (space/F3) reach

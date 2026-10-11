@@ -112,8 +112,9 @@ includes stay explicit and collision-resistant.
 - Libraries and tests should link narrow submodule targets rather than parent umbrellas.
 - `rock-hero-common/core` may use narrow `juce_core` utility facilities for package, file,
   string, JSON, and ZIP behavior when that keeps project infrastructure simple and headless —
-  plus the `juce_data_structures` properties-file types behind `shared/settings_file_options.h`
-  (INTERFACE-linked; see `architectural-principles.md` for the ratified grant).
+  plus the `juce_data_structures` properties-file types for the per-user settings files
+  (`shared/settings_file_options.h`, `shared/shared_settings_file.h`; see
+  `architectural-principles.md` for the ratified grant).
 - Tracktion headers are isolated to `rock-hero-common/audio` implementation files and private
   implementation headers.
 - Normal library code should use project-owned audio ports from `rock_hero::common::audio`; app
@@ -148,8 +149,9 @@ project's foundational application framework, so common core may use narrow `juc
 where they reduce duplicate infrastructure and still preserve automated testability. Current
 examples include JSON parsing/serialization, ZIP archive reading/writing, files, strings, and
 typed framework results that are immediately translated into project-owned errors — plus the
-`juce_data_structures` properties-file Options struct behind `shared/settings_file_options.h`,
-ratified 2026-08-10 on the principle that headless testability is the test the grant turns on.
+`juce_data_structures` properties files behind the per-user settings
+(`shared/settings_file_options.h`, `shared/shared_settings_file.h`), ratified 2026-08-10 and
+widened 2026-10-11 on the principle that headless testability is the test the grant turns on.
 
 This permission is intentionally narrow:
 

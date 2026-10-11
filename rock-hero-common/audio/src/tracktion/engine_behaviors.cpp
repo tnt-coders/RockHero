@@ -1,5 +1,6 @@
 #include "tracktion/engine_behaviors.h"
 
+#include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
 #include "tracktion/tone_branch_gain_plugin.h"
 #include "tracktion/tone_output_plugin.h"
@@ -7,6 +8,8 @@
 
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <utility>
 #include <vector>
 
@@ -174,6 +177,24 @@ std::unique_ptr<juce::AudioThumbnailBase> RockHeroUIBehavior::createAudioThumbna
 {
     return std::make_unique<HighResolutionAudioThumbnail>(
         g_thumbnail_samples_per_point, format_manager, cache);
+}
+
+RockHeroPropertyStorage::RockHeroPropertyStorage(EngineFolders folders)
+    : tracktion::PropertyStorage(toJuceString(common::core::productName()))
+    , m_folders(std::move(folders))
+{}
+
+// Created on request, as Tracktion's own default does.
+juce::File RockHeroPropertyStorage::getAppPrefsFolder()
+{
+    const juce::File folder = common::core::juceFileFromPath(m_folders.settings);
+    static_cast<void>(folder.createDirectory());
+    return folder;
+}
+
+juce::File RockHeroPropertyStorage::getAppCacheFolder()
+{
+    return common::core::juceFileFromPath(m_folders.scratch / "tracktion");
 }
 
 } // namespace rock_hero::common::audio

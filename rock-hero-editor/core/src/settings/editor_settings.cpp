@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/decimal_text.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/settings_file_options.h>
@@ -116,16 +115,9 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
 
 } // namespace
 
-// Opens the JUCE properties file at the editor's standard per-user location.
-EditorSettings::EditorSettings()
-    : m_properties(common::core::settingsFileOptions(common::core::editorApplicationName()))
-{}
-
-// Opens an explicit settings file so lifecycle behavior can be exercised in isolation.
 EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
     : m_properties(
-          common::core::juceFileFromPath(settings_file),
-          common::core::settingsFileOptions(common::core::editorApplicationName()))
+          common::core::juceFileFromPath(settings_file), common::core::settingsFileOptions())
 {}
 
 // Reads the last editor project path stored by a previous allowed editor exit.

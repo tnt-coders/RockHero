@@ -1,6 +1,6 @@
 /*!
 \file engine_behaviors.h
-\brief Rock Hero's Tracktion EngineBehaviour and UIBehaviour customization points.
+\brief Rock Hero's Tracktion behaviour and property-storage customization points.
 */
 
 #pragma once
@@ -8,6 +8,7 @@
 #include "tracktion/plugin_window.h"
 
 #include <memory>
+#include <rock_hero/common/audio/engine/engine.h>
 #include <tracktion_engine/tracktion_engine.h>
 #include <utility>
 #include <vector>
@@ -114,6 +115,38 @@ public:
 
 private:
     PluginWindowCommandDispatcher m_command_dispatcher;
+};
+
+/*!
+\brief Keeps Tracktion's own files in the folders the engine was given.
+
+Tracktion's default places its settings under the application name in the platform data folder,
+which on macOS is not the folder every other Rock Hero location shares, and its temporary files
+beside them, in user data rather than scratch.
+*/
+class RockHeroPropertyStorage final : public tracktion::PropertyStorage
+{
+public:
+    /*!
+    \brief Names the storage for the product and keeps the folders.
+    \param folders Where Tracktion's settings and temporary files go.
+    */
+    explicit RockHeroPropertyStorage(EngineFolders folders);
+
+    /*!
+    \brief Returns the folder for Tracktion's settings and plugin-scan state, creating it.
+    \return The settings folder.
+    */
+    juce::File getAppPrefsFolder() override;
+
+    /*!
+    \brief Returns the folder Tracktion makes its temporary files under.
+    \return The `tracktion` folder under the scratch root; Tracktion creates it.
+    */
+    juce::File getAppCacheFolder() override;
+
+private:
+    EngineFolders m_folders;
 };
 
 } // namespace rock_hero::common::audio

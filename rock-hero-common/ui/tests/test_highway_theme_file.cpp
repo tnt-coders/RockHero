@@ -414,6 +414,30 @@ TEST_CASE("Each theme's strings are its palette", "[ui][highway-theme]")
     CHECK(registry->defaultTheme().strings.colors.front() == 0xFFE03CFFU);
 }
 
+// The player's pick draws when a loaded theme has it; no pick, or a pick no theme has, draws the
+// default.
+TEST_CASE("A picked theme resolves to itself or to the default", "[ui][highway-theme]")
+{
+    const ThemeFolder built_in;
+    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    const ThemeFolder user;
+    const juce::var mine = defaultThemeDocument();
+    setKey(mine, "name", "Mine");
+    user.addTheme("mine", mine);
+
+    const std::expected<HighwayThemeRegistry, HighwayThemeError> registry =
+        HighwayThemeRegistry::load(
+            HighwayThemeFolders{.built_in = built_in.path(), .user = user.path()});
+    REQUIRE(registry.has_value());
+    if (!registry.has_value())
+    {
+        return;
+    }
+    CHECK(registry->themeOrDefault(std::string{"mine"}).name == "Mine");
+    CHECK(registry->themeOrDefault(std::nullopt).id == g_default_highway_theme_id);
+    CHECK(registry->themeOrDefault(std::string{"removed"}).id == g_default_highway_theme_id);
+}
+
 // A broken install fails loudly: no built-in folder, no default theme, or any built-in that does
 // not load fails the whole registry.
 TEST_CASE("A broken built-in set fails the whole registry", "[ui][highway-theme]")

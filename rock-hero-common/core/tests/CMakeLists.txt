@@ -36,6 +36,7 @@ add_executable(
     test_highway_hit_glow.cpp
     test_highway_light.cpp
     test_highway_projection.cpp
+    test_highway_settings_store.cpp
     test_highway_tail.cpp
     test_highway_window.cpp
     test_tempo_map.cpp
@@ -49,6 +50,8 @@ add_executable(
     test_decimal_text.cpp
     test_juce_path.cpp
     test_logger.cpp
+    test_shared_settings_file.cpp
+    test_user_data_folders.cpp
     test_rock_song_package.cpp)
 
 # Let focused projection tests include private implementation headers without making them public
@@ -59,6 +62,10 @@ target_include_directories(rock_hero_common_core_tests PRIVATE "${CMAKE_CURRENT_
 target_link_libraries(
     rock_hero_common_core_tests PRIVATE rock_hero::common::core rock_hero::common::core_testing
                                         rock_hero::build_policy Catch2::Catch2WithMain)
+
+# Keep the settings files the persistence tests write inside the build tree.
+target_compile_definitions(rock_hero_common_core_tests
+                           PRIVATE TEST_SETTINGS_DIR="${CMAKE_CURRENT_BINARY_DIR}")
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_common_core_tests ADD_TAGS_AS_LABELS)

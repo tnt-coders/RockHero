@@ -71,7 +71,7 @@ Editor::Editor(
                   .meter_source = audio_ports.meter_source,
                   .tone_automation = audio_ports.tone_automation,
               },
-              installedInputCalibrationGuide(), services.highway_theme))
+              installedInputCalibrationGuide(), services.highway_theme, services.highway_view))
 {
     m_controller.attachView(*m_view);
     // After view construction so every command is registered before the stored keymap restores

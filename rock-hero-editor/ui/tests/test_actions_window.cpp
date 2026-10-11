@@ -21,7 +21,8 @@ TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     KeymapEditorView editor{view.commandManager()};
@@ -57,7 +58,8 @@ TEST_CASE("KeymapEditorView applies binding changes with one owner", "[ui][keybi
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -99,7 +101,8 @@ TEST_CASE("KeymapEditorView rebinds and resets the core trio", "[ui][keybinds]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -137,7 +140,8 @@ TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -174,7 +178,8 @@ TEST_CASE("KeymapEditorView rebinds grammar chords like any other", "[ui][keybin
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -211,7 +216,8 @@ TEST_CASE("KeymapEditorView groups display-equal chords into one chip", "[ui][ke
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     KeymapEditorView editor{view.commandManager()};
     editor.setSize(560, 520);
@@ -271,7 +277,8 @@ TEST_CASE("KeymapEditorView refreshes rows on mapping changes", "[ui][keybinds]"
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     KeymapEditorView editor{view.commandManager()};
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -299,7 +306,8 @@ TEST_CASE("ActionsWindow hosts the editor and survives closes", "[ui][keybinds]"
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     ActionsWindow window{view.commandManager(), nullptr};
@@ -330,7 +338,8 @@ TEST_CASE("EditorView opens the actions window from the command", "[ui][keybinds
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     view.setState(core::EditorViewState{});
 

@@ -15,7 +15,7 @@
 #define TEST_SETTINGS_DIR "."
 #endif
 
-namespace rock_hero::editor::core::testing
+namespace rock_hero::common::core::testing
 {
 
 /*!
@@ -69,4 +69,4 @@ private:
     std::filesystem::path m_path;
 };
 
-} // namespace rock_hero::editor::core::testing
+} // namespace rock_hero::common::core::testing

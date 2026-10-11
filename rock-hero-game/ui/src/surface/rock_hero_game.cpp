@@ -140,7 +140,8 @@ std::optional<int> RockHeroGame::onInit()
         std::println(stderr, "rock-hero: {}", highway_themes.error().message);
         return 1;
     }
-    const common::ui::LoadedHighwayTheme& highway_theme = highway_themes->defaultTheme();
+    const common::ui::LoadedHighwayTheme& highway_theme =
+        highway_themes->themeOrDefault(m_config.highway_settings.theme_id);
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
             *highway_shaders, highway_theme.textures, highway_theme.colors, highway_theme.strings);
@@ -159,7 +160,7 @@ std::optional<int> RockHeroGame::onInit()
         std::move(*renderer),
         Game::Config{
             .dev_mode = m_config.dev_mode,
-            .lefty = m_config.lefty,
+            .highway_view = m_config.highway_settings.view,
             .dev_package = std::move(m_config.dev_package),
             .session_workspace_directory = std::move(m_config.session_workspace_directory),
             .gameplay_session = m_config.gameplay_session,

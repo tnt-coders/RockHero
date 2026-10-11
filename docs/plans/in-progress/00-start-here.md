@@ -52,8 +52,26 @@ the highway theming sightings below.
    2D lane's Charter shape blue and purple (Phase 4b).
 2. **Phase 4a, the box chord device and the open-note posts**, once built: settle the device in
    motion; losing prototypes are deleted before commit.
-3. **Phase 3, once Phase 2a lands**: the private Classic theme A/B against a build of the commit
-   before `b6fb1134`, and the garish coverage fixture selected once in both products.
+3. **Phase 3**: the private Classic theme A/B against a build of the commit before `b6fb1134`
+   (select it by setting `highway.theme` to `classic` in `settings/shared.settings`), and the
+   garish coverage fixture selected once in both products.
+
+**Plan 70 Phase 3 (per-user data), owed by the user BEFORE the next run of either app**, all inside
+`%APPDATA%\Rock Hero\` (the apps now write only the new tree, so until this is done they start
+without calibration, keymap or plugin list):
+
+- `Rock Hero Audio.settings` → `settings\shared.settings`, and inside it rename two entries:
+  `<VALUE name="activeDeviceRoute"` → `name="audio.activeDeviceRoute"` and
+  `<VALUE name="inputCalibrationStates"` → `name="audio.inputCalibrationStates"` (contents as is).
+- `Rock Hero Editor.settings` → `settings\editor.settings` (keymap, last project).
+- `Rock Hero Game.settings` → `settings\game.settings`, if it exists.
+- `Settings.xml` and `PluginScanDeadMansPedal.txt` → `tracktion\` (or delete both and rescan).
+- `Songs\` → `songs\`.
+- Delete `Rock Hero Editor*.log`, `Rock Hero Game.log`, `Temporary\`, `game-sessions\`, and
+  `%TEMP%\RockHero\`.
+- Then run both apps and a plugin rescan: both keep calibration and keymap and write only the new
+  tree (plan 70's STOP). Left-handed play: set `highway.mirrored` to `1` in `shared.settings`
+  (`--lefty` is gone).
 
 Found at the 2026-09-24 sighting: a PALM-MUTED PINCH harmonic drew its pinch mark over the palm
 mute in 3D (fixed the same day: the mute rungs sit at the top of the head-mark ladder); its 2D

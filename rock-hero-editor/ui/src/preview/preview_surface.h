@@ -13,6 +13,7 @@
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
@@ -51,11 +52,13 @@ public:
     \param transport Read-only transport for exact paused-cursor time.
     \param playback_clock Playback-time telemetry sampled while playing.
     \param highway_theme The theme every renderer bring-up draws with; must outlive the surface.
+    \param highway_view How the player reads the highway.
     */
     PreviewSurface(
         const common::audio::ITransport& transport,
         const common::audio::IPlaybackClock& playback_clock,
-        const common::ui::LoadedHighwayTheme& highway_theme);
+        const common::ui::LoadedHighwayTheme& highway_theme,
+        common::core::HighwayViewPreferences highway_view);
 
     /*! \brief Detaches (if attached) and destroys the surface. */
     ~PreviewSurface() override;
@@ -156,14 +159,10 @@ private:
 
     std::shared_ptr<const common::core::HighwayViewState> m_state;
 
-    // How the preview maps the board: lowest-pitched string on top is the 3D default, never
-    // mirrored, padded to the tab's displayed-string minimum. Handed to the renderer when it comes
-    // up and whenever the minimum is restated; the renderer ignores an unchanged set.
-    common::core::HighwayDisplayOptions m_display_options{
-        .mirrored = false,
-        .invert_string_order = true,
-        .minimum_string_count = 0,
-    };
+    // How the preview maps the board: the player's view preferences, padded to the tab's
+    // displayed-string minimum. Handed to the renderer when it comes up and whenever the minimum is
+    // restated; the renderer ignores an unchanged set.
+    common::core::HighwayDisplayOptions m_display_options;
 
     // The armed caret's timeline seconds while the marker is armed; the paused frame shows it
     // (the marker rule) and falls back to the transport position while passive.

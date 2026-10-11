@@ -91,7 +91,10 @@ surface as moving.*
 
 - `engine_behaviors.{h,cpp}` — Rock Hero's `EngineBehaviour`/`UIBehaviour` customization points,
   including pinning Tracktion's beat length to quarter notes (which the tempo mirror relies on)
-  and describing the single instrument input / stereo output Rock Hero exposes.
+  and describing the single instrument input / stereo output Rock Hero exposes. Its
+  `PropertyStorage` keeps Tracktion's settings and plugin-scan state in the folder the `Engine`
+  is given (`EngineFolders`; the products pass `perUserEngineFolders()`) and its temporary files
+  under scratch, so tests run the engine on temporary folders.
 - `tracktion_instrument_wave_device_mapping.{h,cpp}` — pure, testable mapping from JUCE active
   channel masks to Tracktion wave-device descriptions (which physical input channel becomes "the
   instrument").

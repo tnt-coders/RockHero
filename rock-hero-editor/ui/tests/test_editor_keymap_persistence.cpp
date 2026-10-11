@@ -54,7 +54,8 @@ TEST_CASE("EditorKeymapPersistence saves rebinds and clears on reset", "[ui][key
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
@@ -95,7 +96,8 @@ TEST_CASE("EditorKeymapPersistence restores stored overrides", "[ui][keybinds]")
             controller,
             viewAudioPorts(transport, thumbnail_factory),
             juce::File{},
-            fixtureLoadedHighwayTheme()
+            fixtureLoadedHighwayTheme(),
+            common::core::HighwayViewPreferences{}
         };
         const EditorKeymapPersistence persistence{view.commandManager(), settings};
         view.commandManager().getKeyMappings()->addKeyPress(
@@ -110,7 +112,8 @@ TEST_CASE("EditorKeymapPersistence restores stored overrides", "[ui][keybinds]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
@@ -145,7 +148,8 @@ TEST_CASE("EditorKeymapPersistence drops unknown stored entries", "[ui][keybinds
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
@@ -181,7 +185,8 @@ TEST_CASE(
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
@@ -214,7 +219,8 @@ TEST_CASE("EditorKeymapPersistence restores removals cleanly", "[ui][keybinds]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
@@ -241,7 +247,8 @@ TEST_CASE("EditorKeymapPersistence tolerates an unparseable blob", "[ui][keybind
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 

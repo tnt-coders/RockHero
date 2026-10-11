@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <optional>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <span>
 #include <string>
@@ -130,6 +131,16 @@ public:
     \return The theme with the default id; valid for the registry's lifetime.
     */
     [[nodiscard]] const LoadedHighwayTheme& defaultTheme() const;
+
+    /*!
+    \brief Returns the theme the player picked, or the default when there is none to draw.
+    \param theme_id The picked theme's id, as the player's settings store it; absent when the
+           player never picked one.
+    \return The loaded theme with that id; the default theme when the id is absent or no loaded
+            theme has it (a user theme since removed). Valid for the registry's lifetime.
+    */
+    [[nodiscard]] const LoadedHighwayTheme& themeOrDefault(
+        const std::optional<std::string>& theme_id) const;
 
     /*!
     \brief Returns every theme that loaded.

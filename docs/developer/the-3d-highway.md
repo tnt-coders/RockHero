@@ -86,9 +86,10 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    an arrangement switch (both judged in `EditorView::setState`) and a reopen. A display-option
    change re-frames on its own, since the mirror moves what the camera frames.
 
-   The display options — the lefty mirror, the string-order invert, the displayed-lane minimum —
-   are the renderer's own setting rather than part of the view state: none of them changes the
-   projected chart, so changing one re-projects nothing.
+   The display options — the player's view preferences (the lefty mirror and the string-order
+   invert, `HighwayViewPreferences`) and the displayed-lane minimum — are the renderer's own
+   setting rather than part of the view state: none of them changes the projected chart, so
+   changing one re-projects nothing.
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
    consumer decides where they load from. What each program and asset *is*, and the file name it
@@ -180,9 +181,10 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 |---|---|---|
 | Projection + camera math | `rock_hero::common::core` | public dep of `common::ui` |
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
-| String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes the default theme's `strings` to `HighwayRenderer::create` and `makeTabLaneMetrics` |
-| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the default theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps it without a rebuild |
-| Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `defaultTheme()`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `Rock Hero/themes/` |
+| String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes the player's theme's `strings` to `HighwayRenderer::create` and `makeTabLaneMetrics` |
+| Player's highway settings (theme id, view preferences) | `common/core` `highway/highway_settings_store.h` | each composition root reads `HighwaySettingsStore` over the shared settings file once at launch |
+| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps it without a rebuild |
+| Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeOrDefault(<the player's theme id>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `themes/` (`themesFolder()`) |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
 | Resource deploy + install | `rock_hero_deploy_product_resources` | both call it per executable |
@@ -191,9 +193,9 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 
 What differs per consumer is exactly what should differ: the window (SDL top-level vs JUCE child
 HWND), the frame driver (main loop vs vblank ticks), device lifetime policy (process-long vs
-survives-hides), and display options (each consumer calls `setDisplayOptions` itself: the game
-once at construction with the lefty flag, the editor preview with `invert_string_order` and its 2D
-tab lane's minimum string count).
+survives-hides), and display options (each consumer calls `setDisplayOptions` itself, with the
+player's stored view preferences: the game once at construction, the editor preview at each
+renderer bring-up with its 2D tab lane's minimum string count).
 
 # The fretboard axis: one function, and a deliberate stop/node split
 

@@ -11,8 +11,8 @@ reviews (code and build; strings, data, docs and tooling) and spot-checked again
 game's tree loses its `-game` suffix and the shared library likely needs a family name that fits
 both products. That reopens this draft's core assumption (§4: `rock-hero-` as the repository's
 tree prefix and `rock_hero` as the root namespace), and a repository split is on the table.
-Per-user file names are no longer this plan's: plan 70 names them by product token (`hero`,
-`sidekick`) so a rename never renames a saved file.
+Per-user file names are no longer this plan's: plan 70 names them by one product token per app
+(`game`, `editor` today), stated once, so a rename changes two values and two files move by hand.
 
 ## 1. Goal
 

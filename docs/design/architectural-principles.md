@@ -800,17 +800,18 @@ and link a narrow JUCE utility when doing so keeps the project simpler AND the r
 console test with no message loop, audio device, window, or GPU. In practice that has meant
 `juce_core` for package, file, JSON, ZIP, string, and result-handling behavior.
 
-`juce_data_structures` is admitted on the same test, for one purpose: the shared settings-file policy
-(`shared/settings_file_options.h`) returns a `juce::PropertiesFile::Options`, which is a plain struct
-of names and flags. It exists because that policy was independently hand-written in six places and
-one copy had already drifted — the game store omitted `millisecondsBeforeSaving` and so silently ran
-a three-second auto-save timer the others did not. Two details keep the grant honest: the module is
-linked **INTERFACE**, so no common-core translation unit compiles against it and a common-core `.cpp`
-reaching for `PropertiesFile` itself fails to build; and common core produces the options struct
-without ever opening a properties file, which is what keeps the message-loop dependency out (note
-"narrow" describes the USE, not the module — `juce_data_structures` publicly drags `juce_events`,
-which is exactly why the INTERFACE linkage and the options-only surface matter). The headless
-common-core suite is the standing proof.
+`juce_data_structures` is admitted on the same test, for one purpose: the per-user settings files.
+The shared settings-file policy (`shared/settings_file_options.h`) returns a
+`juce::PropertiesFile::Options`; it exists because that policy was independently hand-written in six
+places and one copy had already drifted — the game store omitted `millisecondsBeforeSaving` and so
+silently ran a three-second auto-save timer the others did not. Common core also opens properties
+files itself (approved 2026-10-11, docs/plans/roadmap/70-per-user-data-layout.md): the file both
+products share and lock (`shared/shared_settings_file.h`) and the stores over it that are common
+types, such as the player's highway settings. The module is therefore linked PRIVATE as well as
+INTERFACE. "Narrow" describes the USE, not the module — `juce_data_structures` publicly drags
+`juce_events` — so the grant stops at properties files used headless: a write saves at once rather
+than on JUCE's timer, and nothing listens for change messages, so no message loop is needed. The
+headless common-core suite, which opens, locks and writes these files, is the standing proof.
 
 None of this is permission to move UI, message-loop ownership, audio-device ownership, GPU behavior,
 app startup, plugin scanning, or Tracktion runtime integration into common core. A JUCE facility that

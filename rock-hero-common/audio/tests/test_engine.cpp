@@ -141,6 +141,47 @@ public:
     int transport_state_call_count{0};
 };
 
+// Owns a temporary directory: a song workspace for live-rig file persistence tests, and the
+// folders every test engine keeps Tracktion's files in, so no test writes per-user data.
+class TemporaryDirectory final
+{
+public:
+    TemporaryDirectory()
+        : m_path(
+              std::filesystem::temp_directory_path() /
+              ("rock-hero-engine-test-" + common::core::generatePackageId()))
+    {
+        std::filesystem::remove_all(m_path);
+        std::filesystem::create_directories(m_path);
+    }
+
+    ~TemporaryDirectory() noexcept
+    {
+        try
+        {
+            std::error_code error;
+            std::filesystem::remove_all(m_path, error);
+        }
+        catch (...)
+        {
+            m_path.clear();
+        }
+    }
+
+    TemporaryDirectory(const TemporaryDirectory&) = delete;
+    TemporaryDirectory& operator=(const TemporaryDirectory&) = delete;
+    TemporaryDirectory(TemporaryDirectory&&) = delete;
+    TemporaryDirectory& operator=(TemporaryDirectory&&) = delete;
+
+    [[nodiscard]] const std::filesystem::path& path() const noexcept
+    {
+        return m_path;
+    }
+
+private:
+    std::filesystem::path m_path;
+};
+
 // Owns the JUCE runtime guard before constructing the real Tracktion-backed engine.
 class EngineTestHarness final
 {
@@ -148,8 +189,14 @@ public:
     // Creates JUCE's message-manager lifetime needed by Tracktion timers and callbacks in tests.
     juce::ScopedJuceInitialiser_GUI scoped_gui;
 
+    // The engine's Tracktion folders, outliving the engine that writes into them.
+    TemporaryDirectory tracktion_folders;
+
     // Real adapter under test; destroyed before scoped_gui because members tear down in reverse.
-    Engine engine;
+    Engine engine{EngineFolders{
+        .settings = tracktion_folders.path() / "settings",
+        .scratch = tracktion_folders.path() / "scratch",
+    }};
 };
 
 // Device type whose named route exists but cannot create a device, forcing JUCE restore failure.
@@ -461,46 +508,6 @@ void runMessageThreadSteps(std::vector<std::function<void()>> steps)
     postNextMessageThreadStep(queue);
     juce::MessageManager::getInstance()->runDispatchLoop();
 }
-
-// Owns a temporary song workspace for live-rig file persistence tests.
-class TemporarySongDirectory final
-{
-public:
-    TemporarySongDirectory()
-        : m_path(
-              std::filesystem::temp_directory_path() /
-              ("rock-hero-engine-test-" + common::core::generatePackageId()))
-    {
-        std::filesystem::remove_all(m_path);
-        std::filesystem::create_directories(m_path);
-    }
-
-    ~TemporarySongDirectory() noexcept
-    {
-        try
-        {
-            std::error_code error;
-            std::filesystem::remove_all(m_path, error);
-        }
-        catch (...)
-        {
-            m_path.clear();
-        }
-    }
-
-    TemporarySongDirectory(const TemporarySongDirectory&) = delete;
-    TemporarySongDirectory& operator=(const TemporarySongDirectory&) = delete;
-    TemporarySongDirectory(TemporarySongDirectory&&) = delete;
-    TemporarySongDirectory& operator=(TemporarySongDirectory&&) = delete;
-
-    [[nodiscard]] const std::filesystem::path& path() const noexcept
-    {
-        return m_path;
-    }
-
-private:
-    std::filesystem::path m_path;
-};
 
 // Encodes a small Tracktion plugin-state XML fixture into the port's opaque memento shape.
 [[nodiscard]] PluginInstanceState pluginStateFromXml(std::string_view xml)
@@ -1411,7 +1418,7 @@ TEST_CASE("Engine plugin host rejects unknown state targets", "[audio][engine][i
 TEST_CASE("Engine plugin host rejects missing recreated plugin", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     IPluginHost& plugin_host = harness.engine;
     ILiveRig& live_rig = harness.engine;
 
@@ -1491,7 +1498,7 @@ TEST_CASE("Engine live rig refuses a tone level with no tone loaded", "[audio][e
 TEST_CASE("Engine live rig mints an empty tone document", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
     const auto minted = live_rig.mintEmptyTone(song_directory.path());
@@ -1506,7 +1513,7 @@ TEST_CASE("Engine live rig mints an empty tone document", "[audio][engine][integ
 TEST_CASE("Engine exports the audible tone to a tone file", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory scratch_directory;
+    const TemporaryDirectory scratch_directory;
     ILiveRig& live_rig = harness.engine;
     const std::filesystem::path tone_file = scratch_directory.path() / "exported.tone";
 
@@ -1571,7 +1578,7 @@ TEST_CASE("Engine captures the audible tone chain state", "[audio][engine][integ
 TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory scratch_directory;
+    const TemporaryDirectory scratch_directory;
     ILiveRig& live_rig = harness.engine;
     const std::filesystem::path tone_file = scratch_directory.path() / "replacement.tone";
 
@@ -1647,7 +1654,7 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
 TEST_CASE("Engine tone-file replace refuses missing plugins", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory scratch_directory;
+    const TemporaryDirectory scratch_directory;
     ILiveRig& live_rig = harness.engine;
     const std::filesystem::path tone_file = scratch_directory.path() / "missing_amp.tone";
 
@@ -1759,7 +1766,7 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
 TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
     ILiveInput& live_input = harness.engine;
 
@@ -1831,7 +1838,7 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
 TEST_CASE("Engine live rig output gain persists through capture", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
     ILiveInput& live_input = harness.engine;
 
@@ -1901,7 +1908,7 @@ TEST_CASE(
 TEST_CASE("Engine live rig captures every loaded tone branch", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
     const auto first_ref = live_rig.mintEmptyTone(song_directory.path());
@@ -2013,7 +2020,7 @@ TEST_CASE("Engine tone timeline requires a loaded rig", "[audio][engine][integra
 TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
     IToneTimelinePlayer& timeline = harness.engine;
 
@@ -2090,7 +2097,7 @@ TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][int
 TEST_CASE("Engine tone timeline anchors and releases branch curves", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
     IToneTimelinePlayer& timeline = harness.engine;
 
@@ -2137,7 +2144,7 @@ TEST_CASE(
     "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
     IToneTimelinePlayer& timeline = harness.engine;
 
@@ -2180,7 +2187,7 @@ TEST_CASE(
 TEST_CASE("Engine keeps each tone's level on its own branch", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
     IToneTimelinePlayer& timeline = harness.engine;
 
@@ -2232,7 +2239,7 @@ TEST_CASE("Engine keeps each tone's level on its own branch", "[audio][engine][i
 TEST_CASE("Engine monitor gain is separate from a tone's level", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
     const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
@@ -2260,7 +2267,7 @@ TEST_CASE("Engine monitor gain is separate from a tone's level", "[audio][engine
 TEST_CASE("Engine seek resyncs the tone timeline", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     IToneTimelinePlayer& timeline = harness.engine;
     ITransport& transport = harness.engine;
 
@@ -2299,7 +2306,7 @@ TEST_CASE("Engine seek resyncs the tone timeline", "[audio][engine][integration]
 TEST_CASE("Engine stop resyncs the tone timeline", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     IToneTimelinePlayer& timeline = harness.engine;
     ITransport& transport = harness.engine;
 
@@ -2338,7 +2345,7 @@ TEST_CASE("Engine stop resyncs the tone timeline", "[audio][engine][integration]
 TEST_CASE("Engine arrangement load resyncs the tone timeline", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     IToneTimelinePlayer& timeline = harness.engine;
     ITransport& transport = harness.engine;
     ISongAudio& audio = harness.engine;
@@ -2367,7 +2374,7 @@ TEST_CASE("Engine arrangement load resyncs the tone timeline", "[audio][engine][
 TEST_CASE("Engine live rig lists every missing plugin", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
     // A tone document whose two plugins point at files no machine has: identity resolution
@@ -2428,7 +2435,7 @@ TEST_CASE("Engine live rig lists every missing plugin", "[audio][engine][integra
 TEST_CASE("Engine live rig clear cancels a suspended load", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
     const std::string tone_ref = writeSingleMissingPluginToneDocument(song_directory.path());
 
@@ -2479,7 +2486,7 @@ TEST_CASE("Engine live rig clear cancels a suspended load", "[audio][engine][int
 TEST_CASE(
     "Engine live rig load suspended across teardown resumes safely", "[audio][engine][integration]")
 {
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     const std::string tone_ref = writeSingleMissingPluginToneDocument(song_directory.path());
 
     std::function<void()> suspended_step;
@@ -2517,7 +2524,7 @@ TEST_CASE(
 TEST_CASE("Engine live rig adds an empty tone branch incrementally", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
+    const TemporaryDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
     // No rig loaded yet: the add must fail so callers fall back to a full load.

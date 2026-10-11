@@ -6,55 +6,29 @@
 #pragma once
 
 #include <expected>
-#include <filesystem>
-#include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
+#include <rock_hero/common/core/shared/shared_settings_file.h>
 #include <string>
 
 namespace rock_hero::common::audio
 {
 
 /*!
-\brief Stores the user's audio configuration in the per-user JUCE properties file both products
-share.
+\brief Stores the user's audio configuration in the settings file both products share.
 
-Both the editor and the game may run at once, so every operation opens the file fresh rather
-than trusting an in-memory copy, and every write holds an inter-process lock across its
-read-modify-write: neither product clobbers a key the other just wrote.
+Both the editor and the game may run at once, so every operation goes through the shared file:
+reads open it fresh rather than trusting an in-memory copy, and every write holds its lock across
+the read-modify-write, so neither product clobbers a key the other just wrote.
 */
 class AudioConfigStore final : public IAudioConfigStore
 {
 public:
-    /*! \brief Opens the shared audio-config file at its standard per-user location. */
-    AudioConfigStore();
-
     /*!
-    \brief Opens the store at an explicit native path so lifecycle behavior can be tested.
-    \param settings_file Audio-config file path used for persisted state.
+    \brief Stores the audio configuration in the shared file.
+    \param settings_file The file both products share; must outlive the store.
     */
-    explicit AudioConfigStore(const std::filesystem::path& settings_file);
-
-    /*! \brief Copying is disabled because the store owns an inter-process lock. */
-    AudioConfigStore(const AudioConfigStore&) = delete;
-
-    /*!
-    \brief Copy assignment is disabled because the store owns an inter-process lock.
-    \return Reference to this store.
-    */
-    AudioConfigStore& operator=(const AudioConfigStore&) = delete;
-
-    /*! \brief Moving is disabled because the store's options point at its own lock. */
-    AudioConfigStore(AudioConfigStore&&) = delete;
-
-    /*!
-    \brief Move assignment is disabled because the store's options point at its own lock.
-    \return Reference to this store.
-    */
-    AudioConfigStore& operator=(AudioConfigStore&&) = delete;
-
-    /*! \brief Destroys the store. */
-    ~AudioConfigStore() override = default;
+    explicit AudioConfigStore(common::core::SharedSettingsFile& settings_file);
 
     /*!
     \brief Reads the active device route stored by a previous device change.
@@ -87,18 +61,8 @@ public:
         InputCalibrationState calibration_state) override;
 
 private:
-    // Opens the store at a resolved file; both public constructors delegate here.
-    explicit AudioConfigStore(juce::File file);
-
-    // Serializes access to the file across both products. Mutable because a read takes it too:
-    // JUCE's reload() locks through m_options.
-    mutable juce::InterProcessLock m_lock;
-
-    // Properties-file options naming m_lock as the file's process lock.
-    juce::PropertiesFile::Options m_options;
-
-    // The audio-config file both products read and write.
-    juce::File m_file;
+    // The file both products share; the composition root owns it.
+    common::core::SharedSettingsFile& m_settings_file;
 };
 
 } // namespace rock_hero::common::audio

@@ -1,6 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <memory>
 #include <optional>
@@ -8,16 +7,10 @@
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
-#include <rock_hero/common/core/shared/juce_path.h>
-#include <rock_hero/common/core/shared/settings_file_options.h>
+#include <rock_hero/common/core/shared/shared_settings_file.h>
+#include <rock_hero/common/core/testing/scoped_settings_file.h>
 #include <string>
-#include <string_view>
-#include <system_error>
 #include <utility>
-
-#ifndef TEST_SETTINGS_DIR
-#define TEST_SETTINGS_DIR "."
-#endif
 
 namespace rock_hero::common::audio
 {
@@ -25,65 +18,16 @@ namespace rock_hero::common::audio
 namespace
 {
 
+using common::core::testing::ScopedSettingsFile;
 using testing::makeInputDeviceIdentity;
 
-constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
+constexpr const char* g_input_calibration_states_key{"audio.inputCalibrationStates"};
 
-// Owns one build-local settings file so each test starts with clean persisted state.
-class ScopedSettingsFile final
-{
-public:
-    // Creates a settings-file path and removes any stale file from a prior test run.
-    explicit ScopedSettingsFile(std::string_view file_name)
-        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
-    {
-        removeFile();
-    }
-
-    // Removes the settings file so persistence tests cannot leak state into later tests.
-    ~ScopedSettingsFile()
-    {
-        removeFile();
-    }
-
-    ScopedSettingsFile(const ScopedSettingsFile&) = delete;
-    ScopedSettingsFile& operator=(const ScopedSettingsFile&) = delete;
-    ScopedSettingsFile(ScopedSettingsFile&&) = delete;
-    ScopedSettingsFile& operator=(ScopedSettingsFile&&) = delete;
-
-    // Returns the test-owned settings-file path.
-    [[nodiscard]] const std::filesystem::path& path() const noexcept
-    {
-        return m_path;
-    }
-
-private:
-    // Removes the settings file on a best-effort basis.
-    void removeFile() const
-    {
-        std::error_code error;
-        std::filesystem::remove(m_path, error);
-    }
-
-    // Build-local settings path owned by this fixture.
-    std::filesystem::path m_path;
-};
-
-// Matches the store's storage format, so seeded raw and malformed properties go through the same
-// JUCE storage the store reads. The application name only places the default file, and the tests
-// supply the file directly.
-[[nodiscard]] juce::PropertiesFile::Options testStoreOptions()
-{
-    return common::core::settingsFileOptions({});
-}
-
-// Writes one raw property through JUCE so malformed settings use production storage.
+// Writes one raw property through the shared file, so malformed settings use production storage.
 void writeRawSetting(
-    const std::filesystem::path& settings_file, const char* key, const juce::var& value)
+    const common::core::SharedSettingsFile& settings_file, const char* key, const juce::var& value)
 {
-    juce::PropertiesFile properties{
-        common::core::juceFileFromPath(settings_file), testStoreOptions()
-    };
+    juce::PropertiesFile properties = settings_file.open();
     properties.setValue(key, value);
     REQUIRE(properties.save());
 }
@@ -113,7 +57,8 @@ void writeRawSetting(
 TEST_CASE("AudioConfigStore starts empty", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_starts_empty.settings"};
-    const AudioConfigStore store{settings_file.path()};
+    common::core::SharedSettingsFile shared{settings_file.path()};
+    const AudioConfigStore store{shared};
 
     CHECK_FALSE(store.activeDeviceRoute().has_value());
     CHECK_FALSE(inputCalibrationFor(store, makeInputDeviceIdentity()).has_value());
@@ -124,16 +69,17 @@ TEST_CASE("AudioConfigStore starts empty", "[audio][config-store]")
 TEST_CASE("AudioConfigStore persists the active device route", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_active_route.settings"};
+    common::core::SharedSettingsFile shared{settings_file.path()};
     juce::XmlElement expected{"DEVICESETUP"};
     expected.setAttribute("deviceType", "ASIO");
     expected.setAttribute("audioOutputDeviceName", "ASIO");
 
     {
-        AudioConfigStore store{settings_file.path()};
+        AudioConfigStore store{shared};
         REQUIRE(store.setActiveDeviceRoute(expected.toString().toStdString()).has_value());
     }
 
-    const AudioConfigStore reloaded{settings_file.path()};
+    const AudioConfigStore reloaded{shared};
     const std::optional<std::string> stored = reloaded.activeDeviceRoute();
     REQUIRE(stored.has_value());
     if (stored.has_value())
@@ -148,9 +94,10 @@ TEST_CASE("AudioConfigStore persists the active device route", "[audio][config-s
 TEST_CASE("AudioConfigStore clears the active device route", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_clear_active_route.settings"};
+    common::core::SharedSettingsFile shared{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
-    AudioConfigStore store{settings_file.path()};
+    AudioConfigStore store{shared};
     REQUIRE(store.setActiveDeviceRoute("<DEVICESETUP/>").has_value());
     REQUIRE(store.saveInputCalibration(calibrationFor(identity, 5.0)).has_value());
 
@@ -165,15 +112,16 @@ TEST_CASE("AudioConfigStore clears the active device route", "[audio][config-sto
 TEST_CASE("AudioConfigStore persists physical input calibration", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_calibration.settings"};
+    common::core::SharedSettingsFile shared{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
     const InputDeviceIdentity other_identity = makeInputDeviceIdentity("ASIO", "Interface B");
 
     {
-        AudioConfigStore store{settings_file.path()};
+        AudioConfigStore store{shared};
         REQUIRE(store.saveInputCalibration(calibrationFor(identity, 6.5)).has_value());
     }
 
-    const AudioConfigStore reloaded{settings_file.path()};
+    const AudioConfigStore reloaded{shared};
     const auto stored = inputCalibrationFor(reloaded, identity);
     REQUIRE(stored.has_value());
     if (stored.has_value())
@@ -188,9 +136,10 @@ TEST_CASE("AudioConfigStore persists physical input calibration", "[audio][confi
 TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_duplicate_calibration.settings"};
+    common::core::SharedSettingsFile shared{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
     writeRawSetting(
-        settings_file.path(),
+        shared,
         g_input_calibration_states_key,
         juce::String{
             R"(<INPUT_CALIBRATIONS formatVersion="1">)"
@@ -201,7 +150,7 @@ TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][c
             R"(</INPUT_CALIBRATIONS>)"
         });
 
-    const AudioConfigStore store{settings_file.path()};
+    const AudioConfigStore store{shared};
     const auto stored = inputCalibrationFor(store, identity);
     REQUIRE(stored.has_value());
     if (stored.has_value())
@@ -215,8 +164,9 @@ TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][c
 TEST_CASE("AudioConfigStore keeps calibration gains in normal form", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_clamp_gain.settings"};
+    common::core::SharedSettingsFile shared{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    AudioConfigStore store{settings_file.path()};
+    AudioConfigStore store{shared};
 
     REQUIRE(store.saveInputCalibration(calibrationFor(identity, 100.0)).has_value());
     const auto clamped = inputCalibrationFor(store, identity);
@@ -240,10 +190,11 @@ TEST_CASE("AudioConfigStore keeps calibration gains in normal form", "[audio][co
 TEST_CASE("AudioConfigStore preserves malformed calibration history", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_malformed_calibration.settings"};
+    common::core::SharedSettingsFile shared{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    writeRawSetting(settings_file.path(), g_input_calibration_states_key, juce::String{"[not-xml"});
+    writeRawSetting(shared, g_input_calibration_states_key, juce::String{"[not-xml"});
 
-    AudioConfigStore store{settings_file.path()};
+    AudioConfigStore store{shared};
 
     const auto loaded = store.inputCalibrationFor(identity);
     REQUIRE_FALSE(loaded.has_value());
@@ -260,16 +211,17 @@ TEST_CASE("AudioConfigStore preserves malformed calibration history", "[audio][c
 TEST_CASE("AudioConfigStore keeps route and calibration independent", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_independence.settings"};
+    common::core::SharedSettingsFile shared{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
     const std::string route{"<DEVICESETUP deviceType=\"ASIO\"/>"};
 
     {
-        AudioConfigStore store{settings_file.path()};
+        AudioConfigStore store{shared};
         REQUIRE(store.setActiveDeviceRoute(route).has_value());
         REQUIRE(store.saveInputCalibration(calibrationFor(identity, 9.0)).has_value());
     }
 
-    const AudioConfigStore reloaded{settings_file.path()};
+    const AudioConfigStore reloaded{shared};
     CHECK(reloaded.activeDeviceRoute() == std::optional{route});
     const auto stored = inputCalibrationFor(reloaded, identity);
     REQUIRE(stored.has_value());
@@ -279,14 +231,16 @@ TEST_CASE("AudioConfigStore keeps route and calibration independent", "[audio][c
     }
 }
 
-// Both products hold their own store over the one shared file, so a store never serves a stale
-// copy: a write through one is visible to a store opened before it.
+// Each product opens the shared file in its own process, so a store never serves a stale copy: a
+// write through one is visible to a store opened before it.
 TEST_CASE("AudioConfigStore reads another store's write", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_fresh_read.settings"};
+    common::core::SharedSettingsFile editor_file{settings_file.path()};
+    common::core::SharedSettingsFile game_file{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    AudioConfigStore editor{settings_file.path()};
-    const AudioConfigStore game{settings_file.path()};
+    AudioConfigStore editor{editor_file};
+    const AudioConfigStore game{game_file};
 
     REQUIRE(editor.saveInputCalibration(calibrationFor(identity, 4.5)).has_value());
 
@@ -303,9 +257,11 @@ TEST_CASE("AudioConfigStore reads another store's write", "[audio][config-store]
 TEST_CASE("AudioConfigStore write keeps another store's write", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_no_clobber.settings"};
+    common::core::SharedSettingsFile editor_file{settings_file.path()};
+    common::core::SharedSettingsFile game_file{settings_file.path()};
     const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    AudioConfigStore editor{settings_file.path()};
-    AudioConfigStore game{settings_file.path()};
+    AudioConfigStore editor{editor_file};
+    AudioConfigStore game{game_file};
 
     REQUIRE(editor.saveInputCalibration(calibrationFor(identity, 3.0)).has_value());
     REQUIRE(game.setActiveDeviceRoute("<DEVICESETUP/>").has_value());

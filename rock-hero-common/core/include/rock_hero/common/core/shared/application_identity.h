@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string_view>
+#include <utility>
 
 namespace rock_hero::common::core
 {
@@ -20,7 +22,7 @@ namespace rock_hero::common::core
 }
 
 /*!
-\brief Canonical per-user application data folder name used by settings, logs, and Tracktion.
+\brief Name of the per-user folder every Rock Hero location sits in (user_data_folders.h).
 \return Stable data folder name text.
 */
 [[nodiscard]] constexpr std::string_view applicationDataFolderName() noexcept
@@ -28,27 +30,39 @@ namespace rock_hero::common::core
     return productName();
 }
 
-/*!
-\brief User-facing editor application name.
-\return Stable editor application name text.
-*/
-[[nodiscard]] constexpr std::string_view editorApplicationName() noexcept
+/*! \brief The two applications that keep per-application files in the shared folder. */
+enum class Product : std::uint8_t
 {
-    return "Rock Hero Editor";
-}
+    /*! \brief The game. */
+    Game,
+
+    /*! \brief The editor. */
+    Editor,
+};
 
 /*!
-\brief Names the game's per-user settings file.
+\brief Names one application's settings file and log file.
 
-Distinct from productName() ("Rock Hero") so the game's settings file ("Rock Hero Game.settings")
-sits beside the editor's ("Rock Hero Editor.settings") with matching naming, rather than being the
-bare product name. The shared data folder stays productName() via applicationDataFolderName().
+One token per application names both of its files, so the pair cannot drift, and no display name
+reaches a saved path: renaming a product never renames a file it has already written.
 
-\return Stable game settings-file application name text.
+\param product The application.
+\return The application's file token, one lowercase word.
 */
-[[nodiscard]] constexpr std::string_view gameApplicationName() noexcept
+[[nodiscard]] constexpr std::string_view productToken(Product product) noexcept
 {
-    return "Rock Hero Game";
+    switch (product)
+    {
+        case Product::Game:
+        {
+            return "game";
+        }
+        case Product::Editor:
+        {
+            return "editor";
+        }
+    }
+    std::unreachable();
 }
 
 } // namespace rock_hero::common::core

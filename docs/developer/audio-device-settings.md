@@ -62,19 +62,25 @@ never running by its last observation, `m_audio_device_open`.
 # Persistence: one shared store
 
 `AudioConfigStore` (`common/audio`, `src/settings/audio_config_store.cpp`) holds the device
-route and the route-keyed input calibrations in one file, `Rock Hero/Rock Hero Audio.settings`,
-which the editor and the game both read and write: the same hardware, and the same calibrated
-level for the same guitar, in both products. Each composition root constructs its own
-`AudioConfigStore` and injects it as `IAudioConfigStore&`.
+route and the route-keyed input calibrations in the settings file both products share,
+`settings/shared.settings` in the per-user folder, which the editor and the game both read and
+write: the same hardware, and the same calibrated level for the same guitar, in both products.
+Every per-user location is named once, in `common/core` `shared/user_data_folders.h`. Each
+composition root builds one `SharedSettingsFile` over `sharedSettingsFile()`, constructs its own
+`AudioConfigStore` over it, and injects the store as `IAudioConfigStore&`.
 
-Both products may run at once, so every operation opens a fresh `juce::PropertiesFile` rather
-than trusting an in-memory copy, and the store names one `juce::InterProcessLock` as the file's
-process lock. A write holds that lock across its whole read-modify-write, so neither product
-clobbers a key the other just wrote; JUCE's lock is re-entrant, so its own load and save nest
-inside. The options come from the one settings-file location policy,
-`common::core::settingsFileOptions` (`common/core` `shared/settings_file_options.h`) — the shared
-per-user folder, the `.settings` suffix, and a write-through save with no timer, so an
-acknowledged write is on disk before the call returns — plus that `processLock`.
+Both products may run at once, so the store never trusts an in-memory copy. `SharedSettingsFile`
+(`common/core` `shared/shared_settings_file.h`) knows no settings area: `open()` returns a fresh
+`juce::PropertiesFile` for a read, and `whileLocked()` runs a write's whole read-modify-write on a
+fresh copy while holding one `juce::InterProcessLock`, so neither product clobbers a key the other
+just wrote; the lock is also the file's process lock, and JUCE's lock is re-entrant, so its own load
+and save nest inside. The options come from the one settings-file storage policy,
+`common::core::settingsFileOptions` (`common/core` `shared/settings_file_options.h`) — XML,
+case-sensitive keys, and a write-through save with no timer, so an acknowledged write is on disk
+before the call returns. Each store writes only keys under its own prefix, which is the whole
+defense against a collision: the audio store's are `audio.activeDeviceRoute` and
+`audio.inputCalibrationStates`, and the player's highway settings live under `highway.*`
+(`HighwaySettingsStore`, `common/core` `highway/`).
 
 The three persisted property names for one input route (`backendName`, `inputDeviceName`,
 `inputChannelIndex`) are declared beside `InputDeviceIdentity` itself
@@ -216,10 +222,10 @@ mapping is the seed of future multiplayer input plumbing.
    `openAudioDeviceSettings()`, never the view, so every opening pauses playback and re-runs the
    live-input gate.
 3. New persisted config belongs in `AudioConfigStore` behind `IAudioConfigStore` — with strict
-   parsing that treats corrupt values as absence, and setters that take the inter-process lock
-   across their read-modify-write. A property name two files must agree on is declared beside the
-   type it belongs to, never once per store; a new settings *file* takes its options from
-   `settingsFileOptions`, never its own copy.
+   parsing that treats corrupt values as absence, and setters that run their read-modify-write
+   through `SharedSettingsFile::whileLocked`. A property name two files must agree on is declared
+   beside the type it belongs to, never once per store; a new settings *file* takes its location
+   from `user_data_folders.h` and its options from `settingsFileOptions`, never its own copy.
 4. Tests: the controller runs dispatcher-less and synchronous; the store fakes are
    `ConfigurableAudioDeviceConfiguration` and `InMemoryAudioConfigStore`. An empty store is a first
    run, which opens the settings window, so an editor test of anything else starts from

@@ -22,6 +22,8 @@ target_sources(
             src/highway/highway_hit_glow.cpp
             src/highway/highway_light.cpp
             src/highway/highway_projection.cpp
+            src/highway/highway_settings_error.cpp
+            src/highway/highway_settings_store.cpp
             src/highway/highway_tail.cpp
             src/highway/highway_window.cpp
             src/package/archive_error.cpp
@@ -38,6 +40,8 @@ target_sources(
             src/shared/juce_path.cpp
             src/shared/logger.cpp
             src/shared/logger_error.cpp
+            src/shared/shared_settings_file.cpp
+            src/shared/user_data_folders.cpp
             src/song/arrangement.cpp
             src/song/song.cpp
             src/song/song_section_rules.cpp
@@ -69,17 +73,12 @@ target_compile_definitions(rock_hero_common_core PUBLIC QUILL_DISABLE_NON_PREFIX
 
 # JSON package helpers expose JUCE core utility types through a project-owned public header.
 #
-# juce_data_structures is INTERFACE, not PUBLIC, on purpose: settings_file_options.h states the one
-# settings-file location policy the editor settings, the game settings, and the audio-config store
-# all open their properties files with, and that policy is expressed as
-# juce::PropertiesFile::Options. Consumers of that header therefore need the module, but common core
-# itself compiles against nothing from it — so an INTERFACE link keeps the module's own sources
-# inside their narrow juce_core grant, and a common-core source that reached for PropertiesFile
-# would fail to compile rather than quietly widening the grant.
+# juce_data_structures is PUBLIC for one purpose, the per-user settings files: the storage policy
+# every settings file opens with, the file both products share and the stores over it, and the
+# per-user folder JUCE keeps settings in. All of it runs headless, the test the grant turns on.
 target_link_libraries(
     rock_hero_common_core
-    PUBLIC rock_hero::juce_core quill::quill
-    INTERFACE rock_hero::juce_data_structures
+    PUBLIC rock_hero::juce_core rock_hero::juce_data_structures quill::quill
     PRIVATE rock_hero::build_policy)
 
 add_subdirectory(tests)

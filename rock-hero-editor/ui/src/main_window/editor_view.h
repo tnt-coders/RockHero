@@ -34,6 +34,7 @@
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -119,10 +120,12 @@ public:
            exist disables the "?".
     \param highway_theme The theme the 3D preview and the tablature lane draw with, string colors
            included; must outlive the view.
+    \param highway_view How the player reads the highway, which the 3D preview draws with.
     */
     EditorView(
         core::IEditorController& controller, AudioPorts audio_ports,
-        juce::File input_calibration_guide, const common::ui::LoadedHighwayTheme& highway_theme);
+        juce::File input_calibration_guide, const common::ui::LoadedHighwayTheme& highway_theme,
+        common::core::HighwayViewPreferences highway_view);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
@@ -702,6 +705,9 @@ private:
     // The theme the 3D preview draws with when it opens; the tab lane took its string colors at
     // construction.
     const common::ui::LoadedHighwayTheme& m_highway_theme;
+
+    // How the player reads the highway, which the 3D preview draws with when it opens.
+    common::core::HighwayViewPreferences m_highway_view;
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};

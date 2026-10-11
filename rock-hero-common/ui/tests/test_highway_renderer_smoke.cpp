@@ -561,7 +561,12 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         const common::core::Arrangement swap_arrangement = makeSwapArrangement();
         renderer->setDisplayOptions(
             common::core::HighwayDisplayOptions{
-                .mirrored = true, .invert_string_order = true, .minimum_string_count = 7
+                .view =
+                    common::core::HighwayViewPreferences{
+                        .mirrored = true,
+                        .invert_string_order = false,
+                    },
+                .minimum_string_count = 7,
             });
         renderer->setViewState(
             std::make_shared<const common::core::HighwayViewState>(makeHighwayViewState(

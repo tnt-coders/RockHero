@@ -111,8 +111,11 @@ silent step is the three-way sync: a new pure virtual also lands in `GameSetting
 production store) and the test double `NullGameSettings`
 (`core/tests/include/.../testing/null_game_settings.h`).
 
-Audio device configuration is deliberately *not* here: the game and the editor share one
-`AudioConfigStore` file, covered in \ref guide_audio_device.
+A setting that describes the player or the machine rather than the game's own workspace is
+deliberately *not* here: the game and the editor share one settings file, so they can never
+disagree about it. The audio device configuration lives there through `AudioConfigStore`
+(\ref guide_audio_device), and the highway theme, mirroring and string order through
+`HighwaySettingsStore` (`common/core` `highway/highway_settings_store.h`).
 
 # Packaged resources and the deploy contract
 

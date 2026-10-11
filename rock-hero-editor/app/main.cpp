@@ -8,16 +8,18 @@
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
+#include <rock_hero/common/core/highway/highway_player_settings.h>
+#include <rock_hero/common/core/highway/highway_settings_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
-#include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/shared/shared_settings_file.h>
+#include <rock_hero/common/core/shared/user_data_folders.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/tasks/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
 #include <rock_hero/editor/ui/main_window/editor.h>
 #include <rock_hero/editor/ui/main_window/main_window.h>
-#include <string_view>
 #include <utility>
 
 namespace rock_hero::editor::app
@@ -31,18 +33,6 @@ namespace
 {
 
 constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 1024U * 1024U);
-
-// Resolves the rolling editor log file under the same "Rock Hero" app-data folder as editor
-// settings, matching the location users and developers already look in.
-[[nodiscard]] std::filesystem::path editorLogFile()
-{
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    const juce::File log_file =
-        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile(juce::String{folder_name.data(), folder_name.size()})
-            .getChildFile("Rock Hero Editor.log");
-    return common::core::pathFromJuceFile(log_file);
-}
 
 // Maps the concrete Tracktion-backed engine into the editor's narrow audio-port bundle. This
 // stays in app composition because only the composition root knows one object backs every port.
@@ -98,7 +88,8 @@ public:
             return;
         }
 
-        const std::filesystem::path log_file = editorLogFile();
+        const std::filesystem::path log_file =
+            rock_hero::common::core::logFile(rock_hero::common::core::Product::Editor);
         const std::expected<void, rock_hero::common::core::LoggerError> logging_result =
             Logger::init(
                 Logger::Config{
@@ -137,14 +128,22 @@ public:
         const rock_hero::common::ui::HighwayThemeRegistry& highway_themes =
             m_highway_themes.emplace(std::move(*loaded_themes));
 
-        m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
-        m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
+        m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>(
+            rock_hero::common::audio::perUserEngineFolders());
+        m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>(
+            rock_hero::common::core::settingsFile(rock_hero::common::core::Product::Editor));
         m_editor_task_runner = std::make_unique<rock_hero::editor::core::JuceEditorTaskRunner>();
         m_message_thread_scheduler =
             std::make_unique<rock_hero::editor::core::JuceMessageThreadScheduler>();
 
-        // The audio settings both products share: the device route and the input calibrations.
-        m_audio_config_store = std::make_unique<rock_hero::common::audio::AudioConfigStore>();
+        // The settings both products share: the audio device route and input calibrations, and the
+        // player's highway settings, read once here for the preview.
+        m_shared_settings_file = std::make_unique<rock_hero::common::core::SharedSettingsFile>(
+            rock_hero::common::core::sharedSettingsFile());
+        m_audio_config_store =
+            std::make_unique<rock_hero::common::audio::AudioConfigStore>(*m_shared_settings_file);
+        const rock_hero::common::core::HighwayPlayerSettings highway_settings =
+            rock_hero::common::core::HighwaySettingsStore{*m_shared_settings_file}.read();
 
         // The engine implements both ILiveInput and IAudioDeviceConfiguration; the shared monitor
         // and the controller both read the audio settings through the one store.
@@ -159,7 +158,8 @@ public:
                 .message_thread_scheduler = *m_message_thread_scheduler,
                 .audio_config_store = *m_audio_config_store,
                 .live_input_monitor = *m_live_input_monitor,
-                .highway_theme = highway_themes.defaultTheme(),
+                .highway_theme = highway_themes.themeOrDefault(highway_settings.theme_id),
+                .highway_view = highway_settings.view,
             },
             &juce::JUCEApplicationBase::quit);
 
@@ -175,6 +175,7 @@ public:
         m_main_window.reset();
         m_live_input_monitor.reset();
         m_audio_config_store.reset();
+        m_shared_settings_file.reset();
         m_message_thread_scheduler.reset();
         m_editor_task_runner.reset();
         m_editor_settings.reset();
@@ -217,6 +218,9 @@ private:
     // Every highway theme that loaded; the editor draws with the default one, so the registry is
     // released after the window that holds that theme by reference.
     std::optional<rock_hero::common::ui::HighwayThemeRegistry> m_highway_themes;
+
+    // Owns the settings file both products share. Released after the store over it.
+    std::unique_ptr<rock_hero::common::core::SharedSettingsFile> m_shared_settings_file;
 
     // Owns the audio-config store both products share. Released after the monitor and editor that
     // read through it.

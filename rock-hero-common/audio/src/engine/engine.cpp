@@ -8,7 +8,7 @@
 #include "tracktion/tracktion_thumbnail.h"
 
 #include <memory>
-#include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/user_data_folders.h>
 
 namespace rock_hero::common::audio
 {
@@ -84,14 +84,21 @@ tracktion::AudioTrack* Engine::Impl::instrumentTrack() const
     return tracktion::findAudioTrackForID(*m_edit, m_instrument_track_id);
 }
 
+EngineFolders perUserEngineFolders()
+{
+    return EngineFolders{
+        .settings = common::core::tracktionFolder(),
+        .scratch = common::core::scratchFolder(),
+    };
+}
+
 // Creates the Tracktion engine and a minimal two-track edit for playback and instrument monitoring.
-Engine::Engine()
+Engine::Engine(const EngineFolders& folders)
     : m_impl(std::make_unique<Impl>())
 {
-    // Tracktion uses the engine application name as its property-storage folder.
     Impl* const impl = m_impl.get();
     m_impl->m_engine = std::make_unique<tracktion::Engine>(
-        toJuceString(core::applicationDataFolderName()),
+        std::make_unique<RockHeroPropertyStorage>(folders),
         std::make_unique<RockHeroUIBehavior>(
             [impl](PluginWindowCommand command) { impl->dispatchPluginWindowCommand(command); }),
         std::make_unique<RockHeroEngineBehavior>());

@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/shared/user_data_folders.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <string>
@@ -34,20 +35,12 @@ using common::core::Arrangement;
 using common::core::AudioAsset;
 using common::core::Song;
 
-// Creates one workspace directory under the platform temp directory for an open project.
+// Creates one workspace directory under the scratch root for an open project.
 [[nodiscard]] std::expected<std::filesystem::path, ProjectError> createWorkspaceDirectory()
 {
     std::error_code error;
-    const std::filesystem::path temp_root = std::filesystem::temp_directory_path(error);
-    if (error)
-    {
-        return std::unexpected{ProjectError{
-            ProjectErrorCode::WorkspaceCreationFailed,
-            "Could not locate temporary directory: " + error.message(),
-        }};
-    }
-
-    const std::filesystem::path workspace_root = temp_root / "RockHero" / "project-workspaces";
+    const std::filesystem::path workspace_root =
+        common::core::scratchFolder() / "project-workspaces";
     std::filesystem::create_directories(workspace_root, error);
     if (error)
     {

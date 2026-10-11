@@ -11,10 +11,13 @@
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
+#include <rock_hero/common/core/highway/highway_settings_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/shared/shared_settings_file.h>
+#include <rock_hero/common/core/shared/user_data_folders.h>
 #include <rock_hero/game/core/library/filesystem_directory_lister.h>
 #include <rock_hero/game/core/library/library_index.h>
 #include <rock_hero/game/core/library/library_scan.h>
@@ -33,18 +36,6 @@ namespace rock_hero::game::app
 {
 namespace
 {
-
-// Resolves the rolling game log file under the same "Rock Hero" app-data folder as the editor's
-// log, so both products' logs sit side by side where users and developers already look.
-[[nodiscard]] std::filesystem::path gameLogFile()
-{
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    const juce::File log_file =
-        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile(juce::String{folder_name.data(), folder_name.size()})
-            .getChildFile("Rock Hero Game.log");
-    return common::core::pathFromJuceFile(log_file);
-}
 
 // Returns the value following the named argument, or empty when the argument is absent.
 [[nodiscard]] std::optional<std::string_view> argumentValue(
@@ -121,20 +112,15 @@ namespace
     return command_line;
 }
 
-// Composes the unique per-session scratch directory under per-user app data. The session
-// creates and deletes the directory; the composer owns uniqueness.
+// Composes the unique per-session scratch directory under the scratch root. The session creates
+// and deletes the directory; the composer owns uniqueness.
 [[nodiscard]] std::filesystem::path makeSessionWorkspaceDirectory()
 {
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    const juce::File workspace_root =
-        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile(juce::String{folder_name.data(), folder_name.size()})
-            .getChildFile("game-sessions")
-            .getChildFile(juce::Uuid{}.toString());
-    return common::core::pathFromJuceFile(workspace_root);
+    return common::core::scratchFolder() / "game-sessions" /
+           common::core::pathFromJuceString(juce::Uuid{}.toString());
 }
 
-// Scans the song library at startup for the shell's menu: the per-user default Songs folder
+// Scans the song library at startup for the shell's menu: the per-user default song folder
 // (created on demand) plus any custom roots from settings. A fresh scan each launch is cheap
 // because the peek reader never extracts; an index cache is a later optimization.
 [[nodiscard]] rock_hero::game::core::LibraryIndex scanSongLibrary()
@@ -142,17 +128,12 @@ namespace
     namespace core = rock_hero::game::core;
     namespace common_core = rock_hero::common::core;
 
-    const std::string_view folder_name = common_core::applicationDataFolderName();
-    const std::filesystem::path app_data_directory = common_core::pathFromJuceFile(
-        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile(juce::String{folder_name.data(), folder_name.size()}));
-
-    const core::GameSettings settings;
+    const core::GameSettings settings{common_core::settingsFile(common_core::Product::Game)};
     const std::vector<std::filesystem::path> custom_roots = settings.customScanRoots();
     const std::vector<std::filesystem::path> roots =
-        core::resolveLibraryScanRoots(app_data_directory, custom_roots);
+        core::resolveLibraryScanRoots(common_core::songsFolder(), custom_roots);
 
-    // Create the default Songs folder so the player has somewhere to drop packages.
+    // Create the default song folder so the player has somewhere to drop packages.
     if (!roots.empty())
     {
         common_core::juceFileFromPath(roots.front()).createDirectory();
@@ -193,7 +174,8 @@ try
     // per-frame trace instrumentation records.
     const bool dev_mode = rock_hero::game::app::hasFlag("--dev", argc, argv);
 
-    const std::filesystem::path log_file = rock_hero::game::app::gameLogFile();
+    const std::filesystem::path log_file =
+        rock_hero::common::core::logFile(rock_hero::common::core::Product::Game);
     const std::expected<void, rock_hero::common::core::LoggerError> logging_result = Logger::init(
         Logger::Config{
             .log_file = log_file,
@@ -218,12 +200,17 @@ try
     // and GPU device), the session closes (stops audio, releases the arrangement, deletes its
     // scratch workspace), the engine destructs, and the JUCE guard goes last.
     const juce::ScopedJuceInitialiser_GUI juce_runtime;
-    rock_hero::common::audio::Engine audio_engine;
+    rock_hero::common::audio::Engine audio_engine{rock_hero::common::audio::perUserEngineFolders()};
 
-    // The audio settings both products share. Restore the saved route before the session starts so
-    // the calibrate-first gate lands on it; an absent route keeps the engine's initialise(1, 2)
-    // default. This runs on the message thread, matching the engine's own device init.
-    rock_hero::common::audio::AudioConfigStore audio_config_store;
+    // The settings file both products share, one per process, under the stores that read it.
+    rock_hero::common::core::SharedSettingsFile shared_settings_file{
+        rock_hero::common::core::sharedSettingsFile()
+    };
+
+    // Restore the saved route before the session starts so the calibrate-first gate lands on it; an
+    // absent route keeps the engine's initialise(1, 2) default. This runs on the message thread,
+    // matching the engine's own device init.
+    rock_hero::common::audio::AudioConfigStore audio_config_store{shared_settings_file};
     if (const std::optional<std::string> active_device_route =
             audio_config_store.activeDeviceRoute();
         active_device_route.has_value())
@@ -267,7 +254,8 @@ try
     rock_hero::game::ui::RockHeroGame::Config config{};
     config.frame_limit = rock_hero::game::app::smokeFrameLimit(argc, argv);
     config.dev_package = rock_hero::game::app::devPackagePath(argc, argv);
-    config.lefty = rock_hero::game::app::hasFlag("--lefty", argc, argv);
+    config.highway_settings =
+        rock_hero::common::core::HighwaySettingsStore{shared_settings_file}.read();
     config.dev_mode = dev_mode;
     config.gameplay_session = &gameplay_session;
     config.session_workspace_directory = rock_hero::game::app::makeSessionWorkspaceDirectory();

@@ -359,7 +359,8 @@ TEST_CASE("EditorView grid selector forwards note values", "[ui][editor-view]")
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     view.setBounds(0, 0, 1280, 800);
@@ -385,7 +386,8 @@ TEST_CASE("EditorView grid selector displays the state note value", "[ui][editor
         controller,
         viewAudioPorts(transport, thumbnail_factory),
         juce::File{},
-        fixtureLoadedHighwayTheme()
+        fixtureLoadedHighwayTheme(),
+        common::core::HighwayViewPreferences{}
     };
 
     view.setBounds(0, 0, 1280, 800);

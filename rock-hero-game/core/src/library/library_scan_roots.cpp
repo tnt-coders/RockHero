@@ -6,7 +6,7 @@ namespace rock_hero::game::core
 {
 
 std::vector<std::filesystem::path> resolveLibraryScanRoots(
-    const std::filesystem::path& app_data_directory,
+    const std::filesystem::path& default_songs_folder,
     std::span<const std::filesystem::path> custom_roots)
 {
     std::vector<std::filesystem::path> roots;
@@ -26,7 +26,7 @@ std::vector<std::filesystem::path> resolveLibraryScanRoots(
         }
     };
 
-    add(app_data_directory / g_default_songs_folder_name);
+    add(default_songs_folder);
     for (const std::filesystem::path& custom : custom_roots)
     {
         add(custom);

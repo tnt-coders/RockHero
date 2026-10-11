@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
 #include <utility>
@@ -26,22 +27,19 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Display-mapping flags the renderer applies while drawing: the renderer's own setting.
+\brief Display-mapping settings the renderer applies while drawing: the renderer's own setting.
 
-The mirror and the invert are read per frame in `highway_renderer.cpp` — the fret axis reflects,
-the lanes stack — and the lane minimum is resolved whenever the options or the state change; none
-of them changes the projected scene, so they are handed to
-the renderer directly (`HighwayRenderer::setDisplayOptions`) rather than riding the memoized
-\ref HighwayViewState: changing one never re-projects the chart, and the chart scene underneath
-stays one chart fact that no consumer projects a second, per-display copy of.
+The player's view preferences are read per frame in `highway_renderer.cpp` — the fret axis
+reflects, the lanes stack — and the lane minimum is resolved whenever the options or the state
+change; none of them changes the projected scene, so they are handed to the renderer directly
+(`HighwayRenderer::setDisplayOptions`) rather than riding the memoized \ref HighwayViewState:
+changing one never re-projects the chart, and the chart scene underneath stays one chart fact that
+no consumer projects a second, per-display copy of.
 */
 struct HighwayDisplayOptions
 {
-    /*! \brief True to reflect the fret axis for left-handed display. */
-    bool mirrored{false};
-
-    /*! \brief True to stack the lowest-pitched string on top instead of the bottom. */
-    bool invert_string_order{false};
+    /*! \brief The player's reading choices, as both products persist them. */
+    HighwayViewPreferences view{};
 
     /*!
     \brief Minimum number of string lanes to display, padding the chart's own string count.

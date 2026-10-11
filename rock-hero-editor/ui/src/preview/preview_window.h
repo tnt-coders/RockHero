@@ -11,6 +11,7 @@
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 
@@ -45,12 +46,14 @@ public:
     \param forward_key_press Callback that offers key presses to the main view's handler.
     \param centering_component Optional component used to position the window on first show.
     \param highway_theme The theme the highway draws with; must outlive the window.
+    \param highway_view How the player reads the highway.
     */
     PreviewWindow(
         const common::audio::ITransport& transport,
         const common::audio::IPlaybackClock& playback_clock,
         std::function<bool(const juce::KeyPress&)> forward_key_press,
-        juce::Component* centering_component, const common::ui::LoadedHighwayTheme& highway_theme);
+        juce::Component* centering_component, const common::ui::LoadedHighwayTheme& highway_theme,
+        common::core::HighwayViewPreferences highway_view);
 
     /*!
     \brief Detaches the key listener, then runs close(), which suspends the surface and hides the

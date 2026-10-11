@@ -5,13 +5,15 @@
 namespace rock_hero::common::core
 {
 
-// Pins the persisted names: settings, logs and Tracktion data are found by these strings, so a
-// change here moves every user's data folder.
-TEST_CASE("Application identity names the canonical app data folder", "[core][application]")
+// Pins the persisted names: every per-user file is found by these strings, so a change here moves
+// every user's data.
+TEST_CASE(
+    "Application identity names the data folder and each product's files", "[core][application]")
 {
     CHECK(productName() == std::string_view{"Rock Hero"});
     CHECK(applicationDataFolderName() == std::string_view{"Rock Hero"});
-    CHECK(editorApplicationName() == std::string_view{"Rock Hero Editor"});
+    CHECK(productToken(Product::Game) == std::string_view{"game"});
+    CHECK(productToken(Product::Editor) == std::string_view{"editor"});
 }
 
 } // namespace rock_hero::common::core

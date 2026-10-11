@@ -118,7 +118,7 @@ mirror flag reflects the focus (and the derived whole-neck blend point) as pure 
 \param now_seconds Current playback time.
 \param metrics World-space constants.
 \param mirrored True when the board is drawn mirrored for left-handed display
-       (\ref HighwayDisplayOptions::mirrored).
+       (\ref HighwayViewPreferences::mirrored).
 \return Instantaneous focus and span targets.
 */
 [[nodiscard]] HighwayCameraTarget makeHighwayCameraTarget(

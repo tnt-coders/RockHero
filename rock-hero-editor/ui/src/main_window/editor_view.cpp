@@ -423,7 +423,8 @@ constexpr int g_track_viewport_min_height{80};
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
 EditorView::EditorView(
     core::IEditorController& controller, AudioPorts audio_ports, juce::File input_calibration_guide,
-    const common::ui::LoadedHighwayTheme& highway_theme)
+    const common::ui::LoadedHighwayTheme& highway_theme,
+    const common::core::HighwayViewPreferences highway_view)
     : m_controller(controller)
     , m_audio_devices(audio_ports.audio_devices)
     , m_audio_config_store(audio_ports.audio_config_store)
@@ -432,6 +433,7 @@ EditorView::EditorView(
     , m_playback_clock(audio_ports.playback_clock)
     , m_input_calibration_guide(std::move(input_calibration_guide))
     , m_highway_theme(highway_theme)
+    , m_highway_view(highway_view)
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_grid_spacing_selector(*this)
@@ -1307,7 +1309,8 @@ void EditorView::togglePreviewWindow()
                 return m_command_manager.invokeDirectly(command, false);
             },
             getTopLevelComponent(),
-            m_highway_theme);
+            m_highway_theme,
+            m_highway_view);
     }
 
     if (m_preview_window->isVisible())

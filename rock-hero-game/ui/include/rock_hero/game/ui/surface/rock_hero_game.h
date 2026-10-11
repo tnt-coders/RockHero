@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/game/core/library/library_index.h>
 #include <rock_hero/game/ui/surface/sdl3_application.h>
 
@@ -43,9 +44,9 @@ public:
     \brief Composition inputs for one game run: the loop's smoke hook plus injected collaborators.
 
     Split by owner: \ref frame_limit is loop state (handed to the \ref SDL3Application base), and
-    the rest describes the content the composition root builds — the dev flags, the optional
-    development package, the session workspace, the injected session, and the optional scanned
-    library that opens the menu.
+    the rest describes the content the composition root builds — the dev flag, the player's
+    highway settings, the optional development package, the session workspace, the injected
+    session, and the optional scanned library that opens the menu.
     */
     struct Config
     {
@@ -60,8 +61,8 @@ public:
         /*! \brief True activates the dev-diagnostics layer (overlay, hot-reload, section seeks). */
         bool dev_mode{false};
 
-        /*! \brief True mirrors the highway for left-handed display. */
-        bool lefty{false};
+        /*! \brief The player's highway settings: the theme to draw with and how to read it. */
+        common::core::HighwayPlayerSettings highway_settings{};
 
         /*!
         \brief When set, loads this package at startup and scrolls its first charted arrangement.

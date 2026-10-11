@@ -9,8 +9,6 @@
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/core/shared/decimal_text.h>
-#include <rock_hero/common/core/shared/juce_path.h>
-#include <rock_hero/common/core/shared/settings_file_options.h>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -22,25 +20,13 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// The shared audio-config file's name inside the Rock Hero settings folder. The inter-process lock
-// that guards the file carries the same name.
-constexpr const char* g_audio_config_application_name{"Rock Hero Audio"};
+// Every key this store writes in the shared file starts "audio.", the whole defense against another
+// area's keys there: this one, and InputCalibrationCodec::g_list_key below.
+constexpr const char* g_active_device_route_key{"audio.activeDeviceRoute"};
 
-constexpr const char* g_active_device_route_key{"activeDeviceRoute"};
-
+// Versions one XML-valued history, as an attribute of its root element, not a key of the file.
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
-
-// Takes the shared settings-file location policy and names the store's lock as the file's process
-// lock, so JUCE's own loads and saves hold it too. JUCE's lock is re-entrant within one process, so
-// those nest inside a write that already holds it.
-[[nodiscard]] juce::PropertiesFile::Options audioConfigOptions(juce::InterProcessLock& lock)
-{
-    juce::PropertiesFile::Options options =
-        common::core::settingsFileOptions(g_audio_config_application_name);
-    options.processLock = &lock;
-    return options;
-}
 
 // The failure a write reports when the inter-process lock cannot be taken.
 [[nodiscard]] std::unexpected<AudioConfigError> couldNotLock()
@@ -236,7 +222,7 @@ struct InputCalibrationCodec
 {
     using State = InputCalibrationState;
 
-    static constexpr const char* g_list_key{"inputCalibrationStates"};
+    static constexpr const char* g_list_key{"audio.inputCalibrationStates"};
     static constexpr const char* g_list_tag{"INPUT_CALIBRATIONS"};
     static constexpr const char* g_item_tag{"CALIBRATION"};
     static constexpr const char* g_gain_db_property{"gainDb"};
@@ -294,28 +280,14 @@ using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 
 } // namespace
 
-// Opens the shared file at its standard per-user location.
-AudioConfigStore::AudioConfigStore()
-    : AudioConfigStore(
-          common::core::settingsFileOptions(g_audio_config_application_name).getDefaultFile())
-{}
-
-// Opens an explicit store file so lifecycle behavior can be exercised in isolation.
-AudioConfigStore::AudioConfigStore(const std::filesystem::path& settings_file)
-    : AudioConfigStore(common::core::juceFileFromPath(settings_file))
-{}
-
-// Owns the member initialization both public constructors share.
-AudioConfigStore::AudioConfigStore(juce::File file)
-    : m_lock(g_audio_config_application_name)
-    , m_options(audioConfigOptions(m_lock))
-    , m_file(std::move(file))
+AudioConfigStore::AudioConfigStore(common::core::SharedSettingsFile& settings_file)
+    : m_settings_file(settings_file)
 {}
 
 // Reads the stored restore payload; an empty value is no route.
 std::optional<std::string> AudioConfigStore::activeDeviceRoute() const
 {
-    const juce::PropertiesFile properties{m_file, m_options};
+    const juce::PropertiesFile properties = m_settings_file.open();
     std::string route = properties.getValue(g_active_device_route_key).toStdString();
     if (route.empty())
     {
@@ -330,30 +302,29 @@ std::optional<std::string> AudioConfigStore::activeDeviceRoute() const
 std::expected<void, AudioConfigError> AudioConfigStore::setActiveDeviceRoute(
     std::optional<std::string> route)
 {
-    // Held across the read-modify-write, so the other product cannot write between them.
-    const juce::InterProcessLock::ScopedLockType held{m_lock};
-    if (!held.isLocked())
-    {
-        return couldNotLock();
-    }
-    juce::PropertiesFile properties{m_file, m_options};
-    if (!route.has_value() || route->empty())
-    {
-        properties.removeValue(g_active_device_route_key);
-    }
-    else
-    {
-        properties.setValue(g_active_device_route_key, juce::String::fromUTF8(route->c_str()));
-    }
+    return m_settings_file
+        .whileLocked(
+            [&route](juce::PropertiesFile& properties) -> std::expected<void, AudioConfigError> {
+                if (!route.has_value() || route->empty())
+                {
+                    properties.removeValue(g_active_device_route_key);
+                }
+                else
+                {
+                    properties.setValue(
+                        g_active_device_route_key, juce::String::fromUTF8(route->c_str()));
+                }
 
-    if (properties.save())
-    {
-        return {};
-    }
+                if (properties.save())
+                {
+                    return {};
+                }
 
-    return std::unexpected{
-        AudioConfigError{AudioConfigErrorCode::CouldNotSave, "Could not save active device route."}
-    };
+                return std::unexpected{AudioConfigError{
+                    AudioConfigErrorCode::CouldNotSave, "Could not save active device route."
+                }};
+            })
+        .value_or(couldNotLock());
 }
 
 // Reads the calibration history without mutating state or compacting invalid persisted records.
@@ -365,7 +336,7 @@ std::expected<std::optional<InputCalibrationState>, AudioConfigError> AudioConfi
         return std::nullopt;
     }
 
-    const juce::PropertiesFile properties{m_file, m_options};
+    const juce::PropertiesFile properties = m_settings_file.open();
     auto states = InputCalibrationStore::readOrError(
         properties, "Saved input calibration history is not valid XML.");
     if (!states.has_value())
@@ -399,30 +370,30 @@ std::expected<void, AudioConfigError> AudioConfigStore::saveInputCalibration(
         }};
     }
 
-    // Held across the read-modify-write, so the other product cannot write between them.
-    const juce::InterProcessLock::ScopedLockType held{m_lock};
-    if (!held.isLocked())
-    {
-        return couldNotLock();
-    }
-    juce::PropertiesFile properties{m_file, m_options};
-    auto states = InputCalibrationStore::readOrError(
-        properties, "Cannot save input calibration because saved calibration history is invalid.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
+    return m_settings_file
+        .whileLocked(
+            [&calibration_state](
+                juce::PropertiesFile& properties) -> std::expected<void, AudioConfigError> {
+                auto states = InputCalibrationStore::readOrError(
+                    properties,
+                    "Cannot save input calibration because saved calibration history is invalid.");
+                if (!states.has_value())
+                {
+                    return std::unexpected{std::move(states.error())};
+                }
 
-    InputCalibrationStore::replace(*states, std::move(calibration_state));
-    InputCalibrationStore::write(properties, *states);
-    if (properties.save())
-    {
-        return {};
-    }
+                InputCalibrationStore::replace(*states, std::move(calibration_state));
+                InputCalibrationStore::write(properties, *states);
+                if (properties.save())
+                {
+                    return {};
+                }
 
-    return std::unexpected{
-        AudioConfigError{AudioConfigErrorCode::CouldNotSave, "Could not save input calibration."}
-    };
+                return std::unexpected{AudioConfigError{
+                    AudioConfigErrorCode::CouldNotSave, "Could not save input calibration."
+                }};
+            })
+        .value_or(couldNotLock());
 }
 
 } // namespace rock_hero::common::audio

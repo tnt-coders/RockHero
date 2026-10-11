@@ -190,12 +190,10 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
     , m_dev_mode(config.dev_mode)
     , m_session_workspace_directory(std::move(config.session_workspace_directory))
 {
-    // Lowest-pitched string on top is the 3D notation's default, set once here until a per-player
-    // setting exists; the lefty mirror is the launch flag's.
+    // The game pads no lanes: the board shows the chart's own strings.
     m_renderer.setDisplayOptions(
         common::core::HighwayDisplayOptions{
-            .mirrored = config.lefty,
-            .invert_string_order = true,
+            .view = config.highway_view,
             .minimum_string_count = 0,
         });
 

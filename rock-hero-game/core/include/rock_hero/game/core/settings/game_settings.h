@@ -20,19 +20,16 @@ namespace rock_hero::game::core
 /*!
 \brief Persists game settings to per-user XML, mirroring the editor's settings adapter.
 
-The file lands in the standard per-user application data folder under the shared "Rock Hero"
-directory, named by gameApplicationName(), stored as XML, and saved on every set so a crash
-never loses an acknowledged write. Key names stay private to this implementation.
+The file is stored as XML and saved on every set, so a crash never loses an acknowledged write.
+Key names stay private to this implementation.
 */
 class GameSettings final : public IGameSettings
 {
 public:
-    /*! \brief Opens (or lazily creates) the per-user game settings file. */
-    GameSettings();
-
     /*!
-    \brief Opens game settings at an explicit native path (test isolation).
-    \param settings_file Settings file path used for persisted game state.
+    \brief Opens (or lazily creates) the game settings file.
+    \param settings_file Settings file path used for persisted game state; the app passes
+           `settingsFile(Product::Game)` (user_data_folders.h), tests a temporary file.
     */
     explicit GameSettings(const std::filesystem::path& settings_file);
 

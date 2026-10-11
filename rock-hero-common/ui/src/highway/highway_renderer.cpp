@@ -2120,7 +2120,7 @@ struct HighwayRenderer::Impl
         }
         const common::core::HighwayHandArrival& from = *leg->from;
         const common::core::HighwayHandArrival& to = *leg->to;
-        const bool mirrored = options.mirrored;
+        const bool mirrored = options.view.mirrored;
         const auto travel_x = [&](const double from_line, const double to_line) {
             return std::abs(
                 common::core::highwayFretLineX(to_line, metrics, mirrored) -
@@ -2644,8 +2644,8 @@ void HighwayRenderer::Impl::rebuildBoardFace()
         return;
     }
 
-    const bool mirrored = options.mirrored;
-    const bool invert = options.invert_string_order;
+    const bool mirrored = options.view.mirrored;
+    const bool invert = options.view.invert_string_order;
 
     std::vector<PosColorVertex> vertices;
     std::vector<std::uint16_t> indices;
@@ -2684,12 +2684,12 @@ void HighwayRenderer::Impl::draw(
 
     // Camera: stepped targets from the upcoming chart, turned into motion by the spring.
     const common::core::HighwayCameraTarget target =
-        common::core::makeHighwayCameraTarget(*state, now_seconds, metrics, options.mirrored);
+        common::core::makeHighwayCameraTarget(*state, now_seconds, metrics, options.view.mirrored);
     camera.advance(target, dt_seconds, metrics);
     const common::core::HighwayCameraPose pose = camera.pose(metrics);
     const double aspect = static_cast<double>(width) / static_cast<double>(height);
     const common::core::HighwayMat4 world_to_clip =
-        common::core::makeHighwayWorldToClip(pose, aspect, options.mirrored, metrics);
+        common::core::makeHighwayWorldToClip(pose, aspect, options.view.mirrored, metrics);
     const std::array<float, 16> board_matrix = toBgfxMatrix(world_to_clip);
 
     // Per-frame view setup, re-asserted from the current backbuffer size every frame.
@@ -2710,8 +2710,8 @@ void HighwayRenderer::Impl::draw(
     bgfx::touch(g_board_view);
 
     scratch.clearForFrame();
-    const bool mirrored = options.mirrored;
-    const bool invert = options.invert_string_order;
+    const bool mirrored = options.view.mirrored;
+    const bool invert = options.view.invert_string_order;
     const double span_end_seconds = now_seconds + lookaheadSeconds();
     const double span_start_seconds = now_seconds - g_passed_fade_seconds;
 
@@ -5531,7 +5531,7 @@ void HighwayRenderer::Impl::draw(
 // stay straight and fixed; only alpha animates. ---
 void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 {
-    const bool mirrored = options.mirrored;
+    const bool mirrored = options.view.mirrored;
     // The mid tier's samples: the drawn span's two ends plus every visible light's own instants,
     // which are all the breakpoints of the rule along z.
     std::vector<double>& times = scratch.window_times;
@@ -5647,7 +5647,7 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 // Two lights at one place composite in submission order, so they cannot sum toward white. ---
 void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
 {
-    const bool mirrored = options.mirrored;
+    const bool mirrored = options.view.mirrored;
     const std::array<float, 4> light_params{
         static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
     };
@@ -5754,7 +5754,7 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
 // hard end where the light beside it is already fading out. ---
 void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 {
-    const bool mirrored = options.mirrored;
+    const bool mirrored = options.view.mirrored;
 
     auto [vertices, indices] = scratch.colorBatch();
     // Beats ascend, so the two skip tests are the two ends of a binary-searched range — the
@@ -5820,7 +5820,7 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 // so the picking hand needs no spans. ---
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
 {
-    const bool mirrored = options.mirrored;
+    const bool mirrored = options.view.mirrored;
     std::vector<PosColorGlowVertex>& vertices = scratch.rail_glow_vertices;
     std::vector<std::uint16_t>& indices = scratch.rail_glow_indices;
     // Every rail is the same emitter shape: a line of the emitter's half-width, unbounded along
@@ -5948,7 +5948,7 @@ void HighwayRenderer::Impl::drawStringLines()
 // belongs to the chord boxes' bottom bars). ---
 void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
 {
-    const bool mirrored = options.mirrored;
+    const bool mirrored = options.view.mirrored;
     const double face_bottom_y = faceBottomY();
     const double face_top_y = faceTopY();
     LineLight active{};
@@ -5992,7 +5992,7 @@ void HighwayRenderer::Impl::drawFretboardMarkers()
 {
     if (inlay_texture.isValid())
     {
-        const bool mirrored = options.mirrored;
+        const bool mirrored = options.view.mirrored;
         const double face_bottom_y = faceBottomY();
         const double face_top_y = faceTopY();
         auto [vertices, indices] = scratch.texturedBatch();
@@ -6059,7 +6059,7 @@ void HighwayRenderer::Impl::drawCapo()
 {
     if (state->chart.capo > 0 && state->chart.capo <= g_face_fret_count)
     {
-        const bool mirrored = options.mirrored;
+        const bool mirrored = options.view.mirrored;
         const double face_bottom_y = faceBottomY();
         const double face_top_y = faceTopY();
         auto [vertices, indices] = scratch.colorBatch();
@@ -6119,7 +6119,7 @@ void HighwayRenderer::Impl::drawCapo()
 // --- Section labels through the glyph atlas. ---
 void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
 {
-    const bool mirrored = options.mirrored;
+    const bool mirrored = options.view.mirrored;
     auto [glyph_vertices, glyph_indices] = scratch.texturedBatch();
 
     const auto push_text = [&](const std::string_view text,
@@ -6204,7 +6204,7 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
 // hand, strike_picking for the picking hand. ---
 void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
 {
-    const bool mirrored = options.mirrored;
+    const bool mirrored = options.view.mirrored;
     const double face_bottom_y = faceBottomY();
     const double face_top_y = faceTopY();
     auto [vertices, indices] = scratch.texturedBatch();

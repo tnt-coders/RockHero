@@ -6,6 +6,7 @@
 #pragma once
 
 #include <expected>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
@@ -39,6 +40,26 @@ namespace rock_hero::common::audio
 
 // Forward declaration of the Tracktion-free thumbnail interface returned by Engine.
 class IThumbnail;
+
+/*! \brief The two folders the engine keeps Tracktion's own files in. */
+struct EngineFolders
+{
+    /*!
+    \brief Tracktion's settings and plugin-scan state, kept across launches.
+
+    Both products pass the same folder, so a plugin scanned in one is known to the other.
+    */
+    std::filesystem::path settings;
+
+    /*! \brief The scratch root Tracktion's temporary files go under, in their own subfolder. */
+    std::filesystem::path scratch;
+};
+
+/*!
+\brief Returns the per-user folders both products run their engine with (user_data_folders.h).
+\return Tracktion's per-user settings folder and the per-user scratch root.
+*/
+[[nodiscard]] EngineFolders perUserEngineFolders();
 
 /*!
 \brief Isolation layer between Tracktion Engine and the rest of the application.
@@ -97,8 +118,11 @@ public:
     Initialises the device manager with one instrument input and stereo output. The selected
     app-local audio-device route is rebound to the instrument track whenever device settings
     change.
+
+    \param folders Where Tracktion keeps its files; the app passes the per-user folders
+           (user_data_folders.h), tests temporary ones.
     */
-    Engine();
+    explicit Engine(const EngineFolders& folders);
 
     /*! \brief Stops transport and tears down Tracktion objects in dependency order. */
     ~Engine() override;

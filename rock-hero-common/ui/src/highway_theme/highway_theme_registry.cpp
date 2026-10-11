@@ -6,10 +6,9 @@
 #include <cassert>
 #include <cstddef>
 #include <format>
-#include <juce_core/juce_core.h>
-#include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/shared/user_data_folders.h>
 #include <span>
 #include <system_error>
 #include <utility>
@@ -20,7 +19,7 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// The folder both theme roots name, under the resources tree and under the application data folder.
+// The built-in themes folder's name under the resources tree.
 constexpr std::string_view g_themes_folder_name = "themes";
 
 // The theme directories inside one folder, in name order so loading is deterministic. A folder
@@ -79,18 +78,12 @@ HighwayThemeError::HighwayThemeError(HighwayThemeErrorCode error_code, std::stri
     , message(std::move(message_text))
 {}
 
-// The built-in folder sits in the product's deployed resources; the user folder sits beside the
-// settings and logs in the shared per-user application data folder.
+// The built-in folder sits in the product's deployed resources; the user folder is per-user.
 HighwayThemeFolders highwayThemeFolders(const std::filesystem::path& resources_root)
 {
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    const juce::File user_folder =
-        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile(juce::String{folder_name.data(), folder_name.size()})
-            .getChildFile(juce::String{g_themes_folder_name.data(), g_themes_folder_name.size()});
     return HighwayThemeFolders{
         .built_in = resources_root / g_themes_folder_name,
-        .user = common::core::pathFromJuceFile(user_folder),
+        .user = common::core::themesFolder(),
     };
 }
 
@@ -153,6 +146,18 @@ std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::loa
 const LoadedHighwayTheme& HighwayThemeRegistry::defaultTheme() const
 {
     return m_themes.at(m_default_index);
+}
+
+// The one place an unknown or absent pick falls back, so both products draw the same theme for it.
+const LoadedHighwayTheme& HighwayThemeRegistry::themeOrDefault(
+    const std::optional<std::string>& theme_id) const
+{
+    if (!theme_id.has_value())
+    {
+        return defaultTheme();
+    }
+    const auto picked = std::ranges::find(m_themes, *theme_id, &LoadedHighwayTheme::id);
+    return picked != m_themes.end() ? *picked : defaultTheme();
 }
 
 // Every loaded theme, read-only.

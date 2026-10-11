@@ -27,14 +27,10 @@ share, which app composition owns.
 class EditorSettings final : public IEditorSettings
 {
 public:
-    /*! \brief Opens the editor settings file using the app's standard per-user location. */
-    EditorSettings();
-
     /*!
-    \brief Opens editor settings at an explicit native path, so lifecycle behavior can be exercised
-    in isolation.
-
-    \param settings_file Settings file path used for persisted editor state.
+    \brief Opens the editor settings file.
+    \param settings_file Settings file path used for persisted editor state; the app passes
+           `settingsFile(Product::Editor)` (user_data_folders.h), tests a temporary file.
     */
     explicit EditorSettings(const std::filesystem::path& settings_file);
 

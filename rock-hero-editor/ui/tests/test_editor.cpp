@@ -514,6 +514,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
             .audio_config_store = audio_config_store,
             .live_input_monitor = live_input_monitor,
             .highway_theme = common::ui::testing::fixtureLoadedHighwayTheme(),
+            .highway_view = common::core::HighwayViewPreferences{},
         },
         [] {}
     };

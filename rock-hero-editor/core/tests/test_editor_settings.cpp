@@ -4,12 +4,11 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/settings_file_options.h>
+#include <rock_hero/common/core/testing/scoped_settings_file.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
-#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -17,7 +16,7 @@
 namespace rock_hero::editor::core
 {
 
-using testing::ScopedSettingsFile;
+using common::core::testing::ScopedSettingsFile;
 
 namespace
 {
@@ -26,7 +25,7 @@ namespace
 // real storage rather than a second definition of the settings-file policy.
 [[nodiscard]] juce::PropertiesFile::Options testSettingsOptions()
 {
-    return common::core::settingsFileOptions(common::core::editorApplicationName());
+    return common::core::settingsFileOptions();
 }
 
 // Writes one raw property through JUCE so malformed settings use production storage.

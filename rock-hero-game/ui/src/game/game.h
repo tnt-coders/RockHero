@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
+#include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/game/core/diagnostics/diagnostics.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
@@ -55,17 +56,17 @@ public:
     /*!
     \brief Composition inputs for one Game: run options plus injected collaborators.
 
-    Carries the run options that describe content rather than the loop: the dev flags, the optional
-    development package, the workspace the gameplay session extracts into, the injected session,
-    and the optional scanned library that opens the menu.
+    Carries the run options that describe content rather than the loop: the dev flag, the player's
+    view preferences, the optional development package, the workspace the gameplay session
+    extracts into, the injected session, and the optional scanned library that opens the menu.
     */
     struct Config
     {
         /*! \brief True activates the dev-diagnostics layer (overlay, hot-reload, section seeks). */
         bool dev_mode{false};
 
-        /*! \brief True mirrors the highway for left-handed display. */
-        bool lefty{false};
+        /*! \brief How the player reads the highway, from the shared settings. */
+        common::core::HighwayViewPreferences highway_view{};
 
         /*!
         \brief When set, loads this package at startup and scrolls its first charted arrangement.

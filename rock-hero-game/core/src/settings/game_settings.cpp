@@ -2,7 +2,6 @@
 
 #include <filesystem>
 #include <rock_hero/common/audio/input/input_device_identity.h>
-#include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/settings_file_options.h>
@@ -146,19 +145,12 @@ constexpr const char* g_default_profile_display_name = "Player";
 
 } // namespace
 
-// Opens the per-user store lazily; a missing file is simply an empty property set. The shared
-// options disarm JUCE's save timer, which the game's SDL loop would never fire, so a setter's
-// value reaches disk at the write (settings_file_options.h states why zero is the one
-// non-negotiable field).
-GameSettings::GameSettings()
-    : m_properties{common::core::settingsFileOptions(common::core::gameApplicationName())}
-{}
-
-// Test isolation: an explicit file path keeps unit tests away from the real per-user store.
+// Opens the store lazily; a missing file is simply an empty property set. The shared options
+// disarm JUCE's save timer, which the game's SDL loop would never fire, so a setter's value reaches
+// disk at the write (settings_file_options.h states why zero is the one non-negotiable field).
 GameSettings::GameSettings(const std::filesystem::path& settings_file)
     : m_properties{
-          common::core::juceFileFromPath(settings_file),
-          common::core::settingsFileOptions(common::core::gameApplicationName())
+          common::core::juceFileFromPath(settings_file), common::core::settingsFileOptions()
       }
 {}
 

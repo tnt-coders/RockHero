@@ -3,17 +3,17 @@
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/testing/scoped_settings_file.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
-#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
 
 namespace rock_hero::editor::core
 {
 
-using testing::ScopedSettingsFile;
+using common::core::testing::ScopedSettingsFile;
 
 // Verifies a default EditorViewState describes an empty editor (no command enabled, the transport
 // unavailable, the device closed), and that a loaded state carries its one displayed arrangement

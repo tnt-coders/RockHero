@@ -44,6 +44,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/song/song_timeline.h>
+#include <rock_hero/common/core/testing/scoped_settings_file.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -58,7 +59,6 @@
 #include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
-#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -2015,7 +2015,7 @@ private:
     }
 
     // Build-local settings file used by restore and exit persistence tests.
-    testing::ScopedSettingsFile m_settings_file;
+    common::core::testing::ScopedSettingsFile m_settings_file;
 
     // Build-local project file used by restore and exit persistence tests.
     std::filesystem::path m_project_file;

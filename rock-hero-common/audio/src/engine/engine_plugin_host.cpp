@@ -227,9 +227,11 @@ juce::AudioPluginFormat* Engine::Impl::vst3PluginFormat() const
     return found != formats.end() ? *found : nullptr;
 }
 
+// Beside Tracktion's settings, not in scratch: a scan that crashes the host leaves the culprit here
+// for the next launch's scan to try last.
 juce::File Engine::Impl::pluginScanDeadMansPedalFile() const
 {
-    return m_engine->getPropertyStorage().getAppCacheFolder().getChildFile(
+    return m_engine->getPropertyStorage().getAppPrefsFolder().getChildFile(
         "PluginScanDeadMansPedal.txt");
 }
 
