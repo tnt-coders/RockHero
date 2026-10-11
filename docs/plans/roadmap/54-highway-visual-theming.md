@@ -658,7 +658,10 @@ whose role changes hue, and Phase 3's garish fixture covers the rest through the
   `resources/themes/<id>/` through `cmake/RockHeroProductResources.cmake` and fail loudly; user
   themes are scanned from per-user app data and dropped with a logged typed error.
 - **The default theme becomes a file.** Phase 1b's compiled values move into
-  `resources/themes/ice/theme.json` with today's eight string colors, and in the same change
+  `resources/themes/ice/theme.json`, whose `strings` are today's eight lightened as the Phase 0
+  look drew them (CIELAB L* +4, chroma x1.04, hue +1°; the scratch look file holds the six
+  standard shades, and the 7th and 8th follow the same rule; user, 2026-10-11). Until then the
+  switched default draws today's exact string colors. In the same change
   `defaultHighwayTheme()` and `g_charter_classic_palette` are deleted: the file is the one
   authority for both, and both construction sites take the theme from the loader. A test that
   loads every shipped built-in and passes its contracts stands in for Phase 1's retired value pin,
