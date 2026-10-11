@@ -1,8 +1,18 @@
 # Plan 68 — Rename the editor to Rock Sidekick
 
-**Status:** Drafted 2026-10-10 against `master @ 8855db1d`; not started. 68-Q2 is decided
-(`.rsk`); 68-Q1 and 68-Q3..Q5 (§7) are open, each with a recommendation. The inventory in §3 was taken by two read-only reviews
-(code and build; strings, data, docs and tooling) and spot-checked against the tree.
+**Status:** Drafted 2026-10-10 against `master @ 8855db1d`. **PARKED 2026-10-11 as a decision
+record** (user): the rename needs more decisions than this draft assumed, and is kept out of the
+active plans until they are made. Do not execute the phases below until §7's new questions
+68-Q6..Q9 are decided and the plan is rewritten around them. 68-Q2 is decided (`.rsk`); 68-Q1 and
+68-Q3..Q5 are open, each with a recommendation. The inventory in §3 was taken by two read-only
+reviews (code and build; strings, data, docs and tooling) and spot-checked against the tree.
+
+**What changed the scope (user, 2026-10-11):** "Rock Hero" names the GAME, not the family, so the
+game's tree loses its `-game` suffix and the shared library likely needs a family name that fits
+both products. That reopens this draft's core assumption (§4: `rock-hero-` as the repository's
+tree prefix and `rock_hero` as the root namespace), and a repository split is on the table.
+Per-user file names are no longer this plan's: plan 70 names them by product token (`hero`,
+`sidekick`) so a rename never renames a saved file.
 
 ## 1. Goal
 
@@ -315,7 +325,26 @@ no switches). What remains:
   family/vendor name exists now; otherwise (a), with a watch item whose trigger is "Sidekick gets
   its own installer", since after release this becomes a migration.
 - **68-Q4 Directory spelling.** `rock-hero-sidekick/` (recommended, §4) or `rock-sidekick/`.
+  Reopened by 68-Q7.
 - **68-Q5 Short form in prose.** "Sidekick" (recommended) or always "Rock Sidekick".
+- **68-Q6 The family name** (added 2026-10-11). One name for what both products share: the shared
+  library's folder and namespace, probably the root namespace both products sit inside (which keeps
+  the 9,034 unqualified `common::` uses working), the per-user data folder (68-Q3, plan 70's
+  70-Q1), and possibly the repository. Candidates from the naming expert, then an IP check of the
+  shortlist.
+- **68-Q7 The tree and namespace scheme** (added 2026-10-11). The game's tree loses `-game`
+  (`rock-hero/` or equivalent), the editor becomes `rock-sidekick/` or equivalent, and the shared
+  library takes the family name; namespaces, include paths and CMake targets follow one mapping.
+- **68-Q8 Which "Rock Hero" strings are the family** (added 2026-10-11): plugin vendor names, the
+  "Rock Hero Tones" rack, saved plugin type names `rockHero*`, the `.rock` song format, the
+  `ROCKHERO_*` environment variables. Each is either the game's or the family's.
+- **68-Q9 One repository or three** (added 2026-10-11). Rock Hero, Rock Sidekick and a shared
+  library repository included by both. **Recommended: stay one repository now.** The dependency
+  directions that make the shape clean are already enforced in one repository (common never
+  depends on a product; the products never depend on each other), and cross-cutting changes are
+  routine (plan 54's phases each touched common and both products in one commit). Revisit at the
+  first public release or packaging, chiefly for takedown isolation: a takedown notice disables a
+  whole repository, and the game carries the IP risk. Watch item: "Repository split".
 
 ## 8. Final acceptance
 

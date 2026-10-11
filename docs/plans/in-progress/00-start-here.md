@@ -44,8 +44,9 @@ the highway theming sightings below.
    - whether ice blue reads too close to today's look, beside the other accents;
    - the inlay opacity: `inlay_tint` alpha `0xE6` (the mock) or `0xFF` (opaque);
    - 54-Q20, the far lane lines at today's 1/8 tier or at 1/16 (variant build);
-   - 54-Q21, keep or drop the anticipation ring, its variant build beside the normal one. The
-     ring is now a flat bright band; if it reads too hot, that is a one-value rebake.
+   - 54-Q21, now the anticipation ring's DEFAULT (on or off): plan 69 makes it a player toggle,
+     so the variant build beside the normal one decides only what new players see. The ring is
+     now a flat bright band; if it reads too hot, that is a one-value rebake.
 
    Expected and not defects: today's marks and repeat X, today's chord-box holders (Phase 4a), the
    2D lane's Charter shape blue and purple (Phase 4b).

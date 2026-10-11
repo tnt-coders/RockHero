@@ -1201,6 +1201,25 @@ matches the Windows/Linux deploy layout. macOS app bundles put resources under
 but neither product is *packaged* for macOS yet. When macOS packaging happens, the resource-root
 resolver needs a bundle-aware branch.
 
+### Repository split — trigger: the first public release, or packaging either product on its own
+
+Both products and their shared library live in one repository, and that is the right shape while
+cross-cutting changes are routine: the dependency directions are enforced in one tree (common never
+depends on a product, the products never on each other), and one commit can change common and both
+products together. A split into Rock Hero, Rock Sidekick and a shared repository would add version
+bumps and multi-repo commits to every such change. Its real payoff is TAKEDOWN ISOLATION: a
+takedown notice disables a whole repository, and the game is the product that carries the IP risk,
+so one repository lets a notice against the game take Sidekick and the shared library down with it.
+Separate licensing or release cadences would be further reasons. Decided as 68-Q9 in
+`docs/plans/roadmap/68-rock-sidekick-rename.md` when the trigger fires.
+
+### Logs in Roaming — trigger: a user reports roaming-profile sync size, or log volume grows
+
+Plan 70 keeps the rolling logs (up to about 40 MB) under the Roaming user-data folder, because the
+only per-machine alternative, JUCE's `windowsLocalAppData`, is Windows-only and the platform rule
+outranks it. If a roaming profile's sync size becomes a complaint, move logs behind one platform
+seam in `user_data_folders.h`.
+
 ## Audio / plugin state
 
 ### Play with default tones — trigger: a default-tone mechanism exists
