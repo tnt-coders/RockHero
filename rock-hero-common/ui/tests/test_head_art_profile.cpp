@@ -7,6 +7,8 @@
 #include <expected>
 #include <juce_graphics/juce_graphics.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
+#include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -204,8 +206,9 @@ TEST_CASE("Head art profile recovers a known corner radius", "[ui][highway]")
     CHECK(profile->corner_texels == Catch::Approx(3.0).margin(0.2));
 }
 
-// The byte entry point decodes and defers: an encoded atlas measures like its image.
-TEST_CASE("Head art profile byte overload round-trips an encoded atlas", "[ui][highway]")
+// The texture contract decodes notes.png through the structural-art seam before measuring it, so
+// an encoded atlas must measure like the image it was encoded from.
+TEST_CASE("Head art profile measures a decoded atlas like its image", "[ui][highway]")
 {
     juce::Image atlas = blankAtlas();
     paintRectangle(atlas, 12, 52, 22, 42, 255);
@@ -213,8 +216,15 @@ TEST_CASE("Head art profile byte overload round-trips an encoded atlas", "[ui][h
     paintDiamond(atlas, 15);
     const std::vector<std::byte> png = encodePng(atlas);
 
+    const std::expected<juce::Image, StructuralArtError> decoded =
+        decodeStructuralArtPng(std::span<const std::byte>{png});
+    REQUIRE(decoded.has_value());
+    if (!decoded.has_value())
+    {
+        return;
+    }
     const std::expected<HeadArtProfile, StructuralArtError> profile =
-        measureHeadArtProfile(std::span<const std::byte>{png});
+        measureHeadArtProfile(*decoded);
     REQUIRE(profile.has_value());
     if (!profile.has_value())
     {
@@ -224,48 +234,9 @@ TEST_CASE("Head art profile byte overload round-trips an encoded atlas", "[ui][h
     CHECK(profile->node_half_span_texels == Catch::Approx(15.5).margin(0.01));
 }
 
-// The no-alpha half of the contract rejects at the byte boundary, the only place the
-// file's own alpha state is known.
-TEST_CASE("Head art profile rejects an alpha-bearing file", "[ui][highway]")
+// A decodable atlas whose head cell is blank is unanalyzable, not silently zero-sized.
+TEST_CASE("Head art profile rejects an atlas with empty cells", "[ui][highway]")
 {
-    // Same art painted into an ARGB image: the encoded PNG then carries a real alpha channel,
-    // which the contract rejects at the byte boundary — decode-time premultiplication would
-    // silently scale the structural channels.
-    juce::Image atlas{
-        juce::Image::ARGB, g_atlas_width, g_atlas_height, true, juce::SoftwareImageType{}
-    };
-    for (int y = 22; y <= 42; ++y)
-    {
-        for (int x = 12; x <= 52; ++x)
-        {
-            atlas.setPixelAt(x, y, juce::Colour::fromRGBA(0, 0, 255, 255));
-        }
-    }
-    const std::vector<std::byte> png = encodePng(atlas);
-
-    const std::expected<HeadArtProfile, StructuralArtError> profile =
-        measureHeadArtProfile(std::span<const std::byte>{png});
-    REQUIRE_FALSE(profile.has_value());
-    if (profile.has_value())
-    {
-        return;
-    }
-    CHECK(profile.error() == StructuralArtError::AlphaBearingImage);
-}
-
-// Decode and measurement failures are typed, never silently zero-sized.
-TEST_CASE("Head art profile rejects empty bytes and empty cells", "[ui][highway]")
-{
-    const std::expected<HeadArtProfile, StructuralArtError> empty_bytes =
-        measureHeadArtProfile(std::span<const std::byte>{});
-    REQUIRE_FALSE(empty_bytes.has_value());
-    if (empty_bytes.has_value())
-    {
-        return;
-    }
-    CHECK(empty_bytes.error() == StructuralArtError::UndecodableImage);
-
-    // A decodable atlas whose head cell is blank is unanalyzable, not silently zero-sized.
     const juce::Image blank = blankAtlas();
     const std::expected<HeadArtProfile, StructuralArtError> no_art = measureHeadArtProfile(blank);
     REQUIRE_FALSE(no_art.has_value());
@@ -318,21 +289,28 @@ TEST_CASE("Head art profile rejects a non-diamond node cell", "[ui][highway]")
     CHECK(profile.error() == StructuralArtError::UnanalyzableArt);
 }
 
-// The shipped asset has to satisfy its own contract. Everything above measures synthetic art,
-// so this is the only check that covers the real file: a re-bake shipping an alpha channel, a
-// diverged tech cell, or art the measurement cannot read fails here instead of at application
-// startup, and the centring rule (every cell's art centred in its cell) is pinned as a measured
-// property of the committed bytes.
+// Everything above measures synthetic art. The texture contract already holds every shipped theme
+// to what the measurement reads; this pins what it does not, the centring rule (every cell's art
+// centred in its cell), as a measured property of the default theme's committed bytes.
 TEST_CASE("The shipped head art satisfies its authoring contract", "[ui][highway]")
 {
-    const juce::File art = juce::File{ROCK_HERO_TEXTURES_DIR}.getChildFile(
-        std::string{common::core::highwayTextureFileName(common::core::HighwayTexture::Notes)});
+    const juce::File art = common::core::juceFileFromPath(testing::defaultThemeDirectory())
+                               .getChildFile(
+                                   std::string{common::core::highwayTextureFileName(
+                                       common::core::HighwayTexture::Notes)});
     REQUIRE(art.existsAsFile());
     juce::MemoryBlock bytes;
     REQUIRE(art.loadFileAsData(bytes));
 
-    const std::expected<HeadArtProfile, StructuralArtError> profile = measureHeadArtProfile(
+    const std::expected<juce::Image, StructuralArtError> decoded = decodeStructuralArtPng(
         std::span{static_cast<const std::byte*>(bytes.getData()), bytes.getSize()});
+    REQUIRE(decoded.has_value());
+    if (!decoded.has_value())
+    {
+        return;
+    }
+    const std::expected<HeadArtProfile, StructuralArtError> profile =
+        measureHeadArtProfile(*decoded);
     REQUIRE(profile.has_value());
     if (!profile.has_value())
     {

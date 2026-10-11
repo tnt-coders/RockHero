@@ -67,6 +67,8 @@ target_sources(
             src/shared/editor_theme.h
             src/shared/flash_pulse.cpp
             src/shared/flash_pulse.h
+            src/shared/installed_resources.cpp
+            src/shared/installed_resources.h
             src/shared/mode_toggle_button.cpp
             src/shared/mode_toggle_button.h
             src/shared/notice_plate.cpp
@@ -123,12 +125,13 @@ target_include_directories(
     PUBLIC include
     PRIVATE include/rock_hero/editor/ui src)
 
-# common::ui supplies the shared string-color palette the tab renderer converts to JUCE colors.
+# common::ui is public because the composition wrapper's header takes the highway theme the
+# preview and the tab lane draw with, and hands the app the shared theme registry to load it from.
 target_link_libraries(
     rock_hero_editor_ui
-    PUBLIC rock_hero::editor::core rock_hero::juce_gui_basics
-    PRIVATE rock_hero::build_policy rock_hero::common::audio rock_hero::common::ui
-            rock_hero::editor_ui_resources rock_hero::juce_audio_devices rock_hero::juce_graphics)
+    PUBLIC rock_hero::editor::core rock_hero::common::ui rock_hero::juce_gui_basics
+    PRIVATE rock_hero::build_policy rock_hero::common::audio rock_hero::editor_ui_resources
+            rock_hero::juce_audio_devices rock_hero::juce_graphics)
 
 target_compile_definitions(
     rock_hero_editor_ui

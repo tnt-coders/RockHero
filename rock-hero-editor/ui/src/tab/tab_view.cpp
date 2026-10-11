@@ -14,7 +14,6 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/shared/displayed_strings.h>
-#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -74,6 +73,11 @@ float tabLaneCenterY(
 {
     return common::ui::tabLaneCenterY(displayed_string, displayed_string_count, bounds);
 }
+
+// Holds the string colors every paint derives the lane's surfaces from.
+TabView::TabView(common::ui::StringColorPalette string_colors)
+    : m_string_colors{string_colors}
+{}
 
 void TabView::setPointerEventCallback(PointerEventCallback on_pointer_event)
 {
@@ -1040,13 +1044,12 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
         return std::nullopt;
     }
 
-    // The lane draws in the default string palette, which no setting changes.
     common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
         bounds,
         m_visible_timeline,
         common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
         tab->stringCount(),
-        common::ui::charterClassicPalette());
+        m_string_colors);
     metrics.retime = m_retime;
     return DrawableLane{.metrics = std::move(metrics), .tab = *tab};
 }

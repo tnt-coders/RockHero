@@ -22,7 +22,7 @@ constexpr int g_default_height = 720;
 PreviewWindow::PreviewWindow(
     const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
     std::function<bool(const juce::KeyPress&)> forward_key_press,
-    juce::Component* centering_component)
+    juce::Component* centering_component, const common::ui::LoadedHighwayTheme& highway_theme)
     : juce::DocumentWindow(
           "3D Preview", editorTheme().window_background, juce::DocumentWindow::allButtons)
     , m_forward_key_press{std::move(forward_key_press)}
@@ -31,7 +31,7 @@ PreviewWindow::PreviewWindow(
     setUsingNativeTitleBar(true);
     setResizable(true, false);
 
-    auto surface = std::make_unique<PreviewSurface>(transport, playback_clock);
+    auto surface = std::make_unique<PreviewSurface>(transport, playback_clock, highway_theme);
     m_surface = surface.get();
     setContentOwned(surface.release(), false);
 

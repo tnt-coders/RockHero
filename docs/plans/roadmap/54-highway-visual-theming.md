@@ -6,7 +6,9 @@ sighted before theme loading exists, and 54-Q18/Q19 recast as theme choices the 
 **Executing:** Phase 1 landed 2026-10-10 (`HighwayTheme` and `defaultHighwayTheme()`; the string
 palette is a separate `create` argument); its coverage check moved to Phase 3's fixture. Phase
 1b's switch landed 2026-10-11 (ice-blue values, interim heads and inlay, `fs_texture`
-premultiplying its tint so `inlay_tint`'s alpha is the inlays' opacity); its sighting is pending. **Phase 0 has a direction for the default look**
+premultiplying its tint so `inlay_tint`'s alpha is the inlays' opacity); its sighting is pending.
+Phase 2a landed 2026-10-11: the default is `resources/themes/ice/`, loaded with any user themes
+through one strict loader; no stored theme id until plan 70 Phase 2. **Phase 0 has a direction for the default look**
 (below) and still gates the art phases (54-Q5 to 54-Q21, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
@@ -40,7 +42,7 @@ detailed inventory; this is the summary they resolve to.
 | Owner | What it holds |
 |---|---|
 | **The theme** (`theme.json` plus its assets) | The 23 color roles (backdrop, board chrome, hand window, fret numbers, chord box and attack line, picking-hand furniture, both hands' strike pops, full-mute mark, arpeggio, capo, inlay tint and opacity, label text); its eight **string colors** (54-Q18); the head **material** (54-Q19); the repeat-box art (`chords.png`); and its **choices** of head shape and inlay (54-Q19). The player may pin the string colors, head shape and inlay |
-| **The player** (settings, per product) | One pinnable setting each for string palette, head shape and inlay, defaulting to "Theme's choice"; string orientation (54-Q5); display options; which theme is active |
+| **The player** (settings shared by both products, plan 70) | Which theme is active; one pin each for string palette, head shape and inlay, defaulting to "Theme's choice"; mirroring, string orientation (54-Q5) and plan 69's display toggles |
 | **RockHero, fixed** (code and one fixed sheet) | The technique marks (S3); the chord device and open-bar posts (S1, S2); every geometry, camera, timing, tail, light and emphasis law; shaders; the atlas layout and cell meanings; the palette, shape and inlay libraries' contracts |
 
 **Theme's choice, or pinned.** String palette, head shape and inlay each resolve by one rule: the
@@ -107,8 +109,9 @@ are out of v1 (COULD tier).
 ## Constraints
 
 Applicable subset of the roadmap's non-negotiable block (`docs/plans/roadmap/00-roadmap.md`):
-(a) layering — the theme type, registry, contracts and loader live in `rock-hero-common/ui`, only
-persistence and the picker are per product; (b) public-header minimalism; (h) builds through
+(a) layering — the theme type, registry, contracts and loader live in `rock-hero-common/ui`; the
+player's choices persist in plan 70's shared `highway.*` settings keys, and only the picker is per
+product; (b) public-header minimalism; (h) builds through
 `.agents/rockhero-build.ps1`.
 
 Plan-specific rules:
@@ -476,7 +479,7 @@ Each carries a recommendation; none is decided until the user rules.
     rests on a test and a sign-off no file can vouch for, so only these carry it.
   - **The pin names its source**, a theme id or a code palette id, so a user folder cannot collide
     with a palette id.
-  - **The setting:** one per product, defaulting to "Theme's choice"; picking a concrete palette
+  - **The setting:** one, shared by both products (plan 70), defaulting to "Theme's choice"; picking a concrete palette
     pins it (see "Theme's choice, or pinned"). Most themes will carry a variation of the same
     colors, and one that does not has a reason; a player who learned the strings, or needs a
     colorblind-safe palette, pins theirs with one pick.
@@ -516,7 +519,9 @@ Each carries a recommendation; none is decided until the user rules.
 
   *Recommended:* decide at the first sighting with both in motion. If B wins, it stays one
   renderer constant, not a theme key, because the fade is a light law.
-- **54-Q21 — the anticipation ring: keep or drop.** The ring is a hollow copy of the head, parked
+- **54-Q21 — the anticipation ring's default. Recast 2026-10-11:** the ring becomes a player
+  toggle (plan 69), so the sighting below decides whether it starts on or off, not whether it
+  exists. The ring is a hollow copy of the head, parked
   at the hit line on the note's landing slot, that grows to full head size as the note arrives
   (`highway_renderer.cpp:5208-5261`; `g_anticipation_seconds` :233; the hollow cells 2 and 5,
   `highway_atlas.h:140, 271`). It came from the inspiring game's notation by way of Charter (its
@@ -534,14 +539,11 @@ Each carries a recommendation; none is decided until the user rules.
     - the material covers what the ring might help with: dense single-note runs, fast position
       shifts, chords, pre-bends, harmonics, and far-off-window landings, at full and reduced
       speed.
-  - **If dropped:** delete the ring's draw block and `g_anticipation_seconds`. The hollow cells
-    stay, because the pre-bend target outline (`highway_renderer.cpp:5263`) draws with them, so
-    they are renamed after what they still are (a hollow twin, not an anticipation cell). The
-    plans that describe the ring (25, 44) and `highway-note-art-state.md` are updated.
-  - **If kept:** retime it as above; a reshape (a ring that shrinks onto the slot, or a slot
-    highlight) is a further option only if the user wants more distance.
+  - **Either way** the ring is retimed from RockHero's own sighting, and a reshape (a ring that
+    shrinks onto the slot, or a slot highlight) remains an option if the user wants more
+    distance. The hollow cells stay regardless, since the pre-bend target outline draws with them.
 
-  *Recommended:* none until the sighting; the user leans toward dropping it.
+  *Recommended:* none until the sighting; the user leans toward off.
 
 ## Phased implementation
 
@@ -676,9 +678,19 @@ whose role changes hue, and Phase 3's garish fixture covers the rest through the
 - **The resolved palette** (54-Q18): the player's stored pin if there is one (plan 45 Phase 3's
   setting, naming its source, a theme id or a code palette id; absent means "Theme's choice"),
   otherwise the active theme's `strings`. It is resolved once and injected into both surfaces
-  through Phase 1's seam. Every loaded theme registers its `strings` as a palette.
-- The registry and a theme id in `IEditorSettings`/`IGameSettings`. An unknown id falls back to the
-  default. Selection at this phase is the stored id alone, with no picker.
+  through Phase 1's seam. Every loaded theme registers its `strings` as a palette. *As built:* the
+  pin setting does not exist yet and no code palette does either, so resolution is the default
+  theme's `strings` (both hosts draw the default theme) and the registry of themes is the palette
+  registry; the pin, its resolution
+  and the pinned-case tests arrive with plan 45 Phase 3's setting.
+- **No stored theme id (user, 2026-10-11).** Both hosts draw the default theme. The theme id is
+  a shared player setting, so it arrives with plan 70 Phase 2's `highway.*` keys rather than in
+  the per-app settings ports; an unknown stored id then falls back to the default.
+- *As built:* `StringColorPalette` is one array of `g_max_chart_strings` colors in the theme
+  file's order (highest string first), and `charterClassicPalette()` and `defaultHighwayTheme()`
+  are deleted; today's string colors survive only in the private theme. The guardrail thresholds
+  are provisional (CIE76 ΔE 15; the lit fret line at least 30 L* above the unlit one) until the
+  built-ins are sighted side by side.
 - A theme switch recreates the renderer through the existing bring-up path, so a bad user atlas
   leaves the preview usable with the device intact.
 
@@ -710,7 +722,8 @@ tests.
 
 ### Phase 3 — Today's look loads as the private theme; the coverage fixture
 
-- **Verify the private theme.** Phase 1b's saved directory now loads. Select it in both products
+- **Verify the private theme** (after plan 70 Phase 2, which brings the stored theme id). Phase
+  1b's saved directory already loads. Select it in both products
   and A/B it in motion against a build of the commit before Phase 1b's switch. It must match
   exactly, apart from the code-drawn parts Phase 4a already replaced (54-Q10) and 54-Q20's
   ribbon tier if it changed.

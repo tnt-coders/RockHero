@@ -69,17 +69,16 @@ enum class HighwayShaderProgram : std::uint8_t
 };
 
 /*!
-\brief The texture assets the highway renderer uploads, and the file name each is deployed as.
+\brief The texture assets the highway renderer uploads, and the file name each has in a theme.
 
-The files live flat under rock-hero-common/ui/resources/textures and are deployed per product;
-LICENSE.txt beside them explicitly lists which files are Charter-adapted (BSD 3-Clause) — the rest
-are original Rock Hero art. Every asset is REQUIRED product content: empty or undecodable bytes
-fail renderer creation with a typed error, because a missing texture means a broken install, not a
-degradable state.
+Every highway theme directory carries one file per asset under these names, beside its
+`theme.json`; a theme whose art is adapted from other work carries the license notice there too.
+Every asset is required: one missing, undecodable or the wrong shape refuses the whole theme,
+because a silent fallback would mask a broken theme.
 */
 enum class HighwayTexture : std::uint8_t
 {
-    /*! \brief Note-head atlas PNG (4x4 grid, reference channel scheme). */
+    /*! \brief Note-head atlas PNG (4-column grid, reference channel scheme). */
     Notes,
 
     /*!
@@ -226,7 +225,7 @@ static_assert(
 }
 
 /*!
-\brief File name a texture asset is deployed as, inside the flat textures directory.
+\brief File name a texture asset has inside a theme directory.
 \param texture Texture asset to name.
 \return Stable file name text.
 */

@@ -67,8 +67,11 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    using HighwayShaderSet = std::array<HighwayShaderPair, g_highway_shader_programs.size()>;
    using HighwayTextureSet = std::array<std::vector<std::byte>, g_highway_textures.size()>;
 
+   // The textures, colors and string colors come from the loaded theme (see below).
    static std::expected<HighwayRenderer, HighwayRendererError>
-       create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures);
+       create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
+              HighwayTheme theme, StringColorPalette palette);
+   void setTheme(HighwayTheme theme);
    void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
    void resetCamera() noexcept;
    void setDisplayOptions(common::core::HighwayDisplayOptions options);
@@ -177,8 +180,9 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 |---|---|---|
 | Projection + camera math | `rock_hero::common::core` | public dep of `common::ui` |
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
-| String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes the palette to `HighwayRenderer::create` and `makeTabLaneMetrics` |
-| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes `defaultHighwayTheme()` to `HighwayRenderer::create`; `setTheme` swaps it without a rebuild |
+| String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes the default theme's `strings` to `HighwayRenderer::create` and `makeTabLaneMetrics` |
+| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the default theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps it without a rebuild |
+| Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `defaultTheme()`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `Rock Hero/themes/` |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
 | Resource deploy + install | `rock_hero_deploy_product_resources` | both call it per executable |
@@ -703,16 +707,20 @@ Adding a new *visual element* (a new marker, lane decoration, feedback effect):
 
 If the element is *textured*, the asset lives in one table and the fan-out is short:
 
-1. Drop the PNG in `rock-hero-common/ui/resources/textures` and add a `HighwayTexture` enumerator
-   plus its file name to `highwayTextureFileName` — both in
-   `common/core/.../highway/highway_resources.h`. That is the whole asset declaration: both
-   products' loaders walk `g_highway_textures`, and `HighwayTextureSet` is an array indexed by
-   `indexOf(HighwayTexture)`, so neither loader needs an edit.
-2. Use the bytes in the renderer (`textures.at(indexOf(HighwayTexture::…))`). Every texture is
-   REQUIRED content: a missing or invalid one fails `HighwayRenderer::create` with a typed
-   `TextureAssetInvalid` error.
-3. Nothing in CMake. Both products deploy the whole shared texture tree through
-   `rock_hero_deploy_product_resources` — see the deploy contract in \ref guide_game.
+1. Add a `HighwayTexture` enumerator plus its file name to `highwayTextureFileName` — both in
+   `common/core/.../highway/highway_resources.h` — and drop the PNG into every built-in theme
+   directory under `rock-hero-common/ui/resources/themes/<id>/`. That is the whole asset
+   declaration: the one theme loader walks `g_highway_textures`, and `HighwayTextureSet` is an
+   array indexed by `indexOf(HighwayTexture)`, so no loader needs an edit.
+2. State the asset's contract in `measureHighwayTextures` (`common/ui` `highway/highway_texture_contract.h`),
+   the one entry point both the theme loader and `HighwayRenderer::create` run: its grid, and any
+   measurement the renderer reads off it, each failure naming the asset and the expectation.
+3. Use the bytes in the renderer (`textures.at(indexOf(HighwayTexture::…))`). Every texture is
+   required: a theme whose asset breaks the contract is refused (a built-in fails startup, a user
+   theme is dropped and logged), and `create` refuses it with `TextureAssetInvalid`.
+4. Nothing in CMake. Both products deploy the whole built-in themes tree through
+   `rock_hero_deploy_product_resources` — see the deploy contract in \ref guide_game. A user's own
+   themes need the file too, which is a format change: they fail to load until they carry it.
 
 Adding a new *shader program* is two declarations plus its use:
 

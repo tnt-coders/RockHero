@@ -28,7 +28,12 @@ TEST_CASE("EditorView lays out menu strip actions without overlap", "[ui][editor
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setBounds(0, 0, 500, 200);
 
@@ -53,7 +58,12 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setBounds(0, 0, 500, 200);
 
@@ -100,7 +110,12 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setBounds(0, 0, 1280, 800);
 
@@ -131,7 +146,12 @@ TEST_CASE("EditorView stop reveal snaps track viewport to start", "[ui][editor-v
     core::testing::RecordingEditorController controller;
     FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setBounds(0, 0, 1280, 800);
 
@@ -163,7 +183,12 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
@@ -194,7 +219,12 @@ TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][edito
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setBounds(0, 0, 1600, 1000);
     view.setState(makeLoadedEditorState(20.0));

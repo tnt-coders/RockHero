@@ -98,8 +98,8 @@ whether the ART carries alpha is a question about the file that only the byte ov
 answer. Callers holding a file must go through that overload to get the no-alpha rule enforced.
 
 \param image Decoded chords.png.
-\return Both profiles, or the measurement failure — the renderer treats any failure as an
-        invalid required asset.
+\return Both profiles, or the measurement failure, which the texture contract reports as
+        chords.png breaking it.
 */
 [[nodiscard]] std::expected<BoxMuteProfiles, StructuralArtError> measureBoxMuteProfiles(
     const juce::Image& image);
@@ -107,9 +107,8 @@ answer. Callers holding a file must go through that overload to get the no-alpha
 /*!
 \brief Decodes chords.png bytes, enforces the no-alpha rule, and measures both profiles.
 
-This is the entry point the renderer uses and the one the contract is defined against: it is the
-only place the file's own alpha state is still known, so it is where an alpha-bearing re-bake is
-rejected.
+This is the entry point the texture contract uses: it is the only place the file's own alpha
+state is still known, so it is where an alpha-bearing re-bake is rejected.
 
 \param png_bytes The chords.png file contents.
 \return Both profiles, or the decode, alpha, or measurement failure.

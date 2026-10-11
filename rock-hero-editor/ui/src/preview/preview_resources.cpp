@@ -1,5 +1,7 @@
 #include "preview/preview_resources.h"
 
+#include "shared/installed_resources.h"
+
 #include <cstddef>
 #include <cstring>
 #include <juce_core/juce_core.h>
@@ -14,14 +16,6 @@ namespace rock_hero::editor::ui
 
 namespace
 {
-
-// Resolves the deployed resources tree beside the running editor executable.
-[[nodiscard]] juce::File resourcesRoot()
-{
-    return juce::File::getSpecialLocation(juce::File::currentExecutableFile)
-        .getParentDirectory()
-        .getChildFile("resources");
-}
 
 // Reads a whole resource file; empty on failure (the caller decides whether that is fatal).
 [[nodiscard]] std::vector<std::byte> readFileBytes(const juce::File& file)
@@ -40,7 +34,8 @@ namespace
 [[nodiscard]] std::vector<std::byte> readShaderStage(const std::string& file_name)
 {
     const juce::File file =
-        resourcesRoot().getChildFile("shaders").getChildFile("dx11").getChildFile(file_name);
+        installedResourcesRoot().getChildFile("shaders").getChildFile("dx11").getChildFile(
+            file_name);
     std::vector<std::byte> bytes = readFileBytes(file);
     if (bytes.empty())
     {
@@ -77,21 +72,6 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
         set.at(common::core::indexOf(program)) = std::move(pair);
     }
 
-    return set;
-}
-
-// Loads every texture the shared table names; a missing file stays an empty entry because the
-// renderer's create() owns the required-asset judgment and its diagnostic.
-common::ui::HighwayTextureSet loadPreviewHighwayTextures()
-{
-    const juce::File textures = resourcesRoot().getChildFile("textures");
-    common::ui::HighwayTextureSet set;
-    for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
-    {
-        const std::string file_name{common::core::highwayTextureFileName(texture)};
-        set.at(common::core::indexOf(texture)) =
-            readFileBytes(textures.getChildFile(juce::String{file_name}));
-    }
     return set;
 }
 

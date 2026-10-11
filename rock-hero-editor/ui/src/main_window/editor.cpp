@@ -4,8 +4,10 @@
 #include "keybinds/editor_keymap_persistence.h"
 #include "keybinds/plugin_window_shortcut_sync.h"
 #include "main_window/editor_view.h"
+#include "shared/installed_resources.h"
 
 #include <memory>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -69,7 +71,7 @@ Editor::Editor(
                   .meter_source = audio_ports.meter_source,
                   .tone_automation = audio_ports.tone_automation,
               },
-              installedInputCalibrationGuide()))
+              installedInputCalibrationGuide(), services.highway_theme))
 {
     m_controller.attachView(*m_view);
     // After view construction so every command is registered before the stored keymap restores
@@ -125,6 +127,14 @@ void Editor::restoreLastOpenProject()
 void Editor::requestExit()
 {
     m_controller.onExitRequested();
+}
+
+// The built-in themes deploy into the same resources tree as the preview's shaders.
+std::expected<common::ui::HighwayThemeRegistry, common::ui::HighwayThemeError>
+loadInstalledHighwayThemes()
+{
+    return common::ui::HighwayThemeRegistry::load(
+        common::ui::highwayThemeFolders(common::core::pathFromJuceFile(installedResourcesRoot())));
 }
 
 } // namespace rock_hero::editor::ui

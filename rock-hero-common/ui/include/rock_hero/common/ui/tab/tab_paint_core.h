@@ -44,13 +44,11 @@ inline constexpr float g_lane_chip_corner_radius = 2.0f;
 /*!
 \brief Returns the base display color for one string lane as a JUCE color.
 
-The six highest lanes take the palette's standard colors anchored at the sixth-highest lane; lower
-lanes continue with the extended tier (see stringLaneColor). This is the paint core's JUCE
-conversion of the shared palette authority.
+The paint core's JUCE conversion of stringLaneColor, which maps the lane onto its palette slot.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
-\param palette Preset supplying the lane colors.
+\param palette String colors the lane draws with.
 \return Base lane color the tablature style derives its surfaces from.
 */
 [[nodiscard]] juce::Colour tabStringColor(

@@ -156,30 +156,6 @@ TEST_CASE("GameResources reads shader binary bytes", "[core][resources]")
     }
 }
 
-// Pins the flat-textures layout and the shared file-name table together: the resolver reads the
-// name from highwayTextureFileName, so a rename in the table moves this lookup with it.
-TEST_CASE("GameResources reads texture bytes through the shared name table", "[core][resources]")
-{
-    const TempResourcesRoot fixture;
-    fixture.touch(
-        std::string{"textures/"} +
-            std::string{common::core::highwayTextureFileName(common::core::HighwayTexture::Notes)},
-        "PNG!");
-
-    const auto resources = GameResources::create(fixture.path());
-    REQUIRE(resources.has_value());
-    if (resources.has_value())
-    {
-        const auto bytes = resources->textureBytes(common::core::HighwayTexture::Notes);
-        REQUIRE(bytes.has_value());
-        if (bytes.has_value())
-        {
-            REQUIRE(bytes->size() == 4);
-            CHECK((*bytes)[0] == std::byte{'P'});
-        }
-    }
-}
-
 TEST_CASE("GameResources reports an empty shader binary as a typed error", "[core][resources]")
 {
     const TempResourcesRoot fixture;

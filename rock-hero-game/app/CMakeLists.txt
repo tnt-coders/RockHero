@@ -28,9 +28,9 @@ target_link_libraries(rock_hero_game_exe PRIVATE rock_hero::common rock_hero::ga
                                                  rock_hero::build_policy)
 
 # Deploy the resource-pack tree next to the built executable through the shared product-resource
-# rule: compiled shaders from game/ui's staging dir, the shared texture assets, and the asset
+# rule: compiled shaders from game/ui's staging dir, the built-in highway themes, and the asset
 # directories that still ship empty (fonts and click samples arrive with plan 26's art direction).
-# The game loads everything under this tree through game/core's GameResources resolver.
+# The game resolves this tree through game/core's GameResources and the shared theme registry.
 rock_hero_deploy_product_resources(
     TARGET
     rock_hero_game_exe

@@ -8,6 +8,8 @@
 #include <juce_graphics/juce_graphics.h>
 #include <optional>
 #include <rock_hero/common/core/highway/highway_resources.h>
+#include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -264,15 +266,15 @@ TEST_CASE("Box mute profiles reject an alpha-bearing image", "[ui][highway]")
     }
 }
 
-// The shipped asset has to satisfy its own contract. Everything above measures synthetic art, so
-// this is the only check that covers the real file — the guard that a future re-bake shipping an
-// alpha channel, or art the measurement cannot read, fails here instead of at application startup.
-// Plan 54 Phase 3 generalizes this shape to every themed asset.
+// Everything above measures synthetic art. The texture contract already holds every shipped theme
+// to what the measurement reads; this pins what it does not, that the default theme's marks measure
+// strokes the renderer can lay out.
 TEST_CASE("The shipped box mute art satisfies its authoring contract", "[ui][highway]")
 {
-    const juce::File art = juce::File{ROCK_HERO_TEXTURES_DIR}.getChildFile(
-        std::string{common::core::highwayTextureFileName(
-            common::core::HighwayTexture::ChordMarks)});
+    const juce::File art = common::core::juceFileFromPath(testing::defaultThemeDirectory())
+                               .getChildFile(
+                                   std::string{common::core::highwayTextureFileName(
+                                       common::core::HighwayTexture::ChordMarks)});
     REQUIRE(art.existsAsFile());
     juce::MemoryBlock bytes;
     REQUIRE(art.loadFileAsData(bytes));

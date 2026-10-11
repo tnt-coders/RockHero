@@ -7,9 +7,7 @@
 
 #include "highway/structural_art.h"
 
-#include <cstddef>
 #include <expected>
-#include <span>
 
 namespace juce
 {
@@ -86,25 +84,13 @@ head's coverage is byte-identical to the standard's — the renderer applies the
 silhouette to heads drawn from either cell, so a rebake diverging them must fail loudly here rather
 than light tech heads with the wrong shape. Only the coverage channel is read; any alpha the decoder
 attached is ignored, because whether the ART carries alpha is a question about the file that only
-the byte overload below can answer.
+decodeStructuralArtPng can answer, which the texture contract asks before measuring.
 
 \param image Decoded notes.png.
-\return The measured profile, or the measurement failure — the renderer treats any failure as an
-        invalid required asset.
+\return The measured profile, or the measurement failure, which the texture contract reports as
+        notes.png breaking it.
 */
 [[nodiscard]] std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(
     const juce::Image& image);
-
-/*!
-\brief Decodes notes.png bytes, enforces the no-alpha rule, and measures the head silhouettes.
-
-This is the entry point the renderer uses: it is the only place the file's own alpha state is
-still known, so it is where an alpha-bearing re-bake is rejected.
-
-\param png_bytes The notes.png file contents.
-\return The measured profile, or the decode, alpha, or measurement failure.
-*/
-[[nodiscard]] std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(
-    std::span<const std::byte> png_bytes);
 
 } // namespace rock_hero::common::ui

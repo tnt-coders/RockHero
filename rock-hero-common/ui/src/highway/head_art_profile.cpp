@@ -374,18 +374,4 @@ std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(const ju
     };
 }
 
-// Decodes through the shared structural-art seam, which enforces the no-alpha rule, then defers
-// to the image overload.
-std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(
-    const std::span<const std::byte> png_bytes)
-{
-    const std::expected<juce::Image, StructuralArtError> decoded =
-        decodeStructuralArtPng(png_bytes);
-    if (!decoded.has_value())
-    {
-        return std::unexpected(decoded.error());
-    }
-    return measureHeadArtProfile(*decoded);
-}
-
 } // namespace rock_hero::common::ui

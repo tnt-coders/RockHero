@@ -165,23 +165,6 @@ std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderB
     return readResourceBytes(*path);
 }
 
-std::expected<std::vector<std::byte>, GameResourcesError> GameResources::textureBytes(
-    const common::core::HighwayTexture texture) const
-{
-    // The textures directory is flat; LICENSE.txt beside the files lists the Charter-adapted ones.
-    const std::filesystem::path path =
-        m_resources_root / "textures" / common::core::highwayTextureFileName(texture);
-
-    std::error_code probe_error;
-    if (!std::filesystem::is_regular_file(path, probe_error))
-    {
-        return std::unexpected{
-            GameResourcesError{GameResourcesErrorCode::MissingResourceFile, path}
-        };
-    }
-    return readResourceBytes(path);
-}
-
 GameResources::GameResources(std::filesystem::path resources_root)
     : m_resources_root(std::move(resources_root))
 {}

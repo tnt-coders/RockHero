@@ -7,8 +7,6 @@
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/common/ui/highway_theme/highway_theme.h>
-#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <utility>
 
 #if JUCE_WINDOWS
@@ -70,9 +68,11 @@ LRESULT CALLBACK previewChildWindowProc(HWND hwnd, UINT message, WPARAM w_param,
 } // namespace
 
 PreviewSurface::PreviewSurface(
-    const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock)
+    const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
+    const common::ui::LoadedHighwayTheme& highway_theme)
     : m_transport{transport}
     , m_playback_clock{playback_clock}
+    , m_highway_theme{highway_theme}
 {
     setOpaque(true);
     // Hold the preview window's keyboard focus so transport shortcuts (space/F3) reach
@@ -178,10 +178,10 @@ void PreviewSurface::attach()
 #endif
 }
 
-// Loads the highway shaders and creates the renderer against the live device. On failure it logs
-// and leaves the renderer empty (renderFrame then presents nothing and the black fallback shows)
-// without touching the device, so the caller can retry on a later open without re-initializing
-// bgfx. Returns whether the renderer is now live.
+// Loads the highway shaders and creates the renderer, in the surface's theme, against the live
+// device. On failure it logs and leaves the renderer empty (renderFrame then presents nothing and
+// the black fallback shows) without touching the device, so the caller can retry on a later open
+// without re-initializing bgfx. Returns whether the renderer is now live.
 bool PreviewSurface::bringUpRenderer()
 {
 #if JUCE_WINDOWS
@@ -193,10 +193,7 @@ bool PreviewSurface::bringUpRenderer()
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
-            *shaders,
-            loadPreviewHighwayTextures(),
-            common::ui::defaultHighwayTheme(),
-            common::ui::charterClassicPalette());
+            *shaders, m_highway_theme.textures, m_highway_theme.colors, m_highway_theme.strings);
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);

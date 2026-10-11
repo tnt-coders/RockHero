@@ -6,8 +6,9 @@ License below:
     original Rock Hero art
 
 They ship with Rock Hero as runtime resources; this notice must accompany them in source and
-binary distributions. Every other file in this directory (currently chords.png and inlays.png)
-is original Rock Hero art, NOT covered by this license, and carries the repository's own license.
+binary distributions. Every other file in this directory (currently chords.png, inlays.png and
+theme.json) is original Rock Hero work, NOT covered by this license, and carries the repository's
+own license.
 
 BSD 3-Clause License
 

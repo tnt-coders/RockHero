@@ -1,6 +1,6 @@
 /*!
 \file preview_resources.h
-\brief Loads the 3D preview's deployed shader and texture resources beside the editor executable.
+\brief Loads the 3D preview's deployed shaders beside the editor executable.
 */
 
 #pragma once
@@ -21,15 +21,5 @@ uses), and this loads them into the shader-set seam.
 \return The filled shader set, or empty when any binary is missing (logged per file).
 */
 [[nodiscard]] std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders();
-
-/*!
-\brief Reads the shared highway texture assets from the editor's resources tree.
-
-Best-effort at this layer: a missing asset leaves its member empty and the renderer's own
-required-asset check decides whether that fails creation.
-
-\return The texture set with every readable asset filled.
-*/
-[[nodiscard]] common::ui::HighwayTextureSet loadPreviewHighwayTextures();
 
 } // namespace rock_hero::editor::ui

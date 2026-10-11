@@ -115,6 +115,11 @@ The file boundary makes the rule structural: an app cannot read a per-app file i
   `<family>/tracktion` is safe, and `TemporaryFileManager::setTempDirectory` moves its temp files
   to scratch. The inter-process lock name derives from the file path; JUCE's backslash handling is
   confirmed on Windows only. Runtime check before landing: both apps and a plugin rescan.
+- **macOS location (found 2026-10-11).** On macOS JUCE's `userApplicationDataDirectory` is
+  `~/Library`, while `PropertiesFile` writes under `~/Library/Application Support`, so today's
+  logs and plan 54's user themes folder land beside, not inside, the settings' folder there.
+  `user_data_folders.h` resolves the family folder once, so every location agrees on every
+  platform; verified on macOS when it is first packaged.
 - **70-Q3 — logs in Roaming.** Rolling logs (up to about 40 MB) stay under Roaming, because the only
   per-machine alternative is a Windows-only location and the platform rule outranks it. Watch item
   "Logs in Roaming".

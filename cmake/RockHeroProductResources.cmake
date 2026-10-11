@@ -5,7 +5,7 @@ include_guard()
 # The one product resource-pack deploy rule, shared by the game executable and the editor
 # executable, whose 3D preview renders the same highway. Both products ship the same tree beside
 # their executable — compiled highway shaders staged by rock_hero_stage_highway_shaders, plus the
-# shared texture assets committed under rock-hero-common/ui — so the copy commands, the stamp
+# built-in highway themes committed under rock-hero-common/ui — so the copy commands, the stamp
 # contract, and the install layout live here instead of being restated per product, where they had
 # already drifted apart.
 
@@ -16,8 +16,8 @@ include(GNUInstallDirs)
 # The deploy is a stamp-based build step, NOT a POST_BUILD command: under Ninja, POST_BUILD only
 # runs when the executable relinks, so a shader edit would rebuild the staged .bin without
 # refreshing the copy beside the executable — the dev loop would silently run stale shaders. The
-# stamp depends on the staged files and on the texture sources, so a recompiled shader or an edited
-# asset re-runs the copy on the next build.
+# stamp depends on the staged files and on the theme sources, so a recompiled shader or an edited
+# theme re-runs the copy on the next build.
 #
 # rock_hero_deploy_product_resources(
 #     TARGET <executable target>
@@ -45,25 +45,27 @@ function(rock_hero_deploy_product_resources)
     get_target_property(shader_staging_dir ${ARG_SHADER_TARGET} ROCK_HERO_STAGING_DIR)
     get_target_property(staged_shaders ${ARG_SHADER_TARGET} ROCK_HERO_STAGED_FILES)
 
-    # The shared texture sources are owned by rock-hero-common/ui and read back from the target
-    # property it sets (shared asset sources live under common and deploy per product).
-    # Reading the path rather than spelling it here is what makes moving that directory a
-    # configure-time failure instead of a deploy that silently copies nothing.
-    get_target_property(texture_dir rock_hero_common_ui ROCK_HERO_TEXTURE_DIR)
-    if(NOT texture_dir OR NOT IS_DIRECTORY "${texture_dir}")
+    # The built-in themes are owned by rock-hero-common/ui and read back from the target property
+    # it sets (shared asset sources live under common and deploy per product). Reading the path
+    # rather than spelling it here is what makes moving that directory a configure-time failure
+    # instead of a deploy that silently copies nothing.
+    get_target_property(themes_dir rock_hero_common_ui ROCK_HERO_THEMES_DIR)
+    if(NOT themes_dir OR NOT IS_DIRECTORY "${themes_dir}")
         message(
             FATAL_ERROR
                 "rock_hero_deploy_product_resources: rock_hero_common_ui does not report an "
-                "existing ROCK_HERO_TEXTURE_DIR (got '${texture_dir}')")
+                "existing ROCK_HERO_THEMES_DIR (got '${themes_dir}')")
     endif()
 
-    # The glob feeds the stamp's dependency list so an asset edit re-runs the copy; adding a file
-    # still needs a reconfigure, which asset drops rarely do without one. An empty result means the
-    # assets moved out from under this rule, which must fail here rather than deploy a bare tree.
-    file(GLOB_RECURSE texture_files CONFIGURE_DEPENDS "${texture_dir}/*")
-    if(NOT texture_files)
-        message(FATAL_ERROR "rock_hero_deploy_product_resources: no texture assets found under "
-                            "'${texture_dir}'")
+    # The glob feeds the stamp's dependency list so a theme edit re-runs the copy; adding a file
+    # still needs a reconfigure, which theme drops rarely do without one. No theme.json means the
+    # themes moved out from under this rule, which must fail here rather than deploy a tree the
+    # products refuse at startup.
+    file(GLOB_RECURSE theme_files CONFIGURE_DEPENDS "${themes_dir}/*")
+    file(GLOB theme_manifests "${themes_dir}/*/theme.json")
+    if(NOT theme_manifests)
+        message(FATAL_ERROR "rock_hero_deploy_product_resources: no built-in theme found under "
+                            "'${themes_dir}'")
     endif()
 
     set(resources_root "$<TARGET_FILE_DIR:${ARG_TARGET}>/resources")
@@ -85,9 +87,9 @@ function(rock_hero_deploy_product_resources)
         OUTPUT "${stamp}" ${make_empty_dirs_command}
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${shader_staging_dir}"
                 "${resources_root}/shaders"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${texture_dir}" "${resources_root}/textures"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${themes_dir}" "${resources_root}/themes"
         COMMAND ${CMAKE_COMMAND} -E touch "${stamp}"
-        DEPENDS ${staged_shaders} ${texture_files} ${ARG_SHADER_TARGET}
+        DEPENDS ${staged_shaders} ${theme_files} ${ARG_SHADER_TARGET}
         COMMENT "Deploying ${ARG_TARGET} resources next to the executable")
     add_custom_target(${ARG_TARGET}_resources DEPENDS "${stamp}")
     add_dependencies(${ARG_TARGET} ${ARG_TARGET}_resources)
@@ -100,8 +102,8 @@ function(rock_hero_deploy_product_resources)
         DESTINATION "${CMAKE_INSTALL_BINDIR}/resources"
         COMPONENT Runtime)
     install(
-        DIRECTORY "${texture_dir}/"
-        DESTINATION "${CMAKE_INSTALL_BINDIR}/resources/textures"
+        DIRECTORY "${themes_dir}/"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}/resources/themes"
         COMPONENT Runtime)
     foreach(empty_dir IN LISTS ARG_EMPTY_DIRS)
         install(

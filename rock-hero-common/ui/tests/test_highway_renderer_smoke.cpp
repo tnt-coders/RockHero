@@ -57,6 +57,7 @@
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -64,6 +65,7 @@
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/render/render_device.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
+#include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -122,10 +124,10 @@ using common::core::NoteEmphasis;
     });
 }
 
-// Loads the shipped texture assets from the source tree, the same bytes the products deploy.
+// Loads the default theme's art from the source tree, the same bytes the products deploy.
 [[nodiscard]] HighwayTextureSet loadShippedTextureSet()
 {
-    const juce::File textures{ROCK_HERO_TEXTURES_DIR};
+    const juce::File textures = common::core::juceFileFromPath(testing::defaultThemeDirectory());
     HighwayTextureSet set;
     for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
     {
@@ -468,7 +470,10 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
     // up: its contract is create only against a live device, destroy before bgfx shutdown.
     {
         std::expected<HighwayRenderer, HighwayRendererError> renderer = HighwayRenderer::create(
-            shaders, loadShippedTextureSet(), defaultHighwayTheme(), charterClassicPalette());
+            shaders,
+            loadShippedTextureSet(),
+            testing::fixtureHighwayTheme(),
+            testing::fixtureStringColors());
         REQUIRE(renderer.has_value());
 
         // Encoding frames before any content is the state both products are in between device
@@ -565,7 +570,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
 
         // A look that differs only in color, swapped in mid-sweep: setTheme rebuilds nothing, and
         // the frames after it encode under the new colors.
-        HighwayTheme recolored = defaultHighwayTheme();
+        HighwayTheme recolored = testing::fixtureHighwayTheme();
         recolored.backdrop = 0xFF202040U;
         recolored.chord_box = 0xFFFF00FFU;
         renderer->setTheme(recolored);

@@ -87,6 +87,12 @@ public:
     using FretHandChipCallback = std::function<void(std::size_t)>;
 
     /*!
+    \brief Creates an empty lane that draws its strings in the given colors.
+    \param string_colors The string colors every lane surface derives from.
+    */
+    explicit TabView(common::ui::StringColorPalette string_colors);
+
+    /*!
     \brief Installs the sink that receives the lane's chart pointer intents.
     \param on_pointer_event Callback invoked for every gesture phase; empty disables forwarding.
     */
@@ -481,6 +487,9 @@ private:
     // The refusal flash while it runs: every refused element it has joined, and its pulse. Its
     // indices address m_tab, so a new projection drops it.
     std::optional<PulsedFlash<core::ChartRefusalFlash>> m_refusal{};
+
+    // The string colors every lane surface derives from.
+    common::ui::StringColorPalette m_string_colors;
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

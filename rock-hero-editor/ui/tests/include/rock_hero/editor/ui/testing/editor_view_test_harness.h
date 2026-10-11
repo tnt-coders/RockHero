@@ -26,6 +26,7 @@
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/transport_controls_test_helpers.h>
@@ -56,6 +57,7 @@ template <> struct StringMaker<std::optional<double>>
 namespace rock_hero::editor::ui
 {
 
+using common::ui::testing::fixtureLoadedHighwayTheme;
 using testing::findDescendant;
 using testing::findRequiredDescendant;
 using testing::makeMouseDownEvent;

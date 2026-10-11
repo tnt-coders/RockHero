@@ -222,9 +222,10 @@ Restated with sources; do not re-litigate:
    low E folds infrared), and lanes 7–10 are therefore an explicit false-color convention.
 6. **The cap raise is coordinated by this plan** (`docs/plans/roadmap/40-chart-editing.md` Non-goals;
    `docs/plans/roadmap/22-note-detection.md` Consumed-by). It is a format/domain gate, not a theme toggle.
-7. **Settings stay per-product**: EditorSettings is editor-specific by design and the game gets
-   its own IGameSettings port (`docs/plans/roadmap/27-in-song-flow-results-profiles.md`). Both products
-   persist a preset id string from the same common registry; the ids match, the stores do not.
+7. **Settings stay per-product** (**reversed 2026-10-11 for the highway's player settings**):
+   the string-palette pin, like the theme id and the other pins, is a shared player setting in
+   plan 70's shared `highway.*` settings keys, which both products read; only app-workspace
+   settings stay in the per-app stores.
 8. **Derived-over-authored does not apply**: presets are product data, not charter-authored
    package content; nothing here writes into `.rock` packages.
 
@@ -386,15 +387,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 **Scope.** Make the Phase 1 registry user-selectable, independent of the chrome theme (a
 colorblind player needs the note palette swap regardless of chrome taste).
 
-- `IEditorSettings::stringColorPreset()/setStringColorPreset(std::string)` plus the same
-  controller/view-state/menu chain as Phase 2 ("String Colors" submenu listing
-  `stringColorPalettes()`); unknown ids fall back to Charter Classic. Per plan 54's 54-Q18 the
-  setting's absent value means "Theme's choice", the submenu's top entry reading
-  `Theme's choice (<resolved palette>)`, and any concrete pick pins; until plan 54 Phase 2a lands
-  that entry resolves to the default palette. The stored pin names its source, a theme id or a
-  code palette id: from plan 54 Phase 2a every theme that states `colors.strings` is a palette,
-  `charter-classic` moves into the default theme's file, and code keeps only the accessibility
-  palettes (Phase 4).
+- **Recast 2026-10-11:** the pin is a field of plan 70's shared `HighwayPlayerSettings`, not an
+  `IEditorSettings` accessor; the controller/view-state/menu chain is as Phase 2's ("String
+  Colors" submenu). Per plan 54's 54-Q18 the setting's absent value means "Theme's choice", the
+  submenu's top entry reading `Theme's choice (<resolved palette>)`, and any concrete pick pins;
+  an unknown pin falls back to "Theme's choice". The stored pin names its source, a theme id or a
+  code palette id. Since plan 54 Phase 2a every theme states `colors.strings` and is a palette,
+  `StringColorPalette` is one array of eight colors, the Charter Classic palette and
+  `charterClassicPalette()` are deleted (today's colors live only in the user's private theme),
+  and code keeps only the accessibility palettes (Phase 4).
 - `TabView` receives the active palette (extend `setState(...)` or add a setter beside
   `setVisibleTimeline`) and derives its `StringLaneStyle` set from it; repaint on change.
 

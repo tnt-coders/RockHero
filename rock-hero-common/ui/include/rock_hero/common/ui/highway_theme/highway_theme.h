@@ -121,10 +121,4 @@ struct HighwayTheme
     ArgbColor label_text;
 };
 
-/*!
-\brief Returns the compiled default theme both products draw with.
-\return The default theme, valid for the life of the process.
-*/
-[[nodiscard]] const HighwayTheme& defaultHighwayTheme();
-
 } // namespace rock_hero::common::ui

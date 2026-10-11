@@ -13,7 +13,9 @@ target_include_directories(
     rock_hero_editor_ui_testing INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include"
                                           "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
-target_link_libraries(rock_hero_editor_ui_testing INTERFACE rock_hero::editor::ui Catch2::Catch2)
+# The harness builds views over the code-built highway theme the common-ui testing target states.
+target_link_libraries(rock_hero_editor_ui_testing
+                      INTERFACE rock_hero::editor::ui rock_hero::common::ui_testing Catch2::Catch2)
 
 # Keep focused editor UI coverage in one target because the test surface is small.
 add_executable(

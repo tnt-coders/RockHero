@@ -21,7 +21,12 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setState(
         core::EditorViewState{
@@ -45,7 +50,12 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     showOnScreen(view);
 
@@ -104,7 +114,12 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     showOnScreen(view);
 
     core::EditorViewState state;
@@ -130,7 +145,12 @@ TEST_CASE("Calibration Apply sends the shown gain", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     showOnScreen(view);
 
     core::EditorViewState state;
@@ -164,7 +184,12 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setState(
         core::EditorViewState{
@@ -195,7 +220,12 @@ TEST_CASE("Pan knob previews then commits the stage with the stored level", "[ui
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setState(
         core::EditorViewState{
@@ -258,7 +288,12 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setState(
         core::EditorViewState{
@@ -305,7 +340,12 @@ TEST_CASE("Calibration prompt for another route retires the open window", "[ui][
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     showOnScreen(view);
 
@@ -330,7 +370,12 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
 
     auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
@@ -359,7 +404,12 @@ TEST_CASE("Audio settings window asked for at startup waits for busy to clear", 
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
 
     core::EditorViewState state;
@@ -388,7 +438,12 @@ TEST_CASE("Device-lost notice asked for at startup waits for busy to clear", "[u
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
 
     core::EditorViewState state;
@@ -417,7 +472,12 @@ TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-vie
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     showOnScreen(view);
 
     core::EditorViewState state;

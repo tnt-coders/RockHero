@@ -75,7 +75,12 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     constexpr common::core::GridPosition chorus{.measure = 3, .beat = 1};
     core::EditorViewState state{};
@@ -137,7 +142,12 @@ TEST_CASE("EditorView forwards the tempo chord's published insert", "[ui][editor
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     constexpr common::core::GridPosition beat{.measure = 2, .beat = 3};
     core::EditorViewState state{};
@@ -169,7 +179,12 @@ TEST_CASE("EditorView opens the tempo prompt the tempo chord publishes", "[ui][e
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state{};
     state.project_loaded = true;
@@ -189,7 +204,12 @@ TEST_CASE("EditorView opens the tempo prompt Enter's restate publishes", "[ui][e
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state{};
     state.project_loaded = true;
@@ -211,7 +231,12 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state{};
     state.project_loaded = true;
@@ -238,7 +263,12 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state{};
     state.project_loaded = true;
@@ -264,7 +294,12 @@ TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][e
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state{};
     state.project_loaded = true;
@@ -292,7 +327,12 @@ TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const int scale_command = toJuceCommandId(EditorCommandId::ScaleTempo);
 
     view.setState(core::EditorViewState{});
@@ -326,7 +366,12 @@ TEST_CASE("EditorView titles the Scale Tempo prompt by the Note Lock", "[ui][edi
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
     state.marker_edits_enabled = true;
@@ -350,7 +395,12 @@ TEST_CASE("EditorView forwards the fret-hand position chord to the core", "[ui][
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::InsertFretHandPosition)};
     CHECK(view.perform(info));
@@ -367,7 +417,12 @@ TEST_CASE("EditorView forwards the hand end clear while a selection stands", "[u
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
         EditorCommandId::ClearHandPositionEndFret)};
     CHECK(view.perform(info));
@@ -388,7 +443,12 @@ TEST_CASE("EditorView Prune Hand Positions forwards the prune", "[ui][editor-vie
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const int prune_command = toJuceCommandId(EditorCommandId::PruneHandPositions);
     const juce::ApplicationCommandTarget::InvocationInfo info{prune_command};
 
@@ -416,7 +476,12 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);
@@ -467,7 +532,12 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     const auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
     auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
@@ -934,7 +1004,12 @@ TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][k
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
     REQUIRE(mappings != nullptr);
@@ -976,7 +1051,12 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     constexpr int command_shift =
         juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
@@ -1028,7 +1108,12 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
@@ -1069,7 +1154,12 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
@@ -1103,7 +1193,12 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
 
     view.setState(core::EditorViewState{});
@@ -1135,7 +1230,12 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const auto& selection_count_chip =
         findRequiredDescendant<juce::Label>(view, "chart_selection_count_display");
 
@@ -1213,7 +1313,12 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
 
     auto& button = findRequiredDescendant<ModeToggleButton>(view, "tempo_lock_button");
@@ -1255,7 +1360,12 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
 
     auto& button = findRequiredDescendant<ModeToggleButton>(view, "note_lock_button");
@@ -1295,7 +1405,12 @@ TEST_CASE("EditorView opens the interrupted-restore prompt once on screen", "[ui
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
 
     core::EditorViewState state;

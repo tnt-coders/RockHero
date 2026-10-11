@@ -201,7 +201,12 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
@@ -242,7 +247,12 @@ TEST_CASE("Pan knob sits above the output fader in its lane", "[ui][editor-view]
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 720);
 
     const auto& pan_knob = findRequiredDescendant<juce::Slider>(view, "output_pan_knob");
@@ -269,7 +279,12 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
     auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
@@ -287,7 +302,12 @@ TEST_CASE("Tone designer strip shows in designer mode and emits intents", "[ui][
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     auto& new_button = findRequiredDescendant<juce::TextButton>(view, "tone_new_button");
     auto& open_button = findRequiredDescendant<juce::TextButton>(view, "tone_open_button");
@@ -332,7 +352,12 @@ TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     view.setBounds(0, 0, 1280, 800);
 
@@ -365,7 +390,10 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
         .master_output = common::audio::AudioMeterLevel{.peak_db = -6.0},
     };
     EditorView view{
-        controller, viewAudioPorts(transport, thumbnail_factory, meter_source), juce::File{}
+        controller,
+        viewAudioPorts(transport, thumbnail_factory, meter_source),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
     };
 
     view.setState(core::EditorViewState{});
@@ -387,7 +415,12 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
@@ -416,7 +449,12 @@ TEST_CASE("Signal-chain action buttons do not take keyboard focus", "[ui][editor
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
@@ -448,7 +486,12 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
@@ -572,7 +615,12 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
@@ -1339,7 +1387,12 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
@@ -1410,7 +1463,12 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
@@ -1439,7 +1497,12 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{
@@ -1493,7 +1556,12 @@ TEST_CASE("Signal-chain explains disabled live input on the input controls", "[u
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setBounds(0, 0, 1280, 800);
     view.setState(
         core::EditorViewState{

@@ -12,12 +12,9 @@
 #include <memory>
 #include <optional>
 #include <print>
-#include <rock_hero/common/core/highway/highway_resources.h>
-#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
-#include <rock_hero/common/ui/highway_theme/highway_theme.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
 #include <rock_hero/common/ui/render/render_device.h>
-#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
 #include <rock_hero/game/core/resources/game_resources.h>
 #include <string>
@@ -34,9 +31,9 @@ namespace
 constexpr std::uint32_t g_initial_window_width = 1280;
 constexpr std::uint32_t g_initial_window_height = 720;
 
-// Resolves the deployed resource-pack root next to the executable — the one loading seam
-// packaged assets come through.
-[[nodiscard]] std::optional<core::GameResources> makeGameResources()
+// Resolves the deployed resource-pack root next to the executable, which both the resource
+// resolver and the theme registry read.
+[[nodiscard]] std::optional<std::filesystem::path> deployedResourcesRoot()
 {
     // SDL documents the base path as UTF-8 and as null on failure: the null must be caught before
     // path construction (UB), and the bytes must be decoded as UTF-8 explicitly — MSVC's narrow
@@ -50,17 +47,7 @@ constexpr std::uint32_t g_initial_window_height = 720;
     }
     const std::string_view base_path_bytes{base_path};
     const std::u8string base_path_utf8(base_path_bytes.begin(), base_path_bytes.end());
-    const std::filesystem::path resources_root =
-        std::filesystem::path{base_path_utf8} / "resources";
-
-    std::expected<core::GameResources, core::GameResourcesError> resources =
-        core::GameResources::create(resources_root);
-    if (!resources.has_value())
-    {
-        std::println(stderr, "rock-hero: {}", resources.error().message);
-        return std::nullopt;
-    }
-    return std::move(*resources);
+    return std::filesystem::path{base_path_utf8} / "resources";
 }
 
 } // namespace
@@ -124,9 +111,16 @@ std::optional<int> RockHeroGame::onInit()
 
     // Scene renderers own bgfx handles, so they are declared after the device and destroyed
     // first (all handles die before bgfx::shutdown — the wrapper's ordering contract).
-    std::optional<core::GameResources> resources = makeGameResources();
+    const std::optional<std::filesystem::path> resources_root = deployedResourcesRoot();
+    if (!resources_root.has_value())
+    {
+        return 1;
+    }
+    std::expected<core::GameResources, core::GameResourcesError> resources =
+        core::GameResources::create(*resources_root);
     if (!resources.has_value())
     {
+        std::println(stderr, "rock-hero: {}", resources.error().message);
         return 1;
     }
     const std::expected<common::ui::HighwayShaderSet, core::GameResourcesError> highway_shaders =
@@ -136,28 +130,20 @@ std::optional<int> RockHeroGame::onInit()
         std::println(stderr, "rock-hero: {}", highway_shaders.error().message);
         return 1;
     }
-    // Texture loads gather what exists and log what does not; the renderer's create validates
-    // the set and fails startup with a typed error on any missing or invalid asset — textures
-    // are required product content.
-    common::ui::HighwayTextureSet highway_textures;
-    for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
+    // The built-in themes are required product content, so one that does not load fails startup
+    // as a broken install; user themes that do not load are logged and dropped by the registry.
+    const std::expected<common::ui::HighwayThemeRegistry, common::ui::HighwayThemeError>
+        highway_themes = common::ui::HighwayThemeRegistry::load(
+            common::ui::highwayThemeFolders(*resources_root));
+    if (!highway_themes.has_value())
     {
-        auto bytes = resources->textureBytes(texture);
-        if (bytes.has_value())
-        {
-            highway_textures.at(common::core::indexOf(texture)) = std::move(*bytes);
-        }
-        else
-        {
-            RH_LOG_WARNING("game.highway", "{}", bytes.error().message);
-        }
+        std::println(stderr, "rock-hero: {}", highway_themes.error().message);
+        return 1;
     }
+    const common::ui::LoadedHighwayTheme& highway_theme = highway_themes->defaultTheme();
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
-            *highway_shaders,
-            highway_textures,
-            common::ui::defaultHighwayTheme(),
-            common::ui::charterClassicPalette());
+            *highway_shaders, highway_theme.textures, highway_theme.colors, highway_theme.strings);
     if (!renderer.has_value())
     {
         std::println(stderr, "rock-hero: {}", renderer.error().message);

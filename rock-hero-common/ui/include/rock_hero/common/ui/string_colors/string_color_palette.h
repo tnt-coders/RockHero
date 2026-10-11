@@ -1,6 +1,6 @@
 /*!
 \file string_color_palette.h
-\brief Shared string-color palette data and Charter-exact color derivation.
+\brief The string colors a look draws with, and Charter-exact color derivation.
 */
 
 #pragma once
@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <string_view>
 
 namespace rock_hero::common::ui
 {
@@ -17,52 +16,37 @@ namespace rock_hero::common::ui
 /*!
 \brief Packed 0xAARRGGBB color value.
 
-JUCE-free by design so the game render stack can consume the palette without juce_graphics; each
-consumer converts at its own boundary (juce::Colour{value}, bgfx vertex color). Every palette
-value and every derivation result carries an opaque 0xff alpha.
+JUCE-free by design so the game render stack can consume colors without juce_graphics; each
+consumer converts at its own boundary (juce::Colour{value}, bgfx vertex color). The alpha byte is
+the color's opacity: a theme role may carry any, while palette colors and every derivation result
+below are opaque.
 */
 using ArgbColor = std::uint32_t;
 
 /*!
-\brief The achromatic string color: the near-white grey the 8th string wears in every palette.
+\brief The string colors one look draws with, one per string the chart format allows.
 
-Achromatic because the 8th string's fundamental folds outside visible light, so it has no hue to
-represent.
+Ordered in the player's string numbering from the highest string down: entry 0 is string 1 (the
+high e), entry 5 the low E, entry 6 the low B and entry 7 the low F#, so each slot names the same
+string at every string count. stringLaneColor maps a displayed lane onto its slot. Every color is
+opaque; the theme loader refuses a palette that is not.
 */
-inline constexpr ArgbColor g_achromatic_string_color = 0xffb6b6b6;
-
-/*! \brief One selectable string-color preset shared by the editor and the game. */
 struct StringColorPalette
 {
-    /*! \brief Stable identifier persisted by product settings; never renamed once shipped. */
-    std::string_view id{};
-
-    /*! \brief Six-string-window base colors, lowest lane of the window first. */
-    std::array<ArgbColor, 6> standard{};
-
-    /*!
-    \brief Colors for lanes below the six-string window, seventh string downward.
-
-    Sized by the chart string cap on purpose. The size alone does not refuse to compile when the
-    cap rises — a braced list shorter than the array zero-fills — so the enforcement is the
-    static_assert beside each preset definition, which requires every extended slot to be authored
-    opaque and therefore catches a zero-filled new lane at compile time.
-    */
-    std::array<ArgbColor, static_cast<std::size_t>(common::core::g_max_chart_strings) - 6U>
-        extended{};
+    /*! \brief One opaque color per string, highest string first. */
+    std::array<ArgbColor, static_cast<std::size_t>(common::core::g_max_chart_strings)> colors{};
 };
 
 /*!
 \brief Returns the base display color for one string lane.
 
-The six highest lanes take the palette's standard colors, anchored so the sixth-highest lane is
-the first standard color: a four-string bass keeps the same low-string colors as a guitar's
-bottom four. Lanes below the standard window walk the extended tier downward and cycle it
-defensively past its end.
+A chart of six strings or fewer takes its slots from the low E upward, so a four-string bass keeps
+the colors of a guitar's bottom four; each string below the sixth takes the next slot down. A lane
+outside the palette takes the nearest slot.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
-\param palette Preset supplying the standard and extended tiers.
+\param palette String colors the lane draws with.
 \return Base lane color every rendered per-string surface derives from.
 */
 [[nodiscard]] ArgbColor stringLaneColor(
@@ -132,11 +116,5 @@ struct StringLaneStyle
     */
     explicit StringLaneStyle(ArgbColor base);
 };
-
-/*!
-\brief Returns the Charter Classic preset, the default palette both products start with.
-\return The Charter Classic palette data the render stack consumes.
-*/
-[[nodiscard]] const StringColorPalette& charterClassicPalette();
 
 } // namespace rock_hero::common::ui

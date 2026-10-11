@@ -422,7 +422,8 @@ constexpr int g_track_viewport_min_height{80};
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
 EditorView::EditorView(
-    core::IEditorController& controller, AudioPorts audio_ports, juce::File input_calibration_guide)
+    core::IEditorController& controller, AudioPorts audio_ports, juce::File input_calibration_guide,
+    const common::ui::LoadedHighwayTheme& highway_theme)
     : m_controller(controller)
     , m_audio_devices(audio_ports.audio_devices)
     , m_audio_config_store(audio_ports.audio_config_store)
@@ -430,6 +431,7 @@ EditorView::EditorView(
     , m_transport(audio_ports.transport)
     , m_playback_clock(audio_ports.playback_clock)
     , m_input_calibration_guide(std::move(input_calibration_guide))
+    , m_highway_theme(highway_theme)
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_grid_spacing_selector(*this)
@@ -447,6 +449,7 @@ EditorView::EditorView(
               BinaryData::lock_note_open_svg, BinaryData::lock_note_open_svgSize))
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
+    , m_tab_view(highway_theme.strings)
     , m_tone_track_view(*this, m_state.tempo_map, m_state.content_map, audio_ports.transport)
     , m_tone_automation_lanes_view(
           *this, m_state.tempo_map, m_state.content_map, audio_ports.tone_automation)
@@ -1303,7 +1306,8 @@ void EditorView::togglePreviewWindow()
                 }
                 return m_command_manager.invokeDirectly(command, false);
             },
-            getTopLevelComponent());
+            getTopLevelComponent(),
+            m_highway_theme);
     }
 
     if (m_preview_window->isVisible())

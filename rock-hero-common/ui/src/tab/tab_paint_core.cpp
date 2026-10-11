@@ -330,9 +330,8 @@ struct LaneStyles
 {
     std::vector<StringStyle> strings;
 
-    // Clamped like the palette itself, which cycles defensively past its tiers: a string outside
-    // the chart's range is already drawn off the lane band by laneY, so it wants a color here, not
-    // a branch.
+    // Clamped like the palette itself: a string outside the chart's range is already drawn off the
+    // lane band by laneY, so it wants a color here, not a branch.
     [[nodiscard]] const StringStyle& operator()(const int chart_string) const
     {
         const auto index = static_cast<std::size_t>(

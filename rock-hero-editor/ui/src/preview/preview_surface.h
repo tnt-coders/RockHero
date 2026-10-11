@@ -15,6 +15,7 @@
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
+#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/common/ui/render/render_device.h>
 
 namespace rock_hero::editor::ui
@@ -49,10 +50,12 @@ public:
     \brief Creates the surface; no native or GPU state is touched until attach().
     \param transport Read-only transport for exact paused-cursor time.
     \param playback_clock Playback-time telemetry sampled while playing.
+    \param highway_theme The theme every renderer bring-up draws with; must outlive the surface.
     */
     PreviewSurface(
         const common::audio::ITransport& transport,
-        const common::audio::IPlaybackClock& playback_clock);
+        const common::audio::IPlaybackClock& playback_clock,
+        const common::ui::LoadedHighwayTheme& highway_theme);
 
     /*! \brief Detaches (if attached) and destroys the surface. */
     ~PreviewSurface() override;
@@ -139,6 +142,9 @@ private:
 
     const common::audio::ITransport& m_transport;
     const common::audio::IPlaybackClock& m_playback_clock;
+
+    // The colors, string colors and art each renderer bring-up creates the renderer with.
+    const common::ui::LoadedHighwayTheme& m_highway_theme;
 
     // Native child window handle (HWND) bgfx renders into; null while detached. maybe_unused:
     // every consumer sits behind JUCE_WINDOWS, so non-Windows compile-hygiene builds never

@@ -11,6 +11,9 @@ namespace
 
 constexpr ArgbColor g_opaque_alpha = 0xff000000U;
 
+// The strings of a standard guitar: a chart with fewer takes its colors from the low E up.
+constexpr int g_standard_string_count = 6;
+
 // Channel extraction for the packed 0xAARRGGBB layout.
 [[nodiscard]] constexpr int redOf(ArgbColor color)
 {
@@ -33,43 +36,6 @@ constexpr ArgbColor g_opaque_alpha = 0xff000000U;
     return g_opaque_alpha | (static_cast<ArgbColor>(red) << 16U) |
            (static_cast<ArgbColor>(green) << 8U) | static_cast<ArgbColor>(blue);
 }
-
-// Charter Classic: Charter's default six string colors (ChartPanelColors STRING_0..5) ordered
-// from the sixth-highest displayed lane upward — the RYB wheel's primaries then secondaries,
-// rank-matching the octave-folded open-string fundamentals — plus the extended tier going
-// down: the RYB tertiary teal 7th and the achromatic near-white 8th. A magenta 8th is wrong for
-// the tier: an 8th-to-6th octave chord pairs it with the red lane only ~30 wheel-degrees away
-// and the struck pair reads as near-duplicates at any saturation, while the 8th is the one
-// string whose fundamental folds outside visible light — no hue to represent — making the
-// achromatic (also the CIELAB sweep's pick, and Charter's own STRING_7) the honest false color.
-constexpr StringColorPalette g_charter_classic_palette{
-    .id = "charter-classic",
-    .standard =
-        {
-            0xffed0000, // red (lowest string of a standard six)
-            0xfff2d706, // yellow
-            0xff25b2ff, // blue
-            0xffff870a, // orange
-            0xff85e747, // green
-            0xffd22cf8, // purple (highest string)
-        },
-    .extended = {
-        0xff00b5a0,                // teal (7th string, RYB blue-green tertiary)
-        g_achromatic_string_color, // near-white (8th string; its doc says why achromatic)
-    },
-};
-
-// This is what makes the header's compiler-enforced claim true. Sizing `extended` from the string
-// cap does NOT by itself refuse to compile when the cap rises: a braced list shorter than the array
-// zero-fills, so a ninth lane would silently become fully transparent and `stringLaneColor`'s
-// defensive cycle would serve it. Every authored color is opaque, so requiring that is exactly the
-// test that catches a zero-filled slot.
-static_assert(
-    std::ranges::none_of(
-        g_charter_classic_palette.extended,
-        [](const ArgbColor color) { return (color & g_opaque_alpha) == 0U; }),
-    "every extended lane color must be authored opaque: a transparent entry means "
-    "g_max_chart_strings grew and this preset was not given the new lane's color");
 
 // Accent brightening that keeps the string's hue: java's brighter() clamps each channel
 // independently, so Charter's ring.brighter().brighter() bleaches saturated hues toward yellow
@@ -94,20 +60,15 @@ static_assert(
 
 } // namespace
 
-// The six highest lanes take the standard set; lower lanes walk the extended tier downward.
+// Maps a lane counted from the bottom onto the highest-string-first slots: the lane sits that many
+// strings below the top of a window at least six strings tall.
 ArgbColor stringLaneColor(
     int displayed_string, int displayed_string_count, const StringColorPalette& palette)
 {
-    const int below_standard_window = std::max(0, displayed_string_count - 6);
-    if (displayed_string > below_standard_window)
-    {
-        const auto standard_index =
-            static_cast<std::size_t>(displayed_string - below_standard_window - 1);
-        return palette.standard.at(std::min(standard_index, palette.standard.size() - 1));
-    }
-
-    const auto tertiary_index = static_cast<std::size_t>(below_standard_window - displayed_string);
-    return palette.extended.at(tertiary_index % palette.extended.size());
+    const int window = std::max(displayed_string_count, g_standard_string_count);
+    const int last_slot = static_cast<int>(palette.colors.size()) - 1;
+    const int slot = std::clamp(window - displayed_string, 0, last_slot);
+    return palette.colors.at(static_cast<std::size_t>(slot));
 }
 
 // Reproduces java.awt.Color.darker(): each channel scaled by 0.7 and truncated.
@@ -161,10 +122,5 @@ StringLaneStyle::StringLaneStyle(ArgbColor base)
     , tail_edge(brighterColor(tail))
     , accent(huePreservingAccentColor(border_inner))
 {}
-
-const StringColorPalette& charterClassicPalette()
-{
-    return g_charter_classic_palette;
-}
 
 } // namespace rock_hero::common::ui

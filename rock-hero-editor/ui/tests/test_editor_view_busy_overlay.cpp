@@ -14,7 +14,12 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     const juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
@@ -134,7 +139,12 @@ TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
 
@@ -174,7 +184,12 @@ TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     core::EditorViewState busy_state;
     busy_state.visible_timeline = common::core::TimeRange{

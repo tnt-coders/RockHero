@@ -23,7 +23,7 @@ endif()
 package_register_target(rock_hero_editor_exe DISPLAY_NAME "Rock Hero Editor")
 
 # Deploy the 3D preview's resources next to the editor executable: the shared highway
-# shaders compiled through the same staging contract the game uses, plus the shared texture assets.
+# shaders compiled through the same staging contract the game uses, plus the built-in highway themes.
 # The editor stages its own shader tree because it builds independently of the game's ui target;
 # everything after that is the shared product-resource deploy rule.
 rock_hero_stage_highway_shaders(rock_hero_editor_shaders

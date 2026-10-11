@@ -5,12 +5,15 @@
 
 #pragma once
 
+#include <expected>
 #include <filesystem>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
+#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 
 namespace rock_hero::common::audio
@@ -106,6 +109,11 @@ public:
 
         /*! \brief Shared calibrate-first live-input monitoring service driven by the controller. */
         common::audio::LiveInputMonitor& live_input_monitor;
+
+        /*!
+        \brief The theme the 3D preview and the tablature lane draw with, string colors included.
+        */
+        const common::ui::LoadedHighwayTheme& highway_theme;
     };
 
     /*! \brief Optional project IO operations used by the composed editor workflow. */
@@ -216,5 +224,17 @@ private:
     // after the keymap persistence so its first push reflects the restored keymap.
     std::unique_ptr<PluginWindowShortcutSync> m_plugin_window_shortcut_sync;
 };
+
+/*!
+\brief Loads the highway themes the editor can draw with: the built-ins deployed beside the
+executable and the player's own.
+
+A built-in that does not load fails the whole load, since the install is broken; a user theme that
+does not load is logged and dropped (common::ui::HighwayThemeRegistry::load).
+
+\return The registry the stored theme choice resolves against, or the built-in failure.
+*/
+[[nodiscard]] std::expected<common::ui::HighwayThemeRegistry, common::ui::HighwayThemeError>
+loadInstalledHighwayThemes();
 
 } // namespace rock_hero::editor::ui

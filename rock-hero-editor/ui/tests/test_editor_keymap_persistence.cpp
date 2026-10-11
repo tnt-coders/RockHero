@@ -50,7 +50,12 @@ TEST_CASE("EditorKeymapPersistence saves rebinds and clears on reset", "[ui][key
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -86,7 +91,12 @@ TEST_CASE("EditorKeymapPersistence restores stored overrides", "[ui][keybinds]")
     RecordingThumbnailFactory thumbnail_factory;
 
     {
-        EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+        EditorView view{
+            controller,
+            viewAudioPorts(transport, thumbnail_factory),
+            juce::File{},
+            fixtureLoadedHighwayTheme()
+        };
         const EditorKeymapPersistence persistence{view.commandManager(), settings};
         view.commandManager().getKeyMappings()->addKeyPress(
             toJuceCommandId(EditorCommandId::ToggleUndoHistory),
@@ -96,7 +106,12 @@ TEST_CASE("EditorKeymapPersistence restores stored overrides", "[ui][keybinds]")
     }
 
     settings.write_count = 0;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -126,7 +141,12 @@ TEST_CASE("EditorKeymapPersistence drops unknown stored entries", "[ui][keybinds
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -157,7 +177,12 @@ TEST_CASE(
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -185,7 +210,12 @@ TEST_CASE("EditorKeymapPersistence restores removals cleanly", "[ui][keybinds]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -207,7 +237,12 @@ TEST_CASE("EditorKeymapPersistence tolerates an unparseable blob", "[ui][keybind
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();

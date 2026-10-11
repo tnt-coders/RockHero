@@ -35,6 +35,7 @@
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -116,10 +117,12 @@ public:
     \param audio_ports Required audio ports consumed directly by this view.
     \param input_calibration_guide The guide the calibration window's "?" opens; one that does not
            exist disables the "?".
+    \param highway_theme The theme the 3D preview and the tablature lane draw with, string colors
+           included; must outlive the view.
     */
     EditorView(
         core::IEditorController& controller, AudioPorts audio_ports,
-        juce::File input_calibration_guide);
+        juce::File input_calibration_guide, const common::ui::LoadedHighwayTheme& highway_theme);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
@@ -696,6 +699,10 @@ private:
     // The guide each calibration window's "?" opens.
     juce::File m_input_calibration_guide;
 
+    // The theme the 3D preview draws with when it opens; the tab lane took its string colors at
+    // construction.
+    const common::ui::LoadedHighwayTheme& m_highway_theme;
+
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
 
@@ -762,7 +769,7 @@ private:
     ArrangementView m_arrangement_view;
 
     // Tablature lane drawn over the waveform row inside the track viewport.
-    TabView m_tab_view{};
+    TabView m_tab_view;
 
     // Tone track row hosted below the waveform inside the track viewport.
     ToneTrackView m_tone_track_view;

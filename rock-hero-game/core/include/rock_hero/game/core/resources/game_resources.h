@@ -72,8 +72,10 @@ struct [[nodiscard]] GameResourcesError
 \brief Resolves typed resource ids to paths under an injected resources root.
 
 This is the one loading seam every game plan resolves packaged assets through (fonts, shaders,
-SFX, textures), so later features never invent their own path conventions. The root is injected:
-the app composes the executable-relative resources directory, tests compose temp fixtures.
+SFX), so later features never invent their own path conventions. The highway themes are the one
+exception: both products load them from the same root through the shared theme registry, which
+owns the theme directory layout. The root is injected: the app composes the executable-relative
+resources directory, tests compose temp fixtures.
 */
 class GameResources
 {
@@ -112,15 +114,6 @@ public:
     */
     [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> shaderBytes(
         common::core::HighwayShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
-
-    /*!
-    \brief Resolves and reads one texture asset into memory.
-
-    \param texture Texture asset to read.
-    \return The image file's bytes (never empty), or a typed error naming the failing file.
-    */
-    [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> textureBytes(
-        common::core::HighwayTexture texture) const;
 
 private:
     // Only create() constructs a resolver, after validating the root.

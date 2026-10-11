@@ -17,7 +17,12 @@ TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     KeymapEditorView editor{view.commandManager()};
     editor.setSize(560, 520);
@@ -48,7 +53,12 @@ TEST_CASE("KeymapEditorView applies binding changes with one owner", "[ui][keybi
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
     const juce::KeyPress f9{juce::KeyPress::F9Key};
@@ -85,7 +95,12 @@ TEST_CASE("KeymapEditorView rebinds and resets the core trio", "[ui][keybinds]")
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
     const juce::KeyPress ctrl_z{'z', juce::ModifierKeys::commandModifier, 0};
@@ -118,7 +133,12 @@ TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
@@ -150,7 +170,12 @@ TEST_CASE("KeymapEditorView rebinds grammar chords like any other", "[ui][keybin
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     KeymapEditorView editor{view.commandManager()};
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
@@ -182,7 +207,12 @@ TEST_CASE("KeymapEditorView groups display-equal chords into one chip", "[ui][ke
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     KeymapEditorView editor{view.commandManager()};
     editor.setSize(560, 520);
     const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
@@ -237,7 +267,12 @@ TEST_CASE("KeymapEditorView refreshes rows on mapping changes", "[ui][keybinds]"
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     KeymapEditorView editor{view.commandManager()};
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
@@ -260,7 +295,12 @@ TEST_CASE("ActionsWindow hosts the editor and survives closes", "[ui][keybinds]"
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
 
     ActionsWindow window{view.commandManager(), nullptr};
     const auto& editor_view =
@@ -286,7 +326,12 @@ TEST_CASE("EditorView opens the actions window from the command", "[ui][keybinds
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory), juce::File{}};
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureLoadedHighwayTheme()
+    };
     view.setState(core::EditorViewState{});
 
     const int command_id = toJuceCommandId(EditorCommandId::ShowActions);

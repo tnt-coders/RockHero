@@ -7,6 +7,7 @@
 #include "highway/highway_floor_geometry.h"
 #include "highway/highway_head_marks.h"
 #include "highway/highway_slide_path.h"
+#include "highway/highway_texture_contract.h"
 
 #include <algorithm>
 #include <array>
@@ -1682,30 +1683,6 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
     return program;
 }
 
-// Names why a structural-art measurement failed, for the asset-invalid diagnostic. Deliberately
-// switches without a default so a new StructuralArtError has to be named here rather than being
-// reported as one of the existing reasons.
-[[nodiscard]] constexpr std::string_view describeStructuralArtError(const StructuralArtError error)
-{
-    switch (error)
-    {
-        case StructuralArtError::UndecodableImage:
-        {
-            return "undecodable";
-        }
-        case StructuralArtError::UnanalyzableArt:
-        {
-            return "unanalyzable";
-        }
-        case StructuralArtError::AlphaBearingImage:
-        {
-            return "alpha-bearing (the art must have no alpha channel — coverage lives in its blue "
-                   "channel and opacity is applied per draw)";
-        }
-    }
-    return "unrecognized";
-}
-
 } // namespace
 
 /*
@@ -2451,9 +2428,24 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     const HighwayShaderSet& shaders, const HighwayTextureSet& textures, HighwayTheme theme,
     StringColorPalette palette)
 {
+    // The art is validated and measured before any GPU work: a theme that breaks the texture
+    // contract is refused with the asset and the expectation it violates.
+    std::expected<HighwayTextureMeasurements, HighwayTextureContractError> measured =
+        measureHighwayTextures(textures);
+    if (!measured.has_value())
+    {
+        return std::unexpected{HighwayRendererError{
+            .code = HighwayRendererErrorCode::TextureAssetInvalid,
+            .message = std::move(measured.error().message),
+        }};
+    }
+
     auto impl = std::make_unique<Impl>();
     impl->theme = theme;
     impl->palette = palette;
+    // Measured from the same notes.png bytes the atlas uploads: the accent glow sizes its distance
+    // field from these numbers, so they describe the pixels shipped, not constants kept by hand.
+    impl->head_art = measured->head_art;
 
     // Link every program in the shared table, so adding one is a table row rather than another
     // link site here. The first bad binary fails creation: a broken install is broken whichever
@@ -2499,77 +2491,52 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->inlay_texture_height = inlay.height;
     impl->inlay_texture = std::move(inlay.handle);
 
-    // Box-mute marks: chords.png is the single source of truth for the marks' STRUCTURE. Measure
-    // both marks' cross-sections from its pixels and upload them as the two-row ramp the SDF
-    // shader samples by distance; the measured weighting and coverage are exactly what the boxes
-    // render, with hue and opacity applied per draw as vertex color. Draw needs only the layout
-    // fractions afterwards — the ramps live in the GPU texture.
-    const std::expected<BoxMuteProfiles, StructuralArtError> profiles =
-        measureBoxMuteProfiles(textures.at(indexOf(TextureAsset::ChordMarks)));
-    if (profiles.has_value())
-    {
-        impl->box_mute_layouts = {
-            .palm =
-                {
-                    .stroke_half_fraction = profiles->palm.stroke_half_fraction,
-                    .extent_fraction = profiles->palm.extent_fraction,
-                },
-            .full = {
-                .stroke_half_fraction = profiles->full.stroke_half_fraction,
-                .extent_fraction = profiles->full.extent_fraction,
+    // Box-mute marks: chords.png is the single source of truth for the marks' STRUCTURE. Its two
+    // measured cross-sections upload as the two-row ramp the SDF shader samples by distance; the
+    // measured weighting and coverage are exactly what the boxes render, with hue and opacity
+    // applied per draw as vertex color. Draw needs only the layout fractions afterwards — the ramps
+    // live in the GPU texture.
+    const BoxMuteProfiles& box_mutes = measured->box_mutes;
+    impl->box_mute_layouts = {
+        .palm =
+            {
+                .stroke_half_fraction = box_mutes.palm.stroke_half_fraction,
+                .extent_fraction = box_mutes.palm.extent_fraction,
             },
-        };
-        const auto width = static_cast<std::uint32_t>(g_box_mute_ramp_samples);
-        // One RGBA row per mark. Size the rows in std::size_t so neither the memcpy lengths nor
-        // the destination offset comes from a multiplication performed in the narrower type.
-        const std::size_t row_bytes = static_cast<std::size_t>(width) * 4U;
-        const bgfx::Memory* memory = bgfx::alloc(static_cast<std::uint32_t>(row_bytes * 2U));
-        std::memcpy(memory->data, profiles->palm.ramp.data(), row_bytes);
-        std::memcpy(memory->data + row_bytes, profiles->full.ramp.data(), row_bytes);
-        impl->box_mute_ramp = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
-            static_cast<std::uint16_t>(width),
-            2,
-            false,
-            1,
-            bgfx::TextureFormat::RGBA8,
-            BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP,
-            memory)};
-    }
+        .full = {
+            .stroke_half_fraction = box_mutes.full.stroke_half_fraction,
+            .extent_fraction = box_mutes.full.extent_fraction,
+        },
+    };
+    const auto width = static_cast<std::uint32_t>(g_box_mute_ramp_samples);
+    // One RGBA row per mark. Size the rows in std::size_t so neither the memcpy lengths nor the
+    // destination offset comes from a multiplication performed in the narrower type.
+    const std::size_t row_bytes = static_cast<std::size_t>(width) * 4U;
+    const bgfx::Memory* memory = bgfx::alloc(static_cast<std::uint32_t>(row_bytes * 2U));
+    std::memcpy(memory->data, box_mutes.palm.ramp.data(), row_bytes);
+    std::memcpy(memory->data + row_bytes, box_mutes.full.ramp.data(), row_bytes);
+    impl->box_mute_ramp = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
+        static_cast<std::uint16_t>(width),
+        2,
+        false,
+        1,
+        bgfx::TextureFormat::RGBA8,
+        BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP,
+        memory)};
 
-    // The head art's silhouette, measured from the same notes.png bytes the atlas uploads: the
-    // accent glow sizes its distance field from these numbers, so they must describe the pixels
-    // actually shipped rather than constants kept by hand.
-    const std::expected<HeadArtProfile, StructuralArtError> measured_head_art =
-        measureHeadArtProfile(textures.at(indexOf(TextureAsset::Notes)));
-    if (measured_head_art.has_value())
+    // The contract already proved every asset decodes into its grid, so a texture missing here is
+    // one bgfx could not create.
+    if (!impl->atlases.heads.isValid() || !impl->inlay_texture.isValid() ||
+        !impl->box_mute_ramp.isValid())
     {
-        impl->head_art = *measured_head_art;
-    }
-
-    // Texture assets are required product content: a missing, undecodable, or wrong-shape
-    // asset is a broken install, not a degradable state, and a silent fallback would mask it.
-    if (!impl->atlases.heads.isValid() ||
-        impl->atlases.head_layout.capacity() < g_head_cell_count ||
-        !impl->inlay_texture.isValid() || !impl->box_mute_ramp.isValid() ||
-        !measured_head_art.has_value())
-    {
-        const std::string_view chord_marks_state =
-            profiles.has_value() ? "measured" : describeStructuralArtError(profiles.error());
-        const std::string_view head_art_state =
-            measured_head_art.has_value() ? "measured"
-                                          : describeStructuralArtError(measured_head_art.error());
         return std::unexpected{HighwayRendererError{
             .code = HighwayRendererErrorCode::TextureAssetInvalid,
             .message = std::format(
-                "highway texture assets missing or invalid (note atlas loaded={} with {} of "
-                "{} required cells, inlays loaded={}, chord mute marks {}, head silhouette {}); "
-                "the install or resource deployment is broken",
+                "bgfx could not create the highway textures (note atlas {}, inlays {}, chord mute "
+                "marks {})",
                 impl->atlases.heads.isValid(),
-                impl->atlases.head_layout.capacity(),
-                g_head_cell_count,
                 impl->inlay_texture.isValid(),
-                chord_marks_state,
-                head_art_state)
+                impl->box_mute_ramp.isValid())
         }};
     }
 

@@ -28,6 +28,12 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by plan 54 Phases 1 and 2a (2026-10-11)
+
+- **`preview_surface.cpp:356` breaks the identifier-naming rule:** `static const auto empty` is a
+  static local, which `readability-identifier-naming` spells with the `g_` prefix; a per-file
+  clang-tidy run reports it and a Windows CI lint run will. Rename it (and its uses).
+
 ## Found by plan 67 Phases 1–4 and the last rule-citation sweep (2026-10-09)
 
 - **`parseGridPositionToken` has no production caller** now that the file stores places: only

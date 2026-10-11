@@ -1,15 +1,16 @@
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
+#include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 
 namespace rock_hero::common::ui
 {
 
-// Lane-window behavior: the six highest lanes keep the standard set anchored at the first standard
-// color on the sixth-highest lane, a bass keeps the low-string colors, and extended-range lanes
-// walk the extended tier downward.
+// Lane-window behavior: a six-string chart's lanes take the palette's first six slots from the
+// low E up, a bass keeps the low-string colors, and extended-range lanes take the slots below,
+// with a lane outside the palette clamped to its nearest slot.
 TEST_CASE("Palette colors strings by their standard-window position", "[ui][string-colors]")
 {
-    const StringColorPalette& palette = charterClassicPalette();
+    const StringColorPalette palette = testing::fixtureStringColors();
 
     CHECK(stringLaneColor(1, 6, palette) == 0xffed0000);
     CHECK(stringLaneColor(6, 6, palette) == 0xffd22cf8);
@@ -23,6 +24,11 @@ TEST_CASE("Palette colors strings by their standard-window position", "[ui][stri
     CHECK(stringLaneColor(1, 7, palette) == 0xff00b5a0);
     CHECK(stringLaneColor(1, 8, palette) == 0xffb6b6b6);
     CHECK(stringLaneColor(2, 8, palette) == 0xff00b5a0);
+    CHECK(stringLaneColor(8, 8, palette) == 0xffd22cf8);
+
+    // A lane past either end of the palette takes the nearest slot rather than reading past it.
+    CHECK(stringLaneColor(0, 8, palette) == 0xffb6b6b6);
+    CHECK(stringLaneColor(7, 6, palette) == 0xffd22cf8);
 }
 
 // Known-value checks pinning the java Color semantics on edge channels: darker truncates at 0.7,

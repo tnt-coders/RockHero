@@ -1,14 +1,17 @@
 #include <JuceHeader.h>
 #include <cstddef>
+#include <expected>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/tasks/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
@@ -114,6 +117,26 @@ public:
                 juce::String::fromUTF8(logging_result.error().message.c_str()));
         }
 
+        // The built-in themes are required product content: without one the editor has no string
+        // colors to draw with, so a broken install says so and quits instead of opening.
+        std::expected<
+            rock_hero::common::ui::HighwayThemeRegistry,
+            rock_hero::common::ui::HighwayThemeError>
+            loaded_themes = rock_hero::editor::ui::loadInstalledHighwayThemes();
+        if (!loaded_themes.has_value())
+        {
+            RH_LOG_ERROR("editor.app", "{}", loaded_themes.error().message);
+            juce::NativeMessageBox::showAsync(
+                juce::MessageBoxOptions::makeOptionsOk(
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Rock Hero Editor cannot start",
+                    juce::String::fromUTF8(loaded_themes.error().message.c_str())),
+                [](int) { juce::JUCEApplicationBase::quit(); });
+            return;
+        }
+        const rock_hero::common::ui::HighwayThemeRegistry& highway_themes =
+            m_highway_themes.emplace(std::move(*loaded_themes));
+
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
         m_editor_task_runner = std::make_unique<rock_hero::editor::core::JuceEditorTaskRunner>();
@@ -136,6 +159,7 @@ public:
                 .message_thread_scheduler = *m_message_thread_scheduler,
                 .audio_config_store = *m_audio_config_store,
                 .live_input_monitor = *m_live_input_monitor,
+                .highway_theme = highway_themes.defaultTheme(),
             },
             &juce::JUCEApplicationBase::quit);
 
@@ -155,6 +179,7 @@ public:
         m_editor_task_runner.reset();
         m_editor_settings.reset();
         m_audio_engine.reset();
+        m_highway_themes.reset();
 
         // Plugin-scan child processes return from initialise before installing logging, so only
         // tear it down when this instance actually started it.
@@ -188,6 +213,10 @@ private:
 
     // Owns app-local editor settings persistence used by controller restore policy.
     std::unique_ptr<rock_hero::editor::core::EditorSettings> m_editor_settings;
+
+    // Every highway theme that loaded; the editor draws with the default one, so the registry is
+    // released after the window that holds that theme by reference.
+    std::optional<rock_hero::common::ui::HighwayThemeRegistry> m_highway_themes;
 
     // Owns the audio-config store both products share. Released after the monitor and editor that
     // read through it.

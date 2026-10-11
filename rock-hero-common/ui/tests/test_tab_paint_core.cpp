@@ -20,6 +20,7 @@
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/testing/view_state_fixtures.h>
@@ -27,6 +28,7 @@
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
+#include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <span>
 #include <string>
 #include <tuple>
@@ -266,7 +268,7 @@ constexpr int g_digit_window = 4;
         },
         common::core::displayedStringCount(string_count, 0),
         string_count,
-        charterClassicPalette(),
+        testing::fixtureStringColors(),
         TabLaneStyle{});
 }
 
@@ -432,7 +434,7 @@ constexpr int g_digit_window = 4;
         },
         6,
         6,
-        charterClassicPalette());
+        testing::fixtureStringColors());
 }
 
 // A one-figure fret-hand chip's box in that lane, whose width is a blank span chip's.
@@ -1055,7 +1057,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        charterClassicPalette());
+        testing::fixtureStringColors());
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
@@ -1218,7 +1220,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        charterClassicPalette());
+        testing::fixtureStringColors());
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
@@ -1343,7 +1345,7 @@ TEST_CASE("Tab FHP chip keeps the chip size at every lane size", "[ui][tab-paint
             },
             6,
             6,
-            charterClassicPalette());
+            testing::fixtureStringColors());
         return tabFhpChipBounds(
             metrics, common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 6}, 0.0f);
     };
@@ -1369,7 +1371,7 @@ TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
         },
         6,
         6,
-        charterClassicPalette());
+        testing::fixtureStringColors());
     const auto chip_ground = [&metrics](const common::core::FhpAuthored authored) {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 200, 120, true)};
@@ -1578,7 +1580,7 @@ TEST_CASE("Tab paint core parts abutting spans' rails by a pixel", "[ui][tab-pai
         },
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        charterClassicPalette());
+        testing::fixtureStringColors());
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     {
         juce::Graphics graphics{image};
@@ -1732,7 +1734,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        charterClassicPalette());
+        testing::fixtureStringColors());
     // Six lanes in 240 px put note_height at its 25 px ceiling, so the head is 26 px and every
     // onset lands on a whole pixel: 20 px per second puts the string-3 heads at x = 80, 160, 240
     // and 320, and the two-digit pair on string 5 at 80 and 160. Whole-pixel centers matter — the
@@ -1947,7 +1949,7 @@ TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        charterClassicPalette());
+        testing::fixtureStringColors());
     REQUIRE_THAT(metrics.note_height, Catch::Matchers::WithinULP(25.0f, 0));
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
@@ -1981,8 +1983,10 @@ TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui
 TEST_CASE("The plectrum table matches the shipped pick-slide art", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const juce::File art = juce::File{ROCK_HERO_TEXTURES_DIR}.getChildFile(
-        std::string{common::core::highwayTextureFileName(common::core::HighwayTexture::Notes)});
+    const juce::File art = common::core::juceFileFromPath(testing::defaultThemeDirectory())
+                               .getChildFile(
+                                   std::string{common::core::highwayTextureFileName(
+                                       common::core::HighwayTexture::Notes)});
     REQUIRE(art.existsAsFile());
     juce::MemoryBlock bytes;
     REQUIRE(art.loadFileAsData(bytes));
@@ -2170,7 +2174,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
             visible_timeline,
             common::core::displayedStringCount(state.stringCount(), 0),
             state.stringCount(),
-            charterClassicPalette());
+            testing::fixtureStringColors());
         REQUIRE(metrics.draw_text);
         juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
@@ -2297,7 +2301,7 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        charterClassicPalette());
+        testing::fixtureStringColors());
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
@@ -2379,7 +2383,7 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        charterClassicPalette());
+        testing::fixtureStringColors());
     indexVisibleRanges(state);
 
     const juce::Image whole{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
@@ -3800,7 +3804,7 @@ TEST_CASE("Tab paint core keeps a ring's dots out of the head it ends on", "[ui]
         },
         6,
         6,
-        charterClassicPalette(),
+        testing::fixtureStringColors(),
         TabLaneStyle{});
     REQUIRE(lane.draw_text);
 
@@ -3852,7 +3856,7 @@ TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][ta
             },
             6,
             6,
-            charterClassicPalette(),
+            testing::fixtureStringColors(),
             TabLaneStyle{});
         REQUIRE(metrics.draw_text);
         TabLaneMetrics textless = metrics;

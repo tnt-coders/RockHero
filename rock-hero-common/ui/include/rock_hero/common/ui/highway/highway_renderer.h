@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/ui/highway_theme/highway_texture_set.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <span>
@@ -44,24 +45,13 @@ renderer itself never touches the filesystem.
 using HighwayShaderSet =
     std::array<HighwayShaderPair, common::core::g_highway_shader_programs.size()>;
 
-/*!
-\brief Texture assets the highway renderer uploads at creation.
-
-Indexed by common::core::indexOf(HighwayTexture), which carries the per-asset documentation and the
-file name each asset deploys as. Every entry is REQUIRED product content: empty or undecodable
-bytes fail create with a typed error, because a missing texture means a broken install, not a
-degradable state; a silent fallback would mask that failure.
-*/
-using HighwayTextureSet =
-    std::array<std::vector<std::byte>, common::core::g_highway_textures.size()>;
-
 /*! \brief Stable reasons the highway renderer can fail to come up. */
 enum class HighwayRendererErrorCode : std::uint8_t
 {
     /*! \brief bgfx rejected a shader binary or failed to link a program. */
     ProgramCreationFailed,
 
-    /*! \brief A required texture asset was missing, undecodable, or the wrong shape. */
+    /*! \brief A texture asset breaks the texture contract, or bgfx could not upload it. */
     TextureAssetInvalid,
 };
 
@@ -116,8 +106,8 @@ public:
     \brief Links the shader programs and uploads the highway atlases and textures.
 
     \param shaders Compiled stage binaries for the highway programs.
-    \param textures Texture assets; every member is required, and a missing or invalid one
-           fails creation with TextureAssetInvalid.
+    \param textures The theme's art; a set that breaks the texture contract, which the theme
+           loader already enforces, fails creation with TextureAssetInvalid naming the asset.
     \param theme Colors the board draws with until \ref setTheme replaces them.
     \param palette String colors every per-string surface derives from.
     \return The renderer, or a typed error naming the failed program or invalid texture

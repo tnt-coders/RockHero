@@ -1,0 +1,30 @@
+{
+  "name": "Ice",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#243480",
+    "attack_line": "#F1F5FF",
+    "lit_lane": "#5978FF49",
+    "lit_lane_dotted": "#2F3F8649",
+    "lane_border": "#6C7EB4",
+    "fret_line": "#1D1E22",
+    "fret_line_lit": "#F1F5FF",
+    "fret_number_lit": "#ADBFF6",
+    "fret_number_dim": "#6C7EB480",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#F1F5FF",
+    "strike_picking": "#9CA4BB",
+    "chord_box": "#9CA4BB",
+    "chord_box_dark": "#0C1331",
+    "pick_furniture": "#F1F5FF",
+    "full_mute_mark": "#F1F5FF",
+    "arpeggio": "#E068D8",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#C6CDE2",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#8691B2E6",
+    "label_text": "#F1F5FF",
+    "strings": ["#E03CFF", "#89F44E", "#FF993E", "#60BBFF",
+                "#FCE307", "#FC1B00", "#00C1AC", "#C1C1C1"]
+  }
+}

@@ -18,8 +18,7 @@ class Image;
 namespace rock_hero::common::ui
 {
 
-/*! \brief Why a structural-art measurement failed; the renderer reports it as an invalid
-    asset. */
+/*! \brief Why a structural-art measurement failed; the texture contract reports the asset. */
 enum class StructuralArtError : std::uint8_t
 {
     /*! \brief The bytes are empty or do not decode as an image. */

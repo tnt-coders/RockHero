@@ -25,6 +25,7 @@
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
 #include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
@@ -512,6 +513,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
             .message_thread_scheduler = message_thread_scheduler,
             .audio_config_store = audio_config_store,
             .live_input_monitor = live_input_monitor,
+            .highway_theme = common::ui::testing::fixtureLoadedHighwayTheme(),
         },
         [] {}
     };
