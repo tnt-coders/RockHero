@@ -32,7 +32,27 @@ Signed 2026-09-24: **P5**, the harmonic verbs `H` and `Shift+H` with the node pi
 2026-09-18 for more work; its keymap rows are no longer provisional), **#301 P10**'s three feel
 questions, and **#270**'s batch remainder, #112's chip yield included.
 
-The queue is empty apart from #298's end-to-end marker grammar pass (release plan, Phase 6).
+The queue is empty apart from #298's end-to-end marker grammar pass (release plan, Phase 6) and
+the highway theming sightings below.
+
+**Plan 54 (highway theming), owed by the user, in this order:**
+
+1. **Phase 1b, the first look at the ice-blue default** (landed `b6fb1134`), in motion in the game
+   and the editor preview. Ask Claude first to build the comparison aids, which are throwaway and
+   never committed: a key cycling the other accents and the inlay opacity live, and two variant
+   builds. Decide:
+   - whether ice blue reads too close to today's look, beside the other accents;
+   - the inlay opacity: `inlay_tint` alpha `0xE6` (the mock) or `0xFF` (opaque);
+   - 54-Q20, the far lane lines at today's 1/8 tier or at 1/16 (variant build);
+   - 54-Q21, keep or drop the anticipation ring, its variant build beside the normal one. The
+     ring is now a flat bright band; if it reads too hot, that is a one-value rebake.
+
+   Expected and not defects: today's marks and repeat X, today's chord-box holders (Phase 4a), the
+   2D lane's Charter shape blue and purple (Phase 4b).
+2. **Phase 4a, the box chord device and the open-note posts**, once built: settle the device in
+   motion; losing prototypes are deleted before commit.
+3. **Phase 3, once Phase 2a lands**: the private Classic theme A/B against a build of the commit
+   before `b6fb1134`, and the garish coverage fixture selected once in both products.
 
 Found at the 2026-09-24 sighting: a PALM-MUTED PINCH harmonic drew its pinch mark over the palm
 mute in 3D (fixed the same day: the mute rungs sit at the top of the head-mark ladder); its 2D
