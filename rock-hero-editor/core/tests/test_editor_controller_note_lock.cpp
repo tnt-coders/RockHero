@@ -131,7 +131,7 @@ struct DenseNoteLockEditor : SongEditorHarness
 struct TypedTempo
 {
     common::core::GridPosition span;
-    const char* bpm;
+    const char* bpm{};
 };
 
 constexpr std::array<TypedTempo, 8> g_typed_tempos{{
