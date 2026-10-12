@@ -36,30 +36,6 @@ enum class RenderBackend : std::uint8_t
 */
 [[nodiscard]] RenderBackend defaultRenderBackend() noexcept;
 
-/*!
-\brief Backbuffer multisample anti-aliasing levels.
-
-bgfx clamps a requested level to the nearest one the device supports, so these are requests, not
-guarantees — though every Direct3D 11 device guarantees 4x for the backbuffer format.
-*/
-enum class RenderMsaa : std::uint8_t
-{
-    /*! \brief No multisampling; edges alias. */
-    None,
-
-    /*! \brief 2x multisampling. */
-    X2,
-
-    /*! \brief 4x multisampling — the default request. */
-    X4,
-
-    /*! \brief 8x multisampling. */
-    X8,
-
-    /*! \brief 16x multisampling. */
-    X16,
-};
-
 /*! \brief Stable reasons a render device can fail to come up. */
 enum class RenderDeviceErrorCode : std::uint8_t
 {
@@ -105,14 +81,6 @@ struct RenderDeviceConfig
     bool vsync = true;
 
     /*!
-    \brief Backbuffer multisample level.
-
-    The highway scene is thin-line-heavy (fret lines, strings, lane ribbons), so its edges alias
-    visibly without multisampling; 4x is the request every consumer inherits by default.
-    */
-    RenderMsaa msaa = RenderMsaa::X4;
-
-    /*!
     \brief True enables bgfx's debug checks and the D3D11 SDK debug layers when present.
 
     Wired to the dev-diagnostics runtime flag; bgfx degrades gracefully when the debug layers are
@@ -130,6 +98,12 @@ bgfx's single-threaded mode (render-frame-before-init), making the calling threa
 render thread. Under loop model L2 that is the main thread. bgfx's native render-thread split is
 the recorded escalation if a heavy scene ever strains the message thread; until then this is the
 settled mode.
+
+The device owns view 0 alone: each frame it clears the window there, which is what shows when no
+scene renderer drew. Scene renderers use the views after it. The backbuffer never multisamples: a
+scene renderer draws into its own multisampled target and presents the resolved image to the
+window (the highway renderer's scene target), where a multisampled backbuffer would only multiply
+the present's cost.
 */
 class RenderDevice
 {
@@ -137,7 +111,7 @@ public:
     /*!
     \brief Initializes bgfx single-threaded for the configured backend and window.
 
-    \param config Backend, target window, initial size, pacing, and anti-aliasing policy.
+    \param config Backend, target window, initial size, pacing, and diagnostics.
     \return The initialized device, or a typed error when bgfx refuses to come up.
     */
     [[nodiscard]] static std::expected<RenderDevice, RenderDeviceError> create(
@@ -161,6 +135,11 @@ public:
 
     Call with sizes from the window's pixel-size query (never window coordinates); the window
     itself is resized by the windowing system, this only follows with the backbuffer.
+
+    Never call this between a scene renderer's draw and \ref submitFrame: a resize detaches every
+    view from the frame buffer it renders into (bgfx's reset rebinds them all to the backbuffer),
+    so a frame encoded before it would render its scene straight to the window. Both hosts resize
+    from their input or window callbacks, never inside a frame.
 
     \param width New backbuffer width in pixels.
     \param height New backbuffer height in pixels.

@@ -89,6 +89,10 @@ roles rather than inside `HighwayTheme`.
   tiers derive from it.
 - **`head_shape` and `inlay`** are library ids at the top level, since they are not colors; they
   arrive with Phase 5.
+- **`look`** (optional) is the theme's render look, `{"style": "plain"}` or
+  `{"style": "pixel", "scale": 2-8, "scanlines": 0-1}`, `{"style": "dither", "scale": 1-8}` or
+  `{"style": "halftone", "cell": 4-16}`; left out, it is the base's or plain, and
+  stated, it replaces the base's whole (`docs/plans/in-progress/highway-render-looks.md`).
 - **Strict:** an unknown key or role, bad hex, or a `strings` array of the wrong length rejects
   the file. The guardrails run on the resolved theme. No version field; formats change in place.
 

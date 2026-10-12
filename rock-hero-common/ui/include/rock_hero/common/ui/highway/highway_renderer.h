@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/ui/highway_theme/highway_render_look.h>
 #include <rock_hero/common/ui/highway_theme/highway_texture_set.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
@@ -114,12 +115,14 @@ public:
            TextureAssetInvalid. Read only during the call.
     \param theme Colors the board draws with until \ref setTheme replaces them.
     \param palette String colors every per-string surface derives from.
+    \param look How the finished frame is presented until \ref setTheme replaces it.
     \return The renderer, or a typed error naming the failed program or invalid texture
             asset.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
         const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
-        std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette);
+        std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette,
+        HighwayRenderLook look);
 
     /*! \brief Destroys every owned GPU resource; must run before bgfx shutdown. */
     ~HighwayRenderer();
@@ -184,18 +187,25 @@ public:
     void setDisplayOptions(common::core::HighwayDisplayOptions options);
 
     /*!
-    \brief Replaces the colors the board draws with, from the next frame.
+    \brief Replaces everything a theme states but its art, from the next frame: the colors the
+    board draws with and the render look the frame is presented through.
 
-    Changes no geometry or texture, so a look that differs only in color never recreates the
-    renderer; a changed palette rebuilds only the retained string lines.
+    Changes no geometry or texture, so a theme that differs only in these never recreates the
+    renderer; a changed palette rebuilds only the retained string lines, and a changed look refits
+    the off-screen scene target on the next frame.
 
     \param theme Colors to draw with.
     \param palette String colors every per-string surface derives from.
+    \param look How the finished frame is presented.
     */
-    void setTheme(HighwayTheme theme, StringColorPalette palette);
+    void setTheme(HighwayTheme theme, StringColorPalette palette, HighwayRenderLook look);
 
     /*!
     \brief Encodes one frame of the highway into the render views.
+
+    The scene renders into the renderer's own off-screen target, which follows the backbuffer's
+    size, and one present pass copies it to the window. Submit the frame (RenderDevice::submitFrame)
+    with no device resize in between: a resize detaches the views from that target.
 
     \param now_seconds Playback song time for this frame (from the consumer's clock port).
     \param dt_seconds Frame delta in seconds driving camera smoothing.
@@ -208,7 +218,7 @@ public:
     \brief Encodes screen-space rectangles onto the overlay view (diagnostics panels).
 
     Call after \ref draw within the same frame; the rectangles composite over the scene in list
-    order with alpha blending.
+    order with alpha blending. They draw after the present, at the window's own resolution.
 
     \param rects Rectangles in pixel coordinates.
     \param width Backbuffer width in pixels.

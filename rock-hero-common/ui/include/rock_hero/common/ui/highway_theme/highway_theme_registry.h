@@ -49,7 +49,7 @@ enum class HighwayThemeErrorCode : std::uint8_t
 
     /*!
     \brief The file leaves out `name`, or a theme that inherits nothing leaves out `colors`, a color
-    role or `strings`.
+    role or `strings`, or `look` leaves out a key its style requires.
     */
     MissingKey,
 
@@ -73,6 +73,9 @@ enum class HighwayThemeErrorCode : std::uint8_t
 
     /*! \brief The colors collapse a distinction the notation reads by color alone. */
     GuardrailViolated,
+
+    /*! \brief `look` names no style, or a parameter is the wrong type or outside its range. */
+    InvalidLook,
 };
 
 /*! \brief Typed failure of one theme directory or of the built-in set, naming what failed. */

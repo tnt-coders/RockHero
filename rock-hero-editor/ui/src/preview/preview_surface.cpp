@@ -156,7 +156,6 @@ void PreviewSurface::attach()
                 .width = size.width,
                 .height = size.height,
                 .vsync = true,
-                .msaa = common::ui::RenderMsaa::X4,
                 .debug = false,
             });
     if (!device.has_value())
@@ -203,7 +202,7 @@ bool PreviewSurface::bringUpRenderer()
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
-            *shaders, m_theme->textures, *marks, m_theme->colors, m_palette);
+            *shaders, m_theme->textures, *marks, m_theme->colors, m_palette, m_theme->look);
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);
@@ -278,7 +277,7 @@ void PreviewSurface::setLook(
     }
     if (same_art)
     {
-        m_renderer->setTheme(m_theme->colors, m_palette);
+        m_renderer->setTheme(m_theme->colors, m_palette, m_theme->look);
         return;
     }
     // Released first so the failure mode is the black fallback, never the old art under new

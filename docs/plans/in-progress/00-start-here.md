@@ -38,7 +38,7 @@ the highway theming sightings below.
 **Plan 54 (highway theming), owed by the user, in this order** (first do plan 70's file moves
 below, or both apps start without calibration, keymap and plugin list). Every comparison is a
 user theme picked from the editor's View > Highway Theme; the game draws the last pick at launch.
-Delete the `sight-*` and `pair-*` folders in `%APPDATA%\Rock Hero\themes\` after ruling.
+Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\themes\` after ruling.
 
 1. **Ice's chord and arpeggio colors: RULED 2026-10-12** — chord `#5CD3F5` ice cyan, arpeggio
    `#A361FF` balanced vivid purple. Still to watch in motion: a tapped chord, whose color is
@@ -50,8 +50,13 @@ Delete the `sight-*` and `pair-*` folders in `%APPDATA%\Rock Hero\themes\` after
 3. **The box chord device and the color model in motion** (posts and fill ruled 2026-10-11):
    arpeggio boxes now wear the arpeggio color; held-shape rails wear the chord color; tapped
    chords wear the paled chord color (watch item: can the hands, and a tapped chord vs a tapped
-   arpeggio, be told apart?). Expected, not defects: today's marks and repeat X, the 2D lane's
-   Charter shape blue and purple (Phase 4b).
+   arpeggio, be told apart?). Every chord box, two-note ones included, now closes with its top
+   bar (`0289989e`); only the repeat box differs, at half height. Expected, not defects: today's
+   marks and repeat X.
+   **Phase 4b, in the 2D lane:** the chord and arpeggio span rails and the ruler's span chips now
+   wear inks derived from the theme's `chord`/`arpeggio` (`2c0fa04d`; ice draws a deep teal
+   `#358196` and a purple `#9257E6`, white chip labels at 4.45:1). The mark sheet split
+   (`3e5cc80d`) is zero visual change by construction; confirm the marks still draw.
 4. **The head fade (ruled 2026-10-11/12):** a head fades with its tail at the tail's rate; a note
    with no drawn tail fades from the strike within 0.25 s (or its own length); a held head ends
    its fade exactly as its hold releases; an exactly abutting repeat on the same stop keeps the
@@ -64,8 +69,15 @@ Delete the `sight-*` and `pair-*` folders in `%APPDATA%\Rock Hero\themes\` after
    bracket-less panel would read as a chord box); confirm, or hide only the brackets.
 7. **Phase 3:** pick "Classic" from View > Highway Theme and A/B it against a build of the commit
    before `b6fb1134`. Accepted differences: the code-drawn chord device and posts, and the color
-   model (its rails now wear its box teal, its tapped chords a pale mint). Then the garish
-   coverage fixture once in both products.
+   model (its rails now wear its box teal, its tapped chords a pale mint). Its local `notes.png`
+   was re-cut to the heads-only 256×128 sheet the split requires (the 256×320 original is backed
+   up in `C:/__MAIN__/Coding/__scratch__/theming/classic-backup/`). Then the garish coverage
+   fixture once in both products.
+8. **The eight "Theme: …" whole-palette candidates** (Retro Arcade, Night Drive, Phosphor, Ember,
+   Smoked Glass, Abyss, Pastel Dusk, Steel), for options beyond ice. Watch: Retro Arcade's beat
+   bars against the blue string's notes; Phosphor's green chord frame against its green lit
+   lanes; Pastel Dusk's two tapping-hand rails. A lower-resolution arcade look is a separate,
+   deferred plan (`docs/plans/in-progress/highway-render-looks.md`).
 
 **Plan 70 Phase 3 (per-user data), owed by the user BEFORE the next run of either app**, all inside
 `%APPDATA%\Rock Hero\` (the apps now write only the new tree, so until this is done they start

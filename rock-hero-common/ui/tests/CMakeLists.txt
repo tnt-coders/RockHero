@@ -41,6 +41,7 @@ add_executable(
     test_highway_floor_geometry.cpp
     test_highway_head_marks.cpp
     test_highway_renderer_smoke.cpp
+    test_highway_scene_target.cpp
     test_highway_slide_path.cpp
     test_highway_texture_contract.cpp
     test_highway_theme_derived_colors.cpp

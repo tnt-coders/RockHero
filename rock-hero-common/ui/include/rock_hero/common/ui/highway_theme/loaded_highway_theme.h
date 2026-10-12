@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <rock_hero/common/ui/highway_theme/highway_render_look.h>
 #include <rock_hero/common/ui/highway_theme/highway_texture_set.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
@@ -58,6 +59,9 @@ struct LoadedHighwayTheme
 
     /*! \brief The theme's art, satisfying the texture contract. */
     HighwayTextureSet textures;
+
+    /*! \brief How the theme's finished frame is presented: its own look, else its base's. */
+    HighwayRenderLook look;
 };
 
 } // namespace rock_hero::common::ui

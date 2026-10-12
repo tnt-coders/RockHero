@@ -1,9 +1,10 @@
 # Highway Render Looks — a theme-chosen whole-view drawing style
 
 *Opened 2026-10-12 at the user's request ("make the retro arcade style draw so it looks much lower
-resolution? Or make a theme that draws sort of cartoony?"). Deferred: it follows plan 54's release
-gate (Phases 1-5) and is not part of it. Re-verify every code claim below against the current
-renderer before executing; line-level facts here were checked only at the time of writing.*
+resolution? Or make a theme that draws sort of cartoony?"). It follows plan 54's release gate
+(Phases 1-5) and is not part of it. Phases 1-2 were taken up the same day so the user can sight
+the pixel look on Retro Arcade; their settled shape is under "Decisions" below, and the sections
+before it are the original sketch.*
 
 ## The idea
 
@@ -77,9 +78,51 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
 4. **Accessibility and preference.** A look is a theme's choice, but a player may want a theme's
    colors without its look. Decide whether the look joins plan 54's pinnable theme choices (pin
    "no look") or stays bound to the theme.
-5. **Format.** A probable shape, to settle when executing:
-   `"look": { "style": "pixel", "scale": 3, "levels": 0, "scanline": 0.25 }` — strict loading,
-   unknown style or out-of-range parameter refused, absent block = the plain copy.
+5. **Format.** Settled for `scale` and `scanlines` (see "Decisions"); `levels` arrives with
+   quantization, if it does.
+
+## Decisions (2026-10-12, Phases 1-2)
+
+- **One path, always off-screen.** Every theme renders its scene into the renderer's own target
+  (`HighwaySceneTarget`, `common/ui` `highway/highway_scene_target.h`) and one present pass
+  (`vs_present`/`fs_present`) copies it to the window; there is no direct-to-backbuffer path for
+  the plain look. The target is refitted lazily in `draw` only when its size or sampling changes,
+  so creation, a window resize and a change of look are one code path.
+- **MSAA moved out of `RenderDevice`.** `RenderMsaa` and `RenderDeviceConfig::msaa` are deleted;
+  the backbuffer never multisamples. The plain look's target is RGBA8 with 4x MSAA and D24S8 depth
+  — the backbuffer's own format, sample count and depth — resolved by bgfx when the frame leaves
+  the target, and the present fetches texels by index (`texelFetch` at
+  `floor(gl_FragCoord / scale)`), so the plain copy is exact and needs no per-backend flip. The
+  pixel look renders with no MSAA: hard virtual pixels are the point.
+- **Views.** 0 is `RenderDevice`'s (it clears the window and is never re-targeted); 1 background
+  and 2 board render into the target; 3 the present and 4 the overlay draw to the backbuffer, so
+  the diagnostics overlay stays at full resolution and aligned with the debug text under any
+  look. A device resize unbinds every view's frame buffer, so the views re-bind each frame and a
+  host never resizes between `draw` and `submitFrame`.
+- **The render look** (C++ "render look", to keep it apart from the editor's existing `setLook`,
+  which delivers a theme and palette) is `HighwayRenderLook = std::variant<HighwayPlainLook,
+  HighwayPixelLook>` on `LoadedHighwayTheme`; `HighwayRenderer::create` and `setTheme` carry it.
+- **Format.** `"look": { "style": "pixel", "scale": 3, "scanlines": 0.25 }`. `style` is required,
+  `"plain"` or `"pixel"`; `plain` takes no other key; `pixel` requires `scale`, a whole number
+  2-8 (1 would be the plain look with its anti-aliasing silently dropped; 8 is a sanity cap to
+  tighten after sighting), and takes `scanlines`, 0 to 1, default 0, which darkens every other
+  VIRTUAL row. Unknown keys refuse as `UnknownKey`, a missing `style` or `scale` as `MissingKey`,
+  everything else as the new `InvalidLook`. Absent means the base's look, or plain without a
+  base; a stated block replaces the base's whole, as `strings` does.
+- **No palette quantization yet**, so the guardrail change (open problem 2) waits for it.
+  Scanlines need none: they scale every color on alternate rows by one factor and leave the other
+  rows at exactly the approved colors, so they cannot map two approved colors to one.
+- **Two more styles, `dither` and `halftone` (same day, at the user's request).** Each is its own
+  present program (`present_dither`, `present_halftone`) chosen per frame, never a uniform branch
+  inside one shader. `{"style": "dither", "scale": 1-8}` (default 1) renders like the pixel look
+  and ordered-dithers each virtual pixel (4x4 Bayer) to the nearest color of a palette made only of
+  the theme's own colors — every role and string color with alpha dropped, plus black and white
+  (`makeHighwayDitherPalette`) — so it needs no guardrail change. `{"style": "halftone",
+  "cell": 4-16}` (default 8) renders the full multisampled scene and prints it as a 45-degree dot
+  screen over the theme's backdrop, each dot's area following its cell's luminance, with
+  near-black ink outlines from a Sobel edge on the full-resolution luminance.
+- **Scale range and text.** Text legibility is not solved this round: fret numbers pixelate with
+  everything else, and the sighting judges scales 2, 3 and 4.
 
 ## Phases
 

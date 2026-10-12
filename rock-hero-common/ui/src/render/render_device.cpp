@@ -13,12 +13,13 @@ namespace
 {
 
 // Neutral dark clear color (0xRRGGBBAA) so the window reads as an intentional surface even when
-// no scene renderer encoded content this frame; the highway's own views draw over it.
+// no scene renderer encoded content this frame; a scene's present covers it.
 constexpr std::uint32_t g_clear_color = 0x1a1a22ff;
 
-// The one view id the cleared frame touches. Shared with the highway renderer's background view
-// (its g_background_view): when a scene draws, the renderer's per-frame setViewClear overrides
-// this backstop color, and the touch here only keeps presentation alive when no renderer exists.
+// The device's own view, the first to execute: it clears the window every frame, so presentation
+// stays alive when no renderer exists. Scene renderers use the later views and never reconfigure
+// this one, so it always targets the backbuffer, even after a renderer whose views rendered
+// off-screen is gone.
 constexpr bgfx::ViewId g_default_view = 0;
 
 // Platform table mapping project backends to bgfx renderer types. Deliberately pinned rather
@@ -39,36 +40,6 @@ constexpr bgfx::ViewId g_default_view = 0;
         }
     }
     return bgfx::RendererType::Noop;
-}
-
-// Reset-flag table for the multisample levels. Reset flags are absolute state, so the chosen
-// flag folds into the stored set and rides along every bgfx::reset.
-[[nodiscard]] constexpr std::uint32_t toBgfxMsaaFlags(const RenderMsaa msaa) noexcept
-{
-    switch (msaa)
-    {
-        case RenderMsaa::None:
-        {
-            return BGFX_RESET_NONE;
-        }
-        case RenderMsaa::X2:
-        {
-            return BGFX_RESET_MSAA_X2;
-        }
-        case RenderMsaa::X4:
-        {
-            return BGFX_RESET_MSAA_X4;
-        }
-        case RenderMsaa::X8:
-        {
-            return BGFX_RESET_MSAA_X8;
-        }
-        case RenderMsaa::X16:
-        {
-            return BGFX_RESET_MSAA_X16;
-        }
-    }
-    return BGFX_RESET_NONE;
 }
 
 } // namespace
@@ -109,8 +80,7 @@ std::expected<RenderDevice, RenderDeviceError> RenderDevice::create(
         return std::unexpected{RenderDeviceError{RenderDeviceErrorCode::MissingNativeWindowHandle}};
     }
 
-    const std::uint32_t reset_flags =
-        (config.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE) | toBgfxMsaaFlags(config.msaa);
+    const std::uint32_t reset_flags = config.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
 
     bgfx::renderFrame();
 
