@@ -178,10 +178,10 @@ alone reads 3.9 tx at 15% coverage and 1.82 tx at 50%.
 | `node_half_span_texels` / `node_center_*` | the diamond's edge line `\|x\| + \|y\|` | the diamond is measured rather than derived from the signed construction; the art's edge line holds to 0.0000 tx across all 88 edge samples |
 
 Texels reach world through `headArtTexelWidth` / `headArtTexelHeight` (`highway_renderer.cpp`), each
-`(2 × the head's world half extent) / (cell_size − 1)`. The `− 1` is load-bearing:
-`HighwayAtlasLayout::cellRect` insets each cell's UV rect by half a texel per side, so the head
-quad's corners sample texel CENTRES 0.5 and 63.5 — **63** texels of range, not 64. One conversion in
-one place, per axis, and the head's world size read from the metrics rather than from a literal.
+`(2 × the head's world half extent) / cell_size`: `HighwayAtlasLayout::cellRect` maps the quad's
+corners to the cell's edges (the transparent gutter around each cell, not a half-texel inset, is
+what keeps a neighbour out), so the quad spans all 64 texels. One conversion in one place, per axis,
+and the head's world size read from the metrics rather than from a literal.
 
 Two further facts worth keeping. The rectangular corners are **neither circular nor chamfered**, per
 the fringe construction above. And the rhombus branch is **exact, not approximate, for this cell**:

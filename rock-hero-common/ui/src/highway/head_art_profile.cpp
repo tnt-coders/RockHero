@@ -254,9 +254,10 @@ std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(const ju
             .size = cell_size,
         };
     };
-    // The drawn quad samples texel centres 0.5 .. size - 0.5 (cellRect insets each cell's UVs by
-    // half a texel), so its centre sits at index (size - 1) / 2 and every offset below is
-    // relative to that, +x right and +y up (image rows grow down, hence the y negation).
+    // The drawn quad spans the cell's texels 0 .. size (cellRect maps its corners to the cell's
+    // edges) and texel index i is centred at i + 0.5, so the quad's centre sits at index
+    // (size - 1) / 2 and every offset below is relative to that, +x right and +y up (image rows
+    // grow down, hence the y negation).
     const double quad_center = (static_cast<double>(cell_size) - 1.0) / 2.0;
 
     const CellView standard = cell_view(g_head_cell_standard);

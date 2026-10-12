@@ -162,15 +162,11 @@ carries that error into every consumer.
 */
 
 /*
-World size of one drawn texel of a head cell, per axis.
-
-Divided by cell_size - 1, not cell_size, and that is the whole point of routing this through a
-function. The head quad spans `2 * note_half_width` of world, but HighwayAtlasLayout::cellRect
-insets each cell's UV rect by half a texel on every side (to stop neighbouring cells bleeding
-under minification), so the quad's corners sample texel CENTRES 0.5 and cell_size - 0.5 — one
-texel less than the cell's own span. The divisor reads the LOADED layout rather than a 64
-literal, so a rebake at a different cell size rescales the light with the art instead of
-silently mis-sizing every glow, and the head's world size still lives in exactly one place.
+World size of one drawn texel of a head cell, per axis: the head quad spans `2 * note_half_width`
+of world over the cell's cell_size texels (HighwayAtlasLayout::cellRect maps the quad's corners
+to the cell's edges). The divisor reads the LOADED layout rather than a 64 literal, so a rebake at
+a different cell size rescales the light with the art instead of silently mis-sizing every glow,
+and the head's world size still lives in exactly one place.
 
 Two functions because the axes can differ: the width metric is its own quantity
 (highway_metrics.h), so a future width change squashes the rectangle head's drawn texels
@@ -181,13 +177,13 @@ draws.
 [[nodiscard]] double headArtTexelWidth(
     const common::core::HighwayMetrics& metrics, const HighwayAtlasLayout& layout)
 {
-    return (2.0 * metrics.note_half_width) / (static_cast<double>(layout.cell_size) - 1.0);
+    return (2.0 * metrics.note_half_width) / static_cast<double>(layout.cell_size);
 }
 
 [[nodiscard]] double headArtTexelHeight(
     const common::core::HighwayMetrics& metrics, const HighwayAtlasLayout& layout)
 {
-    return (2.0 * metrics.note_half_height) / (static_cast<double>(layout.cell_size) - 1.0);
+    return (2.0 * metrics.note_half_height) / static_cast<double>(layout.cell_size);
 }
 
 // How far the tap light leans the lit lane tint toward the theme's fret_number_target (the tap

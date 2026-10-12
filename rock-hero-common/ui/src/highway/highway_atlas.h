@@ -10,8 +10,10 @@
 #include <array>
 #include <bgfx/bgfx.h>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <span>
+#include <vector>
 
 namespace juce
 {
@@ -22,7 +24,31 @@ namespace rock_hero::common::ui
 {
 
 /*!
-\brief Pure grid layout of equal square cells inside a rectangular atlas texture.
+\brief Mip levels, past level 0, at which every atlas cell still samples only its own art.
+
+The far end of the board minifies a head about 8.6:1, between levels 3 and 4, so trilinear
+filtering never reads past level 4 there. Two layout rules hold through this level, both from one
+texel of level L covering 2^L texels of level 0: a gutter (\ref g_atlas_gutter_texels) keeps the
+cells apart, and every atlas edge is a multiple of 2^L (static_asserts beside each layout) so each
+level is the one above halved exactly and a normalized coordinate lands on the same art at every
+level. Deeper levels halve with a remainder and blend neighbours; a cell is under four texels wide
+there.
+*/
+inline constexpr int g_atlas_exact_mip_levels = 4;
+
+/*!
+\brief Transparent texels around every cell of the GPU atlases, on each side.
+
+A linear sample at a cell's edge reads up to 1.5 texels of its level beyond the edge, so two
+gutters keep cells apart through level L while 2g >= 1.5 * 2^L - 0.5: twelve texels for
+\ref g_atlas_exact_mip_levels. Sixteen is the smallest past that which also keeps the head atlas's
+edges multiples of 2^L (five rows of 64 + 2g).
+*/
+inline constexpr int g_atlas_gutter_texels = 16;
+
+/*!
+\brief Pure grid layout of equal square cells inside a rectangular atlas texture, each cell
+centered in a slot that adds a transparent gutter on every side.
 
 Kept free of any rasterization or bgfx state so the arithmetic is unit-testable headlessly. The
 cell counts are constexpr so a grid's capacity can be tied to whatever addresses it at compile
@@ -36,8 +62,20 @@ struct HighwayAtlasLayout
     /*! \brief Atlas texture height in texels. */
     int texture_height{0};
 
-    /*! \brief Cell edge length in texels. */
+    /*! \brief Cell edge length in texels, the art alone. */
     int cell_size{0};
+
+    /*! \brief Transparent texels around each cell on every side; 0 packs cells edge to edge. */
+    int gutter{0};
+
+    /*!
+    \brief Distance from one cell's slot to the next, the cell and both its gutters.
+    \return Slot edge length in texels.
+    */
+    [[nodiscard]] constexpr int pitch() const noexcept
+    {
+        return cell_size + (2 * gutter);
+    }
 
     /*!
     \brief Number of cells per row.
@@ -45,7 +83,7 @@ struct HighwayAtlasLayout
     */
     [[nodiscard]] constexpr int columns() const noexcept
     {
-        return cell_size > 0 ? texture_width / cell_size : 0;
+        return cell_size > 0 ? texture_width / pitch() : 0;
     }
 
     /*!
@@ -54,7 +92,7 @@ struct HighwayAtlasLayout
     */
     [[nodiscard]] constexpr int rows() const noexcept
     {
-        return cell_size > 0 ? texture_height / cell_size : 0;
+        return cell_size > 0 ? texture_height / pitch() : 0;
     }
 
     /*!
@@ -67,15 +105,22 @@ struct HighwayAtlasLayout
     }
 
     /*!
-    \brief Returns a cell's normalized texture rectangle.
+    \brief Returns a cell's normalized texture rectangle: its art alone, the gutter outside it.
 
-    The rectangle is inset by half a texel on every side so linear filtering never bleeds
-    neighboring cells into a quad's edge.
+    A quad mapped to the rectangle spans exactly cell_size texels per axis, and linear filtering
+    at its edge reads the gutter, which is transparent, never a neighbour.
 
     \param index Cell index in row-major order; out-of-range indices clamp to the last cell.
-    \return {u0, v0, u1, v1} normalized coordinates.
+    \return {u0, v0, u1, v1} normalized coordinates; all zero for an empty layout.
     */
     [[nodiscard]] std::array<float, 4> cellRect(int index) const noexcept;
+
+    /*!
+    \brief Returns the texel at a cell's top-left corner, inside its gutter.
+    \param index Cell index in row-major order; out-of-range indices clamp as cellRect() does.
+    \return {x, y} in texels; {0, 0} for an empty layout.
+    */
+    [[nodiscard]] std::array<int, 2> cellOrigin(int index) const noexcept;
 };
 
 /*!
@@ -297,6 +342,18 @@ static_assert(
     (g_head_sheet_rows + g_mark_sheet_rows) * g_head_atlas_columns == g_head_cell_count,
     "the composed head atlas must carry exactly the cells the vocabulary names");
 
+// The padded head atlas halves exactly through every level the gutters keep cells apart in.
+static_assert(
+    g_head_atlas_columns * (g_atlas_cell_texels + (2 * g_atlas_gutter_texels)) %
+            (1 << g_atlas_exact_mip_levels) ==
+        0,
+    "the head atlas width must be a multiple of 2^g_atlas_exact_mip_levels");
+static_assert(
+    (g_head_sheet_rows + g_mark_sheet_rows) * (g_atlas_cell_texels + (2 * g_atlas_gutter_texels)) %
+            (1 << g_atlas_exact_mip_levels) ==
+        0,
+    "the head atlas height must be a multiple of 2^g_atlas_exact_mip_levels");
+
 /*!
 \brief Stacks a theme's head sheet above the fixed mark sheet into the one head atlas.
 
@@ -314,13 +371,49 @@ exactly the decoded pixels of each file.
 [[nodiscard]] juce::Image composeHeadAtlas(const juce::Image& heads, const juce::Image& marks);
 
 /*!
-\brief Builds the highway atlases and uploads them as immutable bgfx textures.
+\brief Spreads a grid of cells packed edge to edge into slots with a gutter around each.
+
+Each cell's texels are copied byte for byte into its slot, and every gutter texel is zero:
+transparent, and zero coverage under the structural channel scheme.
+
+\param grid A non-null ARGB image of whole cells of \p cell_size texels, packed edge to edge.
+\param cell_size Cell edge length in texels.
+\param gutter Transparent texels around each cell on every side.
+\return An ARGB image of the same cells in the same order, each centered in a slot of
+        cell_size + 2 * gutter; a HighwayAtlasLayout with these three values describes it.
+*/
+[[nodiscard]] juce::Image padAtlasCells(const juce::Image& grid, int cell_size, int gutter);
+
+/*!
+\brief Packs an image and its full mip chain the way bgfx uploads them.
+
+Level 0 is the image's own texels in BGRA8 rows with no padding; each next level halves both
+edges, rounding down and never below 1, and averages the 2x2 texels it covers until a 1x1 level,
+which is the chain bgfx expects for a texture created with mips. Where a level's edge is odd, its
+last row or column has no texel of the next level; the atlases' edges keep that past
+\ref g_atlas_exact_mip_levels.
+
+The averaging rule is the structural channel scheme's, and both atlases meet its premise that B
+is coverage. B and A average plainly. R and G are straight weights the shader shows only where B
+covers, so they average weighted by B, which is exactly what the straight-alpha blend of the
+level-0 texels sums to; an uncovered texel's weight never bleeds into the covered edge beside it.
+The glyph atlas, white premultiplied text, has B equal to A and is read by alpha alone, so the
+rule is exact for it too.
+
+\param image A non-null ARGB image.
+\return Every level, tightly packed and consecutive, from level 0 down.
+*/
+[[nodiscard]] std::vector<std::uint8_t> atlasMipChain(const juce::Image& image);
+
+/*!
+\brief Builds the highway atlases and uploads them as immutable, mipmapped bgfx textures.
 
 The head atlas is the theme's head sheet composed over the fixed mark sheet
-(\ref composeHeadAtlas), uploaded verbatim when both decode; empty or undecodable bytes leave the
-heads handle invalid and the layout empty, which the renderer treats as a startup error — texture
-assets are required product content, never silently substituted. The glyph atlas is always
-runtime-rasterized (text, not an asset).
+(\ref composeHeadAtlas), spread into gutters (\ref padAtlasCells) and uploaded with its mip chain
+(\ref atlasMipChain); empty or undecodable bytes leave the heads handle invalid and the layout
+empty, which the renderer treats as a startup error — texture assets are required product content,
+never silently substituted. The glyph atlas is always runtime-rasterized (text, not an asset)
+straight into its gutters and uploaded the same way.
 
 Must be called after bgfx initialization and the results destroyed before shutdown (structural
 via the shell's declaration order).

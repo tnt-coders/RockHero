@@ -28,6 +28,17 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while mipmapping the head atlases (2026-10-12)
+
+- **The inlay texture still samples four texels at any distance.** `uploadPngTexture`
+  (`highway_atlas.cpp`) uploads the inlay dot without a mip chain, the one GPU-sampled highway
+  texture left that way, and `drawFretboardMarkers` keeps its own half-texel UV inset for it. It
+  cannot take `atlasMipChain` as is: the inlay is a real-alpha premultiplied PNG whose RGB the
+  `texture` program reads, so its chain needs a plain box on every channel, not the
+  coverage-weighted rule. It also lies flat on the board, where isotropic trilinear blurs along
+  the string axis at grazing angles — if it shimmers on sighting, the fix is a plain chain plus
+  `BGFX_SAMPLER_MIN_ANISOTROPIC` on that texture, judged together.
+
 ## Found by the render-look simplicity review (2026-10-12)
 
 - **Every present program carries a copy of the same vertex shader:** `vs_present_dither.sc`,

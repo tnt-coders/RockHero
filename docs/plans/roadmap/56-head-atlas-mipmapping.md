@@ -1,11 +1,61 @@
 # Plan 56 — Head-Atlas Mipmapping and Distance Legibility
 
-**Status**: Ready, ungated. Not started. Written 2026-08-06 while chasing "the pick slide icon is
-not visible enough at distance" and deliberately scoped OUT of that texture round, which touched
-only cell 9; promoted from `docs/plans/todo/` to the roadmap the same day on the user's decision
-that mipmapping is wanted. There is no decision gate, but there is one **sequencing constraint**:
-land this alongside mark-authoring work rather than before it — see the measured ratio result below,
-which is the one finding that cuts against shipping it in isolation.
+**Status**: **Landed 2026-10-12** (uncommitted at the time of writing; see "What landed" below for
+the shape, the measurements and what remains to sight). Written 2026-08-06 while chasing "the pick
+slide icon is not visible enough at distance" and deliberately scoped OUT of that texture round,
+which touched only cell 9; promoted from `docs/plans/todo/` to the roadmap the same day on the
+user's decision that mipmapping is wanted. The one **sequencing constraint** stands as a sighting
+question rather than a blocker: the measured ratio result below says a far mark reads relatively
+weaker against its own note once both are filtered correctly, so judge the marks' distance
+legibility on the mipmapped build, not the old one.
+
+## What landed
+
+- **Padded cells, not the bounded chain.** `HighwayAtlasLayout` gained a `gutter`, and both GPU
+  atlases lay every cell in a slot of `cell_size + 2 * g_atlas_gutter_texels` (16): the composed
+  head atlas is spread into its gutters by `padAtlasCells` (the unpadded `composeHeadAtlas` result
+  stays the authority `measureHeadArtProfile` and the 2D tab paint read), and the glyph atlas is
+  rasterized straight into its gutters at `cellOrigin`. The texture-array option was rejected as a
+  larger change for the same result.
+- **One mip rule, generated in memory at upload** (`atlasMipChain`, no asset change): B and A
+  average plainly, R and G weighted by B. That is exactly what the straight-alpha blend of the
+  level-0 texels sums to, so it is correct for ANY R/G content at the edges — the "edge
+  convention" this plan once called a prerequisite is not one, and no contract check was added
+  for it. The glyph atlas (white premultiplied text, read by alpha alone) has B equal to A, so the
+  same rule serves it; there is no second filter.
+- **The far levels are exact by construction.** `g_atlas_exact_mip_levels` (4) names the deepest
+  level trilinear reads at the far end (8.6:1 sits between levels 3 and 4). Through it the gutter
+  keeps cells apart (`2g >= 1.5 * 2^L - 0.5`), and every atlas edge is a multiple of `2^L`
+  (static_asserts beside each layout), so each level is the one above halved exactly — a
+  non-power-of-two edge that halves with a remainder shifts a normalized coordinate by up to
+  three quarters of a level-4 texel at the texture's far edge, which was the first draft's bug.
+  The glyph cell moved from 51 to 56 texels for that rule (10 columns, 880-texel edge); the head
+  atlas's 4x5 grid pads to 384x480.
+- **The half-texel inset is retired.** `cellRect` is the art's exact rectangle; the gutter is
+  what keeps a neighbour out, at level 0 as at every other. `headArtTexelWidth`/`Height` divide
+  by `cell_size` rather than `cell_size - 1`, so the head art draws 64/63 of its former size
+  (1.6%) inside an unchanged quad; `measureHeadArtProfile`'s quad centre is unchanged.
+- **Memory:** head atlas 384x480x4 with nine levels = 983 KB (was 327 KB, no mips); glyph atlas
+  880x880x4 with ten levels = 4.1 MB (was 1.0 MB).
+- **Measured through the real chain** (headless, a bilinear sampler over the chain, 16 sub-texel
+  phases, mass = shown `(R + G) * B` summed over the cell's pixels, white tint):
+
+  | cell | minification | shipped bilinear CoV | trilinear CoV | mass change |
+  |---|---|---|---|---|
+  | standard head (0) | 8.6 | 22.7% | 2.3% | +2% |
+  | pick slide (19) | 8.6 | 18.6% | 2.9% | +14% |
+  | natural harmonic (14) | 8.6 | 34.5% | 5.4% | +12% |
+  | standard head (0) | 4.6 | 6.9% | 1.3% | +4% |
+  | pick slide (19) | 4.6 | 5.1% | 1.8% | +14% |
+  | standard head (0) | 2.6 | 1.1% | 1.0% | +4% |
+
+  The absolute figures differ from the 2026-08-06 table (a different raster and metric), the
+  direction and order are the same: the far-scale flicker drops six to ten times, and the marks
+  gain more mass than the head does here, so the ratio concern reads less severe on this metric
+  than the original measurement suggested — a sighting settles it.
+- **To sight:** distant heads and fret numbers should hold steady as they travel; at the hit line
+  heads are 1.6% larger inside their quads and glyphs re-rasterized at 56 texels, both expected to
+  be invisible; marks' legibility against their notes at the far end.
 
 ## The problem
 
@@ -62,11 +112,12 @@ B is incorrect — it bleeds weight out of uncovered texels into covered ones, t
 premultiplied alpha exists to prevent for ordinary images. Each mip level must average
 `(R·B, G·B, B)` and then divide the result by the averaged B.
 
-**This is the same decision as the cell edge convention.** The shipped cells already carry weights
-multiplied by coverage at their antialiased edges — the pristine atlas has only 80 texels where
-`max(R, G) > B`, while a straight-weight bake of one cell produced 111. So the family's existing
-convention is already the mip-correct one, and choosing it deliberately (rather than per-bake)
-is a prerequisite here rather than a separate cleanup.
+**This is NOT the cell edge convention.** The shipped cells carry weights multiplied by coverage
+at their antialiased edges — the pristine atlas has only 80 texels where `max(R, G) > B`, while a
+straight-weight bake of one cell produced 111 — but that convention is about how an edge LOOKS,
+not about what averages correctly: the coverage-weighted rule reproduces the straight-alpha
+blend's area sum for any R/G content, so it is right whichever convention the art follows and no
+contract has to state one for its sake.
 
 ### The atlas problem that "just turn on mips" does not solve
 
@@ -87,9 +138,9 @@ in ascending order of correctness and cost:
    change: `HighwayAtlasLayout`, `cellRect`, every shader's sampling, and the authoring pipeline
    all move from a grid to indexed layers.
 
-Recommendation if this proceeds: **option 1 first** — it is contained in `uploadAtlas`, measurable,
-and reversible — with option 3 recorded as the eventual shape rather than attempted at the same
-time.
+Option 2 landed (see "What landed"): the gutter is one constant, the re-lay is one function, and
+with the half-texel inset retired the grid arithmetic is simpler than before rather than more
+complex, which removes option 3's main argument.
 
 ## Measured, 2026-08-06: what mips actually buy, including one result that cuts against them
 
@@ -134,6 +185,6 @@ filter restores a taper that is a third of a pixel wide.
 ## Relationship to other plans
 
 `docs/plans/roadmap/54-highway-visual-theming.md` Phase 3 turns the implicit atlas contracts into
-validated ones. The edge convention decided here belongs in that contract, and a themed atlas
-supplied by a user would need the same mip treatment — so if both are executing, this informs the
-contract rather than the other way round.
+validated ones. A themed atlas supplied by a user gets the same mip treatment automatically, since
+the chain is generated from whatever `composeHeadAtlas` yields; the contract owes nothing to this
+plan (the edge convention is not a mip prerequisite, see above).

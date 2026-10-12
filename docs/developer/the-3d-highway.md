@@ -806,6 +806,16 @@ the others in `highway_atlas.h`; the sheet's contract is `checkHighwayMarkSheet`
 cell, so another mark needs a fourth mark row: `g_mark_sheet_rows`, `g_head_cell_count` and the
 art grow together.
 
+What the GPU samples is not the composed image itself: `makeHighwayAtlases` spreads its cells
+into transparent gutters (`padAtlasCells`, `g_atlas_gutter_texels`) and uploads them with a mip
+chain generated in memory (`atlasMipChain`), so a distant head is an area average rather than
+four texels; the glyph atlas is rasterized straight into the same gutters. Two rules keep the far
+levels exact, both stated once in `highway_atlas.h` beside `g_atlas_exact_mip_levels`: the gutter
+width, and that every atlas edge is a multiple of `2^levels` (static_asserts beside each layout —
+a new glyph cell size or head grid must keep them true). Art measurement
+(`measureHeadArtProfile`) and the 2D tab paint read the UNPADDED composed image, never the
+spread one.
+
 Adding a new *shader program* is two declarations plus its use:
 
 1. The `.sc` sources in `rock-hero-common/ui/shaders/` (the `vs_`/`fs_` naming and the shared

@@ -940,7 +940,7 @@ clang-tidy only when the user asks for it.
   `charter-classic` moves into the default theme's file at Phase 2a; 54-Q13's shade retune if
   ruled; its Phase 5a cap raise now breaks themes' `strings` arrays rather than user palette files.
 - `docs/plans/roadmap/58-user-fretboard-art.md` — the theme directory is its home.
-- `docs/plans/roadmap/56-head-atlas-mipmapping.md` — the atlas edge convention is stated by the
-  Phase 2a contract.
+- `docs/plans/roadmap/56-head-atlas-mipmapping.md` — landed; a theme's heads get the mip chain
+  from whatever the contract admits, and the contract owes it no edge-convention check.
 - `docs/plans/roadmap/25-note-highway-3d.md` — new highway colors enter the theme, never new
   file-scope constants.
