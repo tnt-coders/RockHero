@@ -40,9 +40,9 @@ below, or both apps start without calibration, keymap and plugin list). Every co
 user theme picked from the editor's View > Highway Theme; the game draws the last pick at launch.
 Delete the `sight-*` and `pair-*` folders in `%APPDATA%\Rock Hero\themes\` after ruling.
 
-1. **Ice's chord and arpeggio colors.** Ice now ships a placeholder pair (chord `#5CD3F5` ice cyan,
-   arpeggio `#FF7FB3` rose); 18 alternatives are the "Ice pair: …" themes. The tapping hand's
-   color is derived (the same hue, paled), so watch a tapped chord too. Pick one pair.
+1. **Ice's chord and arpeggio colors: RULED 2026-10-12** — chord `#5CD3F5` ice cyan, arpeggio
+   `#A361FF` balanced vivid purple. Still to watch in motion: a tapped chord, whose color is
+   derived (the same hue, paled).
 2. **The rest of the ice look.** The "Sighting: <accent>" themes swap only the chrome accent
    (they keep ice's chord/arpeggio pair): decide whether ice reads too close to today's look. Ice
    vs "Sighting: Ice, opaque inlays" decides the inlay opacity (`0xE6` or `0xFF`). 54-Q21: Note

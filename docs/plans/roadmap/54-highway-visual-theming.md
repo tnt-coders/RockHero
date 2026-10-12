@@ -305,8 +305,10 @@ from clearly defined to nearly invisible by `lane_line` alone, and the ribbons' 
 the hand window (the 1/8 tier, 54-Q20) stays a light law in code. `pick_furniture`,
 `chord_box_dark` and `fret_number_dim` are deleted as roles, now derived. This supersedes the
 earlier same-day split of `lane_border` into `lane_line` and a `shape_rail` role (24 roles):
-`shape_rail` is never added, and the theme holds 20 roles. The ice theme's `chord` and `arpeggio`
-are placeholders (`#5CD3F5` ice cyan, `#FF7FB3` rose) until the built-ins are sighted.
+`shape_rail` is never added, and the theme holds 20 roles. The ice theme's `chord` is `#5CD3F5`
+(ice cyan) and its `arpeggio` `#A361FF` (a vivid purple at nearly ice cyan's perceived weight),
+RULED 2026-10-12 by the user from a sighting of 33 pairs. Chords and arpeggios keep separate colors
+because they are edited as different things; a one-color theme stays refused by the guardrails.
 
 Texture contracts: the two existing measurements (`measureHeadArtProfile`,
 `measureBoxMuteProfiles`) plus a grid-dimension check per asset.
