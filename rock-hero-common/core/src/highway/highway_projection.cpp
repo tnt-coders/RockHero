@@ -457,8 +457,9 @@ void clampStrikePops(
             .pin_end_seconds = pin_end_seconds,
             .fade = headFade(note, pin_end_seconds),
         };
-        // THE REPEAT CHAIN: the ring ends exactly on the next head of its string, at the same stop.
-        // Bound once so the presence test and the read are provably the same object.
+        // THE REPEAT CHAIN: the ring ends exactly on the next head of its string, and the head ends
+        // at the stop that one is struck at. Bound once so the presence test and the read are
+        // provably the same object.
         const std::optional<std::size_t>& successor = note.end_head;
         if (!successor.has_value())
         {
@@ -467,7 +468,7 @@ void clampStrikePops(
         const NoteViewState& next = notes[*successor];
         // A hold that already outlasts the takeover keeps it: the chain only ever lengthens a
         // head's stand.
-        if (headSoundingStop(next) != headSoundingStop(note) ||
+        if (headSoundingStop(next, next.fret) != headSoundingStop(note, headEndFret(note)) ||
             pin_end_seconds > next.start_seconds)
         {
             continue;

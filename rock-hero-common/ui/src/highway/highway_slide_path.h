@@ -125,11 +125,11 @@ curve. On any other note the dim is the terminal slide-out's own leg.
     // slide-out terminal — through the shared stop accessor. Every stop, not only those within
     // the drawn extent: the leg an extent cuts runs toward the first stop beyond it, and a
     // release dims across its whole stored length.
-    const std::size_t stop_count = note.slides.size();
-    if (stop_count == 0 || note.fret <= 0)
+    if (!common::core::headTravels(note))
     {
         return HighwaySlideState{.x_offset = 0.0, .alpha = 1.0};
     }
+    const std::size_t stop_count = note.slides.size();
     // THE DIM, stated once for the legs and for the hold past the last stop: a scrape's whole
     // path is one release, a fretted note's slide-out leg alone is one, and every other leg holds
     // full brightness.
@@ -168,10 +168,12 @@ curve. On any other note the dim is the terminal slide-out's own leg.
         segment_start_seconds = stop.seconds;
         segment_start_x = stop_x;
     }
-    // Past the last stop the glide holds its target, and the dim holds where its run ended.
-    const common::core::SlideStopViewState& last = note.slides[stop_count - 1];
+    // Past the last stop the glide holds where the head ends (common::core::headEndFret), and the
+    // dim holds where its run ended.
     return HighwaySlideState{
-        .x_offset = highwayNoteFretboardX(note, last.fret, metrics, mirrored) - base_x,
+        .x_offset =
+            highwayNoteFretboardX(note, common::core::headEndFret(note), metrics, mirrored) -
+            base_x,
         .alpha = alpha_at(stop_count - 1, seconds),
     };
 }

@@ -35,31 +35,37 @@ questions, and **#270**'s batch remainder, #112's chip yield included.
 The queue is empty apart from #298's end-to-end marker grammar pass (release plan, Phase 6) and
 the highway theming sightings below.
 
-**Plan 54 (highway theming), owed by the user, in this order:**
+**Plan 54 (highway theming), owed by the user, in this order** (first do plan 70's file moves
+below, or both apps start without calibration, keymap and plugin list). Every comparison is a
+user theme picked from the editor's View > Highway Theme; the game draws the last pick at launch.
+Delete the `sight-*` and `pair-*` folders in `%APPDATA%\Rock Hero\themes\` after ruling.
 
-1. **Phase 1b, the first look at the ice-blue default** (landed `b6fb1134`), in motion in the game
-   and the editor preview. The comparisons need no throwaway code now: the other accents and an
-   opaque-inlay ice are user themes in `%APPDATA%\Rock Hero\themes\sight-*` (each inherits ice),
-   picked from View > Highway Theme; Note Targets is View > Highway Display > its toggle (54-Q20
-   is ruled: the lane lines keep today's 1/8). Delete the `sight-*`
-   folders after ruling. Decide:
-   - whether ice blue reads too close to today's look, beside the other accents;
-   - the inlay opacity: `inlay_tint` alpha `0xE6` (the mock) or `0xFF` (opaque);
-   - 54-Q21, the Note Targets' DEFAULT (on or off; View > Highway Display > Note Targets). The
-     outline is now a flat bright band; if it reads too hot, that is a one-value rebake.
-
-   Expected and not defects: today's marks and repeat X, the 2D lane's Charter shape blue and
-   purple (Phase 4b).
-2. **Phase 4a, the box chord device** (posts RULED 2026-10-11: open bars keep the upright legs
-   only, glow posts stay as today; the fill keeps its shading, RULED 2026-10-11): see the box in
-   motion.
-3. **Plan 69's display toggles** (landed): in the editor, View > Highway Display, flip Note
-   Targets, Note Rotation and Arpeggio Brackets in motion. Rule 69-Q2: brackets off also hides the
-   arpeggio's panel (a bracket-less panel would read as a chord box); confirm, or hide only the
-   brackets.
-4. **Phase 3**: the private Classic theme A/B against a build of the commit before `b6fb1134`
-   (select it by setting `highway.theme` to `classic` in `settings/shared.settings`), and the
-   garish coverage fixture selected once in both products.
+1. **Ice's chord and arpeggio colors.** Ice now ships a placeholder pair (chord `#5CD3F5` ice cyan,
+   arpeggio `#FF7FB3` rose); 18 alternatives are the "Ice pair: …" themes. The tapping hand's
+   color is derived (the same hue, paled), so watch a tapped chord too. Pick one pair.
+2. **The rest of the ice look.** The "Sighting: <accent>" themes swap only the chrome accent
+   (they keep ice's chord/arpeggio pair): decide whether ice reads too close to today's look. Ice
+   vs "Sighting: Ice, opaque inlays" decides the inlay opacity (`0xE6` or `0xFF`). 54-Q21: Note
+   Targets on or off by default (View > Highway Display); a flat bright band, rebakeable if hot.
+3. **The box chord device and the color model in motion** (posts and fill ruled 2026-10-11):
+   arpeggio boxes now wear the arpeggio color; held-shape rails wear the chord color; tapped
+   chords wear the paled chord color (watch item: can the hands, and a tapped chord vs a tapped
+   arpeggio, be told apart?). Expected, not defects: today's marks and repeat X, the 2D lane's
+   Charter shape blue and purple (Phase 4b).
+4. **The head fade (ruled 2026-10-11/12):** a head fades with its tail at the tail's rate; a note
+   with no drawn tail fades from the strike within 0.25 s (or its own length); a held head ends
+   its fade exactly as its hold releases; an exactly abutting repeat on the same stop keeps the
+   head lit until the next one lands (a slide chains from where it lands; a run of repeat boxes
+   keeps the original head drawn). Check chugs, repeated chords and dead notes.
+5. **The chord-shape rails** end where the fret hand's next move begins (fixed `ba505cb7`; the
+   user confirmed it in play).
+6. **Plan 69's display toggles:** View > Highway Display, flip Note Targets, Note Rotation and
+   Arpeggio Brackets in motion. Rule 69-Q2: brackets off also hides the arpeggio's panel (a
+   bracket-less panel would read as a chord box); confirm, or hide only the brackets.
+7. **Phase 3:** pick "Classic" from View > Highway Theme and A/B it against a build of the commit
+   before `b6fb1134`. Accepted differences: the code-drawn chord device and posts, and the color
+   model (its rails now wear its box teal, its tapped chords a pale mint). Then the garish
+   coverage fixture once in both products.
 
 **Plan 70 Phase 3 (per-user data), owed by the user BEFORE the next run of either app**, all inside
 `%APPDATA%\Rock Hero\` (the apps now write only the new tree, so until this is done they start

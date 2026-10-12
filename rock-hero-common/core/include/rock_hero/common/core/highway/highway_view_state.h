@@ -113,8 +113,8 @@ function exists at all.
 }
 
 /*!
-\brief Where a projected note's head SOUNDS at its onset: the identity every repeat on the board is
-judged by.
+\brief Where a projected note's head SOUNDS at a point of its travel: the identity every repeat on
+the board is judged by.
 
 The chart's own place, not the board-clamped one (\ref highwayDrawnStop): the clamp is a display
 limit and must not make two heads the chart tells apart compare equal. Asked by a strum's repeat
@@ -122,11 +122,41 @@ identity (\ref makeHighwayChordGroups) and by a string's chain of abutting repea
 (\ref HighwayViewState::head_ends) alike, so the two can never judge "the same head" differently.
 
 \param note Note whose head is compared.
+\param fret_at_point Stop being compared — the onset fret, or where the head ends
+       (\ref headEndFret).
 \return The head's sounding stop — a node, or the fret.
 */
-[[nodiscard]] inline ChartStop headSoundingStop(const NoteViewState& note) noexcept
+[[nodiscard]] inline ChartStop headSoundingStop(
+    const NoteViewState& note, const int fret_at_point) noexcept
 {
-    return soundingStopAt(note.harmonic_node, note.attack, note.fret, note.fret);
+    return soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_point);
+}
+
+/*!
+\brief Whether a projected note's head travels the board: it states a stop to glide to, and it is
+stopped — an open string's head is the bar across the hand window, which goes nowhere.
+\param note Note whose head is asked about.
+\return True when the head glides along its stops.
+*/
+[[nodiscard]] inline bool headTravels(const NoteViewState& note) noexcept
+{
+    return !note.slides.empty() && note.fret > 0;
+}
+
+/*!
+\brief The fret a projected note's head ENDS on: the last stop its glide travels to, which it holds
+from there on, or its onset's fret where it never travels (\ref headTravels).
+
+A bend moves the pitch and not the stop, so a held bend ends on its own fret. A leg the ink end cuts
+still travels toward its stop, so the head is drawn short of it when it stops moving; the stop is
+still where the head is going, and what a successor's head can take over from.
+
+\param note Note whose head is read.
+\return The fret the head ends on.
+*/
+[[nodiscard]] inline int headEndFret(const NoteViewState& note) noexcept
+{
+    return headTravels(note) ? note.slides.back().fret : note.fret;
 }
 
 /*!
@@ -677,13 +707,14 @@ struct HighwayViewState
     dissolves by the shared head rule (\ref headFade).
 
     THE REPEAT CHAIN overrides that end. A head whose stored ring ends EXACTLY on the next head of
-    its own string (\ref NoteViewState::end_head) at the same stop (\ref headSoundingStop) stays
-    fully lit and pinned until that head lands in its place, and is gone as it lands: the successor
-    takes over the same spot, so only the chain's last head fades. Per head, so a partial chord
-    repeat chains only its repeated members. A successor that draws no head (a repeat box,
-    \ref HighwayChordGroupViewState::showsNotes) has nothing to take over with, so the head ends as
-    that successor's would, standing through the run. A head the board already holds past the
-    successor's onset keeps its own hold.
+    its own string (\ref NoteViewState::end_head), and whose head ends (\ref headEndFret) at the
+    stop that head is struck at (\ref headSoundingStop), stays fully lit and pinned until that head
+    lands in its place, and is gone as it lands: the successor takes over the same spot, so only the
+    chain's last head fades. A slide chains from where it lands, never from where it began. Per
+    head, so a partial chord repeat chains only its repeated members. A successor that draws no
+    head (a repeat box, \ref HighwayChordGroupViewState::showsNotes) has nothing to take over with,
+    so the head ends as that successor's would, standing through the run. A head the board already
+    holds past the successor's onset keeps its own hold.
     */
     std::vector<HighwayHeadEnd> head_ends;
 
@@ -857,7 +888,7 @@ whatever window a renderer happens to be drawing.
             // since a fret-5 head damped at node 17 is drawn twelve frets from the stop the hand
             // presses. The chart's own place, not the board-clamped one (\ref highwayDrawnStop):
             // the cap is a display limit and must not merge two onsets the board can tell apart.
-            stops.emplace_back(note.string, headSoundingStop(note));
+            stops.emplace_back(note.string, headSoundingStop(note, note.fret));
         }
         // Loud wins a mixed strum, matching the note-level tie-break: one struck accent makes the
         // strum accented, where a lone ghost among normal notes does not make it quiet.

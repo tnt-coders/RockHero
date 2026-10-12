@@ -1293,6 +1293,55 @@ TEST_CASE(
         check_own(state, 0);
     }
 
+    // A HEAD CHAINS FROM WHERE IT ENDS (headEndFret): a slide from where it lands, so a slide from
+    // 5 to 7 hands over to a repeat on 7 and never to a note back on 5.
+    const auto on_five = [&note, &first, &eighth](const Keyframe& keyframe) {
+        ChartNote stated = note(1, 5, first, eighth);
+        stated.keyframes = {keyframe};
+        return stated;
+    };
+    const Keyframe lands_on_seven{.offset = Fraction{1, 16}, .fret = 7};
+
+    SECTION("a slide chains into a repeat where it lands")
+    {
+        const HighwayViewState state = board({on_five(lands_on_seven), note(1, 7, second, eighth)});
+        REQUIRE(state.head_ends.size() == 2);
+        check_handed_over(state.head_ends[0], 0.25);
+    }
+
+    SECTION("a shift slide chains into the head it arrives into")
+    {
+        const HighwayViewState state = board({
+            on_five(Keyframe{.offset = eighth, .fret = 7}),
+            note(1, 7, second, eighth),
+        });
+        REQUIRE(state.head_ends.size() == 2);
+        REQUIRE(state.chart.notes[0].slides.size() == 1);
+        CHECK_FALSE(state.chart.notes[0].slides[0].slide_out);
+        check_handed_over(state.head_ends[0], 0.25);
+    }
+
+    SECTION("a slide does not chain into a note on the stop it left")
+    {
+        const HighwayViewState state = board({on_five(lands_on_seven), note(1, 5, second, eighth)});
+        REQUIRE(state.head_ends.size() == 2);
+        CHECK(state.chart.notes[0].end_head == std::optional<std::size_t>{1});
+        const HighwayHeadEnd& head_end = state.head_ends[0];
+        CHECK(head_end.fade == headFade(state.chart.notes[0], head_end.pin_end_seconds));
+        CHECK(head_end.fade.length_seconds > 0.0);
+    }
+
+    SECTION("a held bend ends on its own fret, so it chains into a repeat there")
+    {
+        const HighwayViewState state = board({
+            on_five(Keyframe{.offset = Fraction{1, 16}, .bend = 1.0}),
+            note(1, 5, second, eighth),
+        });
+        REQUIRE(state.head_ends.size() == 2);
+        REQUIRE_FALSE(state.chart.notes[0].bend.empty());
+        check_handed_over(state.head_ends[0], 0.25);
+    }
+
     SECTION("a partial chord repeat chains only its repeated member")
     {
         const HighwayViewState state = board({

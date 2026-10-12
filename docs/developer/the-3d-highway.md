@@ -247,9 +247,12 @@ that stretch; and one held past its ink end (a span-held strum, a
 handed-over member pinned to its stored ring) keeps its pin and fades by the same rule measured to
 the pin's end, gone exactly as the pin releases — so a head held until the next strum re-shows the
 chord is gone as the newcomer lands, and the two never stack. **A REPEAT CHAIN STAYS WHOLE**
-(ruled 2026-10-11): a head whose stored ring ends exactly on the next head of its own string at
-the same stop (`NoteViewState::end_head`, `headSoundingStop`) stays fully lit and pinned until that
-head lands in its place, and is gone as it lands, so only the chain's last head fades. It is judged
+(ruled 2026-10-11): a head whose stored ring ends exactly on the next head of its own string, and
+which ends where that head is struck (`NoteViewState::end_head`, `headEndFret`, `headSoundingStop`),
+stays fully lit and pinned until that head lands in its place, and is gone as it lands, so only the
+chain's last head fades. Where a head ends is where its glide comes to rest, so a slide chains from
+where it lands (ruled 2026-10-12): a slide from 5 to 7 chains into a repeat on 7, never into a note
+on 5, and a held bend chains from its own fret. It is judged
 per head, so a partial chord repeat chains only its repeated members; a successor that draws no head
 (a repeat box) cannot take over, so the head ends as that successor's would; and a head already
 held past the successor's onset keeps its hold. The board projection composes all of this once per

@@ -30,6 +30,12 @@ the user picks which way the two surfaces reconcile.
 
 ## Found by plan 54 Phases 1 and 2a (2026-10-11)
 
+- **The 2D lane restates the head's sounding-stop binding:** `tab_paint_core.cpp` (~:2479) writes
+  `soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_head)` itself, the binding
+  `headSoundingStop(note, fret)` names in `highway_view_state.h`. The tab code cannot include a
+  highway header, so moving `headSoundingStop` to a chart-level header both surfaces read would
+  leave one statement of it.
+
 - **`preview_surface.cpp:356` breaks the identifier-naming rule:** `static const auto empty` is a
   static local, which `readability-identifier-naming` spells with the `g_` prefix; a per-file
   clang-tidy run reports it and a Windows CI lint run will. Rename it (and its uses).
