@@ -193,7 +193,7 @@ and the same failure policy as a first open.
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
 | String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes `HighwayThemeRegistry::paletteFor(<the player's settings>)` — the pinned palette, else the theme's — to `HighwayRenderer::create` and `makeTabLaneMetrics` |
 | Player's highway settings (theme id, palette pin, view preferences) | `common/core` `highway/highway_settings_store.h` | the game reads `HighwaySettingsStore` over the shared settings file once at launch; the editor's controller reads it at construction and writes each theme pick, palette pick and View > Highway Display toggle through `update` |
-| Highway theme (the 23 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps them and the palette without a rebuild |
+| Highway theme (the 20 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps them and the palette without a rebuild |
 | Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeFor(<the player's settings>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `themes/` (`themesFolder()`), where one may inherit a built-in (`inherits`) or shadow it by taking its id |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
@@ -613,8 +613,8 @@ Three marks beside the lights, all on the raw window:
   never ride the move into the next position), and every tapped chord
   (`tappedChord`) over `pick_hand.track` from its onset to its `release_seconds` — the members'
   true ring end, the close the fretting hand's chord heads hold to, so a tapped chord with no drawn
-  tail still has rails. A rail wears its hand's furniture colour (`HandLightStyle::rail_color`),
-  except an arpeggio span's, whose purple names a kind of span. A strike carries its own hold end,
+  tail still has rails. A rail wears its hand's color for its kind of span, the same color as that
+  hand's box of that kind (see Furniture colors below). A strike carries its own hold end,
   so the picking hand needs no derived spans — a span object would restate the strike on a second
   representation the 2D lane never shows. Singles get no rails on either hand.
 - **Box sides** — `highwayBoxSidesAt(track, onset, now)` (`highway_window.h`) is the hand's
@@ -623,21 +623,22 @@ Three marks beside the lights, all on the raw window:
   hands — a strummed box reads the fretting hand's track, a tapped box the picking hand's, whose
   window at a tapped chord's onset is its taps' own slots (and, for an open-string tap harmonic,
   its node).
-- **Furniture colours** — a hand's chord box (`box_color`, `box_dark_color`, which its accent
-  light takes too) and its rails (`rail_color`) wear the hand's furniture colour on its
-  `HandLightStyle`, derived from the theme by `frettingHandStyle` and `pickingHandStyle`. The
-  fretting hand's is the chord-box family (`chord_box`, `chord_box_dark`, rails in `lane_border`);
-  the picking hand's is `pick_furniture`, so in the default look a teal box says strum and a white
-  one says tap, the same reason the picking light leans warm and the hands' pops differ. Only the
-  box colour is a role: the dark the picking box's fill shades to at its middle is
-  `hueless(chord_box_dark)`, and the picking rails are
-  `pick_furniture` at a fixed alpha. The default white is matched to the teal in PERCEIVED
-  lightness (CIELAB L* with the Fairchild-Pirrotta Helmholtz-Kohlrausch correction), never in luma:
-  a saturated colour looks brighter than its luminance, so a luma-matched neutral looks darker and
-  reads grey. It is the 8th string's grey cooled a touch (the bluing effect) and lifted to the teal
-  box's perceived 81; the rail alpha lands the teal rail's 61 over the dark board: box
-  `0xFFC0C7D8`, fill dark `0xFF2A2A2A`, rails `0xBAC0C7D8`. The pops' `mark_color` (`strike_fretting`,
-  `strike_picking`) is a separate colour, because a pop is additive glow and the furniture is solid.
+- **Furniture colors** — KIND IS AUTHORED, HAND IS DERIVED. A box and a rail tell two things
+  apart by color alone: the kind of span (chord or arpeggio) and the hand (fretting or picking).
+  The theme authors one color per kind, `chord` and `arpeggio`, which are the fretting hand's; each
+  drives everything of its kind — a box's frame, its fill, its accent light and its palm mark, and
+  the span's rails, which wear it as-is. The picking hand's are derived by `pickingHandColor`
+  (`highway_theme/highway_theme_derived_colors.h`): the same CIELAB hue at a quarter of the chroma,
+  lifted to the source's PERCEIVED lightness (Fairchild-Pirrotta's L**, the Helmholtz-Kohlrausch
+  correction), so the pale counterpart looks as bright as its source instead of reading as a
+  darker grey. Hue says the kind, colorfulness says the hand: the original teal `#00D2D5` yields
+  `#B1CFCF`. Each hand's `HandLightStyle` holds its `chord` and `arpeggio`, derived once whenever
+  the theme changes (`Impl::adoptTheme`, from `frettingHandStyle` and `pickingHandStyle`), and a
+  box carries its own color in `BoxDraw::color`. A fill shades from the box color at its ends to
+  `boxFillMiddle` (each channel times 0.286, rounded) at its middle, for both hands. The pops'
+  `mark_color` (`strike_fretting`, `strike_picking`) is a separate color, because a pop is additive
+  glow and the furniture is solid. No picking-hand arpeggio draws today: the picking hand's only
+  furniture is a tapped chord's box and rails.
 - **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
   landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar
   spans the window) its box's two sides. They are chart facts, `HighwayHandLight::pops`

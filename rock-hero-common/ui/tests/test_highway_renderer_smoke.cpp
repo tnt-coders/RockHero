@@ -650,7 +650,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // string lines, and the frames after it encode under the new colors.
         HighwayTheme recolored = testing::fixtureHighwayTheme();
         recolored.backdrop = 0xFF202040U;
-        recolored.chord_box = 0xFFFF00FFU;
+        recolored.chord = 0xFFFF00FFU;
         StringColorPalette recolored_strings = testing::fixtureStringColors();
         recolored_strings.colors.front() = 0xFF40FF40U;
         renderer->setTheme(recolored, recolored_strings);

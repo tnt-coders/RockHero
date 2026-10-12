@@ -20,6 +20,7 @@ target_sources(
             src/highway/highway_renderer.cpp
             src/highway/highway_texture_contract.cpp
             src/highway/structural_art.cpp
+            src/highway_theme/highway_theme_derived_colors.cpp
             src/highway_theme/highway_theme_file.cpp
             src/highway_theme/highway_theme_guardrails.cpp
             src/highway_theme/highway_theme_registry.cpp

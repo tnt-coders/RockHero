@@ -43,7 +43,8 @@ rather than read from a shipped theme, whose colors change with its design.
 
 /*!
 \brief A theme whose every role holds its own color, for renderer suites.
-\return Distinct opaque roles, apart from the translucent lanes, capo shade and dim fret number.
+\return Distinct opaque roles, apart from the translucent lanes and capo shade; it passes the
+guardrails with the fixture string colors.
 */
 [[nodiscard]] inline HighwayTheme fixtureHighwayTheme()
 {
@@ -53,19 +54,16 @@ rather than read from a shipped theme, whose colors change with its design.
         .attack_line = 0xffe0f0ff,
         .lit_lane = 0x404080ff,
         .lit_lane_dotted = 0x40204080,
-        .lane_border = 0xff408090,
+        .lane_line = 0xff408090,
         .fret_line = 0xff202020,
         .fret_line_lit = 0xffc0c0c0,
         .fret_number_lit = 0xff80d0f0,
-        .fret_number_dim = 0x80408090,
         .fret_number_target = 0xffffa020,
         .strike_fretting = 0xffffb040,
         .strike_picking = 0xffffffff,
-        .chord_box = 0xff00d0d0,
-        .chord_box_dark = 0xff003040,
-        .pick_furniture = 0xffc0c8d8,
-        .full_mute_mark = 0xff507890,
+        .chord = 0xff00d0d0,
         .arpeggio = 0xffc040ff,
+        .full_mute_mark = 0xff507890,
         .capo_shade = 0xb4000000,
         .capo_bar = 0xffb0b8c0,
         .capo_bar_rim = 0xff101418,

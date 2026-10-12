@@ -37,6 +37,7 @@ add_executable(
     test_highway_renderer_smoke.cpp
     test_highway_slide_path.cpp
     test_highway_texture_contract.cpp
+    test_highway_theme_derived_colors.cpp
     test_highway_theme_file.cpp
     test_render_device.cpp
     test_string_color_palette.cpp

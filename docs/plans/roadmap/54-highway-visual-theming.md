@@ -23,7 +23,7 @@ survives only as the user's private theme (54-Q10).
 
 ## Goal
 
-The 3D highway's look becomes data: a **theme** of 23 color roles plus three validated texture
+The 3D highway's look becomes data: a **theme** of 20 color roles plus three validated texture
 assets, resolved from theme directories through one loader. The built-in themes are original
 RockHero designs. Today's look leaves the shipped tree with them: its chrome colors are Charter's
 values (the renderer's comments say so at `highway_renderer.cpp:199`, `:415`, `:1595`), its
@@ -44,7 +44,7 @@ detailed inventory; this is the summary they resolve to.
 
 | Owner | What it holds |
 |---|---|
-| **The theme** (`theme.json` plus its assets) | The 23 color roles (backdrop, board chrome, hand window, fret numbers, chord box and attack line, picking-hand furniture, both hands' strike pops, full-mute mark, arpeggio, capo, inlay tint and opacity, label text); its eight **string colors** (54-Q18); the head **material** (54-Q19); the repeat-box art (`chords.png`); and its **choices** of head shape and inlay (54-Q19). The player may pin the string colors, head shape and inlay |
+| **The theme** (`theme.json` plus its assets) | The 20 color roles (backdrop, board chrome, hand window, fret numbers, attack line, the chord and arpeggio colors every box and rail of either hand derives from, both hands' strike pops, full-mute mark, capo, inlay tint and opacity, label text); its eight **string colors** (54-Q18); the head **material** (54-Q19); the repeat-box art (`chords.png`); and its **choices** of head shape and inlay (54-Q19). The player may pin the string colors, head shape and inlay |
 | **The player** (settings shared by both products, plan 70) | Which theme is active; one pin each for string palette, head shape and inlay, defaulting to "Theme's choice"; mirroring, string orientation (54-Q5) and plan 69's display toggles |
 | **RockHero, fixed** (code and one fixed sheet) | The technique marks (S3); the chord device and open-bar posts (S1, S2); every geometry, camera, timing, tail, light and emphasis law; shaders; the atlas layout and cell meanings; the palette, shape and inlay libraries' contracts |
 
@@ -143,11 +143,12 @@ another file is named.
 | **SHOULD NOT** | Structure, timing or notation: changing it could misread notation, misalign notes and lanes, or make a chart unplayable | `HighwayMetrics`, camera, ~51 renderer numerics, core tail/light/vibrato laws, emphasis alphas, atlas layout and cell meaning, the technique marks (S3), shaders, string palette, display options |
 | **COULD** | Harmless, but nothing needs it at v1 | glyph font, backdrop art, inlay patterns, tail shade depth, rolling flip as a player option |
 
-### Color roles (MUST and SHOULD) — the theme's 23 keys
+### Color roles (MUST and SHOULD) — the theme's 20 keys
 
 A role's name is the theme file's key, so names describe what the color does, not where it is
 drawn. "Alpha read" records whether the constant's own alpha byte reaches the GPU; a role whose
-alpha is overwritten in code is stored opaque.
+alpha is overwritten in code is stored opaque. The "Today" and "Value" columns are the pre-Phase-1
+baseline; the names and the set are the model ruled 2026-10-11 (see "Schema guardrails").
 
 | Role | Today | Value | Alpha read | Tier |
 |---|---|---|---|---|
@@ -156,19 +157,16 @@ alpha is overwritten in code is stored opaque.
 | `attack_line` | drawn in `g_chord_box_color` today: downbeat line :5849, fret-span lines :4867, keyframe lines :4904 | (chord box) | — | MUST — split from `chord_box` |
 | `lit_lane` | `g_lit_lane_color` :87 | 0x402590E8 | yes (:5785) | MUST |
 | `lit_lane_dotted` | `g_lit_lane_dotted_color` :88 | 0x40185C94 | yes | MUST |
-| `lane_border` | `g_lane_border_color` :195, forced opaque at :709 and :5638 | 0x0007928F | **no** — store opaque, drop the two `\| 0xFF000000U` | MUST |
+| `lane_line` | `g_lane_border_color` :195, forced opaque at :709 and :5638 | 0x0007928F | **no** — store opaque, drop the two `\| 0xFF000000U` | MUST — renamed from `lane_border`; paints the lane ribbons only |
 | `fret_line` | `g_fret_inactive_color` :196 | 0xFF202020 | yes | MUST |
 | `fret_line_lit` | `g_fret_active_color` :197 | 0xFFC0C0C0 | yes | MUST |
 | `fret_number_lit` | `g_fret_number_active_color` :202 | 0xFF87DDF6 | yes | MUST |
-| `fret_number_dim` | `g_fret_number_dim_color` :203 | 0x8007928F | yes | MUST |
 | `fret_number_target` | `g_fret_number_fhp_color` :204; also node series :3727, targets :3811, pinned numbers :3924 | 0xFFFFA821 | yes | MUST — renamed: it marks every hand-position target |
 | `strike_fretting` | `g_hit_glow_color` :227 via `HandLightStyle::mark_color` :706 | 0xFFFFB040 | yes | SHOULD |
 | `strike_picking` | literal :713 | 0xFFFFFFFF | yes | SHOULD |
-| `chord_box` | `g_chord_box_color` :417; palm mark :3325 | 0xFF00D2D5 | yes | MUST |
-| `chord_box_dark` | `g_chord_box_dark_color` :418 | 0xFF003C3D | yes | MUST |
-| `pick_furniture` | `g_picking_furniture_white` :680 | 0xFFC0C7D8 | yes | SHOULD |
+| `chord` | `g_chord_box_color` :417; palm mark :3325 | 0xFF00D2D5 | yes | MUST — renamed from `chord_box`; the fretting hand's chord: box frame, fill ends, accent light, palm mark and rails |
+| `arpeggio` | `g_arpeggio_color` :445, used only at :5950 | 0xFFC040FF | yes | MUST — the fretting hand's arpeggio, everywhere `chord` paints a chord, its box included |
 | `full_mute_mark` | `g_full_mute_mark_color` :435 | 0xFF52798A | yes | SHOULD |
-| `arpeggio` | `g_arpeggio_color` :445, used only at :5950 | 0xFFC040FF | yes | MUST |
 | `capo_shade` | `g_capo_dead_zone_color` :210 | 0xB4000000 | yes (:6141) | SHOULD |
 | `capo_bar` | `g_capo_bar_color` :211 | 0xFFB9BEC6 | yes | SHOULD |
 | `capo_bar_rim` | `g_capo_bar_rim_color` :212 | 0xFF14161A | yes | SHOULD |
@@ -176,12 +174,25 @@ alpha is overwritten in code is stored opaque.
 | `label_text` | section labels, literal white at 0.85 :6240 | 0xFFFFFFFF | yes | SHOULD |
 
 **Derived in code, never roles** — each is an intended coupling, so it is computed rather than
-authored twice: the picking box dark (`hueless(chord_box_dark)` :715), the picking rail alpha
-(0xBA :681), the tap-light lean (0.3 toward `fret_number_target`, :194, :5770-5775), and every
-tier, frame and fill alpha (frame 128/255 :423, fill 32/255 :1591, ribbon tiers :5637-5646,
-attack 0.85 :74). The comment at :670-679 records that `g_picking_furniture_white` was derived
-offline from the teal and must be re-derived by hand whenever the teal moves — a rule kept in two
-places. As a role checked by the guardrails below, that hand-kept coupling disappears.
+authored twice. The color derivations live in one unit,
+`highway_theme/highway_theme_derived_colors.h`, which the renderer and the guardrails both call:
+
+- the picking hand's chord and arpeggio, `pickingHandColor` of each: in CIELAB LCh the hue is
+  kept, the chroma drops to a quarter, and the lightness becomes the source's perceived lightness
+  (Fairchild-Pirrotta L**, clamped to 100; an out-of-gamut channel clamps). The teal 0xFF00D2D5
+  yields 0xFFB1CFCF and the purple 0xFFC040FF yields 0xFFD4B4E0. This replaces the baseline's
+  `g_picking_furniture_white` (0xFFC0C7D8 :680), which was derived offline from the teal and had to
+  be re-derived by hand whenever the teal moved, and its rail alpha (0xBA :681);
+- a box fill's middle, `boxFillMiddle`: the box color times 0.286 per channel, rounded, for both
+  hands, which reproduces the baseline's `g_chord_box_dark_color` (0xFF003C3D :418) from its teal
+  exactly and replaces the picking box's `hueless` dark (:715);
+- the dim fret number, `fretNumberDim`: `lane_line` at half alpha, exactly the baseline's
+  `g_fret_number_dim_color` (0x8007928F :203);
+- the tap-light lean (0.3 toward `fret_number_target`, :194, :5770-5775), and every tier, frame
+  and fill alpha (frame 128/255 :423, fill 32/255 :1591, ribbon tiers :5637-5646, attack 0.85
+  :74).
+
+Every rail wears its kind's color as-is, for both hands.
 
 ### Texture assets (MUST and SHOULD)
 
@@ -264,28 +275,38 @@ depth; the rolling flip as a player option.
 
 ### Schema guardrails
 
-Four notation distinctions are carried by hue alone. The loader enforces them with one
-`distinct(a, b)` check (a minimum CIELAB ΔE, value fixed in Phase 2a by sighting), so a theme
-cannot collapse a distinction:
+The notation's color distinctions are each enforced by the loader with one `distinct(a, b)` check
+(a minimum CIELAB ΔE, provisionally 15 until the built-ins are sighted side by side), comparing
+colors as drawn, a derived color included, so a theme cannot collapse a distinction:
 
-- `chord_box` vs `pick_furniture` — fretting vs tapped chord box (:664-668);
-- `arpeggio` vs `shape_rail` — arpeggio vs held-shape rails (:5944-5951; `lane_border` until the
-  split below);
-- `fret_number_lit`, `fret_number_dim`, `fret_number_target` — pairwise;
+- the kind of span and the hand: `chord` vs `arpeggio`; `chord` vs `pickingHandColor(chord)`;
+  `arpeggio` vs `pickingHandColor(arpeggio)`; `pickingHandColor(chord)` vs
+  `pickingHandColor(arpeggio)`;
+- the three states of a fret number, pairwise: `fret_number_lit`, the dim number
+  (`fretNumberDim`, `lane_line` at half alpha), `fret_number_target`;
 - `strike_fretting` vs `strike_picking` — the two hands' pops;
-- plus one order check: luma(`fret_line_lit`) exceeds luma(`fret_line`) by a margin, since the hand
-  window is read from it;
-- from Phase 4b, `distinct()` between the two 2D shape inks derived from `shape_rail` and
-  `arpeggio`, which share a luminance by construction.
+- every two string colors;
+- plus one order check: L*(`fret_line_lit`) exceeds L*(`fret_line`) by a margin (provisionally 30),
+  since the hand window is read from it;
+- from Phase 4b, `distinct()` between the two 2D shape inks derived from `chord` and `arpeggio`,
+  which share a luminance by construction.
 
-**The lane-line split (ruled by the user, 2026-10-11).** `lane_border` paints both the lane lines
-(the per-fret runway ribbons) and the fretting hand's chord-shape rails, so a theme that made its
-lane lines nearly invisible would hide the rails too, and the rails carry notation. The role
-splits into `lane_line` (the ribbons) and `shape_rail` (the fretting hand's rails), 24 roles; every
-shipped theme keeps today's value in both, so nothing changes visibly. A theme then sets its lane
-lines anywhere from clearly defined to nearly invisible by `lane_line` alone. The ribbons' falloff
-away from the hand window (the 1/8 tier, 54-Q20) stays a light law in code, not a theme value.
-`fret_number_dim`, today equal to the lane color at half alpha, stays its own role.
+The ice theme passes with its closest pair, the two picking-hand colors, 21.1 apart.
+
+**Kind is authored, hand is derived (ruled by the user, 2026-10-11).** Every box and rail tells
+two things apart by color alone: the kind of span (chord or arpeggio) and the hand (fretting or
+picking). The theme authors one color per kind, `chord` (renamed from `chord_box`) and `arpeggio`,
+which are the fretting hand's; each drives everything of its kind — box frame, fill ends, accent
+light, palm mark and rails — so the arpeggio box wears `arpeggio` rather than the chord color. The
+picking hand's colors are derived by `pickingHandColor` (see "Derived in code, never roles"), so
+hue says the kind and colorfulness says the hand. `lane_border` becomes `lane_line` and paints only
+the lane ribbons, since the rails now wear their kind's color; a theme sets its lane lines anywhere
+from clearly defined to nearly invisible by `lane_line` alone, and the ribbons' falloff away from
+the hand window (the 1/8 tier, 54-Q20) stays a light law in code. `pick_furniture`,
+`chord_box_dark` and `fret_number_dim` are deleted as roles, now derived. This supersedes the
+earlier same-day split of `lane_border` into `lane_line` and a `shape_rail` role (24 roles):
+`shape_rail` is never added, and the theme holds 20 roles. The ice theme's `chord` and `arpeggio`
+are placeholders (`#5CD3F5` ice cyan, `#FF7FB3` rose) until the built-ins are sighted.
 
 Texture contracts: the two existing measurements (`measureHeadArtProfile`,
 `measureBoxMuteProfiles`) plus a grid-dimension check per asset.
@@ -407,9 +428,9 @@ Each carries a recommendation; none is decided until the user rules.
     2026-10-11 (user)** from the Phase 4a candidates (corner, upright, foot only, none): "looks
     real clean";
   - the repeat X stays today's `chords.png` cells, tinted per theme;
-  - the faint fill keeps its end-to-middle shading into `chord_box_dark` (**RULED 2026-10-11, user,
-    over a flat fill**: it reads clearer and more transparent), so that role stays, its one job
-    now the fill's middle.
+  - the faint fill keeps its end-to-middle shading (**RULED 2026-10-11, user, over a flat fill**:
+    it reads clearer and more transparent); its middle is derived from the box color
+    (`boxFillMiddle`, "Derived in code, never roles"), so no role holds it.
   - Every candidate drops the corner holders and the end-to-middle gradient.
   - The repeat boxes (S1) and the open-bar posts (S2) follow whichever device wins.
   - Phase 0 renders stills of each candidate; Phase 4a prototypes the shortlist in motion and the
@@ -456,8 +477,8 @@ Each carries a recommendation; none is decided until the user rules.
   because the repository is public. It is saved as files outside the tree before any of its values
   leave the default, and loads in-app once Phase 2a lands (Phase 3); until then the user accepts
   that it cannot be selected (2026-10-09).
-  - **What it holds:** today's 23 colors, `notes.png` (heads only after the Phase 4b split),
-    `inlays.png`, `chords.png`, and the Charter license notice.
+  - **What it holds:** today's colors in the 20 roles, `notes.png` (heads only after the Phase 4b
+    split), `inlays.png`, `chords.png`, and the Charter license notice.
   - **What it cannot hold:** the code-drawn parts (S1 chord-box holders and gradient bars, S2
     open-bar posts) and, from Phase 5, today's mark drawings on the fixed sheet (S3). It draws
     those with the universal RockHero designs. The user accepted this loss.
@@ -531,7 +552,7 @@ Each carries a recommendation; none is decided until the user rules.
     becomes a material description, and the head contract is measured per library shape.
   - **Marks:** they are notation, so one mark set must fit every library shape (S3, 54-Q8).
 - **54-Q20 — the faint ribbon tier.** `drawLaneBorderRibbons` draws every lane line away from the
-  hand window at a fixed 1/8 of `lane_border`. That is a renderer numeric, not a theme value. A
+  hand window at a fixed 1/8 of `lane_line`. That is a renderer numeric, not a theme value. A
   saturated accent still glows at 1/8, so the lines cannot fade with distance as today's teal
   does. The vector construction therefore mutes its ribbons to Oklab chroma about 9.
   - **Option A:** keep 1/8, and the muted ribbons.
@@ -794,8 +815,8 @@ look. **Verification**: build, touched tests.
 ### Phase 4b — One authority for the 2D lane; the mark sheet splits
 
 - **The 2D shape inks follow the theme's hues.** The 2D shape rails echo the 3D shape rails, so
-  their sources are the roles those rails wear: `shape_rail` for a held shape and `arpeggio` for
-  an arpeggio span (`highway_renderer.cpp:5921`), never `chord_box`. The 2D lane derives each ink
+  their sources are the roles those rails wear: `chord` for a held shape and `arpeggio` for an
+  arpeggio span (`drawHandShapeRails`). The 2D lane derives each ink
   by one fixed law, the way a string's surfaces derive from its palette color:
   - The ink also grounds the span chip's opaque white label (`tab_paint_core.cpp:2728-2734`), so
     the law sets the relative luminance that gives white the lane's designed label contrast

@@ -16,9 +16,13 @@ namespace rock_hero::common::ui
 A role is named for what the color does, never for where it is drawn. Each is read as stored,
 alpha included; the renderer then scales that alpha for fades, tiers and frames, and replaces it
 outright only where a member says so. String colors are not roles; they come from the
-StringColorPalette passed beside the theme. Nor is any color the renderer derives from a role (the
-picking hand's box fill dark and rail, the tapping light's lean), so a derived color always follows
-the role it comes from.
+StringColorPalette passed beside the theme. Nor is any color derived from a role (the picking hand's
+chord and arpeggio, a box fill's middle, the dim fret number, the tapping light's lean), so a
+derived color always follows the role it comes from.
+
+A box or a rail tells two things apart by color alone: its kind of span and its hand. The kind is
+authored, as chord and arpeggio, which are the fretting hand's colors; the picking hand's are
+derived from them.
 
 No member has a default, so a theme spelled out field by field must name every role.
 */
@@ -46,10 +50,11 @@ struct HighwayTheme
     ArgbColor lit_lane_dotted;
 
     /*!
-    \brief The per-fret runway ribbons, which scale its alpha by their light tiers, and the
-    fretting hand's chord rails.
+    \brief The per-fret runway ribbons, which scale its alpha by their light tiers.
+
+    A dotted fret's number outside the hand window wears it at half alpha.
     */
-    ArgbColor lane_border;
+    ArgbColor lane_line;
 
     /*! \brief Fret lines outside every hand's light. */
     ArgbColor fret_line;
@@ -59,12 +64,9 @@ struct HighwayTheme
 
     /*!
     \brief A dotted fret's number on a measure downbeat inside the hand window; a number the window
-    covers partly blends toward it from fret_number_dim.
+    covers partly blends toward it from lane_line at half alpha.
     */
     ArgbColor fret_number_lit;
-
-    /*! \brief A dotted fret's number on a measure downbeat outside the hand window. */
-    ArgbColor fret_number_dim;
 
     /*!
     \brief Every hand-position target: arrival numbers, tapped positions, harmonic node numbers and
@@ -81,30 +83,21 @@ struct HighwayTheme
     ArgbColor strike_picking;
 
     /*!
-    \brief The fretting hand's chord box — its frame, the ends of its fill, and its accent light —
-    and the palm-mute mark on a repeat box.
+    \brief The fretting hand's chord: its box's frame, the ends of its fill (whose middle is the
+    same color darkened), its accent light, the palm-mute mark on a repeat box, and its rails.
+
+    A tapped chord's box and rails wear this color's picking-hand counterpart.
     */
-    ArgbColor chord_box;
+    ArgbColor chord;
 
     /*!
-    \brief The middle of the fretting hand's chord-box fill, which shades to it from chord_box at
-    the box's ends.
-
-    The picking hand's box fill shades to this color with its hue removed.
+    \brief The fretting hand's arpeggio, everywhere chord paints a chord: its box, under the posture
+    brackets, and its rails.
     */
-    ArgbColor chord_box_dark;
-
-    /*!
-    \brief The picking hand's furniture: a tapped chord's box and its accent light, and its rails,
-    which the renderer draws at a fixed alpha.
-    */
-    ArgbColor pick_furniture;
+    ArgbColor arpeggio;
 
     /*! \brief The full-mute X on a repeat box. */
     ArgbColor full_mute_mark;
-
-    /*! \brief The rails of an arpeggio span, in place of its hand's rail color. */
-    ArgbColor arpeggio;
 
     /*! \brief The dead zone over the board face between the nut and the capo. */
     ArgbColor capo_shade;

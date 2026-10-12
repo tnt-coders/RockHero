@@ -1,4 +1,5 @@
 #include "highway_theme/highway_theme_file.h"
+#include "highway_theme/highway_theme_guardrails.h"
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>
@@ -361,13 +362,13 @@ TEST_CASE("A theme whose art breaks the texture contract is refused", "[ui][high
 // lit fret line's lift over the unlit one.
 TEST_CASE("A theme that collapses a color distinction is refused", "[ui][highway-theme]")
 {
-    // Each case copies one color onto another it must stay distinct from.
-    constexpr std::array<std::array<std::string_view, 2>, 7> collapses{{
-        {"chord_box", "pick_furniture"},
-        {"arpeggio", "lane_border"},
-        {"fret_number_lit", "fret_number_dim"},
+    // Each case copies one color onto another it must stay distinct from; a color copied onto
+    // lane_line reaches the dim fret number derived from it.
+    constexpr std::array<std::array<std::string_view, 2>, 6> collapses{{
+        {"chord", "arpeggio"},
+        {"fret_number_lit", "lane_line"},
         {"fret_number_lit", "fret_number_target"},
-        {"fret_number_dim", "fret_number_target"},
+        {"fret_number_target", "lane_line"},
         {"strike_fretting", "strike_picking"},
         {"fret_line_lit", "fret_line"},
     }};
@@ -383,6 +384,34 @@ TEST_CASE("A theme that collapses a color distinction is refused", "[ui][highway
               juce::Array<juce::var>& strings = *colorOf(document, "strings").getArray();
               strings.set(1, strings[0]);
           }) == HighwayThemeErrorCode::GuardrailViolated);
+}
+
+// The hand and the kind of span are both read by color, the picking hand's derived from the
+// fretting hand's: each crafted pair of chord and arpeggio fails exactly the distinction named.
+TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][highway-theme]")
+{
+    const StringColorPalette strings = testing::fixtureStringColors();
+    const auto failure = [&strings](const ArgbColor chord, const ArgbColor arpeggio) {
+        HighwayTheme colors = testing::fixtureHighwayTheme();
+        colors.chord = chord;
+        colors.arpeggio = arpeggio;
+        const std::expected<void, HighwayThemeError> checked =
+            checkHighwayThemeGuardrails(colors, strings);
+        return checked.has_value() ? std::string{} : checked.error().message;
+    };
+
+    CHECK(failure(0xFF00D0D0U, 0xFFC040FFU).empty());
+    // The two kinds alike.
+    CHECK(failure(0xFF00D0D0U, 0xFF00D0D0U).starts_with("chord #00D0D0 and arpeggio #00D0D0 "));
+    // A grey has no colorfulness for its picking-hand counterpart to give up.
+    CHECK(failure(0xFF808080U, 0xFFC040FFU)
+              .starts_with("chord #808080 and the picking hand's chord #808080 "));
+    CHECK(failure(0xFF00D0D0U, 0xFF808080U)
+              .starts_with("arpeggio #808080 and the picking hand's arpeggio #808080 "));
+    // Two kinds far enough apart on the fretting hand fall too close once each keeps a quarter of
+    // its chroma.
+    CHECK(failure(0xFF00D0D0U, 0xFF60D0A0U)
+              .starts_with("the picking hand's chord #AFCECD and the picking hand's arpeggio "));
 }
 
 // Every built-in the products ship loads through the one loader as a complete theme, and the set
@@ -525,7 +554,7 @@ TEST_CASE("An inheriting theme stays strict", "[ui][highway-theme]")
     nameless.getDynamicObject()->removeProperty("name");
     CHECK(failure(nameless) == HighwayThemeErrorCode::MissingKey);
     const juce::var collapsed = inheritingDocument("Collapsed");
-    setOwnColor(collapsed, "pick_furniture", colorOf(defaultThemeDocument(), "chord_box"));
+    setOwnColor(collapsed, "arpeggio", colorOf(defaultThemeDocument(), "chord"));
     CHECK(failure(collapsed) == HighwayThemeErrorCode::GuardrailViolated);
 
     // Art the theme does carry must load and keep the contract, whatever its base holds.
