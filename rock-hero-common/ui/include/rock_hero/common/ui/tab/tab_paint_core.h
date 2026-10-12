@@ -14,6 +14,7 @@ supplies only bounds, timeline mapping, and state.
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -55,17 +56,37 @@ The paint core's JUCE conversion of stringLaneColor, which maps the lane onto it
     int displayed_string, int displayed_string_count, const StringColorPalette& palette);
 
 /*!
-\brief Returns the ink of a span's rails and of its label chip.
+\brief The inks a span's rails and its label chip are painted with, one per kind of span.
 
-The Charter hand-shape base, scaled along its own hue to a shade light enough to read as the
-lane's span color and dark enough to carry the span chip's white label. The span chip
-(\ref drawTabSpanChip) fills in this ink too, so the chip and the rails it stands on read as one
-object, and prints its label in that white text over it.
-
-\param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
-\return Opaque mark color.
+The span chip (\ref drawTabSpanChip) fills in its span's ink too, so the chip and the rails it
+stands on read as one object, and prints its label in \ref g_chip_label_color over it.
 */
-[[nodiscard]] juce::Colour tabShapeMarkColor(bool arpeggio);
+struct TabShapeInks
+{
+    /*! \brief A chord span's ink. */
+    juce::Colour chord;
+
+    /*! \brief An arpeggio span's ink. */
+    juce::Colour arpeggio;
+
+    /*!
+    \brief Returns the ink of one kind of span.
+    \param is_arpeggio True for an arpeggio span; false for a chord span.
+    \return The arpeggio ink or the chord ink.
+    */
+    [[nodiscard]] juce::Colour of(bool is_arpeggio) const;
+};
+
+/*!
+\brief Derives the lane's span inks from a theme's chord and arpeggio colors.
+
+Each kind's ink keeps its role's hue at one luminance shared by both kinds, dark enough that the
+chip's white label stays legible over it, so the lane tells the kinds apart by hue and chroma.
+
+\param theme The theme the lane draws with.
+\return The chord and arpeggio inks, under their roles' alphas.
+*/
+[[nodiscard]] TabShapeInks tabShapeInks(const HighwayTheme& theme);
 
 /*!
 \brief Returns the number a head carries for this note stopped at `fret_at_head`.
@@ -294,8 +315,8 @@ private:
 \brief Lane geometry plus the paint-only facts one paint call needs.
 
 Extends the framework-free TabLaneGeometry (which layout-manifest consumers share) with the
-component bounds, the derived fonts and the string palette, so every drawer of one paint call reads
-one authority.
+component bounds, the derived fonts, the string palette and the span inks, so every drawer of one
+paint call reads one authority.
 */
 struct TabLaneMetrics : TabLaneGeometry
 {
@@ -322,6 +343,9 @@ struct TabLaneMetrics : TabLaneGeometry
     /*! \brief String colors every per-string surface of the lane derives from. */
     StringColorPalette palette{};
 
+    /*! \brief Inks the lane's span rails are painted with. */
+    TabShapeInks shape_inks{};
+
     /*!
     \brief Base color for a chart string, accounting for extra user lanes below the chart.
     \param chart_string One-based chart string, 1 = the chart's lowest string.
@@ -338,12 +362,14 @@ struct TabLaneMetrics : TabLaneGeometry
 \param displayed_count Number of displayed lanes; must be positive.
 \param chart_string_count String count declared by the displayed chart.
 \param palette String colors the lane draws with.
+\param shape_inks Inks the lane's span rails are painted with (\ref tabShapeInks).
 \param style Optional style variants; the default reproduces the editor lane exactly.
 \return Metrics every drawer of the paint call reads.
 */
 [[nodiscard]] TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
-    int chart_string_count, StringColorPalette palette, TabLaneStyle style = {});
+    int chart_string_count, StringColorPalette palette, TabShapeInks shape_inks,
+    TabLaneStyle style = {});
 
 /*!
 \brief Returns the outline of the silhouette this note's head is drawn with.
@@ -669,7 +695,7 @@ struct TabSpanChip
     */
     float max_height{};
 
-    /*! \brief True for an arpeggio span (purple); false for a chord span (blue). */
+    /*! \brief True for an arpeggio span, whose chip wears the arpeggio ink; false for a chord. */
     bool arpeggio{false};
 
     /*!
@@ -685,7 +711,7 @@ struct TabSpanChip
 /*!
 \brief Draws one span's label chip: a rectangle standing square on the chip's base line with its
 bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
-(\ref g_lane_chip_corner_radius), filled in the rails' ink (\ref tabShapeMarkColor).
+(\ref g_lane_chip_corner_radius), filled in its span's ink (\ref TabShapeInks).
 
 The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
 centred in \ref g_chip_label_color. It is sized as a fret-hand-position chip in the same font
@@ -700,9 +726,11 @@ shrunk, and the chip draws blank.
 
 \param g Graphics context to draw into.
 \param font The chip label font (\ref chipLabelFont).
+\param inks The span inks of the lane the chip names, as its rails are painted.
 \param chip The chip and the column it stops at.
 */
-void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanChip& chip);
+void drawTabSpanChip(
+    juce::Graphics& g, const TabLaneFont& font, TabShapeInks inks, const TabSpanChip& chip);
 
 /*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.

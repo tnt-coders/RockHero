@@ -685,9 +685,13 @@ The chip's label is its span's name, the chord name of the span's grip template.
 complete only once it carries a template, so the drawer itself prints "?" for a span given no
 name; spans carry no template yet, so every chip prints "?". The label prints in opaque
 white where the room holds the whole labelled chip and the chip stands its own height, and is
-dropped whole otherwise, leaving the chip blank. The rails' ink (`common::ui::tabShapeMarkColor`)
-is each hand-shape color scaled along its own hue, set by eye between reading as the span's color
-and carrying that white text.
+dropped whole otherwise, leaving the chip blank. The rails' ink comes from the theme
+(`common::ui::tabShapeInks`, carried on `TabLaneMetrics::shape_inks`): each of the theme's `chord`
+and `arpeggio` colors held to the one luminance under which that white text reads at 4.45:1 — a
+balance set by eye between reading as the span's color and carrying the label — so the two kinds
+differ by hue and chroma, never by lightness. The theme guardrails hold the two inks apart. The
+ruler fills its chips in the same inks, which `EditorView` pushes through
+`TrackViewport::setShapeInks` at construction and whenever it restates the lane's colors.
 
 A chip never reaches past where its span's rails stop (`common::ui::tabSpanStopX`, the one statement
 of the rails' parting); squeezed by that stop, it narrows to the room, down to a single pixel.
@@ -702,7 +706,8 @@ color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore bo
 color strings through it. Neither surface fetches a palette itself: the host passes one in
 (`makeTabLaneMetrics` carries it on `TabLaneMetrics`; `TabView` passes the string colors
 `EditorView` gave it, the palette `HighwayThemeRegistry::paletteFor` resolves from the player's
-highway settings, restated through `setStringColors` when a theme or palette pick changes them).
+highway settings, restated with the span inks through `setColors` when a theme or palette pick
+changes them).
 The glyph renderer itself is the **shared notation paint core** in
 `rock-hero-common/ui` `tab/`: `tab_lane_layout.h` holds the framework-free `TabLaneGeometry` and
 lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing,

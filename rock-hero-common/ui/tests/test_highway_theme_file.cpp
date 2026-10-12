@@ -412,6 +412,10 @@ TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][high
     // its chroma.
     CHECK(failure(0xFF00D0D0U, 0xFF60D0A0U)
               .starts_with("the picking hand's chord #AFCECD and the picking hand's arpeggio "));
+    // A teal and its own darker shade, apart in lightness on every box, meet on the 2D lane, whose
+    // inks hold both kinds to one luminance.
+    CHECK(failure(0xFF00D2D5U, 0xFF006A6BU)
+              .starts_with("the 2D chord ink #008587 and the 2D arpeggio ink #008587 "));
 }
 
 // Every built-in the products ship loads through the one loader as a complete theme, and the set

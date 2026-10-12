@@ -70,6 +70,23 @@ the depth the fill was tuned at (a box of `#00D2D5` darkens to `#003C3D`).
 [[nodiscard]] ArgbColor boxFillMiddle(ArgbColor box_color);
 
 /*!
+\brief Derives the ink the 2D lane paints a span's rails and label chip with from the span's kind.
+
+The chip prints white text over this ink, so the ink is held to the one relative luminance at which
+white reads at 4.45:1 against it: the balance, set by eye, between an ink light enough to read as
+the lane's span color and one dark enough to carry its label. Whatever its base, every kind's ink
+shares that luminance, so a theme's chord and arpeggio differ on the lane by hue and chroma alone.
+
+The base is scaled in linear light, which keeps its hue and chromaticity. A base too dark to reach
+the luminance by scaling (its brightest channel would pass full) blends toward white instead, which
+keeps its hue but gives up chroma; black blends to the grey of that luminance.
+
+\param base The kind's role color, chord or arpeggio.
+\return The ink, under the base's alpha.
+*/
+[[nodiscard]] ArgbColor laneShapeInk(ArgbColor base);
+
+/*!
 \brief Derives the color of a dotted fret's number on a measure downbeat outside the hand window.
 
 The number sits on the lane lines it labels, so it wears their color at half its alpha (rounded half

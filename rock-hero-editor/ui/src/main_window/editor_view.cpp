@@ -457,7 +457,9 @@ EditorView::EditorView(
               BinaryData::lock_note_open_svg, BinaryData::lock_note_open_svgSize))
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
-    , m_tab_view(highway_themes.paletteFor(m_state.highway_settings).colors)
+    , m_tab_view(
+          highway_themes.paletteFor(m_state.highway_settings).colors,
+          common::ui::tabShapeInks(highway_themes.themeFor(m_state.highway_settings).colors))
     , m_tone_track_view(*this, m_state.tempo_map, m_state.content_map, audio_ports.transport)
     , m_tone_automation_lanes_view(
           *this, m_state.tempo_map, m_state.content_map, audio_ports.tone_automation)
@@ -643,6 +645,9 @@ EditorView::EditorView(
     // first push.
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
+    // The ruler's span chips wear the tab lane's span inks, which the lane took at construction.
+    m_track_viewport->setShapeInks(
+        common::ui::tabShapeInks(m_highway_themes.themeFor(m_state.highway_settings).colors));
     // The ruler's chips raise intents this view answers: two of them need a prompt, which is this
     // view's to raise, so the ruler cannot talk to the controller directly.
     m_track_viewport->setRulerListener(*this);
@@ -746,13 +751,16 @@ void EditorView::setState(const core::EditorViewState& state)
     // restating an unchanged mapping costs nothing.
     if (previous_state.highway_settings != m_state.highway_settings)
     {
+        const common::ui::LoadedHighwayTheme& theme =
+            m_highway_themes.themeFor(m_state.highway_settings);
         const common::ui::HighwayThemePalette& palette =
             m_highway_themes.paletteFor(m_state.highway_settings);
-        m_tab_view.setStringColors(palette.colors);
+        const common::ui::TabShapeInks shape_inks = common::ui::tabShapeInks(theme.colors);
+        m_tab_view.setColors(palette.colors, shape_inks);
+        m_track_viewport->setShapeInks(shape_inks);
         if (m_preview_window != nullptr)
         {
-            m_preview_window->setLook(
-                m_highway_themes.themeFor(m_state.highway_settings), palette.colors);
+            m_preview_window->setLook(theme, palette.colors);
         }
     }
     if (m_preview_window != nullptr)

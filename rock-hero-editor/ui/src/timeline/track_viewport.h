@@ -372,6 +372,13 @@ public:
     void setSpans(std::vector<RulerSpan> spans);
 
     /*!
+    \brief Forwards the tab lane's span inks to the pinned ruler, which fills its span chips in
+    them.
+    \param shape_inks The inks the tab lane paints its span rails with.
+    */
+    void setShapeInks(common::ui::TabShapeInks shape_inks);
+
+    /*!
     \brief Forwards the selected tempo and time-signature chips to the pinned ruler.
     \param tempo_anchor Beat of the selected tempo chip's anchor, or empty when none is selected.
     \param signature_measure Measure of the selected signature chip's change, or empty.

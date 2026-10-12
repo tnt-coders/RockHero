@@ -17,6 +17,11 @@ constexpr double g_picking_hand_chroma_scale = 0.25;
 // stays exact integer arithmetic.
 constexpr ArgbColor g_box_fill_middle_permille = 286;
 
+// The WCAG contrast white label text keeps over a 2D span's ink, and the relative luminance that
+// puts the ink at it: (1 + 0.05) / (Y + 0.05) = 4.45.
+constexpr double g_lane_label_contrast = 4.45;
+constexpr double g_lane_shape_luminance = (1.05 / g_lane_label_contrast) - 0.05;
+
 // The D65 white in CIE XYZ, which the conversions normalize by so white lands on (1, 1, 1).
 constexpr double g_white_x = 0.95047;
 constexpr double g_white_z = 1.08883;
@@ -24,11 +29,35 @@ constexpr double g_white_z = 1.08883;
 // The boundary of CIELAB's linear segment near black, in the companded domain.
 constexpr double g_lab_delta = 6.0 / 29.0;
 
+// A color's RGB in linear light, each channel from 0 to 1.
+struct LinearRgb
+{
+    double red;
+    double green;
+    double blue;
+};
+
 // Decodes one sRGB channel byte to linear light.
 [[nodiscard]] double linearChannel(const ArgbColor color, const unsigned shift)
 {
     const double encoded = static_cast<double>((color >> shift) & 0xFFU) / 255.0;
     return encoded <= 0.04045 ? encoded / 12.92 : std::pow((encoded + 0.055) / 1.055, 2.4);
+}
+
+// Decodes a color's RGB, ignoring its alpha, to linear light.
+[[nodiscard]] LinearRgb linearRgbOf(const ArgbColor color)
+{
+    return LinearRgb{
+        .red = linearChannel(color, 16U),
+        .green = linearChannel(color, 8U),
+        .blue = linearChannel(color, 0U),
+    };
+}
+
+// The relative luminance of a linear color: CIE Y under D65, where white is 1.
+[[nodiscard]] double luminanceOf(const LinearRgb& color)
+{
+    return (0.2126729 * color.red) + (0.7151522 * color.green) + (0.0721750 * color.blue);
 }
 
 // Encodes one linear channel, clamped to sRGB's range, as its nearest byte.
@@ -63,13 +92,14 @@ constexpr double g_lab_delta = 6.0 / 29.0;
 
 Cielab cielabOf(const ArgbColor color)
 {
-    const double red = linearChannel(color, 16U);
-    const double green = linearChannel(color, 8U);
-    const double blue = linearChannel(color, 0U);
-
-    const double x = ((0.4124564 * red) + (0.3575761 * green) + (0.1804375 * blue)) / g_white_x;
-    const double y = (0.2126729 * red) + (0.7151522 * green) + (0.0721750 * blue);
-    const double z = ((0.0193339 * red) + (0.1191920 * green) + (0.9503041 * blue)) / g_white_z;
+    const LinearRgb linear = linearRgbOf(color);
+    const double x =
+        ((0.4124564 * linear.red) + (0.3575761 * linear.green) + (0.1804375 * linear.blue)) /
+        g_white_x;
+    const double y = luminanceOf(linear);
+    const double z =
+        ((0.0193339 * linear.red) + (0.1191920 * linear.green) + (0.9503041 * linear.blue)) /
+        g_white_z;
 
     // CIELAB's cube root, with its linear segment near black.
     const auto compand = [](const double t) {
@@ -123,6 +153,31 @@ ArgbColor boxFillMiddle(const ArgbColor box_color)
         result |= (((channel * g_box_fill_middle_permille) + 500U) / 1000U) << shift;
     }
     return result;
+}
+
+// Scales the base to the ink's luminance where its brightest channel allows, and blends it toward
+// white otherwise. Luminance is linear in each channel, so either move lands on it exactly before
+// the bytes round.
+ArgbColor laneShapeInk(const ArgbColor base)
+{
+    const LinearRgb linear = linearRgbOf(base);
+    const double luminance = luminanceOf(linear);
+    const double brightest = std::max({linear.red, linear.green, linear.blue});
+
+    // Scaling by Y_t / Y fits while the brightest channel stays within full, Y_t * max <= Y, and
+    // needs a luminance to divide by. Blending runs only for a base darker than the ink, so 1 - Y
+    // never reaches zero.
+    const bool scales = luminance > 0.0 && g_lane_shape_luminance * brightest <= luminance;
+    const auto shaded = [&](const double channel) {
+        if (scales)
+        {
+            return channel * g_lane_shape_luminance / luminance;
+        }
+        const double blend = (g_lane_shape_luminance - luminance) / (1.0 - luminance);
+        return channel + (blend * (1.0 - channel));
+    };
+    return (base & 0xFF000000U) | (encodedChannel(shaded(linear.red)) << 16U) |
+           (encodedChannel(shaded(linear.green)) << 8U) | encodedChannel(shaded(linear.blue));
 }
 
 ArgbColor fretNumberDim(const HighwayTheme& theme)

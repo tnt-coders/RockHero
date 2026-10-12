@@ -58,12 +58,15 @@ std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
     const NamedColor number_lit = roleColor(colors, &HighwayTheme::fret_number_lit);
     const NamedColor number_dim{.name = "the dim fret number", .color = fretNumberDim(colors)};
     const NamedColor number_target = roleColor(colors, &HighwayTheme::fret_number_target);
-    const std::array<std::array<NamedColor, 2>, 8> distinct_pairs{{
+    const std::array<std::array<NamedColor, 2>, 9> distinct_pairs{{
         // The two kinds of span, and each kind's two hands.
         {chord, arpeggio},
         {chord, picking_chord},
         {arpeggio, picking_arpeggio},
         {picking_chord, picking_arpeggio},
+        // The two kinds of span on the 2D lane, where both inks share one luminance.
+        {NamedColor{.name = "the 2D chord ink", .color = laneShapeInk(colors.chord)},
+         NamedColor{.name = "the 2D arpeggio ink", .color = laneShapeInk(colors.arpeggio)}},
         // The three states of a fret number.
         {number_lit, number_dim},
         {number_lit, number_target},

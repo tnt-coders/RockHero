@@ -458,6 +458,12 @@ void TrackViewport::setSpans(std::vector<RulerSpan> spans)
     m_timeline_ruler.setSpans(std::move(spans));
 }
 
+// Forwards the tab lane's span inks to the pinned ruler's span chips.
+void TrackViewport::setShapeInks(const common::ui::TabShapeInks shape_inks)
+{
+    m_timeline_ruler.setShapeInks(shape_inks);
+}
+
 // Forwards the selected tempo and time-signature chips to the pinned ruler.
 void TrackViewport::setSelectedTempoMapChips(
     const std::optional<common::core::GridPosition> tempo_anchor,

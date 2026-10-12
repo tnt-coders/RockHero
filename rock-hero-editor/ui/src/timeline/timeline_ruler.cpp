@@ -352,7 +352,7 @@ void TimelineRuler::paint(juce::Graphics& g)
     drawMeasureLabels(g);
     for (const common::ui::TabSpanChip& chip : m_span_chips)
     {
-        common::ui::drawTabSpanChip(g, m_chip_font, chip);
+        common::ui::drawTabSpanChip(g, m_chip_font, m_shape_inks, chip);
     }
 
     drawSectionChips(g);
@@ -830,6 +830,14 @@ void TimelineRuler::setSpans(std::vector<RulerSpan> spans)
 
     m_spans = std::move(spans);
     refreshSpanChips();
+    repaint();
+}
+
+// Stores the span chips' inks; the chips' placement does not depend on them, so a repaint is the
+// whole change.
+void TimelineRuler::setShapeInks(const common::ui::TabShapeInks shape_inks)
+{
+    m_shape_inks = shape_inks;
     repaint();
 }
 

@@ -87,16 +87,19 @@ public:
     using FretHandChipCallback = std::function<void(std::size_t)>;
 
     /*!
-    \brief Creates an empty lane that draws its strings in the given colors.
+    \brief Creates an empty lane that draws in the given colors.
     \param string_colors The string colors every lane surface derives from.
+    \param shape_inks The inks the lane's span rails are painted with.
     */
-    explicit TabView(common::ui::StringColorPalette string_colors);
+    TabView(common::ui::StringColorPalette string_colors, common::ui::TabShapeInks shape_inks);
 
     /*!
-    \brief Redraws the lane in other string colors.
+    \brief Redraws the lane in other colors.
     \param string_colors The string colors every lane surface derives from.
+    \param shape_inks The inks the lane's span rails are painted with.
     */
-    void setStringColors(common::ui::StringColorPalette string_colors);
+    void setColors(
+        common::ui::StringColorPalette string_colors, common::ui::TabShapeInks shape_inks);
 
     /*!
     \brief Installs the sink that receives the lane's chart pointer intents.
@@ -496,6 +499,9 @@ private:
 
     // The string colors every lane surface derives from.
     common::ui::StringColorPalette m_string_colors;
+
+    // The inks the lane's span rails are painted with.
+    common::ui::TabShapeInks m_shape_inks;
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

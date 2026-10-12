@@ -1,5 +1,6 @@
 #include "tab/tab_paint_core.h"
 
+#include "highway_theme/highway_theme_derived_colors.h"
 #include "string_colors/string_color_palette.h"
 #include "tab/plectrum_outline.h"
 
@@ -34,11 +35,9 @@ namespace
 // convert to JUCE colors at this module's boundary.
 
 // Charter modern-theme fixed colors.
-const juce::Colour g_note_background_color{0xff101010};     // NOTE_BACKGROUND
-const juce::Colour g_hand_shape_color{0xff3157a7};          // HAND_SHAPE
-const juce::Colour g_hand_shape_arpeggio_color{0xff8559b7}; // HAND_SHAPE_ARPEGGIO
-const juce::Colour g_vibrato_sine_color{0xffb6b6b6};        // java Color.GRAY.brighter()
-const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
+const juce::Colour g_note_background_color{0xff101010}; // NOTE_BACKGROUND
+const juce::Colour g_vibrato_sine_color{0xffb6b6b6};    // java Color.GRAY.brighter()
+const juce::Colour g_palm_mute_inner_color{0xff050505}; // palm-mute X fill
 
 // The lane's hand axis: a mark's hand signature is its FILL POLARITY, not its shape — dark ink
 // marks the picking hand, light ink the fretting hand, exactly as the legato triangles draw
@@ -147,11 +146,6 @@ constexpr float g_floating_chip_padding{3.0f};
     return label;
 }
 
-// Each hand-shape base's scale for the span marks, set by eye between a mark bright enough to read
-// as the lane's own color and one dark enough to carry the span chip's white label, the purple's
-// matched to the blue's so the label reads alike on both: about 4.45:1 on each.
-constexpr double g_shape_mark_scale{1.33};
-constexpr double g_arpeggio_mark_scale{1.09};
 // The square-bracket pair marking an arpeggio posture note reads as "[ fret ]" and stays much
 // lighter than the note rings it wraps. Its SIZE lives on the lane geometry
 // (TabLaneGeometry::bracketGeometry) rather than here, because the layout manifest places the
@@ -2043,7 +2037,7 @@ void drawNoteHead(
 }
 
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
-// span's duration — blue for chord shapes, purple for arpeggios — echoing the 3D highway's
+// span's duration, in its kind's ink (TabLaneMetrics::shape_inks), echoing the 3D highway's
 // shape rails at the hand-window fret lines (a departure from Charter's full-height tint, which
 // reads as an ugly wall of color). The rails are the WHOLE indication: a span carries no name to
 // draw — ShapeViewState publishes its ends, its arpeggio flag and its posture, and nothing else.
@@ -2061,7 +2055,7 @@ void drawShapeSpan(
         return;
     }
 
-    const juce::Colour color = tabShapeMarkColor(shape.arpeggio);
+    const juce::Colour color = metrics.shape_inks.of(shape.arpeggio);
     const float width = end_x - start_x;
     const float bottom_rail_y =
         static_cast<float>(metrics.bounds.getBottom()) - g_shape_rail_height;
@@ -2479,11 +2473,19 @@ juce::String tabNoteHeadText(const common::core::NoteViewState& note, const int 
         common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_head))};
 }
 
-// Rationale lives on the declaration in tab_paint_core.h.
-juce::Colour tabShapeMarkColor(bool arpeggio)
+// Picks the ink of one kind of span.
+juce::Colour TabShapeInks::of(const bool is_arpeggio) const
 {
-    return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_scale)
-                    : charterMultiply(g_hand_shape_color, g_shape_mark_scale);
+    return is_arpeggio ? arpeggio : chord;
+}
+
+// Derives both kinds' inks through the theme's one lane-ink law, converting them to JUCE colors.
+TabShapeInks tabShapeInks(const HighwayTheme& theme)
+{
+    return TabShapeInks{
+        .chord = juce::Colour{laneShapeInk(theme.chord)},
+        .arpeggio = juce::Colour{laneShapeInk(theme.arpeggio)},
+    };
 }
 
 // Base color for a chart string, accounting for extra user lanes below the chart.
@@ -2495,7 +2497,7 @@ juce::Colour TabLaneMetrics::baseColor(int chart_string) const
 
 TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
-    int chart_string_count, StringColorPalette palette, TabLaneStyle style)
+    int chart_string_count, StringColorPalette palette, TabShapeInks shape_inks, TabLaneStyle style)
 {
     // The header states these as preconditions and the geometry below DIVIDES by both, so a
     // violation is undefined behaviour rather than a wrong picture: an empty bounds zeroes the
@@ -2523,6 +2525,7 @@ TabLaneMetrics makeTabLaneMetrics(
     metrics.fraction_font = boldFont(metrics.fretTextHeight() * g_bend_fraction_scale);
     metrics.chip_font = chipLabelFont();
     metrics.palette = palette;
+    metrics.shape_inks = shape_inks;
     return metrics;
 }
 
@@ -2678,7 +2681,8 @@ float tabSpanStopX(const float end_x, const std::optional<float> next_start_x)
 constexpr auto g_unnamed_span_text = "?";
 
 // Rationale lives on the declaration in tab_paint_core.h.
-void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanChip& chip)
+void drawTabSpanChip(
+    juce::Graphics& g, const TabLaneFont& font, const TabShapeInks inks, const TabSpanChip& chip)
 {
     const float left = chip.base_left.x;
     const float bottom = chip.base_left.y;
@@ -2721,7 +2725,7 @@ void drawTabSpanChip(juce::Graphics& g, const TabLaneFont& font, const TabSpanCh
         true,
         false,
         false);
-    g.setColour(tabShapeMarkColor(chip.arpeggio));
+    g.setColour(inks.of(chip.arpeggio));
     g.fillPath(outline);
 
     if (printed.isNotEmpty())

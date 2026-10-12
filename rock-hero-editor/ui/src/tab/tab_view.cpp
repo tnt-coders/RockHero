@@ -74,15 +74,18 @@ float tabLaneCenterY(
     return common::ui::tabLaneCenterY(displayed_string, displayed_string_count, bounds);
 }
 
-// Holds the string colors every paint derives the lane's surfaces from.
-TabView::TabView(common::ui::StringColorPalette string_colors)
+// Holds the colors every paint derives the lane's surfaces from.
+TabView::TabView(common::ui::StringColorPalette string_colors, common::ui::TabShapeInks shape_inks)
     : m_string_colors{string_colors}
+    , m_shape_inks{shape_inks}
 {}
 
-// Every paint derives the lane's surfaces from the palette, so a repaint is the whole change.
-void TabView::setStringColors(common::ui::StringColorPalette string_colors)
+// Every paint derives the lane's surfaces from the colors, so a repaint is the whole change.
+void TabView::setColors(
+    common::ui::StringColorPalette string_colors, common::ui::TabShapeInks shape_inks)
 {
     m_string_colors = string_colors;
+    m_shape_inks = shape_inks;
     repaint();
 }
 
@@ -1056,7 +1059,8 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
         m_visible_timeline,
         common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
         tab->stringCount(),
-        m_string_colors);
+        m_string_colors,
+        m_shape_inks);
     metrics.retime = m_retime;
     return DrawableLane{.metrics = std::move(metrics), .tab = *tab};
 }

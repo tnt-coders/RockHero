@@ -160,7 +160,8 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         },
         6,
         6,
-        common::ui::testing::fixtureStringColors());
+        common::ui::testing::fixtureStringColors(),
+        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
 }
 
 // A blank span chip's width in that lane: a one-figure fret-hand chip's.
@@ -525,6 +526,7 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
             tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
     const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
+    ruler.setShapeInks(lane.shape_inks);
     ruler.setSpans(
         std::vector<RulerSpan>{
             RulerSpan{.start_seconds = 1.0, .end_seconds = 2.0, .arpeggio = false},
@@ -537,10 +539,10 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     // arpeggio's at x = 200, both probed in their left padding, clear of the beat ticks they cover
     // and of the label.
     const int inside_y = g_timeline_ruler_height - 4;
-    const juce::Colour chord = common::ui::tabShapeMarkColor(false);
+    const juce::Colour chord = lane.shape_inks.chord;
     CHECK(image.getPixelAt(100, inside_y) == chord);
     CHECK(image.getPixelAt(99, inside_y) != chord);
-    CHECK(image.getPixelAt(201, inside_y) == common::ui::tabShapeMarkColor(true));
+    CHECK(image.getPixelAt(201, inside_y) == lane.shape_inks.arpeggio);
 
     // The chord chip's centre is not its fill alone: the "?" prints there. Read coarsely, since
     // the label is a glyph.
@@ -590,6 +592,7 @@ TEST_CASE(
                 0,
                 ruler.getWidth()));
         ruler.setProjectLoaded(true);
+        ruler.setShapeInks(lane.shape_inks);
         ruler.setSpans(spans);
         return ruler.createComponentSnapshot(ruler.getLocalBounds());
     };
@@ -641,11 +644,11 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
     const int base_y = g_timeline_ruler_height - 1;
     constexpr int past_chip = 20;
     REQUIRE(spanChipBlankWidth(lane) < past_chip);
-    const juce::Colour chord = common::ui::tabShapeMarkColor(false);
+    const juce::Colour chord = lane.shape_inks.chord;
 
     // Eight seconds across 801px maps seconds * 100; scrolled 150px in, the ruler's left edge is
     // 1.5 s. Each case is one chord span starting at `start` and ending at `end`.
-    const auto render = [](const double start, const double end) {
+    const auto render = [&lane](const double start, const double end) {
         TimelineRuler ruler;
         ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
         ruler.setTimelineView(
@@ -657,6 +660,7 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
             150);
         ruler.setGridLines({});
         ruler.setProjectLoaded(true);
+        ruler.setShapeInks(lane.shape_inks);
         ruler.setSpans(
             std::vector<RulerSpan>{
                 RulerSpan{.start_seconds = start, .end_seconds = end, .arpeggio = false},

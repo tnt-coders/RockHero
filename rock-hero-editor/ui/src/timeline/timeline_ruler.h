@@ -90,7 +90,7 @@ struct RulerSpan
     /*! \brief Absolute timeline second of the span's drawn end, in the content's time. */
     double end_seconds{0.0};
 
-    /*! \brief True for an arpeggio span (purple chip); false for a chord span (blue chip). */
+    /*! \brief True for an arpeggio span, whose chip wears the arpeggio ink; false for a chord. */
     bool arpeggio{false};
 
     /*!
@@ -369,6 +369,16 @@ public:
     clears the chips.
     */
     void setSpans(std::vector<RulerSpan> spans);
+
+    /*!
+    \brief Stores the inks the span chips are filled with, which are the tab lane's own, so a chip
+    reads as one object with the rails it stands on.
+
+    Until the owner sets them, the chips fill in TabShapeInks' default, transparent black.
+
+    \param shape_inks The tab lane's span inks.
+    */
+    void setShapeInks(common::ui::TabShapeInks shape_inks);
 
     /*!
     \brief Stores which tempo and time-signature chips are selected.
@@ -774,6 +784,9 @@ private:
 
     // The span chips the ruler shows, placed when the geometry rebuilds.
     std::vector<common::ui::TabSpanChip> m_span_chips{};
+
+    // The tab lane's span inks the span chips fill in, pushed by the owning view with its theme.
+    common::ui::TabShapeInks m_shape_inks{};
 
     // The selected tempo chip's anchor beat and signature chip's measure, as last pushed.
     std::optional<common::core::GridPosition> m_selected_tempo_anchor{};

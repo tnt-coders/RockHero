@@ -269,6 +269,7 @@ constexpr int g_digit_window = 4;
         common::core::displayedStringCount(string_count, 0),
         string_count,
         testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()),
         TabLaneStyle{});
 }
 
@@ -434,7 +435,8 @@ constexpr int g_digit_window = 4;
         },
         6,
         6,
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
 }
 
 // A one-figure fret-hand chip's box in that lane, whose width is a blank span chip's.
@@ -465,6 +467,7 @@ constexpr float g_span_chip_headroom{30.0f};
         drawTabSpanChip(
             graphics,
             metrics.chip_font,
+            metrics.shape_inks,
             TabSpanChip{
                 .base_left = {20.0f, 30.0f},
                 .stop_x = stop_x,
@@ -497,7 +500,8 @@ constexpr float g_span_chip_headroom{30.0f};
 // than matched exactly, since a glyph is antialiased into the fill.
 [[nodiscard]] int spanChipLabelInk(const juce::Image& image)
 {
-    const float midpoint = tabShapeMarkColor(false).getSaturation() / 2.0f;
+    const float midpoint =
+        tabShapeInks(testing::fixtureHighwayTheme()).chord.getSaturation() / 2.0f;
     int ink = 0;
     for (int y = 0; y < image.getHeight(); ++y)
     {
@@ -1057,7 +1061,8 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
@@ -1066,18 +1071,18 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     // with the content pass unless it has chrome to interleave between the two layers.
     paintTabLaneFurniture(graphics, metrics, state);
 
-    // The strummed A5 span rails the lane's top and bottom edges in the hand-shape blue (base
-    // x1.16) inside its range and not outside it, and does not tint the lane interior. The probe
-    // column sits at 4.5s, inside the span.
-    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff4173de});
-    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff4173de});
+    // The strummed A5 span rails the lane's top and bottom edges in the chord ink inside its range
+    // and not outside it, and does not tint the lane interior. The probe column sits at 4.5s,
+    // inside the span.
+    CHECK(image.getPixelAt(90, 1) == metrics.shape_inks.chord);
+    CHECK(image.getPixelAt(90, 238) == metrics.shape_inks.chord);
     CHECK(image.getPixelAt(90, 5).getARGB() == 0);
     CHECK(image.getPixelAt(150, 1).getARGB() == 0);
     CHECK(image.getPixelAt(150, 238).getARGB() == 0);
 
-    // The arpeggio span's rails are the hand-shape purple at its own scale (base x0.955).
-    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff9061c7});
-    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff9061c7});
+    // The arpeggio span's rails wear the arpeggio ink.
+    CHECK(image.getPixelAt(220, 1) == metrics.shape_inks.arpeggio);
+    CHECK(image.getPixelAt(220, 238) == metrics.shape_inks.arpeggio);
 
     // Span chips stand above the lane, on the host's ruler, so nothing but the rails and the FHP
     // marker touches the lane's top edge here.
@@ -1220,7 +1225,8 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
@@ -1345,7 +1351,8 @@ TEST_CASE("Tab FHP chip keeps the chip size at every lane size", "[ui][tab-paint
             },
             6,
             6,
-            testing::fixtureStringColors());
+            testing::fixtureStringColors(),
+            tabShapeInks(testing::fixtureHighwayTheme()));
         return tabFhpChipBounds(
             metrics, common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 6}, 0.0f);
     };
@@ -1371,7 +1378,8 @@ TEST_CASE("Tab FHP chip draws a derived position as a ghost", "[ui][tab-paint]")
         },
         6,
         6,
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
     const auto chip_ground = [&metrics](const common::core::FhpAuthored authored) {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 200, 120, true)};
@@ -1409,7 +1417,7 @@ TEST_CASE("Tab span chip is a rectangle with a rounded top in the span's colors"
     {
         const juce::Image image =
             renderSpanChip(metrics, static_cast<float>(right + 5), arpeggio, juce::String{"Am7"});
-        const juce::Colour ink = tabShapeMarkColor(arpeggio);
+        const juce::Colour ink = metrics.shape_inks.of(arpeggio);
 
         // The chip's height: the base row and the top row solid, the line below the base and the
         // row above the top empty.
@@ -1446,7 +1454,7 @@ TEST_CASE("Tab span chip narrows to its stop column", "[ui][tab-paint]")
     const int middle_y = 30 - (height / 2);
     // A row below the top corners' rounding, where an upright side fills its column.
     const int upper_y = 30 - height + static_cast<int>(g_lane_chip_corner_radius);
-    const juce::Colour ink = tabShapeMarkColor(false);
+    const juce::Colour ink = metrics.shape_inks.chord;
 
     // Six pixels of room, narrower than a blank chip: solid down both sides, the stop column empty.
     const juce::Image narrowed = renderSpanChip(metrics, 26.0f, false, std::nullopt);
@@ -1475,7 +1483,7 @@ TEST_CASE("Tab span chip drops its label under its ceiling", "[ui][tab-paint]")
     REQUIRE(spanChipHeight(metrics) > 8.0f);
     const auto width = static_cast<int>(oneFigureFhpChip(metrics).getWidth());
     const int middle_x = 20 + (width / 2);
-    const juce::Colour ink = tabShapeMarkColor(false);
+    const juce::Colour ink = metrics.shape_inks.chord;
 
     const juce::Image lowered = renderSpanChip(metrics, 1000.0f, false, std::nullopt, 8.0f);
     CHECK(lowered.getPixelAt(middle_x, 22) == ink);
@@ -1517,7 +1525,7 @@ TEST_CASE("Tab span chip drops a name the room cannot hold whole", "[ui][tab-pai
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const TabLaneMetrics metrics = spanChipLaneMetrics();
-    const juce::Colour ink = tabShapeMarkColor(false);
+    const juce::Colour ink = metrics.shape_inks.chord;
 
     // With room, the named chip runs past a blank chip's right edge: probed on its bottom row, in
     // the padding no glyph reaches.
@@ -1580,7 +1588,8 @@ TEST_CASE("Tab paint core parts abutting spans' rails by a pixel", "[ui][tab-pai
         },
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     {
         juce::Graphics graphics{image};
@@ -1590,9 +1599,9 @@ TEST_CASE("Tab paint core parts abutting spans' rails by a pixel", "[ui][tab-pai
     // 20 px a second puts the meeting at x = 200.
     for (const int rail_y : {1, 238})
     {
-        CHECK(image.getPixelAt(198, rail_y) == tabShapeMarkColor(false));
+        CHECK(image.getPixelAt(198, rail_y) == metrics.shape_inks.chord);
         CHECK(image.getPixelAt(199, rail_y).getARGB() == 0);
-        CHECK(image.getPixelAt(200, rail_y) == tabShapeMarkColor(true));
+        CHECK(image.getPixelAt(200, rail_y) == metrics.shape_inks.arpeggio);
     }
 }
 
@@ -1734,7 +1743,8 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
     // Six lanes in 240 px put note_height at its 25 px ceiling, so the head is 26 px and every
     // onset lands on a whole pixel: 20 px per second puts the string-3 heads at x = 80, 160, 240
     // and 320, and the two-digit pair on string 5 at 80 and 160. Whole-pixel centers matter — the
@@ -1949,7 +1959,8 @@ TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
     REQUIRE_THAT(metrics.note_height, Catch::Matchers::WithinULP(25.0f, 0));
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
@@ -2174,7 +2185,8 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
             visible_timeline,
             common::core::displayedStringCount(state.stringCount(), 0),
             state.stringCount(),
-            testing::fixtureStringColors());
+            testing::fixtureStringColors(),
+            tabShapeInks(testing::fixtureHighwayTheme()));
         REQUIRE(metrics.draw_text);
         juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
@@ -2301,7 +2313,8 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
@@ -2383,7 +2396,8 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
         visible_timeline,
         common::core::displayedStringCount(state.stringCount(), 0),
         state.stringCount(),
-        testing::fixtureStringColors());
+        testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()));
     indexVisibleRanges(state);
 
     const juce::Image whole{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
@@ -3805,6 +3819,7 @@ TEST_CASE("Tab paint core keeps a ring's dots out of the head it ends on", "[ui]
         6,
         6,
         testing::fixtureStringColors(),
+        tabShapeInks(testing::fixtureHighwayTheme()),
         TabLaneStyle{});
     REQUIRE(lane.draw_text);
 
@@ -3857,6 +3872,7 @@ TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][ta
             6,
             6,
             testing::fixtureStringColors(),
+            tabShapeInks(testing::fixtureHighwayTheme()),
             TabLaneStyle{});
         REQUIRE(metrics.draw_text);
         TabLaneMetrics textless = metrics;
