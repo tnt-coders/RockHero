@@ -149,14 +149,6 @@ struct LoadedSectionEditor : SongEditorHarness
         const EditorViewState* const state = stateOrNull(view.last_state);
         return state != nullptr && state->undo_enabled;
     }
-
-    // How many entries the undo history holds, so a verb that must record NOTHING can be told from
-    // one that records an entry restoring the same list.
-    [[nodiscard]] std::size_t undoEntryCount() const
-    {
-        const EditorViewState* const state = stateOrNull(view.last_state);
-        return state != nullptr ? state->undo_history.labels.size() : 0;
-    }
 };
 
 } // namespace
