@@ -664,8 +664,71 @@ as two rules. A tail shorter than this fades across its whole length.
 inline constexpr double g_tail_tip_fade_min_seconds = 0.25;
 
 /*!
-\brief The stretch before a note's ink end over which its tail dissolves — THE one fade rule, read
-by the 2D lane and the 3D board alike so a sustain ends the same way on both.
+\brief The stretch at the end of a note's ink over which it dissolves: full before it, gone at its
+end, linear between.
+*/
+struct TipFade
+{
+    /*! \brief Absolute instant the ink is gone. */
+    double end_seconds{0.0};
+
+    /*! \brief How long before \ref end_seconds the ink starts dissolving. */
+    double length_seconds{0.0};
+
+    /*!
+    \brief The instant the ink starts dissolving.
+    \return \ref end_seconds less \ref length_seconds.
+    */
+    [[nodiscard]] double beginSeconds() const noexcept
+    {
+        return end_seconds - length_seconds;
+    }
+
+    /*!
+    \brief The ink's alpha at an instant.
+
+    Divides only strictly inside the window, so an empty fade is a clean step at its end and
+    never a division by zero.
+
+    \param seconds Absolute instant asked about.
+    \return 1 up to \ref beginSeconds, falling linearly to 0 at \ref end_seconds and after.
+    */
+    [[nodiscard]] double alphaAt(const double seconds) const noexcept
+    {
+        const double remaining = end_seconds - seconds;
+        if (remaining <= 0.0)
+        {
+            return 0.0;
+        }
+        return remaining >= length_seconds ? 1.0 : remaining / length_seconds;
+    }
+};
+
+/*!
+\brief How ink drawn from a note's onset to an end dissolves there — THE one fade rule, read by the
+2D lane and the 3D board alike, by the tail and the head alike, so a sustain ends the same way on
+both surfaces and a head goes with its tail.
+
+A fraction of the drawn length, never less than a floor of time, and never more than the length
+itself.
+
+\param note The projected note, whose onset the length is measured from.
+\param end_seconds Absolute instant the ink ends.
+\return The fade window ending at `end_seconds`.
+*/
+[[nodiscard]] inline TipFade tipFadeTo(const NoteViewState& note, const double end_seconds) noexcept
+{
+    const double duration = end_seconds - note.start_seconds;
+    return TipFade{
+        .end_seconds = end_seconds,
+        .length_seconds = std::min(
+            duration, std::max(duration * g_tail_tip_fade_fraction, g_tail_tip_fade_min_seconds)),
+    };
+}
+
+/*!
+\brief The stretch before a note's ink end over which its tail dissolves (\ref tipFadeTo at the ink
+end).
 
 Measured on the INK: a revealed ring is drawn crisp to its true end and never fades, since the
 reveal exists to show exactly where the ring stops.
@@ -675,9 +738,35 @@ reveal exists to show exactly where the ring stops.
 */
 [[nodiscard]] inline double tailFadeSeconds(const NoteViewState& note) noexcept
 {
-    const double duration = note.ink_end_seconds - note.start_seconds;
-    return std::min(
-        duration, std::max(duration * g_tail_tip_fade_fraction, g_tail_tip_fade_min_seconds));
+    return tipFadeTo(note, note.ink_end_seconds).length_seconds;
+}
+
+/*!
+\brief How a played note's head dissolves on the 3D board: as if a tail ran to the end of what the
+head states.
+
+That end is the head's PIN where the board holds the head at the hit line past its ink end (a
+span-held strum, a handed-over member pinned to its stored ring); otherwise the ink end, so a head
+goes with its tail at the tail's own rate; and for a note that draws no tail at all, its stored
+ring — the length a tail would have had. Every window ENDS at that instant and none runs past it,
+so a head pinned until the next strum re-shows the chord is gone exactly as the newcomer lands and
+the two never stack. The window is never empty: a drawn tail and a pin past it have length by
+definition, and a stored ring has length by the positive-sustain invariant.
+
+\param note The projected note.
+\param pin_end_seconds Absolute instant the board stops pinning the head, never before the ink end.
+\return The head's fade window.
+*/
+[[nodiscard]] inline TipFade headFade(
+    const NoteViewState& note, const double pin_end_seconds) noexcept
+{
+    if (pin_end_seconds > note.ink_end_seconds)
+    {
+        return tipFadeTo(note, pin_end_seconds);
+    }
+    return tipFadeTo(
+        note,
+        note.ink_end_seconds > note.start_seconds ? note.ink_end_seconds : note.ring_end_seconds);
 }
 
 /*!
@@ -1124,8 +1213,9 @@ struct ChartViewState
     own, such as a long span shadowed by a short one that started inside it silently losing its
     hold.
 
-    Feeds the board's visible-range prefix maximum, so a pinned strum stays in range for as long
-    as it is held.
+    The board pins its heads for this long and then dissolves them (\ref headFade), and its
+    visible range is indexed by where those fades end, so a pinned strum stays in range for as
+    long as it is held.
     */
     std::vector<double> display_hold_ends;
 
@@ -1136,8 +1226,8 @@ struct ChartViewState
     ascend by onset but their rings overlap freely, so the first note that can reach a window is
     found by binary search over this table. Built over the ring because that is the furthest a
     note can ever be drawn, so the one table serves a plain paint and a reveal alike; each pass
-    then drops the notes that really end before its window. The board indexes by
-    \ref display_hold_ends instead, since it draws a pinned head past the ring.
+    then drops the notes that really end before its window. The board indexes by where its heads'
+    fades end instead (\ref headFade), since it draws a pinned head past the ring.
     */
     std::vector<double> ring_end_prefix_max;
 

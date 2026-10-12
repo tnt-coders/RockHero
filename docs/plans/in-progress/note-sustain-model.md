@@ -138,6 +138,10 @@ would release the very pins the span convention exists to set.
 A member no span covers — every plain note on open board, now that the curtain rests them all —
 holds to its ink end.
 
+A pinned head ends by the one tip-fade rule, measured to the end of its pin (`headFade`,
+`chart_view_state.h`, ruled 2026-10-11): it keeps the pin and is gone exactly as the pin releases,
+so a head the next re-shown strum takes over never stacks with the newcomer.
+
 Structurally this is the span convention unchanged: `chartHolds` IS that convention, asked of the
 ink ends and the verdict. It extends the members whose tails rest as well as the ones rules 2 and
 3 emptied. The span engine is private to `chart_presentation.cpp`, since nothing resolves holds from

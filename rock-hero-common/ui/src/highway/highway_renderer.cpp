@@ -319,8 +319,11 @@ constexpr std::uint64_t g_premultiplied_state =
 // reference (highwayFocusWholeNeckX) can never disagree about how long the neck is.
 constexpr int g_face_fret_count = common::core::g_highway_fret_count;
 
-// Seconds a passed note takes to fade out after crossing the hit line.
-constexpr double g_passed_fade_seconds = 0.15;
+// Seconds of song time the board draws behind the hit line. A strike transient (a single note's
+// fret-span attack line) scrolls past on its onset and fades out across exactly this stretch, so
+// the drawn span's near edge never clips one. A head never travels back here: it pins at the hit
+// line and fades there (common::core::headFade).
+constexpr double g_passed_span_seconds = 0.15;
 
 // Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line. The
 // flip spans the whole approach, so its slow final degrees need this flat stretch to read as
@@ -1594,6 +1597,29 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
     return options;
 }
 
+// How long the board pins a note's head at the hit line: its ink end, or — for a span-held strum
+// or a handed-over member — its hold (display_hold_ends), released early when a later strum
+// re-shows the chord and takes over the pinned display (hold_cap_seconds). For a note that draws no
+// tail and is not held it is the onset.
+[[nodiscard]] double headPinEndSeconds(
+    const common::core::HighwayViewState& state, const std::size_t index) noexcept
+{
+    const common::core::HighwayChordGroupViewState& group =
+        state.chord_groups[state.note_group[index]];
+    return std::max(
+        state.chart.notes[index].ink_end_seconds,
+        std::min(state.chart.display_hold_ends[index], group.hold_cap_seconds));
+}
+
+// The board's fade for a note's head: the shared head rule at the board's own pin. The one
+// composition the head pass, the visibility test and the visible-range table all ask, so the
+// last instant a head draws and the instant the board stops keeping its note cannot part.
+[[nodiscard]] common::core::TipFade boardHeadFade(
+    const common::core::HighwayViewState& state, const std::size_t index) noexcept
+{
+    return common::core::headFade(state.chart.notes[index], headPinEndSeconds(state, index));
+}
+
 } // namespace
 
 /*
@@ -1853,8 +1879,8 @@ struct FrameContext
     // Playback song time for this frame; the origin every time-to-z conversion measures from.
     double now_seconds{0.0};
 
-    // The drawn span of song time: from the passed-note fade behind the hit line out to the
-    // visibility horizon, which is where the visible-range searches clamp.
+    // The drawn span of song time: from the passed span behind the hit line out to the visibility
+    // horizon, which is where the visible-range searches clamp.
     double span_start_seconds{0.0};
     double span_end_seconds{0.0};
 
@@ -1936,11 +1962,14 @@ struct HighwayRenderer::Impl
     // laneOf.
     int displayed_count{0};
     int extra_lanes{0};
-    std::vector<double> sustain_prefix_max;
+    // Running maximum of the instants the notes' heads are gone (boardHeadFade), per chart
+    // revision: notes ascend by onset but their pins and fades overlap freely, so the note sweep
+    // finds its first candidate through visibleEventRange over this.
+    std::vector<double> head_fade_end_prefix_max;
     // The same companion table for the hand-posture spans, which overlap freely like the notes'
     // sustains: the shape passes bound their visible range through visibleEventRange with this.
     std::vector<double> shape_prefix_max;
-    // Natural-harmonic node series, derived once per chart revision like sustain_prefix_max:
+    // Natural-harmonic node series, derived once per chart revision like head_fade_end_prefix_max:
     // the draw path labels and suppresses from this table instead of re-walking every note.
     std::vector<common::core::HighwayNodeSeries> node_series;
     // The same companion table for the strikes' holds, which overlap freely too: the rails pass
@@ -2473,8 +2502,11 @@ void HighwayRenderer::setViewState(std::shared_ptr<const common::core::HighwayVi
     // reading past a vector inside the frame loop.
     assert(published.chart.display_hold_ends.size() == published.chart.notes.size());
     assert(published.note_group.size() == published.chart.notes.size());
-    m_impl->sustain_prefix_max =
-        common::core::makeSustainPrefixMax(published.chart.display_hold_ends);
+    m_impl->head_fade_end_prefix_max = common::core::makeSustainPrefixMax(
+        std::views::iota(std::size_t{0}, published.chart.notes.size()) |
+        std::views::transform([&published](const std::size_t index) {
+            return boardHeadFade(published, index).end_seconds;
+        }));
     // The DRAWN extents, named rather than taken off the spans: the board draws no reveal, so the
     // trimmed end is the furthest any rail or bracket of its reaches.
     m_impl->shape_prefix_max = common::core::makeSustainPrefixMax(
@@ -2633,7 +2665,7 @@ void HighwayRenderer::Impl::draw(
     const bool mirrored = options.view.mirrored;
     const bool invert = options.view.invert_string_order;
     const double span_end_seconds = now_seconds + lookaheadSeconds();
-    const double span_start_seconds = now_seconds - g_passed_fade_seconds;
+    const double span_start_seconds = now_seconds - g_passed_span_seconds;
 
     // One FALLOFF is shared by every lit subject — fretted heads, open strings, and chord box
     // frames — and exactly two numbers differ per subject. The EMITTER DEPTH separates a solid
@@ -2694,7 +2726,7 @@ void HighwayRenderer::Impl::draw(
     // --- Notes: per-note geometry batched per onset group and flushed far-to-near (see
     // flush_note_batches below). ---
     const auto [first_note, last_note] = common::core::visibleEventRange(
-        state->chart.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
+        state->chart.notes, head_fade_end_prefix_max, span_start_seconds, span_end_seconds);
 
     // The group's depth prepass (see g_depth_prime_state): the opaque subjects' silhouettes,
     // submitted first in flush_note_batches so the group's own color passes LEQUAL against them
@@ -2725,10 +2757,13 @@ void HighwayRenderer::Impl::draw(
         // The board's one visibility test, stated HERE and once, because every note batch below
         // iterates this single index list — shadows, rails, opens and heads alike.
         //
-        // The hold end, not the sustain end: a span-held strum stays drawable while its head
-        // pins at the hit line long after its sustainless onset has passed.
+        // The instant the head is gone, which is never before the ink end or the onset: a
+        // span-held strum stays drawable while its head pins at the hit line long after its
+        // sustainless onset has passed, and a note drawing no tail while its head fades over its
+        // stored ring. Asked against the passed span rather than the hit line, because a single
+        // note's attack line runs on its onset's clock and may outlive a short head.
         if (note.start_seconds <= span_end_seconds &&
-            state->chart.display_hold_ends[index] >= span_start_seconds)
+            boardHeadFade(*state, index).end_seconds >= span_start_seconds)
         {
             visible.push_back(index);
         }
@@ -3562,10 +3597,10 @@ void HighwayRenderer::Impl::draw(
         // finger STANDS on the node, so a new node is a hand position being established under the
         // same one-rule model, and the decimal is the information: position alone does not tell the
         // player 2.3 from 2.4. The series themselves are chart truth, derived once per revision
-        // (makeHighwayNodeSeries, stored beside sustain_prefix_max), so this site only emits the
-        // labels for series establishing inside the window; the spans also SUPPRESS the dotted-fret
-        // downbeat numbers on the node's own fret below — two numbers in one slot muddy each other,
-        // and the node's is the one with the information.
+        // (makeHighwayNodeSeries, stored beside head_fade_end_prefix_max), so this site only emits
+        // the labels for series establishing inside the window; the spans also SUPPRESS the
+        // dotted-fret downbeat numbers on the node's own fret below — two numbers in one slot muddy
+        // each other, and the node's is the one with the information.
         for (const common::core::HighwayNodeSeries& series : std::ranges::subrange(
                  std::ranges::upper_bound(
                      node_series,
@@ -3893,32 +3928,24 @@ void HighwayRenderer::Impl::draw(
         // Head anchor: an approaching head rides its onset toward the board; a sounding head
         // pins at the hit line (anchor = now, the arpeggio boxes' display-time treatment) and
         // travels with its slide, bend, and hand window in sync with the consumed tail; a
-        // finished head fades out in place at the hit line — consumed, never passing through
-        // the board — over the passed fade that runs from the hold end. The hold
-        // end is the drawn tail's end (the ink end) — or, for a sustainless strum under a
-        // hand-shape span, the span end (the span reads as the chord's hold even though no tail
-        // is drawn, and the pin persists while repeat boxes restate the chord underneath),
-        // released early when a later strum re-shows the chord and takes over the pinned
-        // display. For a note that draws no tail it is the onset.
-        const double hold_end_seconds = std::max(
-            note.ink_end_seconds,
-            std::min(state->chart.display_hold_ends[index], group.hold_cap_seconds));
-        const double head_seconds = std::clamp(now_seconds, note.start_seconds, hold_end_seconds);
+        // finished head stays there — consumed, never passing through the board — until its fade
+        // is done. The pin runs to headPinEndSeconds; the fade is the head rule
+        // (boardHeadFade): with its tail and at the tail's rate, as if a tail were drawn to its
+        // stored ring where none is, and ending at the pin where the head is held past its ink.
+        const double head_seconds =
+            std::clamp(now_seconds, note.start_seconds, headPinEndSeconds(*state, index));
         // The gesture is drawn only as far as the ink end, so a head pinned past it holds the
         // state the tail stops at: a keyframe, bend point or vibrato region in the ring's ending
         // zone moves nothing on this board.
         const double head_gesture_seconds = std::min(head_seconds, note.ink_end_seconds);
-        const double fade =
-            hold_end_seconds >= now_seconds
-                ? 1.0
-                : std::max(0.0, 1.0 - ((now_seconds - hold_end_seconds) / g_passed_fade_seconds));
-        // Strike transients (the fret-span attack line) keep the onset anchor and its own
-        // fade: they mark the landing moment and scroll past like the measure lines they
-        // mirror, rather than holding with the pinned head.
+        const double fade = boardHeadFade(*state, index).alphaAt(now_seconds);
+        // Strike transients (the fret-span attack line) keep the onset anchor and a fade of their
+        // own: they mark the landing moment and scroll past like the measure lines they mirror,
+        // rather than holding with the pinned head, and are gone at the passed span's edge.
         const double attack_fade =
             note.start_seconds >= now_seconds
                 ? 1.0
-                : std::max(0.0, 1.0 - ((now_seconds - note.start_seconds) / g_passed_fade_seconds));
+                : std::max(0.0, 1.0 - ((now_seconds - note.start_seconds) / g_passed_span_seconds));
         // Slide state at the anchor: a sounding head glides with its slide, and an unpitched
         // slide-out dims the head and its post in step with the tail.
         const HighwaySlideState head_slide = highwaySlideStateAt(
@@ -4051,10 +4078,11 @@ void HighwayRenderer::Impl::draw(
             // ...and the loud end lights it, for the same reason and on the same surface. An
             // accent stopping at the head would make the axis say different things at its two ends.
             const bool tail_lit = common::core::isAccented(note.emphasis);
-            // The one fade rule both surfaces share (chart_view_state.h).
-            const double tip_fade_seconds = common::core::tailFadeSeconds(note);
+            // The one fade rule both surfaces and the head share (chart_view_state.h), at the ink
+            // end: at the hit line the ribbon's tip and an unheld head dissolve as one.
+            const common::core::TipFade tip_fade =
+                common::core::tipFadeTo(note, note.ink_end_seconds);
             const auto tip_alpha = [&](const double seconds) {
-                const double tip = (note.ink_end_seconds - seconds) / tip_fade_seconds;
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
                 // The curtain's own fade — the same shape for the fixed curtain and every
                 // local copy: a STEEP POWER CURVE over a faint LINEAR SKIRT, full at and
@@ -4077,7 +4105,8 @@ void HighwayRenderer::Impl::draw(
                     rested && seconds < note.reveal_from_seconds
                         ? 1.0
                         : std::max(reveal_ramp * reveal_ramp, g_tail_reveal_skirt * reveal_ramp);
-                return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
+                return ghost_tail_alpha * reveal *
+                       std::min(tip_fade.alphaAt(seconds), std::clamp(onset, 0.0, 1.0));
             };
 
             // Band X stations. The OUTER pair is the shared floor footprint
@@ -4175,7 +4204,7 @@ void HighwayRenderer::Impl::draw(
                 // short rise.
                 const double body_begin =
                     std::clamp(note.start_seconds + g_tail_onset_fade_seconds, tail_from, tail_to);
-                const double fade_begin_seconds = note.ink_end_seconds - tip_fade_seconds;
+                const double fade_begin_seconds = tip_fade.beginSeconds();
                 const double body_end = std::clamp(fade_begin_seconds, body_begin, tail_to);
                 const auto push_cell = [&](const double a_seconds, const double b_seconds) {
                     pushRibbonSegment(
@@ -4392,7 +4421,7 @@ void HighwayRenderer::Impl::draw(
                 // taper `productAlphaSpanSteps` exists to prevent.
                 if (common::core::openString(note) || tail_lit)
                 {
-                    const double modulated_fade_begin = note.ink_end_seconds - tip_fade_seconds;
+                    const double modulated_fade_begin = tip_fade.beginSeconds();
                     const auto push_ramp_times = [&](const double from_seconds,
                                                      const double to_seconds) {
                         const int steps =
@@ -4616,12 +4645,81 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
+        // Chord membership decides the rolling flip, the shadow, the chord box, and the fret-span
+        // line below (Charter skips shadows for chord notes).
+        const bool in_chord = group.count >= 2;
+
+        // Fret-span line: a floor line under a single note, spanning the fret slots it occupies —
+        // the measure lines' exact treatment (sharp attack line on the landing z, brief beat-bar
+        // fade trailing toward the horizon), just clipped to the note's frets. Drawn into the
+        // shadow batch so all other note geometry composites over it. A strike transient, so it
+        // keeps the onset anchor and runs on the onset's clock, before and apart from the head's
+        // fade: a head shorter than the transient must not cut it off.
+        //
+        // WHERE the line spans is the only question asked here. An open string's runs across the
+        // hand window its bar spans. A HARMONIC's runs from the fretting hand's STOP to the NODE,
+        // the two places the figure is made at — and collapses onto the node for a natural, whose
+        // hand is on the node already; the footprint function is shared so the line and anything
+        // else marking a harmonic's place on the floor read one answer. Every other note's runs
+        // wire to wire across the fretting hand's fret slot, so it sits aligned in a fret, which is
+        // exactly where a finger presses. HOW it ends is not a question at all — every floor line
+        // of this family dissolves at its ends, which pushTaperedFloorQuad states once.
+        if (!in_chord && attack_fade > 0.0)
+        {
+            const auto [span_x0, span_x1] = [&]() -> std::pair<double, double> {
+                if (common::core::openString(note))
+                {
+                    return handWindowXAt(state->fret_hand.track, head_seconds, metrics, mirrored);
+                }
+                if (highwayHarmonicMark(note))
+                {
+                    const HighwayFloorFootprint footprint =
+                        harmonicMarkFootprint(note, metrics, mirrored);
+                    return {
+                        footprint.center_x - footprint.half_width,
+                        footprint.center_x + footprint.half_width,
+                    };
+                }
+                const int slot_fret = common::core::fretFor(note);
+                const double slot_low_x =
+                    common::core::highwayFretLineX(slot_fret - 1, metrics, mirrored);
+                const double slot_high_x =
+                    common::core::highwayFretLineX(slot_fret, metrics, mirrored);
+                return std::minmax(slot_low_x, slot_high_x);
+            }();
+            const double onset_z = time_to_z(note.start_seconds);
+            const double core_from_z = onset_z - g_attack_line_half_length;
+            const double core_to_z = onset_z + g_attack_line_half_length;
+            pushTaperedFloorQuad(
+                shadow_vertices,
+                shadow_indices,
+                span_x0,
+                span_x1,
+                0.02,
+                core_from_z,
+                core_to_z,
+                theme.attack_line,
+                g_attack_line_alpha * attack_fade,
+                g_attack_line_alpha * attack_fade);
+            pushTaperedFloorQuad(
+                shadow_vertices,
+                shadow_indices,
+                span_x0,
+                span_x1,
+                0.02,
+                core_to_z,
+                core_to_z + g_attack_fade_length,
+                theme.beat_bar,
+                attack_fade,
+                0.0);
+        }
+
         if (fade <= 0.0)
         {
             continue;
         }
         // Consumed at the line: a passed head keeps the hit-line station while its fade runs.
-        // head_seconds itself stays clamped at the hold end so hand-window sampling holds the
+        // head_seconds itself stays clamped at the pin end so hand-window sampling holds the
         // note's final state instead of extrapolating past it; slide and bend read
         // head_gesture_seconds, clamped further to the ink end.
         const double z = time_to_z(std::max(head_seconds, now_seconds));
@@ -4654,10 +4752,6 @@ void HighwayRenderer::Impl::draw(
                     .flip_v = flip_v,
                 });
         };
-
-        // Chord membership decides the rolling flip, the shadow, and the chord box (Charter
-        // skips shadows for chord notes).
-        const bool in_chord = group.count >= 2;
 
         // Glow post: the sustain tails' three-band ribbon stood upright at a fraction of the
         // tail width, rising from the board toward the note's lane center and dissolving to
@@ -4701,44 +4795,6 @@ void HighwayRenderer::Impl::draw(
                     head_end);
             };
 
-        // Fret-span line: a floor line under this single note, spanning the fret slots it
-        // occupies — the measure lines' exact treatment (sharp attack line on the landing z,
-        // brief beat-bar fade trailing toward the horizon), just clipped to the note's frets.
-        // Drawn into the shadow batch so all other note geometry composites over it. As a
-        // strike transient it keeps the onset anchor and fade while the head pins.
-        //
-        // WHERE the line spans is the caller's question and the only one left here: a HARMONIC's
-        // runs from its stop to its node (harmonicMarkFootprint, below), every other note's runs
-        // wire to wire across its fret slot. HOW it ends is not a question at all — every floor
-        // line of this family dissolves at its ends, which pushTaperedFloorQuad states once.
-        const auto push_span_line = [&](const double span_x0, const double span_x1) {
-            const double onset_z = time_to_z(note.start_seconds);
-            const double core_from_z = onset_z - g_attack_line_half_length;
-            const double core_to_z = onset_z + g_attack_line_half_length;
-            pushTaperedFloorQuad(
-                shadow_vertices,
-                shadow_indices,
-                span_x0,
-                span_x1,
-                0.02,
-                core_from_z,
-                core_to_z,
-                theme.attack_line,
-                g_attack_line_alpha * attack_fade,
-                g_attack_line_alpha * attack_fade);
-            pushTaperedFloorQuad(
-                shadow_vertices,
-                shadow_indices,
-                span_x0,
-                span_x1,
-                0.02,
-                core_to_z,
-                core_to_z + g_attack_fade_length,
-                theme.beat_bar,
-                attack_fade,
-                0.0);
-        };
-
         // A pitched slide keyframe's board furniture: a glow post and fret-span line at its own
         // slot and time — the intermediate targets the hand glides through. No note head: the
         // slide is one sounded note, so only its picked head is drawn. Keyframes stay on the
@@ -4777,7 +4833,6 @@ void HighwayRenderer::Impl::draw(
             // tied to the board at its edges the way a single note is at its slot.
             if (!in_chord)
             {
-                push_span_line(x0, x1);
                 push_glow_post(x0 + post_half_width, z, post_floor_alpha);
                 push_glow_post(x1 - post_half_width, z, post_floor_alpha);
             }
@@ -4939,32 +4994,6 @@ void HighwayRenderer::Impl::draw(
 
         if (!in_chord)
         {
-            // A HARMONIC's line runs from the fretting hand's STOP to the NODE, the two places
-            // the figure is made at — and collapses onto the node for a natural, whose hand is on
-            // the node already. The footprint function is shared rather than private so the line
-            // and anything else marking a harmonic's place on the floor read one answer.
-            //
-            // Every other note spans from the FRETTING HAND's fret slot: the wires bound the
-            // line so it sits aligned in a fret, which is exactly where a finger presses. That
-            // slot is the stop end of the harmonic's run too, taken at its midpoint.
-            if (highwayHarmonicMark(note))
-            {
-                const HighwayFloorFootprint footprint =
-                    harmonicMarkFootprint(note, metrics, mirrored);
-                const double span_x0 = footprint.center_x - footprint.half_width;
-                const double span_x1 = footprint.center_x + footprint.half_width;
-                push_span_line(span_x0, span_x1);
-            }
-            else
-            {
-                const int slot_fret = common::core::fretFor(note);
-                const double slot_low_x =
-                    common::core::highwayFretLineX(slot_fret - 1, metrics, mirrored);
-                const double slot_high_x =
-                    common::core::highwayFretLineX(slot_fret, metrics, mirrored);
-                const auto [span_x0, span_x1] = std::minmax(slot_low_x, slot_high_x);
-                push_span_line(span_x0, span_x1);
-            }
             push_glow_post(x, z, post_floor_alpha);
         }
 

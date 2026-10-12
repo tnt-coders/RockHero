@@ -567,7 +567,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
 
         // Three hundred frames across the whole content in two halves, starting two seconds
         // before the first onset and ending past the last tail: every note crosses the drawn
-        // window from the horizon to the strike line and out of the passed-fade behind it.
+        // window from the horizon to the strike line and dissolves there.
         const double last_beat_seconds = families.beats.back().seconds;
         const double sweep_step_seconds = (last_beat_seconds + 4.0) / 300.0;
         renderer->setViewState(std::make_shared<const common::core::HighwayViewState>(families));

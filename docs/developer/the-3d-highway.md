@@ -238,6 +238,19 @@ strings ringing through it, and the two ends read as two rules. The 2D lane read
 function (2026-09-24), so a sustain ends the same way on the board and in the editor; a revealed
 ring never fades.
 
+**A HEAD GOES WITH ITS TAIL** (`headFade`, beside `tailFadeSeconds`): the same rule, stated once as
+a window (`TipFade`, built by `tipFadeTo`), applied to the end of what the head states. A played
+head stays pinned at the hit line and dissolves with its ribbon's tip at the tip's own rate; one
+that draws no tail fades as if a tail were drawn to its stored ring, so a short stab starts
+dissolving the instant it is struck; and one held past its ink end (a span-held strum, a
+handed-over member pinned to its stored ring) keeps its pin and fades by the same rule measured to
+the pin's end, gone exactly as the pin releases — so a head held until the next strum re-shows the
+chord is gone as the newcomer lands, and the two never stack. The renderer composes it with its own
+pin (`boardHeadFade`), and that one composition also bounds the board's visible range, so a note
+cannot leave the range mid-fade. A single note's fret-span attack line is a strike transient on
+its onset's clock instead: it scrolls past the hit line and fades over the stretch the board draws
+behind it (`g_passed_span_seconds`), apart from the head.
+
 **VIBRATO IS A DISPLACEMENT, NOT A PITCH** (`highwayVibratoDisplacementAt`, `highway_tail.h`): the
 wobble is a plain sine in string-lane gaps (`g_highway_vibrato_depth_gaps`), added to wherever the
 bend has put the note (`highwayDrawnNoteY`), and never fed through the bend's tension curve, whose
@@ -356,7 +369,8 @@ on both surfaces.
 The **span-implied hold** is the board's alone, which is worth knowing before touching either
 surface. `ChartViewState::display_hold_ends` is resolved from the `chartHolds` authority and rides
 the projection both surfaces read, but only the highway spends it: for a strum a hand-shape span
-holds it draws no tail and instead **pins the head at the hit line** until the hold ends. The 2D
+holds it draws no tail and instead **pins the head at the hit line** until the hold ends, fading
+by the head rule above so it is gone as the hold releases. The 2D
 lane draws every tail to the note's own ink end and nothing further, so those chugs wear bare
 heads there — the span's own rails already state how long the posture is fretted, and a ribbon
 repeating that reads as sustain (shape rule 3, what the tenure holds; tail rule 4, where the

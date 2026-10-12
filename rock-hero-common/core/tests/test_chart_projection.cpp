@@ -134,6 +134,22 @@ namespace
     };
 }
 
+// A projected note reduced to the three instants the fade rules read: its onset, where its ink
+// stops, and where its stored ring ends.
+[[nodiscard]] NoteViewState fadeNote(
+    const double start, const double ink_end, const double ring_end)
+{
+    return NoteViewState{
+        .start_seconds = start,
+        .ring_end_seconds = ring_end,
+        .ink_end_seconds = ink_end,
+        .bend = {},
+        .slides = {},
+        .keyframes = {},
+        .vibrato = {},
+    };
+}
+
 } // namespace
 
 // The capo rides the projection so a surface can indicate the string floor.
@@ -511,26 +527,101 @@ TEST_CASE("Chart projection keeps every ink end within its ring", "[core][chart]
 // clamp, and the long tail's ring runs past its ink so a rule measured on the ring would fail it.
 TEST_CASE("Tail fade spans a fraction of the ink, floored and clamped to it", "[core][chart]")
 {
-    const auto note = [](const double start, const double ink_end, const double ring_end) {
-        return NoteViewState{
-            .start_seconds = start,
-            .ring_end_seconds = ring_end,
-            .ink_end_seconds = ink_end,
-            .bend = {},
-            .slides = {},
-            .keyframes = {},
-            .vibrato = {},
-        };
-    };
-
     // A long tail dissolves over 35% of its ink.
-    CHECK_THAT(tailFadeSeconds(note(2.0, 12.0, 20.0)), Catch::Matchers::WithinRel(3.5, 1e-12));
+    CHECK_THAT(tailFadeSeconds(fadeNote(2.0, 12.0, 20.0)), Catch::Matchers::WithinRel(3.5, 1e-12));
     // A short one over the 0.25 s floor, where 35% would be only 0.175 s.
-    CHECK_THAT(tailFadeSeconds(note(2.0, 2.5, 2.5)), Catch::Matchers::WithinRel(0.25, 1e-12));
+    CHECK_THAT(tailFadeSeconds(fadeNote(2.0, 2.5, 2.5)), Catch::Matchers::WithinRel(0.25, 1e-12));
     // One shorter than the floor over its whole length.
-    CHECK_THAT(tailFadeSeconds(note(2.0, 2.2, 2.2)), Catch::Matchers::WithinRel(0.2, 1e-12));
+    CHECK_THAT(tailFadeSeconds(fadeNote(2.0, 2.2, 2.2)), Catch::Matchers::WithinRel(0.2, 1e-12));
     // And an ink that stops at its onset over nothing, however far its ring runs.
-    CHECK_THAT(tailFadeSeconds(note(2.0, 2.0, 6.0)), Catch::Matchers::WithinULP(0.0, 0));
+    CHECK_THAT(tailFadeSeconds(fadeNote(2.0, 2.0, 6.0)), Catch::Matchers::WithinULP(0.0, 0));
+}
+
+// The fade window's alpha: full up to its begin, linear to nothing at its end, nothing after — and
+// an empty window a clean step at its end rather than a division by zero.
+TEST_CASE("Tip fade alpha is full, then linear, then gone", "[core][chart]")
+{
+    const TipFade fade{.end_seconds = 12.0, .length_seconds = 3.5};
+    CHECK_THAT(fade.beginSeconds(), Catch::Matchers::WithinULP(8.5, 0));
+    CHECK_THAT(fade.alphaAt(1.0), Catch::Matchers::WithinULP(1.0, 0));
+    CHECK_THAT(fade.alphaAt(8.5), Catch::Matchers::WithinULP(1.0, 0));
+    CHECK_THAT(fade.alphaAt(10.25), Catch::Matchers::WithinULP(0.5, 0));
+    CHECK_THAT(fade.alphaAt(12.0), Catch::Matchers::WithinULP(0.0, 0));
+    CHECK_THAT(fade.alphaAt(30.0), Catch::Matchers::WithinULP(0.0, 0));
+
+    const TipFade empty{.end_seconds = 2.0, .length_seconds = 0.0};
+    CHECK_THAT(empty.alphaAt(1.9), Catch::Matchers::WithinULP(1.0, 0));
+    CHECK_THAT(empty.alphaAt(2.0), Catch::Matchers::WithinULP(0.0, 0));
+}
+
+// THE HEAD GOES WITH ITS TAIL: one fade rule for both, applied to the end of what the head states —
+// its ink end, its stored ring where it draws no tail, its pin where the board holds it past the
+// ink. Every window ends at that instant.
+TEST_CASE("Head fade is the tail's rule at the end the head states", "[core][chart]")
+{
+    SECTION("an unheld head with a drawn tail fades exactly as its tail does")
+    {
+        for (const NoteViewState& note : {fadeNote(2.0, 12.0, 20.0), fadeNote(2.0, 2.5, 2.5)})
+        {
+            const TipFade head = headFade(note, note.ink_end_seconds);
+            const TipFade tail = tipFadeTo(note, note.ink_end_seconds);
+            CHECK_THAT(head.end_seconds, Catch::Matchers::WithinULP(tail.end_seconds, 0));
+            CHECK_THAT(head.length_seconds, Catch::Matchers::WithinULP(tail.length_seconds, 0));
+            CHECK_THAT(head.length_seconds, Catch::Matchers::WithinULP(tailFadeSeconds(note), 0));
+        }
+        // The long tail's 35%, and the short one's 0.25 s floor.
+        const TipFade long_tail = headFade(fadeNote(2.0, 12.0, 20.0), 12.0);
+        CHECK_THAT(long_tail.length_seconds, Catch::Matchers::WithinRel(3.5, 1e-12));
+        const TipFade short_tail = headFade(fadeNote(2.0, 2.5, 2.5), 2.5);
+        CHECK_THAT(short_tail.end_seconds, Catch::Matchers::WithinULP(2.5, 0));
+        CHECK_THAT(short_tail.length_seconds, Catch::Matchers::WithinRel(0.25, 1e-12));
+        CHECK_THAT(short_tail.alphaAt(2.25), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(short_tail.alphaAt(2.375), Catch::Matchers::WithinRel(0.5, 1e-12));
+    }
+
+    SECTION("a head with no tail fades as if one were drawn to its stored ring")
+    {
+        // A short ring falls under the floor, so the head dissolves from the instant it is struck.
+        const TipFade short_ring = headFade(fadeNote(2.0, 2.0, 2.1), 2.0);
+        CHECK_THAT(short_ring.end_seconds, Catch::Matchers::WithinULP(2.1, 0));
+        CHECK_THAT(short_ring.length_seconds, Catch::Matchers::WithinRel(0.1, 1e-12));
+        CHECK_THAT(short_ring.alphaAt(2.0), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(short_ring.alphaAt(2.05), Catch::Matchers::WithinRel(0.5, 1e-9));
+        // A long one — a dead note's, which draws no tail at any length — takes the fraction.
+        const TipFade long_ring = headFade(fadeNote(2.0, 2.0, 6.0), 2.0);
+        CHECK_THAT(long_ring.end_seconds, Catch::Matchers::WithinULP(6.0, 0));
+        CHECK_THAT(long_ring.length_seconds, Catch::Matchers::WithinRel(1.4, 1e-12));
+    }
+
+    SECTION("a head held past its ink keeps its pin and is gone at the pin's end")
+    {
+        // A tail-less chug held for two seconds: the window measures the hold, not the ring.
+        const TipFade chug = headFade(fadeNote(2.0, 2.0, 2.25), 4.0);
+        CHECK_THAT(chug.end_seconds, Catch::Matchers::WithinULP(4.0, 0));
+        CHECK_THAT(chug.length_seconds, Catch::Matchers::WithinRel(0.7, 1e-12));
+        CHECK_THAT(chug.alphaAt(3.0), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(chug.alphaAt(3.65), Catch::Matchers::WithinRel(0.5, 1e-9));
+        CHECK_THAT(chug.alphaAt(4.0), Catch::Matchers::WithinULP(0.0, 0));
+        // A drawn tail the pin outlasts measures the same hold.
+        const TipFade held_tail = headFade(fadeNote(2.0, 2.5, 2.5), 4.0);
+        CHECK_THAT(held_tail.end_seconds, Catch::Matchers::WithinULP(4.0, 0));
+        CHECK_THAT(held_tail.length_seconds, Catch::Matchers::WithinRel(0.7, 1e-12));
+    }
+
+    SECTION("chord members fade each on its own end")
+    {
+        const NoteViewState ringing = fadeNote(2.0, 3.0, 3.0);
+        const NoteViewState stab = fadeNote(2.0, 2.0, 2.2);
+        const TipFade ringing_fade = headFade(ringing, ringing.ink_end_seconds);
+        const TipFade stab_fade = headFade(stab, stab.ink_end_seconds);
+        CHECK_THAT(ringing_fade.end_seconds, Catch::Matchers::WithinULP(3.0, 0));
+        CHECK_THAT(ringing_fade.length_seconds, Catch::Matchers::WithinRel(0.35, 1e-12));
+        CHECK_THAT(stab_fade.end_seconds, Catch::Matchers::WithinULP(2.2, 0));
+        CHECK_THAT(stab_fade.length_seconds, Catch::Matchers::WithinRel(0.2, 1e-12));
+        // Mid-chord the ringing member is still whole while the stab is three quarters gone.
+        CHECK_THAT(ringing_fade.alphaAt(2.15), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(stab_fade.alphaAt(2.15), Catch::Matchers::WithinRel(0.25, 1e-9));
+    }
 }
 
 // THE ONE VIBRATO WIDTH RULE both surfaces read: narrow where narrow is written, wide once the ease
