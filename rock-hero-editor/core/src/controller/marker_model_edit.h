@@ -98,9 +98,9 @@ template <typename Snapshot> struct [[nodiscard]] MarkerModelEdit final : IEdit
     */
     [[nodiscard]] std::optional<GridCarry> gridCarry() const override
     {
-        if constexpr (requires { Snapshot::grid_carry; })
+        if constexpr (requires { Snapshot::g_grid_carry; })
         {
-            return Snapshot::grid_carry;
+            return Snapshot::g_grid_carry;
         }
         else
         {

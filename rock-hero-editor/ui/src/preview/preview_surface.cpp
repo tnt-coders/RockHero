@@ -377,8 +377,8 @@ void PreviewSurface::renderFrame()
         m_state_dirty = false;
         // A null snapshot clears the board: the renderer shares one empty state rather than
         // allocating a fresh one per clear.
-        static const auto empty = std::make_shared<const common::core::HighwayViewState>();
-        m_renderer->setViewState(m_state != nullptr ? m_state : empty);
+        static const auto g_empty = std::make_shared<const common::core::HighwayViewState>();
+        m_renderer->setViewState(m_state != nullptr ? m_state : g_empty);
     }
     // After the state, so a re-frame asked with a new chart frames that chart.
     if (std::exchange(m_camera_reset_pending, false))

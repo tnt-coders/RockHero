@@ -29,7 +29,7 @@ namespace rock_hero::editor::core
 // lands, each stating how the keyboard crosses its landing (GridCarry). Every other model is
 // content, which the Note Lock freezes.
 template <typename Snapshot>
-inline constexpr bool g_states_grid = requires { Snapshot::grid_carry; };
+inline constexpr bool g_states_grid = requires { Snapshot::g_grid_carry; };
 
 // THE WRITTEN FORM of a marker model: what the history and the file hold. Every model is its own,
 // except the song timeline, which sheds a time signature restating its reign — that change is
@@ -263,7 +263,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     const bool moved = committed != MarkerCommit::Unchanged;
     if (moved)
     {
-        carryKeyboardAcrossGrid(old_map, place, Snapshot::grid_carry);
+        carryKeyboardAcrossGrid(old_map, place, Snapshot::g_grid_carry);
     }
     const bool selected = landed.has_value() && selectMarkerStartingAt(landed_row, *landed);
     if (moved && !selected)

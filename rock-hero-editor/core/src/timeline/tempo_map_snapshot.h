@@ -29,7 +29,7 @@ struct TempoMapSnapshot
     common::core::TempoMap tempo_map;
 
     /*! \brief The grid is truth: content and the keyboard keep their addresses across a landing. */
-    static constexpr GridCarry grid_carry = GridCarry::KeepAddress;
+    static constexpr GridCarry g_grid_carry = GridCarry::KeepAddress;
 
     /*!
     \brief Reads the song's current tempo map.
