@@ -211,7 +211,7 @@ void scorePackage(const std::filesystem::path& package, Score& score)
         scoreChart(
             *chart,
             read->song.tempo_map,
-            score.parts[static_cast<std::size_t>(arrangement.part)],
+            score.parts.at(static_cast<std::size_t>(arrangement.part)),
             score);
     }
 }
@@ -285,7 +285,7 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
     printPart("ALL", all);
     for (const Part part : g_parts)
     {
-        printPart(std::string{partToken(part)}, score.parts[static_cast<std::size_t>(part)]);
+        printPart(std::string{partToken(part)}, score.parts.at(static_cast<std::size_t>(part)));
     }
 
     const FretHandDerivationTally& tally = score.tally;
