@@ -87,6 +87,7 @@ struct MeterEditor : SongEditorHarness
 {
     const common::core::TempoMap& tempo_map = song.tempo_map;
     std::vector<double> seconds;
+    seconds.reserve(song.sections.size());
     for (const SongSection& section : song.sections)
     {
         seconds.push_back(tempo_map.secondsAt(section.position));
