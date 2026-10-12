@@ -2940,9 +2940,7 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(deriveFrom(dyad).shapes.empty());
 
         // The discrimination, one member apart: the same figure with a third stop accumulating
-        // states a shape — and the count it lands on is what the with_top convention reads, since
-        // a 2-member arpeggio box draws NO top border where 3+ draws one, through
-        // ShapeViewState::strings (highway_renderer.cpp).
+        // states a shape.
         const std::vector<ChartNote> triad = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{3, 4}),
             noteAt(2, Fraction{}, 2, 7, Fraction{1, 2}),

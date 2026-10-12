@@ -956,32 +956,20 @@ Returns the emission weight in [0, 1]; exactly 1 across the bar's whole middle.
 }
 
 /*
-A chord box frame's vertical shape, derived once from the three flags that decide it.
+A chord box frame's vertical shape, derived once.
 
-The frame is not one rectangle: a repeat box is half height, and a box with fewer than three notes
-has NO top bar — its side columns simply fade out from the midpoint instead. Both the panel and the
-accent light around it need those facts, and they must agree exactly or the light draws a top edge
-where the shape has none. Deriving them in one place is what makes that agreement structural
-rather than a rule restated in two files' worth of arithmetic.
+Every box is a closed rectangle — bottom bar, two side columns, top bar — and only a repeat box
+changes it, standing at half height. The panel, the accent light around it and the mute marks
+inside it all need the same two heights, and they must agree exactly or the light's edge misses
+the frame's; deriving them in one place makes that agreement structural.
 */
 struct ChordBoxFrame
 {
-    // Top of the side columns (and of the interior fill).
+    // Top of the side columns (and of the interior fill), which is the top bar's underside.
     double side_y1{};
 
-    // Outermost lit Y: above the top bar when there is one, else the columns' own top.
+    // Outermost Y of the frame: the top bar's upper edge.
     double outer_top{};
-
-    /*
-    Top of the side columns' solid part.
-
-    Under a top bar, the bar's underside (side_y1), so the two never overlap; else the columns'
-    midpoint, where they begin fading out to side_y1.
-    */
-    double solid_top_y{};
-
-    // Whether a top bar closes the frame. False means the light must draw no top edge.
-    bool closed_top{};
 };
 
 // Axis-aligned quad on the floor plane (y constant, spanning x and z), its color running from
@@ -1441,24 +1429,16 @@ void pushFaceQuad(
 }
 
 // The ONE derivation of a box's vertical shape, which the panel, its accent light and its mute
-// marks all ask, so none can draw a top bar where a two-note chord has none or full-height columns
-// beside fading ones.
+// marks all ask, so none can disagree with another about where the frame stands.
 // full_height_y1: the box top for a full-height box (a repeat box is half this).
 // box_only: half-height repeat box.
-// with_top: full sides plus a top bar (3+ note chords).
 // frame_thickness: bar/column width of the frame; callers pass the string grid's base
 //        height so the bottom bar fills the gap under the grid exactly.
 ChordBoxFrame chordBoxFrame(
-    const double full_height_y1, const bool box_only, const bool with_top,
-    const double frame_thickness)
+    const double full_height_y1, const bool box_only, const double frame_thickness)
 {
     const double y1 = box_only ? full_height_y1 / 2.0 : full_height_y1;
-    return ChordBoxFrame{
-        .side_y1 = y1,
-        .outer_top = with_top ? y1 + frame_thickness : y1,
-        .solid_top_y = with_top ? y1 : y1 / 2.0,
-        .closed_top = with_top,
-    };
+    return ChordBoxFrame{.side_y1 = y1, .outer_top = y1 + frame_thickness};
 }
 
 // The chord box's frame color: the box's color at the frame alpha, under the box's emphasis. The
@@ -1479,49 +1459,38 @@ ChordBoxFrame chordBoxFrame(
 void pushChordBoxPanel(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double z, const double full_height_y1, const bool box_only,
-    const bool with_top, const double alpha_scale, const double frame_thickness,
-    const ArgbColor box_color)
+    const double alpha_scale, const double frame_thickness, const ArgbColor box_color)
 {
     constexpr double fill_alpha = 32.0 / 255.0;
-    const ChordBoxFrame frame = chordBoxFrame(full_height_y1, box_only, with_top, frame_thickness);
+    const ChordBoxFrame frame = chordBoxFrame(full_height_y1, box_only, frame_thickness);
     const double y1 = frame.side_y1;
     const std::uint32_t frame_abgr = chordBoxFrameAbgr(box_color, alpha_scale);
     const auto at = [z](const double x, const double y, const std::uint32_t abgr) {
         return makeVertex(x, y, z, abgr);
     };
-    // One frame piece: frame-colored at its bottom, `top_abgr` at its top.
-    const auto push_piece = [&](const double xa,
-                                const double xb,
-                                const double ya,
-                                const double yb,
-                                const std::uint32_t top_abgr) {
-        pushQuad(
-            vertices,
-            indices,
-            at(xa, ya, frame_abgr),
-            at(xb, ya, frame_abgr),
-            at(xb, yb, top_abgr),
-            at(xa, yb, top_abgr));
-    };
+    // One flat frame-colored piece.
+    const auto push_piece =
+        [&](const double xa, const double xb, const double ya, const double yb) {
+            pushQuad(
+                vertices,
+                indices,
+                at(xa, ya, frame_abgr),
+                at(xb, ya, frame_abgr),
+                at(xb, yb, frame_abgr),
+                at(xa, yb, frame_abgr));
+        };
 
-    // Frame: the bottom bar, then side columns standing on it, closed by a top bar or fading out
-    // from their midpoint. The pieces never overlap one another, so no corner doubles the frame's
-    // alpha. No accent variant: emphasis is a rendered light, so a box states it the same way a
-    // note does rather than by changing shape into a mark that means "loud" only by convention.
-    push_piece(x0, x1, 0.0, frame_thickness, frame_abgr);
+    // Frame: the bottom bar, the side columns standing on it, and the top bar resting on them.
+    // The pieces never overlap one another, so no corner doubles the frame's alpha. No accent
+    // variant: emphasis is a rendered light, so a box states it the same way a note does rather
+    // than by changing shape into a mark that means "loud" only by convention.
+    push_piece(x0, x1, 0.0, frame_thickness);
     for (const auto& [column_x0, column_x1] :
          {std::pair{x0, x0 + frame_thickness}, std::pair{x1 - frame_thickness, x1}})
     {
-        push_piece(column_x0, column_x1, frame_thickness, frame.solid_top_y, frame_abgr);
-        if (!frame.closed_top)
-        {
-            push_piece(column_x0, column_x1, frame.solid_top_y, y1, packAbgr(box_color, 0.0));
-        }
+        push_piece(column_x0, column_x1, frame_thickness, y1);
     }
-    if (frame.closed_top)
-    {
-        push_piece(x0, x1, y1, frame.outer_top, frame_abgr);
-    }
+    push_piece(x0, x1, y1, frame.outer_top);
 
     // Fill: the faint panel, shading from the box color at its ends to its dark at the middle.
     const std::uint32_t fill_end = packAbgr(box_color, fill_alpha * alpha_scale);
@@ -1630,7 +1599,6 @@ struct BoxDraw
 {
     double start_seconds;
     bool box_only;
-    bool with_top;
     // The box's own dynamics. An arpeggio box never carries one: the bracket is a
     // POSTURE — the hand holding a shape, not a strike — so emphasis belongs to the
     // notes inside it, which state their own.
@@ -2976,9 +2944,6 @@ void HighwayRenderer::Impl::draw(
                 BoxDraw{
                     .start_seconds = bracket_seconds,
                     .box_only = false,
-                    // Charter's chord-box rule (3+ sounding strings get the top bar),
-                    // counted from the arpeggio's posture strings.
-                    .with_top = shape.strings.size() > 2,
                     .emphasis = struck_group != group_candidates.end()
                                     ? struck_group->emphasis
                                     : common::core::NoteEmphasis::Normal,
@@ -3038,7 +3003,6 @@ void HighwayRenderer::Impl::draw(
                     .start_seconds = group.start_seconds,
                     .box_only =
                         group.box_treatment == common::core::HighwayChordBoxTreatment::Repeat,
-                    .with_top = group.fretting_hand_count > 2,
                     .emphasis = group.emphasis,
                     .palm_mute = group.all_palm_muted,
                     .dead = group.all_dead,
@@ -3073,7 +3037,6 @@ void HighwayRenderer::Impl::draw(
                 BoxDraw{
                     .start_seconds = tap.start_seconds,
                     .box_only = false,
-                    .with_top = tap.count > 2,
                     // A tapped box has no strummed group behind it to read an emphasis from; the
                     // taps state their own on their heads.
                     .emphasis = common::core::NoteEmphasis::Normal,
@@ -3209,76 +3172,32 @@ void HighwayRenderer::Impl::draw(
                 {
                     return;
                 }
-                const ChordBoxFrame box_frame = chordBoxFrame(
-                    full_height_y1, box.box_only, box.with_top, metrics.string_grid_base_y);
+                const ChordBoxFrame box_frame =
+                    chordBoxFrame(full_height_y1, box.box_only, metrics.string_grid_base_y);
                 // The box's own color (BoxDraw::color), given the same broadband pedestal
                 // a string's light gets: a frame's own color laid on it as light is the least
                 // perceptible change available, and the pedestal is what lets it whiten. The box
                 // shares the note light's spectrum outright and carries no number of its own.
                 const std::uint32_t lit = packAbgr(emitterSpectrum(box.color), 1.0);
-                const double half_w = (light_x1 - light_x0) / 2.0;
-                const double center_x = (light_x0 + light_x1) / 2.0;
-
-                if (box_frame.closed_top)
-                {
-                    // Closed rectangle: one quad, one field, bottom edge on the floor.
-                    pushAccentGlow(
-                        box_glow_vertices,
-                        box_glow_indices,
-                        center_x,
-                        box_frame.outer_top / 2.0,
-                        z,
-                        GlowShape{
-                            .half_w = half_w,
-                            .half_h = box_frame.outer_top / 2.0,
-                            .corner = 0.0,
-                            .rhombus = false,
-                        },
-                        g_accent_reach,
-                        lit,
-                        1.0,
-                        0.0,
-                        -box_frame.outer_top / 2.0);
-                    return;
-                }
-
-                // No top bar: the columns fade out from their midpoint, so the light must have no
-                // top edge either. The rectangle is sized so its BOTTOM edge sits on the floor —
-                // the bottom bar is real and has to glow — while its TOP edge lands one reach
-                // above the drawn quad. A frame-depth emitter reaches depth + reach inward, so a
-                // sliver of the phantom top face's light does graze the quad's upper band; the
-                // vertex fade below is what kills it (peak weight under one count of 255), which
-                // is why the sizing stays this simple. Left, right and bottom register; the top
-                // never reads. The vertical fade is then carried in VERTEX alpha across the same
-                // span the columns fade over, read from the same derivation they read it from.
-                const double open_half_h = (box_frame.side_y1 + g_accent_reach) / 2.0;
-                const GlowShape open_shape{
-                    .half_w = half_w,
-                    .half_h = open_half_h,
-                    .corner = 0.0,
-                    .rhombus = false,
-                };
-                const std::uint32_t clear = packAbgr(box.color, 0.0);
-                const double out_w = half_w + g_accent_reach;
-                const auto push_span = [&](const double y_low,
-                                           const double y_high,
-                                           const std::uint32_t a_low,
-                                           const std::uint32_t a_high) {
-                    const auto at =
-                        [&](const double side_x, const double y, const std::uint32_t abgr) {
-                            return makeGlowVertex(
-                                center_x + side_x, y, z, abgr, side_x, y - open_half_h, open_shape);
-                        };
-                    pushQuad(
-                        box_glow_vertices,
-                        box_glow_indices,
-                        at(-out_w, y_low, a_low),
-                        at(out_w, y_low, a_low),
-                        at(out_w, y_high, a_high),
-                        at(-out_w, y_high, a_high));
-                };
-                push_span(0.0, box_frame.solid_top_y, lit, lit);
-                push_span(box_frame.solid_top_y, box_frame.side_y1, lit, clear);
+                const double half_h = box_frame.outer_top / 2.0;
+                // The frame's outer rectangle: one quad, one field, bottom edge on the floor.
+                pushAccentGlow(
+                    box_glow_vertices,
+                    box_glow_indices,
+                    (light_x0 + light_x1) / 2.0,
+                    half_h,
+                    z,
+                    GlowShape{
+                        .half_w = (light_x1 - light_x0) / 2.0,
+                        .half_h = half_h,
+                        .corner = 0.0,
+                        .rhombus = false,
+                    },
+                    g_accent_reach,
+                    lit,
+                    1.0,
+                    0.0,
+                    -half_h);
             };
             // The box's sides: its hand's window at max(onset, now), the one rule for both hands
             // (common::core::highwayBoxSidesAt).
@@ -3294,7 +3213,6 @@ void HighwayRenderer::Impl::draw(
                 z,
                 full_height_y1,
                 box.box_only,
-                box.with_top,
                 box_alpha,
                 metrics.string_grid_base_y,
                 box.color);
@@ -3311,7 +3229,7 @@ void HighwayRenderer::Impl::draw(
                 // from chordBoxFrame so the mark can never disagree with the panel it rides.
                 const double thickness = metrics.string_grid_base_y;
                 const ChordBoxFrame mark_frame =
-                    chordBoxFrame(full_height_y1, box.box_only, box.with_top, thickness);
+                    chordBoxFrame(full_height_y1, box.box_only, thickness);
                 // Two flags, two marks, each drawn from its own flag with no precedence between
                 // them: a strum unanimous in both wears the palm mark with the dead mark over it,
                 // the same stack and the same order the note heads draw (palm rotating with the

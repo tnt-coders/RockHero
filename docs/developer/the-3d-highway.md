@@ -511,14 +511,10 @@ the board says "node" by placement and needs no new art; only a true open string
 window-edge pair. The digit both surfaces print for any stop is `chartStopText`, the one label
 authority.
 
-**The arpeggio mark is a box frame, and it follows the chord box's own `with_top` convention**: a
-two-member arpeggio mark draws no top bar and a three-or-more draws one, counted from the span's
-POSTURE strings exactly as a strum's box counts the strings it strikes. One convention across both
-marks rather than each carrying its own — which also leaves any two-member span wearing a lighter
-frame than the wide figures. The accumulation minimum is three, so SOUND alone opens no two-member
-arpeggio: the lighter frame is for the pair an ONSET states — a lone strike beside a claimed stop —
-for the two survivors a landed travel opens, and, once the span marker ships, for an
-authored two-note span.
+**The arpeggio mark is a box frame, the same closed frame every chord box draws**: bottom bar, side
+columns and top bar, whatever the span's member count. No box states how many strings it holds —
+not a strum's, a tap's or a posture's — so one frame shape (`chordBoxFrame`, with only the repeat
+box's half height as a variant) serves all three.
 
 # The floor light
 
