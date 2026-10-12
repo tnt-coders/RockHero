@@ -14,9 +14,9 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// The multisample level a multisampled scene renders at. The scene is thin-line-heavy (fret
-// lines, strings, lane ribbons), so its edges alias visibly without it. bgfx clamps the request to
-// the device's support for the backbuffer format, and every Direct3D 11 device supports 4x.
+// The multisample level the scene renders at. The scene is thin-line-heavy (fret lines, strings,
+// lane ribbons), so its edges alias visibly without it. bgfx clamps the request to the device's
+// support for the backbuffer format, and every Direct3D 11 device supports 4x.
 constexpr std::uint64_t g_scene_msaa = BGFX_TEXTURE_RT_MSAA_X4;
 
 // RGBA8, not sRGB: the format the window's backbuffer has (RenderDevice requests no sRGB
@@ -28,16 +28,15 @@ constexpr bgfx::TextureFormat::Enum g_scene_color_format = bgfx::TextureFormat::
 // The depth the board's prepass tests against: the format bgfx gives the backbuffer's own depth.
 constexpr bgfx::TextureFormat::Enum g_scene_depth_format = bgfx::TextureFormat::D24S8;
 
-// The scene at ceil(size / scale), one scene pixel to scale x scale window pixels, never
-// multisampled: the pixel and dither looks' canvas.
-[[nodiscard]] HighwaySceneTargetSpec virtualCanvas(
+// The full-resolution scene rounded UP to whole scale x scale blocks, so the present's block mean
+// reads only texels inside the target and the target still covers the window.
+[[nodiscard]] HighwaySceneTargetSpec wholeBlocks(
     const std::uint32_t width, const std::uint32_t height, const int scale)
 {
     const auto edge = static_cast<std::uint32_t>(scale);
     return HighwaySceneTargetSpec{
-        .width = (width + edge - 1U) / edge,
-        .height = (height + edge - 1U) / edge,
-        .multisampled = false,
+        .width = (width + edge - 1U) / edge * edge,
+        .height = (height + edge - 1U) / edge * edge,
     };
 }
 
@@ -49,7 +48,7 @@ HighwaySceneFrame makeHighwaySceneFrame(
     if (const auto* const pixel = std::get_if<HighwayPixelLook>(&look))
     {
         return HighwaySceneFrame{
-            .target = virtualCanvas(width, height, pixel->scale),
+            .target = wholeBlocks(width, height, pixel->scale),
             .present = HighwayPresent::Copy,
             .present_scale = static_cast<float>(pixel->scale),
             .scanlines = static_cast<float>(pixel->scanlines),
@@ -58,13 +57,13 @@ HighwaySceneFrame makeHighwaySceneFrame(
     if (const auto* const dither = std::get_if<HighwayDitherLook>(&look))
     {
         return HighwaySceneFrame{
-            .target = virtualCanvas(width, height, dither->scale),
+            .target = wholeBlocks(width, height, dither->scale),
             .present = HighwayPresent::Dither,
             .present_scale = static_cast<float>(dither->scale),
             .scanlines = 0.0F,
         };
     }
-    const HighwaySceneTargetSpec full{.width = width, .height = height, .multisampled = true};
+    const HighwaySceneTargetSpec full{.width = width, .height = height};
     if (const auto* const halftone = std::get_if<HighwayHalftoneLook>(&look))
     {
         return HighwaySceneFrame{
@@ -119,8 +118,7 @@ HighwayDitherPalette makeHighwayDitherPalette(
 
 // Releases the old target before creating the new one, so a resize never holds both. The color
 // attachment is sampled (never write-only) so bgfx keeps a single-sampled copy to resolve into;
-// the depth is write-only, which bgfx requires of a multisampled depth attachment and which keeps
-// a single-sampled one a plain render buffer.
+// the depth is write-only, which bgfx requires of a multisampled depth attachment.
 bool HighwaySceneTarget::fit(const HighwaySceneTargetSpec& spec)
 {
     if (m_spec == spec)
@@ -132,7 +130,6 @@ bool HighwaySceneTarget::fit(const HighwaySceneTargetSpec& spec)
     m_color.reset();
     m_depth.reset();
 
-    const std::uint64_t samples = spec.multisampled ? g_scene_msaa : BGFX_TEXTURE_RT;
     const auto width = static_cast<std::uint16_t>(spec.width);
     const auto height = static_cast<std::uint16_t>(spec.height);
     m_color = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
@@ -141,9 +138,9 @@ bool HighwaySceneTarget::fit(const HighwaySceneTargetSpec& spec)
         false,
         1,
         g_scene_color_format,
-        samples | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP)};
+        g_scene_msaa | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP)};
     m_depth = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
-        width, height, false, 1, g_scene_depth_format, samples | BGFX_TEXTURE_RT_WRITE_ONLY)};
+        width, height, false, 1, g_scene_depth_format, g_scene_msaa | BGFX_TEXTURE_RT_WRITE_ONLY)};
     if (!m_color.isValid() || !m_depth.isValid())
     {
         return false;

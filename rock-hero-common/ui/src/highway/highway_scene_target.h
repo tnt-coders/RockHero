@@ -20,7 +20,8 @@ namespace rock_hero::common::ui
 {
 
 /*!
-\brief What the scene target must be: its size and whether it multisamples.
+\brief What the scene target must be: its size. Every target renders with 4x multisampling,
+resolved before the present.
 
 Two frames that agree on this share one target, so a change of anything else the present reads
 never recreates GPU resources.
@@ -33,9 +34,6 @@ struct HighwaySceneTargetSpec
     /*! \brief Target height in pixels. */
     std::uint32_t height{0};
 
-    /*! \brief True renders the scene with 4x multisampling, resolved before the present. */
-    bool multisampled{false};
-
     /*!
     \brief Compares every field; all are integers, so the defaulted comparison is exact.
     \param other Spec to compare against.
@@ -47,7 +45,7 @@ struct HighwaySceneTargetSpec
 /*! \brief Which present program carries the scene to the window, one per family of look. */
 enum class HighwayPresent : std::uint8_t
 {
-    /*! \brief A block copy with optional scanlines: the plain and pixel looks. */
+    /*! \brief A block mean with optional scanlines: the plain and pixel looks. */
     Copy,
 
     /*! \brief The ordered dither to the theme's palette. */
@@ -69,12 +67,12 @@ struct HighwaySceneFrame
     HighwayPresent present{HighwayPresent::Copy};
 
     /*!
-    \brief The present's size in window pixels: per scene pixel for the copy and the dither, one
-    screen cell's edge for the halftone.
+    \brief The present's size in window pixels: one virtual pixel's edge for the copy and the
+    dither, one screen cell's edge for the halftone.
     */
     float present_scale{1.0F};
 
-    /*! \brief How much the copy darkens every other scene row, 0 to 1. */
+    /*! \brief How much the copy darkens every other virtual-pixel row, 0 to 1. */
     float scanlines{0.0F};
 };
 
@@ -115,12 +113,14 @@ did not approve.
 /*!
 \brief The frame a window of the given size presents under a render look.
 
-The plain look renders at the window's size with 4x multisampling and copies one pixel to one
-pixel. The pixel look renders at ceil(size / scale) with no multisampling, so each scene pixel is
-exactly scale x scale window pixels and the canvas always covers the window (up to scale - 1 pixels
-of it fall past one edge), and presents with the look's scanlines. The dither look sizes its
-canvas the same way and presents through the dither. The halftone look renders like the plain look
-— its ink outlines trace the full-resolution scene — and presents through the dot screen.
+Every look renders the full-resolution scene. The plain look renders at the window's size and
+copies one pixel to one pixel. The pixel look rounds the size up to whole scale x scale blocks, so
+the target still covers the window (up to scale - 1 pixels of it fall past one edge), and presents
+each block as one virtual pixel of the block's mean color, with the look's scanlines: a detail
+smaller than a block tints it by the share it covers rather than popping in and out as it moves.
+The dither look sizes its target the same way and dithers each block's mean. The halftone look
+renders like the plain look — its ink outlines trace the full-resolution scene — and presents
+through the dot screen.
 
 \param width Window width in pixels; non-zero.
 \param height Window height in pixels; non-zero.

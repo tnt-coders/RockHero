@@ -16,8 +16,8 @@ struct HighwayPlainLook
 };
 
 /*!
-\brief The scene rendered at a fraction of the window's resolution and upscaled with hard edges,
-optionally with scanlines.
+\brief The scene shown as hard-edged virtual pixels, each the mean of the full-resolution scene it
+covers, optionally with scanlines.
 */
 struct HighwayPixelLook
 {
@@ -28,7 +28,7 @@ struct HighwayPixelLook
     double scanlines;
 };
 
-/*! \brief The smallest pixel-look scale: 1 would be the plain look without its anti-aliasing. */
+/*! \brief The smallest pixel-look scale: 1 would be the plain look. */
 inline constexpr int g_pixel_look_min_scale = 2;
 
 /*! \brief The largest pixel-look scale, a sanity cap beyond which lanes and heads merge. */

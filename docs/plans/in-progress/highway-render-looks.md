@@ -86,14 +86,22 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
 - **One path, always off-screen.** Every theme renders its scene into the renderer's own target
   (`HighwaySceneTarget`, `common/ui` `highway/highway_scene_target.h`) and one present pass
   (`vs_present`/`fs_present`) copies it to the window; there is no direct-to-backbuffer path for
-  the plain look. The target is refitted lazily in `draw` only when its size or sampling changes,
+  the plain look. The target is refitted lazily in `draw` only when its size changes,
   so creation, a window resize and a change of look are one code path.
 - **MSAA moved out of `RenderDevice`.** `RenderMsaa` and `RenderDeviceConfig::msaa` are deleted;
   the backbuffer never multisamples. The plain look's target is RGBA8 with 4x MSAA and D24S8 depth
   — the backbuffer's own format, sample count and depth — resolved by bgfx when the frame leaves
   the target, and the present fetches texels by index (`texelFetch` at
-  `floor(gl_FragCoord / scale)`), so the plain copy is exact and needs no per-backend flip. The
-  pixel look renders with no MSAA: hard virtual pixels are the point.
+  `floor(gl_FragCoord / scale)`), so the plain copy is exact and needs no per-backend flip.
+- **The pixel look supersamples (revised at the first sighting).** The prototype rendered at
+  ceil(size / scale) with no MSAA and showed one sample per virtual pixel; far notes smaller than
+  a virtual pixel popped in and out and flickered heavily, which made the pixel and dither looks
+  unreadable. Now every look renders the full-resolution multisampled scene (the target rounds
+  up to whole blocks), and the present (`present_block.sh`) gives each virtual pixel the MEAN of
+  the scale x scale texels it covers, so a small note tints its block by its coverage and moves
+  through it smoothly. Cost: scale² fetches per window pixel (64 at the cap), and the scene no
+  longer renders cheaper than the plain look. If the cap survives sighting and the cost shows, a
+  downsample pass into a block-sized target makes it one fetch per texel.
 - **Views.** 0 is `RenderDevice`'s (it clears the window and is never re-targeted); 1 background
   and 2 board render into the target; 3 the present and 4 the overlay draw to the backbuffer, so
   the diagnostics overlay stays at full resolution and aligned with the debug text under any
@@ -115,7 +123,7 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
 - **Two more styles, `dither` and `halftone` (same day, at the user's request).** Each is its own
   present program (`present_dither`, `present_halftone`) chosen per frame, never a uniform branch
   inside one shader. `{"style": "dither", "scale": 1-8}` (default 1) renders like the pixel look
-  and ordered-dithers each virtual pixel (4x4 Bayer) to the nearest color of a palette made only of
+  and ordered-dithers each virtual pixel's mean (4x4 Bayer) to the nearest color of a palette made only of
   the theme's own colors — every role and string color with alpha dropped, plus black and white
   (`makeHighwayDitherPalette`) — so it needs no guardrail change. `{"style": "halftone",
   "cell": 4-16}` (default 8) renders the full multisampled scene and prints it as a 45-degree dot

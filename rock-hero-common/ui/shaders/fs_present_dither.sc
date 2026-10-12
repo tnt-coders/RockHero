@@ -1,4 +1,4 @@
-// The dither look's present: each scene pixel, blown up like the pixel look's, takes the nearest
+// The dither look's present: each block, supersampled like the pixel look's, takes the nearest
 // color of the theme's own opaque palette after a 4x4 Bayer threshold nudges it, so flat areas
 // between two palette colors break into the ordered cross-hatch of a limited-palette display.
 //
@@ -8,7 +8,9 @@
 
 SAMPLER2D(s_scene, 0);
 
-// x: window pixels per scene pixel; z: how many palette entries are live.
+#include "present_block.sh"
+
+// x: window pixels per virtual pixel; z: how many palette entries are live.
 uniform vec4 u_present_params;
 
 // The palette, rgb from 0 to 1; only the first u_present_params.z entries are live.
@@ -33,9 +35,9 @@ float bayer4(vec2 pixel)
 
 void main()
 {
-    vec2 scene_pixel = floor(gl_FragCoord.xy / u_present_params.x);
-    vec3 color = texelFetch(s_scene, ivec2(scene_pixel), 0).rgb;
-    float threshold = (bayer4(scene_pixel) + 0.5) / 16.0 - 0.5;
+    vec2 block = presentBlock(gl_FragCoord.xy, u_present_params.x);
+    vec3 color = presentBlockMean(block, u_present_params.x).rgb;
+    float threshold = (bayer4(block) + 0.5) / 16.0 - 0.5;
     vec3 nudged = color + vec3_splat(threshold * DITHER_SPREAD);
 
     vec3 nearest = u_dither_palette[0].rgb;

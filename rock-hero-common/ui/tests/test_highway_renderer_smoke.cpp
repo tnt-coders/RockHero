@@ -592,10 +592,9 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // integrate nothing.
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, 0.0, 30);
 
-        // The render look is a theme part: a pixel look refits the scene target to a fraction of
-        // the window without multisampling, a resize under it refits again, the dither and the
-        // halftone each present through their own program, and the plain look brings the
-        // full-size multisampled target back.
+        // The render look is a theme part: a pixel look refits the scene target to whole blocks,
+        // a resize under it refits again, the dither and the halftone each present through their
+        // own program, and the plain look brings the window-size target back.
         renderer->setTheme(
             testing::fixtureHighwayTheme(),
             testing::fixtureStringColors(),
