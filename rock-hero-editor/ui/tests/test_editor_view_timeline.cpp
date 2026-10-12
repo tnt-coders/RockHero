@@ -2027,7 +2027,7 @@ TEST_CASE("EditorView keeps a Delete in sight only when the core asks", "[ui][ed
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
-    FakeTransport transport;
+    const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{
         controller,
@@ -2081,7 +2081,7 @@ TEST_CASE("EditorView fits the keyboard's measure only when the core moves it", 
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
-    FakeTransport transport;
+    const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{
         controller,
