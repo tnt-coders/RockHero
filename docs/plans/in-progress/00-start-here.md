@@ -51,9 +51,8 @@ the highway theming sightings below.
    Expected and not defects: today's marks and repeat X, the 2D lane's Charter shape blue and
    purple (Phase 4b).
 2. **Phase 4a, the box chord device** (posts RULED 2026-10-11: open bars keep the upright legs
-   only, glow posts stay as today): see the box in motion, and press F8 to compare the box's fill
-   shaded end-to-middle (today, the `chord_box_dark` color) against one flat faint color; if flat
-   wins, that color is deleted from every theme.
+   only, glow posts stay as today; the fill keeps its shading, RULED 2026-10-11): see the box in
+   motion.
 3. **Plan 69's display toggles** (landed): in the editor, View > Highway Display, flip Note
    Targets, Note Rotation and Arpeggio Brackets in motion. Rule 69-Q2: brackets off also hides the
    arpeggio's panel (a bracket-less panel would read as a chord box); confirm, or hide only the

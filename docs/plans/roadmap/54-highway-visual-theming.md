@@ -406,7 +406,10 @@ Each carries a recommendation; none is decided until the user rules.
   - the open-bar L posts lose their foot and keep the upright leg on both sides. **RULED
     2026-10-11 (user)** from the Phase 4a candidates (corner, upright, foot only, none): "looks
     real clean";
-  - the repeat X stays today's `chords.png` cells, tinted per theme.
+  - the repeat X stays today's `chords.png` cells, tinted per theme;
+  - the faint fill keeps its end-to-middle shading into `chord_box_dark` (**RULED 2026-10-11, user,
+    over a flat fill**: it reads clearer and more transparent), so that role stays, its one job
+    now the fill's middle.
   - Every candidate drops the corner holders and the end-to-middle gradient.
   - The repeat boxes (S1) and the open-bar posts (S2) follow whichever device wins.
   - Phase 0 renders stills of each candidate; Phase 4a prototypes the shortlist in motion and the
