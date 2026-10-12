@@ -40,23 +40,22 @@ the highway theming sightings below.
 1. **Phase 1b, the first look at the ice-blue default** (landed `b6fb1134`), in motion in the game
    and the editor preview. The comparisons need no throwaway code now: the other accents and an
    opaque-inlay ice are user themes in `%APPDATA%\Rock Hero\themes\sight-*` (each inherits ice),
-   picked from View > Highway Theme; the ring is View > Highway Display > its toggle; 54-Q20's
-   lane-line tier is cycled live by the Phase 4a sighting build's keys. Delete the `sight-*`
+   picked from View > Highway Theme; Note Targets is View > Highway Display > its toggle (54-Q20
+   is ruled: the lane lines keep today's 1/8). Delete the `sight-*`
    folders after ruling. Decide:
    - whether ice blue reads too close to today's look, beside the other accents;
    - the inlay opacity: `inlay_tint` alpha `0xE6` (the mock) or `0xFF` (opaque);
-   - 54-Q20, the far lane lines at today's 1/8 tier or at 1/16 (variant build);
-   - 54-Q21, now the anticipation ring's DEFAULT (on or off): plan 69 makes it a player toggle,
-     so the variant build beside the normal one decides only what new players see. The ring is
-     now a flat bright band; if it reads too hot, that is a one-value rebake.
+   - 54-Q21, the Note Targets' DEFAULT (on or off; View > Highway Display > Note Targets). The
+     outline is now a flat bright band; if it reads too hot, that is a one-value rebake.
 
-   Expected and not defects: today's marks and repeat X, today's chord-box holders (Phase 4a), the
-   2D lane's Charter shape blue and purple (Phase 4b).
-2. **Phase 4a, the box chord device and the posts**, once built: settle the device in motion,
-   and rule on the open-bar posts (54-Q7) and the glow posts under each note (54-Q22) from the
-   candidates shown live; losing prototypes are deleted before commit.
-3. **Plan 69's display toggles** (landed): in the editor, View > Highway Display, flip Anticipation
-   Ring, Note Rotation and Arpeggio Brackets in motion. Rule 69-Q2: brackets off also hides the
+   Expected and not defects: today's marks and repeat X, the 2D lane's Charter shape blue and
+   purple (Phase 4b).
+2. **Phase 4a, the box chord device** (posts RULED 2026-10-11: open bars keep the upright legs
+   only, glow posts stay as today): see the box in motion, and press F8 to compare the box's fill
+   shaded end-to-middle (today, the `chord_box_dark` color) against one flat faint color; if flat
+   wins, that color is deleted from every theme.
+3. **Plan 69's display toggles** (landed): in the editor, View > Highway Display, flip Note
+   Targets, Note Rotation and Arpeggio Brackets in motion. Rule 69-Q2: brackets off also hides the
    arpeggio's panel (a bracket-less panel would read as a chord box); confirm, or hide only the
    brackets.
 4. **Phase 3**: the private Classic theme A/B against a build of the commit before `b6fb1134`

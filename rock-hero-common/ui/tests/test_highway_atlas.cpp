@@ -89,7 +89,7 @@ TEST_CASE("Highway atlas legato cell mirrors within its own bounds", "[ui][highw
 
     // Every named cell is inside the grid the shipped asset provides.
     CHECK(g_head_cell_bend < g_head_cell_count);
-    CHECK(g_head_cell_harmonic_anticipation < g_head_cell_count);
+    CHECK(g_head_cell_harmonic_hollow < g_head_cell_count);
     CHECK(heads.capacity() >= g_head_cell_count);
 }
 

@@ -9,7 +9,9 @@ palette is a separate `create` argument); its coverage check moved to Phase 3's 
 premultiplying its tint so `inlay_tint`'s alpha is the inlays' opacity); its sighting is pending.
 Phase 2a landed 2026-10-11: the default is `resources/themes/ice/`, loaded with any user themes
 through one strict loader. Phase 2b landed 2026-10-11: inheritance from built-ins, and the
-editor's theme and string-color pickers over plan 70's shared settings. **Phase 0 has a direction for the default look**
+editor's theme and string-color pickers over plan 70's shared settings. Phase 4a landed
+2026-10-11: the box chord device, open-bar posts as upright legs only, the glow posts unchanged
+(ruled), and the cue renamed Note Targets. **Phase 0 has a direction for the default look**
 (below) and still gates the art phases (54-Q5 to 54-Q22, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
@@ -391,9 +393,9 @@ Each carries a recommendation; none is decided until the user rules.
   - it keeps today's panel geometry, its place along the highway, the frame alpha and the fill;
   - it drops the corner holders and the gradient on the bars, which become flat;
   - the palm X takes the flat frame color, and the side columns start above the bottom bar;
-  - the open-bar L posts lose their foot and keep the upright leg: a PROPOSAL from the Phase 0
-    mock, never sighted or ruled (user, 2026-10-11); Phase 4a renders post candidates beside it
-    for the user to rule on;
+  - the open-bar L posts lose their foot and keep the upright leg on both sides. **RULED
+    2026-10-11 (user)** from the Phase 4a candidates (corner, upright, foot only, none): "looks
+    real clean";
   - the repeat X stays today's `chords.png` cells, tinted per theme.
   - Every candidate drops the corner holders and the end-to-middle gradient.
   - The repeat boxes (S1) and the open-bar posts (S2) follow whichever device wins.
@@ -524,11 +526,13 @@ Each carries a recommendation; none is decided until the user rules.
     24) fade like today's. Because it is not a theme value, B also dims today's look in the
     private theme.
 
-  *Recommended:* decide at the first sighting with both in motion. If B wins, it stays one
-  renderer constant, not a theme key, because the fade is a light law.
-- **54-Q21 — the anticipation ring's default. Recast 2026-10-11:** the ring becomes a player
-  toggle (plan 69), so the sighting below decides whether it starts on or off, not whether it
-  exists. The ring is a hollow copy of the head, parked
+  **RULED 2026-10-11 (user): A, keep 1/8.** B existed only because a saturated accent still glows
+  at 1/8; a theme controls its lines' visibility through its own color, from clearly defined to
+  nearly invisible. The ratio stays a light law in code.
+- **54-Q21 — the note targets' default. Recast 2026-10-11:** the cue, renamed "Note Targets"
+  (user, after a naming review: "ring" was wrong about the shape and "anticipation" already means
+  a timing in music), becomes a player toggle (plan 69), so the sighting below decides whether it
+  starts on or off, not whether it exists. It is a hollow copy of the head, parked
   at the hit line on the note's landing slot, that grows to full head size as the note arrives
   (`highway_renderer.cpp:5208-5261`; `g_anticipation_seconds` :233; the hollow cells 2 and 5,
   `highway_atlas.h:140, 271`). It came from the inspiring game's notation by way of Charter (its
@@ -562,7 +566,8 @@ Each carries a recommendation; none is decided until the user rules.
   shorter stem, a floor dash, none) remain in the sighting build only as references. What the post
   must keep doing: stand as a vertical post beneath the note, tying a high head to its slot at
   distance, and stay quieter than the head.
-  *Recommended:* none until the sighting.
+  **RULED 2026-10-11 (user): keep today's ribbon.** The posts are modeled on RockHero's own
+  tails, not on the inspiring game, and the user likes how they look; no restyle.
 
 ## Phased implementation
 

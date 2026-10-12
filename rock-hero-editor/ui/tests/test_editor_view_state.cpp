@@ -1551,7 +1551,7 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
     view.setState(rotation_off);
     const std::vector<juce::PopupMenu::Item> aids = submenu_items("Highway Display");
     REQUIRE(aids.size() == 3);
-    CHECK(aids[0].text == "Anticipation Ring");
+    CHECK(aids[0].text == "Note Targets");
     CHECK(aids[0].isTicked);
     CHECK(aids[1].text == "Note Rotation");
     CHECK_FALSE(aids[1].isTicked);

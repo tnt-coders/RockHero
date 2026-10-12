@@ -81,7 +81,7 @@ would silently scale all three signals and, at near-zero alpha, amplify the roun
 no art can hold; a PNG without an alpha chunk decodes bit-exact at every level. Opacity therefore
 lives in B, normalized so each cell's rim plateau reaches full coverage, and the renderer supplies
 the absolute value as vertex alpha. That is what makes the palm mark's rim composite identically
-to the frame bar it meets: both read their opacity from the same constant instead of agreeing by
+to the frame bar it meets: both take their color from the same function instead of agreeing by
 coincidence. No hue is in the art at all, so retuning a color never needs a repaint.
 
 The palm mute (top) runs edge to edge of its cell — arms corner to corner of the whole cell, cut

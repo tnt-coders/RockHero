@@ -88,7 +88,7 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    frames; a reading aid alone leaves the camera gliding.
 
    The display options — the player's view preferences (`HighwayViewPreferences`: the lefty mirror,
-   the string-order invert, and the three reading aids, which turn the anticipation ring, the
+   the string-order invert, and the three reading aids, which turn the note targets, the
    single-note roll and the arpeggio posture mark on or off) and the displayed-lane minimum — are
    the renderer's own setting rather than part of the view state: none of them changes the
    projected chart, so changing one re-projects nothing. Each aid is read at its one draw site in
@@ -604,13 +604,14 @@ Three marks beside the lights, all on the raw window:
   fretting hand's is the chord-box family (`chord_box`, `chord_box_dark`, rails in `lane_border`);
   the picking hand's is `pick_furniture`, so in the default look a teal box says strum and a white
   one says tap, the same reason the picking light leans warm and the hands' pops differ. Only the
-  box colour is a role: the picking rim is `hueless(chord_box_dark)`, and the picking rails are
+  box colour is a role: the dark the picking box's fill shades to at its middle is
+  `hueless(chord_box_dark)`, and the picking rails are
   `pick_furniture` at a fixed alpha. The default white is matched to the teal in PERCEIVED
   lightness (CIELAB L* with the Fairchild-Pirrotta Helmholtz-Kohlrausch correction), never in luma:
   a saturated colour looks brighter than its luminance, so a luma-matched neutral looks darker and
   reads grey. It is the 8th string's grey cooled a touch (the bluing effect) and lifted to the teal
   box's perceived 81; the rail alpha lands the teal rail's 61 over the dark board: box
-  `0xFFC0C7D8`, rim `0xFF2A2A2A`, rails `0xBAC0C7D8`. The pops' `mark_color` (`strike_fretting`,
+  `0xFFC0C7D8`, fill dark `0xFF2A2A2A`, rails `0xBAC0C7D8`. The pops' `mark_color` (`strike_fretting`,
   `strike_picking`) is a separate colour, because a pop is additive glow and the furniture is solid.
 - **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
   landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar

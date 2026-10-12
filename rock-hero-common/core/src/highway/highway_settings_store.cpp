@@ -33,8 +33,8 @@ constexpr std::array g_view_flag_keys{
         .flag = &HighwayViewPreferences::invert_string_order,
     },
     ViewFlagKey{
-        .key = "highway.showAnticipationRing",
-        .flag = &HighwayViewPreferences::show_anticipation_ring,
+        .key = "highway.showNoteTargets",
+        .flag = &HighwayViewPreferences::show_note_targets,
     },
     ViewFlagKey{
         .key = "highway.showNoteRotation",

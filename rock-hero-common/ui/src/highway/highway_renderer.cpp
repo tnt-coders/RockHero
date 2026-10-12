@@ -131,7 +131,7 @@ constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 // ((10.822 - 0.526) / 31.5), preserving the authored look exactly.
 constexpr double g_bend_marker_edge_clearance_heads = 0.0532;
 
-// Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
+// Pre-bend outline alpha: the hollow head silhouette parked at a pre-bent note's
 // chart-truth height is an annotation, dimmed so the rising head stays the subject.
 constexpr double g_prebend_outline_alpha = 0.5;
 
@@ -203,8 +203,8 @@ constexpr double g_hit_glow_falloff = 0.2;
 constexpr double g_hit_glow_core_half = g_hit_glow_falloff / 2.0;
 constexpr double g_hit_glow_top_fade = 0.35;
 
-// Anticipation ring window before a note lands (500 ms).
-constexpr double g_anticipation_seconds = 0.5;
+// How long before a note lands its note target shows (500 ms).
+constexpr double g_note_target_seconds = 0.5;
 
 // Board content composites translucently, so every COLOUR batch still draws painter-ordered and
 // writes no depth of its own. What it tests against is a DEPTH PREPASS: ahead of each onset
@@ -217,7 +217,7 @@ constexpr double g_anticipation_seconds = 0.5;
 // the nearer surface is the one at greater world y — a per-pixel fact, which is exactly what a
 // depth buffer states and what submission order cannot.
 //
-// The test is LEQUAL, never LESS. Technique markers, mute marks, anticipation rings and every
+// The test is LEQUAL, never LESS. Technique markers, mute marks, note targets and every
 // member of a chord sit at their subject's own z, so LESS would have each of them rejected by the
 // proxy of the very thing it rides. LEQUAL passes coplanar content and rejects only strictly
 // farther fragments, which is the ribbon case and only the ribbon case.
@@ -377,33 +377,26 @@ constexpr double g_shadow_post_floor_alpha = 0.5;
 // point of the rise rather than at the lane center itself, a slightly more aggressive fade.
 constexpr double g_shadow_post_fade_end_fraction = 0.75;
 
-// Open-note L posts: how far the floor foot reaches inward, measured from the bar end (the
-// chord box's bottom corner holders, freestanding), fading to nothing at its tip.
-constexpr double g_open_post_foot_length = 0.5;
-
 // Adaptive tail sampling for technique-modulated rails: one centerline sample per this many
 // projected screen pixels, hard-capped (Charter's per-millisecond-tessellation fix).
 constexpr double g_tail_pixels_per_sample = 4.0;
 constexpr std::size_t g_tail_sample_cap = 256;
 
-// The chord box (Charter's model): a translucent panel per strummed chord in its hand's box colors,
-// with corner holders, gradient frame bars, and mute-cross variants.
+// The chord box: a translucent panel per strummed chord in its hand's box colors, a flat frame
+// around a faint fill, and mute-cross variants on a repeat box.
 //
 // Repeat-box mute marks render through the SDF shader (fs_box_mute). chords.png carries their
 // STRUCTURE only — tint weighting, rim/core structure, and coverage, in the same channel scheme
 // the note atlas uses — which the renderer measures at creation into a two-row ramp the shader
 // samples by exact distance from the arm centerlines (see box_mute_profile.h for the authoring
-// contract). Hue and opacity both arrive as vertex color from the theme (chord_box and
-// chord_box_dark for the palm mark, full_mute_mark for the full one), never from the art: the palm
-// mark wears the frame's own colors and alpha so the two stay equal wherever they meet, and a hue
-// baked into the pixels could not follow a retune of it. The distance field is evaluated per
-// fragment because the X's arm angle changes with every box aspect — a shape no fixed bitmap
-// contains — so where bitmap stretching would distort line weight with the box, this holds the
-// measured weights everywhere.
+// contract). Hue and opacity both arrive as vertex color, never from the art: the palm mark wears
+// the frame's own color (chordBoxFrameAbgr) so the two stay equal wherever they meet, the full
+// mark wears full_mute_mark, and a hue baked into the pixels could not follow a retune of either.
+// The distance field is evaluated per fragment because the X's arm angle changes with every box
+// aspect — a shape no fixed bitmap contains — so where bitmap stretching would distort line weight
+// with the box, this holds the measured weights everywhere.
 //
-// The frame's own opacity, shared by the gradient frame bars and by the mute marks drawn against
-// them. The palm mark's rim has to composite identically to the border it stops against, so the
-// value gets one home rather than two places that agree by coincidence.
+// The frame's own opacity, before the box's emphasis scales it.
 constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 
 // Hand-shape rails on the floor, drawn as LIGHT: each rail is an emitter line along its hand
@@ -628,10 +621,10 @@ struct GlowShape
 // pick_furniture, so the two hands read apart at a glance — a chord-box-colored box says strum, a
 // pick_furniture one says tap, the same reason the picking light leans warm and the hands' pops
 // differ. The picking box wears pick_furniture under the box's own alphas, exactly as the fretting
-// box wears chord_box. Its rim is the fretting rim with its hue removed (a rim's job is to be dark,
-// so no perceptual correction is needed), and its rails are pick_furniture at this fixed alpha:
-// the one whose blend over the dark board lands the default white rail at the default teal rail's
-// perceived lightness (CIELAB L* 61). A sighting knob.
+// box wears chord_box. Its fill's middle dark is the fretting one with its hue removed (its job is
+// to be dark, so no perceptual correction is needed), and its rails are pick_furniture at this
+// fixed alpha: the one whose blend over the dark board lands the default white rail at the default
+// teal rail's perceived lightness (CIELAB L* 61). A sighting knob.
 constexpr ArgbColor g_picking_rail_alpha = 0xBA;
 
 // What one hand looks like, stated once so both hands draw through one path and differ only here:
@@ -644,8 +637,8 @@ struct HandLightStyle
     // The color this hand's strike pops wear. Not the furniture's: a pop is additive glow, while
     // the box and the rails are solid marks that wear box_color, box_dark_color and rail_color.
     ArgbColor mark_color;
-    // The hand's chord box: its panel color and its dark rim (pushChordBoxPanel), and the color
-    // its accent light takes.
+    // The hand's chord box (pushChordBoxPanel): its frame and fill color, which its accent light
+    // takes too, and the dark its fill shades to at the middle.
     ArgbColor box_color;
     ArgbColor box_dark_color;
     // The hand's rails (drawHandShapeRails); an arpeggio span's rails wear the theme's arpeggio.
@@ -987,33 +980,6 @@ Returns the emission weight in [0, 1]; exactly 1 across the bar's whole middle.
     return std::min(g_open_note_end_fade_length, (x1 - x0) / 4.0);
 }
 
-// The chord-box frame's signature horizontal fade, stated once: a quad pair split at the
-// horizontal middle, colored `end_abgr` at the outer ends and `middle_abgr` at the split.
-// The frame bars draw it directly and the palm mute mark rides it as a vertex modulation,
-// so the two can never drift apart. `make_vertex` builds each corner as (x, y, abgr).
-template <typename Vertex, typename MakeVertex>
-void pushMiddleFadedQuads(
-    std::vector<Vertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
-    const double x1, const double y0, const double y1, const std::uint32_t end_abgr,
-    const std::uint32_t middle_abgr, const MakeVertex& make_vertex)
-{
-    const double middle_x = (x0 + x1) / 2.0;
-    pushQuad(
-        vertices,
-        indices,
-        make_vertex(x0, y0, end_abgr),
-        make_vertex(middle_x, y0, middle_abgr),
-        make_vertex(middle_x, y1, middle_abgr),
-        make_vertex(x0, y1, end_abgr));
-    pushQuad(
-        vertices,
-        indices,
-        make_vertex(middle_x, y0, middle_abgr),
-        make_vertex(x1, y0, end_abgr),
-        make_vertex(x1, y1, end_abgr),
-        make_vertex(middle_x, y1, middle_abgr));
-}
-
 /*
 A chord box frame's vertical shape, derived once from the three flags that decide it.
 
@@ -1032,12 +998,12 @@ struct ChordBoxFrame
     double outer_top{};
 
     /*
-    Where the columns begin fading out.
+    Top of the side columns' solid part.
 
-    Equal to outer_top when a top bar closes the shape (nothing fades), else the columns'
-    midpoint.
+    Under a top bar, the bar's underside (side_y1), so the two never overlap; else the columns'
+    midpoint, where they begin fading out to side_y1.
     */
-    double fade_start_y{};
+    double solid_top_y{};
 
     // Whether a top bar closes the frame. False means the light must draw no top edge.
     bool closed_top{};
@@ -1499,22 +1465,12 @@ void pushFaceQuad(
     return pen_x - left_x;
 }
 
-// Draws one chord-box panel — corner holders, a frame variant, and the faint filling — into a
-// color batch. Geometry is explicit rather than taken from a chord group so both strummed chord
-// boxes and arpeggio-styled hand-shape boxes reuse it. A repeat box's mute mark is not drawn
-// here: the caller submits the SDF-program mark over the panel's frame interior.
-//
-// This is the ONE definition of a box's shape, and an accented box's light is drawn by calling it
-// again rather than by laying rectangles that would have to agree with it. That matters because
-// the shape is not one shape: `box_only` halves it, `with_top` decides between a top bar and two
-// columns that fade out at the midpoint, and the corner holders are their own silhouette. A
-// hand-rolled outline would draw a top bar where a two-note chord has none and full-height columns
+// The ONE derivation of a box's vertical shape, which the panel, its accent light and its mute
+// marks all ask, so none can draw a top bar where a two-note chord has none or full-height columns
 // beside fading ones.
 // full_height_y1: the box top for a full-height box (a repeat box is half this).
 // box_only: half-height repeat box.
-// with_top: full sides plus a top bar (3+ note chords); ignored under box_only.
-// alpha_scale: multiplies every part's alpha — the quiet end of the emphasis axis, which
-//        takes the box's presence down the way a ghost takes a head's.
+// with_top: full sides plus a top bar (3+ note chords).
 // frame_thickness: bar/column width of the frame; callers pass the string grid's base
 //        height so the bottom bar fills the gap under the grid exactly.
 ChordBoxFrame chordBoxFrame(
@@ -1525,145 +1481,86 @@ ChordBoxFrame chordBoxFrame(
     return ChordBoxFrame{
         .side_y1 = y1,
         .outer_top = with_top ? y1 + frame_thickness : y1,
-        .fade_start_y = with_top ? y1 + frame_thickness : y1 / 2.0,
+        .solid_top_y = with_top ? y1 : y1 / 2.0,
         .closed_top = with_top,
     };
 }
 
+// The chord box's frame color: its hand's box color at the frame alpha, under the box's emphasis.
+// The palm-mute mark wears it too, so the mark composites exactly as the frame it meets.
+[[nodiscard]] std::uint32_t chordBoxFrameAbgr(const HandLightStyle& style, const double alpha_scale)
+{
+    return packAbgr(style.box_color, g_chord_box_frame_alpha * alpha_scale);
+}
+
+// Draws one chord-box panel — a flat frame and the faint fill inside it — into a color batch.
+// Geometry is explicit rather than taken from a chord group so both strummed chord boxes and
+// arpeggio-styled hand-shape boxes reuse it. A repeat box's mute mark is not drawn here: the
+// caller submits the SDF-program mark over the panel's frame interior.
+// alpha_scale: multiplies every part's alpha — the quiet end of the emphasis axis, which takes
+//        the box's presence down the way a ghost takes a head's.
+// The other parameters are chordBoxFrame's.
 void pushChordBoxPanel(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double z, const double full_height_y1, const bool box_only,
     const bool with_top, const double alpha_scale, const double frame_thickness,
     const HandLightStyle& style)
 {
-    const double y0 = 0.0;
+    constexpr double fill_alpha = 32.0 / 255.0;
     const ChordBoxFrame frame = chordBoxFrame(full_height_y1, box_only, with_top, frame_thickness);
     const double y1 = frame.side_y1;
-    // Sets every frame dimension, not only the bottom bar: the top bar and the side columns below
-    // scale from it too, which is why it comes in as one value rather than being read per-part.
-    const double thickness = frame_thickness;
-
-    // Every part scales by the one emphasis alpha, so a quiet box keeps its whole construction
-    // — holders, fades and all — and only its presence changes.
-    const std::uint32_t box_solid = packAbgr(style.box_color, alpha_scale);
-    const std::uint32_t box_half = packAbgr(style.box_color, g_chord_box_frame_alpha * alpha_scale);
-    const std::uint32_t dark_half =
-        packAbgr(style.box_dark_color, g_chord_box_frame_alpha * alpha_scale);
-    const std::uint32_t box_faint = packAbgr(style.box_color, (32.0 / 255.0) * alpha_scale);
-    const std::uint32_t dark_faint = packAbgr(style.box_dark_color, (32.0 / 255.0) * alpha_scale);
-    const std::uint32_t box_clear = packAbgr(style.box_color, 0.0);
-
-    // Corner-holder fan outlines (Charter's ChordBoxHolderModel): a box-color L behind a dark L, at
-    // each bottom corner. Local coordinates; the right corner mirrors in X. The L legs are
-    // sized for a full-height box, so a half-height repeat box scales them to half vertically
-    // and a bit narrower horizontally to keep the brackets proportioned to the panel.
-    constexpr std::array<std::array<double, 2>, 6> holder_background{
-        {{-0.01, -0.01}, {1.01, -0.01}, {1.01, 0.11}, {0.11, 0.11}, {0.11, 1.11}, {-0.01, 1.01}}
+    const std::uint32_t frame_abgr = chordBoxFrameAbgr(style, alpha_scale);
+    const auto at = [z](const double x, const double y, const std::uint32_t abgr) {
+        return makeVertex(x, y, z, abgr);
     };
-    constexpr std::array<std::array<double, 2>, 6> holder_front{
-        {{0.0, 0.0}, {1.0, 0.0}, {1.0, 0.1}, {0.1, 0.1}, {0.1, 1.1}, {0.0, 1.0}}
-    };
-    const double holder_x_scale = box_only ? 0.75 : 1.0;
-    const double holder_y_scale = box_only ? 0.5 : 1.0;
-    const auto push_fan = [&](const std::span<const std::array<double, 2>> points,
-                              const double origin_x,
-                              const double x_sign,
-                              const std::uint32_t abgr) {
-        const auto base = static_cast<std::uint16_t>(vertices.size());
-        for (const std::array<double, 2>& point : points)
-        {
-            vertices.push_back(makeVertex(
-                origin_x + (x_sign * point[0] * holder_x_scale),
-                point[1] * holder_y_scale,
-                z,
-                abgr));
-        }
-        for (std::size_t point = 1; point + 1 < points.size(); ++point)
-        {
-            indices.push_back(base);
-            indices.push_back(static_cast<std::uint16_t>(base + point));
-            indices.push_back(static_cast<std::uint16_t>(base + point + 1));
-        }
-    };
-    // A vertical face quad with per-corner colors (the frame's gradient pieces).
-    const auto push_face = [&](const double xa,
-                               const double ya,
-                               const std::uint32_t ca,
-                               const double xb,
-                               const double yb,
-                               const std::uint32_t cb) {
+    // One frame piece: frame-colored at its bottom, `top_abgr` at its top.
+    const auto push_piece = [&](const double xa,
+                                const double xb,
+                                const double ya,
+                                const double yb,
+                                const std::uint32_t top_abgr) {
         pushQuad(
             vertices,
             indices,
-            makeVertex(xa, ya, z, ca),
-            makeVertex(xb, ya, z, cb),
-            makeVertex(xb, yb, z, cb),
-            makeVertex(xa, yb, z, ca));
+            at(xa, ya, frame_abgr),
+            at(xb, ya, frame_abgr),
+            at(xb, yb, top_abgr),
+            at(xa, yb, top_abgr));
     };
-    // A horizontal frame bar carrying the frame's end-to-middle fade.
-    const auto push_bar = [&](const double y) {
-        pushMiddleFadedQuads(
+
+    // Frame: the bottom bar, then side columns standing on it, closed by a top bar or fading out
+    // from their midpoint. The pieces never overlap one another, so no corner doubles the frame's
+    // alpha. No accent variant: emphasis is a rendered light, so a box states it the same way a
+    // note does rather than by changing shape into a mark that means "loud" only by convention.
+    push_piece(x0, x1, 0.0, frame_thickness, frame_abgr);
+    for (const auto& [column_x0, column_x1] :
+         {std::pair{x0, x0 + frame_thickness}, std::pair{x1 - frame_thickness, x1}})
+    {
+        push_piece(column_x0, column_x1, frame_thickness, frame.solid_top_y, frame_abgr);
+        if (!frame.closed_top)
+        {
+            push_piece(column_x0, column_x1, frame.solid_top_y, y1, packAbgr(style.box_color, 0.0));
+        }
+    }
+    if (frame.closed_top)
+    {
+        push_piece(x0, x1, y1, frame.outer_top, frame_abgr);
+    }
+
+    // Fill: the faint panel, shading from the box color at its ends to its dark at the middle.
+    const std::uint32_t fill_end = packAbgr(style.box_color, fill_alpha * alpha_scale);
+    const std::uint32_t fill_middle = packAbgr(style.box_dark_color, fill_alpha * alpha_scale);
+    const double middle_x = (x0 + x1) / 2.0;
+    for (const double end_x : {x0, x1})
+    {
+        pushQuad(
             vertices,
             indices,
-            x0,
-            x1,
-            y,
-            y + thickness,
-            box_half,
-            dark_half,
-            [&](const double vx, const double vy, const std::uint32_t abgr) {
-                return makeVertex(vx, vy, z, abgr);
-            });
-    };
-
-    for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-    {
-        push_fan(holder_background, origin_x, x_sign, box_solid);
-        push_fan(holder_front, origin_x, x_sign, packAbgr(style.box_dark_color, alpha_scale));
+            at(end_x, 0.0, fill_end),
+            at(middle_x, 0.0, fill_middle),
+            at(middle_x, y1, fill_middle),
+            at(end_x, y1, fill_end));
     }
-
-    // Frame: bottom bar always, then full sides with a top bar or short fading sides. No accent
-    // chevron variant: emphasis is a rendered light, so a box states it the same way a note does
-    // rather than by changing shape into a mark that means "loud" only by convention.
-    push_bar(y0);
-    if (with_top)
-    {
-        for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-        {
-            push_face(origin_x, y0, box_half, origin_x + (x_sign * thickness), y1, box_half);
-        }
-        push_bar(y1);
-    }
-    else
-    {
-        const double fade_start_y = frame.fade_start_y;
-        for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-        {
-            const double column_x1 = origin_x + (x_sign * thickness);
-            push_face(origin_x, y0, box_half, column_x1, fade_start_y, box_half);
-            pushQuad(
-                vertices,
-                indices,
-                makeVertex(origin_x, fade_start_y, z, box_half),
-                makeVertex(column_x1, fade_start_y, z, box_half),
-                makeVertex(column_x1, y1, z, box_clear),
-                makeVertex(origin_x, y1, z, box_clear));
-        }
-    }
-
-    // Filling: the faint panel, carrying the frame's end-to-middle fade.
-    pushMiddleFadedQuads(
-        vertices,
-        indices,
-        x0,
-        x1,
-        y0,
-        y1,
-        box_faint,
-        dark_faint,
-        [&](const double vx, const double vy, const std::uint32_t abgr) {
-            return makeVertex(vx, vy, z, abgr);
-        });
 }
 
 // Links one program from its compiled pair; the typed error names the failing program.
@@ -1691,7 +1588,7 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
     common::core::HighwayDisplayOptions options)
 {
     const common::core::HighwayViewPreferences defaults{};
-    options.view.show_anticipation_ring = defaults.show_anticipation_ring;
+    options.view.show_note_targets = defaults.show_note_targets;
     options.view.show_note_rotation = defaults.show_note_rotation;
     options.view.show_arpeggio_brackets = defaults.show_arpeggio_brackets;
     return options;
@@ -3210,15 +3107,16 @@ void HighwayRenderer::Impl::draw(
         // wears both, stacked exactly as the note heads stack theirs. The quad covers that
         // interior exactly, texcoord carries interior-local world-unit offsets, and the fragment
         // shader samples chords.png's measured cross-section by exact distance from the arm
-        // centerlines — the texture defines the structure, the shader lays the arms out, and the
-        // vertex color supplies hue and opacity. Submits immediately so painter order holds
+        // centerlines — the texture defines the structure, the shader lays the arms out, and
+        // `tint` supplies hue and opacity. Submits immediately so painter order holds
         // across boxes AND across a stacked pair — see the batch comment above.
         const auto push_box_mute_marker = [&](const double x0,
                                               const double x1,
                                               const double y0,
                                               const double y1,
                                               const double z,
-                                              const bool dead_mark) {
+                                              const bool dead_mark,
+                                              const std::uint32_t tint) {
             const double half_x = (x1 - x0) / 2.0;
             const double half_y = (y1 - y0) / 2.0;
             const double middle_x = (x0 + x1) / 2.0;
@@ -3254,46 +3152,25 @@ void HighwayRenderer::Impl::draw(
             bgfx::setUniform(box_mute_params.get(), params.data());
             bgfx::setUniform(box_mute_arms.get(), arms.data());
             // The quad covers the interior exactly with no margin: the full mark dissolves
-            // inside it and the palm mark is sliced by it. The art carries structure only, so the
-            // vertex color passed here supplies BOTH the mark's hue and its opacity (the shader
-            // weights the tint by the art's R and scales this alpha by the art's coverage). The
-            // palm mark wears the frame's own colors at the frame's own alpha and rides the
-            // frame's end-to-middle fade (pushMiddleFadedQuads, shared with the bars), so its rim
-            // is the same expression as the border it meets; the full mark is a flat opaque tint.
-            const auto make_corner =
-                [&](const double vx, const double vy, const std::uint32_t abgr) {
-                    return makeUvVertex(
-                        vx,
-                        vy,
-                        z,
-                        abgr,
-                        static_cast<float>(vx - middle_x),
-                        static_cast<float>(vy - middle_y));
-                };
-            if (dead_mark)
-            {
-                const std::uint32_t tint = packAbgr(theme.full_mute_mark);
-                pushQuad(
-                    box_marker_vertices,
-                    box_marker_indices,
-                    make_corner(x0, y0, tint),
-                    make_corner(x1, y0, tint),
-                    make_corner(x1, y1, tint),
-                    make_corner(x0, y1, tint));
-            }
-            else
-            {
-                pushMiddleFadedQuads(
-                    box_marker_vertices,
-                    box_marker_indices,
-                    x0,
-                    x1,
-                    y0,
-                    y1,
-                    packAbgr(theme.chord_box, g_chord_box_frame_alpha),
-                    packAbgr(theme.chord_box_dark, g_chord_box_frame_alpha),
-                    make_corner);
-            }
+            // inside it and the palm mark is sliced by it. The art carries structure only, so
+            // `tint` supplies BOTH the mark's hue and its opacity (the shader weights the tint by
+            // the art's R and scales this alpha by the art's coverage).
+            const auto corner = [&](const double vx, const double vy) {
+                return makeUvVertex(
+                    vx,
+                    vy,
+                    z,
+                    tint,
+                    static_cast<float>(vx - middle_x),
+                    static_cast<float>(vy - middle_y));
+            };
+            pushQuad(
+                box_marker_vertices,
+                box_marker_indices,
+                corner(x0, y0),
+                corner(x1, y0),
+                corner(x1, y1),
+                corner(x0, y1));
             const bgfx::TextureHandle ramp = box_mute_ramp.get();
             submitBatch(
                 box_marker_vertices,
@@ -3402,8 +3279,8 @@ void HighwayRenderer::Impl::draw(
                         at(out_w, y_high, a_high),
                         at(-out_w, y_high, a_high));
                 };
-                push_span(0.0, box_frame.fade_start_y, lit, lit);
-                push_span(box_frame.fade_start_y, box_frame.side_y1, lit, clear);
+                push_span(0.0, box_frame.solid_top_y, lit, lit);
+                push_span(box_frame.solid_top_y, box_frame.side_y1, lit, clear);
             };
             // The box's sides: its hand's window at max(onset, now), the one rule for both hands
             // (common::core::highwayBoxSidesAt).
@@ -3444,16 +3321,30 @@ void HighwayRenderer::Impl::draw(
                 // order here IS the paint order, and the two marks share ONE z deliberately —
                 // stacked, not separated. That survives the note pass's depth prepass twice over:
                 // no box pass writes depth, and the test is LEQUAL rather than LESS, so equal-z
-                // content is never rejected by content it stacks on.
+                // content is never rejected by content it stacks on. The palm mark wears the
+                // frame's own color, so it composites exactly as the border it stops against; the
+                // full mark is a flat opaque tint.
                 if (box.palm_mute)
                 {
                     push_box_mute_marker(
-                        x0 + thickness, x1 - thickness, thickness, mark_frame.side_y1, z, false);
+                        x0 + thickness,
+                        x1 - thickness,
+                        thickness,
+                        mark_frame.side_y1,
+                        z,
+                        false,
+                        chordBoxFrameAbgr(box.style, box_alpha));
                 }
                 if (box.dead)
                 {
                     push_box_mute_marker(
-                        x0 + thickness, x1 - thickness, thickness, mark_frame.side_y1, z, true);
+                        x0 + thickness,
+                        x1 - thickness,
+                        thickness,
+                        mark_frame.side_y1,
+                        z,
+                        true,
+                        packAbgr(theme.full_mute_mark));
                 }
             }
             if (box.arpeggio_shape != nullptr)
@@ -3513,7 +3404,7 @@ void HighwayRenderer::Impl::draw(
             nullptr,
             g_board_view,
             g_depth_prime_state);
-        // The shadow batch is floor furniture (span lines, glow posts, open-bar corner Ls), so
+        // The shadow batch is floor furniture (span lines and glow posts), so
         // it takes the floor's near fade at the board face like every other floor element;
         // heads, rails, and open bars are gameplay content and stay opaque there.
         submitBatch(
@@ -3972,7 +3863,7 @@ void HighwayRenderer::Impl::draw(
         if (group.box_treatment == common::core::HighwayChordBoxTreatment::Repeat)
         {
             // A repeat box stands in for its whole strum: no heads, shadows, tails, or
-            // anticipation for the group's notes.
+            // note targets for the group's notes.
             continue;
         }
         if (group_index != batched_group)
@@ -4079,7 +3970,7 @@ void HighwayRenderer::Impl::draw(
             1.0);
         // Pre-bend reveal: an approaching pre-bent head spawns on its own lane and rises toward
         // the outlined chart-truth station in step with the rolling flip, lining up exactly when
-        // the art lands flat; the outline, chevron, tail, and anticipation ring hold the chart
+        // the art lands flat; the outline, chevron, tail, and note target hold the chart
         // truth throughout, so the rising head is the only moving element. Exact identity for
         // every non-pre-bent note: the curve is 0.0 at the onset, so chart_head_y == lane_y and
         // the mix collapses. Chords skip the roll but keep this clock, so chord pre-bends still
@@ -4770,11 +4661,12 @@ void HighwayRenderer::Impl::draw(
 
         // Glow post: the sustain tails' three-band ribbon stood upright at a fraction of the
         // tail width, rising from the board toward the note's lane center and dissolving to
-        // nothing at the fade-end fraction of that height. One geometry serves both users — the
+        // nothing at the fade-end fraction of that height. One geometry serves every user — the
         // note shadow at the onset (the note art overlays the post's top, so every lane down to
-        // the bottom one carries a post scaled to its own height) and the pitched
-        // slide-keyframe markers at their own slots and times — so a shape or banding tweak can
-        // never desync them.
+        // the bottom one carries a post scaled to its own height), the open bar's two end posts,
+        // and the pitched slide-keyframe markers at their own slots and times — so a shape or
+        // banding tweak can never desync them. Like the note's tail, an open string's post
+        // dissolves at its outer edges where a fretted one ends hard.
         const double post_half_width = common::core::highwayTailHalfWidth(metrics) * 0.375;
         const double post_top_y = head_y * g_shadow_post_fade_end_fraction;
         const double post_floor_alpha = fade * head_slide.alpha * g_shadow_post_floor_alpha;
@@ -4788,7 +4680,7 @@ void HighwayRenderer::Impl::draw(
                     .z = post_z,
                     .edge_abgr = floor_edge,
                     .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * floor_alpha),
-                    .outer_transparent = false,
+                    .outer_transparent = common::core::openString(note),
                 };
                 const RibbonEnd head_end{
                     .x_offset = 0.0,
@@ -4796,7 +4688,7 @@ void HighwayRenderer::Impl::draw(
                     .z = post_z,
                     .edge_abgr = clear,
                     .inner_abgr = clear,
-                    .outer_transparent = false,
+                    .outer_transparent = common::core::openString(note),
                 };
                 pushRibbonSegment(
                     shadow_vertices,
@@ -4881,93 +4773,13 @@ void HighwayRenderer::Impl::draw(
             // pinned sounding bar follows the sliding window like its ringing tail does.
             const auto [x0, x1] =
                 handWindowXAt(state->fret_hand.track, head_seconds, metrics, mirrored);
-            // L posts pointing inward from the bar ends (the chord box's bottom corner holders,
-            // freestanding): one continuous two-leg ribbon per corner, its cross-section
-            // turning 45 degrees at the corner station so the bands wrap the L outline unbroken
-            // (an upright post plus a separate foot reads as a cross at the corner, not an L).
-            // Cross-section colors are the open-tail treatment — transparent boundaries around
-            // edge strips around the translucent core — and both leg ends fade to nothing: the
-            // upright at the shared post_top_y (the glow posts' fade end below the bar), skipped
-            // entirely when that top leaves no room above the corner miter.
+            // A glow post at each end of the bar, standing just inside the window, so the bar is
+            // tied to the board at its edges the way a single note is at its slot.
             if (!in_chord)
             {
                 push_span_line(x0, x1);
-            }
-            const double leg_thickness = 2.0 * post_half_width;
-            if (!in_chord && post_top_y > leg_thickness)
-            {
-                for (const auto& [corner_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-                {
-                    // A station holds the four cross-section points at fractions 0, 1/4, 3/4, 1
-                    // across the leg thickness, outer L boundary first, plus the alpha envelope
-                    // along the run.
-                    struct LStation
-                    {
-                        std::array<double, 4> x;
-                        std::array<double, 4> y;
-                        double alpha_scale;
-                    };
-                    const auto leg_x = [&](const double fraction) {
-                        return corner_x + (x_sign * leg_thickness * fraction);
-                    };
-                    const double tip_x = corner_x + (x_sign * g_open_post_foot_length);
-                    const std::array<LStation, 3> stations{
-                        // Top of the upright leg: fully faded (the glow posts' dissolve; the
-                        // boosted floor alpha carries the per-lane visibility).
-                        LStation{
-                            .x = {leg_x(0.0), leg_x(0.25), leg_x(0.75), leg_x(1.0)},
-                            .y = {post_top_y, post_top_y, post_top_y, post_top_y},
-                            .alpha_scale = 0.0,
-                        },
-                        // Corner miter: the diagonal from the outer corner on the floor to the
-                        // inner corner one thickness up and in.
-                        LStation{
-                            .x = {leg_x(0.0), leg_x(0.25), leg_x(0.75), leg_x(1.0)},
-                            .y = {0.0, 0.25 * leg_thickness, 0.75 * leg_thickness, leg_thickness},
-                            .alpha_scale = 1.0,
-                        },
-                        // Foot tip: fully faded.
-                        LStation{
-                            .x = {tip_x, tip_x, tip_x, tip_x},
-                            .y = {0.0, 0.25 * leg_thickness, 0.75 * leg_thickness, leg_thickness},
-                            .alpha_scale = 0.0,
-                        },
-                    };
-                    // Per-station outer/edge/inner colors; bands run outer->edge, core,
-                    // edge->outer like an open tail's cross-section.
-                    const auto station_colors = [&](const LStation& station) {
-                        return std::array<std::uint32_t, 3>{
-                            packAbgr(base_color, 0.0),
-                            packAbgr(base_color, post_floor_alpha * station.alpha_scale),
-                            packAbgr(
-                                base_color,
-                                g_tail_inner_alpha * post_floor_alpha * station.alpha_scale),
-                        };
-                    };
-                    constexpr std::array<std::array<std::size_t, 2>, 3> band_colors{
-                        {{0, 1}, {2, 2}, {1, 0}}
-                    };
-                    for (std::size_t segment = 0; segment + 1 < stations.size(); ++segment)
-                    {
-                        const LStation& a = stations.at(segment);
-                        const LStation& b = stations.at(segment + 1);
-                        const std::array<std::uint32_t, 3> colors_a = station_colors(a);
-                        const std::array<std::uint32_t, 3> colors_b = station_colors(b);
-                        for (std::size_t band = 0; band < band_colors.size(); ++band)
-                        {
-                            const auto [from_color, to_color] = band_colors.at(band);
-                            pushQuad(
-                                shadow_vertices,
-                                shadow_indices,
-                                makeVertex(a.x.at(band), a.y.at(band), z, colors_a.at(from_color)),
-                                makeVertex(
-                                    a.x.at(band + 1), a.y.at(band + 1), z, colors_a.at(to_color)),
-                                makeVertex(
-                                    b.x.at(band + 1), b.y.at(band + 1), z, colors_b.at(to_color)),
-                                makeVertex(b.x.at(band), b.y.at(band), z, colors_b.at(from_color)));
-                        }
-                    }
-                }
+                push_glow_post(x0 + post_half_width, z, post_floor_alpha);
+                push_glow_post(x1 - post_half_width, z, post_floor_alpha);
             }
             // An open string has no head, so the emphasis axis rides its BAR: a ghost thins it and
             // takes light out of it, an accent lights it. That is the seam an atlas cell cannot
@@ -5158,12 +4970,12 @@ void HighwayRenderer::Impl::draw(
 
         const bool node_head = highwayNodeHead(note);
 
-        // The hollow silhouette is the head's own outline: a node head's landing ring and
+        // The hollow silhouette is the head's own outline: a node head's note target and
         // pre-bend outline are its base's shape (the harmonic hollow) while every other head
         // keeps the rectangle — one shape law for the filled head and everything that previews
         // it, asked from the same predicate the base cell asks.
         const std::array<float, 4> hollow_cell = atlases.head_layout.cellRect(
-            node_head ? g_head_cell_harmonic_anticipation : g_head_cell_anticipation);
+            node_head ? g_head_cell_harmonic_hollow : g_head_cell_hollow);
 
         // A node head's diamond is square art and holds the family size on both axes; only the
         // rectangle head takes the width metric on x. The hollow twin and the pre-bend outline
@@ -5172,68 +4984,68 @@ void HighwayRenderer::Impl::draw(
         const double base_half_w = node_head ? head_half_h : head_half_w;
         const double base_half_h = head_half_h;
 
-        // Anticipation ring: a hollow copy of the head parked AT THE HIT LINE (z = 0, not the
-        // note's own z) that GROWS into full head size as the note arrives — 0.5625 of it when it
-        // appears half a second out, reaching full size a quarter second out and holding there.
-        // The scale is squared, so it stays small for most of the window and opens up over the
-        // last stretch rather than creeping linearly. It announces where the note will land, not
-        // where the note currently is (an atlas cell; chart-driven, so the editor preview
-        // shows it too).
+        // Note targets: a hollow copy of the head at the note's landing spot on the hit line
+        // (z = 0, not the note's own z) that grows to full head size as the note arrives —
+        // 0.5625 of it when it appears half a second out, reaching full size a quarter second out
+        // and holding there. The scale is squared, so it stays small for most of the window and
+        // opens up over the last stretch rather than creeping linearly. It announces where the
+        // note will land, not where the note currently is (an atlas cell; chart-driven, so the
+        // editor preview shows it too).
         //
-        // The landing spot is the chart-truth station: a pre-bend's ring sits on the TARGET
-        // outline, not on the still-rising head, so the ring names the destination while the head
-        // is still on its way to it. A player reading aid that can be turned off; the hollow cell
-        // above stays either way, since the pre-bend outline below draws with it too.
+        // The landing spot is the chart-truth station: a pre-bend's note target sits on the
+        // pre-bend outline, not on the still-rising head, so it names the destination while the
+        // head is still on its way to it. A player reading aid that can be turned off; the
+        // hollow cell above stays either way, since the pre-bend outline below draws with it too.
         const double seconds_out = note.start_seconds - now_seconds;
-        if (options.view.show_anticipation_ring && seconds_out > 0.0 &&
-            seconds_out < g_anticipation_seconds)
+        if (options.view.show_note_targets && seconds_out > 0.0 &&
+            seconds_out < g_note_target_seconds)
         {
-            double ring_scale =
-                std::min(1.0, 1.0 - (0.5 * ((seconds_out - 0.25) / g_anticipation_seconds)));
-            ring_scale *= ring_scale;
-            const double ring_alpha =
-                std::min(1.0, (g_anticipation_seconds - seconds_out) * (1000.0 / 255.0));
-            const std::uint32_t ring_tint = packAbgr(base_color, ring_alpha);
-            const double ring_half_w = base_half_w * ring_scale;
-            const double ring_half_h = base_half_h * ring_scale;
+            double target_scale =
+                std::min(1.0, 1.0 - (0.5 * ((seconds_out - 0.25) / g_note_target_seconds)));
+            target_scale *= target_scale;
+            const double target_alpha =
+                std::min(1.0, (g_note_target_seconds - seconds_out) * (1000.0 / 255.0));
+            const std::uint32_t target_tint = packAbgr(base_color, target_alpha);
+            const double target_half_w = base_half_w * target_scale;
+            const double target_half_h = base_half_h * target_scale;
             pushQuad(
                 head_vertices,
                 head_indices,
                 makeUvVertex(
-                    x - ring_half_w,
-                    chart_head_y - ring_half_h,
+                    x - target_half_w,
+                    chart_head_y - target_half_h,
                     0.0,
-                    ring_tint,
+                    target_tint,
                     hollow_cell[0],
                     hollow_cell[3]),
                 makeUvVertex(
-                    x + ring_half_w,
-                    chart_head_y - ring_half_h,
+                    x + target_half_w,
+                    chart_head_y - target_half_h,
                     0.0,
-                    ring_tint,
+                    target_tint,
                     hollow_cell[2],
                     hollow_cell[3]),
                 makeUvVertex(
-                    x + ring_half_w,
-                    chart_head_y + ring_half_h,
+                    x + target_half_w,
+                    chart_head_y + target_half_h,
                     0.0,
-                    ring_tint,
+                    target_tint,
                     hollow_cell[2],
                     hollow_cell[1]),
                 makeUvVertex(
-                    x - ring_half_w,
-                    chart_head_y + ring_half_h,
+                    x - target_half_w,
+                    chart_head_y + target_half_h,
                     0.0,
-                    ring_tint,
+                    target_tint,
                     hollow_cell[0],
                     hollow_cell[1]));
         }
 
-        // Pre-bend target outline: the anticipation cell — a hollow copy of the head's rim in the
-        // atlas — parks at the chart-truth station for the whole approach,
+        // Pre-bend outline: the hollow cell — a hollow copy of the head's rim in the atlas —
+        // parks at the chart-truth station for the whole approach,
         // so a pre-bent note reads as a slot the head rises into instead of passing for a
         // plainly fretted note on the lane it occupies. It rides the note's own z (unlike the
-        // ring's hit-line landing preview), stays axis-aligned like the upright technique
+        // note target's hit-line landing preview), stays axis-aligned like the upright technique
         // markers, and stops at the onset, where the landed head covers it. chart_head_y -
         // lane_y is exactly the onset bend lift (the vibrato taper is zero at the onset) and
         // exactly 0.0 for a non-pre-bent curve, so the > 0.0 test is a precise pre-bend gate,
@@ -5463,7 +5275,7 @@ void HighwayRenderer::Impl::draw(
         // below on bend-inverted lanes) and its 180-degree flip keeps it pointing where the drawn
         // curve goes. Amount and stages are the tail's own geometry: physical lift height plus
         // slope shading. The station is the chart-truth height: on an approaching pre-bend the
-        // chevron rides the target outline, not the rising head; everywhere else chart and head
+        // chevron rides the pre-bend outline, not the rising head; everywhere else chart and head
         // coincide.
         if (!note.bend.empty())
         {

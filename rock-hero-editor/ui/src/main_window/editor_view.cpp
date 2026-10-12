@@ -1829,8 +1829,8 @@ juce::PopupMenu EditorView::highwayDisplayMenu()
     };
     static constexpr std::array g_reading_aids{
         ReadingAidItem{
-            .text = "Anticipation Ring",
-            .flag = &common::core::HighwayViewPreferences::show_anticipation_ring,
+            .text = "Note Targets",
+            .flag = &common::core::HighwayViewPreferences::show_note_targets,
         },
         ReadingAidItem{
             .text = "Note Rotation",

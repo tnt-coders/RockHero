@@ -608,7 +608,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
 
         // The reading aids only decide whether an element draws, so turning them off mid-glide
         // leaves the camera where it is; the sweep after it draws the whole content with every
-        // aid off — no anticipation ring, no rolling flip, no arpeggio mark.
+        // aid off — no note targets, no rolling flip, no arpeggio mark.
         drawFrames(*renderer, *device, zone_starts.front(), 1.0 / 60.0, 1);
         const common::core::HighwayCameraPose before_aids_off = renderer->cameraPose();
         renderer->setDisplayOptions(
@@ -617,7 +617,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
                     common::core::HighwayViewPreferences{
                         .mirrored = false,
                         .invert_string_order = true,
-                        .show_anticipation_ring = false,
+                        .show_note_targets = false,
                         .show_note_rotation = false,
                         .show_arpeggio_brackets = false,
                     },
@@ -635,7 +635,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
                     common::core::HighwayViewPreferences{
                         .mirrored = true,
                         .invert_string_order = false,
-                        .show_anticipation_ring = true,
+                        .show_note_targets = true,
                         .show_note_rotation = true,
                         .show_arpeggio_brackets = true,
                     },

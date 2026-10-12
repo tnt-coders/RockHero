@@ -55,7 +55,7 @@ TEST_CASE("EditorController publishes the stored highway settings", "[core][edit
         .view = HighwayViewPreferences{
             .mirrored = true,
             .invert_string_order = false,
-            .show_anticipation_ring = false,
+            .show_note_targets = false,
             .show_note_rotation = false,
             .show_arpeggio_brackets = false,
         },
@@ -141,32 +141,30 @@ TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-cont
     FakeEditorView view;
     controller.attachView(view);
 
-    const HighwayViewPreferences ring_off{
+    const HighwayViewPreferences targets_off{
         .mirrored = false,
         .invert_string_order = true,
-        .show_anticipation_ring = false,
+        .show_note_targets = false,
         .show_note_rotation = true,
         .show_arpeggio_brackets = true,
     };
-    const HighwayViewPreferences only_ring{
+    const HighwayViewPreferences only_targets{
         .mirrored = false,
         .invert_string_order = true,
-        .show_anticipation_ring = true,
+        .show_note_targets = true,
         .show_note_rotation = false,
         .show_arpeggio_brackets = false,
     };
 
-    controller.onHighwayViewFlagChangeRequested(
-        &HighwayViewPreferences::show_anticipation_ring, false);
-    CHECK(shownSettings(view).view == ring_off);
+    controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_targets, false);
+    CHECK(shownSettings(view).view == targets_off);
     CHECK(store.read() == shownSettings(view));
 
     controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_rotation, false);
     controller.onHighwayViewFlagChangeRequested(
         &HighwayViewPreferences::show_arpeggio_brackets, false);
-    controller.onHighwayViewFlagChangeRequested(
-        &HighwayViewPreferences::show_anticipation_ring, true);
-    CHECK(shownSettings(view).view == only_ring);
+    controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_targets, true);
+    CHECK(shownSettings(view).view == only_targets);
     CHECK(store.read() == shownSettings(view));
 }
 

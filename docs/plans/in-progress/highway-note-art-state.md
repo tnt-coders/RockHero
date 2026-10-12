@@ -274,7 +274,7 @@ the direction the diamond ruling favours, with the symbol's own height as the kn
 ±0.15 px still reads low if the bright rim ring inside it is authored half a texel low, because that
 puts the brightest feature over a pixel below the string at 1920. Ring bands are therefore
 equidistant from the mask centre, with the deliberate top-lit fill gradient preserved, and the
-anticipation ring's authored stroke asymmetry equalized with its outer contour still tracking the
+hollow rectangle's authored stroke asymmetry equalized with its outer contour still tracking the
 head. The rule this states: eccentric brightness inside a centred silhouette reads as mis-seating,
 so an interior is centred even where preserving the authored look would be the softer choice.
 
@@ -287,7 +287,7 @@ shows. The spacing axis measured 0.966, inside its own band around 1.000 — the
 never the mismatch. The direction that won instead: heads hold their dimensions and the technique
 MARKS carry the pitch standard.
 
-**Scope.** The rectangular head bases (standard, tech, anticipation), the diamond harmonic base and
+**Scope.** The rectangular head bases (standard, tech, hollow), the diamond harmonic base and
 its hollow, and the arpeggio brackets and bend chevron are SETTLED and not to be resized by any
 mark-sizing round. Because the head bases are fixed they are the yardstick: a mark's size is
 reasoned as a ratio to the settled head, and the resulting texel extent is what ships and what
@@ -324,11 +324,11 @@ family MARK is 4 texels. Nothing clips: the art stays wholly inside its cell and
 unchanged.
 
 **A scrape KEEPS its note head.** The bare-scrape reading — the plectrum alone, no base, no
-anticipation ring, accent on the tail only — was rejected on sight. A scrape wears the pick mark on
+note target, accent on the tail only — was rejected on sight. A scrape wears the pick mark on
 the darker TECH base (`highwayTechHead`, `highway_head_marks.h`, whose scrape clause is why), with
-the anticipation ring and the head's accent light intact and no X beneath.
+the note target and the head's accent light intact and no X beneath.
 
-**One shape law.** The filled base, the landing ring, and the pre-bend outline all select their
+**One shape law.** The filled base, the note target, and the pre-bend outline all select their
 silhouette from `highwayNodeHead` (`highway_head_marks.h`), which asks the board's own placement
 rule, so the approach can never preview a shape different from the one that lands. The same
 predicate holds node heads flat through the approach.
@@ -341,7 +341,7 @@ nothing else.
 
 **Atlas layout** (256×320, four columns by five rows, capacity 20) follows two rules, one per half
 of the sheet. Head bases take a row per SHAPE FAMILY complete with its hollow: row 0 the rectangle
-family (standard, tech, anticipation), row 1 the diamond family (base, hollow). Technique marks take
+family (standard, tech, hollow), row 1 the diamond family (base, hollow). Technique marks take
 two KEYBIND SIBLING PAIRS per row — `M`/`Shift+M` palm and full mute adjacent, `H`/`Shift+H` natural
 and pinch harmonic adjacent. That ordering is affordable because the HAND is carried by the art
 (fill polarity, measured 31..91 picking against 246..255 fretting, no overlap) rather than by
@@ -433,7 +433,7 @@ Registered in `docs/tracking/watch-items.md` (the standing registry, which outli
 
 ## Conventions this pass established
 
-- Every filled head cell has a HOLLOW twin derived the way the rectangular anticipation ring derives
+- Every filled head cell has a HOLLOW twin derived the way the rectangular hollow derives
   from the standard head; a new base shape needs both or the approach lies about the landing.
 - Marks carry their seat scale in their own art on one uniform quad. The harmonic marker cannot be
   merged into a base cell: per-quad shader clamping is load-bearing (the family highlight overdrives

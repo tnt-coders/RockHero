@@ -17,8 +17,8 @@ A role is named for what the color does, never for where it is drawn. Each is re
 alpha included; the renderer then scales that alpha for fades, tiers and frames, and replaces it
 outright only where a member says so. String colors are not roles; they come from the
 StringColorPalette passed beside the theme. Nor is any color the renderer derives from a role (the
-picking hand's box rim and rail, the tapping light's lean), so a derived color always follows the
-role it comes from.
+picking hand's box fill dark and rail, the tapping light's lean), so a derived color always follows
+the role it comes from.
 
 No member has a default, so a theme spelled out field by field must name every role.
 */
@@ -81,15 +81,16 @@ struct HighwayTheme
     ArgbColor strike_picking;
 
     /*!
-    \brief The fretting hand's chord box and its accent light, and the palm-mute mark on a repeat
-    box.
+    \brief The fretting hand's chord box — its frame, the ends of its fill, and its accent light —
+    and the palm-mute mark on a repeat box.
     */
     ArgbColor chord_box;
 
     /*!
-    \brief The fretting hand's chord-box rim and the palm-mute mark's rim.
+    \brief The middle of the fretting hand's chord-box fill, which shades to it from chord_box at
+    the box's ends.
 
-    The picking hand's box rim is this color with its hue removed.
+    The picking hand's box fill shades to this color with its hue removed.
     */
     ArgbColor chord_box_dark;
 

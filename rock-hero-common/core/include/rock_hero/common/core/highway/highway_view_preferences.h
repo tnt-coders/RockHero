@@ -28,10 +28,10 @@ struct HighwayViewPreferences
     bool invert_string_order{true};
 
     /*!
-    \brief True to draw the anticipation ring: a hollow copy of each head growing on its landing
-    spot at the hit line as the note arrives.
+    \brief True to draw note targets: a hollow copy of each head at its landing spot on the hit
+    line, growing to full size as the note arrives.
     */
-    bool show_anticipation_ring{true};
+    bool show_note_targets{true};
 
     /*!
     \brief True to roll single notes from upright to flat across their approach; false travels

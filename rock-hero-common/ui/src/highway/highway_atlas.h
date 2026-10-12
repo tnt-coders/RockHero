@@ -108,7 +108,7 @@ struct HighwayAtlases
 // half of the sheet:
 //
 // HEAD BASES take a row per SHAPE FAMILY, each complete with its hollow twin. Row 0 is the
-// rectangle family (standard, tech, and the anticipation ring the two of them share); row 1 is
+// rectangle family (standard, tech, and the hollow rectangle the two of them share); row 1 is
 // the diamond family (the node base and its hollow). A new silhouette is a new row, and a family
 // is never split across the boundary.
 //
@@ -136,8 +136,8 @@ inline constexpr int g_head_cell_standard = 0;
 /*! \brief Technique note head: the base head variant under left-hand technique markers. */
 inline constexpr int g_head_cell_tech = 1;
 
-/*! \brief Cell index of the anticipation ring. */
-inline constexpr int g_head_cell_anticipation = 2;
+/*! \brief Cell index of the hollow rectangle head: the note target and the pre-bend outline. */
+inline constexpr int g_head_cell_hollow = 2;
 
 // Cells 3, 6 and 7 are FREE — byte-identical empties, and each one is the growth slot of the
 // family whose row it sits in: 3 completes the rectangle row, 6 and 7 the diamond row. There is
@@ -263,12 +263,12 @@ inline constexpr int g_head_cell_harmonic_base = 4;
 
 /*!
 \brief Hollow twin of \ref g_head_cell_harmonic_base, derived from its base the way the
-rectangle's anticipation ring (\ref g_head_cell_anticipation) derives from the standard head.
+rectangle's hollow (\ref g_head_cell_hollow) derives from the standard head.
 
-The landing ring and the pre-bend outline draw this for node heads, selected by the same
+The note target and the pre-bend outline draw this for node heads, selected by the same
 predicate as the base, so the approach can never preview a different shape than lands.
 */
-inline constexpr int g_head_cell_harmonic_anticipation = 5;
+inline constexpr int g_head_cell_harmonic_hollow = 5;
 
 /*!
 \brief Cells the renderer requires the head atlas to carry (a 4-column grid, five rows).
