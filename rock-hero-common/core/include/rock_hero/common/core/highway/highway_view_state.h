@@ -113,6 +113,23 @@ function exists at all.
 }
 
 /*!
+\brief Where a projected note's head SOUNDS at its onset: the identity every repeat on the board is
+judged by.
+
+The chart's own place, not the board-clamped one (\ref highwayDrawnStop): the clamp is a display
+limit and must not make two heads the chart tells apart compare equal. Asked by a strum's repeat
+identity (\ref makeHighwayChordGroups) and by a string's chain of abutting repeats
+(\ref HighwayViewState::head_ends) alike, so the two can never judge "the same head" differently.
+
+\param note Note whose head is compared.
+\return The head's sounding stop — a node, or the fret.
+*/
+[[nodiscard]] inline ChartStop headSoundingStop(const NoteViewState& note) noexcept
+{
+    return soundingStopAt(note.harmonic_node, note.attack, note.fret, note.fret);
+}
+
+/*!
 \brief A stop's coordinate on the fret axis in fret units: a node's exact position, or the fret.
 
 The fret-UNITS coordinate the fret axis is laid out in — a fret's own wire number, a node's exact
@@ -464,6 +481,15 @@ struct HighwayChordGroupViewState
     double hold_cap_seconds{0.0};
 
     /*!
+    \brief True unless a repeat box stands in for this strum, drawing none of its notes.
+    \return False for \ref HighwayChordBoxTreatment::Repeat, true for every other treatment.
+    */
+    [[nodiscard]] bool showsNotes() const noexcept
+    {
+        return box_treatment != HighwayChordBoxTreatment::Repeat;
+    }
+
+    /*!
     \brief Compares two chord-group views by their stored fields.
     \param lhs Left-hand view.
     \param rhs Right-hand view.
@@ -500,6 +526,30 @@ struct HighwayChordGrouping
     */
     friend bool operator==(const HighwayChordGrouping& lhs, const HighwayChordGrouping& rhs) =
         default;
+};
+
+/*!
+\brief How the board ends one note's head: how long it stands pinned at the hit line, and how it
+dissolves (\ref HighwayViewState::head_ends).
+*/
+struct HighwayHeadEnd
+{
+    /*! \brief Absolute instant the head stops pinning at the hit line; never before its ink end. */
+    double pin_end_seconds{0.0};
+
+    /*! \brief The head's fade window; its alpha at an instant is \ref TipFade::alphaAt. */
+    TipFade fade{};
+
+    /*!
+    \brief Compares two head ends by their stored fields.
+    \param lhs Left-hand end.
+    \param rhs Right-hand end.
+    \return True when both ends store equal values.
+    */
+    friend bool operator==(const HighwayHeadEnd& lhs, const HighwayHeadEnd& rhs) noexcept
+    {
+        return std::is_eq(lhs.pin_end_seconds <=> rhs.pin_end_seconds) && lhs.fade == rhs.fade;
+    }
 };
 
 /*! \brief One beat bar on the board, resolved to a timeline second. */
@@ -615,6 +665,27 @@ struct HighwayViewState
     \ref ChartViewState::notes.
     */
     std::vector<std::size_t> note_group;
+
+    /*!
+    \brief How the board ends each note's head, sized and ordered like \ref ChartViewState::notes.
+
+    The ONE composition the head pass, the visibility test and the visible-range index all read,
+    resolved once per revision, so the last instant a head draws and the instant the board stops
+    keeping its note cannot part. A head pins for its hold (\ref ChartViewState::display_hold_ends),
+    released early where a later strum re-shows the chord
+    (\ref HighwayChordGroupViewState::hold_cap_seconds) and never before its ink end, then
+    dissolves by the shared head rule (\ref headFade).
+
+    THE REPEAT CHAIN overrides that end. A head whose stored ring ends EXACTLY on the next head of
+    its own string (\ref NoteViewState::end_head) at the same stop (\ref headSoundingStop) stays
+    fully lit and pinned until that head lands in its place, and is gone as it lands: the successor
+    takes over the same spot, so only the chain's last head fades. Per head, so a partial chord
+    repeat chains only its repeated members. A successor that draws no head (a repeat box,
+    \ref HighwayChordGroupViewState::showsNotes) has nothing to take over with, so the head ends as
+    that successor's would, standing through the run. A head the board already holds past the
+    successor's onset keeps its own hold.
+    */
+    std::vector<HighwayHeadEnd> head_ends;
 
     /*! \brief Every beat of the song grid in ascending order, downbeats marked. */
     std::vector<HighwayBeatViewState> beats;
@@ -786,8 +857,7 @@ whatever window a renderer happens to be drawing.
             // since a fret-5 head damped at node 17 is drawn twelve frets from the stop the hand
             // presses. The chart's own place, not the board-clamped one (\ref highwayDrawnStop):
             // the cap is a display limit and must not merge two onsets the board can tell apart.
-            stops.emplace_back(
-                note.string, soundingStopAt(note.harmonic_node, note.attack, note.fret, note.fret));
+            stops.emplace_back(note.string, headSoundingStop(note));
         }
         // Loud wins a mixed strum, matching the note-level tie-break: one struck accent makes the
         // strum accented, where a lone ghost among normal notes does not make it quiet.
@@ -915,8 +985,7 @@ whatever window a renderer happens to be drawing.
     for (HighwayChordGroupViewState& group : grouping.groups | std::views::reverse)
     {
         group.hold_cap_seconds = next_shown_onset;
-        if (group.count >= 2 && group.box_treatment != HighwayChordBoxTreatment::Repeat &&
-            !group.all_dead)
+        if (group.count >= 2 && group.showsNotes() && !group.all_dead)
         {
             next_shown_onset = group.start_seconds;
         }

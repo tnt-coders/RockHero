@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -434,6 +435,61 @@ void clampStrikePops(
     return pops;
 }
 
+// THE BOARD'S HEAD ENDS (HighwayViewState::head_ends, where the rule is stated). Walked backward
+// because a head a headless repeat follows ends as that repeat's head does, so the later end must
+// already be resolved; a chain's successor always lies later in the stream.
+[[nodiscard]] std::vector<HighwayHeadEnd> makeHighwayHeadEnds(
+    const ChartViewState& scene, const std::vector<HighwayChordGroupViewState>& groups,
+    const std::vector<std::size_t>& note_group)
+{
+    const std::vector<NoteViewState>& notes = scene.notes;
+    std::vector<HighwayHeadEnd> ends(notes.size());
+    for (const std::size_t index :
+         std::views::iota(std::size_t{0}, notes.size()) | std::views::reverse)
+    {
+        const NoteViewState& note = notes[index];
+        // The head's own end: its hold, capped where a later strum re-shows the chord, never
+        // before its ink end, dissolved by the shared head rule.
+        const double pin_end_seconds = std::max(
+            note.ink_end_seconds,
+            std::min(scene.display_hold_ends[index], groups[note_group[index]].hold_cap_seconds));
+        ends[index] = HighwayHeadEnd{
+            .pin_end_seconds = pin_end_seconds,
+            .fade = headFade(note, pin_end_seconds),
+        };
+        // THE REPEAT CHAIN: the ring ends exactly on the next head of its string, at the same stop.
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<std::size_t>& successor = note.end_head;
+        if (!successor.has_value())
+        {
+            continue;
+        }
+        const NoteViewState& next = notes[*successor];
+        // A hold that already outlasts the takeover keeps it: the chain only ever lengthens a
+        // head's stand.
+        if (headSoundingStop(next) != headSoundingStop(note) ||
+            pin_end_seconds > next.start_seconds)
+        {
+            continue;
+        }
+        // A successor drawing its head takes over in place, so this one stays whole until it lands
+        // and is gone as it does — an empty window there. One drawing none has nothing to take
+        // over with, so this head stands in for it and ends as it would.
+        if (groups[note_group[*successor]].showsNotes())
+        {
+            ends[index] = HighwayHeadEnd{
+                .pin_end_seconds = next.start_seconds,
+                .fade = TipFade{.end_seconds = next.start_seconds, .length_seconds = 0.0},
+            };
+        }
+        else
+        {
+            ends[index] = ends[*successor];
+        }
+    }
+    return ends;
+}
+
 } // namespace
 
 // Rationale lives on the declaration in highway_projection.h.
@@ -566,6 +622,8 @@ HighwayViewState makeHighwayViewState(
     HighwayChordGrouping grouping = makeHighwayChordGroups(notes, state.chart.shapes);
     state.chord_groups = std::move(grouping.groups);
     state.note_group = std::move(grouping.note_group);
+    // Each head's end, which reads the groups' take-over caps and which strums draw their notes.
+    state.head_ends = makeHighwayHeadEnds(state.chart, state.chord_groups, state.note_group);
 
     // Both hands' lights, their pops and the tap onsets derive purely from the resolved scene; the
     // fretting hand's pops read the groups above for which clusters wear a box.

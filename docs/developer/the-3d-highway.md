@@ -246,9 +246,16 @@ tail (`g_tail_tip_fade_min_seconds`), so a short stab and a long dead note alike
 that stretch; and one held past its ink end (a span-held strum, a
 handed-over member pinned to its stored ring) keeps its pin and fades by the same rule measured to
 the pin's end, gone exactly as the pin releases — so a head held until the next strum re-shows the
-chord is gone as the newcomer lands, and the two never stack. The renderer composes it with its own
-pin (`boardHeadFade`), and that one composition also bounds the board's visible range, so a note
-cannot leave the range mid-fade. A single note's fret-span attack line is a strike transient on
+chord is gone as the newcomer lands, and the two never stack. **A REPEAT CHAIN STAYS WHOLE**
+(ruled 2026-10-11): a head whose stored ring ends exactly on the next head of its own string at
+the same stop (`NoteViewState::end_head`, `headSoundingStop`) stays fully lit and pinned until that
+head lands in its place, and is gone as it lands, so only the chain's last head fades. It is judged
+per head, so a partial chord repeat chains only its repeated members; a successor that draws no head
+(a repeat box) cannot take over, so the head ends as that successor's would; and a head already
+held past the successor's onset keeps its hold. The board projection composes all of this once per
+revision into `HighwayViewState::head_ends` (`makeHighwayViewState`), and that one composition is
+what the head pass draws and what bounds the board's visible range, so a note cannot leave the range
+mid-fade. A single note's fret-span attack line is a strike transient on
 its onset's clock instead: it scrolls past the hit line and fades over the stretch the board draws
 behind it (`g_passed_span_seconds`), apart from the head.
 
@@ -416,11 +423,12 @@ the destination there — never the grip's reach, because that head no longer so
 destination lands. That is what keeps a **repeat-box run** readable — the run's first strum shows
 its heads, every box after it draws none, and the pinned heads go on standing at the fretboard
 underneath the boxes for the whole run, exactly as a plain chord box's duration keeps them. The
-renderer clamps the pin with `HighwayChordGroupViewState::hold_cap_seconds`, the next note-showing
-strum's onset, because a re-shown chord takes over the pinned display — and that clamp is the ONLY
-hand-off, which is why it is worded around a strum that shows its notes rather than around any later
-onset: a successor that draws no head of its own has nothing to take over with. That clamp is
-board-only presentation with no 2D counterpart to diverge from.
+board projection clamps the pin with `HighwayChordGroupViewState::hold_cap_seconds`, the next
+note-showing strum's onset, because a re-shown chord takes over the pinned display. That clamp and
+the repeat chain's in-place takeover above are the only hand-offs, and both hand off only to a
+successor that draws its heads (`HighwayChordGroupViewState::showsNotes`), never to a repeat box: a
+successor that draws no head of its own has nothing to take over with. Both are board-only
+presentation with no 2D counterpart to diverge from.
 
 **Which box a strum draws is the projection's answer, never the renderer's**
 (`HighwayChordGroupViewState::box_treatment`, one of None / Full / Repeat). **A BOX MARKS

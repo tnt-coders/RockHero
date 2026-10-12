@@ -702,6 +702,18 @@ struct TipFade
         }
         return remaining >= length_seconds ? 1.0 : remaining / length_seconds;
     }
+
+    /*!
+    \brief Compares two fade windows by their stored fields.
+    \param lhs Left-hand window.
+    \param rhs Right-hand window.
+    \return True when both windows store equal values.
+    */
+    friend bool operator==(const TipFade& lhs, const TipFade& rhs) noexcept
+    {
+        return std::is_eq(lhs.end_seconds <=> rhs.end_seconds) &&
+               std::is_eq(lhs.length_seconds <=> rhs.length_seconds);
+    }
 };
 
 /*!
@@ -754,6 +766,9 @@ can be long and draws nothing to fade with. Every window ENDS at that instant an
 it, so a head pinned until the next strum re-shows the chord is gone exactly as the newcomer lands
 and the two never stack. The window is never empty: a drawn tail and a pin past it have length by
 definition, and a stored ring has length by the positive-sustain invariant.
+
+This is one head's own end. A head a repeat takes over IN PLACE does not fade at all; that relation
+is between notes, so the board's composition states it (\ref HighwayViewState::head_ends).
 
 \param note The projected note.
 \param pin_end_seconds Absolute instant the board stops pinning the head, never before the ink end.
@@ -1220,9 +1235,9 @@ struct ChartViewState
     own, such as a long span shadowed by a short one that started inside it silently losing its
     hold.
 
-    The board pins its heads for this long and then dissolves them (\ref headFade), and its
-    visible range is indexed by where those fades end, so a pinned strum stays in range for as
-    long as it is held.
+    The board composes each head's end from this (\ref HighwayViewState::head_ends): it pins the
+    head for this long and then dissolves it (\ref headFade), and its visible range is indexed by
+    where those fades end, so a pinned strum stays in range for as long as it is held.
     */
     std::vector<double> display_hold_ends;
 
@@ -1234,7 +1249,8 @@ struct ChartViewState
     found by binary search over this table. Built over the ring because that is the furthest a
     note can ever be drawn, so the one table serves a plain paint and a reveal alike; each pass
     then drops the notes that really end before its window. The board indexes by where its heads'
-    fades end instead (\ref headFade), since it draws a pinned head past the ring.
+    fades end instead (\ref HighwayViewState::head_ends), since it draws a pinned head past the
+    ring.
     */
     std::vector<double> ring_end_prefix_max;
 

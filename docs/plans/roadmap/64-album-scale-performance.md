@@ -408,7 +408,9 @@ whole, which is always correct.
   to the end — O(n) over doubles, ≈ 0.1 ms at 50k, accepted as the floor.
 - **2d The board, windowed.** `makeHighwayViewState`: chord groups compare only with the previous
   group, lights are a merge sweep, beats and zones are per measure — re-derived over the same
-  window with the same remap; zones alone on a sections-only revision.
+  window with the same remap; zones alone on a sections-only revision. Head ends (`head_ends`)
+  walk back along each string's abutting same-stop repeat chain, so they re-derive for the window
+  plus every note whose chain reaches into it.
 - **2e The controller and the fallback.** `refreshChartProjections` derives the range from its
   retained inputs; a range → `updateChartViewState(previous, arrangement, tempo_map, range)` (new,
   beside `makeChartViewState` in common/core, the editor its consumer); the covering range →

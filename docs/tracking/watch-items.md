@@ -263,7 +263,8 @@ case.)
 **What remained, until D1, was the original entry's subject, correctly scoped**: the *clamp* on top
 of the shared hold is board-only. The renderer draws a sustainless span member as a head pinned at
 the hit line and ends that pin at `std::min(display_hold_ends[i], group.hold_cap_seconds)`
-(`highway_renderer.cpp`, the head-anchor block) — the cap being the next note-showing strum's onset,
+(composed into `HighwayViewState::head_ends` by the board projection) — the cap being the next
+note-showing strum's onset,
 because a re-shown chord takes over the pinned display. That strum can land before the string is
 restruck, and there the board's pin ended while the lane's ribbon continued. The lane no longer
 draws that ribbon, so nothing is left to reconcile.
@@ -1642,6 +1643,26 @@ Items whose trigger fired and were handled. Kept for auditability.
   checked pair-by-pair against every combination the matrix says is legal. That is a task in its
   own right, not a watch item.
 ## Highway display (accepted for now — live triggers)
+
+### The tapping hand's pale furniture may not read apart — trigger: a sighting where the hands, or a tapped chord and a tapped arpeggio, are hard to tell apart
+
+Plan 54's hand-furniture model (user, 2026-10-11) authors one fretting-hand color per span kind
+(`chord`, `arpeggio`) and derives the tapping hand's color by one rule: the same hue, a quarter of
+the chroma, lightness matched to the left color's perceived lightness. Hue carries the kind,
+saturation the hand. The user's concern: with BOTH tapping colors desaturated, a tapped chord box
+may look too much like a tapped arpeggio box, and a pale may not read as "the other hand".
+Untestable today: no chart has a tapped arpeggio yet. The guardrails require the two pales to stay
+distinct (CIE76 ΔE), but a guardrail is not a sighting. Levers, cheapest first: the chroma fraction
+(0.25, one constant); a small hand-specific hue offset; or authoring the tapping colors after all.
+
+### A span-held head can outlast its span's rails — trigger: seen in play
+
+Since `ba505cb7` a chord span's rails end where the fret hand's next move begins. A head the span
+holds is pinned to the later of its own stored ring and the span's musical close (`chartHolds`,
+`chart_presentation.cpp`), so in a test case it stays pinned to 0.72 s while the rails stop at
+0.70 s, riding the hand window's morph for that sliver. The user has not seen it in play, and ruled
+that a note that legitimately rings past its span keeps its head until the note itself fades;
+what to look at if it shows up is only the span-close part of the pin, never the note's own ring.
 
 These two entries had been appended after the Retired header, whose lead-in says "trigger fired
 and handled" — neither trigger has fired; both are live accepted items. Restored to a live

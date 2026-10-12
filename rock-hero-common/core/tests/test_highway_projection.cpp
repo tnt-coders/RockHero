@@ -21,6 +21,7 @@
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <utility>
 #include <vector>
 
@@ -1167,6 +1168,22 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // because it has no head of its own to take it over with.
     CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(2.0));
 
+    // The chain's rings abut, strike into strike at the same stops, yet the span-held heads are not
+    // handed over at the next onset: a hold that already outlasts the takeover keeps it, pinned to
+    // the span's close and dissolving into it by the shared head rule.
+    REQUIRE(state.head_ends.size() == state.chart.notes.size());
+    for (const std::size_t index : {std::size_t{0}, std::size_t{1}})
+    {
+        CAPTURE(index);
+        const NoteViewState& held = state.chart.notes[index];
+        REQUIRE(held.end_head.has_value());
+        const HighwayHeadEnd& head_end = state.head_ends[index];
+        CHECK(head_end.pin_end_seconds == Catch::Approx(0.75));
+        CHECK(head_end.fade == headFade(held, head_end.pin_end_seconds));
+        CHECK_THAT(head_end.fade.alphaAt(0.25), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK(head_end.fade.alphaAt(0.7) < 1.0);
+    }
+
     // THE PLAIN SUSTAINED CHORD outside the chain: both rings die at their own span's close, so the
     // strum RESTS RIBBONLESS. That is what grip tenure buys — at distance the box states the tenure
     // and no tail duplicates it.
@@ -1185,6 +1202,147 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
     CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
     CHECK_FALSE(state.chart.notes[0].rested);
+}
+
+// THE REPEAT CHAIN: a head whose stored ring ends EXACTLY on the next head of its own string at the
+// same stop stays whole and pinned until that head lands in its place, so only the chain's last
+// head fades, by the shared head rule. Every arm is measured at 120 BPM, where an eighth lasts a
+// quarter second and — being exactly the kept-sustain bound — draws no tail, so each head alone
+// would fade from its strike.
+TEST_CASE(
+    "Highway keeps an abutting repeat's head whole until the next one lands", "[core][highway]")
+{
+    const TempoMap map = makeHighwayTempoMap();
+    const auto note = [](int string, int fret, GridPosition position, Fraction sustain) {
+        return ChartNote{
+            .position = position,
+            .string = string,
+            .fret = fret,
+            .sustain = sustain,
+            .bend = {},
+            .keyframes = {},
+        };
+    };
+    const Fraction eighth{1, 8};
+    const GridPosition first{.measure = 1, .beat = 1};
+    const GridPosition second{.measure = 1, .beat = 1, .offset = Fraction{1, 2}};
+    const GridPosition third{.measure = 1, .beat = 2};
+    const auto board = [&map](std::vector<ChartNote> notes) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = std::move(notes);
+        Arrangement arrangement = makeArrangementWithChart();
+        arrangement.chart = std::move(chart);
+        return boardOf(arrangement, map);
+    };
+    // A head handed over in place: whole and pinned up to the takeover, gone as it lands.
+    const auto check_handed_over = [](const HighwayHeadEnd& head_end, const double takeover) {
+        CHECK(head_end.pin_end_seconds == Catch::Approx(takeover));
+        CHECK(head_end.fade.end_seconds == Catch::Approx(takeover));
+        CHECK_THAT(head_end.fade.length_seconds, Catch::Matchers::WithinULP(0.0, 0));
+        CHECK_THAT(head_end.fade.alphaAt(takeover - 0.001), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(head_end.fade.alphaAt(takeover), Catch::Matchers::WithinULP(0.0, 0));
+    };
+    // A head on its own: the shared head rule at its own pin, which for these tail-less notes is
+    // the onset, so it fades from the strike.
+    const auto check_own = [](const HighwayViewState& state, const std::size_t index) {
+        const NoteViewState& own = state.chart.notes[index];
+        const HighwayHeadEnd& head_end = state.head_ends[index];
+        CHECK(head_end.pin_end_seconds == Catch::Approx(own.start_seconds));
+        CHECK(head_end.fade == headFade(own, own.start_seconds));
+        CHECK(head_end.fade.alphaAt(own.start_seconds + 0.1) < 1.0);
+    };
+
+    SECTION("a chain of three: the first two stay whole, the last fades by the shared rule")
+    {
+        const HighwayViewState state = board({
+            note(1, 5, first, eighth),
+            note(1, 5, second, eighth),
+            note(1, 5, third, eighth),
+        });
+        REQUIRE(state.head_ends.size() == 3);
+        check_handed_over(state.head_ends[0], 0.25);
+        check_handed_over(state.head_ends[1], 0.5);
+        check_own(state, 2);
+        // The last one's own window: from its strike over its stored ring, capped at the shortest
+        // tail.
+        CHECK(state.head_ends[2].fade.end_seconds == Catch::Approx(0.75));
+        CHECK(state.head_ends[2].fade.length_seconds == Catch::Approx(0.25));
+    }
+
+    SECTION("a ring stopping one tick short of the next head does not chain")
+    {
+        const HighwayViewState state = board({
+            note(1, 5, first, eighth - g_tick_quantum_note_value),
+            note(1, 5, second, eighth),
+        });
+        REQUIRE(state.head_ends.size() == 2);
+        CHECK_FALSE(state.chart.notes[0].end_head.has_value());
+        check_own(state, 0);
+    }
+
+    SECTION("a different stop on the same string does not chain")
+    {
+        const HighwayViewState state = board({
+            note(1, 5, first, eighth),
+            note(1, 7, second, eighth),
+        });
+        REQUIRE(state.head_ends.size() == 2);
+        // The ring does end on that head; the stop is what differs.
+        CHECK(state.chart.notes[0].end_head == std::optional<std::size_t>{1});
+        check_own(state, 0);
+    }
+
+    SECTION("a partial chord repeat chains only its repeated member")
+    {
+        const HighwayViewState state = board({
+            note(1, 5, first, eighth),
+            note(2, 7, first, eighth),
+            note(1, 5, second, eighth),
+            note(2, 9, second, eighth),
+        });
+        REQUIRE(state.head_ends.size() == 4);
+        // The repeated string hands over in place; the moved one fades into the newcomer's onset,
+        // where the re-shown strum takes the display over.
+        check_handed_over(state.head_ends[0], 0.25);
+        const TipFade moved = state.head_ends[1].fade;
+        CHECK(moved.end_seconds == Catch::Approx(0.25));
+        CHECK(moved.alphaAt(0.2) < 1.0);
+    }
+
+    SECTION("a successor that draws no head cannot take over, so the head stands for the run")
+    {
+        // A dead chug chain under one span: the repeat strums draw boxes and no heads, and a dead
+        // member is choked rather than span-held, so only the chain carries the first strum's
+        // heads.
+        std::vector<ChartNote> notes;
+        for (const GridPosition& position : {first, second, third})
+        {
+            for (const auto& [string, fret] : {std::pair{1, 5}, std::pair{2, 7}})
+            {
+                ChartNote dead = note(string, fret, position, eighth);
+                dead.dead = true;
+                notes.push_back(std::move(dead));
+            }
+        }
+        const HighwayViewState state = board(std::move(notes));
+        REQUIRE(state.chord_groups.size() == 3);
+        CHECK(state.chord_groups[0].showsNotes());
+        CHECK_FALSE(state.chord_groups[1].showsNotes());
+        CHECK_FALSE(state.chord_groups[2].showsNotes());
+        REQUIRE(state.head_ends.size() == 6);
+        // The first strum's heads end exactly as the last chug's would: pinned to its onset, then
+        // fading from that strike by the shared rule.
+        for (const std::size_t index : {std::size_t{0}, std::size_t{1}})
+        {
+            CAPTURE(index);
+            CHECK(state.head_ends[index] == state.head_ends[index + 4]);
+            CHECK(state.head_ends[index].pin_end_seconds == Catch::Approx(0.5));
+            CHECK_THAT(
+                state.head_ends[index].fade.alphaAt(0.5), Catch::Matchers::WithinULP(1.0, 0));
+            CHECK(state.head_ends[index].fade.end_seconds == Catch::Approx(0.75));
+        }
+    }
 }
 
 // Tapping-hand onsets: one derived entry per onset group that

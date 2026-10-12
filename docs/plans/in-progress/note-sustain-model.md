@@ -140,7 +140,10 @@ holds to its ink end.
 
 A pinned head ends by the one tip-fade rule, measured to the end of its pin (`headFade`,
 `chart_view_state.h`, ruled 2026-10-11): it keeps the pin and is gone exactly as the pin releases,
-so a head the next re-shown strum takes over never stacks with the newcomer.
+so a head the next re-shown strum takes over never stacks with the newcomer. A head whose stored
+ring ends exactly on the next head of its string at the same stop is the exception (ruled
+2026-10-11): it stays fully lit until that repeat lands in its place, so only a chain's last head
+fades (`HighwayViewState::head_ends`).
 
 Structurally this is the span convention unchanged: `chartHolds` IS that convention, asked of the
 ink ends and the verdict. It extends the members whose tails rest as well as the ones rules 2 and

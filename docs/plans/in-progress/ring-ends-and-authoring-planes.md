@@ -125,7 +125,10 @@ What that commits to:
    fades. On the board a played head goes WITH its tail by the same rule (ruled 2026-10-11:
    `headFade`, beside `tailFadeSeconds`): measured to the ink end where a tail is drawn, to the
    stored ring capped at the shortest tail (`g_tail_tip_fade_min_seconds`) where none is, so it
-   fades from the strike, and to the pin's end where the head is held past its ink.
+   fades from the strike, and to the pin's end where the head is held past its ink. A head an
+   exactly abutting repeat at the same stop takes over does not fade at all (ruled 2026-10-11): it
+   stays whole until the repeat lands in its place, so a chain fades only at its last head
+   (`HighwayViewState::head_ends`).
 6. **A reveal adds ink, never moves a mark.** `Alt`, the caret peek and the selection each extend
    a tail's ink, in full ink exactly as the `Alt` reveal draws today (never the ghost-note
    layer, which names a technique), to its stored end, showing every stored keyframe at its true

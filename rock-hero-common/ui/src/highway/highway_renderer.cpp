@@ -322,7 +322,7 @@ constexpr int g_face_fret_count = common::core::g_highway_fret_count;
 // Seconds of song time the board draws behind the hit line. A strike transient (a single note's
 // fret-span attack line) scrolls past on its onset and fades out across exactly this stretch, so
 // the drawn span's near edge never clips one. A head never travels back here: it pins at the hit
-// line and fades there (common::core::headFade).
+// line and fades there (common::core::HighwayViewState::head_ends).
 constexpr double g_passed_span_seconds = 0.15;
 
 // Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line. The
@@ -332,7 +332,7 @@ constexpr double g_flip_flat_lead_seconds = 0.25;
 
 // Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
 // The core constant (see its rationale there) is shared so this file's chord grouping agrees
-// with HighwayViewState::display_hold_ends, whose span-held notes drive the visible range.
+// with HighwayViewState::head_ends, whose held heads drive the visible range.
 constexpr double g_onset_match_epsilon = common::core::g_onset_match_epsilon;
 
 // Open-note bar cross-section (Charter's OpenNoteModel): a thin hexagonal prism spanning the
@@ -1597,29 +1597,6 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
     return options;
 }
 
-// How long the board pins a note's head at the hit line: its ink end, or — for a span-held strum
-// or a handed-over member — its hold (display_hold_ends), released early when a later strum
-// re-shows the chord and takes over the pinned display (hold_cap_seconds). For a note that draws no
-// tail and is not held it is the onset.
-[[nodiscard]] double headPinEndSeconds(
-    const common::core::HighwayViewState& state, const std::size_t index) noexcept
-{
-    const common::core::HighwayChordGroupViewState& group =
-        state.chord_groups[state.note_group[index]];
-    return std::max(
-        state.chart.notes[index].ink_end_seconds,
-        std::min(state.chart.display_hold_ends[index], group.hold_cap_seconds));
-}
-
-// The board's fade for a note's head: the shared head rule at the board's own pin. The one
-// composition the head pass, the visibility test and the visible-range table all ask, so the
-// last instant a head draws and the instant the board stops keeping its note cannot part.
-[[nodiscard]] common::core::TipFade boardHeadFade(
-    const common::core::HighwayViewState& state, const std::size_t index) noexcept
-{
-    return common::core::headFade(state.chart.notes[index], headPinEndSeconds(state, index));
-}
-
 } // namespace
 
 /*
@@ -1962,9 +1939,9 @@ struct HighwayRenderer::Impl
     // laneOf.
     int displayed_count{0};
     int extra_lanes{0};
-    // Running maximum of the instants the notes' heads are gone (boardHeadFade), per chart
-    // revision: notes ascend by onset but their pins and fades overlap freely, so the note sweep
-    // finds its first candidate through visibleEventRange over this.
+    // Running maximum of the instants the notes' heads are gone (HighwayViewState::head_ends), per
+    // chart revision: notes ascend by onset but their pins and fades overlap freely, so the note
+    // sweep finds its first candidate through visibleEventRange over this.
     std::vector<double> head_fade_end_prefix_max;
     // The same companion table for the hand-posture spans, which overlap freely like the notes'
     // sustains: the shape passes bound their visible range through visibleEventRange with this.
@@ -2496,16 +2473,16 @@ void HighwayRenderer::setViewState(std::shared_ptr<const common::core::HighwayVi
     assert(state != nullptr);
     m_impl->state = std::move(state);
     const common::core::HighwayViewState& published = *m_impl->state;
-    // The draw path indexes display_hold_ends and note_group by note index with no per-frame
-    // check, so the one-per-note contracts (highway_view_state.h) are asserted here, at the only
-    // place a state enters — a hand-built state that breaks them should fail loudly instead of
-    // reading past a vector inside the frame loop.
-    assert(published.chart.display_hold_ends.size() == published.chart.notes.size());
+    // The draw path indexes head_ends and note_group by note index with no per-frame check, so the
+    // one-per-note contracts (highway_view_state.h) are asserted here, at the only place a state
+    // enters — a hand-built state that breaks them should fail loudly instead of reading past a
+    // vector inside the frame loop.
+    assert(published.head_ends.size() == published.chart.notes.size());
     assert(published.note_group.size() == published.chart.notes.size());
     m_impl->head_fade_end_prefix_max = common::core::makeSustainPrefixMax(
-        std::views::iota(std::size_t{0}, published.chart.notes.size()) |
-        std::views::transform([&published](const std::size_t index) {
-            return boardHeadFade(published, index).end_seconds;
+        published.head_ends |
+        std::views::transform([](const common::core::HighwayHeadEnd& head_end) {
+            return head_end.fade.end_seconds;
         }));
     // The DRAWN extents, named rather than taken off the spans: the board draws no reveal, so the
     // trimmed end is the furthest any rail or bracket of its reaches.
@@ -2763,7 +2740,7 @@ void HighwayRenderer::Impl::draw(
         // stored ring. Asked against the passed span rather than the hit line, because a single
         // note's attack line runs on its onset's clock and may outlive a short head.
         if (note.start_seconds <= span_end_seconds &&
-            boardHeadFade(*state, index).end_seconds >= span_start_seconds)
+            state->head_ends[index].fade.end_seconds >= span_start_seconds)
         {
             visible.push_back(index);
         }
@@ -3895,7 +3872,7 @@ void HighwayRenderer::Impl::draw(
         const common::core::NoteViewState& note = state->chart.notes[index];
         const std::size_t group_index = state->note_group[index];
         const common::core::HighwayChordGroupViewState& group = state->chord_groups[group_index];
-        if (group.box_treatment == common::core::HighwayChordBoxTreatment::Repeat)
+        if (!group.showsNotes())
         {
             // A repeat box stands in for its whole strum: no heads, shadows, tails, or
             // note targets for the group's notes.
@@ -3929,17 +3906,18 @@ void HighwayRenderer::Impl::draw(
         // pins at the hit line (anchor = now, the arpeggio boxes' display-time treatment) and
         // travels with its slide, bend, and hand window in sync with the consumed tail; a
         // finished head stays there — consumed, never passing through the board — until its fade
-        // is done. The pin runs to headPinEndSeconds; the fade is the head rule
-        // (boardHeadFade): with its tail and at the tail's rate; where no tail is drawn, from the
-        // strike over its stored ring capped at the shortest tail's fade; and ending at the pin
-        // where the head is held past its ink.
+        // is done. The pin and the fade are the projection's (HighwayViewState::head_ends): with
+        // its tail and at the tail's rate; where no tail is drawn, from the strike over its stored
+        // ring capped at the shortest tail's fade; ending at the pin where the head is held past
+        // its ink; and whole until an abutting repeat takes its place.
+        const common::core::HighwayHeadEnd& board_head = state->head_ends[index];
         const double head_seconds =
-            std::clamp(now_seconds, note.start_seconds, headPinEndSeconds(*state, index));
+            std::clamp(now_seconds, note.start_seconds, board_head.pin_end_seconds);
         // The gesture is drawn only as far as the ink end, so a head pinned past it holds the
         // state the tail stops at: a keyframe, bend point or vibrato region in the ring's ending
         // zone moves nothing on this board.
         const double head_gesture_seconds = std::min(head_seconds, note.ink_end_seconds);
-        const double fade = boardHeadFade(*state, index).alphaAt(now_seconds);
+        const double fade = board_head.fade.alphaAt(now_seconds);
         // Strike transients (the fret-span attack line) keep the onset anchor and a fade of their
         // own: they mark the landing moment and scroll past like the measure lines they mirror,
         // rather than holding with the pinned head, and are gone at the passed span's edge.
