@@ -626,7 +626,7 @@ TEST_CASE("Highway carries a dense chart's scene verbatim", "[core][highway][cha
 
     // Non-vacuity: a scene of every note, its spans and its placements, so the equality below
     // compares the whole picture rather than two empty ones.
-    REQUIRE(scene.notes.size() == 5 * (7 * 4 + 7));
+    REQUIRE(scene.notes.size() == std::size_t{5} * (7 * 4 + 7));
     CHECK_FALSE(scene.shapes.empty());
     CHECK(scene.fret_hand_positions.size() == 2);
     CHECK(board.chart == scene);

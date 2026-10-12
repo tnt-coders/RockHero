@@ -70,8 +70,8 @@ namespace
 {
     const std::int64_t whole = distance / factor.numerator;
     const std::int64_t part = distance % factor.numerator;
-    return whole * factor.denominator +
-           (2 * part * factor.denominator + factor.numerator) / (2 * factor.numerator);
+    return whole * factor.denominator + (2 * part * factor.denominator + factor.numerator) /
+                                            (2 * static_cast<std::int64_t>(factor.numerator));
 }
 
 } // namespace
