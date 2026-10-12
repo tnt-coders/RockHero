@@ -1994,28 +1994,43 @@ TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui
 TEST_CASE("The plectrum table matches the shipped pick-slide art", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const juce::File art = common::core::juceFileFromPath(testing::defaultThemeDirectory())
-                               .getChildFile(
-                                   std::string{common::core::highwayTextureFileName(
-                                       common::core::HighwayTexture::Notes)});
-    REQUIRE(art.existsAsFile());
-    juce::MemoryBlock bytes;
-    REQUIRE(art.loadFileAsData(bytes));
-    const std::expected<juce::Image, StructuralArtError> decoded = decodeStructuralArtPng(
-        std::span{static_cast<const std::byte*>(bytes.getData()), bytes.getSize()});
-    REQUIRE(decoded.has_value());
-    if (!decoded.has_value())
+    // Decodes one shipped sheet through the structural seam the texture contract uses.
+    const auto decode =
+        [](const juce::File& art) -> std::expected<juce::Image, StructuralArtError> {
+        juce::MemoryBlock bytes;
+        REQUIRE(art.loadFileAsData(bytes));
+        return decodeStructuralArtPng(
+            std::span{static_cast<const std::byte*>(bytes.getData()), bytes.getSize()});
+    };
+    const std::expected<juce::Image, StructuralArtError> heads = decode(
+        common::core::juceFileFromPath(testing::defaultThemeDirectory())
+            .getChildFile(
+                std::string{common::core::highwayTextureFileName(
+                    common::core::HighwayTexture::Notes)}));
+    const std::expected<juce::Image, StructuralArtError> marks =
+        decode(common::core::juceFileFromPath(testing::highwayMarkSheetPath()));
+    REQUIRE(heads.has_value());
+    if (!heads.has_value())
     {
         return;
     }
+    REQUIRE(marks.has_value());
+    if (!marks.has_value())
+    {
+        return;
+    }
+    // The cell lives on the mark sheet; composing the two the way the renderer does lets it be
+    // addressed by its atlas index.
+    const juce::Image atlas = composeHeadAtlas(*heads, *marks);
+    REQUIRE_FALSE(atlas.isNull());
 
     // The pick-slide cell, addressed exactly as the atlas layout addresses it.
-    const int cell_size = decoded->getWidth() / g_head_atlas_columns;
+    const int cell_size = atlas.getWidth() / g_head_atlas_columns;
     REQUIRE(cell_size >= 16);
     const int x0 = (g_head_cell_pick_slide % g_head_atlas_columns) * cell_size;
     const int y0 = (g_head_cell_pick_slide / g_head_atlas_columns) * cell_size;
-    REQUIRE(y0 + cell_size <= decoded->getHeight());
-    const juce::Image::BitmapData bitmap{*decoded, juce::Image::BitmapData::readOnly};
+    REQUIRE(y0 + cell_size <= atlas.getHeight());
+    const juce::Image::BitmapData bitmap{atlas, juce::Image::BitmapData::readOnly};
     // Coverage is the B channel of the structural scheme; sample i owns [i - 0.5, i + 0.5].
     const auto coverage = [&](const int x, const int y) {
         return static_cast<double>(bitmap.getPixelColour(x0 + x, y0 + y).getFloatBlue());

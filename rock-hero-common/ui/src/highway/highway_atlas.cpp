@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <initializer_list>
 #include <juce_graphics/juce_graphics.h>
 #include <span>
 #include <string>
@@ -120,33 +121,72 @@ UploadedTexture uploadPngTexture(const std::span<const std::byte> png_bytes)
     };
 }
 
+// Stacks the head sheet's rows above the mark sheet's, one memcpy per row through BitmapData so
+// no Graphics resampling or blending can touch a texel.
+juce::Image composeHeadAtlas(const juce::Image& heads, const juce::Image& marks)
+{
+    if (heads.isNull() || marks.isNull() || heads.getWidth() != marks.getWidth())
+    {
+        return {};
+    }
+    // Normalize to ARGB so an RGB-only PNG gains the opaque alpha the BGRA8 upload expects, and so
+    // every row copied below has the same four-byte pixel layout whatever each file decoded to.
+    const juce::Image top = heads.convertedToFormat(juce::Image::ARGB);
+    const juce::Image bottom = marks.convertedToFormat(juce::Image::ARGB);
+    const int width = top.getWidth();
+    const juce::Image composed{
+        juce::Image::ARGB,
+        width,
+        top.getHeight() + bottom.getHeight(),
+        false,
+        juce::SoftwareImageType{}
+    };
+
+    const auto row_bytes = static_cast<std::size_t>(width) * 4U;
+    const juce::Image::BitmapData target{composed, juce::Image::BitmapData::writeOnly};
+    int target_row = 0;
+    for (const juce::Image* const source : {&top, &bottom})
+    {
+        const juce::Image::BitmapData rows{*source, juce::Image::BitmapData::readOnly};
+        for (int row = 0; row < source->getHeight(); ++row)
+        {
+            std::memcpy(target.getLinePointer(target_row), rows.getLinePointer(row), row_bytes);
+            ++target_row;
+        }
+    }
+    return composed;
+}
+
 // Builds both atlases: the glyph sheet is rasterized at runtime from the bundled font, while
-// the note-head atlas uploads the shipped PNG and derives its cell layout from the decoded
-// width.
-HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_png)
+// the note-head atlas uploads the composed head and mark sheets and derives its cell layout from
+// the composed width.
+HighwayAtlases makeHighwayAtlases(
+    const std::span<const std::byte> heads_png, const std::span<const std::byte> marks_png)
 {
     HighwayAtlases atlases;
     atlases.glyph_layout = g_glyph_layout;
 
-    // Head atlas: the reference 4-column channel-scheme asset (one art set for every consumer)
-    // uploads verbatim when it decodes; empty or undecodable bytes leave the handle invalid
-    // and the layout empty, which the renderer rejects at create — required product content,
-    // never silently substituted.
-    if (!note_atlas_png.empty())
-    {
-        juce::MemoryInputStream stream{note_atlas_png.data(), note_atlas_png.size(), false};
-        const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
-        if (!decoded.isNull() && decoded.getWidth() >= 4)
+    // Head atlas: the theme's heads over the fixed marks (one art set for every consumer)
+    // upload verbatim when both decode; empty or undecodable bytes leave the handle invalid and
+    // the layout empty, which the renderer rejects at create — required product content, never
+    // silently substituted.
+    const auto decode = [](const std::span<const std::byte> png) {
+        if (png.empty())
         {
-            // Normalize to ARGB so an RGB-only PNG gains the opaque alpha the BGRA8 upload
-            // expects.
-            atlases.heads = uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
-            atlases.head_layout = HighwayAtlasLayout{
-                .texture_width = decoded.getWidth(),
-                .texture_height = decoded.getHeight(),
-                .cell_size = decoded.getWidth() / g_head_atlas_columns,
-            };
+            return juce::Image{};
         }
+        juce::MemoryInputStream stream{png.data(), png.size(), false};
+        return juce::PNGImageFormat{}.decodeImage(stream);
+    };
+    const juce::Image composed = composeHeadAtlas(decode(heads_png), decode(marks_png));
+    if (!composed.isNull() && composed.getWidth() >= g_head_atlas_columns)
+    {
+        atlases.heads = uploadAtlas(composed);
+        atlases.head_layout = HighwayAtlasLayout{
+            .texture_width = composed.getWidth(),
+            .texture_height = composed.getHeight(),
+            .cell_size = composed.getWidth() / g_head_atlas_columns,
+        };
     }
 
     // Glyph atlas: transparent base, white glyphs — the shape lives in alpha.

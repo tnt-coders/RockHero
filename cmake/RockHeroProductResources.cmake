@@ -5,9 +5,9 @@ include_guard()
 # The one product resource-pack deploy rule, shared by the game executable and the editor
 # executable, whose 3D preview renders the same highway. Both products ship the same tree beside
 # their executable — compiled highway shaders staged by rock_hero_stage_highway_shaders, plus the
-# built-in highway themes committed under rock-hero-common/ui — so the copy commands, the stamp
-# contract, and the install layout live here instead of being restated per product, where they had
-# already drifted apart.
+# built-in highway themes and the highway's fixed art committed under rock-hero-common/ui — so the
+# copy commands, the stamp contract, and the install layout live here instead of being restated per
+# product, where they had already drifted apart.
 
 include(GNUInstallDirs)
 
@@ -16,8 +16,8 @@ include(GNUInstallDirs)
 # The deploy is a stamp-based build step, NOT a POST_BUILD command: under Ninja, POST_BUILD only
 # runs when the executable relinks, so a shader edit would rebuild the staged .bin without
 # refreshing the copy beside the executable — the dev loop would silently run stale shaders. The
-# stamp depends on the staged files and on the theme sources, so a recompiled shader or an edited
-# theme re-runs the copy on the next build.
+# stamp depends on the staged files and on the theme and fixed-art sources, so a recompiled shader
+# or an edited theme re-runs the copy on the next build.
 #
 # rock_hero_deploy_product_resources(
 #     TARGET <executable target>
@@ -68,6 +68,17 @@ function(rock_hero_deploy_product_resources)
                             "'${themes_dir}'")
     endif()
 
+    # The highway's fixed art (the technique-mark sheet the renderer composes under every theme's
+    # heads) is read back the same way, and fails the same way when it has moved.
+    get_target_property(highway_art_dir rock_hero_common_ui ROCK_HERO_HIGHWAY_ART_DIR)
+    if(NOT highway_art_dir OR NOT IS_DIRECTORY "${highway_art_dir}")
+        message(
+            FATAL_ERROR
+                "rock_hero_deploy_product_resources: rock_hero_common_ui does not report an "
+                "existing ROCK_HERO_HIGHWAY_ART_DIR (got '${highway_art_dir}')")
+    endif()
+    file(GLOB_RECURSE highway_art_files CONFIGURE_DEPENDS "${highway_art_dir}/*")
+
     set(resources_root "$<TARGET_FILE_DIR:${ARG_TARGET}>/resources")
     set(empty_dir_paths "")
     foreach(empty_dir IN LISTS ARG_EMPTY_DIRS)
@@ -88,8 +99,9 @@ function(rock_hero_deploy_product_resources)
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${shader_staging_dir}"
                 "${resources_root}/shaders"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${themes_dir}" "${resources_root}/themes"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${highway_art_dir}" "${resources_root}/highway"
         COMMAND ${CMAKE_COMMAND} -E touch "${stamp}"
-        DEPENDS ${staged_shaders} ${theme_files} ${ARG_SHADER_TARGET}
+        DEPENDS ${staged_shaders} ${theme_files} ${highway_art_files} ${ARG_SHADER_TARGET}
         COMMENT "Deploying ${ARG_TARGET} resources next to the executable")
     add_custom_target(${ARG_TARGET}_resources DEPENDS "${stamp}")
     add_dependencies(${ARG_TARGET} ${ARG_TARGET}_resources)
@@ -104,6 +116,10 @@ function(rock_hero_deploy_product_resources)
     install(
         DIRECTORY "${themes_dir}/"
         DESTINATION "${CMAKE_INSTALL_BINDIR}/resources/themes"
+        COMPONENT Runtime)
+    install(
+        DIRECTORY "${highway_art_dir}/"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}/resources/highway"
         COMPONENT Runtime)
     foreach(empty_dir IN LISTS ARG_EMPTY_DIRS)
         install(

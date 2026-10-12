@@ -115,6 +115,15 @@ public:
     [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> shaderBytes(
         common::core::HighwayShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
 
+    /*!
+    \brief Reads the highway's fixed technique-mark sheet into memory: the file named
+    common::core::g_highway_mark_sheet_file_name under the resources tree's highway/ directory.
+
+    \return The sheet's PNG bytes (never empty), or a typed error naming the failing file.
+    */
+    [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> highwayMarkSheetBytes()
+        const;
+
 private:
     // Only create() constructs a resolver, after validating the root.
     explicit GameResources(std::filesystem::path resources_root);

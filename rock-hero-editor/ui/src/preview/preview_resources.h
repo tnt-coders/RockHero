@@ -1,12 +1,14 @@
 /*!
 \file preview_resources.h
-\brief Loads the 3D preview's deployed shaders beside the editor executable.
+\brief Loads the 3D preview's deployed shaders and mark sheet beside the editor executable.
 */
 
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -21,5 +23,15 @@ uses), and this loads them into the shader-set seam.
 \return The filled shader set, or empty when any binary is missing (logged per file).
 */
 [[nodiscard]] std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders();
+
+/*!
+\brief Reads the highway's fixed technique-mark sheet from the editor's resources tree.
+
+The build deploys it under resources/highway next to the executable (the same layout the game
+uses), named common::core::g_highway_mark_sheet_file_name.
+
+\return The sheet's PNG bytes, or empty when the file is missing or unreadable (logged).
+*/
+[[nodiscard]] std::optional<std::vector<std::byte>> loadPreviewMarkSheet();
 
 } // namespace rock_hero::editor::ui

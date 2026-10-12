@@ -176,4 +176,48 @@ TEST_CASE("GameResources reports an empty shader binary as a typed error", "[cor
     }
 }
 
+// The fixed mark sheet the renderer composes under every theme's heads deploys under highway/
+// by the shared file name, and reads through the same typed channel as the shaders.
+TEST_CASE("GameResources reads the highway mark sheet", "[core][resources]")
+{
+    const TempResourcesRoot fixture;
+    fixture.touch(
+        std::filesystem::path{"highway"} / common::core::g_highway_mark_sheet_file_name, "PNG");
+
+    const auto resources = GameResources::create(fixture.path());
+    REQUIRE(resources.has_value());
+    if (resources.has_value())
+    {
+        const auto bytes = resources->highwayMarkSheetBytes();
+        REQUIRE(bytes.has_value());
+        if (bytes.has_value())
+        {
+            REQUIRE(bytes->size() == 3);
+            CHECK((*bytes)[0] == std::byte{'P'});
+            CHECK((*bytes)[2] == std::byte{'G'});
+        }
+    }
+}
+
+// A deploy without the mark sheet is a broken install, reported naming the file.
+TEST_CASE("GameResources reports a missing highway mark sheet", "[core][resources]")
+{
+    const TempResourcesRoot fixture;
+
+    const auto resources = GameResources::create(fixture.path());
+    REQUIRE(resources.has_value());
+    if (resources.has_value())
+    {
+        const auto bytes = resources->highwayMarkSheetBytes();
+        REQUIRE_FALSE(bytes.has_value());
+        if (!bytes.has_value())
+        {
+            CHECK(bytes.error().code == GameResourcesErrorCode::MissingResourceFile);
+            CHECK(
+                bytes.error().message.find(common::core::g_highway_mark_sheet_file_name) !=
+                std::string::npos);
+        }
+    }
+}
+
 } // namespace rock_hero::game::core

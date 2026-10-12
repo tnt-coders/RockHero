@@ -2,14 +2,16 @@
 
 Status: **ACTIVE.** The record of the highway's note art: the accent light, the head family and the
 silhouette measurement it rides, the mark-sizing law, vibrato motion, and the atlas. It is the
-recovery point for this work — a later round starts from this file plus the committed `notes.png`.
+recovery point for this work — a later round starts from this file plus the committed art: the
+ice theme's heads-only `notes.png` (rows 0-1) and the fixed technique-mark sheet
+`resources/highway/marks.png` (rows 2-4), which the renderer composes into the one atlas below.
 
 **Two live queues, no overlap.** The technique-decision items (W3–W13) live in
 `technique-review-walkthrough.md`'s own work queue and are NOT restated here; this file carries the
 visual pass, which runs on a separate track. When resuming, read both.
 
 No sighting rig exists in the tree — no appearance sampler, no atlas swapper, no candidate table, no
-variant deploy script. The committed `notes.png` is therefore the single authority for every drawn
+variant deploy script. The committed sheets are therefore the single authority for every drawn
 size, and a rebuild is the only thing that writes the deployed copies. Rejected sighting variants
 live outside the repo in `rockhero-atlas-variants`; recover the swapper from git history if a future
 round needs one, rather than writing a new one.
@@ -339,8 +341,8 @@ note's identity each mark overrides — palm mute, hand mark, connection, harmon
 pick slide a category of one that returns alone, because the chart rules prove a scrape carries
 nothing else.
 
-**Atlas layout** (256×320, four columns by five rows, capacity 20) follows two rules, one per half
-of the sheet. Head bases take a row per SHAPE FAMILY complete with its hollow: row 0 the rectangle
+**Atlas layout** (256×320, four columns by five rows, capacity 20, composed at load from the
+256×128 heads sheet over the 256×192 mark sheet) follows two rules, one per half of the atlas. Head bases take a row per SHAPE FAMILY complete with its hollow: row 0 the rectangle
 family (standard, tech, hollow), row 1 the diamond family (base, hollow). Technique marks take
 two KEYBIND SIBLING PAIRS per row — `M`/`Shift+M` palm and full mute adjacent, `H`/`Shift+H` natural
 and pinch harmonic adjacent. That ordering is affordable because the HAND is carried by the art

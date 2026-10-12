@@ -59,7 +59,7 @@ using common::core::HighwayTexture;
 }
 
 // Asserts the set breaks the contract in the given asset, for the given reason, with a message
-// that names the asset's file.
+// that starts with the asset's file name.
 void checkBreaks(
     const HighwayTextureSet& textures, const HighwayTexture asset,
     const HighwayTextureContractErrorCode code)
@@ -71,11 +71,37 @@ void checkBreaks(
     {
         return;
     }
-    CHECK(measured.error().asset == asset);
     CHECK(measured.error().code == code);
     CHECK_THAT(
         measured.error().message,
         Catch::Matchers::StartsWith(std::string{common::core::highwayTextureFileName(asset)}));
+}
+
+// The fixed mark sheet, read from the source tree.
+[[nodiscard]] std::vector<std::byte> shippedMarkSheet()
+{
+    juce::MemoryBlock block;
+    REQUIRE(common::core::juceFileFromPath(testing::highwayMarkSheetPath()).loadFileAsData(block));
+    const auto* const bytes = static_cast<const std::byte*>(block.getData());
+    return {bytes, bytes + block.getSize()};
+}
+
+// Asserts the mark sheet breaks its contract for the given reason, with a message that starts
+// with the sheet's file name.
+void checkMarkSheetBreaks(
+    const std::vector<std::byte>& marks_png, const HighwayTextureContractErrorCode code)
+{
+    const std::expected<void, HighwayTextureContractError> measured =
+        checkHighwayMarkSheet(marks_png);
+    REQUIRE_FALSE(measured.has_value());
+    if (measured.has_value())
+    {
+        return;
+    }
+    CHECK(measured.error().code == code);
+    CHECK_THAT(
+        measured.error().message,
+        Catch::Matchers::StartsWith(std::string{common::core::g_highway_mark_sheet_file_name}));
 }
 
 } // namespace
@@ -115,7 +141,7 @@ TEST_CASE("The texture contract refuses an undecodable asset", "[ui][highway]")
 TEST_CASE("The texture contract refuses alpha-bearing structural art", "[ui][highway]")
 {
     checkBreaks(
-        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::ARGB, 256, 320)),
+        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::ARGB, 256, 128)),
         HighwayTexture::Notes,
         HighwayTextureContractErrorCode::AlphaBearingImage);
     checkBreaks(
@@ -124,23 +150,28 @@ TEST_CASE("The texture contract refuses alpha-bearing structural art", "[ui][hig
         HighwayTextureContractErrorCode::AlphaBearingImage);
 }
 
-// The head atlas is four columns of square cells with a cell for every index the atlas names;
-// the inlay is one square cell.
+// The head sheet is exactly four columns by two rows of 64-texel cells; the inlay is one square
+// cell.
 TEST_CASE("The texture contract refuses art off its grid", "[ui][highway]")
 {
-    // Not a whole number of square cells tall.
+    // Not a whole number of cells tall.
     checkBreaks(
-        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 256, 300)),
+        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 256, 100)),
         HighwayTexture::Notes,
         HighwayTextureContractErrorCode::WrongGrid);
-    // Square cells, but too few of them.
+    // Whole cells, but one head row short.
     checkBreaks(
-        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 256, 256)),
+        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 256, 64)),
+        HighwayTexture::Notes,
+        HighwayTextureContractErrorCode::WrongGrid);
+    // Two rows of four square cells, but not 64-texel ones.
+    checkBreaks(
+        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 512, 256)),
         HighwayTexture::Notes,
         HighwayTextureContractErrorCode::WrongGrid);
     // A width that four columns do not divide.
     checkBreaks(
-        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 250, 320)),
+        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 250, 128)),
         HighwayTexture::Notes,
         HighwayTextureContractErrorCode::WrongGrid);
     checkBreaks(
@@ -154,13 +185,58 @@ TEST_CASE("The texture contract refuses art off its grid", "[ui][highway]")
 TEST_CASE("The texture contract refuses art it cannot measure", "[ui][highway]")
 {
     checkBreaks(
-        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 256, 320)),
+        shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 256, 128)),
         HighwayTexture::Notes,
         HighwayTextureContractErrorCode::UnmeasurableArt);
     checkBreaks(
         shippedTexturesWith(HighwayTexture::ChordMarks, blankPng(juce::Image::RGB, 128, 128)),
         HighwayTexture::ChordMarks,
         HighwayTextureContractErrorCode::UnmeasurableArt);
+}
+
+// A notes.png that still carries the technique-mark rows below its heads is the full sheet the
+// marks were split out of: stale art, refused with a message that says where the marks live now.
+TEST_CASE("The texture contract refuses a notes.png carrying the mark rows", "[ui][highway]")
+{
+    const std::expected<HighwayTextureMeasurements, HighwayTextureContractError> measured =
+        measureHighwayTextures(
+            shippedTexturesWith(HighwayTexture::Notes, blankPng(juce::Image::RGB, 256, 320)));
+    REQUIRE_FALSE(measured.has_value());
+    if (measured.has_value())
+    {
+        return;
+    }
+    CHECK(measured.error().code == HighwayTextureContractErrorCode::WrongGrid);
+    CHECK_THAT(measured.error().message, Catch::Matchers::StartsWith("notes.png"));
+    CHECK_THAT(measured.error().message, Catch::Matchers::ContainsSubstring("heads-only"));
+    CHECK_THAT(measured.error().message, Catch::Matchers::ContainsSubstring("256x320"));
+}
+
+// The shipped mark sheet passes its contract.
+TEST_CASE("The shipped mark sheet passes its contract", "[ui][highway]")
+{
+    CHECK(checkHighwayMarkSheet(shippedMarkSheet()).has_value());
+}
+
+// The mark sheet is structural art like the head sheet, so it refuses an undecodable file and an
+// alpha channel the decoder would premultiply into every channel.
+TEST_CASE("The mark sheet contract refuses undecodable and alpha art", "[ui][highway]")
+{
+    checkMarkSheetBreaks({}, HighwayTextureContractErrorCode::UndecodableImage);
+    checkMarkSheetBreaks(
+        blankPng(juce::Image::ARGB, 256, 192), HighwayTextureContractErrorCode::AlphaBearingImage);
+}
+
+// The mark sheet is exactly four columns by three rows of 64-texel cells: a sheet of any other
+// size would not stack under the heads into the cells the vocabulary names.
+TEST_CASE("The mark sheet contract refuses a sheet off its grid", "[ui][highway]")
+{
+    checkMarkSheetBreaks(
+        blankPng(juce::Image::RGB, 256, 128), HighwayTextureContractErrorCode::WrongGrid);
+    checkMarkSheetBreaks(
+        blankPng(juce::Image::RGB, 256, 320), HighwayTextureContractErrorCode::WrongGrid);
+    checkMarkSheetBreaks(
+        blankPng(juce::Image::RGB, 384, 192), HighwayTextureContractErrorCode::WrongGrid);
 }
 
 } // namespace rock_hero::common::ui

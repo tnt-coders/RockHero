@@ -506,8 +506,12 @@ Each carries a recommendation; none is decided until the user rules.
   - **One sheet, never themed.** `notes.png` keeps both heads and marks, and themes lose custom
     heads.
 
-  *Recommended: split.* Themes keep custom heads, and the head contract measures only heads. The
-  cost is a second texture in the head pass, measured on `relwithdebinfo` in Phase 4b.
+  *Recommended: split.* Themes keep custom heads, and the head contract measures only heads.
+  **Landed 2026-10-12 (Phase 4b) as split FILES, one TEXTURE:** the heads-only `notes.png`
+  (256×128) and the fixed `resources/highway/marks.png` (256×192) are composed at load into the
+  one 256×320 atlas the draw path always read (`composeHeadAtlas`), so cell indices and batching
+  are unchanged and there is no second texture to measure. The mark sheet is product art checked
+  by `checkHighwayMarkSheet` in `HighwayRenderer::create`, never by the theme loader.
 - **54-Q18 — string colors and the theme. RULED 2026-10-09 (user), recast the same day:** each
   theme states its string colors, and the player may pin a palette so it survives theme switches.
   This replaces the first ruling, a bounded `string_shading` over the user's palette: a theme that
@@ -826,8 +830,10 @@ look. **Verification**: build, touched tests.
   - A base brighter than that is scaled in linear light, which keeps its hue and saturation
     exactly; a darker one that cannot scale up without a channel passing full is blended toward
     white, keeping hue and giving up a little saturation.
-  - `tabShapeMarkColor` takes the base; `g_hand_shape_color`, `g_hand_shape_arpeggio_color` and
-    the two hand-tuned scales (:151-155) are deleted.
+  - **Landed 2026-10-12** as `laneShapeInk` (`highway_theme_derived_colors`), carried to the 2D
+    host as `TabShapeInks`; `tabShapeMarkColor`, `g_hand_shape_color`,
+    `g_hand_shape_arpeggio_color` and the two hand-tuned scales are deleted. The old hand-tuned
+    inks are exact fixed points of the law.
   - The result reads on any editor background, so no backdrop or light-theme rule is needed.
   - **The one added guardrail:** the two derived inks share a luminance by construction, so
     `distinct()` also holds between them, not only between their bases.
@@ -835,8 +841,8 @@ look. **Verification**: build, touched tests.
     2D mute rim is shared by every mute mark and carries no palm/dead distinction.
   - Under today's values the 2D rails turn from Charter's blue and purple to a darkened teal and
     purple; the Phase 4b sighting judges both themes in both surfaces.
-- **S3's sheet split** per 54-Q17 moves today's mark cells unchanged, which is zero visual change,
-  and measures the second texture's cost. The private theme's `notes.png` is re-cut locally to the
+- **S3's sheet split** per 54-Q17 moves today's mark cells unchanged, which is zero visual change
+  (verified byte-exact: the two files stacked decode to the old sheet's pixels). The private theme's `notes.png` is re-cut locally to the
   heads-only layout so it still passes the contract.
 
 **STOP: sighting in motion in both products.** **Verification**: build, touched tests.

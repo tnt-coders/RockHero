@@ -108,14 +108,18 @@ public:
     \param shaders Compiled stage binaries for the highway programs.
     \param textures The theme's art; a set that breaks the texture contract, which the theme
            loader already enforces, fails creation with TextureAssetInvalid naming the asset.
+    \param marks_png The fixed technique-mark sheet's PNG bytes
+           (common::core::g_highway_mark_sheet_file_name), composed under the theme's head
+           sheet into one atlas; a sheet that breaks its contract fails creation with
+           TextureAssetInvalid. Read only during the call.
     \param theme Colors the board draws with until \ref setTheme replaces them.
     \param palette String colors every per-string surface derives from.
     \return The renderer, or a typed error naming the failed program or invalid texture
             asset.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
-        const HighwayShaderSet& shaders, const HighwayTextureSet& textures, HighwayTheme theme,
-        StringColorPalette palette);
+        const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
+        std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette);
 
     /*! \brief Destroys every owned GPU resource; must run before bgfx shutdown. */
     ~HighwayRenderer();

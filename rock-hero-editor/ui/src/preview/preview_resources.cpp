@@ -75,4 +75,22 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
     return set;
 }
 
+// Loads the fixed mark sheet; nullopt with a log naming the file when it is missing or empty, so
+// the preview reports a broken deployment instead of handing the renderer no marks.
+std::optional<std::vector<std::byte>> loadPreviewMarkSheet()
+{
+    const juce::File file = installedResourcesRoot().getChildFile("highway").getChildFile(
+        juce::String{std::string{common::core::g_highway_mark_sheet_file_name}});
+    std::vector<std::byte> bytes = readFileBytes(file);
+    if (bytes.empty())
+    {
+        RH_LOG_WARNING(
+            "editor.preview",
+            "highway mark sheet missing or unreadable: {:?}",
+            file.getFullPathName().toStdString());
+        return std::nullopt;
+    }
+    return bytes;
+}
+
 } // namespace rock_hero::editor::ui

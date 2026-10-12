@@ -121,8 +121,8 @@ reading aids through
 # Packaged resources and the deploy contract
 
 `GameResources` (`core/src/resources/`) is the one loading seam for packaged assets — today
-`shaderPath`/`shaderBytes`; fonts and SFX directories exist in the deploy tree but have no
-resolver yet. Adding an asset kind touches: the resolve method in `game_resources.{h,cpp}`, the
+`shaderPath`/`shaderBytes` and `highwayMarkSheetBytes` (the highway's fixed technique-mark sheet,
+under `highway/`); fonts and SFX directories exist in the deploy tree but have no resolver yet. Adding an asset kind touches: the resolve method in `game_resources.{h,cpp}`, the
 asset's enumerator and file name in the shared table (`common/core` `highway/highway_resources.h`
 for render assets — the game does not keep its own copy of that vocabulary), and the
 root-resolution seam `deployedResourcesRoot` in the shell. Highway textures are the exception:
@@ -133,12 +133,13 @@ pickers left them.
 
 The **CMake deploy** is shared, not per product: `rock_hero_deploy_product_resources`
 (`cmake/RockHeroProductResources.cmake`) is called once by each executable and owns the copy
-commands, the built-in themes tree it reads back from `rock_hero_common_ui`'s
-`ROCK_HERO_THEMES_DIR` property, and the parallel `install()` rules. The copy is a *stamp-based*
-custom command, deliberately not `POST_BUILD`, so it reruns when assets change without relinking
-(the function's comments explain). An asset that loads in your build tree and ships nowhere used to
-be this checklist's failure mode; the function fails at configure time if the built-in themes
-tree has moved out from under it or holds no theme.
+commands, the built-in themes tree and the highway's fixed art it reads back from
+`rock_hero_common_ui`'s `ROCK_HERO_THEMES_DIR` and `ROCK_HERO_HIGHWAY_ART_DIR` properties, and the
+parallel `install()` rules. The copy is a *stamp-based* custom command, deliberately not
+`POST_BUILD`, so it reruns when assets change without relinking (the function's comments explain).
+An asset that loads in your build tree and ships nowhere used to be this checklist's failure mode;
+the function fails at configure time if the built-in themes tree or the fixed-art directory has
+moved out from under it, or the themes tree holds no theme.
 
 # Extending the gameplay session
 

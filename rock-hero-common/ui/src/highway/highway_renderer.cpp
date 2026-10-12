@@ -2295,11 +2295,11 @@ struct HighwayRenderer::Impl
 };
 
 std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
-    const HighwayShaderSet& shaders, const HighwayTextureSet& textures, HighwayTheme theme,
-    StringColorPalette palette)
+    const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
+    const std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette)
 {
-    // The art is validated and measured before any GPU work: a theme that breaks the texture
-    // contract is refused with the asset and the expectation it violates.
+    // The art is validated and measured before any GPU work: a theme or mark sheet that breaks the
+    // texture contract is refused with the file and the expectation it violates.
     std::expected<HighwayTextureMeasurements, HighwayTextureContractError> measured =
         measureHighwayTextures(textures);
     if (!measured.has_value())
@@ -2307,6 +2307,14 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         return std::unexpected{HighwayRendererError{
             .code = HighwayRendererErrorCode::TextureAssetInvalid,
             .message = std::move(measured.error().message),
+        }};
+    }
+    std::expected<void, HighwayTextureContractError> marks = checkHighwayMarkSheet(marks_png);
+    if (!marks.has_value())
+    {
+        return std::unexpected{HighwayRendererError{
+            .code = HighwayRendererErrorCode::TextureAssetInvalid,
+            .message = std::move(marks.error().message),
         }};
     }
 
@@ -2355,7 +2363,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->accent_glow_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_accent_glow_params", bgfx::UniformType::Vec4)};
 
-    impl->atlases = makeHighwayAtlases(textures.at(indexOf(TextureAsset::Notes)));
+    impl->atlases = makeHighwayAtlases(textures.at(indexOf(TextureAsset::Notes)), marks_png);
     UploadedTexture inlay = uploadPngTexture(textures.at(indexOf(TextureAsset::Inlays)));
     impl->inlay_texture_width = inlay.width;
     impl->inlay_texture_height = inlay.height;

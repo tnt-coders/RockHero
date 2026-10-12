@@ -2,10 +2,74 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <juce_graphics/juce_graphics.h>
 #include <optional>
 
 namespace rock_hero::common::ui
 {
+
+namespace
+{
+
+// An RGB sheet, the format a structural PNG decodes to on Windows, whose every pixel is distinct,
+// so a composition that moved, blended or dropped any pixel cannot pass by coincidence.
+[[nodiscard]] juce::Image patternSheet(const int width, const int height, const juce::uint8 seed)
+{
+    juce::Image sheet{juce::Image::RGB, width, height, false, juce::SoftwareImageType{}};
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            sheet.setPixelAt(
+                x, y, juce::Colour{static_cast<juce::uint8>(x), static_cast<juce::uint8>(y), seed});
+        }
+    }
+    return sheet;
+}
+
+} // namespace
+
+// The renderer draws heads and marks from one texture, so the two sheets compose into the atlas
+// every cell index addresses: head rows first, mark rows below, each pixel exactly as decoded.
+TEST_CASE("Composing the head atlas stacks heads over marks pixel for pixel", "[ui][highway]")
+{
+    const juce::Image heads = patternSheet(256, 128, 1);
+    const juce::Image marks = patternSheet(256, 192, 2);
+    const juce::Image composed = composeHeadAtlas(heads, marks);
+
+    REQUIRE(composed.getWidth() == 256);
+    REQUIRE(composed.getHeight() == 320);
+    CHECK(composed.getFormat() == juce::Image::ARGB);
+    bool exact = true;
+    for (int y = 0; y < composed.getHeight(); ++y)
+    {
+        for (int x = 0; x < composed.getWidth(); ++x)
+        {
+            const juce::Colour expected = y < heads.getHeight()
+                                              ? heads.getPixelAt(x, y)
+                                              : marks.getPixelAt(x, y - heads.getHeight());
+            exact = exact && composed.getPixelAt(x, y) == expected;
+        }
+    }
+    CHECK(exact);
+
+    // The composed atlas carries exactly the cells the vocabulary names.
+    const HighwayAtlasLayout layout{
+        .texture_width = composed.getWidth(),
+        .texture_height = composed.getHeight(),
+        .cell_size = composed.getWidth() / g_head_atlas_columns,
+    };
+    CHECK(layout.capacity() == g_head_cell_count);
+}
+
+// Rows of different widths cannot stack into one grid, and a sheet that did not decode has no
+// rows to give, so either yields no atlas for the renderer to reject.
+TEST_CASE("Composing the head atlas refuses mismatched or missing sheets", "[ui][highway]")
+{
+    CHECK(composeHeadAtlas(patternSheet(256, 128, 1), patternSheet(128, 192, 2)).isNull());
+    CHECK(composeHeadAtlas(juce::Image{}, patternSheet(256, 192, 2)).isNull());
+    CHECK(composeHeadAtlas(patternSheet(256, 128, 1), juce::Image{}).isNull());
+}
 
 TEST_CASE("Highway atlas layout reports its grid capacity", "[ui][highway]")
 {

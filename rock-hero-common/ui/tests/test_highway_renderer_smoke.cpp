@@ -139,6 +139,12 @@ using common::core::NoteEmphasis;
     return set;
 }
 
+// Loads the fixed mark sheet from the source tree, the same bytes the products deploy.
+[[nodiscard]] std::vector<std::byte> loadShippedMarkSheet()
+{
+    return readAllBytes(common::core::juceFileFromPath(testing::highwayMarkSheetPath()));
+}
+
 // A 4/4 120 BPM map covering eight measures, matching the projection suite's fixture map.
 [[nodiscard]] common::core::TempoMap makeSmokeTempoMap()
 {
@@ -515,6 +521,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         std::expected<HighwayRenderer, HighwayRendererError> renderer = HighwayRenderer::create(
             shaders,
             loadShippedTextureSet(),
+            loadShippedMarkSheet(),
             testing::fixtureHighwayTheme(),
             testing::fixtureStringColors());
         REQUIRE(renderer.has_value());

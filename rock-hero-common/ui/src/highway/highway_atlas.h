@@ -13,6 +13,11 @@
 #include <optional>
 #include <span>
 
+namespace juce
+{
+class Image;
+} // namespace juce
+
 namespace rock_hero::common::ui
 {
 
@@ -103,9 +108,10 @@ struct HighwayAtlases
     HighwayAtlasLayout glyph_layout{};
 };
 
-// The cell vocabulary of the 4-column sheet, DECLARED semantically below rather than in cell
-// order (the sheet itself is row-major; the declarations group by meaning). Two rules, one per
-// half of the sheet:
+// The cell vocabulary of the 4-column composed atlas, DECLARED semantically below rather than in
+// cell order (the atlas itself is row-major; the declarations group by meaning). Two rules, one per
+// half of the atlas — and one file per half: a theme's notes.png supplies the head rows, the fixed
+// mark sheet the technique-mark rows:
 //
 // HEAD BASES take a row per SHAPE FAMILY, each complete with its hollow twin. Row 0 is the
 // rectangle family (standard, tech, and the hollow rectangle the two of them share); row 1 is
@@ -130,6 +136,15 @@ struct HighwayAtlases
 /*! \brief Column count of the head atlas grid; the cell size derives as width over this. */
 inline constexpr int g_head_atlas_columns = 4;
 
+/*! \brief Edge length, in texels, of every cell on both sheets the head atlas composes. */
+inline constexpr int g_atlas_cell_texels = 64;
+
+/*! \brief Rows of a theme's notes.png: the head bases, rows 0 and 1 of the composed atlas. */
+inline constexpr int g_head_sheet_rows = 2;
+
+/*! \brief Rows of the fixed mark sheet: the technique marks, rows 2 to 4 of the composed atlas. */
+inline constexpr int g_mark_sheet_rows = 3;
+
 /*! \brief Cell index of the standard note head inside the head atlas. */
 inline constexpr int g_head_cell_standard = 0;
 
@@ -143,12 +158,8 @@ inline constexpr int g_head_cell_hollow = 2;
 // family whose row it sits in: 3 completes the rectangle row, 6 and 7 the diamond row. There is
 // no accent-ring cell: emphasis is a rendered light, because a mark drawn on the head could only
 // ever say "accent", where the light says loud and quiet on one axis and says it identically on
-// an open string, which has no head to wear a mark.
-//
-// They cannot sit at the sheet's tail: seventeen filled cells on a four-wide grid is 4x4+1, so
-// "every group row-aligned" and "all spares last" are arithmetically incompatible. The mark rows
-// stay intact and the spares stay with the bases. A sixth row (256x384) would dissolve that, and
-// would also buy back the headroom noted at g_head_cell_count.
+// an open string, which has no head to wear a mark. They live on the theme's head sheet, so the
+// fixed mark sheet stays full and intact.
 
 /*!
 \brief Arpeggio bracket for a posture stop the hand is ON — a fret slot, or a harmonic node placed
@@ -271,33 +282,55 @@ predicate as the base, so the approach can never preview a different shape than 
 inline constexpr int g_head_cell_harmonic_hollow = 5;
 
 /*!
-\brief Cells the renderer requires the head atlas to carry (a 4-column grid, five rows).
+\brief Cells the composed head atlas carries: a theme's head rows above the fixed mark rows.
 
-NOT a count of named cells — there are seventeen. It is one past the highest named index, which
-is what the startup check needs: capacity below this means some named index addresses no art.
+NOT a count of named cells — there are seventeen. It is one past the highest named index, so a
+named index at or past it addresses no art.
 
-The shipped 256x320 asset supplies exactly this many, so the sheet itself has NO headroom: once
-the free cells 3, 6 and 7 are spent, another cell needs a taller sheet (256x384 buys a sixth row).
+The two sheets supply exactly this many, so the composed atlas has NO headroom: once the free
+cells 3, 6 and 7 are spent, another head base needs a third head row and another mark a fourth
+mark row.
 */
 inline constexpr int g_head_cell_count = 20;
+
+static_assert(
+    (g_head_sheet_rows + g_mark_sheet_rows) * g_head_atlas_columns == g_head_cell_count,
+    "the composed head atlas must carry exactly the cells the vocabulary names");
+
+/*!
+\brief Stacks a theme's head sheet above the fixed mark sheet into the one head atlas.
+
+The renderer draws heads and marks in one batch from one texture, so the two files compose into
+the single image every cell index addresses: head rows first, mark rows below. Both images are
+converted to ARGB first — the format the upload expects, and the one macOS decodes every PNG to
+whatever its color type — and their rows are copied byte for byte, so the composed cells are
+exactly the decoded pixels of each file.
+
+\param heads The decoded notes.png of a theme.
+\param marks The decoded fixed mark sheet.
+\return The composed ARGB atlas, or a null image when either input is null or their widths
+        differ.
+*/
+[[nodiscard]] juce::Image composeHeadAtlas(const juce::Image& heads, const juce::Image& marks);
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
 
-The head atlas uploads the supplied reference PNG (the Charter-derived 4-column channel-scheme
-atlas) verbatim when the bytes decode; empty or undecodable bytes leave the heads handle
-invalid and the layout empty, which the renderer treats as a startup error — texture assets
-are required product content, never silently substituted. The glyph atlas is always
+The head atlas is the theme's head sheet composed over the fixed mark sheet
+(\ref composeHeadAtlas), uploaded verbatim when both decode; empty or undecodable bytes leave the
+heads handle invalid and the layout empty, which the renderer treats as a startup error — texture
+assets are required product content, never silently substituted. The glyph atlas is always
 runtime-rasterized (text, not an asset).
 
 Must be called after bgfx initialization and the results destroyed before shutdown (structural
 via the shell's declaration order).
 
-\param note_atlas_png Reference note-atlas PNG bytes; empty or undecodable bytes leave the
-       heads handle invalid for the caller to reject.
+\param heads_png The theme's notes.png bytes.
+\param marks_png The fixed mark sheet's bytes.
 \return The uploaded atlases with their layouts.
 */
-[[nodiscard]] HighwayAtlases makeHighwayAtlases(std::span<const std::byte> note_atlas_png);
+[[nodiscard]] HighwayAtlases makeHighwayAtlases(
+    std::span<const std::byte> heads_png, std::span<const std::byte> marks_png);
 
 /*!
 \brief An uploaded texture paired with the pixel dimensions it decoded at.

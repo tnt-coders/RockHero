@@ -78,7 +78,12 @@ because a silent fallback would mask a broken theme.
 */
 enum class HighwayTexture : std::uint8_t
 {
-    /*! \brief Note-head atlas PNG (4-column grid, reference channel scheme). */
+    /*!
+    \brief Note-head sheet PNG: heads only, 4x2 cells of 64 px in the reference channel scheme.
+
+    The renderer stacks it above the fixed technique-mark sheet
+    (\ref g_highway_mark_sheet_file_name) into the one head atlas it draws from.
+    */
     Notes,
 
     /*!
@@ -250,5 +255,15 @@ static_assert(
     // The switch is exhaustive; renaming an out-of-range value would be a lie, not a fallback.
     std::unreachable();
 }
+
+/*!
+\brief File name of the fixed technique-mark sheet, deployed under each product's
+resources/highway directory.
+
+The technique marks are the same for every theme, so they are product art rather than a
+HighwayTexture: each host reads the sheet once and hands it to the renderer beside the theme's
+art, and the renderer composes it under the theme's head sheet.
+*/
+inline constexpr std::string_view g_highway_mark_sheet_file_name = "marks.png";
 
 } // namespace rock_hero::common::core

@@ -46,6 +46,22 @@ namespace
     return "vs";
 }
 
+// Passes the path through when it names an existing regular file. The probe is non-throwing;
+// failures to inspect the file intentionally count as missing, and any probe/read race is caught
+// by the read that follows anyway.
+[[nodiscard]] std::expected<std::filesystem::path, GameResourcesError> existingResourceFile(
+    std::filesystem::path path)
+{
+    std::error_code probe_error;
+    if (!std::filesystem::is_regular_file(path, probe_error))
+    {
+        return std::unexpected{
+            GameResourcesError{GameResourcesErrorCode::MissingResourceFile, path}
+        };
+    }
+    return path;
+}
+
 } // namespace
 
 GameResourcesError::GameResourcesError(
@@ -97,18 +113,7 @@ std::expected<std::filesystem::path, GameResourcesError> GameResources::shaderPa
     std::filesystem::path path = m_resources_root / "shaders" / shaderBackendDirectory(backend);
     path /= std::string{shaderStagePrefix(stage)} + "_" +
             std::string{common::core::highwayShaderProgramName(program)} + ".bin";
-
-    // Non-throwing probe; failures to inspect the file intentionally count as missing, and any
-    // probe/read race is caught by the read in shaderBytes anyway.
-    std::error_code probe_error;
-    if (!std::filesystem::is_regular_file(path, probe_error))
-    {
-        return std::unexpected{
-            GameResourcesError{GameResourcesErrorCode::MissingResourceFile, path}
-        };
-    }
-
-    return path;
+    return existingResourceFile(std::move(path));
 }
 
 namespace
@@ -158,6 +163,19 @@ std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderB
     const ShaderBackend backend) const
 {
     const auto path = shaderPath(program, stage, backend);
+    if (!path.has_value())
+    {
+        return std::unexpected{path.error()};
+    }
+    return readResourceBytes(*path);
+}
+
+// Resolves the mark sheet under resources/highway and reads it through the same typed channel.
+std::expected<std::vector<std::byte>, GameResourcesError> GameResources::highwayMarkSheetBytes()
+    const
+{
+    const auto path = existingResourceFile(
+        m_resources_root / "highway" / common::core::g_highway_mark_sheet_file_name);
     if (!path.has_value())
     {
         return std::unexpected{path.error()};

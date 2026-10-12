@@ -25,6 +25,12 @@ target_compile_definitions(
     rock_hero_common_ui_testing
     INTERFACE ROCK_HERO_BUILT_IN_THEMES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources/themes")
 
+# The fixed mark sheet the renderer composes under every theme's heads is read from the source
+# tree for the same reason.
+target_compile_definitions(
+    rock_hero_common_ui_testing
+    INTERFACE ROCK_HERO_HIGHWAY_ART_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources/highway")
+
 add_executable(
     rock_hero_common_ui_tests
     noop_render_device.cpp

@@ -6,6 +6,7 @@
 
 #include <SDL3/SDL.h>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -20,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::game::ui
 {
@@ -130,6 +132,13 @@ std::optional<int> RockHeroGame::onInit()
         std::println(stderr, "rock-hero: {}", highway_shaders.error().message);
         return 1;
     }
+    const std::expected<std::vector<std::byte>, core::GameResourcesError> highway_marks =
+        resources->highwayMarkSheetBytes();
+    if (!highway_marks.has_value())
+    {
+        std::println(stderr, "rock-hero: {}", highway_marks.error().message);
+        return 1;
+    }
     // The built-in themes are required product content, so one that does not load fails startup
     // as a broken install; user themes that do not load are logged and dropped by the registry.
     const std::expected<common::ui::HighwayThemeRegistry, common::ui::HighwayThemeError>
@@ -147,6 +156,7 @@ std::optional<int> RockHeroGame::onInit()
         common::ui::HighwayRenderer::create(
             *highway_shaders,
             highway_theme.textures,
+            *highway_marks,
             highway_theme.colors,
             highway_themes->paletteFor(m_config.highway_settings).colors);
     if (!renderer.has_value())

@@ -1,12 +1,13 @@
 /*!
 \file highway_theme_fixtures.h
-\brief Code-built highway looks, and the shipped themes the source tree holds.
+\brief Code-built highway looks, and the shipped themes and fixed art the source tree holds.
 */
 
 #pragma once
 
 #include <expected>
 #include <filesystem>
+#include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
@@ -79,6 +80,16 @@ guardrails with the fixture string colors.
 [[nodiscard]] inline std::filesystem::path builtInThemesDirectory()
 {
     return common::core::pathFromUtf8(ROCK_HERO_BUILT_IN_THEMES_DIR);
+}
+
+/*!
+\brief Returns the source tree's fixed technique-mark sheet, which the products deploy.
+\return The path of the mark sheet the renderer composes under every theme's heads.
+*/
+[[nodiscard]] inline std::filesystem::path highwayMarkSheetPath()
+{
+    return common::core::pathFromUtf8(ROCK_HERO_HIGHWAY_ART_DIR) /
+           common::core::g_highway_mark_sheet_file_name;
 }
 
 /*!

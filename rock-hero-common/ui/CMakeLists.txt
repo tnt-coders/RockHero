@@ -54,4 +54,10 @@ set(rock_hero_common_ui_themes_dir "${CMAKE_CURRENT_SOURCE_DIR}/resources/themes
 set_target_properties(rock_hero_common_ui PROPERTIES ROCK_HERO_THEMES_DIR
                                                      "${rock_hero_common_ui_themes_dir}")
 
+# The highway's fixed art (the technique-mark sheet every theme's heads compose over, and its
+# license notice) deploys the same way, published for the same reason.
+set(rock_hero_common_ui_highway_art_dir "${CMAKE_CURRENT_SOURCE_DIR}/resources/highway")
+set_target_properties(rock_hero_common_ui PROPERTIES ROCK_HERO_HIGHWAY_ART_DIR
+                                                     "${rock_hero_common_ui_highway_art_dir}")
+
 add_subdirectory(tests)

@@ -2,12 +2,15 @@
 
 #include "preview/preview_resources.h"
 
+#include <cstddef>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <utility>
+#include <vector>
 
 #if JUCE_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -179,10 +182,10 @@ void PreviewSurface::attach()
 #endif
 }
 
-// Loads the highway shaders and creates the renderer, in the surface's look, against the live
-// device. On failure it logs and leaves the renderer empty (renderFrame then presents nothing and
-// the black fallback shows) without touching the device, so the caller can retry on a later open
-// without re-initializing bgfx. Returns whether the renderer is now live.
+// Loads the highway shaders and mark sheet and creates the renderer, in the surface's look, against
+// the live device. On failure it logs and leaves the renderer empty (renderFrame then presents
+// nothing and the black fallback shows) without touching the device, so the caller can retry on a
+// later open without re-initializing bgfx. Returns whether the renderer is now live.
 bool PreviewSurface::bringUpRenderer()
 {
 #if JUCE_WINDOWS
@@ -192,9 +195,15 @@ bool PreviewSurface::bringUpRenderer()
         RH_LOG_ERROR("editor.preview", "preview shaders unavailable; preview disabled");
         return false;
     }
+    const std::optional<std::vector<std::byte>> marks = loadPreviewMarkSheet();
+    if (!marks.has_value())
+    {
+        RH_LOG_ERROR("editor.preview", "preview mark sheet unavailable; preview disabled");
+        return false;
+    }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
-            *shaders, m_theme->textures, m_theme->colors, m_palette);
+            *shaders, m_theme->textures, *marks, m_theme->colors, m_palette);
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);

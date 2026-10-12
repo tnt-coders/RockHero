@@ -67,10 +67,12 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    using HighwayShaderSet = std::array<HighwayShaderPair, g_highway_shader_programs.size()>;
    using HighwayTextureSet = std::array<std::vector<std::byte>, g_highway_textures.size()>;
 
-   // The textures, colors and string colors come from the loaded theme (see below).
+   // The textures, colors and string colors come from the loaded theme (see below); marks_png is
+   // the fixed technique-mark sheet every theme shares.
    static std::expected<HighwayRenderer, HighwayRendererError>
        create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
-              HighwayTheme theme, StringColorPalette palette);
+              std::span<const std::byte> marks_png, HighwayTheme theme,
+              StringColorPalette palette);
    void setTheme(HighwayTheme theme, StringColorPalette palette);
    void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
    void resetCamera() noexcept;
@@ -195,6 +197,7 @@ and the same failure policy as a first open.
 | Player's highway settings (theme id, palette pin, view preferences) | `common/core` `highway/highway_settings_store.h` | the game reads `HighwaySettingsStore` over the shared settings file once at launch; the editor's controller reads it at construction and writes each theme pick, palette pick and View > Highway Display toggle through `update` |
 | Highway theme (the 20 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps them and the palette without a rebuild |
 | Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeFor(<the player's settings>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `themes/` (`themesFolder()`), where one may inherit a built-in (`inherits`) or shadow it by taking its id |
+| Fixed highway art (the technique-mark sheet) | `rock-hero-common/ui/resources/highway/` (`marks.png` plus the license notice for its adapted art), deployed to `<resources root>/highway/` | the game reads it through `GameResources::highwayMarkSheetBytes`, the editor preview through `loadPreviewMarkSheet`, and both hand the bytes to `HighwayRenderer::create`, which composes it under the theme's `notes.png` |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
 | Resource deploy + install | `rock_hero_deploy_product_resources` | both call it per executable |
@@ -759,6 +762,17 @@ If the element is *textured*, the asset lives in one table and the fan-out is sh
 4. Nothing in CMake. Both products deploy the whole built-in themes tree through
    `rock_hero_deploy_product_resources` — see the deploy contract in \ref guide_game. A user's own
    themes need the file too, which is a format change: they fail to load until they carry it.
+
+A new *technique mark* is not a theme asset. The head atlas the renderer draws from is two files
+stacked into one texture by `composeHeadAtlas` (`common/ui` `highway/highway_atlas.h`): a theme's
+`notes.png` supplies the head rows (exactly 256x128, `g_head_sheet_rows`), and the fixed
+`rock-hero-common/ui/resources/highway/marks.png` supplies the technique-mark rows below them
+(exactly 256x192, `g_mark_sheet_rows`), so cell indices 0-19 address the composed image and the
+draw path never sees two textures. A mark cell is drawn into `marks.png`, its index named beside
+the others in `highway_atlas.h`; the sheet's contract is `checkHighwayMarkSheet`, which
+`HighwayRenderer::create` runs (the theme loader never sees the sheet). The sheet has no spare
+cell, so another mark needs a fourth mark row: `g_mark_sheet_rows`, `g_head_cell_count` and the
+art grow together.
 
 Adding a new *shader program* is two declarations plus its use:
 
