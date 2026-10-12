@@ -101,7 +101,7 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
     {
         return "nothing";
     }
-    const std::string first =
+    std::string first =
         notes.empty() ? chartKeyframeText(keyframes.front()) : chartSlotText(notes.front());
     if (count == 1)
     {

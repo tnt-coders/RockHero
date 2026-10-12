@@ -305,7 +305,7 @@ BeatAnchor TempoMap::terminalCovering(double cover_until_seconds, double seconds
         const double per_measure = measure_quarters(measure);
         const double missing =
             (cover_until_seconds - opener.seconds()) / seconds_per_quarter - quarters;
-        const double most_steps = static_cast<double>(std::numeric_limits<int>::max() - measure);
+        const auto most_steps = static_cast<double>(std::numeric_limits<int>::max() - measure);
         auto steps =
             static_cast<int>(std::clamp(std::ceil(missing / per_measure), 0.0, most_steps));
         while (steps > 0 && covers(quarters + static_cast<double>(steps - 1) * per_measure))

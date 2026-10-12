@@ -84,7 +84,7 @@ void EditorController::Impl::commitTempoEdit(
             }
             return;
         }
-        const TempoGridCommit& grid = std::get<TempoGridCommit>(landing);
+        const auto& grid = std::get<TempoGridCommit>(landing);
         commitGridModel(
             std::move(before),
             std::move(after),
@@ -287,7 +287,7 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
 // address the old selection held to other music.
 void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& action)
 {
-    const std::string label = scaleTempoLabel(m_grid_session.note_lock.has_value());
+    std::string label = scaleTempoLabel(m_grid_session.note_lock.has_value());
     if (!m_grid_session.note_lock.has_value())
     {
         const double cover_until_seconds = latestAudioEndSeconds(session().song());
@@ -315,7 +315,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
     const MarkerCommit committed = commitGridModel(
         std::move(before),
         SongTimelineSnapshot{.timeline = std::move(*scaled)},
-        label,
+        std::move(label),
         MarkerRow::Tempo,
         std::nullopt,
         EntryFocus::None);
