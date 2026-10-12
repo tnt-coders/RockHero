@@ -269,13 +269,23 @@ Four notation distinctions are carried by hue alone. The loader enforces them wi
 cannot collapse a distinction:
 
 - `chord_box` vs `pick_furniture` — fretting vs tapped chord box (:664-668);
-- `arpeggio` vs `lane_border` — arpeggio vs held-shape rails (:5944-5951);
+- `arpeggio` vs `shape_rail` — arpeggio vs held-shape rails (:5944-5951; `lane_border` until the
+  split below);
 - `fret_number_lit`, `fret_number_dim`, `fret_number_target` — pairwise;
 - `strike_fretting` vs `strike_picking` — the two hands' pops;
 - plus one order check: luma(`fret_line_lit`) exceeds luma(`fret_line`) by a margin, since the hand
   window is read from it;
-- from Phase 4b, `distinct()` between the two 2D shape inks derived from `lane_border` and
+- from Phase 4b, `distinct()` between the two 2D shape inks derived from `shape_rail` and
   `arpeggio`, which share a luminance by construction.
+
+**The lane-line split (ruled by the user, 2026-10-11).** `lane_border` paints both the lane lines
+(the per-fret runway ribbons) and the fretting hand's chord-shape rails, so a theme that made its
+lane lines nearly invisible would hide the rails too, and the rails carry notation. The role
+splits into `lane_line` (the ribbons) and `shape_rail` (the fretting hand's rails), 24 roles; every
+shipped theme keeps today's value in both, so nothing changes visibly. A theme then sets its lane
+lines anywhere from clearly defined to nearly invisible by `lane_line` alone. The ribbons' falloff
+away from the hand window (the 1/8 tier, 54-Q20) stays a light law in code, not a theme value.
+`fret_number_dim`, today equal to the lane color at half alpha, stays its own role.
 
 Texture contracts: the two existing measurements (`measureHeadArtProfile`,
 `measureBoxMuteProfiles`) plus a grid-dimension check per asset.
@@ -781,7 +791,7 @@ look. **Verification**: build, touched tests.
 ### Phase 4b — One authority for the 2D lane; the mark sheet splits
 
 - **The 2D shape inks follow the theme's hues.** The 2D shape rails echo the 3D shape rails, so
-  their sources are the roles those rails wear: `lane_border` for a held shape and `arpeggio` for
+  their sources are the roles those rails wear: `shape_rail` for a held shape and `arpeggio` for
   an arpeggio span (`highway_renderer.cpp:5921`), never `chord_box`. The 2D lane derives each ink
   by one fixed law, the way a string's surfaces derive from its palette color:
   - The ink also grounds the span chip's opaque white label (`tab_paint_core.cpp:2728-2734`), so
