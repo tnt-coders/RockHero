@@ -170,7 +170,8 @@ bool EditorController::Impl::commitMarkerMove(
     // Held aside, so this press's own landing select below does not end the run it continues.
     const bool continues = markerMoveRunOrigin<Snapshot>() != nullptr;
     std::optional<MarkerModelSnapshot> held = std::exchange(m_marker_move_origin, std::nullopt);
-    const Snapshot* const origin = continues ? std::get_if<Snapshot>(&*held) : nullptr;
+    const Snapshot* const origin =
+        continues && held.has_value() ? std::get_if<Snapshot>(&*held) : nullptr;
 
     if (origin == nullptr)
     {

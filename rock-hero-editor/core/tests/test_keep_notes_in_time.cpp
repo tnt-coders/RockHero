@@ -6,6 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
@@ -144,11 +145,11 @@ TEST_CASE(
     SongTimeline before = oneNoteTimeline(
         commonTimeMap({anchor("1:1", 0), anchor("3:1", 4000), anchor("5:1", 8000)}),
         makeNote(at("2:1"), 1, 5, Fraction{1, 2}, {}));
-    REQUIRE(before.arrangements.front().chart.has_value());
-    if (before.arrangements.front().chart.has_value())
+    std::optional<common::core::Chart>& before_chart = before.arrangements.front().chart;
+    REQUIRE(before_chart.has_value());
+    if (before_chart.has_value())
     {
-        before.arrangements.front().chart->notes.push_back(
-            makeNote(at("4:1"), 2, 7, Fraction{1, 8}, {}));
+        before_chart->notes.push_back(makeNote(at("4:1"), 2, 7, Fraction{1, 8}, {}));
     }
     requireValid(before);
 

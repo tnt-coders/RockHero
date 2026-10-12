@@ -71,10 +71,11 @@ struct NoteLockEditor : SongEditorHarness
         anchor("5:1", 8000),
         anchor("9:1", 16000),
     });
-    REQUIRE(song.arrangements.front().chart.has_value());
-    if (song.arrangements.front().chart.has_value())
+    std::optional<common::core::Chart>& song_chart = song.arrangements.front().chart;
+    REQUIRE(song_chart.has_value());
+    if (song_chart.has_value())
     {
-        common::core::Chart& chart = *song.arrangements.front().chart;
+        common::core::Chart& chart = *song_chart;
         chart.fret_hand_positions.clear();
         chart.notes.clear();
         constexpr std::array<common::core::Fraction, 6> offsets{

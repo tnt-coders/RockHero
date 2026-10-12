@@ -72,6 +72,18 @@ struct ScaleEditor : SongEditorHarness
         return *loaded;
     }
 
+    // The keyboard's time as last published, failing the test when the editor shows no keyboard.
+    [[nodiscard]] double keyboardSeconds() const
+    {
+        const std::optional<KeyboardPositionViewState>& position = state().keyboard_position;
+        REQUIRE(position.has_value());
+        if (!position.has_value())
+        {
+            throw std::logic_error{"scale fixture without a keyboard position"};
+        }
+        return position->seconds;
+    }
+
     void scale(const std::string& text)
     {
         controller.onScaleTempoRequested(text);
@@ -159,8 +171,7 @@ TEST_CASE(
     CAPTURE(note_lock, caret);
     ScaleEditor editor{note_lock, makeThreeSpanSong()};
     editor.seek(5.0);
-    REQUIRE(editor.state().keyboard_position.has_value());
-    const double before = editor.state().keyboard_position->seconds;
+    const double before = editor.keyboardSeconds();
 
     editor.scale("2");
     REQUIRE(editor.undoEntryCount() == 1);
@@ -168,21 +179,18 @@ TEST_CASE(
     {
         editor.armCaretAtCursor();
     }
-    REQUIRE(editor.state().keyboard_position.has_value());
-    const double after = editor.state().keyboard_position->seconds;
+    const double after = editor.keyboardSeconds();
     CHECK_THAT(after, WithinAbs(note_lock ? 5.0 : 2.5, 1e-3));
     const std::uint64_t moves = editor.state().keyboard_move_count;
     const std::uint64_t focused = editor.state().focus_count;
 
     editor.controller.onUndoRequested();
-    REQUIRE(editor.state().keyboard_position.has_value());
-    CHECK_THAT(editor.state().keyboard_position->seconds, WithinAbs(before, 1e-3));
+    CHECK_THAT(editor.keyboardSeconds(), WithinAbs(before, 1e-3));
     CHECK(editor.state().keyboard_move_count == moves);
     CHECK(editor.state().focus_count == focused);
 
     editor.controller.onRedoRequested();
-    REQUIRE(editor.state().keyboard_position.has_value());
-    CHECK_THAT(editor.state().keyboard_position->seconds, WithinAbs(after, 1e-3));
+    CHECK_THAT(editor.keyboardSeconds(), WithinAbs(after, 1e-3));
     CHECK(editor.state().keyboard_move_count == moves);
     CHECK(editor.state().focus_count == focused);
 }
@@ -275,10 +283,11 @@ TEST_CASE("Locked Scale Tempo carries the cursor onto its note", "[core][scale-t
 {
     common::core::Song song = makeEightMeasureSong();
     song.tempo_map = common::core::testing::commonTimeMap({anchor("1:1", 0), anchor("10:1", 9004)});
-    REQUIRE(song.arrangements.front().chart.has_value());
-    if (song.arrangements.front().chart.has_value())
+    std::optional<common::core::Chart>& song_chart = song.arrangements.front().chart;
+    REQUIRE(song_chart.has_value());
+    if (song_chart.has_value())
     {
-        song.arrangements.front().chart->notes.push_back(makeTestNote(beatAt(9, 4), 1, 5));
+        song_chart->notes.push_back(makeTestNote(beatAt(9, 4), 1, 5));
     }
     ScaleEditor editor{true, std::move(song)};
     const double sounded = editor.tempoMap().secondsAt(beatAt(9, 4));
