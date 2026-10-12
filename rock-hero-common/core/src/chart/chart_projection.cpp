@@ -32,18 +32,25 @@ namespace
 
 // SHAPE RULE 6, and this is the only place it lives. A span's DRAWN extent keeps the minimum
 // sustain distance before the head that closed it — the same margin every other drawn element
-// keeps, so consecutive shapes show the gap everything else shows instead of butting exactly. What
-// the derivation stores is the MUSICAL CLOSE (\ref ChartShape::sustain): the instant the statement
-// actually ended, which is what the spans themselves are measured against and what a figure's seams
-// have to abut at. Trimming there would put a display margin inside every seam.
+// keeps, so consecutive shapes show the gap everything else shows instead of butting exactly — and
+// never runs into the hand's next move. What the derivation stores is the MUSICAL CLOSE
+// (\ref ChartShape::sustain): the instant the statement actually ended, which is what the spans
+// themselves are measured against and what a figure's seams have to abut at. Trimming there would
+// put a display margin inside every seam.
 //
-// THREE FACTS, and each answers a case the others cannot:
+// FOUR FACTS, and each answers a case the others cannot:
 //
-//   the CLOSING HEAD (\ref ChartShape::closing_onset_place) is what the distance is kept from, and
-//   it is not the close: a span whose rings died a full margin early ends where they died and is
-//   not pulled back from a head it never reached. Absent where there is no head at all — a span
-//   whose statement simply ran out, and a close at a slot of held fingers, which sounds nothing to
-//   keep a distance from and is exactly what keeps a landing successor tiled onto its predecessor;
+//   the CLOSING HEAD (\ref ChartShape::closing_onset_place) is one limit, one margin before it. It
+//   is present only where that head cut a live statement: a span whose rings died before the next
+//   onset ends where they died and is not pulled back from a head it never reached. Absent too at
+//   a close at a slot of held fingers, which sounds nothing to keep a distance from and is exactly
+//   what keeps a landing successor tiled onto its predecessor;
+//
+//   the HAND'S NEXT MOVE (\p move_starts) is the other limit: the first margin morph to begin after
+//   the span's front is the hand leaving the grip, so the furniture stops where that morph begins
+//   rather than riding it. It is what bounds the span whose rings outlived the morph into the next
+//   position without a head to cut them. A glide's ramp is never one: it is a member of the span
+//   travelling, the span covers it (shape rule 4), and its rails ride the window with it;
 //
 //   the LAST STATEMENT (\ref ChartShape::stated_extent) floors the trim, because furniture may not
 //   retreat behind the strum it is drawn over. In a fast enough passage the closing onset crowds
@@ -55,7 +62,8 @@ namespace
 //   because a close leaving it no room is what deletes it in the walk (shape rule 4's emission).
 //
 // The extent is therefore positive exactly where the musical close is, and never past it.
-[[nodiscard]] Fraction drawnShapeExtent(const ChartShape& shape, const HeadMargins& margins)
+[[nodiscard]] Fraction drawnShapeExtent(
+    const ChartShape& shape, const HeadMargins& margins, const std::vector<Fraction>& move_starts)
 {
     // Bound to a local so the presence test and every read below are provably the same object.
     const std::optional<Fraction>& closing = shape.closing_onset_place;
@@ -67,6 +75,13 @@ namespace
         // wrong rate.
         limit = *closing - shape.place - margins.length(*closing);
     }
+    // STRICTLY after the front: a morph begun at or before it is the hand arriving into this grip.
+    if (const auto move = std::ranges::upper_bound(move_starts, shape.place);
+        move != move_starts.end())
+    {
+        const Fraction before_move = *move - shape.place;
+        limit = limit.has_value() ? std::min(*limit, before_move) : before_move;
+    }
     return drawnHoldExtent(shape.sustain, limit, shape.stated_extent);
 }
 
@@ -77,7 +92,7 @@ namespace
 // the sound goes.
 struct SlideRamp
 {
-    double start_seconds{0.0};
+    Fraction start{};
     bool unpitched{false};
     // The note whose rail the ramp follows: its ink end is where the settle begins.
     std::size_t note{0};
@@ -90,8 +105,7 @@ struct SlideRamp
 // The SLIDE-OUT is the RESOLVED fact: a slide-out and a shift slide's arrival are the same
 // statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
 // Asking position alone would ease every arrival with the slide-out curve.
-[[nodiscard]] std::map<Fraction, SlideRamp> makeSlideRampStarts(
-    const ChartConnections& connections, const TempoMap& tempo_map)
+[[nodiscard]] std::map<Fraction, SlideRamp> makeSlideRampStarts(const ChartConnections& connections)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     std::map<Fraction, SlideRamp> starts;
@@ -108,7 +122,7 @@ struct SlideRamp
         const bool slides_out = noteSlidesOut(connections, index);
 
         const Fraction place = connections.places[index];
-        double segment_start_seconds = tempo_map.secondsAtWholeNote(place);
+        Fraction segment_start = place;
         int segment_start_fret = note.fret;
         for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
              ++keyframe_index)
@@ -134,11 +148,10 @@ struct SlideRamp
             // matches the slide-out.
             const bool unpitched = slides_out && keyframe_index + 1 == note.keyframes.size();
             const Fraction keyframe_place = place + keyframe.offset;
-            const double keyframe_seconds = tempo_map.secondsAtWholeNote(keyframe_place);
             if (*fret != segment_start_fret || unpitched)
             {
                 const SlideRamp ramp{
-                    .start_seconds = segment_start_seconds,
+                    .start = segment_start,
                     .unpitched = unpitched,
                     .note = index,
                 };
@@ -152,7 +165,7 @@ struct SlideRamp
                     filed = ramp;
                 }
             }
-            segment_start_seconds = keyframe_seconds;
+            segment_start = keyframe_place;
             segment_start_fret = *fret;
         }
     }
@@ -194,150 +207,12 @@ ChartViewState makeChartViewState(
     // hold. It is derived from the saved form, so a pick slide's in-memory overrides (chart.h) are
     // already stripped and the scrape draws as the scrape it is.
     const std::vector<ChartNote>& notes = resolutions.connections.saved_notes;
+    const std::vector<Fraction>& places = resolutions.connections.places;
 
     // Where each fret-hand placement's approach ramp begins; asked once for the whole chart and
-    // read by the placement pass at the bottom.
+    // read by the placement pass.
     const std::map<Fraction, SlideRamp> slide_ramp_starts =
-        makeSlideRampStarts(resolutions.connections, tempo_map);
-
-    state.shapes.reserve(resolutions.shapes.size());
-    // The shared arrival rule, answered for every span once per chart revision beside the spans
-    // themselves (\ref ChartResolutions::arrivals) — the absorption rule keys on the same answer,
-    // so deriving it here as well would be the class asked twice.
-    const std::vector<bool>& arrivals = resolutions.arrivals;
-
-    // WHERE a posture string states its fret, decided per string by what heads that string AT THE
-    // INSTANT THE BRACKET DRAWS — the posture-smart rule. Answered here rather than in the tab
-    // painter because the drawn digit needs a hit target, so the painter's column and the click's
-    // column come from one statement instead of two derivations free to disagree.
-    //
-    // THE DIGIT WINDOW is that one instant and nothing besides. A head LATER in the span never
-    // suppresses, because the opening bracket is the span's CHORD FRAME: it states the whole
-    // membership at the moment the reader meets it, so members that accumulate in afterwards print
-    // their frets there exactly as the ones already down do. Asking over the whole span instead
-    // would empty an accumulation's frame of everything still to arrive, and its inclusive end
-    // would let the very onset that CLOSED the span decide the digits inside it.
-    //
-    // Three answers, one question about the one head this instant can carry. NOTHING heads the
-    // string: the bracket's centre is the whole of what states the stop — the silent-string case
-    // and the carried-ring case alike, and the case a member arriving later is in. A head SOUNDING
-    // AT THIS PLACE states it already, so the bracket prints nothing beside it. A head sounding at
-    // ANOTHER place, WHICHEVER HAND MADE IT, owns the string's centre — the centred digit sits
-    // exactly where a head at this instant sits and the note pass paints after the brackets — so
-    // the grip it does not state takes the column beside the bracket, the one slot a head cannot
-    // paint over: the centre carries what SOUNDS and the satellite what the fretting hand HOLDS.
-    // THE PLACE IS PART OF THE TEST on every arm, compared as a stop and never as a printed
-    // number (\ref ChartStop): a head prints where it SOUNDS (tabNoteHeadText reads the same
-    // authority), so a node head over a node grip suppresses because both are that node, and a
-    // fretted head over a node grip printing the same digit does not — a number stated twice
-    // beside itself is the only thing suppression exists to prevent, and two different places are
-    // not one number.
-    const std::vector<Fraction>& places = resolutions.connections.places;
-    const auto digit_slot = [&notes, &places](
-                                const Fraction at,
-                                const int string,
-                                const ChartStop& stop) -> std::optional<StopMarkSlot> {
-        // The ONE head this string can carry here: the stream is sorted by (position, string) and
-        // refuses duplicate onsets (\ref ChartErrorCode::UnsortedOrDuplicateNotes), so the first
-        // match is the only match and there is never a second answer to reconcile with it.
-        for (auto index = static_cast<std::size_t>(
-                 std::distance(places.begin(), std::ranges::lower_bound(places, at)));
-             index < notes.size() && places[index] == at;
-             ++index)
-        {
-            const ChartNote& head = notes[index];
-            if (head.string != string)
-            {
-                continue;
-            }
-            const ChartStop printed =
-                soundingStopAt(head.harmonic_node, head.attack, head.fret, head.fret);
-            if (printed == stop)
-            {
-                return std::nullopt;
-            }
-            return StopMarkSlot::Satellite;
-        }
-        return StopMarkSlot::Bracket;
-    };
-
-    for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
-    {
-        const ChartShape& shape = resolutions.shapes[shape_index];
-        const Fraction place = shape.place;
-        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK (shape rule 4; published as
-        // \ref ChartShape::bracket_place). Every span an EVENT states carries its own FRONT; a
-        // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
-        // interior SOUNDING instead, because nothing at all is stated at a boundary; one that never
-        // sounds interiorly carries nothing and draws no mark.
-        //
-        // Read rather than re-scanned: a scan here for "the first sounding at or after the span's
-        // start" would be the walk's own grouping question asked a second time, against an extent
-        // the closing trim has already shortened.
-        //
-        // ONE condition gates it, and this is the one: a bracket is ARPEGGIO furniture. A box-class
-        // span states itself with its strums' own boxes and opens no mark of its own, which is the
-        // ordinary disposition of a landing successor rather than a corner of one. Everything
-        // downstream keys on this optional: the deferred bracket and the coincidence rule that
-        // suppresses a chord box under an arpeggio box both ask "is a mark drawn here", and there
-        // is one answer to ask.
-        //
-        // Bound once so the presence test and every read below are provably the same object.
-        const std::optional<Fraction> bracket =
-            arrivals[shape_index] ? shape.bracket_place : std::optional<Fraction>{};
-
-        std::vector<ShapeStringViewState> strings;
-        if (shape.posture < resolutions.postures.size())
-        {
-            const ChartPosture& posture = resolutions.postures[shape.posture];
-            // Posture array index 0 is the lowest string. The bracket states the grip and nothing
-            // else: a ring struck before the span is a tail, whatever sounds under the shape.
-            for (std::size_t index = 0; index < posture.stops.size(); ++index)
-            {
-                // Bound to a local so the optional check and the access are provably the same
-                // object (bugprone-unchecked-optional-access cannot track repeated indexing).
-                const std::optional<ChartStop>& stop = posture.stops[index];
-                if (!stop.has_value())
-                {
-                    continue;
-                }
-                const int string = static_cast<int>(index) + 1;
-                strings.push_back(
-                    ShapeStringViewState{
-                        .string = string,
-                        .stop = *stop,
-                        // Asked AT the mark's own instant, which is the whole window (THE DIGIT
-                        // WINDOW above): the bracket is the span's chord frame, so it states every
-                        // member no head right there already states at its own place. A span
-                        // drawing no bracket prints no digit anywhere, which is exactly the
-                        // empty slot — the posture entry itself stays, because the POSTURE is a
-                        // fact of its own that the class rule and the repeat-box identity test
-                        // both read.
-                        .digit = bracket.has_value() ? digit_slot(*bracket, string, *stop)
-                                                     : std::optional<StopMarkSlot>{},
-                    });
-            }
-        }
-        state.shapes.push_back(
-            ShapeViewState{
-                .start_seconds = tempo_map.secondsAtWholeNote(place),
-                // BOTH ENDS, from the one site that owns them. The DRAWN extent is where shape rule
-                // 6's margin is taken and the only place it is (\ref drawnShapeExtent); the CLOSE
-                // is what the walk stored, published verbatim so the editor's reveal has the truth
-                // to reach for and no surface has to undo the trim to get it.
-                .drawn_end_seconds = tempo_map.secondsAtWholeNote(
-                    place + drawnShapeExtent(shape, resolutions.margins)),
-                .close_seconds = tempo_map.secondsAtWholeNote(place + shape.sustain),
-                // A strummed chord is a box; sequential arrival, or a posture string ringing
-                // through the start un-restruck, renders as arpeggio brackets.
-                .arpeggio = arrivals[shape_index],
-                .strings = std::move(strings),
-                .bracket_seconds =
-                    bracket.has_value()
-                        ? std::optional<double>{tempo_map.secondsAtWholeNote(*bracket)}
-                        : std::nullopt,
-            });
-    }
+        makeSlideRampStarts(resolutions.connections);
 
     // EVERY instant below — onsets included — takes the one route to the clock: its whole-note
     // place, then the time query. One instant reached two ways (a ring ending on the next head, a
@@ -511,8 +386,12 @@ ChartViewState makeChartViewState(
     // position standing at a chip, if any, is the one stored at the chip's own. The slide-out rides
     // (FretHandResolutions::rides) are arrivals like any other, so they ramp by the same rule and
     // crowd the arrivals beside them, but they are published apart, where no chip reads them.
+    //
+    // Each MARGIN morph's start is kept, ascending, for the span pass below: it is where the hand
+    // leaves whatever grip it held (\ref drawnShapeExtent).
     const std::vector<FretHandPosition>& authored = chart.fret_hand_positions;
-    double previous_arrival_seconds = tempo_map.secondsAtBeat(1, 1);
+    Fraction previous_arrival{};
+    std::vector<Fraction> move_starts;
     const auto arrival_of = [&](const FretHandEvent& event) {
         const Fraction fhp_place = event.front;
         const GridPosition fhp_position = tempo_map.gridPositionAtWholeNote(fhp_place);
@@ -524,14 +403,16 @@ ChartViewState makeChartViewState(
             statement = stated->end_fret.has_value() ? FhpAuthored::FretAndEnd : FhpAuthored::Fret;
         }
         const double arrival_seconds = tempo_map.secondsAtWholeNote(fhp_place);
-        double ramp_start_seconds = 0.0;
+        Fraction ramp_start{};
         bool unpitched_ramp = false;
         // The settle is the stretch of the glide past its rail's ink end: the rail is drawn to
         // the crop, the hand completes at the arrival, and the board eases the difference.
         double settle_seconds = 0.0;
-        if (const auto slide = slide_ramp_starts.find(fhp_place); slide != slide_ramp_starts.end())
+        const auto slide = slide_ramp_starts.find(fhp_place);
+        const bool rides_glide = slide != slide_ramp_starts.end();
+        if (rides_glide)
         {
-            ramp_start_seconds = slide->second.start_seconds;
+            ramp_start = slide->second.start;
             unpitched_ramp = slide->second.unpitched;
             settle_seconds =
                 std::max(0.0, arrival_seconds - state.notes[slide->second.note].ink_end_seconds);
@@ -539,21 +420,23 @@ ChartViewState makeChartViewState(
         else
         {
             // A placement is not a head, so its margin is asked of the authority directly.
-            ramp_start_seconds = tempo_map.secondsAtWholeNote(
-                fhp_place - minimumSustainDistance(tempo_map, fhp_place));
+            ramp_start = fhp_place - minimumSustainDistance(tempo_map, fhp_place);
         }
         // A ramp never reaches back past the previous arrival: crowded transitions shorten
         // against it rather than overlapping it.
-        ramp_start_seconds =
-            std::clamp(ramp_start_seconds, previous_arrival_seconds, arrival_seconds);
-        previous_arrival_seconds = arrival_seconds;
+        ramp_start = std::clamp(ramp_start, previous_arrival, fhp_place);
+        previous_arrival = fhp_place;
+        if (!rides_glide)
+        {
+            move_starts.push_back(ramp_start);
+        }
         return FhpViewState{
             .seconds = arrival_seconds,
             .position = fhp_position,
             .fret = event.window.fret,
             .width = event.window.width,
             .authored = statement,
-            .ramp_seconds = arrival_seconds - ramp_start_seconds,
+            .ramp_seconds = arrival_seconds - tempo_map.secondsAtWholeNote(ramp_start),
             .unpitched_ramp = unpitched_ramp,
             .settle_seconds = settle_seconds,
         };
@@ -573,6 +456,145 @@ ChartViewState makeChartViewState(
     for (; ride != hand.rides.end(); ++ride)
     {
         state.fret_hand_rides.push_back(arrival_of(*ride));
+    }
+
+    state.shapes.reserve(resolutions.shapes.size());
+    // The shared arrival rule, answered for every span once per chart revision beside the spans
+    // themselves (\ref ChartResolutions::arrivals) — the absorption rule keys on the same answer,
+    // so deriving it here as well would be the class asked twice.
+    const std::vector<bool>& arrivals = resolutions.arrivals;
+
+    // WHERE a posture string states its fret, decided per string by what heads that string AT THE
+    // INSTANT THE BRACKET DRAWS — the posture-smart rule. Answered here rather than in the tab
+    // painter because the drawn digit needs a hit target, so the painter's column and the click's
+    // column come from one statement instead of two derivations free to disagree.
+    //
+    // THE DIGIT WINDOW is that one instant and nothing besides. A head LATER in the span never
+    // suppresses, because the opening bracket is the span's CHORD FRAME: it states the whole
+    // membership at the moment the reader meets it, so members that accumulate in afterwards print
+    // their frets there exactly as the ones already down do. Asking over the whole span instead
+    // would empty an accumulation's frame of everything still to arrive, and its inclusive end
+    // would let the very onset that CLOSED the span decide the digits inside it.
+    //
+    // Three answers, one question about the one head this instant can carry. NOTHING heads the
+    // string: the bracket's centre is the whole of what states the stop — the silent-string case
+    // and the carried-ring case alike, and the case a member arriving later is in. A head SOUNDING
+    // AT THIS PLACE states it already, so the bracket prints nothing beside it. A head sounding at
+    // ANOTHER place, WHICHEVER HAND MADE IT, owns the string's centre — the centred digit sits
+    // exactly where a head at this instant sits and the note pass paints after the brackets — so
+    // the grip it does not state takes the column beside the bracket, the one slot a head cannot
+    // paint over: the centre carries what SOUNDS and the satellite what the fretting hand HOLDS.
+    // THE PLACE IS PART OF THE TEST on every arm, compared as a stop and never as a printed
+    // number (\ref ChartStop): a head prints where it SOUNDS (tabNoteHeadText reads the same
+    // authority), so a node head over a node grip suppresses because both are that node, and a
+    // fretted head over a node grip printing the same digit does not — a number stated twice
+    // beside itself is the only thing suppression exists to prevent, and two different places are
+    // not one number.
+    const auto digit_slot = [&notes, &places](
+                                const Fraction at,
+                                const int string,
+                                const ChartStop& stop) -> std::optional<StopMarkSlot> {
+        // The ONE head this string can carry here: the stream is sorted by (position, string) and
+        // refuses duplicate onsets (\ref ChartErrorCode::UnsortedOrDuplicateNotes), so the first
+        // match is the only match and there is never a second answer to reconcile with it.
+        for (auto index = static_cast<std::size_t>(
+                 std::distance(places.begin(), std::ranges::lower_bound(places, at)));
+             index < notes.size() && places[index] == at;
+             ++index)
+        {
+            const ChartNote& head = notes[index];
+            if (head.string != string)
+            {
+                continue;
+            }
+            const ChartStop printed =
+                soundingStopAt(head.harmonic_node, head.attack, head.fret, head.fret);
+            if (printed == stop)
+            {
+                return std::nullopt;
+            }
+            return StopMarkSlot::Satellite;
+        }
+        return StopMarkSlot::Bracket;
+    };
+
+    for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
+    {
+        const ChartShape& shape = resolutions.shapes[shape_index];
+        const Fraction place = shape.place;
+        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK (shape rule 4; published as
+        // \ref ChartShape::bracket_place). Every span an EVENT states carries its own FRONT; a
+        // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
+        // interior SOUNDING instead, because nothing at all is stated at a boundary; one that never
+        // sounds interiorly carries nothing and draws no mark.
+        //
+        // Read rather than re-scanned: a scan here for "the first sounding at or after the span's
+        // start" would be the walk's own grouping question asked a second time, against an extent
+        // the closing trim has already shortened.
+        //
+        // ONE condition gates it, and this is the one: a bracket is ARPEGGIO furniture. A box-class
+        // span states itself with its strums' own boxes and opens no mark of its own, which is the
+        // ordinary disposition of a landing successor rather than a corner of one. Everything
+        // downstream keys on this optional: the deferred bracket and the coincidence rule that
+        // suppresses a chord box under an arpeggio box both ask "is a mark drawn here", and there
+        // is one answer to ask.
+        //
+        // Bound once so the presence test and every read below are provably the same object.
+        const std::optional<Fraction> bracket =
+            arrivals[shape_index] ? shape.bracket_place : std::optional<Fraction>{};
+
+        std::vector<ShapeStringViewState> strings;
+        if (shape.posture < resolutions.postures.size())
+        {
+            const ChartPosture& posture = resolutions.postures[shape.posture];
+            // Posture array index 0 is the lowest string. The bracket states the grip and nothing
+            // else: a ring struck before the span is a tail, whatever sounds under the shape.
+            for (std::size_t index = 0; index < posture.stops.size(); ++index)
+            {
+                // Bound to a local so the optional check and the access are provably the same
+                // object (bugprone-unchecked-optional-access cannot track repeated indexing).
+                const std::optional<ChartStop>& stop = posture.stops[index];
+                if (!stop.has_value())
+                {
+                    continue;
+                }
+                const int string = static_cast<int>(index) + 1;
+                strings.push_back(
+                    ShapeStringViewState{
+                        .string = string,
+                        .stop = *stop,
+                        // Asked AT the mark's own instant, which is the whole window (THE DIGIT
+                        // WINDOW above): the bracket is the span's chord frame, so it states every
+                        // member no head right there already states at its own place. A span
+                        // drawing no bracket prints no digit anywhere, which is exactly the
+                        // empty slot — the posture entry itself stays, because the POSTURE is a
+                        // fact of its own that the class rule and the repeat-box identity test
+                        // both read.
+                        .digit = bracket.has_value() ? digit_slot(*bracket, string, *stop)
+                                                     : std::optional<StopMarkSlot>{},
+                    });
+            }
+        }
+        state.shapes.push_back(
+            ShapeViewState{
+                .start_seconds = tempo_map.secondsAtWholeNote(place),
+                // BOTH ENDS, from the one site that owns them. The DRAWN extent is where shape rule
+                // 6's trim is taken and the only place it is (\ref drawnShapeExtent), which is why
+                // the spans resolve after the hand's moves; the CLOSE is what the walk stored,
+                // published verbatim so the editor's reveal has the truth to reach for and no
+                // surface has to undo the trim to get it.
+                .drawn_end_seconds = tempo_map.secondsAtWholeNote(
+                    place + drawnShapeExtent(shape, resolutions.margins, move_starts)),
+                .close_seconds = tempo_map.secondsAtWholeNote(place + shape.sustain),
+                // A strummed chord is a box; sequential arrival, or a posture string ringing
+                // through the start un-restruck, renders as arpeggio brackets.
+                .arpeggio = arrivals[shape_index],
+                .strings = std::move(strings),
+                .bracket_seconds =
+                    bracket.has_value()
+                        ? std::optional<double>{tempo_map.secondsAtWholeNote(*bracket)}
+                        : std::nullopt,
+            });
     }
 
     // The 2D lane's visible-range indexes, over the further of each event's two ends

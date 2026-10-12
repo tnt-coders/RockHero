@@ -297,10 +297,10 @@ takes the next one.
      re-heads, a fresh grip re-heads, any interleaved onset re-heads, and a partial strike after a
      full chord re-heads. Only the 3D board draws boxes; the 2D lane states the same with the
      span's rails and name.
-6. **A drawn span keeps the minimum sustain distance before the head that closed it, and only a
-   drawn one.** The derivation stores the musical close (rule 3); the margin is applied once, where
-   the view state is built, so no margin sits inside the seams spans abut at. The same rule draws a
-   tapped chord's hold.
+6. **A drawn span keeps the minimum sustain distance before the head that closed it and ends where
+   the hand next moves, and only a drawn one.** The derivation stores the musical close (rule 3);
+   the trim is applied once, where the view state is built, so no margin sits inside the seams
+   spans abut at. The margin's half of the rule also draws a tapped chord's hold.
    - **The margin** is tail rule 1's minimum sustain distance, read at the closing head. Three
      published facts feed it. The closing head (`ChartShape::closing_onset_place`) is not the
      close: a span whose statement ran out before the event keeps its own length, and a close at a
@@ -308,11 +308,18 @@ takes the next one.
      successor starts. The last statement (`ChartShape::stated_extent`) floors the trim, so rails
      never retreat behind the strum they are drawn over. Where even that leaves nothing, the span
      draws to its musical close, the protection a crowded sustain keeps.
+   - **The hand's next move.** A drawn span never passes the start of the fretting hand's first
+     margin morph that begins after the span's front: there the hand leaves the grip, so the
+     furniture ends where the morph begins instead of riding it. It is a second limit beside the
+     closing head's, the earlier of the two binding, under the same floor and protection. It is
+     what bounds a span whose rings outlive the start of the move into the next position with no
+     head to cut them. A glide's ramp is not such a move: it is the span's own member travelling,
+     which the span covers (rule 4), so its rails ride the window with it.
    - **The close stays reachable.** The view state publishes both instants,
      `ShapeViewState::drawn_end_seconds`, which draws everywhere, and
      `ShapeViewState::close_seconds`. The editor's 2D lane draws a span to its close while the
      reveal modifier is held, while the selection holds a note the span covers, or while the caret
-     stands inside its tenure (`chartSpanRevealed`). Where no margin was owed the two instants
+     stands inside its tenure (`chartSpanRevealed`). Where no trim was owed the two instants
      coincide and the reveal moves nothing. The 3D board draws the trimmed extent alone.
 7. **A right-hand onset states no grip.** A finger resting on a fret makes no sound and no onset,
    so a hand holding a six-string shape and picking four of it streams exactly like a hand holding

@@ -3930,8 +3930,9 @@ void HighwayRenderer::Impl::draw(
         // travels with its slide, bend, and hand window in sync with the consumed tail; a
         // finished head stays there — consumed, never passing through the board — until its fade
         // is done. The pin runs to headPinEndSeconds; the fade is the head rule
-        // (boardHeadFade): with its tail and at the tail's rate, as if a tail were drawn to its
-        // stored ring where none is, and ending at the pin where the head is held past its ink.
+        // (boardHeadFade): with its tail and at the tail's rate; where no tail is drawn, from the
+        // strike over its stored ring capped at the shortest tail's fade; and ending at the pin
+        // where the head is held past its ink.
         const double head_seconds =
             std::clamp(now_seconds, note.start_seconds, headPinEndSeconds(*state, index));
         // The gesture is drawn only as far as the ink end, so a head pinned past it holds the

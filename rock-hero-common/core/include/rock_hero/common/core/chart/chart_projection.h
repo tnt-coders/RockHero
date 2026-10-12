@@ -22,15 +22,16 @@ namespace rock_hero::common::core
 
 A hold that a head closes keeps the minimum sustain distance before that head, so consecutive
 holds show the gap every other drawn element shows instead of butting exactly: the close is pulled
-back to \p limit, the head's position less one margin. The trim never retreats behind the last
-thing the hold STATES (\p stated), and where even that leaves nothing, the hold falls back to its
-musical close — exact adjacency, the sustain rules' own precedent. With no closing head there is
-no distance to keep, and the close stands. The same rule for a posture span's rails and a tapped
-chord's, in whatever unit the caller measures the hold in.
+back to \p limit, the head's position less one margin, or for a posture span the start of the
+hand's next move where that comes first. The trim never retreats behind the last thing the hold
+STATES (\p stated), and where even that leaves nothing, the hold falls back to its musical close —
+exact adjacency, the sustain rules' own precedent. With no limit there is nothing to keep clear
+of, and the close stands. The same rule for a posture span's rails and a tapped chord's, in
+whatever unit the caller measures the hold in.
 
 \param close The musical close, from the hold's start.
-\param limit The closing head's position less one margin, from the hold's start; empty where no
-       head closed the hold.
+\param limit The instant the drawn hold may not pass, from the hold's start; empty where nothing
+       bounds it short of its close.
 \param stated The extent of the hold's last statement; the trim's floor.
 \return The drawn extent: positive where the close is, and never past it.
 */

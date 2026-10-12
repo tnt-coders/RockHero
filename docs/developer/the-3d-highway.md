@@ -241,8 +241,9 @@ ring never fades.
 **A HEAD GOES WITH ITS TAIL** (`headFade`, beside `tailFadeSeconds`): the same rule, stated once as
 a window (`TipFade`, built by `tipFadeTo`), applied to the end of what the head states. A played
 head stays pinned at the hit line and dissolves with its ribbon's tip at the tip's own rate; one
-that draws no tail fades as if a tail were drawn to its stored ring, so a short stab starts
-dissolving the instant it is struck; and one held past its ink end (a span-held strum, a
+that draws no tail fades from the instant it is struck over its stored ring capped at the shortest
+tail (`g_tail_tip_fade_min_seconds`), so a short stab and a long dead note alike are gone within
+that stretch; and one held past its ink end (a span-held strum, a
 handed-over member pinned to its stored ring) keeps its pin and fades by the same rule measured to
 the pin's end, gone exactly as the pin releases — so a head held until the next strum re-shows the
 chord is gone as the newcomer lands, and the two never stack. The renderer composes it with its own
@@ -599,7 +600,9 @@ Three marks beside the lights, all on the raw window:
   while it lasts. Each rail is an emitter lit per fragment by the accent light's own program
   (`fs_accent_glow`: distance to the emitter, an exponent-shaped falloff, radiance over one that
   clips a bright core toward white) and added to the board, never painted over it. ONE pass draws every rail as `(track, from, to, colour)`, fed
-  by both hands: the fretting hand's posture spans over `fret_hand.track`, and every tapped chord
+  by both hands: the fretting hand's posture spans over `fret_hand.track` to each span's drawn end
+  (shape rule 6, which also stops a span where the hand's next margin morph begins, so its rails
+  never ride the move into the next position), and every tapped chord
   (`tappedChord`) over `pick_hand.track` from its onset to its `release_seconds` — the members'
   true ring end, the close the fretting hand's chord heads hold to, so a tapped chord with no drawn
   tail still has rails. A rail wears its hand's furniture colour (`HandLightStyle::rail_color`),

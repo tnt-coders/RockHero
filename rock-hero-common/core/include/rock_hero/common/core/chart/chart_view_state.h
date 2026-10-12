@@ -748,9 +748,11 @@ head states.
 That end is the head's PIN where the board holds the head at the hit line past its ink end (a
 span-held strum, a handed-over member pinned to its stored ring); otherwise the ink end, so a head
 goes with its tail at the tail's own rate; and for a note that draws no tail at all, its stored
-ring — the length a tail would have had. Every window ENDS at that instant and none runs past it,
-so a head pinned until the next strum re-shows the chord is gone exactly as the newcomer lands and
-the two never stack. The window is never empty: a drawn tail and a pin past it have length by
+ring capped at the shortest tail (\ref g_tail_tip_fade_min_seconds), so such a head fades from
+the strike and is gone within that stretch however long the string rings — a dead note's ring
+can be long and draws nothing to fade with. Every window ENDS at that instant and none runs past
+it, so a head pinned until the next strum re-shows the chord is gone exactly as the newcomer lands
+and the two never stack. The window is never empty: a drawn tail and a pin past it have length by
 definition, and a stored ring has length by the positive-sustain invariant.
 
 \param note The projected note.
@@ -764,9 +766,12 @@ definition, and a stored ring has length by the positive-sustain invariant.
     {
         return tipFadeTo(note, pin_end_seconds);
     }
+    // A tail-less head's window is never longer than the floor, so the tail rule fades it whole.
     return tipFadeTo(
         note,
-        note.ink_end_seconds > note.start_seconds ? note.ink_end_seconds : note.ring_end_seconds);
+        note.ink_end_seconds > note.start_seconds
+            ? note.ink_end_seconds
+            : std::min(note.ring_end_seconds, note.start_seconds + g_tail_tip_fade_min_seconds));
 }
 
 /*!
@@ -943,12 +948,14 @@ struct ShapeViewState
     Shape rule 6's answer and the only end anything draws unasked (\ref makeChartViewState, which
     is where the whole of that rule lives): the musical close pulled back to keep the minimum
     sustain distance before the head that closed the span, so consecutive spans show the gap every
-    other drawn element shows instead of butting exactly. The margin is a DISPLAY rule, so this is
-    the field it is in and \ref close_seconds beside it stays the musical fact.
+    other drawn element shows instead of butting exactly, and never past the start of the fretting
+    hand's next margin morph, so the rails stop where the hand leaves the grip instead of riding the
+    move. The trim is a DISPLAY rule, so this is the field it is in and \ref close_seconds beside it
+    stays the musical fact.
 
-    Never after \ref close_seconds, and EQUAL to it wherever no margin was owed — a span that simply
-    ran out, one whose rings died a full margin early, one closed at a slot of held fingers, and one
-    so crowded the trim left nothing. Two ends that coincide is the ordinary case, not a corner.
+    Never after \ref close_seconds, and EQUAL to it wherever nothing was owed — a span whose rings
+    died before the next onset and before the hand moved, one closed at a slot of held fingers, and
+    one so crowded the trim left nothing. Two ends that coincide is the ordinary case, not a corner.
     */
     double drawn_end_seconds{0.0};
 

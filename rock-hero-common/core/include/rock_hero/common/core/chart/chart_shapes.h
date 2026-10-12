@@ -177,14 +177,12 @@ struct ChartShape
     /*!
     \brief The place of the SOUNDING onset that closed this span, where one did.
 
-    The head shape rule 6's display trim keeps its distance from, and the whole of what the trim
-    needs beyond the close itself: it sits AT the close where the closing event is what ended the
-    span, and AFTER it where the statement had already run out before the event arrived — a span
-    whose rings died a full margin early keeps its own length and is not pulled back from a head it
-    never reached.
+    The head shape rule 6's display trim keeps its distance from. Present only where that head cut a
+    live statement, so it always sits AT the close: a span whose rings died before the event arrived
+    keeps its own length and is not pulled back from a head it never reached.
 
-    Empty on the two closes that have no head to clear. A span that simply RAN OUT has no closing
-    event at all, and a slot of HELD FINGERS sounds nothing to keep a distance from — there the
+    Empty on the closes that have no head to clear. A span that RAN OUT before any event cut it has
+    no closing head, and a slot of HELD FINGERS sounds nothing to keep a distance from — there the
     shape being replaced ends exactly where the new one starts, which is also what keeps a landing
     successor tiled onto its predecessor.
     */

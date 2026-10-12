@@ -555,8 +555,8 @@ TEST_CASE("Tip fade alpha is full, then linear, then gone", "[core][chart]")
 }
 
 // THE HEAD GOES WITH ITS TAIL: one fade rule for both, applied to the end of what the head states —
-// its ink end, its stored ring where it draws no tail, its pin where the board holds it past the
-// ink. Every window ends at that instant.
+// its ink end, its stored ring capped at the shortest tail where it draws no tail, its pin where
+// the board holds it past the ink. Every window ends at that instant.
 TEST_CASE("Head fade is the tail's rule at the end the head states", "[core][chart]")
 {
     SECTION("an unheld head with a drawn tail fades exactly as its tail does")
@@ -579,18 +579,24 @@ TEST_CASE("Head fade is the tail's rule at the end the head states", "[core][cha
         CHECK_THAT(short_tail.alphaAt(2.375), Catch::Matchers::WithinRel(0.5, 1e-12));
     }
 
-    SECTION("a head with no tail fades as if one were drawn to its stored ring")
+    SECTION("a head with no tail fades from the strike over its ring, capped at the shortest tail")
     {
-        // A short ring falls under the floor, so the head dissolves from the instant it is struck.
+        // A short ring falls under the cap, so the head dissolves from the instant it is struck
+        // and is gone at its own ring's end.
         const TipFade short_ring = headFade(fadeNote(2.0, 2.0, 2.1), 2.0);
         CHECK_THAT(short_ring.end_seconds, Catch::Matchers::WithinULP(2.1, 0));
         CHECK_THAT(short_ring.length_seconds, Catch::Matchers::WithinRel(0.1, 1e-12));
         CHECK_THAT(short_ring.alphaAt(2.0), Catch::Matchers::WithinULP(1.0, 0));
         CHECK_THAT(short_ring.alphaAt(2.05), Catch::Matchers::WithinRel(0.5, 1e-9));
-        // A long one — a dead note's, which draws no tail at any length — takes the fraction.
+        // A long one — a dead note's, which draws no tail at any length — is capped: the head
+        // still fades from the strike and is gone a quarter second later, never lingering for the
+        // four seconds the string is stored to ring.
         const TipFade long_ring = headFade(fadeNote(2.0, 2.0, 6.0), 2.0);
-        CHECK_THAT(long_ring.end_seconds, Catch::Matchers::WithinULP(6.0, 0));
-        CHECK_THAT(long_ring.length_seconds, Catch::Matchers::WithinRel(1.4, 1e-12));
+        CHECK_THAT(long_ring.end_seconds, Catch::Matchers::WithinULP(2.25, 0));
+        CHECK_THAT(long_ring.length_seconds, Catch::Matchers::WithinRel(0.25, 1e-12));
+        CHECK_THAT(long_ring.alphaAt(2.0), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(long_ring.alphaAt(2.125), Catch::Matchers::WithinRel(0.5, 1e-9));
+        CHECK_THAT(long_ring.alphaAt(2.25), Catch::Matchers::WithinULP(0.0, 0));
     }
 
     SECTION("a head held past its ink keeps its pin and is gone at the pin's end")
@@ -1094,10 +1100,12 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
 // arms a blanket "close minus a margin" would get wrong.
 //
 // BOTH ENDS are pinned in every section, because the view state publishes both and the editor's
-// span reveal draws to the second. What separates them is the CLOSE CLASS and nothing else: where
-// an EVENT closed the span a margin is owed and the drawn extent falls short of the close, and
-// where the statement ran out, the rings died early, or the close sounds nothing, no margin is
-// owed and the two ends are the same instant — so a reveal there must move nothing at all.
+// span reveal draws to the second. What separates them is the CLOSE CLASS and the hand's next
+// move: where an EVENT closed the span a margin is owed and the drawn extent falls short of the
+// close, where the hand's next margin morph begins inside the span the extent stops there, and
+// where the statement ran out, the rings died early, or the close sounds nothing, with the hand
+// still, nothing is owed and the two ends are the same instant — so a reveal there must move
+// nothing at all.
 TEST_CASE(
     "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
 {
@@ -1244,6 +1252,96 @@ TEST_CASE(
         // A close where the picking hand alone sounds publishes no head to keep clear of, so the
         // two ends are one instant: the reveal moves nothing, which is exactly what keeps it from
         // implying a trim that never happened.
+        CHECK_THAT(
+            state.shapes[0].close_seconds,
+            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
+    }
+
+    // Where the rings die a sixty-fourth before the note at beat 2.5 (0.75 s): no head cuts them,
+    // so the margin owes nothing, and only the hand's next move can bound the span.
+    const GridPosition next_onset{.measure = 1, .beat = 2, .offset = Fraction{1, 2}};
+    const Fraction rings_short{23, 64};
+
+    SECTION("a span whose rings outlive the start of the hand's next move ends where it begins")
+    {
+        // Fret 12 lies outside the chord's window, so the hand morphs over the margin into the next
+        // position from 0.7 s — while the chord still rings to 0.71875 s. The rails stop where the
+        // move begins instead of riding it.
+        const ChartViewState state = project({
+            note(one, 1, 5, rings_short),
+            note(one, 2, 7, rings_short),
+            note(next_onset, 3, 12, Fraction{1, 8}),
+        });
+        REQUIRE(state.fret_hand_positions.size() == 2);
+        // Bound once, so the count check and the reads after it are provably the same object.
+        const FhpViewState& move = state.fret_hand_positions[1];
+        CHECK(move.seconds == Catch::Approx(0.75));
+        CHECK(move.ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(move.seconds - move.ramp_seconds));
+        // The close is the rings' own end, past the move's start: the trim is display alone.
+        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.71875));
+    }
+
+    SECTION("a span its closing head ends before the hand's next move keeps the head's margin")
+    {
+        // A new fret on a held string, inside the same window, contradicts the grip at beat 2: the
+        // head cuts the span there and the rails stop one margin short. The move to fret 12 begins
+        // only at 0.95 s, so it has nothing to take off.
+        const ChartViewState state = project({
+            note(one, 1, 5, Fraction{1, 4}),
+            note(one, 2, 7, Fraction{1, 4}),
+            note(two, 1, 7, Fraction{1, 8}),
+            note(GridPosition{.measure = 1, .beat = 3}, 3, 12, Fraction{1, 8}),
+        });
+        REQUIRE(state.fret_hand_positions.size() == 2);
+        CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(1.0));
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.45));
+        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.5));
+    }
+
+    SECTION("a span whose hand stays put keeps its rings' length")
+    {
+        // The same chord, the next note inside its window: no move follows, so the span owes
+        // nothing and is drawn to where its rings died, a sixty-fourth short of the head.
+        const ChartViewState state = project({
+            note(one, 1, 5, rings_short),
+            note(one, 2, 7, rings_short),
+            note(next_onset, 3, 7, Fraction{1, 8}),
+        });
+        REQUIRE(state.fret_hand_positions.size() == 1);
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.71875));
+        CHECK_THAT(
+            state.shapes[0].close_seconds,
+            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
+    }
+
+    SECTION("a glide the span covers is no move: its rails ride the window to the landing")
+    {
+        // Both members hold their frets for an eighth, then glide three frets up to land at beat 2
+        // (0.5 s) and ring on. The hand rides that glide from 0.25 s, a ramp beginning inside the
+        // span, and the span still runs to the landing: it is the span's own members travelling.
+        const auto glide = [](const int string, const int fret) {
+            return ChartNote{
+                .position = GridPosition{.measure = 1, .beat = 1},
+                .string = string,
+                .fret = fret,
+                .sustain = Fraction{1, 2},
+                .bend = {},
+                .keyframes = {
+                    Keyframe{.offset = Fraction{1, 8}, .fret = fret},
+                    Keyframe{.offset = Fraction{1, 4}, .fret = fret + 3},
+                },
+            };
+        };
+        const ChartViewState state = project({glide(1, 5), glide(2, 7)});
+        REQUIRE(state.fret_hand_positions.size() == 2);
+        CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(0.5));
+        CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.25));
+        REQUIRE_FALSE(state.shapes.empty());
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
         CHECK_THAT(
             state.shapes[0].close_seconds,
             Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
