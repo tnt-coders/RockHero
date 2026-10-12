@@ -50,11 +50,18 @@ struct HighwayTheme
     ArgbColor lit_lane_dotted;
 
     /*!
-    \brief The per-fret runway ribbons, which scale its alpha by their light tiers.
+    \brief The per-fret runway ribbons outside every hand's light; its alpha sets how far they
+    fade away from the hand window, from nearly invisible to solid.
+    */
+    ArgbColor lane_line;
+
+    /*!
+    \brief The runway ribbons at a hand's full light; a ribbon crossfades toward it from lane_line
+    by its light tiers.
 
     A dotted fret's number outside the hand window wears it at half alpha.
     */
-    ArgbColor lane_line;
+    ArgbColor lane_line_lit;
 
     /*! \brief Fret lines outside every hand's light. */
     ArgbColor fret_line;
@@ -64,7 +71,7 @@ struct HighwayTheme
 
     /*!
     \brief A dotted fret's number on a measure downbeat inside the hand window; a number the window
-    covers partly blends toward it from lane_line at half alpha.
+    covers partly blends toward it from lane_line_lit at half alpha.
     */
     ArgbColor fret_number_lit;
 

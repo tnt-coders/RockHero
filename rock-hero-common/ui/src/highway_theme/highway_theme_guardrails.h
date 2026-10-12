@@ -19,7 +19,7 @@ namespace rock_hero::common::ui
 Four distinctions are carried by color: the kind of span and the hand that holds it, on every box
 and rail (chord against arpeggio, each against its picking-hand counterpart, the two picking-hand
 colors against each other, and the 2D lane's chord ink against its arpeggio ink); the three states
-of a fret number (fret_number_lit, the dim number derived from lane_line, fret_number_target,
+of a fret number (fret_number_lit, the dim number derived from lane_line_lit, fret_number_target,
 pairwise); and the two hands' strike pops (strike_fretting, strike_picking). Each pair must lie a
 minimum CIELAB distance apart, and so must every two string colors. The lit fret line must also be
 lighter than the unlit one by a margin, since the hand window is read from it.

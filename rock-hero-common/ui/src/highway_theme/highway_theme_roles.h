@@ -38,6 +38,7 @@ inline constexpr std::array g_highway_theme_roles{
     HighwayThemeRole{.name = "lit_lane", .member = &HighwayTheme::lit_lane},
     HighwayThemeRole{.name = "lit_lane_dotted", .member = &HighwayTheme::lit_lane_dotted},
     HighwayThemeRole{.name = "lane_line", .member = &HighwayTheme::lane_line},
+    HighwayThemeRole{.name = "lane_line_lit", .member = &HighwayTheme::lane_line_lit},
     HighwayThemeRole{.name = "fret_line", .member = &HighwayTheme::fret_line},
     HighwayThemeRole{.name = "fret_line_lit", .member = &HighwayTheme::fret_line_lit},
     HighwayThemeRole{.name = "fret_number_lit", .member = &HighwayTheme::fret_number_lit},

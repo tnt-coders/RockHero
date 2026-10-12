@@ -392,12 +392,12 @@ TEST_CASE("A theme whose art breaks the texture contract is refused", "[ui][high
 TEST_CASE("A theme that collapses a color distinction is refused", "[ui][highway-theme]")
 {
     // Each case copies one color onto another it must stay distinct from; a color copied onto
-    // lane_line reaches the dim fret number derived from it.
+    // lane_line_lit reaches the dim fret number derived from it.
     constexpr std::array<std::array<std::string_view, 2>, 6> collapses{{
         {"chord", "arpeggio"},
-        {"fret_number_lit", "lane_line"},
+        {"fret_number_lit", "lane_line_lit"},
         {"fret_number_lit", "fret_number_target"},
-        {"fret_number_target", "lane_line"},
+        {"fret_number_target", "lane_line_lit"},
         {"strike_fretting", "strike_picking"},
         {"fret_line_lit", "fret_line"},
     }};

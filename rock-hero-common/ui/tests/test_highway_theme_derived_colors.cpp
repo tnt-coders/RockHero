@@ -111,15 +111,17 @@ TEST_CASE("A 2D span ink blends a dark base toward white", "[ui][highway-theme]"
     CHECK_THAT(cielabOf(ink).lightness, Catch::Matchers::WithinAbs(g_span_ink_lightness, 0.5));
 }
 
-// The dim fret number is the lane lines' color at half their alpha, rounded half up.
-TEST_CASE("The dim fret number is lane_line at half alpha", "[ui][highway-theme]")
+// The dim fret number is the lit lane lines' color at half their alpha, rounded half up; the faint
+// lane_line away from the window never reaches it.
+TEST_CASE("The dim fret number is lane_line_lit at half alpha", "[ui][highway-theme]")
 {
     HighwayTheme theme = testing::fixtureHighwayTheme();
-    theme.lane_line = 0xFF6C7EB4U;
+    theme.lane_line = 0x1F102030U;
+    theme.lane_line_lit = 0xFF6C7EB4U;
     CHECK(fretNumberDim(theme) == 0x806C7EB4U);
-    theme.lane_line = 0x40408090U;
+    theme.lane_line_lit = 0x40408090U;
     CHECK(fretNumberDim(theme) == 0x20408090U);
-    theme.lane_line = 0x01408090U;
+    theme.lane_line_lit = 0x01408090U;
     CHECK(fretNumberDim(theme) == 0x01408090U);
 }
 

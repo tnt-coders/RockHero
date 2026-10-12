@@ -109,6 +109,9 @@ constexpr double g_light_decay_seconds = 0.1;
 // light's short decay — reads as jarring, so the ribbon layer lets the light go out slowly while
 // the floor patch and the fret-line tier keep the light's own decay. Both hands' lights fade here.
 constexpr double g_ribbon_decay_seconds = 0.6;
+// How far the ribbons' mid tier lifts a line from lane_line toward lane_line_lit. With lane_line
+// at 1/8 of lane_line_lit's alpha, as the built-in theme has it, 2/7 lands the tier at 3/8.
+constexpr double g_ribbon_mid_tier_lift = 2.0 / 7.0;
 // Sustain slope shading: the modulated tail's centerline slope modulates its brightness like a
 // surface tilting under a fixed light, so a bend's climb, hold, and release — and a vibrato's
 // wobble — read from shading alone even where screen-space lift is foreshortened at center
@@ -5481,9 +5484,10 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
     auto [vertices, indices] = scratch.colorBatch();
     // At least one strip per fret line, four vertices each.
     vertices.reserve(4 * (static_cast<std::size_t>(g_face_fret_count) + 1));
-    // One strip of one line between two samples, each end at its own tier alpha: the faint base,
-    // lifted by the mid tier's quarter, then lifted toward full by the bright tier. The bright tier
-    // is one value for the whole strip, so it crossfades every strip at once.
+    // One strip of one line between two samples, each end at its own tier: lane_line away from
+    // every light, lifted toward lane_line_lit by the mid tier, then lifted the rest of the way by
+    // the bright tier. The bright tier is one value for the whole strip, so it crossfades every
+    // strip at once.
     const auto push_strip = [&](const int line,
                                 const std::size_t from,
                                 const std::size_t to,
@@ -5491,8 +5495,9 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
                                 const double mid_to) {
         const double bright = lit_now.at(static_cast<std::size_t>(line));
         const auto tint = [&](const double mid) {
-            const double base = 0.125 + (0.25 * mid);
-            return packAbgr(theme.lane_line, base + ((1.0 - base) * bright));
+            const double base = g_ribbon_mid_tier_lift * mid;
+            return packAbgr(
+                mixArgb(theme.lane_line, theme.lane_line_lit, base + ((1.0 - base) * bright)));
         };
         const double x = common::core::highwayFretLineX(line, metrics, mirrored);
         pushFloorQuad(

@@ -89,11 +89,11 @@ keeps its hue but gives up chroma; black blends to the grey of that luminance.
 /*!
 \brief Derives the color of a dotted fret's number on a measure downbeat outside the hand window.
 
-The number sits on the lane lines it labels, so it wears their color at half its alpha (rounded half
-up); a number the window covers partly blends from it toward fret_number_lit.
+The number sits on the lane lines it labels, so it wears their lit color at half its alpha (rounded
+half up); a number the window covers partly blends from it toward fret_number_lit.
 
 \param theme The theme.
-\return lane_line at half alpha.
+\return lane_line_lit at half alpha.
 */
 [[nodiscard]] ArgbColor fretNumberDim(const HighwayTheme& theme);
 

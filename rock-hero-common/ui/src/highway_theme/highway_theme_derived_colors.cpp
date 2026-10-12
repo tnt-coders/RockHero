@@ -182,8 +182,8 @@ ArgbColor laneShapeInk(const ArgbColor base)
 
 ArgbColor fretNumberDim(const HighwayTheme& theme)
 {
-    const ArgbColor alpha = (theme.lane_line >> 24U) & 0xFFU;
-    return (((alpha + 1U) / 2U) << 24U) | (theme.lane_line & 0x00FFFFFFU);
+    const ArgbColor alpha = (theme.lane_line_lit >> 24U) & 0xFFU;
+    return (((alpha + 1U) / 2U) << 24U) | (theme.lane_line_lit & 0x00FFFFFFU);
 }
 
 } // namespace rock_hero::common::ui

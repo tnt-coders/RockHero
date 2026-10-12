@@ -23,7 +23,7 @@ survives only as the user's private theme (54-Q10).
 
 ## Goal
 
-The 3D highway's look becomes data: a **theme** of 20 color roles plus three validated texture
+The 3D highway's look becomes data: a **theme** of 21 color roles plus three validated texture
 assets, resolved from theme directories through one loader. The built-in themes are original
 RockHero designs. Today's look leaves the shipped tree with them: its chrome colors are Charter's
 values (the renderer's comments say so at `highway_renderer.cpp:199`, `:415`, `:1595`), its
@@ -44,7 +44,7 @@ detailed inventory; this is the summary they resolve to.
 
 | Owner | What it holds |
 |---|---|
-| **The theme** (`theme.json` plus its assets) | The 20 color roles (backdrop, board chrome, hand window, fret numbers, attack line, the chord and arpeggio colors every box and rail of either hand derives from, both hands' strike pops, full-mute mark, capo, inlay tint and opacity, label text); its eight **string colors** (54-Q18); the head **material** (54-Q19); the repeat-box art (`chords.png`); and its **choices** of head shape and inlay (54-Q19). The player may pin the string colors, head shape and inlay |
+| **The theme** (`theme.json` plus its assets) | The 21 color roles (backdrop, board chrome, hand window, fret numbers, attack line, the chord and arpeggio colors every box and rail of either hand derives from, both hands' strike pops, full-mute mark, capo, inlay tint and opacity, label text); its eight **string colors** (54-Q18); the head **material** (54-Q19); the repeat-box art (`chords.png`); and its **choices** of head shape and inlay (54-Q19). The player may pin the string colors, head shape and inlay |
 | **The player** (settings shared by both products, plan 70) | Which theme is active; one pin each for string palette, head shape and inlay, defaulting to "Theme's choice"; mirroring, string orientation (54-Q5) and plan 69's display toggles |
 | **RockHero, fixed** (code and one fixed sheet) | The technique marks (S3); the chord device and open-bar posts (S1, S2); every geometry, camera, timing, tail, light and emphasis law; shaders; the atlas layout and cell meanings; the palette, shape and inlay libraries' contracts |
 
@@ -161,7 +161,7 @@ baseline; the names and the set are the model ruled 2026-10-11 (see "Schema guar
 | `attack_line` | drawn in `g_chord_box_color` today: downbeat line :5849, fret-span lines :4867, keyframe lines :4904 | (chord box) | — | MUST — split from `chord_box` |
 | `lit_lane` | `g_lit_lane_color` :87 | 0x402590E8 | yes (:5785) | MUST |
 | `lit_lane_dotted` | `g_lit_lane_dotted_color` :88 | 0x40185C94 | yes | MUST |
-| `lane_line` | `g_lane_border_color` :195, forced opaque at :709 and :5638 | 0x0007928F | **no** — store opaque, drop the two `\| 0xFF000000U` | MUST — renamed from `lane_border`; paints the lane ribbons only |
+| `lane_line` | `g_lane_border_color` :195, forced opaque at :709 and :5638 | 0x0007928F | **no** — store opaque, drop the two `\| 0xFF000000U` | MUST — renamed from `lane_border`; paints the lane ribbons only; since 54-Q20's re-ruling, the ribbons away from every light, with `lane_line_lit` at full light |
 | `fret_line` | `g_fret_inactive_color` :196 | 0xFF202020 | yes | MUST |
 | `fret_line_lit` | `g_fret_active_color` :197 | 0xFFC0C0C0 | yes | MUST |
 | `fret_number_lit` | `g_fret_number_active_color` :202 | 0xFF87DDF6 | yes | MUST |
@@ -306,10 +306,12 @@ picking hand's colors are derived by `pickingHandColor` (see "Derived in code, n
 hue says the kind and colorfulness says the hand. `lane_border` becomes `lane_line` and paints only
 the lane ribbons, since the rails now wear their kind's color; a theme sets its lane lines anywhere
 from clearly defined to nearly invisible by `lane_line` alone, and the ribbons' falloff away from
-the hand window (the 1/8 tier, 54-Q20) stays a light law in code. `pick_furniture`,
+the hand window (the 1/8 tier, 54-Q20) stays a light law in code (superseded 2026-10-12: see
+54-Q20). `pick_furniture`,
 `chord_box_dark` and `fret_number_dim` are deleted as roles, now derived. This supersedes the
 earlier same-day split of `lane_border` into `lane_line` and a `shape_rail` role (24 roles):
-`shape_rail` is never added, and the theme holds 20 roles. The ice theme's `chord` is `#5CD3F5`
+`shape_rail` is never added, and the theme holds 20 roles (21 since 54-Q20's re-ruling added
+`lane_line_lit`). The ice theme's `chord` is `#5CD3F5`
 (ice cyan) and its `arpeggio` `#A361FF` (a vivid purple at nearly ice cyan's perceived weight),
 RULED 2026-10-12 by the user from a sighting of 33 pairs. Chords and arpeggios keep separate colors
 because they are edited as different things; a one-color theme stays refused by the guardrails.
@@ -483,7 +485,7 @@ Each carries a recommendation; none is decided until the user rules.
   because the repository is public. It is saved as files outside the tree before any of its values
   leave the default, and loads in-app once Phase 2a lands (Phase 3); until then the user accepts
   that it cannot be selected (2026-10-09).
-  - **What it holds:** today's colors in the 20 roles, `notes.png` (heads only after the Phase 4b
+  - **What it holds:** today's colors in the 21 roles, `notes.png` (heads only after the Phase 4b
     split), `inlays.png`, `chords.png`, and the Charter license notice.
   - **What it cannot hold:** the code-drawn parts (S1 chord-box holders and gradient bars, S2
     open-bar posts) and, from Phase 5, today's mark drawings on the fixed sheet (S3). It draws
@@ -573,6 +575,15 @@ Each carries a recommendation; none is decided until the user rules.
   **RULED 2026-10-11 (user): A, keep 1/8.** B existed only because a saturated accent still glows
   at 1/8; a theme controls its lines' visibility through its own color, from clearly defined to
   nearly invisible. The ratio stays a light law in code.
+
+  **RE-RULED 2026-10-12 (user): the theme sets the faint tier.** Sighting Retro Arcade, the user
+  wanted the lines outside the hand window to fade much less, and wants themes to control that;
+  under the ruling above a theme could only dim them. The ribbons now mirror the fret lines:
+  `lane_line` is the color away from every light, alpha included, and the new `lane_line_lit`
+  the color at full light, the tiers crossfading between them (the mid tier lifts 2/7 of the
+  way). Ice states `lane_line` as its lit color at alpha `0x1F`, today's 1/8 tier, so its look
+  holds; the dim fret number derives from `lane_line_lit`. The tiers' timing stays a light law
+  in code.
 - **54-Q21 — the note targets' default. Recast 2026-10-11:** the cue, renamed "Note Targets"
   (user, after a naming review: "ring" was wrong about the shape and "anticipation" already means
   a timing in music), becomes a player toggle (plan 69), so the sighting below decides whether it
