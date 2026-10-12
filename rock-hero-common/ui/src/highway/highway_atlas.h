@@ -83,7 +83,7 @@ struct HighwayAtlasLayout
     */
     [[nodiscard]] constexpr int columns() const noexcept
     {
-        return cell_size > 0 ? texture_width / pitch() : 0;
+        return pitch() > 0 ? texture_width / pitch() : 0;
     }
 
     /*!
@@ -92,7 +92,7 @@ struct HighwayAtlasLayout
     */
     [[nodiscard]] constexpr int rows() const noexcept
     {
-        return cell_size > 0 ? texture_height / pitch() : 0;
+        return pitch() > 0 ? texture_height / pitch() : 0;
     }
 
     /*!

@@ -130,15 +130,16 @@ std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcep
 // A cell's art starts one gutter into its slot.
 std::array<int, 2> HighwayAtlasLayout::cellOrigin(const int index) const noexcept
 {
-    if (capacity() <= 0)
+    const int cells_per_row = columns();
+    if (cells_per_row <= 0 || rows() <= 0)
     {
         return {0, 0};
     }
 
     const int clamped = std::clamp(index, 0, capacity() - 1);
     return {
-        ((clamped % columns()) * pitch()) + gutter,
-        ((clamped / columns()) * pitch()) + gutter,
+        ((clamped % cells_per_row) * pitch()) + gutter,
+        ((clamped / cells_per_row) * pitch()) + gutter,
     };
 }
 
