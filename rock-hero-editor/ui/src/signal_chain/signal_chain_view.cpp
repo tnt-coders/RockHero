@@ -57,6 +57,10 @@ constexpr float g_pan_knob_start_angle{
 };
 constexpr float g_pan_knob_end_angle{juce::MathConstants<float>::twoPi + g_pan_knob_sweep_radians};
 constexpr float g_pan_knob_ring_stroke{2.5f};
+// The output controls' resolutions in whole steps per unit: the fader moves in tenths of a decibel
+// and the knob in whole percent of full deflection. Each slider's interval is one step.
+constexpr double g_output_gain_steps_per_db{10.0};
+constexpr double g_pan_steps_per_unit{100.0};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
@@ -279,12 +283,25 @@ void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
 {
     slider.setComponentID(component_id);
     slider.setSliderStyle(juce::Slider::LinearVertical);
-    slider.setRange(common::audio::minimumGainDb(), common::audio::maximumGainDb(), 0.1);
+    slider.setRange(
+        common::audio::minimumGainDb(),
+        common::audio::maximumGainDb(),
+        1.0 / g_output_gain_steps_per_db);
     slider.setValue(common::audio::defaultGainDb(), juce::dontSendNotification);
     slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
     slider.setTextBoxStyle(
         juce::Slider::TextBoxBelow, false, g_output_gain_width, g_gain_value_height);
     slider.setTextValueSuffix(" dB");
+}
+
+// The slider's value as a whole count of its steps divided back out, which lands on the double
+// nearest the decimal value, the normal form quantizeInputCalibrationGainDb gives a calibration
+// gain. JUCE's own snap computes start + interval * count, which a fused multiply-add (arm64)
+// leaves one ulp off that double: a stored -6 dB reads back as -5.999999999999999 and a centred
+// pan as 2e-17. The + 0.0 turns a rounded -0.0 into +0.0.
+[[nodiscard]] double steppedValue(const juce::Slider& slider, const double steps_per_unit)
+{
+    return (std::round(slider.getValue() * steps_per_unit) / steps_per_unit) + 0.0;
 }
 
 } // namespace
@@ -351,7 +368,9 @@ SignalChainView::SignalChainView(Listener& listener)
     m_output_pan_knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     m_output_pan_knob.setRotaryParameters(g_pan_knob_start_angle, g_pan_knob_end_angle, true);
     m_output_pan_knob.setRange(
-        common::audio::minimumPanPosition(), common::audio::maximumPanPosition(), 0.01);
+        common::audio::minimumPanPosition(),
+        common::audio::maximumPanPosition(),
+        1.0 / g_pan_steps_per_unit);
     m_output_pan_knob.setDoubleClickReturnValue(true, 0.0);
     // No room for a text box in the fader's lane: the value shows in a popup on hover and while
     // dragging, and in the tooltip, all through the one shared pan format.
@@ -420,12 +439,14 @@ SignalChainView::~SignalChainView()
 }
 
 // The output stage as the two controls currently show it: the dragged control carries the new
-// value and the other one the stored value, so the pair always describes one whole stage.
+// value and the other one the stored value, so the pair always describes one whole stage. Each
+// is read at its step, so the untouched control hands back exactly the value it was given.
 common::audio::ToneOutput SignalChainView::controlledOutput() const
 {
     return common::audio::ToneOutput{
-        .level = common::audio::Gain{m_output_gain_slider.getValue()},
-        .pan = common::audio::Pan{m_output_pan_knob.getValue()},
+        .level =
+            common::audio::Gain{steppedValue(m_output_gain_slider, g_output_gain_steps_per_db)},
+        .pan = common::audio::Pan{steppedValue(m_output_pan_knob, g_pan_steps_per_unit)},
     };
 }
 
