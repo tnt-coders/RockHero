@@ -713,8 +713,9 @@ struct HighwayViewState
     chain's last head fades. A slide chains from where it lands, never from where it began. Per
     head, so a partial chord repeat chains only its repeated members. A successor that draws no
     head (a repeat box, \ref HighwayChordGroupViewState::showsNotes) has nothing to take over with,
-    so the head ends as that successor's would, standing through the run. A head the board already
-    holds past the successor's onset keeps its own hold.
+    so the head ends as that successor's would, standing through the run. The chain replaces the
+    head's own end outright, a hold included: whatever holds the head holds its successor to the
+    same end, so a held run hands over at each landing and dissolves only at its last head.
     */
     std::vector<HighwayHeadEnd> head_ends;
 

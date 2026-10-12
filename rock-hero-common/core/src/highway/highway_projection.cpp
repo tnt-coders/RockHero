@@ -466,10 +466,10 @@ void clampStrikePops(
             continue;
         }
         const NoteViewState& next = notes[*successor];
-        // A hold that already outlasts the takeover keeps it: the chain only ever lengthens a
-        // head's stand.
-        if (headSoundingStop(next, next.fret) != headSoundingStop(note, headEndFret(note)) ||
-            pin_end_seconds > next.start_seconds)
+        // An abutting repeat replaces the head's own end outright, a hold included: the span or cap
+        // that holds this head holds its successor to the same end, so the chain only changes how
+        // it ends, handing over at the landing instead of dissolving into it.
+        if (headSoundingStop(next, next.fret) != headSoundingStop(note, headEndFret(note)))
         {
             continue;
         }

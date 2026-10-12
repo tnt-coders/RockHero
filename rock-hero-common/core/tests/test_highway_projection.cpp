@@ -1168,18 +1168,17 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // because it has no head of its own to take it over with.
     CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(2.0));
 
-    // The chain's rings abut, strike into strike at the same stops, yet the span-held heads are not
-    // handed over at the next onset: a hold that already outlasts the takeover keeps it, pinned to
-    // the span's close and dissolving into it by the shared head rule.
+    // The chain's rings abut, strike into strike at the same stops, and the later strums are boxes
+    // drawing no heads, so each span-held head of the first strum stands through the run and ends
+    // as the chain's last head does: pinned to the span's close and dissolving only there.
     REQUIRE(state.head_ends.size() == state.chart.notes.size());
     for (const std::size_t index : {std::size_t{0}, std::size_t{1}})
     {
         CAPTURE(index);
-        const NoteViewState& held = state.chart.notes[index];
-        REQUIRE(held.end_head.has_value());
+        REQUIRE(state.chart.notes[index].end_head.has_value());
         const HighwayHeadEnd& head_end = state.head_ends[index];
+        CHECK(head_end == state.head_ends[index + 4]);
         CHECK(head_end.pin_end_seconds == Catch::Approx(0.75));
-        CHECK(head_end.fade == headFade(held, head_end.pin_end_seconds));
         CHECK_THAT(head_end.fade.alphaAt(0.25), Catch::Matchers::WithinULP(1.0, 0));
         CHECK(head_end.fade.alphaAt(0.7) < 1.0);
     }
@@ -1268,6 +1267,33 @@ TEST_CASE(
         // tail.
         CHECK(state.head_ends[2].fade.end_seconds == Catch::Approx(0.75));
         CHECK(state.head_ends[2].fade.length_seconds == Catch::Approx(0.25));
+    }
+
+    SECTION("a chord chains through its repeat box into a held repeat that draws its heads")
+    {
+        // A strum, its repeat (a box drawing no heads), then the same chord held long enough to
+        // draw tails, which makes it a full strum again. The first strum's heads stay whole
+        // through the box and hand over as the held chord lands, instead of dissolving into it.
+        const Fraction half{1, 2};
+        const HighwayViewState state = board({
+            note(1, 5, first, eighth),
+            note(2, 7, first, eighth),
+            note(1, 5, second, eighth),
+            note(2, 7, second, eighth),
+            note(1, 5, third, half),
+            note(2, 7, third, half),
+        });
+        REQUIRE(state.chord_groups.size() == 3);
+        REQUIRE(state.chord_groups[0].box_treatment == HighwayChordBoxTreatment::Full);
+        REQUIRE(state.chord_groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
+        REQUIRE(state.chord_groups[2].box_treatment == HighwayChordBoxTreatment::Full);
+        REQUIRE(state.head_ends.size() == 6);
+        CHECK(state.chart.notes[2].end_head.has_value());
+        for (std::size_t index = 0; index < 4; ++index)
+        {
+            CAPTURE(index);
+            check_handed_over(state.head_ends[index], 0.5);
+        }
     }
 
     SECTION("a ring stopping one tick short of the next head does not chain")
