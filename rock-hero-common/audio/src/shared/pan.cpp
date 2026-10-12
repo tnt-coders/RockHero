@@ -1,6 +1,7 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
+#include <cstdlib>
 #include <rock_hero/common/audio/shared/pan.h>
 #include <system_error>
 
