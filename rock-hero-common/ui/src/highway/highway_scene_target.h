@@ -44,7 +44,7 @@ struct HighwaySceneTargetSpec
 /*! \brief Which present program carries the scene to the window, one per family of look. */
 enum class HighwayPresent : std::uint8_t
 {
-    /*! \brief A copy with optional scanlines: the plain and pixel looks. */
+    /*! \brief A copy with optional scanlines: the plain, pixel and CRT looks. */
     Copy,
 
     /*! \brief The ordered dither to the theme's palette. */
@@ -78,8 +78,14 @@ struct HighwaySceneFrame
     */
     float present_scale{1.0F};
 
-    /*! \brief How much the copy darkens every other virtual-pixel row, 0 to 1. */
+    /*! \brief How much the copy darkens every other scanline band, 0 to 1. */
     float scanlines{0.0F};
+
+    /*!
+    \brief Height of one scanline band in window pixels: a virtual pixel's under the pixel look,
+    the look's own line height under the CRT.
+    */
+    float scanline_height{1.0F};
 };
 
 /*!
@@ -124,7 +130,8 @@ size and copies one pixel to one pixel. The pixel look rounds the size up to who
 blocks, so the target still covers the window (up to scale - 1 pixels of it fall past one edge),
 reduces each block to one texel of a block canvas, and presents each texel as one hard-edged
 virtual pixel with the look's scanlines: a detail smaller than a block tints it by the share it
-covers rather than popping in and out as it moves. The dither look sizes its targets the same way
+covers rather than popping in and out as it moves. The CRT look renders like the plain look and
+darkens every other band of its line height. The dither look sizes its targets the same way
 and dithers each texel of the canvas. The halftone look renders like the plain look — its ink
 outlines trace the full-resolution scene — and presents through the dot screen.
 

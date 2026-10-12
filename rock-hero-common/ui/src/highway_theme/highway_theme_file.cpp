@@ -40,6 +40,7 @@ constexpr std::string_view g_look_key = "look";
 constexpr std::string_view g_style_key = "style";
 constexpr std::string_view g_scale_key = "scale";
 constexpr std::string_view g_scanlines_key = "scanlines";
+constexpr std::string_view g_line_height_key = "line_height";
 constexpr std::string_view g_cell_key = "cell";
 
 // The keys the top level of a theme file may hold.
@@ -48,6 +49,7 @@ constexpr std::array g_theme_keys{g_name_key, g_colors_key, g_inherits_key, g_lo
 // The keys each style's `look` may hold: its style, then its own parameters.
 constexpr std::array g_plain_look_keys{g_style_key};
 constexpr std::array g_pixel_look_keys{g_style_key, g_scale_key, g_scanlines_key};
+constexpr std::array g_crt_look_keys{g_style_key, g_line_height_key, g_scanlines_key};
 constexpr std::array g_dither_look_keys{g_style_key, g_scale_key};
 constexpr std::array g_halftone_look_keys{g_style_key, g_cell_key};
 
@@ -350,6 +352,32 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         }
         return HighwayPixelLook{.scale = *scale, .scanlines = *scanlines};
     }
+    if (style_name == "crt")
+    {
+        if (std::expected<void, HighwayThemeError> keys =
+                refuseUnknownKeys(*object, g_crt_look_keys, g_look_key);
+            !keys.has_value())
+        {
+            return std::unexpected{std::move(keys.error())};
+        }
+        const std::expected<int, HighwayThemeError> line_height = readLookWholeNumber(
+            look,
+            g_line_height_key,
+            g_crt_look_min_line_height,
+            g_crt_look_max_line_height,
+            g_crt_look_default_line_height);
+        if (!line_height.has_value())
+        {
+            return std::unexpected{line_height.error()};
+        }
+        const std::expected<double, HighwayThemeError> scanlines =
+            readLookFraction(look, g_scanlines_key, g_crt_look_default_scanlines);
+        if (!scanlines.has_value())
+        {
+            return std::unexpected{scanlines.error()};
+        }
+        return HighwayCrtLook{.line_height = *line_height, .scanlines = *scanlines};
+    }
     if (style_name == "dither")
     {
         if (std::expected<void, HighwayThemeError> keys =
@@ -393,7 +421,7 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return std::unexpected{HighwayThemeError{
         HighwayThemeErrorCode::InvalidLook,
         std::format(
-            "look.style is {}, which names no style: \"plain\", \"pixel\", \"dither\" or "
+            "look.style is {}, which names no style: \"plain\", \"pixel\", \"crt\", \"dither\" or "
             "\"halftone\"",
             juce::JSON::toString(style, true).toStdString()),
     }};

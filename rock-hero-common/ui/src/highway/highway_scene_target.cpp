@@ -51,6 +51,7 @@ constexpr bgfx::TextureFormat::Enum g_scene_depth_format = bgfx::TextureFormat::
         .present = present,
         .present_scale = static_cast<float>(scale),
         .scanlines = static_cast<float>(scanlines),
+        .scanline_height = static_cast<float>(scale),
     };
 }
 
@@ -62,6 +63,13 @@ HighwaySceneFrame makeHighwaySceneFrame(
     if (const auto* const pixel = std::get_if<HighwayPixelLook>(&look))
     {
         return blockFrame(width, height, pixel->scale, HighwayPresent::Copy, pixel->scanlines);
+    }
+    if (const auto* const crt = std::get_if<HighwayCrtLook>(&look))
+    {
+        HighwaySceneFrame frame =
+            blockFrame(width, height, 1, HighwayPresent::Copy, crt->scanlines);
+        frame.scanline_height = static_cast<float>(crt->line_height);
+        return frame;
     }
     if (const auto* const dither = std::get_if<HighwayDitherLook>(&look))
     {
@@ -75,6 +83,7 @@ HighwaySceneFrame makeHighwaySceneFrame(
             .present = HighwayPresent::Halftone,
             .present_scale = static_cast<float>(halftone->cell),
             .scanlines = 0.0F,
+            .scanline_height = 1.0F,
         };
     }
     return blockFrame(width, height, 1, HighwayPresent::Copy, 0.0);

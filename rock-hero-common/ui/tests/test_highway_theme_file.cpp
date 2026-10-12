@@ -913,4 +913,45 @@ TEST_CASE("Dither and halftone looks load within their ranges", "[ui][highway-th
     CHECK(lookFailure(R"({"style": "halftone", "scale": 2})") == HighwayThemeErrorCode::UnknownKey);
 }
 
+// The CRT loads with its defaults or its stated band height and strength, and refuses either
+// outside its range or a key that is another style's.
+TEST_CASE("A CRT look loads within its ranges", "[ui][highway-theme]")
+{
+    const auto crt = [](const juce::String& json) {
+        const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
+            loadWithLook(lookFrom(json));
+        const HighwayCrtLook* const look =
+            loaded.has_value() ? std::get_if<HighwayCrtLook>(&loaded->look) : nullptr;
+        return look != nullptr ? std::optional<HighwayCrtLook>{*look} : std::nullopt;
+    };
+    const std::optional<HighwayCrtLook> defaulted = crt(R"({"style": "crt"})");
+    REQUIRE(defaulted.has_value());
+    if (defaulted.has_value())
+    {
+        CHECK(defaulted->line_height == g_crt_look_default_line_height);
+        CHECK_THAT(
+            defaulted->scanlines, Catch::Matchers::WithinULP(g_crt_look_default_scanlines, 0));
+    }
+    const std::optional<HighwayCrtLook> stated =
+        crt(R"({"style": "crt", "line_height": 8, "scanlines": 0.6})");
+    REQUIRE(stated.has_value());
+    if (stated.has_value())
+    {
+        CHECK(stated->line_height == 8);
+        CHECK_THAT(stated->scanlines, Catch::Matchers::WithinULP(0.6, 0));
+    }
+    CHECK(crt(R"({"style": "crt", "line_height": 1})").has_value());
+
+    for (const char* const json :
+         {R"({"style": "crt", "line_height": 0})",
+          R"({"style": "crt", "line_height": 9})",
+          R"({"style": "crt", "line_height": 2.5})",
+          R"({"style": "crt", "scanlines": 1.5})"})
+    {
+        INFO(json);
+        CHECK(lookFailure(json) == HighwayThemeErrorCode::InvalidLook);
+    }
+    CHECK(lookFailure(R"({"style": "crt", "scale": 2})") == HighwayThemeErrorCode::UnknownKey);
+}
+
 } // namespace rock_hero::common::ui

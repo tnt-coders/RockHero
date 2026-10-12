@@ -41,6 +41,35 @@ inline constexpr int g_pixel_look_min_scale = 2;
 inline constexpr int g_pixel_look_max_scale = 8;
 
 /*!
+\brief The scene at the window's full resolution under a display's scanlines: bands of window rows
+alternately kept and darkened, with no virtual pixels and no softening.
+
+A note smaller than a band can still brighten and dim as it moves down the board, because nothing
+here softens it the way the pixel look softens its blocks; the price of keeping every pixel
+sharp.
+*/
+struct HighwayCrtLook
+{
+    /*! \brief Height of each band in window pixels, g_crt_look_min_line_height to max. */
+    int line_height;
+
+    /*! \brief How much every other band darkens, 0 (none) to 1 (black). */
+    double scanlines;
+};
+
+/*! \brief The thinnest CRT band: one window row. */
+inline constexpr int g_crt_look_min_line_height = 1;
+
+/*! \brief The thickest CRT band, the pixel look's cap for the same reason. */
+inline constexpr int g_crt_look_max_line_height = 8;
+
+/*! \brief The CRT band height a theme gets when it states none. */
+inline constexpr int g_crt_look_default_line_height = 2;
+
+/*! \brief The CRT scanline strength a theme gets when it states none. */
+inline constexpr double g_crt_look_default_scanlines = 0.4;
+
+/*!
 \brief The scene rendered at a fraction of the window's resolution, then ordered-dithered (a 4x4
 Bayer matrix) to the theme's own opaque colors.
 
@@ -87,7 +116,7 @@ inline constexpr int g_halftone_look_default_cell = 8;
 
 A look changes the finished image, never what is drawn or where. The default is the plain look.
 */
-using HighwayRenderLook =
-    std::variant<HighwayPlainLook, HighwayPixelLook, HighwayDitherLook, HighwayHalftoneLook>;
+using HighwayRenderLook = std::variant<
+    HighwayPlainLook, HighwayPixelLook, HighwayCrtLook, HighwayDitherLook, HighwayHalftoneLook>;
 
 } // namespace rock_hero::common::ui

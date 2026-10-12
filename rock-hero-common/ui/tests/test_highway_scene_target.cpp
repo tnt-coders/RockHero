@@ -45,6 +45,24 @@ TEST_CASE("The pixel frame renders a covering target of whole blocks", "[ui][hig
     CHECK(tiny.target == HighwaySceneTargetSpec{.width = 8, .height = 8});
     CHECK(tiny.blocks == HighwaySceneTargetSpec{.width = 1, .height = 1});
     CHECK(tiny.present == HighwayPresent::Copy);
+
+    // One scanline band per virtual pixel row.
+    CHECK_THAT(exact.scanline_height, Catch::Matchers::WithinULP(3.0F, 0));
+}
+
+// The CRT renders and copies the scene at the window's size, like the plain look, and hands its
+// own band height and strength to the present.
+TEST_CASE("The CRT frame copies the window-size scene under its own bands", "[ui][highway]")
+{
+    const HighwaySceneFrame frame =
+        makeHighwaySceneFrame(1921, 1081, HighwayCrtLook{.line_height = 3, .scanlines = 0.4});
+
+    CHECK(frame.target == HighwaySceneTargetSpec{.width = 1921, .height = 1081});
+    CHECK_FALSE(frame.blocks.has_value());
+    CHECK(frame.present == HighwayPresent::Copy);
+    CHECK_THAT(frame.present_scale, Catch::Matchers::WithinULP(1.0F, 0));
+    CHECK_THAT(frame.scanlines, Catch::Matchers::WithinULP(0.4F, 0));
+    CHECK_THAT(frame.scanline_height, Catch::Matchers::WithinULP(3.0F, 0));
 }
 
 // The dither sizes its targets like the pixel look and presents through its own program; the

@@ -2728,12 +2728,13 @@ void HighwayRenderer::Impl::present(
     {
         case HighwayPresent::Copy:
         {
-            // The rows the scanline kernel clamps to: the canvas's, or the scene's at scale 1.
-            params[2] = static_cast<float>(frame.target.height);
+            // The canvas rows the scanline softening spans; 0 when the present reads the scene,
+            // whose window pixels are never softened.
             if (frame.blocks.has_value())
             {
                 params[2] = static_cast<float>(frame.blocks->height);
             }
+            params[3] = frame.scanline_height;
             break;
         }
         case HighwayPresent::Dither:
