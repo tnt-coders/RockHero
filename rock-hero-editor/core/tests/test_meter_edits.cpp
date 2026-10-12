@@ -404,7 +404,10 @@ struct WrittenPackage
     const auto written = common::core::writeRockSongPackageDirectory(workspace, song);
     INFO((written.has_value() ? std::string{} : written.error().message));
     REQUIRE(written.has_value());
-    WrittenPackage package{.song_lines = linesOf(readTextFile(workspace / "song.json"))};
+    WrittenPackage package{
+        .song_lines = linesOf(readTextFile(workspace / "song.json")),
+        .chart_texts = {},
+    };
     for (const common::core::Arrangement& arrangement : song.arrangements)
     {
         package.chart_texts.push_back(readTextFile(workspace / arrangement.chart_ref));

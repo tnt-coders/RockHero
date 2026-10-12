@@ -1271,6 +1271,7 @@ TEST_CASE(
                                 .stable_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
                             },
                         },
+                    .output = {},
                     .summed_reported_latency_seconds = 0.0,
                 },
             },
