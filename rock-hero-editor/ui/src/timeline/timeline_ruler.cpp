@@ -222,11 +222,12 @@ constexpr float g_quarter_note_stroke_width{1.25f};
 
 } // namespace
 
-// Names the component for tests and enables direct mouse placement. The quarter note's ink fills
-// the chip but for the clear rows every chip keeps.
-TimelineRuler::TimelineRuler()
+// Names the component for tests, enables direct mouse placement and takes the span chips' inks.
+// The quarter note's ink fills the chip but for the clear rows every chip keeps.
+TimelineRuler::TimelineRuler(const common::ui::TabShapeInks shape_inks)
     : m_tempo_glyph{quarterNoteOutline(
           static_cast<float>(m_chip_height) - (2.0f * common::ui::g_chip_ink_clearance))}
+    , m_shape_inks{shape_inks}
 {
     setComponentID("timeline_ruler");
     setInterceptsMouseClicks(true, false);

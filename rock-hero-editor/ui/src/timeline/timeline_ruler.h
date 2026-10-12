@@ -259,8 +259,12 @@ public:
     /*! \brief Receives the timeline position of a cursor-placement click. */
     using CursorPlacementCallback = std::function<void(common::core::TimePosition position)>;
 
-    /*! \brief Names the component for tests and enables direct cursor-placement clicks. */
-    TimelineRuler();
+    /*!
+    \brief Names the component for tests and enables direct cursor-placement clicks.
+    \param shape_inks The tab lane's span inks, which the span chips fill in until
+           \ref setShapeInks replaces them.
+    */
+    explicit TimelineRuler(common::ui::TabShapeInks shape_inks);
 
     /*!
     \brief Stores whether the ruler should draw musical position data.
@@ -373,9 +377,6 @@ public:
     /*!
     \brief Stores the inks the span chips are filled with, which are the tab lane's own, so a chip
     reads as one object with the rails it stands on.
-
-    Until the owner sets them, the chips fill in TabShapeInks' default, transparent black.
-
     \param shape_inks The tab lane's span inks.
     */
     void setShapeInks(common::ui::TabShapeInks shape_inks);
@@ -785,8 +786,9 @@ private:
     // The span chips the ruler shows, placed when the geometry rebuilds.
     std::vector<common::ui::TabSpanChip> m_span_chips{};
 
-    // The tab lane's span inks the span chips fill in, pushed by the owning view with its theme.
-    common::ui::TabShapeInks m_shape_inks{};
+    // The tab lane's span inks the span chips fill in, taken at construction and replaced by the
+    // owning view whenever its theme changes.
+    common::ui::TabShapeInks m_shape_inks;
 
     // The selected tempo chip's anchor beat and signature chip's measure, as last pushed.
     std::optional<common::core::GridPosition> m_selected_tempo_anchor{};

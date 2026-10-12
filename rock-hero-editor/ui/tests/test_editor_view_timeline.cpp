@@ -149,6 +149,12 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     };
 }
 
+// The span inks the fixture theme gives the tab lane, which a ruler's span chips fill in.
+[[nodiscard]] common::ui::TabShapeInks fixtureShapeInks()
+{
+    return common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme());
+}
+
 // A tab lane at the editor's density, whose one-figure fret-hand chip a blank span chip matches.
 [[nodiscard]] common::ui::TabLaneMetrics spanChipLaneMetrics()
 {
@@ -161,7 +167,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+        fixtureShapeInks());
 }
 
 // A blank span chip's width in that lane: a one-figure fret-hand chip's.
@@ -367,7 +373,7 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -396,7 +402,7 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 8};
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 201, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -426,7 +432,7 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -472,7 +478,7 @@ TEST_CASE("TimelineRuler marks a mid-measure section at its own instant", "[ui][
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -517,7 +523,8 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
-    TimelineRuler ruler;
+    const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
+    TimelineRuler ruler{lane.shape_inks};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -525,8 +532,6 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
         core::visibleTempoGridLines(
             tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
-    const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
-    ruler.setShapeInks(lane.shape_inks);
     ruler.setSpans(
         std::vector<RulerSpan>{
             RulerSpan{.start_seconds = 1.0, .end_seconds = 2.0, .arpeggio = false},
@@ -579,7 +584,7 @@ TEST_CASE(
     constexpr common::core::Fraction grid_note_value{1, 4};
     const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
     const auto render = [&](const std::vector<RulerSpan>& spans) {
-        TimelineRuler ruler;
+        TimelineRuler ruler{lane.shape_inks};
         ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
         ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
         ruler.setGrid(tempo_map, grid_note_value);
@@ -592,7 +597,6 @@ TEST_CASE(
                 0,
                 ruler.getWidth()));
         ruler.setProjectLoaded(true);
-        ruler.setShapeInks(lane.shape_inks);
         ruler.setSpans(spans);
         return ruler.createComponentSnapshot(ruler.getLocalBounds());
     };
@@ -649,7 +653,7 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
     // Eight seconds across 801px maps seconds * 100; scrolled 150px in, the ruler's left edge is
     // 1.5 s. Each case is one chord span starting at `start` and ending at `end`.
     const auto render = [&lane](const double start, const double end) {
-        TimelineRuler ruler;
+        TimelineRuler ruler{lane.shape_inks};
         ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
         ruler.setTimelineView(
             common::core::TimeRange{
@@ -660,7 +664,6 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
             150);
         ruler.setGridLines({});
         ruler.setProjectLoaded(true);
-        ruler.setShapeInks(lane.shape_inks);
         ruler.setSpans(
             std::vector<RulerSpan>{
                 RulerSpan{.start_seconds = start, .end_seconds = end, .arpeggio = false},
@@ -747,7 +750,7 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
     constexpr common::core::Fraction grid_note_value{1, 4};
     constexpr common::core::GridPosition verse_position{.measure = 1, .beat = 2};
 
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     RecordingRulerListener listener;
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
@@ -826,7 +829,7 @@ TEST_CASE(
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
 
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
 
@@ -874,7 +877,7 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
     };
     constexpr common::core::Fraction grid_note_value{1, 4};
 
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     RecordingRulerListener listener;
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(window, ruler.getWidth(), 0);
@@ -910,7 +913,7 @@ TEST_CASE("TimelineRuler glows a refused tempo chip", "[ui][timeline-ruler]")
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -954,7 +957,7 @@ TEST_CASE("TimelineRuler fills a tempo chip's height with its quarter note", "[u
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
@@ -993,7 +996,7 @@ TEST_CASE("TimelineRuler fills a tempo chip's height with its quarter note", "[u
 TEST_CASE("TimelineRuler draws a derived short bar as a ghost chip", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     showShortBarMap(ruler);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -1013,7 +1016,7 @@ TEST_CASE("TimelineRuler draws a derived short bar as a ghost chip", "[ui][timel
 TEST_CASE("TimelineRuler ghost chip reports its first measure", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     RecordingRulerListener listener;
     showShortBarMap(ruler);
     ruler.setListener(listener);
@@ -1032,7 +1035,7 @@ TEST_CASE("TimelineRuler ghost chip reports its first measure", "[ui][timeline-r
 TEST_CASE("TimelineRuler signature menu offers the rows that apply", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     RecordingRulerListener listener;
     showMeterChangeMap(ruler);
     ruler.setListener(listener);
@@ -1066,7 +1069,7 @@ TEST_CASE("TimelineRuler signature menu offers the rows that apply", "[ui][timel
 TEST_CASE("TimelineRuler tempo menu offers the rows that apply", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     RecordingRulerListener listener;
     showMeterChangeMap(ruler);
     ruler.setListener(listener);
@@ -1098,7 +1101,7 @@ TEST_CASE("TimelineRuler tempo menu offers the rows that apply", "[ui][timeline-
 TEST_CASE("TimelineRuler signature chip double-click restates", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     RecordingRulerListener listener;
     showMeterChangeMap(ruler);
     ruler.setListener(listener);
@@ -1120,7 +1123,7 @@ TEST_CASE("TimelineRuler signature chip double-click restates", "[ui][timeline-r
 TEST_CASE("TimelineRuler flashes the renumbered measure numbers", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     showMeterChangeMap(ruler);
     const juce::Image before = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
@@ -1150,7 +1153,7 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
     constexpr common::core::Fraction grid_note_value{1, 4};
     constexpr common::core::GridPosition third_beat{.measure = 1, .beat = 3};
 
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     RecordingRulerListener listener;
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
@@ -1242,7 +1245,7 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
             anchor("3:1", 8000),
         },
     };
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(two_measure_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
@@ -1289,7 +1292,7 @@ TEST_CASE(
             anchor("3:1", 8000),
         },
     };
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(two_measure_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
@@ -1337,7 +1340,7 @@ TEST_CASE(
             anchor("3:1", 6000),
         },
     };
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(timeline_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
@@ -1387,7 +1390,7 @@ TEST_CASE(
             anchor("3:1", 7000),
         },
     };
-    TimelineRuler ruler;
+    TimelineRuler ruler{fixtureShapeInks()};
     ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
     ruler.setTimelineView(timeline_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});

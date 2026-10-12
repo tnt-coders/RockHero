@@ -690,8 +690,9 @@ dropped whole otherwise, leaving the chip blank. The rails' ink comes from the t
 and `arpeggio` colors held to the one luminance under which that white text reads at 4.45:1 — a
 balance set by eye between reading as the span's color and carrying the label — so the two kinds
 differ by hue and chroma, never by lightness. The theme guardrails hold the two inks apart. The
-ruler fills its chips in the same inks, which `EditorView` pushes through
-`TrackViewport::setShapeInks` at construction and whenever it restates the lane's colors.
+ruler fills its chips in the same inks: `EditorView` hands them to `TrackViewport`'s constructor,
+which builds its `TimelineRuler` with them, and pushes them through `TrackViewport::setShapeInks`
+whenever it restates the lane's colors.
 
 A chip never reaches past where its span's rails stop (`common::ui::tabSpanStopX`, the one statement
 of the rails' parting); squeezed by that stop, it narrows to the room, down to a single pixel.

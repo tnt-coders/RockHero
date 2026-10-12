@@ -248,8 +248,9 @@ void TrackViewport::TimelineViewport::visibleAreaChanged(
 // Installs the track rows and the cursor overlay into viewport-owned content.
 TrackViewport::TrackViewport(
     core::IEditorController& controller, ArrangementView& arrangement_view, TabView& tab_view,
-    ToneTrackView& tone_track_view, ToneAutomationLanesView& tone_automation_lanes_view,
-    CursorOverlay& cursor_overlay, const common::audio::ITransport& transport)
+    const common::ui::TabShapeInks shape_inks, ToneTrackView& tone_track_view,
+    ToneAutomationLanesView& tone_automation_lanes_view, CursorOverlay& cursor_overlay,
+    const common::audio::ITransport& transport)
     : m_controller(controller)
     , m_arrangement_view(arrangement_view)
     , m_tab_view(tab_view)
@@ -258,6 +259,7 @@ TrackViewport::TrackViewport(
     , m_cursor_overlay(cursor_overlay)
     , m_transport(transport)
     , m_content(*this)
+    , m_timeline_ruler(shape_inks)
     , m_vblank_attachment(this, [this] {
         updatePlaybackFollow();
         advanceWindowGlide();

@@ -148,6 +148,8 @@ public:
     \param controller Controller that receives ruler-level and canvas-level timeline seek intents.
     \param arrangement_view Waveform view hosted as the first track row; must outlive this shell.
     \param tab_view Tablature lane drawn over the waveform row; must outlive this shell.
+    \param shape_inks The inks the tab lane paints its span rails with, which the pinned ruler's
+    span chips fill in.
     \param tone_track_view Tone track row hosted below the waveform; must outlive this shell.
     \param tone_automation_lanes_view Automation lanes row hosted below the tone track; must
     outlive this shell.
@@ -157,8 +159,9 @@ public:
     */
     TrackViewport(
         core::IEditorController& controller, ArrangementView& arrangement_view, TabView& tab_view,
-        ToneTrackView& tone_track_view, ToneAutomationLanesView& tone_automation_lanes_view,
-        CursorOverlay& cursor_overlay, const common::audio::ITransport& transport);
+        common::ui::TabShapeInks shape_inks, ToneTrackView& tone_track_view,
+        ToneAutomationLanesView& tone_automation_lanes_view, CursorOverlay& cursor_overlay,
+        const common::audio::ITransport& transport);
 
     /*! \brief Uses default destruction because the viewed component is owned by this shell. */
     ~TrackViewport() override = default;

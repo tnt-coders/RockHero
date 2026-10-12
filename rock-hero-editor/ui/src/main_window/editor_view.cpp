@@ -467,8 +467,10 @@ EditorView::EditorView(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
           std::make_unique<TrackViewport>(
-              controller, m_arrangement_view, m_tab_view, m_tone_track_view,
-              m_tone_automation_lanes_view, *m_cursor_overlay, audio_ports.transport))
+              controller, m_arrangement_view, m_tab_view,
+              common::ui::tabShapeInks(highway_themes.themeFor(m_state.highway_settings).colors),
+              m_tone_track_view, m_tone_automation_lanes_view, *m_cursor_overlay,
+              audio_ports.transport))
     , m_vblank_attachment(this, [this] {
         refreshAudioMeters();
         refreshTimeDisplay();
@@ -645,9 +647,6 @@ EditorView::EditorView(
     // first push.
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
-    // The ruler's span chips wear the tab lane's span inks, which the lane took at construction.
-    m_track_viewport->setShapeInks(
-        common::ui::tabShapeInks(m_highway_themes.themeFor(m_state.highway_settings).colors));
     // The ruler's chips raise intents this view answers: two of them need a prompt, which is this
     // view's to raise, so the ruler cannot talk to the controller directly.
     m_track_viewport->setRulerListener(*this);
