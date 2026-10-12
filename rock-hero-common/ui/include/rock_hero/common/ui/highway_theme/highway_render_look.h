@@ -24,7 +24,13 @@ struct HighwayPixelLook
     /*! \brief Edge of one virtual pixel in window pixels, g_pixel_look_min_scale to max. */
     int scale;
 
-    /*! \brief How much every other virtual row darkens, 0 (none) to 1 (black). */
+    /*!
+    \brief How much every other virtual row darkens, 0 (none) to 1 (black).
+
+    Any amount above 0 also softens each virtual pixel 1:2:1 over the rows above and below, one
+    scanline period, so a note moving down the board never pulses between a bright row and a dark
+    one; at 0 the pixels stay crisp.
+    */
     double scanlines;
 };
 

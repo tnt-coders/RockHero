@@ -98,11 +98,12 @@ Each layer has one job, and the boundaries are the reason the sharing works:
 
    The scene never draws straight to the window. `draw` renders it into the renderer's own
    off-screen target (`highway/highway_scene_target.h`: a color and a depth attachment joined in
-   one frame buffer, refitted by `HighwaySceneTarget::fit` only when its size changes), then one full-screen **present** pass (`vs_present`/`fs_present`) copies it to the
-   window. The views run in id order: `RenderDevice` owns view 0 and clears the window there, the
-   background (1) and board (2) render into the target, the present (3) copies it to the
-   backbuffer, and the overlay (4) composites the pixel-space rects over the result at the
-   window's own resolution. Anti-aliasing lives on the target — 4x MSAA, resolved by bgfx when the
+   one frame buffer, refitted by `HighwaySceneTarget::fit` only when its size changes), then one
+   full-screen **present** pass (`vs_present`/`fs_present`) copies it to the window. The views run
+   in id order: `RenderDevice` owns view 0 and clears the window there, the background (1) and
+   board (2) render into the target, a blocky look's block pass (3) reduces it to the block
+   canvas, the present (4) copies the target or the canvas to the backbuffer, and the overlay (5)
+   composites the pixel-space rects over the result at the window's own resolution. Anti-aliasing lives on the target — 4x MSAA, resolved by bgfx when the
    frame leaves it — so the backbuffer never multisamples, and the present fetches texels by index
    rather than sampling them, which makes the plain copy exact. Two rules ride on this: every view
    re-binds its frame buffer each frame, because a device resize (`bgfx::reset`) unbinds them all;
@@ -112,12 +113,16 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    The theme's **render look** (`highway_theme/highway_render_look.h`, the theme file's `look`)
    decides the target and the present, through the one pure `makeHighwaySceneFrame`: the plain
    look is the full-size multisampled target copied pixel for pixel; the pixel look renders the
-   same full-resolution scene rounded up to whole scale x scale blocks and the present
-   (`present_block.sh`) paints each block one hard-edged virtual pixel of the block's MEAN color —
+   same full-resolution scene rounded up to whole scale x scale blocks, the block pass
+   (`present_blocks`) reduces each block to one texel of the **block canvas** (a second
+   `HighwaySceneTarget`, single-sampled and depthless) holding the block's MEAN color —
    supersampled, so a far note smaller than a block tints it instead of popping in and out as it
-   moves — darkening every other virtual row by its `scanlines`; the dither look sizes its target
-   the same way and presents through `present_dither` (an ordered dither of each block's mean to
-   the theme's own colors), and the halftone renders like the plain look and presents through
+   moves — and the present paints each texel as one hard-edged virtual pixel, darkening every
+   other virtual row by its `scanlines`. With scanlines on, the present also spreads each texel
+   1:2:1 over the rows above and below, one scanline period, so a small note moving down the
+   board never pulses between a bright row and a dark one. The dither look sizes its targets the
+   same way and presents the canvas through `present_dither` (an ordered dither to the theme's own
+   colors), and the halftone renders like the plain look and presents through
    `present_halftone` (a dot screen with ink outlines). Each family of look has its own present
    program, picked per frame by `HighwaySceneFrame::present`. A look changes the
    finished image only — geometry, layout and timing are the same under every look.

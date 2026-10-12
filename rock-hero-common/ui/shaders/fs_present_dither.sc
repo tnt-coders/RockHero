@@ -1,14 +1,14 @@
-// The dither look's present: each block, supersampled like the pixel look's, takes the nearest
-// color of the theme's own opaque palette after a 4x4 Bayer threshold nudges it, so flat areas
-// between two palette colors break into the ordered cross-hatch of a limited-palette display.
+// The dither look's present: each virtual pixel of the block canvas (present_blocks), blown up
+// like the pixel look's, takes the nearest color of the theme's own opaque palette after a 4x4
+// Bayer threshold nudges it, so flat areas between two palette colors break into the ordered
+// cross-hatch of a limited-palette display.
 //
 // The palette is every color the theme states, alpha dropped, plus black and white
 // (makeHighwayDitherPalette), so the dither shows nothing the theme's guardrails did not approve.
 #include <bgfx_shader.sh>
 
+// One texel per virtual pixel: the block canvas, or the scene itself at scale 1.
 SAMPLER2D(s_scene, 0);
-
-#include "present_block.sh"
 
 // x: window pixels per virtual pixel; z: how many palette entries are live.
 uniform vec4 u_present_params;
@@ -35,9 +35,9 @@ float bayer4(vec2 pixel)
 
 void main()
 {
-    vec2 block = presentBlock(gl_FragCoord.xy, u_present_params.x);
-    vec3 color = presentBlockMean(block, u_present_params.x).rgb;
-    float threshold = (bayer4(block) + 0.5) / 16.0 - 0.5;
+    vec2 virtual_pixel = floor(gl_FragCoord.xy / u_present_params.x);
+    vec3 color = texelFetch(s_scene, ivec2(virtual_pixel), 0).rgb;
+    float threshold = (bayer4(virtual_pixel) + 0.5) / 16.0 - 0.5;
     vec3 nudged = color + vec3_splat(threshold * DITHER_SPREAD);
 
     vec3 nearest = u_dither_palette[0].rgb;

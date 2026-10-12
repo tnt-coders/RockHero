@@ -28,6 +28,15 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the render-look simplicity review (2026-10-12)
+
+- **Every present program carries a copy of the same vertex shader:** `vs_present_dither.sc`,
+  `vs_present_halftone.sc` and `vs_present_blocks.sc` repeat `vs_present.sc` line for line,
+  because `rock_hero_stage_highway_shaders` (`cmake/RockHeroRenderStack.cmake`, ~:91-101) derives
+  the program list from `vs_*.sc`. Deriving it from `fs_*.sc` and letting
+  `g_highway_shader_programs` name each program's vertex stage would delete the three copies (one
+  CMake edit plus the shader loader).
+
 ## Found by plan 54 Phases 1 and 2a (2026-10-11)
 
 - **The 2D lane restates the head's sounding-stop binding:** `tab_paint_core.cpp` (~:2479) writes

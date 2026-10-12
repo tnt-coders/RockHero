@@ -5,6 +5,7 @@
 #include <array>
 #include <bgfx/bgfx.h>
 #include <cstdint>
+#include <optional>
 #include <tuple>
 #include <variant>
 
@@ -28,15 +29,28 @@ constexpr bgfx::TextureFormat::Enum g_scene_color_format = bgfx::TextureFormat::
 // The depth the board's prepass tests against: the format bgfx gives the backbuffer's own depth.
 constexpr bgfx::TextureFormat::Enum g_scene_depth_format = bgfx::TextureFormat::D24S8;
 
-// The full-resolution scene rounded UP to whole scale x scale blocks, so the present's block mean
-// reads only texels inside the target and the target still covers the window.
-[[nodiscard]] HighwaySceneTargetSpec wholeBlocks(
-    const std::uint32_t width, const std::uint32_t height, const int scale)
+// The frame of a look made of virtual pixels scale window pixels wide: the full-resolution scene
+// rounded UP to whole scale x scale blocks, so the block pass reads only texels inside the scene
+// and the scene still covers the window, and above scale 1 the block canvas holding one texel per
+// block. At scale 1 a block is one pixel, so the present reads the scene itself.
+[[nodiscard]] HighwaySceneFrame blockFrame(
+    const std::uint32_t width, const std::uint32_t height, const int scale,
+    const HighwayPresent present, const double scanlines)
 {
     const auto edge = static_cast<std::uint32_t>(scale);
-    return HighwaySceneTargetSpec{
-        .width = (width + edge - 1U) / edge * edge,
-        .height = (height + edge - 1U) / edge * edge,
+    const std::uint32_t columns = (width + edge - 1U) / edge;
+    const std::uint32_t rows = (height + edge - 1U) / edge;
+    std::optional<HighwaySceneTargetSpec> blocks;
+    if (scale > 1)
+    {
+        blocks = HighwaySceneTargetSpec{.width = columns, .height = rows};
+    }
+    return HighwaySceneFrame{
+        .target = HighwaySceneTargetSpec{.width = columns * edge, .height = rows * edge},
+        .blocks = blocks,
+        .present = present,
+        .present_scale = static_cast<float>(scale),
+        .scanlines = static_cast<float>(scanlines),
     };
 }
 
@@ -47,38 +61,23 @@ HighwaySceneFrame makeHighwaySceneFrame(
 {
     if (const auto* const pixel = std::get_if<HighwayPixelLook>(&look))
     {
-        return HighwaySceneFrame{
-            .target = wholeBlocks(width, height, pixel->scale),
-            .present = HighwayPresent::Copy,
-            .present_scale = static_cast<float>(pixel->scale),
-            .scanlines = static_cast<float>(pixel->scanlines),
-        };
+        return blockFrame(width, height, pixel->scale, HighwayPresent::Copy, pixel->scanlines);
     }
     if (const auto* const dither = std::get_if<HighwayDitherLook>(&look))
     {
-        return HighwaySceneFrame{
-            .target = wholeBlocks(width, height, dither->scale),
-            .present = HighwayPresent::Dither,
-            .present_scale = static_cast<float>(dither->scale),
-            .scanlines = 0.0F,
-        };
+        return blockFrame(width, height, dither->scale, HighwayPresent::Dither, 0.0);
     }
-    const HighwaySceneTargetSpec full{.width = width, .height = height};
     if (const auto* const halftone = std::get_if<HighwayHalftoneLook>(&look))
     {
         return HighwaySceneFrame{
-            .target = full,
+            .target = HighwaySceneTargetSpec{.width = width, .height = height},
+            .blocks = std::nullopt,
             .present = HighwayPresent::Halftone,
             .present_scale = static_cast<float>(halftone->cell),
             .scanlines = 0.0F,
         };
     }
-    return HighwaySceneFrame{
-        .target = full,
-        .present = HighwayPresent::Copy,
-        .present_scale = 1.0F,
-        .scanlines = 0.0F,
-    };
+    return blockFrame(width, height, 1, HighwayPresent::Copy, 0.0);
 }
 
 std::array<float, 4> highwayPresentColor(const ArgbColor color)
@@ -116,9 +115,13 @@ HighwayDitherPalette makeHighwayDitherPalette(
     return palette;
 }
 
+HighwaySceneTarget::HighwaySceneTarget(const HighwaySceneTargetKind kind) noexcept
+    : m_kind{kind}
+{}
+
 // Releases the old target before creating the new one, so a resize never holds both. The color
 // attachment is sampled (never write-only) so bgfx keeps a single-sampled copy to resolve into;
-// the depth is write-only, which bgfx requires of a multisampled depth attachment.
+// the scene's depth is write-only, which bgfx requires of a multisampled depth attachment.
 bool HighwaySceneTarget::fit(const HighwaySceneTargetSpec& spec)
 {
     if (m_spec == spec)
@@ -130,6 +133,8 @@ bool HighwaySceneTarget::fit(const HighwaySceneTargetSpec& spec)
     m_color.reset();
     m_depth.reset();
 
+    const bool scene = m_kind == HighwaySceneTargetKind::Scene;
+    const std::uint64_t samples = scene ? g_scene_msaa : BGFX_TEXTURE_RT;
     const auto width = static_cast<std::uint16_t>(spec.width);
     const auto height = static_cast<std::uint16_t>(spec.height);
     m_color = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
@@ -138,14 +143,25 @@ bool HighwaySceneTarget::fit(const HighwaySceneTargetSpec& spec)
         false,
         1,
         g_scene_color_format,
-        g_scene_msaa | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP)};
-    m_depth = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
-        width, height, false, 1, g_scene_depth_format, g_scene_msaa | BGFX_TEXTURE_RT_WRITE_ONLY)};
-    if (!m_color.isValid() || !m_depth.isValid())
+        samples | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP)};
+    if (!m_color.isValid())
     {
         return false;
     }
+    if (!scene)
+    {
+        const bgfx::TextureHandle attachment = m_color.get();
+        m_frame_buffer = UniqueBgfxHandle<bgfx::FrameBufferHandle>{bgfx::createFrameBuffer(
+            1, &attachment, false)};
+        return m_frame_buffer.isValid();
+    }
 
+    m_depth = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
+        width, height, false, 1, g_scene_depth_format, samples | BGFX_TEXTURE_RT_WRITE_ONLY)};
+    if (!m_depth.isValid())
+    {
+        return false;
+    }
     // Never destroyTextures: the wrappers own the attachments (bgfx_handle.h).
     const std::array<bgfx::TextureHandle, 2> attachments{m_color.get(), m_depth.get()};
     m_frame_buffer = UniqueBgfxHandle<bgfx::FrameBufferHandle>{bgfx::createFrameBuffer(

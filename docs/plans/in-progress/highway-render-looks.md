@@ -97,13 +97,21 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
   ceil(size / scale) with no MSAA and showed one sample per virtual pixel; far notes smaller than
   a virtual pixel popped in and out and flickered heavily, which made the pixel and dither looks
   unreadable. Now every look renders the full-resolution multisampled scene (the target rounds
-  up to whole blocks), and the present (`present_block.sh`) gives each virtual pixel the MEAN of
-  the scale x scale texels it covers, so a small note tints its block by its coverage and moves
-  through it smoothly. Cost: scale² fetches per window pixel (64 at the cap), and the scene no
-  longer renders cheaper than the plain look. If the cap survives sighting and the cost shows, a
-  downsample pass into a block-sized target makes it one fetch per texel.
+  up to whole blocks), and a block pass (`present_blocks`, view 3) reduces it to a block canvas
+  holding each virtual pixel's MEAN color, so a small note tints its block by its coverage and
+  moves through it smoothly. Each block is computed once, so the pass costs one fetch per scene
+  texel, and the scene no longer renders cheaper than the plain look. A dither at scale 1 has no
+  canvas: its present reads the scene. (Bgfx's auto-generated mips would give the box mean for
+  free and delete the pass, but only at power-of-two scales; that trade is the user's.)
+- **Scanlines band-limit vertically (second sighting, same day).** Supersampled, the scanline
+  version still flickered in the distance: scanlines darken fixed rows, so a note moving down the
+  board pulsed as it crossed from a bright row to a dark one. With scanlines on, the present
+  spreads each canvas texel 1:2:1 over the rows above and below — one scanline period, the soft beam of
+  a real display — so a moving note always lies half on each row and its brightness holds.
+  Without scanlines nothing pulses, so the blocks stay crisp.
 - **Views.** 0 is `RenderDevice`'s (it clears the window and is never re-targeted); 1 background
-  and 2 board render into the target; 3 the present and 4 the overlay draw to the backbuffer, so
+  and 2 board render into the target; 3 the block pass renders the block canvas; 4 the present
+  and 5 the overlay draw to the backbuffer, so
   the diagnostics overlay stays at full resolution and aligned with the debug text under any
   look. A device resize unbinds every view's frame buffer, so the views re-bind each frame and a
   host never resizes between `draw` and `submitFrame`.

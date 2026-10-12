@@ -56,16 +56,19 @@ using common::core::indexOf;
 using Program = common::core::HighwayShaderProgram;
 using TextureAsset = common::core::HighwayTexture;
 
-// The renderer's four views, executed in id order after RenderDevice's own view 0, which clears
+// The renderer's five views, executed in id order after RenderDevice's own view 0, which clears
 // the window and which this renderer never touches. The background and board render the scene
-// into the off-screen scene target at the render look's resolution; the present copies that
-// target to the window through the look; the overlay composites over the result at the window's
-// own resolution, so diagnostics stay crisp and aligned with the device's debug text whatever the
-// look. Every view's frame buffer is re-bound each frame, because a device resize unbinds them all.
+// into the off-screen scene target; a blocky look's block pass reduces it to the block canvas,
+// one texel per virtual pixel (the view stays empty under any other look); the present copies the
+// scene or the canvas to the window through the look; the overlay composites over the result at
+// the window's own resolution, so diagnostics stay crisp and aligned with the device's debug text
+// whatever the look. Every view's frame buffer is re-bound each frame, because a device resize
+// unbinds them all.
 constexpr bgfx::ViewId g_background_view = 1;
 constexpr bgfx::ViewId g_board_view = 2;
-constexpr bgfx::ViewId g_present_view = 3;
-constexpr bgfx::ViewId g_overlay_view = 4;
+constexpr bgfx::ViewId g_blocks_view = 3;
+constexpr bgfx::ViewId g_present_view = 4;
+constexpr bgfx::ViewId g_overlay_view = 5;
 
 // Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp attack
 // line exactly where they occur, then a brief beat-bar fade trailing away down the measure — a
@@ -109,8 +112,9 @@ constexpr double g_light_decay_seconds = 0.1;
 // light's short decay — reads as jarring, so the ribbon layer lets the light go out slowly while
 // the floor patch and the fret-line tier keep the light's own decay. Both hands' lights fade here.
 constexpr double g_ribbon_decay_seconds = 0.6;
-// How far the ribbons' mid tier lifts a line from lane_line toward lane_line_lit. With lane_line
-// at 1/8 of lane_line_lit's alpha, as the built-in theme has it, 2/7 lands the tier at 3/8.
+// The ribbons' mid tier: a line a light covers at some slice of its strip, but not at now, sits
+// 2/7 of the way from lane_line to lane_line_lit. (With lane_line at 1/8 of lane_line_lit's alpha,
+// as the built-in theme has it, that is 3/8.)
 constexpr double g_ribbon_mid_tier_lift = 2.0 / 7.0;
 // Sustain slope shading: the modulated tail's centerline slope modulates its brightness like a
 // surface tilting under a fixed light, so a bend's climb, hold, and release — and a vibrato's
@@ -1849,12 +1853,14 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> box_mute_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> accent_glow_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> present_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> present_blocks_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> present_dither_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> present_halftone_program;
 
-    // The off-screen target the scene renders into, the present's sampler and parameters, and its
-    // one static triangle.
-    HighwaySceneTarget scene_target;
+    // The off-screen targets the scene renders into and a blocky look reduces it to, the passes'
+    // sampler and parameters, and their one static triangle.
+    HighwaySceneTarget scene_target{HighwaySceneTargetKind::Scene};
+    HighwaySceneTarget block_canvas{HighwaySceneTargetKind::Blocks};
     UniqueBgfxHandle<bgfx::UniformHandle> scene_sampler;
     UniqueBgfxHandle<bgfx::UniformHandle> present_params;
     UniqueBgfxHandle<bgfx::UniformHandle> dither_palette;
@@ -1953,7 +1959,7 @@ struct HighwayRenderer::Impl
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
     bool reported_oversized_drop{false};
-    // One warning per process when bgfx refuses the scene target, which leaves the frame undrawn.
+    // One warning per process when bgfx refuses a scene target, which leaves the frame undrawn.
     bool reported_scene_target_failure{false};
 
     // The displayed lane a chart string occupies, counted from the lowest lane.
@@ -2248,14 +2254,17 @@ struct HighwayRenderer::Impl
     // count moved: the one fact of a state the board face is laid out from.
     [[nodiscard]] bool seatLanes();
     void rebuildBoardFace();
-    // One frame for a window of the given size: the scene into the scene target at the frame's
-    // resolution, then the present to the window.
+    // One frame for a window of the given size: the scene into the scene target, a blocky look's
+    // block canvas from it, then the present to the window.
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
     // Encodes the scene into the scene target; the width and height are the TARGET's, which every
     // screen-space quantity of the scene (the aspect, the tails' sampling density) is taken from.
     void drawScene(
         double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
-    // Copies the scene target to a window of the given size through the frame's present.
+    // Reduces the scene target to the block canvas, one texel per virtual pixel.
+    void drawBlocks(const HighwaySceneFrame& frame, const HighwaySceneTargetSpec& blocks) const;
+    // Copies the scene target, or the block canvas when the frame has one, to a window of the
+    // given size through the frame's present.
     void present(const HighwaySceneFrame& frame, std::uint32_t width, std::uint32_t height) const;
 
     // One board pass each, in the order draw() calls them. Painter order IS submission order for
@@ -2407,6 +2416,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->box_mute_program = std::move(linked.at(indexOf(Program::BoxMute)));
     impl->accent_glow_program = std::move(linked.at(indexOf(Program::AccentGlow)));
     impl->present_program = std::move(linked.at(indexOf(Program::Present)));
+    impl->present_blocks_program = std::move(linked.at(indexOf(Program::PresentBlocks)));
     impl->present_dither_program = std::move(linked.at(indexOf(Program::PresentDither)));
     impl->present_halftone_program = std::move(linked.at(indexOf(Program::PresentHalftone)));
 
@@ -2652,21 +2662,52 @@ void HighwayRenderer::Impl::draw(
         return;
     }
     const HighwaySceneFrame frame = makeHighwaySceneFrame(width, height, render_look);
-    if (!scene_target.fit(frame.target))
+    bool fitted = scene_target.fit(frame.target);
+    if (frame.blocks.has_value())
+    {
+        fitted = block_canvas.fit(*frame.blocks) && fitted;
+    }
+    if (!fitted)
     {
         if (!reported_scene_target_failure)
         {
             reported_scene_target_failure = true;
             RH_LOG_WARNING(
                 "common.highway",
-                "bgfx refused the {}x{} scene target; the highway is not drawn",
+                "bgfx refused a scene target for a {}x{} scene; the highway is not drawn",
                 frame.target.width,
                 frame.target.height);
         }
         return;
     }
     drawScene(now_seconds, dt_seconds, frame.target.width, frame.target.height);
+    if (frame.blocks.has_value())
+    {
+        drawBlocks(frame, *frame.blocks);
+    }
     present(frame, width, height);
+}
+
+// The block pass binds its view every frame, like every other: a device resize unbinds them all.
+void HighwayRenderer::Impl::drawBlocks(
+    const HighwaySceneFrame& frame, const HighwaySceneTargetSpec& blocks) const
+{
+    bgfx::setViewFrameBuffer(g_blocks_view, block_canvas.frameBuffer());
+    bgfx::setViewRect(
+        g_blocks_view,
+        0,
+        0,
+        static_cast<std::uint16_t>(blocks.width),
+        static_cast<std::uint16_t>(blocks.height));
+    bgfx::setViewMode(g_blocks_view, bgfx::ViewMode::Sequential);
+    bgfx::setViewClear(g_blocks_view, BGFX_CLEAR_NONE);
+
+    const std::array<float, 4> params{frame.present_scale, 0.0F, 0.0F, 0.0F};
+    bgfx::setUniform(present_params.get(), params.data());
+    bgfx::setTexture(0, scene_sampler.get(), scene_target.color());
+    bgfx::setVertexBuffer(0, present_triangle.get());
+    bgfx::setState(g_present_state);
+    bgfx::submit(g_blocks_view, present_blocks_program.get());
 }
 
 // The present binds its own views every frame, like the scene's: a device resize unbinds every
@@ -2691,11 +2732,17 @@ void HighwayRenderer::Impl::present(
     {
         case HighwayPresent::Copy:
         {
+            // The rows the scanline kernel clamps to: the canvas's, or the scene's at scale 1.
+            params[2] = static_cast<float>(frame.target.height);
+            if (frame.blocks.has_value())
+            {
+                params[2] = static_cast<float>(frame.blocks->height);
+            }
             break;
         }
         case HighwayPresent::Dither:
         {
-            // Rebuilt per frame rather than kept beside the theme: thirty conversions on the
+            // Rebuilt per frame rather than kept beside the theme: one conversion per color on the
             // stack, and no second copy of the theme's colors to keep in step.
             const HighwayDitherPalette palette_colors = makeHighwayDitherPalette(theme, palette);
             bgfx::setUniform(
@@ -2717,7 +2764,10 @@ void HighwayRenderer::Impl::present(
         }
     }
     bgfx::setUniform(present_params.get(), params.data());
-    bgfx::setTexture(0, scene_sampler.get(), scene_target.color());
+    bgfx::setTexture(
+        0,
+        scene_sampler.get(),
+        frame.blocks.has_value() ? block_canvas.color() : scene_target.color());
     bgfx::setVertexBuffer(0, present_triangle.get());
     bgfx::setState(g_present_state);
     bgfx::submit(g_present_view, program);

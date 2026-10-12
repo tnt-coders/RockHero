@@ -69,10 +69,17 @@ enum class HighwayShaderProgram : std::uint8_t
 
     /*!
     \brief The full-screen present: copies the off-screen scene to the window through the theme's
-    render look — an exact copy for the plain look, the pixel look's hard-edged block upscale and
-    scanlines otherwise. Screen space, so it carries no far-edge fade.
+    render look — an exact copy for the plain look, the pixel look's hard-edged block upscale of
+    the block canvas and scanlines otherwise. Screen space, so it carries no far-edge fade.
     */
     Present,
+
+    /*!
+    \brief The pixel and dither looks' block pass: one texel of the block canvas per virtual pixel,
+    the mean of the full-resolution scene block it covers, spread 1:2:1 over the blocks above and
+    below when scanlines are on. Screen space, no far-edge fade.
+    */
+    PresentBlocks,
 
     /*!
     \brief The dither look's present: each virtual pixel ordered-dithered (4x4 Bayer) to the
@@ -139,6 +146,7 @@ inline constexpr std::array g_highway_shader_programs{
     HighwayShaderProgram::BoxMute,
     HighwayShaderProgram::AccentGlow,
     HighwayShaderProgram::Present,
+    HighwayShaderProgram::PresentBlocks,
     HighwayShaderProgram::PresentDither,
     HighwayShaderProgram::PresentHalftone,
 };
@@ -248,6 +256,10 @@ static_assert(
         case HighwayShaderProgram::Present:
         {
             return "present";
+        }
+        case HighwayShaderProgram::PresentBlocks:
+        {
+            return "present_blocks";
         }
         case HighwayShaderProgram::PresentDither:
         {

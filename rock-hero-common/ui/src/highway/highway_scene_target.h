@@ -20,8 +20,7 @@ namespace rock_hero::common::ui
 {
 
 /*!
-\brief What the scene target must be: its size. Every target renders with 4x multisampling,
-resolved before the present.
+\brief What one of the scene's off-screen targets must be: its size.
 
 Two frames that agree on this share one target, so a change of anything else the present reads
 never recreates GPU resources.
@@ -45,7 +44,7 @@ struct HighwaySceneTargetSpec
 /*! \brief Which present program carries the scene to the window, one per family of look. */
 enum class HighwayPresent : std::uint8_t
 {
-    /*! \brief A block mean with optional scanlines: the plain and pixel looks. */
+    /*! \brief A copy with optional scanlines: the plain and pixel looks. */
     Copy,
 
     /*! \brief The ordered dither to the theme's palette. */
@@ -62,6 +61,13 @@ struct HighwaySceneFrame
 {
     /*! \brief The target the scene renders into. */
     HighwaySceneTargetSpec target;
+
+    /*!
+    \brief The block canvas, one texel per virtual pixel, that the pixel and dither looks render
+    between the scene and the present; empty when a virtual pixel is a window pixel, or under the
+    halftone, where the present reads the scene itself.
+    */
+    std::optional<HighwaySceneTargetSpec> blocks;
 
     /*! \brief The program that presents it. */
     HighwayPresent present{HighwayPresent::Copy};
@@ -113,14 +119,14 @@ did not approve.
 /*!
 \brief The frame a window of the given size presents under a render look.
 
-Every look renders the full-resolution scene. The plain look renders at the window's size and
-copies one pixel to one pixel. The pixel look rounds the size up to whole scale x scale blocks, so
-the target still covers the window (up to scale - 1 pixels of it fall past one edge), and presents
-each block as one virtual pixel of the block's mean color, with the look's scanlines: a detail
-smaller than a block tints it by the share it covers rather than popping in and out as it moves.
-The dither look sizes its target the same way and dithers each block's mean. The halftone look
-renders like the plain look — its ink outlines trace the full-resolution scene — and presents
-through the dot screen.
+Every look renders the full-resolution scene, multisampled. The plain look renders at the window's
+size and copies one pixel to one pixel. The pixel look rounds the size up to whole scale x scale
+blocks, so the target still covers the window (up to scale - 1 pixels of it fall past one edge),
+reduces each block to one texel of a block canvas, and presents each texel as one hard-edged
+virtual pixel with the look's scanlines: a detail smaller than a block tints it by the share it
+covers rather than popping in and out as it moves. The dither look sizes its targets the same way
+and dithers each texel of the canvas. The halftone look renders like the plain look — its ink
+outlines trace the full-resolution scene — and presents through the dot screen.
 
 \param width Window width in pixels; non-zero.
 \param height Window height in pixels; non-zero.
@@ -130,8 +136,19 @@ through the dot screen.
 [[nodiscard]] HighwaySceneFrame makeHighwaySceneFrame(
     std::uint32_t width, std::uint32_t height, const HighwayRenderLook& look);
 
+/*! \brief Which off-screen target a HighwaySceneTarget is, which decides its attachments. */
+enum class HighwaySceneTargetKind : std::uint8_t
+{
+    /*! \brief The scene itself: 4x multisampled color, resolved before it is read, and depth. */
+    Scene,
+
+    /*! \brief The block canvas: single-sampled color only, written by a full-screen pass. */
+    Blocks,
+};
+
 /*!
-\brief Owns the scene's off-screen color and depth targets and the frame buffer joining them.
+\brief Owns one of the scene's off-screen targets: its attachments and the frame buffer joining
+them.
 
 Created lazily and refitted only when the spec changes, so creation, a window resize and a change
 of look are one path. Every handle dies with this object, which its owner destroys before bgfx
@@ -140,6 +157,12 @@ shutdown (the UniqueBgfxHandle contract).
 class HighwaySceneTarget
 {
 public:
+    /*!
+    \brief Creates an empty target of one kind; the first fit allocates it.
+    \param kind Which target this is.
+    */
+    explicit HighwaySceneTarget(HighwaySceneTargetKind kind) noexcept;
+
     /*!
     \brief Makes the target match the spec, recreating it only when the spec differs from the one
     last fitted.
@@ -159,18 +182,21 @@ public:
     [[nodiscard]] bgfx::FrameBufferHandle frameBuffer() const noexcept;
 
     /*!
-    \brief The color attachment the present reads, single-sampled: bgfx resolves a multisampled
-    target into it when the frame leaves the target.
+    \brief The color attachment the next pass reads, single-sampled: bgfx resolves the
+    multisampled scene into it when the frame leaves the target.
     \return The color texture; invalid until a fit succeeds.
     */
     [[nodiscard]] bgfx::TextureHandle color() const noexcept;
 
 private:
+    // Which target this is; fixed for its life.
+    HighwaySceneTargetKind m_kind;
+
     // The spec last fitted, successfully or not; empty before the first fit.
     std::optional<HighwaySceneTargetSpec> m_spec;
 
     // The attachments, then the frame buffer that references them (bgfx counts the references, so
-    // destruction order is free).
+    // destruction order is free). The block canvas has no depth.
     UniqueBgfxHandle<bgfx::TextureHandle> m_color;
     UniqueBgfxHandle<bgfx::TextureHandle> m_depth;
     UniqueBgfxHandle<bgfx::FrameBufferHandle> m_frame_buffer;
