@@ -2127,7 +2127,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // successor and rides inside it, so it would close nothing and this figure would stop
         // asking its question.
         const TempoMap meter_change{
-            metersAt({{"1:1", 6, 8}, {"2:1", 4, 4}}),
+            metersAt(
+                {{.at = "1:1", .numerator = 6, .denominator = 8},
+                 {.at = "2:1", .numerator = 4, .denominator = 4}}),
             {anchor("1:1", 0), anchor("5:1", 20000)},
         };
         const std::vector<ChartNote> glide_into_chord = streamOf({

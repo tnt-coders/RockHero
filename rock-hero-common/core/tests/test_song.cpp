@@ -95,7 +95,9 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     song.metadata.album = "Test Album";
     song.metadata.year = 2026;
     song.tempo_map = TempoMap{
-        metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 3, .denominator = 4}}),
         std::vector{
             anchor("1:1", 0),
             anchor("4:1", 5500),

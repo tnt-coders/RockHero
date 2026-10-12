@@ -635,7 +635,10 @@ TEST_CASE("Meter edit re-addresses tempo anchors keeping their time", "[core][me
                                          anchor("4:4", 6250),
                                          anchor("6:1", 8500),
                                      });
-    CHECK(after.tempo_map.timeSignatures() == metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}));
+    CHECK(
+        after.tempo_map.timeSignatures() == metersAt(
+                                                {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                                 {.at = "3:1", .numerator = 6, .denominator = 8}}));
 }
 
 TEST_CASE("Meter edit re-addresses note onsets", "[core][meter-edits]")
@@ -756,7 +759,10 @@ TEST_CASE("Meter edit renumbers the measures after a changed reign", "[core][met
         before, std::vector{placed(Fraction{}, 2, 4), placed(Fraction{2}, 3, 4)});
     requireValid(after);
     // The meters keep their places; the 3/4 at whole note 2 is measure 5 under the 2/4.
-    CHECK(after.tempo_map.timeSignatures() == metersAt({{"1:1", 2, 4}, {"5:1", 3, 4}}));
+    CHECK(
+        after.tempo_map.timeSignatures() == metersAt(
+                                                {{.at = "1:1", .numerator = 2, .denominator = 4},
+                                                 {.at = "5:1", .numerator = 3, .denominator = 4}}));
     CHECK(after.tempo_map.anchors().back() == anchor("8:1", 8500));
     const Chart& chart = chartOf(after, 0);
     REQUIRE(chart.notes.size() == 2);
@@ -782,7 +788,9 @@ TEST_CASE("Meter edit lands a derived short bar before a later meter", "[core][m
     const SongTimeline before{
         .tempo_map =
             TempoMap{
-                metersAt({{"1:1", 4, 4}, {"5:1", 6, 8}}),
+                metersAt(
+                    {{.at = "1:1", .numerator = 4, .denominator = 4},
+                     {.at = "5:1", .numerator = 6, .denominator = 8}}),
                 {anchor("1:1", 0), anchor("7:1", 11000)},
             },
         .sections = {},
@@ -821,8 +829,10 @@ TEST_CASE(
     const SongTimeline after = readdressUnderMeters(before, std::vector{placed(Fraction{}, 3, 4)});
     requireValid(after);
     CHECK(
-        after.tempo_map ==
-        TempoMap{metersAt({{"1:1", 3, 4}}), {anchor("1:1", 0), anchor("6:2", 8000)}});
+        after.tempo_map == TempoMap{
+                               metersAt({{.at = "1:1", .numerator = 3, .denominator = 4}}),
+                               {anchor("1:1", 0), anchor("6:2", 8000)}
+                           });
     CHECK_FALSE(hasDerivedShortBar(after.tempo_map));
     const Chart& chart = chartOf(after, 0);
     REQUIRE(chart.notes.size() == 1);

@@ -205,7 +205,9 @@ struct RecordingRulerListener final : TimelineRuler::Listener
 [[nodiscard]] common::core::TempoMap makeMeterChangeTempoMap()
 {
     return common::core::TempoMap{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 3, 4}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:1", .numerator = 3, .denominator = 4}}),
         std::vector{anchor("1:1", 0), anchor("4:1", 10000)},
     };
 }
@@ -235,7 +237,9 @@ void showMeterChangeMap(TimelineRuler& ruler)
 [[nodiscard]] common::core::TempoMap makeShortBarTempoMap()
 {
     return common::core::TempoMap{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:3", 3, 4}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:3", .numerator = 3, .denominator = 4}}),
         std::vector{anchor("1:1", 0), anchor("4:1", 9000)},
     };
 }
@@ -1346,7 +1350,9 @@ TEST_CASE(
     constexpr int content_width = 801;
     constexpr int view_x = 376;
     const common::core::TempoMap tempo_map{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 3, 4}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:1", .numerator = 3, .denominator = 4}}),
         std::vector{
             anchor("1:1", 0),
             anchor("2:1", 4000),

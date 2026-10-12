@@ -132,7 +132,10 @@ TEST_CASE("The meter chord inserts at the cursor's beat, then restates", "[core]
     CHECK(insert->meter_text == "4/4");
 
     editor.set(beatAt(6, 3), "7/8");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:3", 7, 8}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "6:3", .numerator = 7, .denominator = 8}}));
     CHECK(editor.meters().back().place == common::core::Fraction{11, 2});
     CHECK(
         editor.tempoMap().timeSignatureAt(6) == common::core::MeterReign{
@@ -159,7 +162,10 @@ TEST_CASE("The meter chord inserts at the cursor's beat, then restates", "[core]
     CHECK(*entered == expected);
 
     editor.set(downbeat(7), " 6 / 8 ");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:3", 6, 8}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "6:3", .numerator = 6, .denominator = 8}}));
     CHECK(editor.undoEntryCount() == 2);
     CHECK(editor.undoTopLabel() == "Set Time Signature");
 }
@@ -223,7 +229,10 @@ TEST_CASE(
     editor.seek(4.0); // 3:1
 
     editor.set(downbeat(3), "4/4");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 4, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 4, .denominator = 4}}));
     CHECK(editor.state().selected_time_signature_measure == std::optional{3});
     CHECK(editor.undoEntryCount() == 0);
     CHECK(editor.view.renumber_flashes.empty());
@@ -235,7 +244,10 @@ TEST_CASE(
     CHECK(*restate == SetTimeSignatureTarget{.position = downbeat(3), .meter_text = "4/4"});
 
     editor.set(downbeat(3), "3/4");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 3, .denominator = 4}}));
     CHECK(editor.undoEntryCount() == 1);
     CHECK(editor.undoTopLabel() == "Set Time Signature");
     CHECK(editor.view.renumber_flashes == std::vector{4});
@@ -286,11 +298,17 @@ TEST_CASE(
     MeterEditor editor;
     const common::core::SongTimeline original = editor.timeline();
     editor.set(beatAt(3, 3), "4/4");
-    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:3", 4, 4}}));
+    REQUIRE(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:3", .numerator = 4, .denominator = 4}}));
     const common::core::SongTimeline inserted = editor.timeline();
 
     editor.pressAlt(ChartStepDirection::Right, 2);
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:1", 4, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "4:1", .numerator = 4, .denominator = 4}}));
     CHECK(editor.state().selected_time_signature_measure == std::optional{4});
     CHECK(editor.undoEntryCount() == 2);
     CHECK(editor.undoTopLabel() == "Move Time Signature");
@@ -311,7 +329,10 @@ TEST_CASE(
         editor.pressAlt(ChartStepDirection::Right);
         CHECK(editor.undoEntryCount() == 2);
         editor.controller.onTimeSignatureSelected(1);
-        CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:2", 4, 4}}));
+        CHECK(
+            editor.meters() == metersAt(
+                                   {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                    {.at = "4:2", .numerator = 4, .denominator = 4}}));
         CHECK(editor.undoEntryCount() == 2);
     }
     SECTION("the run walked back lands where it began")
@@ -357,7 +378,10 @@ TEST_CASE("A save while a redundant meter chip is focused keeps it in memory", "
     {
         CHECK(editor.project_services.last_saved_song->tempo_map == editor.tempoMap());
     }
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 4, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 4, .denominator = 4}}));
     CHECK(editor.state().selected_time_signature_measure == std::optional{3});
     CHECK(editor.undoEntryCount() == 0);
 }
@@ -385,7 +409,10 @@ TEST_CASE("A repeated meter off the downbeat grid cuts a bar and moves nothing",
     const std::vector<double> times = resolvedTimes(editor.controller.session().song());
 
     editor.set(beatAt(4, 3), "4/4");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:3", 4, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "4:3", .numerator = 4, .denominator = 4}}));
     CHECK(editor.undoEntryCount() == 1);
     CHECK(editor.undoTopLabel() == "Add Time Signature");
     CHECK(editor.view.renumber_flashes == std::vector{5});
@@ -429,9 +456,17 @@ TEST_CASE("A repeated meter off the downbeat grid cuts a bar and moves nothing",
 
     const common::core::SongTimeline cut = editor.timeline();
     editor.set(downbeat(3), "4/4");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 4, 4}, {"4:3", 4, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 4, .denominator = 4},
+                                {.at = "4:3", .numerator = 4, .denominator = 4}}));
     editor.set(downbeat(7), "4/4");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"4:3", 4, 4}, {"7:1", 4, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "4:3", .numerator = 4, .denominator = 4},
+                                {.at = "7:1", .numerator = 4, .denominator = 4}}));
     editor.controller.onTimeSignatureSelected(1);
     CHECK(editor.timeline() == cut);
     CHECK(editor.undoEntryCount() == 1);
@@ -446,19 +481,25 @@ TEST_CASE("Delete removes a meter and refuses the first", "[core][meters]")
     editor.controller.onTimeSignatureSelected(1);
     editor.controller.onSelectionDeleteRequested();
     editor.pressAlt(ChartStepDirection::Right);
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}}));
+    CHECK(editor.meters() == metersAt({{.at = "1:1", .numerator = 4, .denominator = 4}}));
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
     CHECK(editor.undoEntryCount() == 0);
 
     editor.set(downbeat(3), "3/4");
-    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
+    REQUIRE(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 3, .denominator = 4}}));
     editor.controller.onSelectionDeleteRequested();
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}}));
+    CHECK(editor.meters() == metersAt({{.at = "1:1", .numerator = 4, .denominator = 4}}));
     CHECK(editor.undoTopLabel() == "Delete Time Signature");
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
 
     editor.controller.onUndoRequested();
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 3, .denominator = 4}}));
 }
 
 // The row's objects are every reign start, the derived short bar's included: its ghost chip can be
@@ -484,7 +525,11 @@ TEST_CASE("A stating verb on a derived short bar authors it", "[core][meters]")
 
     editor.set(downbeat(4), "1/4");
     CHECK(
-        editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 5, 4}, {"4:1", 1, 4}, {"5:1", 4, 4}}));
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 5, .denominator = 4},
+                                {.at = "4:1", .numerator = 1, .denominator = 4},
+                                {.at = "5:1", .numerator = 4, .denominator = 4}}));
     CHECK_FALSE(editor.tempoMap().timeSignatureAt(4).derived);
     CHECK(editor.state().selected_time_signature_measure == std::optional{4});
     CHECK(editor.undoEntryCount() == entries + 1);
@@ -503,7 +548,11 @@ TEST_CASE("Changing a meter back makes the derived short bar vanish", "[core][me
 
     editor.set(downbeat(3), "3/4");
     CHECK(editor.tempoMap().reigns().size() == 3);
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}, {"5:1", 4, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 3, .denominator = 4},
+                                {.at = "5:1", .numerator = 4, .denominator = 4}}));
 }
 
 // Delete and the move need a STORED meter, so on a derived start both refuse: the chip glows red
@@ -546,7 +595,10 @@ TEST_CASE("A meter moves a beat per press and a held run is one entry", "[core][
     const common::core::SongTimeline inserted = editor.timeline();
 
     editor.pressAlt(ChartStepDirection::Right, 2);
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:3", 2, 4}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:3", .numerator = 2, .denominator = 4}}));
     CHECK(editor.tempoMap().timeSignatureAt(3).derived);
     CHECK(editor.state().selected_time_signature_measure == std::optional{4});
     CHECK(editor.undoEntryCount() == 2);
@@ -568,7 +620,10 @@ TEST_CASE("A meter run walked back restores the song exactly", "[core][meters]")
     const std::size_t entries = editor.undoEntryCount();
 
     editor.pressAlt(ChartStepDirection::Left);
-    REQUIRE(editor.meters() == metersAt({{"1:1", 4, 4}, {"6:4", 3, 4}}));
+    REQUIRE(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "6:4", .numerator = 3, .denominator = 4}}));
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == inserted);
     CHECK(editor.undoEntryCount() == entries);
@@ -601,7 +656,10 @@ TEST_CASE("A meter move refuses a reign too short and the song's end", "[core][m
     MeterEditor ending;
     ending.set(downbeat(8), "2/4");
     ending.pressAlt(ChartStepDirection::Right, 3);
-    REQUIRE(ending.meters() == metersAt({{"1:1", 4, 4}, {"8:4", 2, 4}}));
+    REQUIRE(
+        ending.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "8:4", .numerator = 2, .denominator = 4}}));
     const common::core::SongTimeline stepped = ending.timeline();
     ending.pressAlt(ChartStepDirection::Right);
     CHECK(ending.timeline() == stepped);
@@ -674,7 +732,10 @@ TEST_CASE("A meter restate that moves no downbeat flashes nothing", "[core][mete
     REQUIRE(editor.view.renumber_flashes == std::vector{4});
 
     editor.set(downbeat(3), "6/8");
-    CHECK(editor.meters() == metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}));
+    CHECK(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "3:1", .numerator = 6, .denominator = 8}}));
     CHECK(editor.undoTopLabel() == "Set Time Signature");
     CHECK(editor.view.renumber_flashes == std::vector{4});
 }

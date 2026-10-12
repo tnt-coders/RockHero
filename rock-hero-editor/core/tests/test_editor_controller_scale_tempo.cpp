@@ -412,7 +412,9 @@ TEST_CASE("Unlocked Scale Tempo applies no meter-lattice refusal", "[core][scale
 {
     common::core::Song song = makeEightMeasureSong();
     song.tempo_map = common::core::TempoMap{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"5:1", 6, 8}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "5:1", .numerator = 6, .denominator = 8}}),
         {anchor("1:1", 0), anchor("7:1", 11000)},
     };
     ScaleEditor editor{false, std::move(song)};

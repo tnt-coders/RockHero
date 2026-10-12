@@ -50,7 +50,9 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] common::core::TempoMap makeMeterChangeMap()
 {
     return common::core::TempoMap{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 6, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("21:1", 31000),
@@ -2144,7 +2146,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
     // Two 6/8 measures at one eighth-note beat per second, so the whole fixture is grid rather than
     // terminal-anchor extrapolation.
     const common::core::TempoMap tempo_map{
-        common::core::testing::metersAt({{"1:1", 6, 8}}),
+        common::core::testing::metersAt({{.at = "1:1", .numerator = 6, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 12000),
@@ -2200,7 +2202,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
 TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart]")
 {
     const common::core::TempoMap tempo_map{
-        common::core::testing::metersAt({{"1:1", 7, 8}}),
+        common::core::testing::metersAt({{.at = "1:1", .numerator = 7, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("4:1", 21000),

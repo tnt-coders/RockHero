@@ -503,7 +503,9 @@ TEST_CASE("Visible tempo grid keeps note values constant across meters", "[core]
     // One 4/4 measure (four quarters) then one 6/8 measure (three quarters), metronome-linear at
     // one quarter note per second: seven quarters over seven seconds, terminal at measure 3.
     const common::core::TempoMap map{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:1", .numerator = 6, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7000),
@@ -550,7 +552,9 @@ TEST_CASE("Visible tempo grid stops a short bar's lines at its end", "[core][tem
     // 4/4, the 7/8 from beat 2 of measure 2: measure 2 is a derived 1/4 at 4 s, measure 3 the 7/8
     // from 5 s, its eighth-note beats half a second each, and the terminal at 4:1 (8.5 s).
     const common::core::TempoMap map{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:2", 7, 8}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:2", .numerator = 7, .denominator = 8}}),
         std::vector{anchor("1:1", 0), anchor("4:1", 8500)},
     };
     constexpr common::core::TimeRange window{
@@ -590,7 +594,7 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
     // Two 7/8 measures at one eighth-note beat per half second: each measure spans 3.5 quarters,
     // so a song-uniform quarter-note walk from zero would miss measure 2's downbeat at 3.5s.
     const common::core::TempoMap map{
-        common::core::testing::metersAt({{"1:1", 7, 8}}),
+        common::core::testing::metersAt({{.at = "1:1", .numerator = 7, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7000),
@@ -745,7 +749,10 @@ TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo
 {
     // 4/4, then 6/8, then 7/8; the tempo halves at measure 3.
     const common::core::TempoMap map{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}, {"3:1", 7, 8}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:1", .numerator = 6, .denominator = 8},
+             {.at = "3:1", .numerator = 7, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 7000),

@@ -33,7 +33,10 @@ using rock_hero::common::core::testing::metersAt;
 [[nodiscard]] TempoMap denseMap()
 {
     return TempoMap{
-        metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}, {"4:1", 4, 4}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 7, .denominator = 8},
+             {.at = "4:1", .numerator = 4, .denominator = 4}}),
         {anchor("1:1", 0),
          anchor("2:3", 2777),
          anchor("3:4", 4321),

@@ -45,7 +45,9 @@ using rock_hero::common::core::testing::metersAt;
 [[nodiscard]] TempoMap meterChangeMap()
 {
     return TempoMap{
-        metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 6, .denominator = 8}}),
         {anchor("1:1", 0), anchor("8:1", 23000)},
     };
 }
@@ -825,7 +827,7 @@ TEST_CASE("Tail rule 2 earns a tail only for a ring past the kept-sustain bound"
         // Four 12/8 measures in 24 s: each eighth-note beat lasts half a second, twice the bound,
         // so a quarter earns its tail here where the same written eighth at 150 BPM in 4/4 drops.
         const TempoMap map{
-            metersAt({{"1:1", 12, 8}}),
+            metersAt({{.at = "1:1", .numerator = 12, .denominator = 8}}),
             {anchor("1:1", 0), anchor("5:1", 24000)},
         };
         CHECK(loneTail(note(at(1, 1), 1, Fraction{1, 4}), map) == Fraction{1, 4});

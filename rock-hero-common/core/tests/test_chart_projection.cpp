@@ -2259,7 +2259,9 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
 TEST_CASE("Ring ends and keyframes resolve across a meter change", "[core][chart]")
 {
     const TempoMap tempo_map{
-        testing::metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
+        testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 6, .denominator = 8}}),
         {BeatAnchor{.position = GridPosition{.measure = 1, .beat = 1}, .milliseconds = 0},
          BeatAnchor{.position = GridPosition{.measure = 2, .beat = 3}, .milliseconds = 2777},
          BeatAnchor{.position = GridPosition{.measure = 3, .beat = 4}, .milliseconds = 5113},

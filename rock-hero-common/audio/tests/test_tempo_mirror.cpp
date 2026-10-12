@@ -47,7 +47,9 @@ struct TempoMirrorHarness
 [[nodiscard]] core::TempoMap makeMeterChangeMap()
 {
     return core::TempoMap{
-        core::testing::metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}}),
+        core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:1", .numerator = 6, .denominator = 8}}),
         {
             anchor("1:1", 0),
             anchor("2:1", 2000),
@@ -205,7 +207,9 @@ TEST_CASE("Tempo mirror writes a derived short bar as a time signature", "[audio
     mirrorTempoMapIntoSequence(
         sequence,
         core::TempoMap{
-            core::testing::metersAt({{"1:1", 4, 4}, {"2:2", 7, 8}}),
+            core::testing::metersAt(
+                {{.at = "1:1", .numerator = 4, .denominator = 4},
+                 {.at = "2:2", .numerator = 7, .denominator = 8}}),
             {anchor("1:1", 0), anchor("4:1", 4250)},
         });
 
@@ -236,7 +240,9 @@ TEST_CASE(
     mirrorTempoMapIntoSequence(
         sequence,
         core::TempoMap{
-            core::testing::metersAt({{"1:1", 6, 8}, {"2:1", 4, 4}}),
+            core::testing::metersAt(
+                {{.at = "1:1", .numerator = 6, .denominator = 8},
+                 {.at = "2:1", .numerator = 4, .denominator = 4}}),
             {anchor("1:1", 0), anchor("4:1", 5500)},
         });
 
@@ -267,7 +273,9 @@ TEST_CASE("Tempo mirror places a meter that starts between quarters", "[audio][t
     mirrorTempoMapIntoSequence(
         sequence,
         core::TempoMap{
-            core::testing::metersAt({{"1:1", 7, 8}, {"2:1", 4, 4}}),
+            core::testing::metersAt(
+                {{.at = "1:1", .numerator = 7, .denominator = 8},
+                 {.at = "2:1", .numerator = 4, .denominator = 4}}),
             {anchor("1:1", 0), anchor("4:1", 5750)},
         });
 

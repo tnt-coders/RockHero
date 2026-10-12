@@ -842,7 +842,9 @@ TEST_CASE(
 
     Song song = makeSong(source_audio);
     song.tempo_map = TempoMap{
-        metersAt({{"1:1", 4, 4}, {"12:1", 7, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "12:1", .numerator = 7, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 4000),
@@ -1059,7 +1061,11 @@ TEST_CASE("Rock song package reader drops a meter restating its reign", "[core][
     const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
-    CHECK(read_song->tempo_map.timeSignatures() == metersAt({{"1:1", 4, 4}, {"3:3", 4, 4}}));
+    CHECK(
+        read_song->tempo_map.timeSignatures() ==
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:3", .numerator = 4, .denominator = 4}}));
 }
 
 // Verifies an anchor between two beats saves as its whole-note place (2:3+1/2 of 4/4 is one bar and
@@ -1108,7 +1114,9 @@ TEST_CASE(
     // 4/4 then 7/8 from measure 3 (two whole notes in), the terminal at 6:1 after three 7/8 bars.
     Song song = makeSongWithToneDocument(source_audio);
     song.tempo_map = TempoMap{
-        metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 7, .denominator = 8}}),
         {anchor("1:1", 0), anchor("2:3+1/2", 2750), anchor("4:4", 6250), anchor("6:1", 8500)},
     };
     const auto at = [](const std::string& token) { return anchor(token, 0).position; };

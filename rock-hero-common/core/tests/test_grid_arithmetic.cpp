@@ -26,7 +26,9 @@ using rock_hero::common::core::testing::metersAt;
 [[nodiscard]] TempoMap signatureChangeMap()
 {
     return TempoMap{
-        metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 7, .denominator = 8}}),
         {anchor("1:1", 0), anchor("6:1", 20000)},
     };
 }

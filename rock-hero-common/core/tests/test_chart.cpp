@@ -346,7 +346,9 @@ TEST_CASE("Fraction tokens are canonical mixed numbers", "[core][chart]")
 TEST_CASE("Place tokens address a position on the grid and back", "[core][chart]")
 {
     const TempoMap tempo_map{
-        testing::metersAt({{"1:1", 4, 4}, {"3:1", 7, 8}}),
+        testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 7, .denominator = 8}}),
         {testing::anchor("1:1", 0), testing::anchor("5:1", 8000)},
     };
     const GridPosition beat_four{.measure = 3, .beat = 4, .offset = {}};

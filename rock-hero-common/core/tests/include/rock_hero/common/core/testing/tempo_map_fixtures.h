@@ -79,8 +79,8 @@ struct MeterAt
 /*!
 \brief Time-signature changes stated by the measure each starts, as a charter counts them.
 
-Each token is resolved under the meters listed before it, so `{{"1:1", 4, 4}, {"3:1", 3, 4},
-{"5:1", 5, 4}}` places the 5/4 after two bars of 4/4 and two of 3/4. A token off a downbeat
+Each token is resolved under the meters listed before it, so 4/4 at `"1:1"`, 3/4 at `"3:1"` and
+5/4 at `"5:1"` place the 5/4 after two bars of 4/4 and two of 3/4. A token off a downbeat
 (`"6:2"`) places a meter mid-measure, for the cases about the derived short bar.
 
 \param meters The changes in order, the first at `"1:1"`; a malformed token throws
@@ -109,7 +109,7 @@ Each token is resolved under the meters listed before it, so `{{"1:1", 4, 4}, {"
 */
 [[nodiscard]] inline std::vector<TimeSignatureChange> commonTime()
 {
-    return metersAt({{"1:1", 4, 4}});
+    return metersAt({{.at = "1:1", .numerator = 4, .denominator = 4}});
 }
 
 /*!

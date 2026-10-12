@@ -77,14 +77,20 @@ TEST_CASE("Tempo map rules refuse each violation", "[core][tempo-map]")
             }},
             twoMeasureAnchors()) == TempoMapErrorCode::FirstTimeSignatureLate);
     CHECK(
-        refusalOf(metersAt({{"1:1", 4, 3}}), twoMeasureAnchors()) ==
+        refusalOf(
+            metersAt({{.at = "1:1", .numerator = 4, .denominator = 3}}), twoMeasureAnchors()) ==
         TempoMapErrorCode::InvalidTimeSignature);
     CHECK(
-        refusalOf(metersAt({{"1:1", 4, 512}}), twoMeasureAnchors()) ==
+        refusalOf(
+            metersAt({{.at = "1:1", .numerator = 4, .denominator = 512}}), twoMeasureAnchors()) ==
         TempoMapErrorCode::InvalidTimeSignature);
     CHECK(
-        refusalOf(metersAt({{"1:1", 4, 4}, {"2:1", 3, 4}, {"2:1", 5, 4}}), twoMeasureAnchors()) ==
-        TempoMapErrorCode::InvalidTimeSignature);
+        refusalOf(
+            metersAt(
+                {{.at = "1:1", .numerator = 4, .denominator = 4},
+                 {.at = "2:1", .numerator = 3, .denominator = 4},
+                 {.at = "2:1", .numerator = 5, .denominator = 4}}),
+            twoMeasureAnchors()) == TempoMapErrorCode::InvalidTimeSignature);
     CHECK(refusalOf({anchor("1:1", 0)}) == TempoMapErrorCode::MissingAnchors);
     CHECK(refusalOf({anchor("1:2", 0), anchor("3:1", 4000)}) == TempoMapErrorCode::FirstAnchorLate);
     CHECK(refusalOf({anchor("1:1", 0), anchor("3:1", -1000)}) == TempoMapErrorCode::InvalidAnchor);
@@ -109,7 +115,13 @@ TEST_CASE("Tempo map rules accept a terminal mid-measure", "[core][tempo-map]")
 TEST_CASE("Tempo map rules place a meter on the meter lattice", "[core][tempo-map]")
 {
     const std::vector<BeatAnchor> anchors{anchor("1:1", 0), anchor("9:1", 16000)};
-    CHECK(validateTempoMapRules(TempoMap{metersAt({{"1:1", 4, 4}, {"6:2", 7, 8}}), anchors})
+    CHECK(validateTempoMapRules(
+              TempoMap{
+                  metersAt(
+                      {{.at = "1:1", .numerator = 4, .denominator = 4},
+                       {.at = "6:2", .numerator = 7, .denominator = 8}}),
+                  anchors
+              })
               .has_value());
     CHECK(validateTempoMapRules(
               TempoMap{

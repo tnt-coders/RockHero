@@ -43,7 +43,9 @@ using common::core::testing::anchor;
 [[nodiscard]] TempoMap makeMeterChangeMap()
 {
     return TempoMap{
-        common::core::testing::metersAt({{"1:1", 4, 4}, {"4:1", 6, 8}}),
+        common::core::testing::metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "4:1", .numerator = 6, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("21:1", 31000),

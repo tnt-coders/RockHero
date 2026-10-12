@@ -128,7 +128,10 @@ TEST_CASE("Scale Tempo by 2 lands a meter at measure m on measure 2m-1", "[core]
     requireValid(before);
     const SongTimeline after = scaled(before, Fraction{2});
     requireValid(after);
-    CHECK(after.tempo_map.timeSignatures() == metersAt({{"1:1", 4, 4}, {"5:1", 3, 4}}));
+    CHECK(
+        after.tempo_map.timeSignatures() == metersAt(
+                                                {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                                 {.at = "5:1", .numerator = 3, .denominator = 4}}));
     CHECK(after.tempo_map.anchors().back() == anchor("11:1", 8500));
     REQUIRE(after.sections.size() == 2);
     CHECK(after.sections[1].position == at("7:1"));
@@ -143,7 +146,9 @@ TEST_CASE("Scale Tempo by 1/2 cuts a reign short before a later meter", "[core][
     const SongTimeline before{
         .tempo_map =
             TempoMap{
-                metersAt({{"1:1", 4, 4}, {"4:1", 6, 8}}),
+                metersAt(
+                    {{.at = "1:1", .numerator = 4, .denominator = 4},
+                     {.at = "4:1", .numerator = 6, .denominator = 8}}),
                 {anchor("1:1", 0), anchor("6:1", 9000)},
             },
         .sections = {},
@@ -175,7 +180,9 @@ TEST_CASE(
     const SongTimeline before{
         .tempo_map =
             TempoMap{
-                metersAt({{"1:1", 4, 4}, {"5:1", 6, 8}}),
+                metersAt(
+                    {{.at = "1:1", .numerator = 4, .denominator = 4},
+                     {.at = "5:1", .numerator = 6, .denominator = 8}}),
                 {anchor("1:1", 0), anchor("7:1", 11000)},
             },
         .sections = {},

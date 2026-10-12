@@ -30,7 +30,10 @@ using rock_hero::common::core::testing::metersAt;
 [[nodiscard]] TempoMap makeThreeMeterMap()
 {
     return TempoMap{
-        metersAt({{"1:1", 4, 4}, {"3:1", 3, 4}, {"5:1", 5, 4}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 3, .denominator = 4},
+             {.at = "5:1", .numerator = 5, .denominator = 4}}),
         std::vector{
             anchor("1:1", 0),
             anchor("6:1", 9500),
@@ -43,7 +46,9 @@ using rock_hero::common::core::testing::metersAt;
 [[nodiscard]] TempoMap makeSevenEightMap()
 {
     return TempoMap{
-        metersAt({{"1:1", 4, 4}, {"2:1", 7, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:1", .numerator = 7, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("3:1", 3750),
@@ -173,7 +178,7 @@ TEST_CASE("TempoMap measures each sparse anchor span in quarters", "[core][tempo
 TEST_CASE("TempoMap counts an eighth-note meter in quarter notes", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
-        metersAt({{"1:1", 6, 8}}),
+        metersAt({{.at = "1:1", .numerator = 6, .denominator = 8}}),
         std::vector{
             anchor("1:1", 0),
             anchor("2:1", 3000),
@@ -265,7 +270,9 @@ TEST_CASE("TempoMap reigns are its authored changes when every reign divides", "
 TEST_CASE("TempoMap derives a short bar before a mid-measure meter", "[core][tempo-map]")
 {
     const TempoMap tempo_map{
-        metersAt({{"1:1", 4, 4}, {"6:2", 7, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "6:2", .numerator = 7, .denominator = 8}}),
         std::vector{anchor("1:1", 0), anchor("9:1", 14000)},
     };
 
@@ -307,7 +314,10 @@ TEST_CASE("TempoMap derives a short bar before a mid-measure meter", "[core][tem
 TEST_CASE("TempoMap counts a short bar in the governing beat or the finer one", "[core][tempo-map]")
 {
     const TempoMap four_eight{
-        metersAt({{"1:1", 4, 4}, {"5:1", 7, 8}, {"9:5", 4, 4}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "5:1", .numerator = 7, .denominator = 8},
+             {.at = "9:5", .numerator = 4, .denominator = 4}}),
         std::vector{anchor("1:1", 0), anchor("11:1", 20000)},
     };
     CHECK(
@@ -394,7 +404,9 @@ TEST_CASE("TempoMap clamps beat positions below the first anchor", "[core][tempo
 TEST_CASE("TempoMap reports each anchor span's quarter length", "[core][tempo-map]")
 {
     const TempoMap map{
-        metersAt({{"1:1", 4, 4}, {"2:1", 6, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "2:1", .numerator = 6, .denominator = 8}}),
         {anchor("1:1", 0), anchor("2:1", 2000), anchor("3:1", 3500)},
     };
 
@@ -437,7 +449,9 @@ TEST_CASE("TempoMap default map ends on the first downbeat covering the audio", 
 TEST_CASE("TempoMap grows its terminal to cover a time", "[core][tempo-map]")
 {
     const TempoMap map{
-        metersAt({{"1:1", 4, 4}, {"3:1", 6, 8}}),
+        metersAt(
+            {{.at = "1:1", .numerator = 4, .denominator = 4},
+             {.at = "3:1", .numerator = 6, .denominator = 8}}),
         {anchor("1:1", 0), anchor("2:1", 2000)},
     };
 
