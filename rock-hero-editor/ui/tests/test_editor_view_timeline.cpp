@@ -6,6 +6,7 @@
 #include "timeline/track_viewport.h"
 
 #include <algorithm>
+#include <array>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <cstdint>
@@ -672,6 +673,28 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
 
     // Started at 1 s, ending at 3 s: held at the left edge, the same chip pixel for pixel, label
     // and all, as the one standing at its own start, and nothing past it.
+    //
+    // The label is a glyph, which JUCE rasterizes once and places at the text's fractional origin
+    // by truncating x * 256 (EdgeTable::translate). The same glyph at 50 + k and at k can then land
+    // one antialias level apart where float rounding of 50 + k crosses a 1/256 step, and where k
+    // falls is the platform font's metrics. So each pixel is classified to the nearest of the three
+    // colors the chip's rows hold, and the classes must match: every pixel that matched exactly
+    // still classifies alike, and no tolerance is chosen.
+    const std::array<juce::Colour, 3> known{
+        editorTheme().timeline_ruler_background,
+        chord,
+        common::ui::g_chip_label_color,
+    };
+    const auto nearest_known = [&known](const juce::Colour pixel) {
+        const auto distance = [pixel](const juce::Colour color) {
+            const int alpha = pixel.getAlpha() - color.getAlpha();
+            const int red = pixel.getRed() - color.getRed();
+            const int green = pixel.getGreen() - color.getGreen();
+            const int blue = pixel.getBlue() - color.getBlue();
+            return (alpha * alpha) + (red * red) + (green * green) + (blue * blue);
+        };
+        return std::ranges::min_element(known, {}, distance) - known.begin();
+    };
     const juce::Image held = render(1.0, 3.0);
     const int chip_height = chipHeight();
     int differing_pixels = 0;
@@ -679,7 +702,8 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
     {
         for (int x = 0; x < past_chip; ++x)
         {
-            if (held.getPixelAt(x, y) != unscrolled.getPixelAt(50 + x, y))
+            if (nearest_known(held.getPixelAt(x, y)) !=
+                nearest_known(unscrolled.getPixelAt(50 + x, y)))
             {
                 ++differing_pixels;
             }
