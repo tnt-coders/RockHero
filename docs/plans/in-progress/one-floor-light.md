@@ -33,7 +33,7 @@ hand on its own code path is a defect.
 - **The rest tolerance (F1).** Released at the drawn end, a fretted note's light would dip at every
   margin trim and strobe through a sustainless chug riff (25% between 16ths). So the fretting
   hand's evidence merges across any gap SHORTER THAN A REST TOLERANCE, measured in SECONDS
-  (one constant per hand — see below — the fretting hand's starting at 1.0). Seconds, not beats, by the user's
+  (one constant per hand — see below — the fretting hand's at 0.5 since its 2026-10-12 sighting). Seconds, not beats, by the user's
   ruling and the precedent: whether a dark gap reads as a flicker or as a rest is a readability
   question, and the minimum sustain distance — the same question for tails — sighted more
   consistently across slow and fast songs once it was time-based; this light's own rise and decay
@@ -44,7 +44,8 @@ hand on its own code path is a defect.
   second "hold" authority. The picking hand went through the same merge with the same tolerance
   in the first build, and the user sighted it (2026-09-25): **the merged right hand was rejected
   — the per-strike pulse is the ruled look**, while the fretting hand's merged light is right at
-  1.0 s. So the tolerance is per hand: `g_hand_rest_seconds` = 1.0 is THE ESTABLISHMENT RULE (a
+  1.0 s (since lowered to 0.5 s, section 7). So the tolerance is per hand: `g_hand_rest_seconds`
+  is THE ESTABLISHMENT RULE (a
   hand's position stays established across a gap shorter than this: the fretting light merges
   under it, and a repeated tap within it of the previous strike's release is not relabelled with
   a position number — the per-strike pulse took away the light that used to bridge that repeat),
@@ -376,8 +377,12 @@ parameter named like an enclosing local); the merge's stretch count uses branche
 
 ## 7. Sightings the build owes
 
-1. The fretting hand's rest tolerance (`g_hand_rest_seconds`, 1.0 s: "good for now, will
-   continue sighting"), on a chug riff, a legato run, and a phrase with a real rest.
+1. SIGHTED 2026-10-12: the fretting hand's rest tolerance (`g_hand_rest_seconds`). At 1.0 s the
+   two-beat pick slide at 78:3 of "My Sacrifice" (146 BPM; 0.87 s from the chord's ink end to
+   the open chord, the scrape itself being no fretting-hand evidence) never darkened the window.
+   The user weighed seconds against beats and whole-note fractions and kept seconds — the case
+   argued the value, not the unit — and ruled 0.5 s, kept under watch
+   (`docs/tracking/watch-items.md`): it also darkens a quarter rest at 120 BPM or slower.
 2. SIGHTED 2026-09-25: the merged right hand was rejected in favour of the per-strike pulse
    (`g_pick_light_rest_seconds` = 0), and the ribbons flickering under one decay were fixed by the
    ribbon layer's own decay. Still open: overlapping taps at different frets under one track.

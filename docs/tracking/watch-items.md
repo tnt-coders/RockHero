@@ -301,6 +301,24 @@ than a speed change. **Remedy:** retune the constant inside the 200 to 300 ms ba
 no single value serves every song, the per-song override of the seconds value that
 docs/plans/roadmap/62-kept-sustain-bound-per-song.md is kept to describe.
 
+### The fretting hand's rest tolerance is half a second — trigger: the hand window blinks through a short rest, or stays lit through a free hand
+
+`g_hand_rest_seconds` (`highway_light.h`) is the fretting hand's establishment rule: its light
+merges across any gap shorter than this, measured from one note's ink end to the next note's
+onset, and a repeated tap within it keeps its position number. Ruled 0.5 s on 2026-10-12 after a
+two-beat pick slide at 78:3 of "My Sacrifice" (146 BPM, 0.87 s between grips; the scrape is the
+picking hand's alone) never darkened the window at 1.0 s. The unit stays seconds, weighed against
+beats and whole-note fractions (one-floor-light.md, F1). The cost under watch: at 0.5 s a quarter
+rest at 120 BPM or slower, a dotted-quarter rest almost anywhere, and span-less short quarter notes
+at 90 BPM or slower all darken the window between notes, a blink of about 0.3 s; a span keeps a
+chug lit for its whole drawn extent at any value.
+
+**Trigger:** a sighted passage blinks the window through a rest that does not read as the hand
+being free, or a free hand still reads lit. **Remedy:** retune the constant (0.75 s was the
+alternative weighed: a quarter rest then darkens only at 80 BPM or slower); the projection test
+"Fret-hand light goes out under a two-beat pick slide" pins the 78:3 shape against whatever value
+it holds, and its REQUIREs name the bound that moved.
+
 ### ~~The minimum sustain distance stays a note value while the bound became a duration~~ — RETIRED 2026-09-20: it is a duration now
 
 The item was: the margin every drawn element keeps before the next event was a sixteenth of a whole

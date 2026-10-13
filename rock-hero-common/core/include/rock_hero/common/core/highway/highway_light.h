@@ -102,9 +102,11 @@ flicker before the light goes out. And a repeated tap within it is an establishe
 number is not printed again. Seconds rather than beats because that is a readability question, not
 a musical one — the minimum sustain distance, the same question for tails, reads consistently
 across slow and fast songs because it is time-based — and because the light's own rise and decay
-are already in seconds. The value is a sighting knob.
+are already in seconds. The value is a sighting knob: at 0.5 s a two-beat pick slide at 146 BPM
+(0.87 s between grips) reads as the fretting hand's rest, and so does a quarter rest at 120 BPM or
+slower.
 */
-inline constexpr double g_hand_rest_seconds = 1.0;
+inline constexpr double g_hand_rest_seconds = 0.5;
 
 /*!
 \brief The picking hand's light merges its evidence under this gap (\ref mergeLitEvidence).

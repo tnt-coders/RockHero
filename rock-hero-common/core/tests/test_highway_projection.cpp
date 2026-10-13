@@ -2586,6 +2586,44 @@ TEST_CASE(
     checkEveryStretchOpensOnANote(state);
 }
 
+// A pick slide between two grips, at 146 BPM (a beat is 0.41 s): the chord rings to the scrape's
+// onset, cropped one margin short, and an open chord lands where the scrape ends. The scrape is
+// the picking hand's alone, so the gap the rest tolerance measures runs from the chord's ink end
+// to the open chord: a two-beat scrape leaves the fretting hand dark between the two, a one-beat
+// scrape does not.
+TEST_CASE("Fret-hand light goes out under a two-beat pick slide", "[core][highway][light]")
+{
+    const auto scene_with_scrape_until = [](const double landing) {
+        ChartViewState scene;
+        NoteViewState chord = chordNote(1.0, 2, 10);
+        chord.margin_start_seconds = 0.95;
+        chord.ink_end_seconds = 1.95;
+        NoteViewState scrape = chordNote(2.0, 1, 17, NoteAttack::PickSlide);
+        scrape.ink_end_seconds = landing;
+        NoteViewState open = chordNote(landing, 1, 0);
+        open.margin_start_seconds = landing - 0.05;
+        open.ink_end_seconds = landing + 0.5;
+        scene.notes = {chord, scrape, open};
+        return scene;
+    };
+
+    const double two_beats = 2.0 + 0.82;
+    REQUIRE(two_beats - 1.95 >= g_hand_rest_seconds);
+    const std::vector<HighwayLitStretch> split =
+        makeFretHandLight(scene_with_scrape_until(two_beats));
+    REQUIRE(split.size() == 2);
+    CHECK(split[0].release_seconds == Catch::Approx(1.95));
+    CHECK(split[1].start_seconds == Catch::Approx(two_beats));
+
+    const double one_beat = 2.0 + 0.41;
+    REQUIRE(one_beat - 1.95 < g_hand_rest_seconds);
+    const std::vector<HighwayLitStretch> held =
+        makeFretHandLight(scene_with_scrape_until(one_beat));
+    REQUIRE(held.size() == 1);
+    CHECK(held[0].start_seconds == Catch::Approx(1.0));
+    CHECK(held[0].release_seconds == Catch::Approx(one_beat + 0.5));
+}
+
 // The picking hand pulses: every strike of a dense run is its own light over the one track, the
 // dip between strikes mirroring the finger lifting — spaced here past the picking hand's own
 // tolerance, whatever its value. Only strikes that overlap merge, their gap being negative.
