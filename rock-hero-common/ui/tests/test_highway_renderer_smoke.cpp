@@ -523,7 +523,8 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
             loadShippedTextureSet(),
             loadShippedMarkSheet(),
             testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors());
+            testing::fixtureStringColors(),
+            false);
         REQUIRE(renderer.has_value());
 
         // Encoding frames before any content is the state both products are in between device
@@ -589,6 +590,17 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // The paused redraw: song time frozen, frame delta zero, the camera smoother asked to
         // integrate nothing.
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, 0.0, 30);
+
+        // The CRT look is a theme part: turning it on renders the scene into the off-screen target
+        // the present carries to the window, a resize under it refits the target, and turning it
+        // off draws to the window again with every view re-bound there.
+        renderer->setTheme(testing::fixtureHighwayTheme(), testing::fixtureStringColors(), true);
+        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
+        device->resize(1001, 563);
+        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
+        renderer->setTheme(testing::fixtureHighwayTheme(), testing::fixtureStringColors(), false);
+        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
+        device->resize(1280, 720);
 
         // The camera is the host's: a re-published state (an edit of the chart on screen) keeps it
         // gliding from where it is, and only resetCamera (a load) snaps it to its target. Framed
@@ -660,7 +672,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         recolored.chord = 0xFFFF00FFU;
         StringColorPalette recolored_strings = testing::fixtureStringColors();
         recolored_strings.colors.front() = 0xFF40FF40U;
-        renderer->setTheme(recolored, recolored_strings);
+        renderer->setTheme(recolored, recolored_strings, false);
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 30);
 
         // An arrangement with no chart at all: empty scene, no beats, no camera zones — the

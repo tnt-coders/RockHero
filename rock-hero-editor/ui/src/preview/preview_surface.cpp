@@ -202,7 +202,7 @@ bool PreviewSurface::bringUpRenderer()
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(
-            *shaders, m_theme->textures, *marks, m_theme->colors, m_palette);
+            *shaders, m_theme->textures, *marks, m_theme->colors, m_palette, m_theme->crt);
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);
@@ -264,7 +264,8 @@ void PreviewSurface::setDisplayOptions(const common::core::HighwayDisplayOptions
 }
 
 // Art is what the renderer uploads at creation, so only a change of art needs a new renderer;
-// colors swap in place. Without a live renderer the next bring-up takes the new look.
+// colors and the CRT look swap in place. Without a live renderer the next bring-up takes the new
+// look.
 void PreviewSurface::setLook(
     const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette)
 {
@@ -277,7 +278,7 @@ void PreviewSurface::setLook(
     }
     if (same_art)
     {
-        m_renderer->setTheme(m_theme->colors, m_palette);
+        m_renderer->setTheme(m_theme->colors, m_palette, m_theme->crt);
         return;
     }
     // Released first so the failure mode is the black fallback, never the old art under new

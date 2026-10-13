@@ -535,6 +535,60 @@ TEST_CASE("An inheriting theme states a span role whole", "[ui][highway-theme]")
     CHECK(red_chord->tab_inks.arpeggio == default_theme->tab_inks.arpeggio);
 }
 
+// The CRT look is one switch that inherits like every other key: a theme leaving it out takes its
+// base's, so a theme built on a CRT theme keeps the look unless it states false.
+TEST_CASE("A theme's CRT look is its own or its base's", "[ui][highway-theme]")
+{
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> default_theme =
+        loadHighwayTheme(testing::defaultThemeDirectory(), {});
+    REQUIRE(default_theme.has_value());
+    if (!default_theme.has_value())
+    {
+        return;
+    }
+    CHECK_FALSE(default_theme->crt);
+
+    const ThemeFolder folder;
+    const juce::var arcade_document = inheritingDocument("Arcade");
+    setKey(arcade_document, "crt", true);
+    folder.addThemeFileOnly("arcade", arcade_document);
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> arcade =
+        loadHighwayTheme(folder.themeAt("arcade"), std::span{&*default_theme, 1});
+    REQUIRE(arcade.has_value());
+    if (!arcade.has_value())
+    {
+        return;
+    }
+    CHECK(arcade->crt);
+
+    const std::array bases{*default_theme, *arcade};
+    const auto load = [&folder, &bases](const std::string& id, const juce::var& document) {
+        folder.addThemeFileOnly(id, document);
+        return loadHighwayTheme(folder.themeAt(id), bases);
+    };
+    const juce::var child_document = inheritingDocument("Child");
+    setKey(child_document, "inherits", "arcade");
+    const juce::var colors_only_document = inheritingDocument("Colors Only");
+    setKey(colors_only_document, "inherits", "arcade");
+    setKey(colors_only_document, "crt", false);
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> child =
+        load("child", child_document);
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> colors_only =
+        load("colors-only", colors_only_document);
+    REQUIRE(child.has_value());
+    REQUIRE(colors_only.has_value());
+    if (!child.has_value() || !colors_only.has_value())
+    {
+        return;
+    }
+    CHECK(child->crt);
+    CHECK_FALSE(colors_only->crt);
+
+    CHECK(failureAfter([](const juce::var& document) {
+              setKey(document, "crt", "yes");
+          }) == HighwayThemeErrorCode::MalformedJson);
+}
+
 // Every built-in the products ship loads through the registry, which fails on the first that does
 // not (naming it), so one theme per shipped directory comes back, the default among them.
 TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
@@ -550,6 +604,12 @@ TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
     CHECK(registry.themes().size() > 1);
     CHECK(
         registry.themeFor(common::core::HighwayPlayerSettings{}).id == g_default_highway_theme_id);
+
+    // Retro Arcade is the one built-in presented through the CRT look.
+    for (const LoadedHighwayTheme& theme : registry.themes())
+    {
+        CHECK(theme.crt == (theme.id == "retro-arcade"));
+    }
 }
 
 // A user folder is untrusted: each theme that fails is dropped alone, including one inheriting a

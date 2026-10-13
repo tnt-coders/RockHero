@@ -66,6 +66,13 @@ enum class HighwayShaderProgram : std::uint8_t
     fragment from a signed distance field so corners wrap as arcs and nothing bands.
     */
     AccentGlow,
+
+    /*!
+    \brief The CRT present: carries the off-screen scene of a theme that asks for the CRT look to
+    the window under an arcade monitor's scan lines and phosphor stripes. Screen space, so it
+    carries no far-edge fade.
+    */
+    Crt,
 };
 
 /*!
@@ -119,6 +126,7 @@ inline constexpr std::array g_highway_shader_programs{
     HighwayShaderProgram::WindowLight,
     HighwayShaderProgram::BoxMute,
     HighwayShaderProgram::AccentGlow,
+    HighwayShaderProgram::Crt,
 };
 
 // A loader walks the array while the renderer indexes handle slots by enumerator value, so a
@@ -135,7 +143,7 @@ static_assert(
             }
         }
         return g_highway_shader_programs.size() ==
-               static_cast<std::size_t>(HighwayShaderProgram::AccentGlow) + 1;
+               static_cast<std::size_t>(HighwayShaderProgram::Crt) + 1;
     }(),
     "g_highway_shader_programs must list every program in enumeration order");
 
@@ -222,6 +230,10 @@ static_assert(
         case HighwayShaderProgram::AccentGlow:
         {
             return "accent_glow";
+        }
+        case HighwayShaderProgram::Crt:
+        {
+            return "crt";
         }
     }
 

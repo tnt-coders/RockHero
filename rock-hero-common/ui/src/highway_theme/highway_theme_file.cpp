@@ -35,9 +35,10 @@ constexpr std::string_view g_name_key = "name";
 constexpr std::string_view g_colors_key = "colors";
 constexpr std::string_view g_inherits_key = "inherits";
 constexpr std::string_view g_strings_key = "strings";
+constexpr std::string_view g_crt_key = "crt";
 
 // The keys the top level of a theme file may hold.
-constexpr std::array g_theme_keys{g_name_key, g_colors_key, g_inherits_key};
+constexpr std::array g_theme_keys{g_name_key, g_colors_key, g_inherits_key, g_crt_key};
 
 // The keys `colors` may hold: every role, read from the one role table, then the string colors.
 constexpr auto g_color_keys = [] {
@@ -117,6 +118,26 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         }};
     }
     return &*base;
+}
+
+// Reads whether the theme presents its board through the CRT look: its own `crt`, or else its
+// base's, so a theme inheriting a CRT theme keeps the look unless it states false.
+[[nodiscard]] std::expected<bool, HighwayThemeError> readCrt(
+    const juce::var& document, const LoadedHighwayTheme* const base)
+{
+    const juce::var& crt = Json::value(document, g_crt_key);
+    if (crt.isVoid())
+    {
+        return base != nullptr && base->crt;
+    }
+    if (!crt.isBool())
+    {
+        return std::unexpected{HighwayThemeError{
+            HighwayThemeErrorCode::MalformedJson,
+            "\"crt\" must be true or false",
+        }};
+    }
+    return static_cast<bool>(crt);
 }
 
 // Every color the roles resolve to: the highway's roles, and the tab lane's span inks.
@@ -425,6 +446,11 @@ struct ResolvedRoles
             "\"name\" must be a non-blank string",
         }};
     }
+    const std::expected<bool, HighwayThemeError> crt = readCrt(*document, *base);
+    if (!crt.has_value())
+    {
+        return std::unexpected{crt.error()};
+    }
 
     // An inheriting theme may leave out `colors` whole; whatever it does hold is still strict.
     const juce::var& colors = Json::value(*document, g_colors_key);
@@ -486,6 +512,7 @@ struct ResolvedRoles
         .colors = roles->highway,
         .palette = std::move(*palette),
         .tab_inks = roles->tab,
+        .crt = *crt,
         .textures = std::move(*textures),
     };
 }

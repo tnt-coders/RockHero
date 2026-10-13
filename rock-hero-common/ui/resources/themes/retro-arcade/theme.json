@@ -1,13 +1,14 @@
 {
   "name": "Retro Arcade",
   "inherits": "default",
+  "crt": true,
   "colors": {
     "backdrop": "#000000",
     "beat_bar": "#1C1CA8",
     "attack_line": "#FFFFFF",
-    "lit_lane": "#6E6EFF30",
-    "lit_lane_dotted": "#30309830",
-    "lane_line": "#5060FF40",
+    "lit_lane": "#6E6EFF40",
+    "lit_lane_dotted": "#30309840",
+    "lane_line": "#5060FF55",
     "lane_line_lit": "#7080FF",
     "fret_line": "#14143C",
     "fret_line_lit": "#FFFFFF",

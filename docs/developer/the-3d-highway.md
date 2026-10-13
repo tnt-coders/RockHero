@@ -99,9 +99,18 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    The scene draws straight to the window's backbuffer, which `RenderDevice` multisamples 4x
    (the scene is thin-line-heavy, so its edges alias visibly without it). The views run in id
    order: `RenderDevice` owns view 0 and clears the window there, the background (1) clears it
-   to the backdrop, the board (2) draws the scene, and the overlay (3) composites the pixel-space
-   rects over it. A whole-frame post-process (pixel, CRT, dither and halftone looks) was built
-   and withdrawn; `docs/plans/todo/intricate-highway-themes.md` names the commit that holds it.
+   to the backdrop, the board (2) draws the scene, the present (3) is empty, and the overlay (4)
+   composites the pixel-space rects over it.
+
+   A theme that states `"crt": true` (Retro Arcade) changes one thing: the background and board
+   render into `HighwaySceneTarget`, an off-screen 4x-multisampled target the size of the
+   window, and the present carries it to the window through `fs_crt.sc`. That shader is an
+   arcade raster monitor: 240 scan lines over the window's height, each the mean of the scene's
+   rows it covers; a beam per line that widens with brightness, so dark areas show the gaps and
+   bright heads close them; and a gentle RGB stripe mask. Its tunables are `#define`s in the
+   shader, and nothing in it moves or blurs content horizontally, so the board reads as it does
+   plain. The other render looks (pixel, dither, halftone, palette snap) stay withdrawn;
+   `docs/plans/todo/intricate-highway-themes.md` names the commit that holds them.
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
    consumer decides where they load from. What each program and asset *is*, and the file name it
@@ -190,9 +199,9 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 The look arrives the same way. The published view state carries the player's highway settings,
 and `EditorView` resolves them against its `HighwayThemeRegistry` whenever they change, handing
 the theme and the resolved palette to the preview (`setLook`) and the palette to the tab lane.
-`PreviewSurface::setLook` restyles the live renderer through `setTheme` (colors and palette) when
-the new theme's art is the old one's, and otherwise recreates the renderer through
-`bringUpRenderer()`, the same path and the same failure policy as a first open.
+`PreviewSurface::setLook` restyles the live renderer through `setTheme` (colors, palette and the
+CRT switch) when the new theme's art is the old one's, and otherwise recreates the renderer
+through `bringUpRenderer()`, the same path and the same failure policy as a first open.
 
 # The sharing mechanics, precisely
 

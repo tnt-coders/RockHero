@@ -93,9 +93,12 @@ roles rather than inside `HighwayTheme`.
   tiers derive from it.
 - **`head_shape` and `inlay`** are library ids at the top level, since they are not colors; they
   arrive with Phase 5.
-- **No `look` key.** A theme chooses colors and art only; the render looks (a `look` block
-  choosing a whole-frame post-process) were built and withdrawn on 2026-10-12, and live in the
-  commit `docs/plans/todo/intricate-highway-themes.md` names.
+- **`crt`**, an optional top-level boolean: true presents the 3D board through the CRT look (an
+  arcade monitor's scan lines and phosphor stripes, tuned to keep every note and number
+  legible). It inherits like every other key, so a theme built on Retro Arcade keeps the look
+  unless it states false. It returned on 2026-10-13 as the one survivor of the render looks
+  (a `look` block choosing pixel, CRT, dither or halftone) that were built and withdrawn on
+  2026-10-12; the rest live in the commit `docs/plans/todo/intricate-highway-themes.md` names.
 - **Strict:** an unknown key or role, bad hex, or a `strings` array of the wrong length rejects
   the file. The guardrails run on the resolved theme. No version field; formats change in place.
 
@@ -437,7 +440,8 @@ kept locally, outside the tree. The user's picks from them:
     drawing.
 - **Later themes:** animated backdrops for the synthwave and arcade themes, and the render looks,
   are wanted after v1 (`docs/plans/todo/intricate-highway-themes.md`; backdrop art is COULD tier).
-  Night Drive and Retro Arcade ship as color themes since 2026-10-12.
+  Night Drive and Retro Arcade ship as color themes since 2026-10-12; Retro Arcade wears the
+  CRT look since 2026-10-13.
 - **A theme editor** (build, save, import and export themes) comes later, with 54-Q12's todo plan.
 
 ## Open questions (Phase 0 gate)

@@ -6,6 +6,7 @@
 #include "highway/highway_emphasis_styles.h"
 #include "highway/highway_floor_geometry.h"
 #include "highway/highway_head_marks.h"
+#include "highway/highway_scene_target.h"
 #include "highway/highway_slide_path.h"
 #include "highway/highway_texture_contract.h"
 #include "highway_theme/highway_theme_derived_colors.h"
@@ -55,13 +56,17 @@ using common::core::indexOf;
 using Program = common::core::HighwayShaderProgram;
 using TextureAsset = common::core::HighwayTexture;
 
-// The renderer's three views, executed in id order after RenderDevice's own view 0, which clears
-// the window and which this renderer never touches. All three draw straight to the backbuffer:
-// the background clears it to the backdrop, the board draws the scene, and the overlay composites
-// the pixel-space diagnostics over it.
+// The renderer's four views, executed in id order after RenderDevice's own view 0, which clears
+// the window and which this renderer never touches. The background clears to the backdrop and the
+// board draws the scene: straight to the backbuffer, or under the CRT look into the off-screen
+// scene target, which the present then carries to the window (the present view stays empty
+// otherwise). The overlay composites the pixel-space diagnostics over the window last, so they
+// stay crisp whatever the look. Every view's frame buffer is re-bound each frame, because a device
+// resize unbinds them all.
 constexpr bgfx::ViewId g_background_view = 1;
 constexpr bgfx::ViewId g_board_view = 2;
-constexpr bgfx::ViewId g_overlay_view = 3;
+constexpr bgfx::ViewId g_present_view = 3;
+constexpr bgfx::ViewId g_overlay_view = 4;
 
 // Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp attack
 // line exactly where they occur, then a brief beat-bar fade trailing away down the measure — a
@@ -307,6 +312,9 @@ constexpr double g_accent_gain_boxes = 1.0;
 constexpr std::uint64_t g_overlay_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_MSAA;
 
+// The present replaces every window pixel with the CRT's: no blend, no depth.
+constexpr std::uint64_t g_present_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A;
+
 // JUCE premultiplies real-alpha PNGs at decode, so textures with genuine transparency (the
 // inlay skin) carry rgb*a texels and must composite with the premultiplied blend — straight
 // SRC_ALPHA would apply alpha twice and darken every anti-aliased edge. The channel-scheme and
@@ -493,6 +501,26 @@ struct PosColorGlowVertex
     }();
     return g_layout;
 }
+
+// A bare clip-space position: the present's triangle carries nothing else.
+[[nodiscard]] const bgfx::VertexLayout& positionLayout()
+{
+    static const bgfx::VertexLayout g_layout = [] {
+        bgfx::VertexLayout layout;
+        layout.begin().add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float).end();
+        return layout;
+    }();
+    return g_layout;
+}
+
+// The one triangle the present draws, in clip space: its corners at (-1, -1), (3, -1) and
+// (-1, 3) put the window's whole square inside it with no diagonal seam, so every window pixel is
+// shaded exactly once.
+constexpr std::array<std::array<float, 3>, 3> g_present_triangle{{
+    {-1.0F, -1.0F, 0.0F},
+    {3.0F, -1.0F, 0.0F},
+    {-1.0F, 3.0F, 0.0F},
+}};
 
 [[nodiscard]] const bgfx::VertexLayout& posColorGlowLayout()
 {
@@ -1818,6 +1846,13 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> window_light_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> box_mute_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> accent_glow_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> crt_program;
+
+    // The CRT look's off-screen scene, the present's sampler of it, and its one static triangle.
+    // The target is allocated by the first CRT frame and kept for the renderer's life after it.
+    HighwaySceneTarget scene_target;
+    UniqueBgfxHandle<bgfx::UniformHandle> scene_sampler;
+    UniqueBgfxHandle<bgfx::VertexBufferHandle> present_triangle;
 
     // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
     UniqueBgfxHandle<bgfx::UniformHandle> fade_params;
@@ -1871,10 +1906,12 @@ struct HighwayRenderer::Impl
     // How the board maps the state onto the screen: the renderer's own setting, never part of the
     // projected state, so changing it re-derives nothing the projection built.
     common::core::HighwayDisplayOptions options{};
-    // The look: the theme every frame reads its colors from, and the string palette the retained
-    // string lines and the per-frame string surfaces derive from.
+    // The look: the theme every frame reads its colors from, the string palette the retained
+    // string lines and the per-frame string surfaces derive from, and whether the frame is
+    // presented through the CRT, which draw() reads every frame.
     HighwayTheme theme{};
     StringColorPalette palette{};
+    bool crt{false};
     // Each hand's look, derived from the theme whenever it changes (adoptTheme), never per frame.
     HandLightStyle fretting_style{};
     HandLightStyle picking_style{};
@@ -1908,6 +1945,9 @@ struct HighwayRenderer::Impl
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
     bool reported_oversized_drop{false};
+    // One warning per process when bgfx refuses the CRT's scene target; the board then draws
+    // plain.
+    bool reported_scene_target_failure{false};
 
     // The displayed lane a chart string occupies, counted from the lowest lane.
     [[nodiscard]] int laneOf(const int chart_string) const noexcept
@@ -2202,6 +2242,12 @@ struct HighwayRenderer::Impl
     [[nodiscard]] bool seatLanes();
     void rebuildBoardFace();
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
+    // The frame buffer this frame's scene renders into: the CRT's scene target, fitted to the
+    // window, or the backbuffer (invalid) for a plain frame or when bgfx refuses the target.
+    [[nodiscard]] bgfx::FrameBufferHandle sceneFrameBuffer(
+        std::uint32_t width, std::uint32_t height);
+    // Carries the scene target to the window through the CRT.
+    void present() const;
 
     // One board pass each, in the order draw() calls them. Painter order IS submission order for
     // furniture (the board view is Sequential, and no furniture pass writes depth), so a pass
@@ -2296,7 +2342,8 @@ struct HighwayRenderer::Impl
 
 std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
-    const std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette)
+    const std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette,
+    const bool crt)
 {
     // The art is validated and measured before any GPU work: a theme or mark sheet that breaks the
     // texture contract is refused with the file and the expectation it violates.
@@ -2321,6 +2368,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     auto impl = std::make_unique<Impl>();
     impl->adoptTheme(theme);
     impl->palette = palette;
+    impl->crt = crt;
     // Measured from the same notes.png bytes the atlas uploads: the accent glow sizes its distance
     // field from these numbers, so they describe the pixels shipped, not constants kept by hand.
     impl->head_art = measured->head_art;
@@ -2349,6 +2397,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->window_light_program = std::move(linked.at(indexOf(Program::WindowLight)));
     impl->box_mute_program = std::move(linked.at(indexOf(Program::BoxMute)));
     impl->accent_glow_program = std::move(linked.at(indexOf(Program::AccentGlow)));
+    impl->crt_program = std::move(linked.at(indexOf(Program::Crt)));
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
@@ -2362,6 +2411,12 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         "u_box_mute_arms", bgfx::UniformType::Vec4)};
     impl->accent_glow_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_accent_glow_params", bgfx::UniformType::Vec4)};
+    impl->scene_sampler = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "s_scene", bgfx::UniformType::Sampler)};
+    impl->present_triangle = UniqueBgfxHandle<bgfx::VertexBufferHandle>{bgfx::createVertexBuffer(
+        bgfx::copy(
+            g_present_triangle.data(), static_cast<std::uint32_t>(sizeof(g_present_triangle))),
+        positionLayout())};
 
     impl->atlases = makeHighwayAtlases(textures.at(indexOf(TextureAsset::Notes)), marks_png);
     UploadedTexture inlay = uploadPngTexture(textures.at(indexOf(TextureAsset::Inlays)));
@@ -2486,12 +2541,13 @@ void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOption
     m_impl->rebuildBoardFace();
 }
 
-// Every theme color, the hand styles derived from it, and every per-frame string surface are read
-// per frame, so the next frame simply draws with the new ones; only the retained string lines are
-// built from the palette.
-void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette)
+// Every theme color, the hand styles derived from it, every per-frame string surface and the CRT
+// choice are read per frame, so the next frame simply draws with the new ones; only the retained
+// string lines are built from the palette.
+void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette, const bool crt)
 {
     m_impl->adoptTheme(theme);
+    m_impl->crt = crt;
     if (palette.colors == m_impl->palette.colors)
     {
         return;
@@ -2582,22 +2638,33 @@ void HighwayRenderer::Impl::draw(
         common::core::makeHighwayWorldToClip(pose, aspect, options.view.mirrored, metrics);
     const std::array<float, 16> board_matrix = toBgfxMatrix(world_to_clip);
 
-    // Per-frame view setup, re-asserted from the current backbuffer size every frame.
+    // Per-frame view setup, re-asserted from the current backbuffer size every frame: the scene's
+    // views render where this frame's look puts them, and the present and overlay to the window.
+    const bgfx::FrameBufferHandle scene = sceneFrameBuffer(width, height);
+    const bgfx::FrameBufferHandle backbuffer = BGFX_INVALID_HANDLE;
     const auto width16 = static_cast<std::uint16_t>(width);
     const auto height16 = static_cast<std::uint16_t>(height);
-    for (const bgfx::ViewId view : {g_background_view, g_board_view, g_overlay_view})
+    for (const bgfx::ViewId view :
+         {g_background_view, g_board_view, g_present_view, g_overlay_view})
     {
+        const bool scene_view = view == g_background_view || view == g_board_view;
+        bgfx::setViewFrameBuffer(view, scene_view ? scene : backbuffer);
         bgfx::setViewRect(view, 0, 0, width16, height16);
         bgfx::setViewMode(view, bgfx::ViewMode::Sequential);
     }
     bgfx::setViewClear(
         g_background_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, packRgba(theme.backdrop), 1.0F, 0);
     bgfx::setViewClear(g_board_view, BGFX_CLEAR_DEPTH, 0, 1.0F, 0);
+    bgfx::setViewClear(g_present_view, BGFX_CLEAR_NONE);
     bgfx::setViewClear(g_overlay_view, BGFX_CLEAR_NONE);
     bgfx::setViewTransform(g_board_view, board_matrix.data(), nullptr);
     // Clear-bearing views execute only when they have items; touch them so the clears always run.
     bgfx::touch(g_background_view);
     bgfx::touch(g_board_view);
+    if (bgfx::isValid(scene))
+    {
+        present();
+    }
 
     scratch.clearForFrame();
     const bool mirrored = options.view.mirrored;
@@ -5288,6 +5355,41 @@ void HighwayRenderer::Impl::draw(
     drawCapo();
     drawSectionLabels(frame);
     drawStrikeGlow(frame);
+}
+
+// Only the CRT renders off-screen, so a plain theme draws exactly as it would with no look at all.
+// A target bgfx refuses degrades the CRT to the plain board, logged once, rather than leaving the
+// window blank.
+bgfx::FrameBufferHandle HighwayRenderer::Impl::sceneFrameBuffer(
+    const std::uint32_t width, const std::uint32_t height)
+{
+    if (!crt)
+    {
+        return BGFX_INVALID_HANDLE;
+    }
+    if (!scene_target.fit(width, height))
+    {
+        if (!reported_scene_target_failure)
+        {
+            reported_scene_target_failure = true;
+            RH_LOG_WARNING(
+                "common.highway",
+                "bgfx refused the CRT's {}x{} scene target; the highway draws without it",
+                width,
+                height);
+        }
+        return BGFX_INVALID_HANDLE;
+    }
+    return scene_target.frameBuffer();
+}
+
+// The CRT reads the window's size from bgfx's own view uniforms, so the present sets no parameter.
+void HighwayRenderer::Impl::present() const
+{
+    bgfx::setTexture(0, scene_sampler.get(), scene_target.color());
+    bgfx::setVertexBuffer(0, present_triangle.get());
+    bgfx::setState(g_present_state);
+    bgfx::submit(g_present_view, crt_program.get());
 }
 
 // --- Lane border ribbons: one faded runway strip per fret line (Charter's floor grid), in three

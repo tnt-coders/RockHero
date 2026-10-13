@@ -18,6 +18,7 @@ target_sources(
             src/highway/head_art_profile.cpp
             src/highway/highway_atlas.cpp
             src/highway/highway_renderer.cpp
+            src/highway/highway_scene_target.cpp
             src/highway/highway_texture_contract.cpp
             src/highway/structural_art.cpp
             src/highway_theme/highway_theme_derived_colors.cpp

@@ -4,6 +4,16 @@
 user ruled "keep ONLY the simple color based themes for now" and asked for a plan that points back
 at the work so it can be taken up again without re-deriving it. Nothing here is scheduled.*
 
+**The CRT returned on 2026-10-13, reduced** (user: bring back just the CRT, for Retro Arcade,
+as authentic as an arcade monitor but clear and readable). It is a top-level `"crt": true` in
+`theme.json`, a theme's choice that inherits like any key, which answers step 1 below for this
+look. It is not the old `crt` look: 240 scan lines scaled to the window instead of a band
+height in pixels, a brightness-dependent Gaussian beam over row-averaged lines instead of
+darkened bands with a 1:2:1 softening, a gentle RGB stripe mask, no tunables in the theme file,
+and no palette snap. Only the CRT renders off-screen; a plain theme draws to the backbuffer as
+before. Everything else below (pixel, dither, halftone, the snap, the archived themes) stays
+deferred.
+
 ## Where the work lives
 
 **Commit `4f8e0d7bea047fb63e0e393a0bc56fd684c2bdd1`** ("Archived every sighted highway theme

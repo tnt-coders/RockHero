@@ -100,7 +100,8 @@ the recorded escalation if a heavy scene ever strains the message thread; until 
 settled mode.
 
 The device owns view 0 alone: each frame it clears the window there, which is what shows when no
-scene renderer drew. Scene renderers draw straight to the backbuffer on the views after it. The
+scene renderer drew. Scene renderers draw to the backbuffer on the views after it, or through an
+off-screen target of their own that they then present to it (the highway's CRT look). The
 backbuffer multisamples 4x: the highway scene is thin-line-heavy (fret lines, strings, lane
 ribbons), so its edges alias visibly without it. bgfx clamps the request to what the device
 supports, and every Direct3D 11 device supports 4x for the backbuffer format.
@@ -135,6 +136,11 @@ public:
 
     Call with sizes from the window's pixel-size query (never window coordinates); the window
     itself is resized by the windowing system, this only follows with the backbuffer.
+
+    Never call this between a scene renderer's draw and \ref submitFrame: a resize detaches every
+    view from the frame buffer it renders into (bgfx's reset rebinds them all to the backbuffer),
+    so a frame encoded before it would render an off-screen scene straight to the window. Both
+    hosts resize from their input or window callbacks, never inside a frame.
 
     \param width New backbuffer width in pixels.
     \param height New backbuffer height in pixels.

@@ -64,6 +64,12 @@ struct LoadedHighwayTheme
     */
     TabShapeInks tab_inks;
 
+    /*!
+    \brief Whether the 3D highway presents its board through the CRT look, an arcade monitor's
+    scan lines and phosphor stripes: the theme's own `crt`, otherwise its base's.
+    */
+    bool crt;
+
     /*! \brief The theme's art, satisfying the texture contract. */
     HighwayTextureSet textures;
 };

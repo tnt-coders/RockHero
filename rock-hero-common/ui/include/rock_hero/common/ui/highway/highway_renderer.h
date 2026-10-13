@@ -114,12 +114,15 @@ public:
            TextureAssetInvalid. Read only during the call.
     \param theme Colors the board draws with until \ref setTheme replaces them.
     \param palette String colors every per-string surface derives from.
+    \param crt Whether the frame is presented through the CRT look until \ref setTheme says
+           otherwise.
     \return The renderer, or a typed error naming the failed program or invalid texture
             asset.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
         const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
-        std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette);
+        std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette,
+        bool crt);
 
     /*! \brief Destroys every owned GPU resource; must run before bgfx shutdown. */
     ~HighwayRenderer();
@@ -184,18 +187,22 @@ public:
     void setDisplayOptions(common::core::HighwayDisplayOptions options);
 
     /*!
-    \brief Replaces the colors the board draws with, from the next frame.
+    \brief Replaces the colors the board draws with, and whether the CRT look presents them, from
+    the next frame.
 
-    Changes no geometry or texture, so a theme that differs only in color never recreates the
-    renderer; a changed palette rebuilds only the retained string lines.
+    Changes no geometry or texture, so a theme that differs only in color or look never recreates
+    the renderer; a changed palette rebuilds only the retained string lines.
 
     \param theme Colors to draw with.
     \param palette String colors every per-string surface derives from.
+    \param crt Whether the frame is presented through the CRT look: the scene renders off-screen
+           and reaches the window under an arcade monitor's scan lines and phosphor stripes.
     */
-    void setTheme(HighwayTheme theme, StringColorPalette palette);
+    void setTheme(HighwayTheme theme, StringColorPalette palette, bool crt);
 
     /*!
-    \brief Encodes one frame of the highway into the render views.
+    \brief Encodes one frame of the highway into the render views, through the CRT look when the
+    theme asks for it.
 
     \param now_seconds Playback song time for this frame (from the consumer's clock port).
     \param dt_seconds Frame delta in seconds driving camera smoothing.

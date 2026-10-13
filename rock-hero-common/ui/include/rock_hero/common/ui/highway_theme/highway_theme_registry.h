@@ -41,7 +41,10 @@ enum class HighwayThemeErrorCode : std::uint8_t
     */
     MissingFile,
 
-    /*! \brief `theme.json` is not JSON, or does not have the theme file's object shape. */
+    /*!
+    \brief `theme.json` is not JSON, or does not have the theme file's object shape, such as a
+    `crt` that is not true or false.
+    */
     MalformedJson,
 
     /*! \brief The file carries a key the format does not define, top level or color role. */
