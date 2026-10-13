@@ -21,7 +21,7 @@ namespace rock_hero::common::ui
 {
 
 /*! \brief The id of the built-in theme both products draw with. */
-inline constexpr std::string_view g_default_highway_theme_id = "ice";
+inline constexpr std::string_view g_default_highway_theme_id = "default";
 
 /*! \brief Stable reasons a theme directory, or the built-in set, fails to load. */
 enum class HighwayThemeErrorCode : std::uint8_t

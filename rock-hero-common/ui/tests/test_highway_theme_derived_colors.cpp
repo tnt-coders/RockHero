@@ -31,7 +31,7 @@ TEST_CASE("CIELAB measures colors under the D65 white", "[ui][highway-theme]")
 // lightness, so the pale counterpart looks as bright as the color it comes from.
 TEST_CASE("A picking-hand color is its fretting color paler at the same hue", "[ui][highway-theme]")
 {
-    // The original teal and purple, and the ice theme's cyan and rose.
+    // The original teal and purple, and the default theme's cyan and purple.
     CHECK(pickingHandColor(0xFF00D2D5U) == 0xFFB1CFCFU);
     CHECK(pickingHandColor(0xFFC040FFU) == 0xFFD4B4E0U);
     CHECK(pickingHandColor(0xFF5CD3F5U) == 0xFFBCD2DAU);
@@ -58,8 +58,8 @@ TEST_CASE("A box fill's middle is its color darkened and rounded", "[ui][highway
 // light, dark, saturated, grey or black.
 TEST_CASE("A 2D span ink holds every base to one lightness", "[ui][highway-theme]")
 {
-    // The original teal and purple, the lane's hand-tuned blue and purple inks, the ice theme's
-    // cyan and purple, a navy too dark to scale, black and a mid grey.
+    // The original teal and purple, the lane's hand-tuned blue and purple inks, the default
+    // theme's cyan and purple, a navy too dark to scale, black and a mid grey.
     for (const ArgbColor base :
          {0xFF00D2D5U,
           0xFFC040FFU,

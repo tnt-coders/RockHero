@@ -1,0 +1,37 @@
+{
+  "name": "Element - Fire",
+  "inherits": "default",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#4A1A10",
+    "attack_line": "#FFE6CC",
+    "lit_lane": "#8E7E8040",
+    "lit_lane_dotted": "#4E444640",
+    "lane_line": "#A05A381F",
+    "lane_line_lit": "#A05A38",
+    "fret_line": "#241311",
+    "fret_line_lit": "#FFDCC0",
+    "fret_number_lit": "#FFC49C",
+    "fret_number_target": "#FFF6E6",
+    "strike_fretting": "#FFF2DC",
+    "strike_picking": "#FF9C5C",
+    "chord": "#E8003C",
+    "arpeggio": "#FFB800",
+    "full_mute_mark": "#FFE6CC",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#E6C8A8",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#6E6466E6",
+    "label_text": "#FFE3C4",
+    "strings": [
+      "#E84AF0",
+      "#9AE85A",
+      "#FFA040",
+      "#5FB0F0",
+      "#FCE307",
+      "#FF4A14",
+      "#20BDA8",
+      "#C8BAB4"
+    ]
+  }
+}

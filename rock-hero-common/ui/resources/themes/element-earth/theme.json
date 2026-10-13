@@ -1,0 +1,37 @@
+{
+  "name": "Element - Earth",
+  "inherits": "default",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#3A4426",
+    "attack_line": "#F4F1E4",
+    "lit_lane": "#78883C49",
+    "lit_lane_dotted": "#3E4A2049",
+    "lane_line": "#8C96601F",
+    "lane_line_lit": "#8C9660",
+    "fret_line": "#1E1F17",
+    "fret_line_lit": "#F4F1E4",
+    "fret_number_lit": "#CBD3A0",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#F7F3E4",
+    "strike_picking": "#B9AF8C",
+    "chord": "#4FAE5E",
+    "arpeggio": "#B5784A",
+    "full_mute_mark": "#F4F1E4",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#C8C1A6",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#7E7568E6",
+    "label_text": "#EFEBD8",
+    "strings": [
+      "#D24FE6",
+      "#8FE05A",
+      "#F09A45",
+      "#66B3E8",
+      "#F0D63A",
+      "#EE3E1C",
+      "#2FB89E",
+      "#BDB5A6"
+    ]
+  }
+}

@@ -51,7 +51,9 @@ window. The theme file took `"look": {"style": ..., ...}`, strict, inherited who
   aqua chord / hot-pink arpeggio), Ladder (colorblind-first, protan/deutan min 15.1, sage chord /
   blush arpeggio), Slate (a `#202024` grey board with black ink, the riskiest: low-alpha layers
   may wash out on grey), Chalk (full-chroma strings on the quietest board, pale sky / blush
-  spans). Signal and Ladder ship; Slate and Chalk are in the archive.
+  spans). Slate and Chalk are in the archive; Signal and Ladder shipped until the user's
+  second re-cut the same day (with Ember and Phosphor, last in `9106c2ae`), which left Default,
+  the four Element themes, Night Drive and Retro Arcade.
 
 ## What the sightings taught
 

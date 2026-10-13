@@ -965,6 +965,16 @@ art and stating every role (`rock-hero-common/ui/resources/themes/`). The accent
 phase describes, the user's sighting and the sign-off remain; every other candidate is archived
 in the commit `docs/plans/todo/intricate-highway-themes.md` names.
 
+*Re-cut 2026-10-12 (user):* the default is now the `default` directory, named "Default" (the ice
+colors unchanged), beside four Element themes — Earth, Wind, Fire and Water, each toning the
+standard string families slightly toward its element, with a subtle hand-window light and dull,
+slightly tinted inlays — and Night Drive and Retro Arcade. Signal, Ladder, Ember and Phosphor
+left the built-ins (last in `9106c2ae`). The hand window's light is held to one strength: the
+lane the light reveals (`lit_lane` over the backdrop at its alpha) composites to about L* 13-16
+in every built-in, where Phosphor's green had reached 29; Retro Arcade's spans are a cobalt
+chord and a hot-pink arpeggio, since the grape that paired with cobalt elsewhere sat 12 from the
+purple string here.
+
 Later work, outside this plan:
 - the theme editor, with export and import (54-Q12's todo plan);
 - backdrop art and animation for the "night drive" and arcade-vector themes (COULD tier).

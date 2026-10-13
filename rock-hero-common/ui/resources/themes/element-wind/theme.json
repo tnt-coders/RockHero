@@ -1,0 +1,37 @@
+{
+  "name": "Element - Wind",
+  "inherits": "default",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#2C4660",
+    "attack_line": "#F2FAFF",
+    "lit_lane": "#A8CCEC30",
+    "lit_lane_dotted": "#5E7A9430",
+    "lane_line": "#86A6C01F",
+    "lane_line_lit": "#86A6C0",
+    "fret_line": "#1A1F24",
+    "fret_line_lit": "#F2FAFF",
+    "fret_number_lit": "#BFE0F8",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#F6FCFF",
+    "strike_picking": "#A9C4D8",
+    "chord": "#7EDDEE",
+    "arpeggio": "#B48CFF",
+    "full_mute_mark": "#F2FAFF",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#CAD6E0",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#9AA6B4E6",
+    "label_text": "#EAF5FF",
+    "strings": [
+      "#DC5CF8",
+      "#96F06A",
+      "#FFA85C",
+      "#78C4FF",
+      "#F8E84A",
+      "#FF4A3A",
+      "#3ACFC0",
+      "#CDD3D8"
+    ]
+  }
+}

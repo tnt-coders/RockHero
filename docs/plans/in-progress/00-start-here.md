@@ -73,11 +73,13 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    was re-cut to the heads-only 256×128 sheet the split requires (the 256×320 original is backed
    up in `C:/__MAIN__/Coding/__scratch__/theming/classic-backup/`). Then the garish coverage
    fixture once in both products.
-8. **The shipped built-ins beyond ice** (Signal, Ladder, Ember, Phosphor, Night Drive, Retro
-   Arcade — the set distilled 2026-10-12 from the day's candidates, now under
-   `rock-hero-common/ui/resources/themes/`; the rest, and the render looks, are archived in the
-   commit `docs/plans/todo/intricate-highway-themes.md` names). Watch: Retro Arcade's beat bars
-   against the blue string's notes; Phosphor's green chord frame against its green lit lanes.
+8. **The shipped built-ins beyond Default** (Element - Earth, Wind, Fire and Water, Night
+   Drive, Retro Arcade — under `rock-hero-common/ui/resources/themes/`; Signal, Ladder, Ember
+   and Phosphor left the set at the user's 2026-10-12 re-cut and live in `9106c2ae`; the rest,
+   and the render looks, are archived in the commit `docs/plans/todo/intricate-highway-themes.md`
+   names). Watch: Retro Arcade's beat bars against the blue string's notes, and its cobalt chord
+   boxes beside that string's heads; Fire's crimson chord beside the low E's red and its amber
+   arpeggio beside the orange string; every hand window now lights at Default's strength.
 
 **Plan 70 Phase 3 (per-user data), owed by the user BEFORE the next run of either app**, all inside
 `%APPDATA%\Rock Hero\` (the apps now write only the new tree, so until this is done they start
