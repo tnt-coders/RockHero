@@ -91,17 +91,26 @@ function(rock_hero_deploy_product_resources)
     endif()
 
     set(stamp "${CMAKE_CURRENT_BINARY_DIR}/resources-deployed.stamp")
+    # Each deployed tree is removed before it is copied, so it mirrors its source exactly: a copy
+    # alone is additive, and a theme or shader the source dropped would linger beside the
+    # executable — a lingering theme that inherits a renamed base fails the whole built-in set at
+    # startup. The source directories are dependencies too, so removing a theme (which changes its
+    # parent's timestamp and no file the glob still lists) re-runs the deploy.
+    #
     # make_empty_dirs_command LOOKS like part of the OUTPUT list (cmake-format folds it there) but
     # is not one: it expands to nothing, or to a leading `COMMAND ...` that terminates the OUTPUT
     # arguments, so the stamp stays the sole output either way.
     add_custom_command(
         OUTPUT "${stamp}" ${make_empty_dirs_command}
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${resources_root}/shaders" "${resources_root}/themes"
+                "${resources_root}/highway"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${shader_staging_dir}"
                 "${resources_root}/shaders"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${themes_dir}" "${resources_root}/themes"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${highway_art_dir}" "${resources_root}/highway"
         COMMAND ${CMAKE_COMMAND} -E touch "${stamp}"
-        DEPENDS ${staged_shaders} ${theme_files} ${highway_art_files} ${ARG_SHADER_TARGET}
+        DEPENDS ${staged_shaders} ${theme_files} ${highway_art_files} "${themes_dir}"
+                "${highway_art_dir}" ${ARG_SHADER_TARGET}
         COMMENT "Deploying ${ARG_TARGET} resources next to the executable")
     add_custom_target(${ARG_TARGET}_resources DEPENDS "${stamp}")
     add_dependencies(${ARG_TARGET} ${ARG_TARGET}_resources)

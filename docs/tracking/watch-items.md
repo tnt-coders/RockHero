@@ -46,14 +46,17 @@ went stale within one branch), so nothing breaks either way —
 verify once when inspecting a packaged installer (dovetails with the Windows CI installer work),
 and re-check the moment a resolver method starts requiring one of those subdirectories.
 
-### Stale files in the deployed resources tree — trigger: resource renames become common
+### ~~Stale files in the deployed resources tree~~ — RETIRED 2026-10-13: the deploy prunes
 
-`copy_directory` (build tree) and `install(DIRECTORY)` (install tree) are additive: a renamed or
-removed staged asset lingers beside the executable across incremental builds. This now applies to
-both products (the editor preview deploys its own shaders + textures beside its exe, like the
-game). A clean build resets it. Acceptable until resource renames become routine; then make the
-deploy prune (copy fresh into a scratch dir + `copy_directory_if_different`, or
-delete-before-copy).
+The item was: `copy_directory` is additive, so a renamed or removed staged asset lingered beside
+the executable across incremental builds; acceptable until resource renames became routine. The
+trigger fired when the default theme's id became `default` and four built-ins were removed: a
+lingering `ember` still inherited `ice`, which failed the whole built-in set, and the editor would
+not start. `rock_hero_deploy_product_resources` (`cmake/RockHeroProductResources.cmake`) now
+removes the deployed `shaders`, `themes` and `highway` trees before copying each, and depends on
+the theme and art source directories so a removal alone re-runs the deploy. Two corners remain
+additive, both harmless today: the shader staging directory keeps the `.bin` of a deleted program
+(deployed but never loaded), and `install(DIRECTORY)` into an existing install tree.
 
 ### CMakeConfigDeps generator — trigger: next Conan provider revision
 
