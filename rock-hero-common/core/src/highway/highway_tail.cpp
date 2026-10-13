@@ -82,23 +82,23 @@ double highwayBendSemitonesAt(
     return bendSemitonesForTravel(from + ((to - from) * eased));
 }
 
-bool highwayBendInverted(const int displayed_lane, const int string_count) noexcept
+bool highwayBendInverted(const int stacked_lane, const int string_count) noexcept
 {
     // Strictly-upper-half lanes invert; the middle lane of an odd stack lifts upward.
-    return 2 * displayed_lane > string_count + 1;
+    return 2 * stacked_lane > string_count + 1;
 }
 
 bool highwayBendInverted(
     const std::span<const NoteViewState> notes, const HighwayChordGroupViewState& group,
-    const int extra_lanes, const int string_count, const bool invert_string_order) noexcept
+    const int extra_lanes, const int string_count, const bool invert_strings) noexcept
 {
     std::size_t inverted_count = 0;
     std::size_t upright_count = 0;
     for (std::size_t index = group.first; index < group.first + group.count; ++index)
     {
         const int lane = displayedLane(notes[index].string, extra_lanes);
-        const int displayed_lane = highwayStackedLane(lane, string_count, invert_string_order);
-        if (highwayBendInverted(displayed_lane, string_count))
+        const int stacked_lane = highwayStackedLane(lane, string_count, invert_strings);
+        if (highwayBendInverted(stacked_lane, string_count))
         {
             ++inverted_count;
         }

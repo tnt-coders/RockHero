@@ -1612,7 +1612,8 @@ struct FloorNumber
 // the bracket_batches site in draw().
 struct BracketBatch
 {
-    int lane{0};
+    // The posture string's position in the drawn stack, counted from the bottom.
+    int stacked_lane{0};
     // Where the glyph stands on the travel axis: its mark's depth, pinned at the hit line once
     // the mark has arrived.
     double z{0.0};
@@ -1849,7 +1850,7 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> crt_program;
 
     // The CRT look's off-screen scene, the present's sampler of it, and its one static triangle.
-    // The target is allocated by the first CRT frame and kept for the renderer's life after it.
+    // The target exists only while the CRT draws: a CRT frame allocates it, a plain one frees it.
     HighwaySceneTarget scene_target;
     UniqueBgfxHandle<bgfx::UniformHandle> scene_sampler;
     UniqueBgfxHandle<bgfx::VertexBufferHandle> present_triangle;
@@ -2592,7 +2593,7 @@ void HighwayRenderer::Impl::rebuildBoardFace()
     }
 
     const bool mirrored = options.view.mirrored;
-    const bool invert = options.view.invert_string_order;
+    const bool invert = options.view.invert_strings;
 
     std::vector<PosColorVertex> vertices;
     std::vector<std::uint16_t> indices;
@@ -2668,7 +2669,7 @@ void HighwayRenderer::Impl::draw(
 
     scratch.clearForFrame();
     const bool mirrored = options.view.mirrored;
-    const bool invert = options.view.invert_string_order;
+    const bool invert = options.view.invert_strings;
     const double span_end_seconds = now_seconds + lookaheadSeconds();
     const double span_start_seconds = now_seconds - g_passed_span_seconds;
 
@@ -2923,7 +2924,8 @@ void HighwayRenderer::Impl::draw(
                 // glyph against note content by lane height and depth.
                 bracket_batches.push_back(
                     BracketBatch{
-                        .lane = common::core::highwayStackedLane(lane, displayed_count, invert),
+                        .stacked_lane =
+                            common::core::highwayStackedLane(lane, displayed_count, invert),
                         .z = z,
                         .vertices = {},
                         .indices = {},
@@ -3508,12 +3510,13 @@ void HighwayRenderer::Impl::draw(
     };
     const auto submit_brackets_below = [&](const common::core::NoteViewState& note) {
         const int lane = laneOf(note.string);
-        const int note_lane = common::core::highwayStackedLane(lane, displayed_count, invert);
+        const int note_stacked_lane =
+            common::core::highwayStackedLane(lane, displayed_count, invert);
         const double note_z = time_to_z(std::max(note.start_seconds, now_seconds));
         bool flushed = false;
         for (BracketBatch& batch : bracket_batches)
         {
-            if (batch.submitted || batch.lane >= note_lane || note_z >= batch.z)
+            if (batch.submitted || batch.stacked_lane >= note_stacked_lane || note_z >= batch.z)
             {
                 continue;
             }
@@ -5357,14 +5360,17 @@ void HighwayRenderer::Impl::draw(
     drawStrikeGlow(frame);
 }
 
-// Only the CRT renders off-screen, so a plain theme draws exactly as it would with no look at all.
-// A target bgfx refuses degrades the CRT to the plain board, logged once, rather than leaving the
+// Only the CRT renders off-screen, so a plain theme draws exactly as it would with no look at all
+// and holds no target: switching the CRT off frees the window-sized attachments it allocated. A
+// target bgfx refuses degrades the CRT to the plain board, logged once, rather than leaving the
 // window blank.
 bgfx::FrameBufferHandle HighwayRenderer::Impl::sceneFrameBuffer(
     const std::uint32_t width, const std::uint32_t height)
 {
     if (!crt)
     {
+        // An empty target holds no handles, so this costs nothing once the first plain frame ran.
+        scene_target = HighwaySceneTarget{};
         return BGFX_INVALID_HANDLE;
     }
     if (!scene_target.fit(width, height))

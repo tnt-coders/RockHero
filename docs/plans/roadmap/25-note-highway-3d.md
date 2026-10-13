@@ -162,7 +162,7 @@ this tree on 2026-07-06):
   - X = fret axis: fret 0 at x=0, each fret 1.2 units wide (`firstFretDistance = 1.2`),
     equal-width frets (see 25-Q1 for the still-open taper question).
   - Y = string axis: board surface at y=0, `stringDistance = 0.35`, bottom string at y=0.35; low
-    string at the bottom by default, string order invertible by config.
+    string at the bottom by default in Charter, which the string-order ruling below overrides.
   - Z = time axis: `z = (t_note - t_now) * 0.02 / scrollSpeed`; hit line at z=0; visibility
     window ~1600ms × scrollSpeed.
   - Note head half-width 0.48 (`firstFretDistance / 2.5`); sustain tail half-width one third of
@@ -272,11 +272,11 @@ normative):
 - **Lefty mirror from day one**: the headless view state and camera take a `mirrored` flag that
   flips the fret-axis mapping and mirrors the camera's X focus, as pure math the renderer never
   sees. Nearly free now, painful to retrofit. The user-facing toggle ships with the settings
-  work (plans 26/27); a separate string-order-invert option (Charter has one) rides the same
-  seam.
+  work (plans 26/27); the string-order invert rides the same seam and shipped 2026-10-13 as View >
+  Highway Display > Invert Strings.
 - **String order in 3D: lowest-pitched string on TOP by default** (user decision 2026-07-11,
   superseding the conventional bottom-anchored default for the game highway). Since 2026-10-13
-  this is the geometry's own default, and the player's `invert_string_order` (View > Highway
+  this is the geometry's own default, and the player's `invert_strings` (View > Highway
   Display > Invert Strings) stacks the lowest-pitched string at the bottom, as tablature reads;
   the 2D tab lane keeps standard tab orientation either way.
 - **String colors come from plan 45's shared palette** — single source of truth across editor
@@ -559,8 +559,7 @@ the session record):
   white-on-transparent, shape in alpha. CLAMP sampler, linear, no mips. Tint rides **vertex
   color** rather than a per-draw uniform so all heads/glyphs batch into single draws.
 - **String order decision (user, 2026-07-11)**: lowest-pitched string on top is the 3D default,
-  realized via the shared projection's `invert_string_order` flag at the game's composition
-  point.
+  the geometry's own since 2026-10-13; the player's `invert_strings` stacks it at the bottom.
 
 Scope shipped: board face (per-string palette-colored string lines, fret lines with a heavier
 nut, inlay dots) as retained geometry; beat/measure bars (distance-fade shader, clipped to the

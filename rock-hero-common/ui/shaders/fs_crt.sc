@@ -2,10 +2,11 @@
 // its picture, tuned so every note, lane and fret number stays as legible as on the plain board.
 //
 // - Scan lines a whole number of window pixels apart, about CRT_LINES of them over the window's
-//   height. That is twice a low-resolution arcade raster's 240, a medium-resolution monitor's
-//   count, which keeps the line texture while halving the vertical detail the lines cost far
-//   notes; and the whole-pixel spacing lands every line on the pixel grid alike, so no line reads
-//   softer than its neighbors and no beat pattern runs down the board.
+//   height: a medium-resolution arcade monitor's count rather than a low-resolution raster's
+//   240, which keeps the line texture while far notes keep their vertical detail (a 1080-row
+//   window gets an exact two-pixel pitch). The whole-pixel spacing lands every line on the pixel
+//   grid alike, so no line reads softer than its neighbors and no beat pattern runs down the
+//   board.
 // - Each line's color is a tent-weighted mean of the scene's rows within one line pitch of its
 //   center, so a small far note moving down the board crossfades from one line into the next as
 //   it moves, instead of sitting on a line and then hopping a whole pitch; columns keep the

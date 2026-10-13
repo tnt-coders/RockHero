@@ -165,7 +165,7 @@ another file is named.
 | **SHOULD NOT** | Structure, timing or notation: changing it could misread notation, misalign notes and lanes, or make a chart unplayable | `HighwayMetrics`, camera, ~51 renderer numerics, core tail/light/vibrato laws, emphasis alphas, atlas layout and cell meaning, the technique marks (S3), shaders, string palette, display options |
 | **COULD** | Harmless, but nothing needs it at v1 | glyph font, backdrop art, inlay patterns, tail shade depth, rolling flip as a player option |
 
-### Color roles (MUST and SHOULD) — the theme's 20 keys
+### Color roles (MUST and SHOULD) — the theme's 21 keys
 
 A role's name is the theme file's key, so names describe what the color does, not where it is
 drawn. "Alpha read" records whether the constant's own alpha byte reaches the GPU; a role whose
@@ -364,7 +364,8 @@ the palette, and injected the palette into both surfaces; renderer line numbers 
 - **Orientation**: both products hard-code `invert_string_order = true`, lowest string on top
   (`rock-hero-game/ui/src/game/game.cpp:193-199`, "until a per-player setting exists";
   `rock-hero-editor/ui/src/preview/preview_surface.h:157`). The type's default, `false`, stacks it
-  at the bottom as printed tablature does.
+  at the bottom as printed tablature does. (Snapshot; on 2026-10-13 the flag became
+  `invert_strings` and its meaning flipped, see 54-Q5.)
 - **2D lane**: its own fixed colors for the same distinctions (`tab_paint_core.cpp:37-42`, commented
   "Charter modern-theme fixed colors").
 - **Settings ports**: `IEditorSettings` (`i_editor_settings.h:158`, the `tabMinimumDisplayedStrings`
@@ -462,9 +463,9 @@ kept locally, outside the tree. The user's picks from them:
 
 Each carries a recommendation; none is decided until the user rules.
 
-- **54-Q5 — orientation default.** Ship `invert_string_order = false` (lowest string at the
-  bottom, as printed tablature) as the default, behind a sighting in both products, and make it
-  the per-player setting `game.cpp:193` says is owed. *Recommended.* Never a theme key.
+- **54-Q5 — orientation default. RULED 2026-10-13:** the lowest string draws on top by default,
+  and the player's **Invert Strings** (View > Highway Display, stored as `highway.invertStrings`)
+  stacks it at the bottom as printed tablature does. Never a theme key.
 - **54-Q6 — head brief.** A solid rounded plate with one highlight band and no inset ring; a
   capsule; or a number-in-head. *Recommended: the plate* — it stays inside the rect-family
   contract, and a number-in-head would duplicate the floor numbers and need a 2D answer.

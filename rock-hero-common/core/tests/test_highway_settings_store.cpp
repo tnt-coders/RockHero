@@ -49,7 +49,7 @@ TEST_CASE("HighwaySettingsStore round-trips an update", "[core][highway-settings
         .pinned_palette_id = std::string{"mine"},
         .view = HighwayViewPreferences{
             .mirrored = true,
-            .invert_string_order = true,
+            .invert_strings = true,
             .show_note_targets = false,
             .show_note_rotation = false,
             .show_arpeggio_brackets = false,
@@ -108,7 +108,7 @@ TEST_CASE("HighwaySettingsStore resets only an unreadable setting", "[core][high
     const HighwayViewPreferences defaults{};
     CHECK(settings.theme_id == std::optional<std::string>{"dusk"});
     CHECK(settings.view.mirrored == defaults.mirrored);
-    CHECK(settings.view.invert_string_order);
+    CHECK(settings.view.invert_strings);
     CHECK_FALSE(settings.view.show_note_targets);
     CHECK(settings.view.show_note_rotation == defaults.show_note_rotation);
     CHECK_FALSE(settings.view.show_arpeggio_brackets);

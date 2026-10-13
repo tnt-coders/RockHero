@@ -28,7 +28,7 @@ struct HighwayViewPreferences
     \brief True to stack the lowest-pitched string at the bottom, as tablature reads, instead of
     on top.
     */
-    bool invert_string_order{false};
+    bool invert_strings{false};
 
     /*!
     \brief True to draw note targets: a hollow copy of each head at its landing spot on the hit

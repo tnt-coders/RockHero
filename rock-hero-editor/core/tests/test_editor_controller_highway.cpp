@@ -54,7 +54,7 @@ TEST_CASE("EditorController publishes the stored highway settings", "[core][edit
         .pinned_palette_id = std::string{"ice"},
         .view = HighwayViewPreferences{
             .mirrored = true,
-            .invert_string_order = true,
+            .invert_strings = true,
             .show_note_targets = false,
             .show_note_rotation = false,
             .show_arpeggio_brackets = false,
@@ -143,14 +143,14 @@ TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-cont
 
     const HighwayViewPreferences targets_off{
         .mirrored = false,
-        .invert_string_order = false,
+        .invert_strings = false,
         .show_note_targets = false,
         .show_note_rotation = true,
         .show_arpeggio_brackets = true,
     };
     const HighwayViewPreferences only_targets{
         .mirrored = false,
-        .invert_string_order = false,
+        .invert_strings = false,
         .show_note_targets = true,
         .show_note_rotation = false,
         .show_arpeggio_brackets = false,
@@ -195,14 +195,13 @@ TEST_CASE("A highway pick keeps the game's change", "[core][editor-controller]")
     CHECK(game_store.read() == shownSettings(view));
 
     // A view choice writes only itself, so the game's other choices survive it the same way.
-    REQUIRE(game_store
-                .update([](HighwayPlayerSettings& settings) {
-                    settings.view.invert_string_order = true;
-                })
-                .has_value());
+    REQUIRE(
+        game_store
+            .update([](HighwayPlayerSettings& settings) { settings.view.invert_strings = true; })
+            .has_value());
     controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_rotation, false);
 
-    CHECK(shownSettings(view).view.invert_string_order);
+    CHECK(shownSettings(view).view.invert_strings);
     CHECK_FALSE(shownSettings(view).view.show_note_rotation);
     CHECK(game_store.read() == shownSettings(view));
 }

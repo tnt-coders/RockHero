@@ -219,11 +219,11 @@ the onset anchors that start value instead.
 Bends on the upper half of the displayed string stack curve downward so the curve stays inside
 the board — stated in display space so it holds for any string count and stacking order.
 
-\param displayed_lane One-based displayed lane, 1 at the bottom of the stack.
+\param stacked_lane One-based position in the drawn stack, 1 at the bottom (highwayStackedLane).
 \param string_count Number of displayed lanes.
 \return True when the bend lift is inverted (downward).
 */
-[[nodiscard]] bool highwayBendInverted(int displayed_lane, int string_count) noexcept;
+[[nodiscard]] bool highwayBendInverted(int stacked_lane, int string_count) noexcept;
 
 /*!
 \brief Returns whether an onset group's bend lift points downward.
@@ -236,13 +236,13 @@ to the upper displayed side, matching the majority-upper case.
 \param group Onset group whose members are being drawn.
 \param extra_lanes Displayed lanes beyond the chart's own count.
 \param string_count Number of displayed lanes.
-\param invert_string_order True to stack the lowest-pitched string at the bottom
+\param invert_strings True to stack the lowest-pitched string at the bottom
        (\ref highwayStackedLane).
 \return True when the group's bend lift is inverted (downward).
 */
 [[nodiscard]] bool highwayBendInverted(
     std::span<const NoteViewState> notes, const HighwayChordGroupViewState& group, int extra_lanes,
-    int string_count, bool invert_string_order) noexcept;
+    int string_count, bool invert_strings) noexcept;
 
 /*!
 \brief Returns the eased interpolation weight of a slide at a segment progress.

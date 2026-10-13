@@ -56,18 +56,21 @@ bool HighwaySceneTarget::fit(const std::uint32_t width, const std::uint32_t heig
         1,
         g_scene_depth_format,
         g_scene_msaa | BGFX_TEXTURE_RT_WRITE_ONLY)};
-    if (!m_color.isValid() || !m_depth.isValid())
+    if (m_color.isValid() && m_depth.isValid())
+    {
+        // Never destroyTextures: the wrappers own the attachments (bgfx_handle.h).
+        const std::array<bgfx::TextureHandle, 2> attachments{m_color.get(), m_depth.get()};
+        m_frame_buffer = UniqueBgfxHandle<bgfx::FrameBufferHandle>{bgfx::createFrameBuffer(
+            static_cast<std::uint8_t>(attachments.size()), attachments.data(), false)};
+    }
+    if (!m_frame_buffer.isValid())
     {
         // A refused size holds nothing until the next fit retries.
         m_color.reset();
         m_depth.reset();
         return false;
     }
-    // Never destroyTextures: the wrappers own the attachments (bgfx_handle.h).
-    const std::array<bgfx::TextureHandle, 2> attachments{m_color.get(), m_depth.get()};
-    m_frame_buffer = UniqueBgfxHandle<bgfx::FrameBufferHandle>{bgfx::createFrameBuffer(
-        static_cast<std::uint8_t>(attachments.size()), attachments.data(), false)};
-    return m_frame_buffer.isValid();
+    return true;
 }
 
 bgfx::FrameBufferHandle HighwaySceneTarget::frameBuffer() const noexcept

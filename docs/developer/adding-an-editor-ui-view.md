@@ -65,5 +65,6 @@ Two menu kinds, two conventions — both build their items from *published view 
   `SafePointer`-guarded lambda that hands the pick to the controller, so no item needs an id range
   and `menuItemSelected` stays empty. The two highway pickers list the themes the view's
   `HighwayThemeRegistry` holds and tick what the published highway settings resolve to; each
-  Highway Display toggle is ticked while its reading aid draws. Theming stays with
+  Highway Display toggle is ticked while its choice is on (the strings inverted, or the aid
+  drawn). Theming stays with
   `MenuLookAndFeel`.

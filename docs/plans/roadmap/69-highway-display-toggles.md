@@ -33,12 +33,12 @@ the ring, whose default 54-Q21 now decides in place of keep-or-drop.
 ## Design
 
 - **`HighwayViewPreferences`** (plan 70) holds the player's shared reading choices, `mirrored`
-  and `invert_string_order` today, and gains the three toggles as `bool` fields, positively named
+  and `invert_strings` today, and gains the three toggles as `bool` fields, positively named
   so `true` draws the element. It is nested in the renderer's `HighwayDisplayOptions` (which
   reaches the renderer through `setDisplayOptions`) and in the shared `HighwayPlayerSettings`, so
   the field list is stated once. Final field names are chosen at implementation, checked against
   the naming conventions. If Phase 1 lands before plan 70 Phase 1, the three fields go into
-  `HighwayDisplayOptions` and move with `mirrored` and `invert_string_order` when plan 70 nests
+  `HighwayDisplayOptions` and move with `mirrored` and `invert_strings` when plan 70 nests
   them.
 - **The renderer** reads each at its one draw site and skips the element. Rotation off means a
   single note travels flat for its whole approach, exactly as it lands today; nothing else about

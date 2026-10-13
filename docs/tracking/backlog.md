@@ -42,6 +42,11 @@ the user picks which way the two surfaces reconcile.
   bad order impossible and delete the precondition. Both hosts are correct today
   (`preview_surface.cpp`, `rock_hero_game.cpp`); the renderer keeps re-binding its views every frame
   either way, since the CRT switches at runtime.
+- **The tab inks' lightness ceiling assumes the chip label's color by hand.**
+  `g_maximum_tab_ink_lightness` (`highway_theme_guardrails.cpp`) is L* 60 because the chip label
+  is white, and `g_chip_label_color` (`tab_paint_core.h`) is that white. Stating the guardrail as a
+  minimum L* gap below the label color's own L* would follow the label if it ever changed. Latent
+  only while the white label stands as ruled.
 
 ## Found while mipmapping the head atlases (2026-10-12)
 

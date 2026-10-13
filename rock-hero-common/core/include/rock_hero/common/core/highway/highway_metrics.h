@@ -378,13 +378,13 @@ bottom, as tablature reads. Every placement and ordering by height goes through 
 
 \param lane One-based displayed lane, counted from the lowest-pitched string.
 \param lane_count Number of displayed lanes.
-\param invert_string_order True to stack the lowest-pitched string at the bottom.
+\param invert_strings True to stack the lowest-pitched string at the bottom.
 \return One-based position in the stack, counted from the bottom.
 */
 [[nodiscard]] constexpr int highwayStackedLane(
-    int lane, int lane_count, bool invert_string_order) noexcept
+    int lane, int lane_count, bool invert_strings) noexcept
 {
-    return invert_string_order ? lane : (lane_count + 1 - lane);
+    return invert_strings ? lane : (lane_count + 1 - lane);
 }
 
 /*!
@@ -392,14 +392,14 @@ bottom, as tablature reads. Every placement and ordering by height goes through 
 \param string One-based string, counted from the lowest-pitched string.
 \param string_count Number of strings the arrangement uses.
 \param metrics World-space constants.
-\param invert_string_order True to stack the lowest-pitched string at the bottom
+\param invert_strings True to stack the lowest-pitched string at the bottom
        (\ref highwayStackedLane).
 \return World Y of the string lane.
 */
 [[nodiscard]] inline double highwayStringLaneY(
-    int string, int string_count, const HighwayMetrics& metrics, bool invert_string_order)
+    int string, int string_count, const HighwayMetrics& metrics, bool invert_strings)
 {
-    return highwayLaneToY(highwayStackedLane(string, string_count, invert_string_order), metrics);
+    return highwayLaneToY(highwayStackedLane(string, string_count, invert_strings), metrics);
 }
 
 /*!

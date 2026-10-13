@@ -30,7 +30,7 @@ constexpr std::array g_view_flag_keys{
     },
     ViewFlagKey{
         .key = "highway.invertStrings",
-        .flag = &HighwayViewPreferences::invert_string_order,
+        .flag = &HighwayViewPreferences::invert_strings,
     },
     ViewFlagKey{
         .key = "highway.showNoteTargets",

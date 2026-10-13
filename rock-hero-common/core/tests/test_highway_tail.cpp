@@ -209,7 +209,8 @@ TEST_CASE("Highway bend inversion splits the displayed stack", "[core][highway][
 }
 
 // Verifies an onset group's bends all point one way, chosen by a majority of its displayed lanes
-// with a tie going to the upper side, and that the inverted string order flips the vote.
+// with a tie going to the upper side. The groups are named for the inverted stack, lowest string at
+// the bottom as tablature reads; the default stack, lowest string on top, flips the vote.
 TEST_CASE("Highway bend inversion belongs to the onset group", "[core][highway][tail]")
 {
     const auto note_on_string = [](const int string) {

@@ -1837,7 +1837,7 @@ juce::PopupMenu EditorView::highwayDisplayMenu()
     static constexpr std::array g_view_toggles{
         ViewToggleItem{
             .text = "Invert Strings",
-            .flag = &common::core::HighwayViewPreferences::invert_string_order,
+            .flag = &common::core::HighwayViewPreferences::invert_strings,
         },
         ViewToggleItem{
             .text = "Note Targets",
@@ -1856,15 +1856,15 @@ juce::PopupMenu EditorView::highwayDisplayMenu()
     juce::PopupMenu menu;
     for (const ViewToggleItem& item : g_view_toggles)
     {
-        const bool shown = m_state.highway_settings.view.*item.flag;
+        const bool on = m_state.highway_settings.view.*item.flag;
         menu.addItem(
             item.text,
             true,
-            shown,
-            [self = juce::Component::SafePointer<EditorView>{this}, flag = item.flag, shown] {
+            on,
+            [self = juce::Component::SafePointer<EditorView>{this}, flag = item.flag, on] {
                 if (self != nullptr)
                 {
-                    self->m_controller.onHighwayViewFlagChangeRequested(flag, !shown);
+                    self->m_controller.onHighwayViewFlagChangeRequested(flag, !on);
                 }
             });
     }

@@ -661,7 +661,8 @@ private:
     // every palette by name; the drawn choice ticked.
     [[nodiscard]] juce::PopupMenu stringPaletteMenu();
 
-    // The View menu's highway reading aids: one checkable item per aid, ticked while it draws.
+    // The View menu's Highway Display switches, the string order and the reading aids: one
+    // checkable item each, ticked while its choice is on.
     [[nodiscard]] juce::PopupMenu highwayDisplayMenu();
 
     // Opens the actions window (Edit > Actions..., default `?`), creating it on first use; the
