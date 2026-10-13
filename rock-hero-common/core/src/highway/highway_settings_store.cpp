@@ -29,7 +29,7 @@ constexpr std::array g_view_flag_keys{
         .flag = &HighwayViewPreferences::mirrored,
     },
     ViewFlagKey{
-        .key = "highway.invertStringOrder",
+        .key = "highway.invertStrings",
         .flag = &HighwayViewPreferences::invert_string_order,
     },
     ViewFlagKey{

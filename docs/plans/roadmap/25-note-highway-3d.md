@@ -275,9 +275,10 @@ normative):
   work (plans 26/27); a separate string-order-invert option (Charter has one) rides the same
   seam.
 - **String order in 3D: lowest-pitched string on TOP by default** (user decision 2026-07-11,
-  superseding the conventional bottom-anchored default for the game highway). Realized through
-  the shared projection's `invert_string_order` flag at the game's composition point; the 2D tab
-  lane keeps standard tab orientation, and plans 26/27 surface the per-player setting.
+  superseding the conventional bottom-anchored default for the game highway). Since 2026-10-13
+  this is the geometry's own default, and the player's `invert_string_order` (View > Highway
+  Display > Invert Strings) stacks the lowest-pitched string at the bottom, as tablature reads;
+  the 2D tab lane keeps standard tab orientation either way.
 - **String colors come from plan 45's shared palette** — single source of truth across editor
   tab, editor preview, and game highway. This plan never defines note/string colors.
 - **Hit/miss feedback is event-driven**: the renderer is a pure function of

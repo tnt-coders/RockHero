@@ -792,13 +792,13 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
     // renderer also reads as the chord-box frame thickness): the bottom lane sits the base plus
     // half a string spacing off the floor (0.075 + 0.175) so fret margins stay symmetric around
     // the grid while a chord box's bottom bar fills the below-grid gap.
-    CHECK(highwayStringLaneY(1, 6, metrics, false) == Catch::Approx(0.25));
-    CHECK(highwayStringLaneY(6, 6, metrics, false) == Catch::Approx(2.0));
-    CHECK(highwayStringLaneY(1, 6, metrics, true) == Catch::Approx(2.0));
-    CHECK(highwayStringLaneY(6, 6, metrics, true) == Catch::Approx(0.25));
+    CHECK(highwayStringLaneY(1, 6, metrics, true) == Catch::Approx(0.25));
+    CHECK(highwayStringLaneY(6, 6, metrics, true) == Catch::Approx(2.0));
+    CHECK(highwayStringLaneY(1, 6, metrics, false) == Catch::Approx(2.0));
+    CHECK(highwayStringLaneY(6, 6, metrics, false) == Catch::Approx(0.25));
 
     // Eight-string arrangements stack two more lanes above the standard six.
-    CHECK(highwayStringLaneY(8, 8, metrics, false) == Catch::Approx(2.7));
+    CHECK(highwayStringLaneY(8, 8, metrics, true) == Catch::Approx(2.7));
 
     // The shared lane-to-Y seam that highwayStringLaneY delegates to.
     CHECK(highwayLaneToY(1, metrics) == Catch::Approx(0.25));

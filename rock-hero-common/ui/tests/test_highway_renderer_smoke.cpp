@@ -635,7 +635,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
                 .view =
                     common::core::HighwayViewPreferences{
                         .mirrored = false,
-                        .invert_string_order = true,
+                        .invert_string_order = false,
                         .show_note_targets = false,
                         .show_note_rotation = false,
                         .show_arpeggio_brackets = false,
@@ -653,7 +653,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
                 .view =
                     common::core::HighwayViewPreferences{
                         .mirrored = true,
-                        .invert_string_order = false,
+                        .invert_string_order = true,
                         .show_note_targets = true,
                         .show_note_rotation = true,
                         .show_arpeggio_brackets = true,

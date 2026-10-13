@@ -2923,7 +2923,7 @@ void HighwayRenderer::Impl::draw(
                 // glyph against note content by lane height and depth.
                 bracket_batches.push_back(
                     BracketBatch{
-                        .lane = invert ? (displayed_count + 1 - lane) : lane,
+                        .lane = common::core::highwayStackedLane(lane, displayed_count, invert),
                         .z = z,
                         .vertices = {},
                         .indices = {},
@@ -3508,7 +3508,7 @@ void HighwayRenderer::Impl::draw(
     };
     const auto submit_brackets_below = [&](const common::core::NoteViewState& note) {
         const int lane = laneOf(note.string);
-        const int note_lane = invert ? (displayed_count + 1 - lane) : lane;
+        const int note_lane = common::core::highwayStackedLane(lane, displayed_count, invert);
         const double note_z = time_to_z(std::max(note.start_seconds, now_seconds));
         bool flushed = false;
         for (BracketBatch& batch : bracket_batches)

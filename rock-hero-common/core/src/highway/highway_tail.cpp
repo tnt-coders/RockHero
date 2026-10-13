@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <numbers>
 #include <rock_hero/common/core/chart/bend_travel.h>
+#include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_window.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -96,7 +97,7 @@ bool highwayBendInverted(
     for (std::size_t index = group.first; index < group.first + group.count; ++index)
     {
         const int lane = displayedLane(notes[index].string, extra_lanes);
-        const int displayed_lane = invert_string_order ? (string_count + 1 - lane) : lane;
+        const int displayed_lane = highwayStackedLane(lane, string_count, invert_string_order);
         if (highwayBendInverted(displayed_lane, string_count))
         {
             ++inverted_count;

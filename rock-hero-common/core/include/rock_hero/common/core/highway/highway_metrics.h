@@ -371,22 +371,35 @@ saturates against it.
 }
 
 /*!
+\brief Returns where a displayed lane sits in the drawn stack, counted from the bottom.
+
+The lowest-pitched string draws on top by default; inverting the string order stacks it at the
+bottom, as tablature reads. Every placement and ordering by height goes through this one mapping.
+
+\param lane One-based displayed lane, counted from the lowest-pitched string.
+\param lane_count Number of displayed lanes.
+\param invert_string_order True to stack the lowest-pitched string at the bottom.
+\return One-based position in the stack, counted from the bottom.
+*/
+[[nodiscard]] constexpr int highwayStackedLane(
+    int lane, int lane_count, bool invert_string_order) noexcept
+{
+    return invert_string_order ? lane : (lane_count + 1 - lane);
+}
+
+/*!
 \brief Returns the world Y of a string lane above the board surface.
-
-The lowest-pitched string sits at the bottom by default (Charter's orientation); the invert flag
-flips the stacking for players who prefer the mirrored string order.
-
 \param string One-based string, counted from the lowest-pitched string.
 \param string_count Number of strings the arrangement uses.
 \param metrics World-space constants.
-\param invert_string_order True to stack the lowest-pitched string on top.
+\param invert_string_order True to stack the lowest-pitched string at the bottom
+       (\ref highwayStackedLane).
 \return World Y of the string lane.
 */
 [[nodiscard]] inline double highwayStringLaneY(
     int string, int string_count, const HighwayMetrics& metrics, bool invert_string_order)
 {
-    const int lane = invert_string_order ? (string_count + 1 - string) : string;
-    return highwayLaneToY(lane, metrics);
+    return highwayLaneToY(highwayStackedLane(string, string_count, invert_string_order), metrics);
 }
 
 /*!

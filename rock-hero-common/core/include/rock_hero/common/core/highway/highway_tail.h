@@ -236,7 +236,8 @@ to the upper displayed side, matching the majority-upper case.
 \param group Onset group whose members are being drawn.
 \param extra_lanes Displayed lanes beyond the chart's own count.
 \param string_count Number of displayed lanes.
-\param invert_string_order True when the displayed string stack is inverted.
+\param invert_string_order True to stack the lowest-pitched string at the bottom
+       (\ref highwayStackedLane).
 \return True when the group's bend lift is inverted (downward).
 */
 [[nodiscard]] bool highwayBendInverted(

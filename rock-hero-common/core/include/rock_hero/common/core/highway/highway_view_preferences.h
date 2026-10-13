@@ -24,8 +24,11 @@ struct HighwayViewPreferences
     /*! \brief True to reflect the fret axis for left-handed display. */
     bool mirrored{false};
 
-    /*! \brief True to stack the lowest-pitched string on top instead of the bottom. */
-    bool invert_string_order{true};
+    /*!
+    \brief True to stack the lowest-pitched string at the bottom, as tablature reads, instead of
+    on top.
+    */
+    bool invert_string_order{false};
 
     /*!
     \brief True to draw note targets: a hollow copy of each head at its landing spot on the hit

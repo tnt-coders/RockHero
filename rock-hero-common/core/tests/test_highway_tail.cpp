@@ -226,16 +226,16 @@ TEST_CASE("Highway bend inversion belongs to the onset group", "[core][highway][
     };
 
     const HighwayChordGroupViewState tied_g_and_d{.first = 0, .count = 2};
-    CHECK(highwayBendInverted(notes, tied_g_and_d, 0, 6, false));
+    CHECK(highwayBendInverted(notes, tied_g_and_d, 0, 6, true));
 
     const HighwayChordGroupViewState lower_majority_g_d_a{.first = 0, .count = 3};
-    CHECK_FALSE(highwayBendInverted(notes, lower_majority_g_d_a, 0, 6, false));
+    CHECK_FALSE(highwayBendInverted(notes, lower_majority_g_d_a, 0, 6, true));
 
     const HighwayChordGroupViewState upper_majority_g_b{.first = 3, .count = 2};
-    CHECK(highwayBendInverted(notes, upper_majority_g_b, 0, 6, false));
+    CHECK(highwayBendInverted(notes, upper_majority_g_b, 0, 6, true));
 
-    CHECK(highwayBendInverted(notes, lower_majority_g_d_a, 0, 6, true));
-    CHECK_FALSE(highwayBendInverted(notes, upper_majority_g_b, 0, 6, true));
+    CHECK(highwayBendInverted(notes, lower_majority_g_d_a, 0, 6, false));
+    CHECK_FALSE(highwayBendInverted(notes, upper_majority_g_b, 0, 6, false));
 }
 
 // The lift is the physical displacement law: n semitones needs the tension ratio 2^(n/6), and

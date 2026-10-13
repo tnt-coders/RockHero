@@ -1825,31 +1825,36 @@ juce::PopupMenu EditorView::stringPaletteMenu()
     return menu;
 }
 
-// Each item names its aid by the member that stores it and asks for the opposite of its tick.
+// Each item names its choice by the member that stores it and asks for the opposite of its tick:
+// the string order first, then the reading aids.
 juce::PopupMenu EditorView::highwayDisplayMenu()
 {
-    struct ReadingAidItem
+    struct ViewToggleItem
     {
         const char* text;
         common::core::HighwayViewFlag flag;
     };
-    static constexpr std::array g_reading_aids{
-        ReadingAidItem{
+    static constexpr std::array g_view_toggles{
+        ViewToggleItem{
+            .text = "Invert Strings",
+            .flag = &common::core::HighwayViewPreferences::invert_string_order,
+        },
+        ViewToggleItem{
             .text = "Note Targets",
             .flag = &common::core::HighwayViewPreferences::show_note_targets,
         },
-        ReadingAidItem{
+        ViewToggleItem{
             .text = "Note Rotation",
             .flag = &common::core::HighwayViewPreferences::show_note_rotation,
         },
-        ReadingAidItem{
+        ViewToggleItem{
             .text = "Arpeggio Brackets",
             .flag = &common::core::HighwayViewPreferences::show_arpeggio_brackets,
         },
     };
 
     juce::PopupMenu menu;
-    for (const ReadingAidItem& item : g_reading_aids)
+    for (const ViewToggleItem& item : g_view_toggles)
     {
         const bool shown = m_state.highway_settings.view.*item.flag;
         menu.addItem(

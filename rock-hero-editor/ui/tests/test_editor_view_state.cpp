@@ -1545,28 +1545,37 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
     lane_counts[2].action();
     CHECK(controller.last_tab_minimum_displayed_strings == std::optional<int>{5});
 
-    // The reading aids, in the menu's order, under settings with only the rotation turned off.
+    // The view toggles, in the menu's order, under settings with only the rotation turned off.
     core::EditorViewState rotation_off;
     rotation_off.highway_settings.view.show_note_rotation = false;
     view.setState(rotation_off);
-    const std::vector<juce::PopupMenu::Item> aids = submenu_items("Highway Display");
-    REQUIRE(aids.size() == 3);
-    CHECK(aids[0].text == "Note Targets");
-    CHECK(aids[0].isTicked);
-    CHECK(aids[1].text == "Note Rotation");
-    CHECK_FALSE(aids[1].isTicked);
-    CHECK(aids[2].text == "Arpeggio Brackets");
-    CHECK(aids[2].isTicked);
+    const std::vector<juce::PopupMenu::Item> toggles = submenu_items("Highway Display");
+    REQUIRE(toggles.size() == 4);
+    CHECK(toggles[0].text == "Invert Strings");
+    CHECK_FALSE(toggles[0].isTicked);
+    CHECK(toggles[1].text == "Note Targets");
+    CHECK(toggles[1].isTicked);
+    CHECK(toggles[2].text == "Note Rotation");
+    CHECK_FALSE(toggles[2].isTicked);
+    CHECK(toggles[3].text == "Arpeggio Brackets");
+    CHECK(toggles[3].isTicked);
     using RequestedFlag = core::testing::RecordingEditorController::HighwayViewFlagChange;
-    REQUIRE(aids[1].action != nullptr);
-    aids[1].action();
+    REQUIRE(toggles[0].action != nullptr);
+    toggles[0].action();
+    CHECK(
+        controller.last_highway_view_flag ==
+        std::optional{RequestedFlag{
+            .flag = &common::core::HighwayViewPreferences::invert_string_order, .on = true
+        }});
+    REQUIRE(toggles[2].action != nullptr);
+    toggles[2].action();
     CHECK(
         controller.last_highway_view_flag ==
         std::optional{RequestedFlag{
             .flag = &common::core::HighwayViewPreferences::show_note_rotation, .on = true
         }});
-    REQUIRE(aids[2].action != nullptr);
-    aids[2].action();
+    REQUIRE(toggles[3].action != nullptr);
+    toggles[3].action();
     CHECK(
         controller.last_highway_view_flag ==
         std::optional{RequestedFlag{
