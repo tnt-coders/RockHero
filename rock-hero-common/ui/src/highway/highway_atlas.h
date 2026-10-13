@@ -167,8 +167,7 @@ struct HighwayAtlases
 // actually types — `M`/`Shift+M` is palm and full mute, `H`/`Shift+H` is natural and pinch
 // harmonic, so those sit side by side. That ordering is available because the HAND is carried by
 // the art itself rather than by position: fill polarity is the mark family's hand signature (dark
-// interior = picking, light = fretting, measured at 31..91 against 246..255 with no overlap), the
-// same rule that lets the right-hand tap's dark T and the left tap's light T share one letter.
+// interior = picking, light = fretting, measured at 31..91 against 246..255 with no overlap).
 // Encoding the hand in the layout as well would spend the ordering on something already legible
 // inside every cell. It falls out anyway: rows 2 and 4 are hand-pure, and the only two pairs that
 // span hands — the mutes and the harmonics — are exactly the pairs that must stay together, so
