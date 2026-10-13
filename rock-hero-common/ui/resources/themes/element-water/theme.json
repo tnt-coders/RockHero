@@ -16,7 +16,7 @@
     "strike_fretting": "#F0FEFF",
     "strike_picking": "#40D4F4",
     "chord": "#3D6CF5",
-    "arpeggio": "#78F0C4",
+    "arpeggio": { "highway": "#78F0C4", "tab": "#049972" },
     "full_mute_mark": "#E0FBFF",
     "capo_shade": "#02080EB4",
     "capo_bar": "#B8DCE8",

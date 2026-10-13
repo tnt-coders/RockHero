@@ -17,12 +17,13 @@ A role is named for what the color does, never for where it is drawn. Each is re
 alpha included; the renderer then scales that alpha for fades, tiers and frames, and replaces it
 outright only where a member says so. String colors are not roles; they come from the
 StringColorPalette passed beside the theme. Nor is any color derived from a role (the picking hand's
-chord and arpeggio, a box fill's middle, the dim fret number, the tapping light's lean, the 2D
-lane's span inks), so a derived color always follows the role it comes from.
+chord and arpeggio, a box fill's middle, the dim fret number, the tapping light's lean), so a
+derived color always follows the role it comes from.
 
 A box or a rail tells two things apart by color alone: its kind of span and its hand. The kind is
 authored, as chord and arpeggio, which are the fretting hand's colors; the picking hand's are
-derived from them, and so are the inks the 2D tab lane paints each kind's spans with.
+derived from them. The 2D tab lane's inks for the two kinds are authored beside them, as the `tab`
+halves of the same roles (TabShapeInks).
 
 No member has a default, so a theme spelled out field by field must name every role.
 */

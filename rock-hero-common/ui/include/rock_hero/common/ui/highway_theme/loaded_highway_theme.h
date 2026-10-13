@@ -7,6 +7,7 @@
 
 #include <rock_hero/common/ui/highway_theme/highway_texture_set.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
+#include <rock_hero/common/ui/highway_theme/tab_shape_inks.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <string>
 
@@ -37,7 +38,8 @@ struct HighwayThemePalette
 
 A theme is a directory holding `theme.json` and the art named by common::core::HighwayTexture; an
 inheriting theme takes whatever it leaves out from its base. The renderer and the 2D tab lane take
-the parts separately, so the string colors stay a palette of their own beside the theme's roles.
+the parts separately, so the string colors stay a palette of their own beside the theme's roles, and
+the lane's span inks beside both.
 */
 struct LoadedHighwayTheme
 {
@@ -55,6 +57,12 @@ struct LoadedHighwayTheme
     palette, otherwise its base's.
     */
     HighwayThemePalette palette;
+
+    /*!
+    \brief The 2D tab lane's span inks: the `tab` halves of the theme's chord and arpeggio, which
+    resolve with those roles.
+    */
+    TabShapeInks tab_inks;
 
     /*! \brief The theme's art, satisfying the texture contract. */
     HighwayTextureSet textures;

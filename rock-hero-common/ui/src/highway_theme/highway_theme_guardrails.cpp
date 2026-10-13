@@ -21,6 +21,10 @@ namespace
 constexpr double g_minimum_delta_e = 15.0;
 constexpr double g_minimum_fret_line_lightness_rise = 30.0;
 
+// The lightest a tab ink may be and still carry the white chip label: L* 60 is about APCA Lc 62
+// under white, a little past its floor for bold label text.
+constexpr double g_maximum_tab_ink_lightness = 60.0;
+
 // One color the notation reads, named as a diagnostic names it: a role by its key, a derived color
 // by what it paints.
 struct NamedColor
@@ -45,7 +49,7 @@ struct NamedColor
 
 // Runs the color pairs, the string pairs and the fret-line order, reporting the first failure.
 std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
-    const HighwayTheme& colors, const StringColorPalette& strings)
+    const HighwayTheme& colors, const TabShapeInks& tab_inks, const StringColorPalette& strings)
 {
     const NamedColor chord = roleColor(colors, &HighwayTheme::chord);
     const NamedColor arpeggio = roleColor(colors, &HighwayTheme::arpeggio);
@@ -58,9 +62,12 @@ std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
     const NamedColor number_lit = roleColor(colors, &HighwayTheme::fret_number_lit);
     const NamedColor number_dim{.name = "the dim fret number", .color = fretNumberDim(colors)};
     const NamedColor number_target = roleColor(colors, &HighwayTheme::fret_number_target);
-    const std::array<std::array<NamedColor, 2>, 8> distinct_pairs{{
-        // The two kinds of span, on both surfaces, and each kind's two hands.
+    const NamedColor tab_chord{.name = "the tab lane's chord", .color = tab_inks.chord};
+    const NamedColor tab_arpeggio{.name = "the tab lane's arpeggio", .color = tab_inks.arpeggio};
+    const std::array<std::array<NamedColor, 2>, 9> distinct_pairs{{
+        // The two kinds of span on each surface, and each kind's two hands.
         {chord, arpeggio},
+        {tab_chord, tab_arpeggio},
         {chord, picking_chord},
         {arpeggio, picking_arpeggio},
         {picking_chord, picking_arpeggio},
@@ -113,6 +120,23 @@ std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
                         g_minimum_delta_e),
                 }};
             }
+        }
+    }
+
+    for (const NamedColor& ink : std::array{tab_chord, tab_arpeggio})
+    {
+        const double lightness = cielabOf(ink.color).lightness;
+        if (lightness > g_maximum_tab_ink_lightness)
+        {
+            return std::unexpected{HighwayThemeError{
+                HighwayThemeErrorCode::GuardrailViolated,
+                std::format(
+                    "{} {} is L* {:.1f}; its chip prints a white label, which needs at most {}",
+                    ink.name,
+                    hexOf(ink.color),
+                    lightness,
+                    g_maximum_tab_ink_lightness),
+            }};
         }
     }
 

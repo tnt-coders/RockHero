@@ -152,7 +152,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
 // The span inks the fixture theme gives the tab lane, which a ruler's span chips fill in.
 [[nodiscard]] common::ui::TabShapeInks fixtureShapeInks()
 {
-    return common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme());
+    return common::ui::testing::fixtureTabShapeInks();
 }
 
 // A tab lane at the editor's density, whose one-figure fret-hand chip a blank span chip matches.
@@ -544,10 +544,10 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     // arpeggio's at x = 200, both probed in their left padding, clear of the beat ticks they cover
     // and of the label.
     const int inside_y = g_timeline_ruler_height - 4;
-    const juce::Colour chord = lane.shape_inks.chord;
+    const juce::Colour chord{lane.shape_inks.chord};
     CHECK(image.getPixelAt(100, inside_y) == chord);
     CHECK(image.getPixelAt(99, inside_y) != chord);
-    CHECK(image.getPixelAt(201, inside_y) == lane.shape_inks.arpeggio);
+    CHECK(image.getPixelAt(201, inside_y) == juce::Colour{lane.shape_inks.arpeggio});
 
     // The chord chip's centre is not its fill alone: the "?" prints there. Read coarsely, since
     // the label is a glyph.
@@ -648,7 +648,7 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
     const int base_y = g_timeline_ruler_height - 1;
     constexpr int past_chip = 20;
     REQUIRE(spanChipBlankWidth(lane) < past_chip);
-    const juce::Colour chord = lane.shape_inks.chord;
+    const juce::Colour chord{lane.shape_inks.chord};
 
     // Eight seconds across 801px maps seconds * 100; scrolled 150px in, the ruler's left edge is
     // 1.5 s. Each case is one chord span starting at `start` and ending at `end`.

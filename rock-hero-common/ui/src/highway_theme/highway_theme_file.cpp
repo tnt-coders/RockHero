@@ -47,6 +47,9 @@ constexpr auto g_color_keys = [] {
     return keys;
 }();
 
+// The halves of a role split by surface, in the order a split value pairs them.
+constexpr std::array<std::string_view, 2> g_surface_keys{"highway", "tab"};
+
 // The fully opaque alpha byte of a packed color.
 constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
 
@@ -116,12 +119,85 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return &*base;
 }
 
+// Every color the roles resolve to: the highway's roles, and the tab lane's span inks.
+struct ResolvedRoles
+{
+    HighwayTheme highway;
+    TabShapeInks tab;
+};
+
+// Reads one color value; `where` names it after "colors.".
+[[nodiscard]] std::expected<ArgbColor, HighwayThemeError> readColor(
+    const juce::var& value, const std::string_view where)
+{
+    const std::optional<ArgbColor> color =
+        value.isString() ? parseCssHexColor(value.toString().toStdString()) : std::nullopt;
+    if (!color.has_value())
+    {
+        return std::unexpected{HighwayThemeError{
+            HighwayThemeErrorCode::InvalidColor,
+            std::format(
+                "colors.{} is {}, not a #RRGGBB or #RRGGBBAA color",
+                where,
+                juce::JSON::toString(value, true).toStdString()),
+        }};
+    }
+    return *color;
+}
+
+// Reads a span role's two halves: one color for both surfaces, or a {"highway", "tab"} pair.
+[[nodiscard]] std::expected<std::pair<ArgbColor, ArgbColor>, HighwayThemeError> readSurfacePair(
+    const juce::var& value, const std::string_view role)
+{
+    const juce::DynamicObject* const halves = value.getDynamicObject();
+    if (halves == nullptr)
+    {
+        return readColor(value, role).transform([](const ArgbColor color) {
+            return std::pair{color, color};
+        });
+    }
+
+    const std::string where = std::format("colors.{}", role);
+    if (const std::expected<void, HighwayThemeError> keys =
+            refuseUnknownKeys(*halves, g_surface_keys, where);
+        !keys.has_value())
+    {
+        return std::unexpected{keys.error()};
+    }
+    std::array<ArgbColor, g_surface_keys.size()> colors{};
+    for (std::size_t index = 0; index < g_surface_keys.size(); ++index)
+    {
+        const std::string_view surface = g_surface_keys.at(index);
+        const juce::var& half = Json::value(value, surface);
+        if (half.isVoid())
+        {
+            return std::unexpected{HighwayThemeError{
+                HighwayThemeErrorCode::MissingKey,
+                std::format(
+                    "{} lacks \"{}\"; a role split by surface states both halves", where, surface),
+            }};
+        }
+        const std::expected<ArgbColor, HighwayThemeError> color =
+            readColor(half, std::format("{}.{}", role, surface));
+        if (!color.has_value())
+        {
+            return std::unexpected{color.error()};
+        }
+        colors.at(index) = *color;
+    }
+    return std::pair{colors.at(0), colors.at(1)};
+}
+
 // Reads every color role from `colors`, through the one role table; a role the file leaves out
-// is the base's.
-[[nodiscard]] std::expected<HighwayTheme, HighwayThemeError> readRoles(
+// is the base's, on both surfaces.
+[[nodiscard]] std::expected<ResolvedRoles, HighwayThemeError> readRoles(
     const juce::var& colors, const LoadedHighwayTheme* const base)
 {
-    HighwayTheme theme = base != nullptr ? base->colors : HighwayTheme{};
+    ResolvedRoles roles{};
+    if (base != nullptr)
+    {
+        roles = ResolvedRoles{.highway = base->colors, .tab = base->tab_inks};
+    }
     for (const HighwayThemeRole& role : g_highway_theme_roles)
     {
         const juce::var& value = Json::value(colors, role.name);
@@ -136,21 +212,40 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
                 std::format("colors lacks the role \"{}\"", role.name),
             }};
         }
-        const std::optional<ArgbColor> color =
-            value.isString() ? parseCssHexColor(value.toString().toStdString()) : std::nullopt;
-        if (!color.has_value())
+        if (role.tab == nullptr)
+        {
+            const std::expected<ArgbColor, HighwayThemeError> color = readColor(value, role.name);
+            if (!color.has_value())
+            {
+                return std::unexpected{color.error()};
+            }
+            roles.highway.*role.member = *color;
+            continue;
+        }
+
+        const std::expected<std::pair<ArgbColor, ArgbColor>, HighwayThemeError> pair =
+            readSurfacePair(value, role.name);
+        if (!pair.has_value())
+        {
+            return std::unexpected{pair.error()};
+        }
+        const auto [highway, tab] = *pair;
+        // The chip a tab ink fills prints its label on it, so the ink carries no alpha.
+        if ((tab & g_opaque_alpha) != g_opaque_alpha)
         {
             return std::unexpected{HighwayThemeError{
                 HighwayThemeErrorCode::InvalidColor,
                 std::format(
-                    "colors.{} is {}, not a #RRGGBB or #RRGGBBAA color",
+                    "colors.{} gives the tab lane #{:08X}; a tab ink must be opaque, since a "
+                    "chip's label prints on it",
                     role.name,
-                    juce::JSON::toString(value, true).toStdString()),
+                    std::rotl(tab, 8)),
             }};
         }
-        theme.*role.member = *color;
+        roles.highway.*role.member = highway;
+        roles.tab.*role.tab = tab;
     }
-    return theme;
+    return roles;
 }
 
 // Reads `strings`: one opaque color per string the format allows, highest string first.
@@ -357,7 +452,7 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
             return std::unexpected{keys.error()};
         }
     }
-    std::expected<HighwayTheme, HighwayThemeError> roles = readRoles(colors, *base);
+    std::expected<ResolvedRoles, HighwayThemeError> roles = readRoles(colors, *base);
     if (!roles.has_value())
     {
         return std::unexpected{std::move(roles.error())};
@@ -372,7 +467,7 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
 
     // The guardrails hold the colors the theme draws with, whichever file stated each one.
     if (std::expected<void, HighwayThemeError> legible =
-            checkHighwayThemeGuardrails(*roles, palette->colors);
+            checkHighwayThemeGuardrails(roles->highway, roles->tab, palette->colors);
         !legible.has_value())
     {
         return std::unexpected{std::move(legible.error())};
@@ -388,8 +483,9 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return LoadedHighwayTheme{
         .id = id,
         .name = name_text,
-        .colors = *roles,
+        .colors = roles->highway,
         .palette = std::move(*palette),
+        .tab_inks = roles->tab,
         .textures = std::move(*textures),
     };
 }

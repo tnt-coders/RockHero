@@ -922,7 +922,20 @@ look. **Verification**: build, touched tests.
     polarity turning at screen luminance 0.342). `laneShapeInk`, its guardrail pair and its tests
     are deleted. Default's 2D chord is therefore its light sky-blue, not the old hand-tuned royal
     blue (a different hue, 263 against 220 in OKLCH, which no rule shared by every theme reaches).
-  - **OPEN 2026-10-13, to settle next session.** The user wants, under ONE rule for every theme:
+  - **SETTLED 2026-10-13 (user, on a simplicity review): the tab lane's inks are authored.** The
+    user ruled Default's highway colors right as they are, and no rule derives a 2D color from a
+    3D one, since how a hue carries across depends on what the theme means by it (Default's cyan
+    must become a blue, Fire's red must stay red). So `chord` and `arpeggio` each take one color
+    for both surfaces or a `{"highway": ..., "tab": ...}` pair; a theme states or inherits the
+    role whole, so the lane never keeps a base's ink under a theme's own boxes. The `tab` halves
+    load as `LoadedHighwayTheme::tab_inks` (`TabShapeInks`, JUCE-free). The loader holds each tab
+    ink opaque and at most L* 60 (about APCA Lc 62 under white), and the two apart by the usual
+    ΔE; the chip label is always white. `tabShapeInks` and `chipLabelColorOn` are deleted. Strings
+    stay one color on both surfaces: they carry no text on their base color and sit on near-black
+    in both. Default's lane wears the original `#4173DE` / `#9061C7`; eleven other built-ins state
+    tab halves, first cuts awaiting sighting. The snapped palette below was not adopted. The
+    record of the question as it stood:
+  - **(Was OPEN 2026-10-13.)** The user wants, under ONE rule for every theme:
     the original hand-tuned 2D blue `#4173DE` and purple `#9061C7` for Classic (3D teal `#00D2D5`
     / purple `#C040FF`) and Default; chip labels always white and readable; other themes
     coordinated. Verbatim colors with black-or-white labels (today) fails the first two; the
@@ -1004,8 +1017,8 @@ window an obsidian violet-grey. Earth is deep forest: a near-black green board, 
 and window, a pine-green chord (`#2E9A5A`) and a bark-brown arpeggio (`#B07A48`). Wind is light
 and airy: a slate-blue board (`#16202C`, L* 12, the one built-in not on black) with pale washes,
 an aqua chord and a lavender arpeggio. Every window still lifts its board by about L* 14-16.
-That cut survives unsighted as the four "Element - … - Original" built-ins (Earth, Wind, Fire,
-and Water as of `87a0f35b`), kept verbatim as comparison baselines.
+That cut survived as four "Element - … - Original" built-ins (Earth, Wind, Fire, and Water as of
+`87a0f35b`) until the user deleted them unsighted on 2026-10-13; `ae0ed7ac` still holds them.
 
 *Showcase set and the no-haze rule, 2026-10-13 (user):* six immersive built-ins replace the
 Elements — "Element - Fire" (living flame: gold and amber lane lines, a white-hot attack line,
@@ -1026,8 +1039,8 @@ toward its element. A seventh, "Blacklight", revives the early "Colour Vector" v
 under a better name: UV-violet beat bars and lane lines on pure black, a white-hot attack line,
 Default's strings, a UV-violet chord `#7C68FF` and one fluorescent hot-pink accent on the
 arpeggio `#FF30A8` (a paler lilac/pink pair collapsed to 12.7 once the picking-hand derivation
-paled both). Two rulings bind every built-in except the Originals: **the board is pure
-black** (`#000000` in EVERY built-in, the Originals included, by the user's "crisp clear black"
+paled both). Two rulings bind every built-in: **the board is pure
+black** (`#000000` in EVERY built-in, by the user's "crisp clear black"
 ruling the same day; any tint or lift of the board — Wind Original's slate at L* 12 was the worst —
 veils the notes' contrast), and **the hand window is a quiet cue, not a wash**: `lit_lane` over the backdrop
 lifts it by about L* 8 (was 14-16, then 4, which the user sighted as too faint to show the

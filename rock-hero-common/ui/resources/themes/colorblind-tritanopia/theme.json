@@ -2,8 +2,8 @@
   "name": "Colorblind - Tritanopia",
   "inherits": "default",
   "colors": {
-    "chord": "#B4BCE6",
-    "arpeggio": "#A99F32",
+    "chord": { "highway": "#B4BCE6", "tab": "#5070BB" },
+    "arpeggio": { "highway": "#A99F32", "tab": "#948B2D" },
     "strings": [
       "#A638CB",
       "#BBFD9A",

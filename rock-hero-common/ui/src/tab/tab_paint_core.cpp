@@ -84,10 +84,6 @@ constexpr float g_span_parting{1.0f};
 // header).
 const juce::Colour g_lane_chip_ground{0xff2a2f36};
 
-// The APCA screen luminance at which black and white chip labels read equally (chipLabelColorOn):
-// solved from APCA 0.0.98G's two polarities, black text winning above it.
-constexpr double g_chip_label_polarity_luminance = 0.342;
-
 // A bend amount's vulgar-fraction glyph against the chip text. The glyph's own digits are about
 // 0.63 of a figure's height and 0.74 of its stroke; at 1.30 they reach 0.81 of the height and 0.97
 // of the stroke, so the fraction reads as the same weight as a whole number beside it while the
@@ -2058,7 +2054,7 @@ void drawShapeSpan(
         return;
     }
 
-    const juce::Colour color = metrics.shape_inks.of(shape.arpeggio);
+    const juce::Colour color{metrics.shape_inks.of(shape.arpeggio)};
     const float width = end_x - start_x;
     const float bottom_rail_y =
         static_cast<float>(metrics.bounds.getBottom()) - g_shape_rail_height;
@@ -2476,33 +2472,6 @@ juce::String tabNoteHeadText(const common::core::NoteViewState& note, const int 
         common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, fret_at_head))};
 }
 
-// Picks the ink of one kind of span.
-juce::Colour TabShapeInks::of(const bool is_arpeggio) const
-{
-    return is_arpeggio ? arpeggio : chord;
-}
-
-// The theme's own chord and arpeggio colors, as JUCE colors.
-TabShapeInks tabShapeInks(const HighwayTheme& theme)
-{
-    return TabShapeInks{
-        .chord = juce::Colour{theme.chord},
-        .arpeggio = juce::Colour{theme.arpeggio},
-    };
-}
-
-// APCA's screen luminance: each channel to the simple 2.4 power, not sRGB's piecewise curve.
-juce::Colour chipLabelColorOn(const juce::Colour fill)
-{
-    const auto channel = [](const std::uint8_t value) {
-        return std::pow(static_cast<double>(value) / 255.0, 2.4);
-    };
-    const double luminance = (0.2126729 * channel(fill.getRed())) +
-                             (0.7151522 * channel(fill.getGreen())) +
-                             (0.0721750 * channel(fill.getBlue()));
-    return luminance > g_chip_label_polarity_luminance ? juce::Colours::black : g_chip_label_color;
-}
-
 // Base color for a chart string, accounting for extra user lanes below the chart.
 juce::Colour TabLaneMetrics::baseColor(int chart_string) const
 {
@@ -2740,13 +2709,12 @@ void drawTabSpanChip(
         true,
         false,
         false);
-    const juce::Colour ink = inks.of(chip.arpeggio);
-    g.setColour(ink);
+    g.setColour(juce::Colour{inks.of(chip.arpeggio)});
     g.fillPath(outline);
 
     if (printed.isNotEmpty())
     {
-        g.setColour(chipLabelColorOn(ink));
+        g.setColour(g_chip_label_color);
         font.draw(g, printed, box);
     }
 }

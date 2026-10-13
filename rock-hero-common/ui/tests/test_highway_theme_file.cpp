@@ -66,6 +66,15 @@ void setColor(const juce::var& document, const std::string_view key, const juce:
     return document["colors"][keyOf(key)];
 }
 
+// A span role's value split by surface.
+[[nodiscard]] juce::var splitColor(const juce::var& highway, const juce::var& tab)
+{
+    const juce::DynamicObject::Ptr halves{new juce::DynamicObject{}};
+    halves->setProperty("highway", highway);
+    halves->setProperty("tab", tab);
+    return juce::var{halves.get()};
+}
+
 // A temporary folder of theme directories, each holding the given theme.json beside a copy of
 // the default theme's art; removed with the fixture.
 class ThemeFolder
@@ -253,6 +262,9 @@ TEST_CASE("A complete theme directory loads", "[ui][highway-theme]")
     CHECK(loaded->colors.backdrop == 0xFF000000U);
     CHECK(loaded->colors.lit_lane == 0x2F5978FFU);
     CHECK(loaded->colors.inlay_tint == 0xE68691B2U);
+    CHECK(loaded->colors.chord == 0xFF5CD3F5U);
+    CHECK(loaded->tab_inks.chord == 0xFF4173DEU);
+    CHECK(loaded->tab_inks.arpeggio == 0xFF9061C7U);
     CHECK(loaded->palette.source_id == "night-drive-2");
     CHECK(loaded->palette.name == "Default");
     CHECK(loaded->palette.colors.colors.front() == 0xFFE03CFFU);
@@ -396,7 +408,7 @@ TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][high
         colors.chord = chord;
         colors.arpeggio = arpeggio;
         const std::expected<void, HighwayThemeError> checked =
-            checkHighwayThemeGuardrails(colors, strings);
+            checkHighwayThemeGuardrails(colors, testing::fixtureTabShapeInks(), strings);
         return checked.has_value() ? std::string{} : checked.error().message;
     };
 
@@ -412,6 +424,115 @@ TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][high
     // its chroma.
     CHECK(failure(0xFF00D0D0U, 0xFF60D0A0U)
               .starts_with("the picking hand's chord #AFCECD and the picking hand's arpeggio "));
+}
+
+// The tab lane's two inks are held apart like the highway's, and each dark enough for the white
+// chip label: L* 60 at most, a grey either side of it deciding the edge.
+TEST_CASE("The tab lane's span inks stay apart and carry a white label", "[ui][highway-theme]")
+{
+    const auto failure = [](const ArgbColor chord, const ArgbColor arpeggio) {
+        const std::expected<void, HighwayThemeError> checked = checkHighwayThemeGuardrails(
+            testing::fixtureHighwayTheme(),
+            TabShapeInks{.chord = chord, .arpeggio = arpeggio},
+            testing::fixtureStringColors());
+        return checked.has_value() ? std::string{} : checked.error().message;
+    };
+
+    CHECK(failure(0xFF2E6BE8U, 0xFF9061C7U).empty());
+    CHECK(failure(0xFF2E6BE8U, 0xFF2E6BE8U)
+              .starts_with("the tab lane's chord #2E6BE8 and the tab lane's arpeggio #2E6BE8 "));
+    CHECK(failure(0xFF5CD3F5U, 0xFF9061C7U).starts_with("the tab lane's chord #5CD3F5 is L* 79.3"));
+    CHECK(failure(0xFF2E6BE8U, 0xFFFFB800U).starts_with("the tab lane's arpeggio #FFB800 is L* "));
+    CHECK(failure(0xFF909090U, 0xFF9061C7U).empty());
+    CHECK(failure(0xFF919191U, 0xFF9061C7U).starts_with("the tab lane's chord #919191 is L* 60.2"));
+}
+
+// A span role is one color for both surfaces, or a pair split by surface; any other role is one
+// color.
+TEST_CASE("A span role is one color or a pair split by surface", "[ui][highway-theme]")
+{
+    const ThemeFolder folder;
+    const juce::var shared = defaultThemeDocument();
+    setColor(shared, "chord", "#C81E1E");
+    folder.addTheme("shared", shared);
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
+        loadHighwayTheme(folder.themeAt("shared"), {});
+    REQUIRE(loaded.has_value());
+    if (!loaded.has_value())
+    {
+        return;
+    }
+    CHECK(loaded->colors.chord == 0xFFC81E1EU);
+    CHECK(loaded->tab_inks.chord == 0xFFC81E1EU);
+    CHECK(loaded->colors.arpeggio == 0xFFA361FFU);
+    CHECK(loaded->tab_inks.arpeggio == 0xFF9061C7U);
+
+    CHECK(failureAfter([](const juce::var& document) {
+              const juce::DynamicObject::Ptr half{new juce::DynamicObject{}};
+              half->setProperty("highway", "#5CD3F5");
+              setColor(document, "chord", juce::var{half.get()});
+          }) == HighwayThemeErrorCode::MissingKey);
+    CHECK(failureAfter([](const juce::var& document) {
+              const juce::var halves = splitColor("#5CD3F5", "#4173DE");
+              halves.getDynamicObject()->setProperty("game", "#4173DE");
+              setColor(document, "chord", halves);
+          }) == HighwayThemeErrorCode::UnknownKey);
+    CHECK(failureAfter([](const juce::var& document) {
+              setColor(document, "chord", splitColor("#5CD3F5", "blue"));
+          }) == HighwayThemeErrorCode::InvalidColor);
+    CHECK(failureAfter([](const juce::var& document) {
+              setColor(document, "beat_bar", splitColor("#243480", "#243480"));
+          }) == HighwayThemeErrorCode::InvalidColor);
+    // A chip's label prints on a tab ink, so the ink is opaque, in either spelling.
+    CHECK(failureAfter([](const juce::var& document) {
+              setColor(document, "chord", splitColor("#5CD3F5", "#4173DE80"));
+          }) == HighwayThemeErrorCode::InvalidColor);
+    CHECK(failureAfter([](const juce::var& document) {
+              setColor(document, "chord", "#4173DE80");
+          }) == HighwayThemeErrorCode::InvalidColor);
+    // The tab halves are guarded: a light one, and one collapsed onto the other kind's.
+    CHECK(failureAfter([](const juce::var& document) {
+              setColor(document, "chord", splitColor("#5CD3F5", "#5CD3F5"));
+          }) == HighwayThemeErrorCode::GuardrailViolated);
+    CHECK(failureAfter([](const juce::var& document) {
+              setColor(document, "chord", splitColor("#5CD3F5", "#9061C7"));
+          }) == HighwayThemeErrorCode::GuardrailViolated);
+}
+
+// An inheriting theme states a span role whole or not at all: one color replaces the base's pair
+// on both surfaces, so the lane never keeps the base's ink under the theme's own boxes.
+TEST_CASE("An inheriting theme states a span role whole", "[ui][highway-theme]")
+{
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> default_theme =
+        loadHighwayTheme(testing::defaultThemeDirectory(), {});
+    REQUIRE(default_theme.has_value());
+    if (!default_theme.has_value())
+    {
+        return;
+    }
+    const std::span<const LoadedHighwayTheme> bases{&*default_theme, 1};
+    const auto load = [bases](const juce::var& document) {
+        const ThemeFolder folder;
+        folder.addThemeFileOnly("inheriting", document);
+        return loadHighwayTheme(folder.themeAt("inheriting"), bases);
+    };
+
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> plain =
+        load(inheritingDocument("Plain"));
+    const juce::var red = inheritingDocument("Red");
+    setOwnColor(red, "chord", "#C81E1E");
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> red_chord = load(red);
+    REQUIRE(plain.has_value());
+    REQUIRE(red_chord.has_value());
+    if (!plain.has_value() || !red_chord.has_value())
+    {
+        return;
+    }
+    CHECK(plain->tab_inks.chord == default_theme->tab_inks.chord);
+    CHECK(plain->tab_inks.arpeggio == default_theme->tab_inks.arpeggio);
+    CHECK(red_chord->colors.chord == 0xFFC81E1EU);
+    CHECK(red_chord->tab_inks.chord == 0xFFC81E1EU);
+    CHECK(red_chord->tab_inks.arpeggio == default_theme->tab_inks.arpeggio);
 }
 
 // Every built-in the products ship loads through the registry, which fails on the first that does

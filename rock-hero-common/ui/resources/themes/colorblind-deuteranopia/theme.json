@@ -2,8 +2,8 @@
   "name": "Colorblind - Deuteranopia",
   "inherits": "default",
   "colors": {
-    "chord": "#C6AEDE",
-    "arpeggio": "#78FDD1",
+    "chord": { "highway": "#C6AEDE", "tab": "#786DB9" },
+    "arpeggio": { "highway": "#78FDD1", "tab": "#189876" },
     "strings": [
       "#E720FE",
       "#64C67C",

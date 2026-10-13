@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
+#include <rock_hero/common/ui/highway_theme/tab_shape_inks.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <stdexcept>
 #include <utility>
@@ -72,6 +73,16 @@ guardrails with the fixture string colors.
         .inlay_tint = 0xffffffff,
         .label_text = 0xfff0f0f0,
     };
+}
+
+/*!
+\brief Span inks for the 2D tab lane's suites.
+\return A blue chord and a purple arpeggio, each dark enough for the white chip label; they pass
+the guardrails beside fixtureHighwayTheme.
+*/
+[[nodiscard]] inline TabShapeInks fixtureTabShapeInks()
+{
+    return TabShapeInks{.chord = 0xff2e6be8, .arpeggio = 0xff9061c7};
 }
 
 /*!

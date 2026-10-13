@@ -8,20 +8,30 @@
 #include <array>
 #include <cstddef>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
+#include <rock_hero/common/ui/highway_theme/tab_shape_inks.h>
 #include <string_view>
 #include <utility>
 
 namespace rock_hero::common::ui
 {
 
-/*! \brief One color role: its key in a theme file's `colors` and the member it fills. */
+/*!
+\brief One color role: its key in a theme file's `colors` and the members it fills.
+
+A span role is painted on both surfaces, so it also fills the 2D tab lane's ink for its kind of
+span. Its value is then one color for both surfaces or a `{"highway", "tab"}` pair; either way a
+theme states or inherits the role whole.
+*/
 struct HighwayThemeRole
 {
     /*! \brief The key, which is the member's own name. */
     std::string_view name;
 
-    /*! \brief The HighwayTheme member the key fills. */
+    /*! \brief The HighwayTheme member the key fills, or its `highway` half. */
     ArgbColor HighwayTheme::* member;
+
+    /*! \brief The TabShapeInks member the key's `tab` half fills; null for a highway-only role. */
+    ArgbColor TabShapeInks::* tab = nullptr;
 };
 
 /*!
@@ -45,8 +55,10 @@ inline constexpr std::array g_highway_theme_roles{
     HighwayThemeRole{.name = "fret_number_target", .member = &HighwayTheme::fret_number_target},
     HighwayThemeRole{.name = "strike_fretting", .member = &HighwayTheme::strike_fretting},
     HighwayThemeRole{.name = "strike_picking", .member = &HighwayTheme::strike_picking},
-    HighwayThemeRole{.name = "chord", .member = &HighwayTheme::chord},
-    HighwayThemeRole{.name = "arpeggio", .member = &HighwayTheme::arpeggio},
+    HighwayThemeRole{.name = "chord", .member = &HighwayTheme::chord, .tab = &TabShapeInks::chord},
+    HighwayThemeRole{
+        .name = "arpeggio", .member = &HighwayTheme::arpeggio, .tab = &TabShapeInks::arpeggio
+    },
     HighwayThemeRole{.name = "full_mute_mark", .member = &HighwayTheme::full_mute_mark},
     HighwayThemeRole{.name = "capo_shade", .member = &HighwayTheme::capo_shade},
     HighwayThemeRole{.name = "capo_bar", .member = &HighwayTheme::capo_bar},
@@ -74,6 +86,29 @@ static_assert(
         return g_highway_theme_roles.size() * sizeof(ArgbColor) == sizeof(HighwayTheme);
     }(),
     "g_highway_theme_roles must name every HighwayTheme member exactly once");
+
+// Likewise, the rows' tab halves fill every TabShapeInks member, and no two rows the same one.
+static_assert(
+    []() consteval {
+        std::size_t tab_rows = 0;
+        for (std::size_t first = 0; first < g_highway_theme_roles.size(); ++first)
+        {
+            if (g_highway_theme_roles.at(first).tab == nullptr)
+            {
+                continue;
+            }
+            ++tab_rows;
+            for (std::size_t second = first + 1; second < g_highway_theme_roles.size(); ++second)
+            {
+                if (g_highway_theme_roles.at(first).tab == g_highway_theme_roles.at(second).tab)
+                {
+                    return false;
+                }
+            }
+        }
+        return tab_rows * sizeof(ArgbColor) == sizeof(TabShapeInks);
+    }(),
+    "g_highway_theme_roles must fill every TabShapeInks member exactly once");
 
 /*!
 \brief Returns the theme-file key of one role.

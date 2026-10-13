@@ -14,7 +14,7 @@ supplies only bounds, timeline mapping, and state.
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/common/ui/highway_theme/highway_theme.h>
+#include <rock_hero/common/ui/highway_theme/tab_shape_inks.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -54,42 +54,6 @@ The paint core's JUCE conversion of stringLaneColor, which maps the lane onto it
 */
 [[nodiscard]] juce::Colour tabStringColor(
     int displayed_string, int displayed_string_count, const StringColorPalette& palette);
-
-/*!
-\brief The inks a span's rails and its label chip are painted with, one per kind of span.
-
-The span chip (\ref drawTabSpanChip) fills in its span's ink too, so the chip and the rails it
-stands on read as one object, and prints its label over it in \ref chipLabelColorOn its ink.
-*/
-struct TabShapeInks
-{
-    /*! \brief A chord span's ink. */
-    juce::Colour chord;
-
-    /*! \brief An arpeggio span's ink. */
-    juce::Colour arpeggio;
-
-    /*!
-    \brief Returns the ink of one kind of span.
-    \param is_arpeggio True for an arpeggio span; false for a chord span.
-    \return The arpeggio ink or the chord ink.
-    */
-    [[nodiscard]] juce::Colour of(bool is_arpeggio) const;
-};
-
-/*!
-\brief Returns the lane's span inks: a theme's chord and arpeggio colors as the 3D highway wears
-them.
-
-The 2D lane and the highway are two views of one chart, so a span kind wears one color on both.
-A derived ink held to one lightness was tried and retired: some hues keep their name only while
-light (a light cyan darkened reads teal, an amber reads brown), so the lane named the kinds
-differently from the highway.
-
-\param theme The theme the lane draws with.
-\return The chord and arpeggio colors, under their roles' alphas.
-*/
-[[nodiscard]] TabShapeInks tabShapeInks(const HighwayTheme& theme);
 
 /*!
 \brief Returns the number a head carries for this note stopped at `fret_at_head`.
@@ -262,22 +226,8 @@ because the renderer snaps a line to a whole row and can spread the ink across i
 */
 [[nodiscard]] float chipHeight(const TabLaneFont& label_font);
 
-/*! \brief The opaque white every chip on an editor-chosen fill prints its label in. */
+/*! \brief The opaque white every chip prints its label in. */
 inline const juce::Colour g_chip_label_color{0xffffffff};
-
-/*!
-\brief Returns the label color for a chip whose fill a theme chooses: black over a light fill,
-white over a dark one.
-
-A theme's fill can be any lightness, so no one label color reads over all of them. The polarity
-is the one APCA rates higher: its two text contrasts cross where the fill's screen luminance (each
-sRGB channel to the power 2.4, weighted as the luminance) is 0.342. APCA rather than the WCAG 2
-ratio, which prefers black over mid-tone purples where white reads clearly better.
-
-\param fill The chip's fill; its alpha is ignored.
-\return Opaque black or \ref g_chip_label_color.
-*/
-[[nodiscard]] juce::Colour chipLabelColorOn(juce::Colour fill);
 
 /*!
 \brief The weight a 2D ghost keeps: a ghost note, and a chip standing for something DERIVED rather
@@ -379,7 +329,7 @@ struct TabLaneMetrics : TabLaneGeometry
 \param displayed_count Number of displayed lanes; must be positive.
 \param chart_string_count String count declared by the displayed chart.
 \param palette String colors the lane draws with.
-\param shape_inks Inks the lane's span rails are painted with (\ref tabShapeInks).
+\param shape_inks Inks the lane's span rails are painted with: its theme's \ref TabShapeInks.
 \param style Optional style variants; the default reproduces the editor lane exactly.
 \return Metrics every drawer of the paint call reads.
 */
@@ -731,11 +681,11 @@ bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
 (\ref g_lane_chip_corner_radius), filled in its span's ink (\ref TabShapeInks).
 
 The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
-centred in \ref chipLabelColorOn the ink. It is sized as a fret-hand-position chip in the same font
-(\ref tabFhpChipBounds): blank, as wide as a one-figure fret-hand chip; labelled, as wide as its
-label boxed the way a fret-hand chip boxes its text, never narrower than the blank chip. The chip
-stands \ref chipHeight tall; where that exceeds \ref TabSpanChip::max_height, the chip stands
-exactly that tall. The chip is held to
+centred in \ref g_chip_label_color, which every tab ink is dark enough to carry. It is sized as a
+fret-hand-position chip in the same font (\ref tabFhpChipBounds): blank, as wide as a one-figure
+fret-hand chip; labelled, as wide as its label boxed the way a fret-hand chip boxes its text, never
+narrower than the blank chip. The chip stands \ref chipHeight tall; where that exceeds
+\ref TabSpanChip::max_height, the chip stands exactly that tall. The chip is held to
 \ref TabSpanChip::stop_x, narrowing to the room left before it and drawing nothing when that leaves
 it under a pixel. A label prints only where the room holds the chip's whole labelled width and the
 ceiling leaves the chip its own height; otherwise the label is dropped entire, never clipped or

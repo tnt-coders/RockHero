@@ -259,8 +259,7 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -301,8 +300,7 @@ TEST_CASE("TabView redraws in the string colors it is given", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -316,7 +314,7 @@ TEST_CASE("TabView redraws in the string colors it is given", "[ui][tab-view]")
     constexpr common::ui::ArgbColor low_e_green = 0xff00ff00;
     recolored.colors.at(5) = low_e_green;
 
-    view.setColors(recolored, common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+    view.setColors(recolored, common::ui::testing::fixtureTabShapeInks());
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
     juce::Graphics graphics{image};
     view.paint(graphics);
@@ -339,8 +337,7 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -412,8 +409,7 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
 TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const common::ui::TabShapeInks shape_inks =
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme());
+    const common::ui::TabShapeInks shape_inks = common::ui::testing::fixtureTabShapeInks();
     TabView view{common::ui::testing::fixtureStringColors(), shape_inks};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -433,14 +429,14 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
     // derivation moves the expectation with it.
     constexpr int rail_row = 1;
     const int inside_panel_x = column.getX() + 1;
-    CHECK(with_span.getPixelAt(inside_panel_x, rail_row) == shape_inks.chord);
+    CHECK(with_span.getPixelAt(inside_panel_x, rail_row) == juce::Colour{shape_inks.chord});
 
     // ABSENT WHEN NO SPAN CROSSES IT: the same pixel with no shapes at all carries no rail ink,
     // which is what keeps the check above from passing on any ink that happens to be there. Not
     // pinned to the tint's exact value — that follows the sighting knob.
     view.setState(makeEmptyTabState(), 0);
     const juce::Image without_span = renderOverCanvas(view);
-    CHECK(without_span.getPixelAt(inside_panel_x, rail_row) != shape_inks.chord);
+    CHECK(without_span.getPixelAt(inside_panel_x, rail_row) != juce::Colour{shape_inks.chord});
 
     // AND THE LETTERS STAY ON TOP OF IT. The top string's name sits on its line at row 10, inside
     // the pinned fret-hand chip's own band (rows 1 to 12) -- the one place a letter and a piece of
@@ -476,8 +472,7 @@ TEST_CASE("TabView pins the governing fret-hand position", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -533,8 +528,7 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     const common::core::TimeRange timeline{
@@ -562,7 +556,7 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+        common::ui::testing::fixtureTabShapeInks());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const juce::Rectangle<float> chip =
         common::ui::tabFhpChipBounds(metrics, fixture->fret_hand_positions.front(), 0.0f);
@@ -600,8 +594,7 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     const common::core::TimeRange timeline{
@@ -627,7 +620,7 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
             6,
             6,
             common::ui::testing::fixtureStringColors(),
-            common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())),
+            common::ui::testing::fixtureTabShapeInks()),
         common::core::testing::standardTuning(),
         0);
     REQUIRE_FALSE(column.isEmpty());
@@ -677,8 +670,7 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -786,8 +778,7 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -839,8 +830,7 @@ TEST_CASE("TabView glows a refused head red until the projection changes", "[ui]
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -873,8 +863,7 @@ TEST_CASE("TabView glows a refused fret-hand chip red", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -918,8 +907,7 @@ TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view
         .end = common::core::TimePosition{20.0},
     };
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(timeline);
@@ -934,7 +922,7 @@ TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view
             6,
             6,
             common::ui::testing::fixtureStringColors(),
-            common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())),
+            common::ui::testing::fixtureTabShapeInks()),
         1.0,
         1);
     const auto square_left = static_cast<int>(std::floor(square.x));
@@ -961,8 +949,7 @@ TEST_CASE("TabView glows a refused head once however often it is reported", "[ui
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const auto render_after = [](const int reports, const juce::Image& image) {
         TabView view{
-            common::ui::testing::fixtureStringColors(),
-            common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+            common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
         };
         view.setBounds(0, 0, 200, 120);
         view.setVisibleTimeline(
@@ -1013,8 +1000,7 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -1096,8 +1082,7 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
     };
 
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -1214,8 +1199,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     CHECK(tab.notes[0].ring_end_seconds == Catch::Approx(1.0));
 
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 400, 120);
     view.setVisibleTimeline(
@@ -1344,8 +1328,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     CHECK(tab.shapes[0].close_seconds == Catch::Approx(0.75));
 
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 400, 120);
     view.setVisibleTimeline(
@@ -1454,8 +1437,7 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
     };
 
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     // The window opens at 10 s. Widened by the paint core's glyph slack (75 px, here 3.75 s) the
@@ -1494,8 +1476,7 @@ TEST_CASE("TabView keeps its overlays on the head the ink and the reveal share",
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -1563,8 +1544,7 @@ TEST_CASE("TabView reveals a selected note and leaves its mate at its ink end", 
     };
 
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -1630,8 +1610,7 @@ TEST_CASE(
         .end = common::core::TimePosition{20.0},
     };
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(timeline);
@@ -1660,7 +1639,7 @@ TEST_CASE(
                 6,
                 6,
                 common::ui::testing::fixtureStringColors(),
-                common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())),
+                common::ui::testing::fixtureTabShapeInks()),
             state->notes[0],
             state->notes[0].keyframes.front(),
             ring_end_seconds,
@@ -1804,8 +1783,7 @@ TEST_CASE(
     };
 
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 400, 240);
     view.setVisibleTimeline(
@@ -1839,7 +1817,7 @@ TEST_CASE(
                 6,
                 6,
                 common::ui::testing::fixtureStringColors(),
-                common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())),
+                common::ui::testing::fixtureTabShapeInks()),
             landing)
             .center_y);
 
@@ -1900,8 +1878,7 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
         .end = common::core::TimePosition{20.0},
     };
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 400, 240);
     view.setVisibleTimeline(timeline);
@@ -1923,7 +1900,7 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+        common::ui::testing::fixtureTabShapeInks());
     const std::optional<common::ui::TabLayoutRect> chip =
         common::ui::tabKeyframeLayout(
             metrics, note, note.keyframes.front(), note.ink_end_seconds, true)
@@ -1999,8 +1976,7 @@ TEST_CASE("TabView draws a selected note's bend chip over the caret square", "[u
         .end = common::core::TimePosition{20.0},
     };
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 400, 240);
     view.setVisibleTimeline(timeline);
@@ -2026,7 +2002,7 @@ TEST_CASE("TabView draws a selected note's bend chip over the caret square", "[u
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+        common::ui::testing::fixtureTabShapeInks());
     const std::optional<common::ui::TabLayoutRect> chip =
         common::ui::tabNoteLayout(metrics, note).bend_chip;
     REQUIRE(chip.has_value());
@@ -2087,8 +2063,7 @@ TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -2135,8 +2110,7 @@ TEST_CASE("TabView publishes and dedups the caret mask", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -2195,8 +2169,7 @@ TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 100, 60);
     view.setVisibleTimeline(
@@ -2221,8 +2194,7 @@ TEST_CASE("TabView reports a press on a fret-hand chip as its placement", "[ui][
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     const common::core::TimeRange timeline{
@@ -2250,7 +2222,7 @@ TEST_CASE("TabView reports a press on a fret-hand chip as its placement", "[ui][
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+        common::ui::testing::fixtureTabShapeInks());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<float> chip =
@@ -2279,8 +2251,7 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     const common::core::TimeRange timeline{
@@ -2300,7 +2271,7 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+        common::ui::testing::fixtureTabShapeInks());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<int> chip =
@@ -2320,8 +2291,7 @@ TEST_CASE("TabView outlines a selected fret-hand chip where it is pinned", "[ui]
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
@@ -2348,8 +2318,7 @@ TEST_CASE("TabView draws a fret-hand entry's box on its chip", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
-        common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme())
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
     };
     view.setBounds(0, 0, 200, 120);
     const common::core::TimeRange timeline{
@@ -2376,7 +2345,7 @@ TEST_CASE("TabView draws a fret-hand entry's box on its chip", "[ui][tab-view]")
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::tabShapeInks(common::ui::testing::fixtureHighwayTheme()));
+        common::ui::testing::fixtureTabShapeInks());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<int> chip =

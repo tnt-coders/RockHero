@@ -2,8 +2,8 @@
   "name": "Colorblind - Achromatopsia",
   "inherits": "default",
   "colors": {
-    "chord": "#F180B8",
-    "arpeggio": "#E7C88A",
+    "chord": { "highway": "#F180B8", "tab": "#D3669D" },
+    "arpeggio": { "highway": "#E7C88A", "tab": "#594929" },
     "strings": [
       "#CD10FE",
       "#7EFE12",

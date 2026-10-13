@@ -459,7 +459,7 @@ EditorView::EditorView(
     , m_signal_chain_panel(*this)
     , m_tab_view(
           highway_themes.paletteFor(m_state.highway_settings).colors,
-          common::ui::tabShapeInks(highway_themes.themeFor(m_state.highway_settings).colors))
+          highway_themes.themeFor(m_state.highway_settings).tab_inks)
     , m_tone_track_view(*this, m_state.tempo_map, m_state.content_map, audio_ports.transport)
     , m_tone_automation_lanes_view(
           *this, m_state.tempo_map, m_state.content_map, audio_ports.tone_automation)
@@ -468,9 +468,8 @@ EditorView::EditorView(
     , m_track_viewport(
           std::make_unique<TrackViewport>(
               controller, m_arrangement_view, m_tab_view,
-              common::ui::tabShapeInks(highway_themes.themeFor(m_state.highway_settings).colors),
-              m_tone_track_view, m_tone_automation_lanes_view, *m_cursor_overlay,
-              audio_ports.transport))
+              highway_themes.themeFor(m_state.highway_settings).tab_inks, m_tone_track_view,
+              m_tone_automation_lanes_view, *m_cursor_overlay, audio_ports.transport))
     , m_vblank_attachment(this, [this] {
         refreshAudioMeters();
         refreshTimeDisplay();
@@ -754,7 +753,7 @@ void EditorView::setState(const core::EditorViewState& state)
             m_highway_themes.themeFor(m_state.highway_settings);
         const common::ui::HighwayThemePalette& palette =
             m_highway_themes.paletteFor(m_state.highway_settings);
-        const common::ui::TabShapeInks shape_inks = common::ui::tabShapeInks(theme.colors);
+        const common::ui::TabShapeInks shape_inks = theme.tab_inks;
         m_tab_view.setColors(palette.colors, shape_inks);
         m_track_viewport->setShapeInks(shape_inks);
         if (m_preview_window != nullptr)
