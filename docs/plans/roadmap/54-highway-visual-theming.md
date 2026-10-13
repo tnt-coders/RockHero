@@ -1030,8 +1030,10 @@ paled both). Two rulings bind every built-in except the Originals: **the board i
 black** (`#000000` in EVERY built-in, the Originals included, by the user's "crisp clear black"
 ruling the same day; any tint or lift of the board — Wind Original's slate at L* 12 was the worst —
 veils the notes' contrast), and **the hand window is a quiet cue, not a wash**: `lit_lane` over the backdrop
-lifts it by about L* 4 (was 14-16; Default `#5978FF1D`, Night Drive `#C84CB41B`, Retro Arcade
-`#6E6EFF1D`, the Colorblind set through Default), unlit lane lines composite to about L* 5 over
+lifts it by about L* 8 (was 14-16, then 4, which the user sighted as too faint to show the
+darker inlay lanes; Default `#5978FF2F`, Night Drive `#C84CB432`, Retro Arcade `#6E6EFF30`, the
+Colorblind set through Default) with the inlay lanes (`lit_lane_dotted`, same alpha) at about
+L* 3.5, Default's proportion, unlit lane lines composite to about L* 5 over
 the board (color allowed only as that faint tint), lit lane lines sit near Default's L* 53
 (49-59), and inlays stay dull (L* 27-52 over the board). The user's words: the window glow and
 lane lines were "too in your face, which gets in the way of reading the charts"; when in doubt,

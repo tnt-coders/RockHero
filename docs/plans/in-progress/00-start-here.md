@@ -79,8 +79,8 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    `rock-hero-common/ui/resources/themes/`; Signal, Ladder, Ember and Phosphor left the set at
    the user's 2026-10-12 re-cut and live in `9106c2ae`; the rest, and the render looks, are
    archived in the commit `docs/plans/todo/intricate-highway-themes.md` names). Every non-Original
-   board is now near black, every hand window a quiet cue (about L* 4 over the board, down
-   from 14-16) and every unlit lane line a faint tint (about L* 5) under the 2026-10-13 no-haze
+   board is now near black, every hand window a quiet cue (about L* 8 over the board, down
+   from 14-16, its inlay lanes about L* 3.5) and every unlit lane line a faint tint (about L* 5) under the 2026-10-13 no-haze
    ruling; sight the Originals against their replacements and Default's quieter window against
    the old strength. Watch: Fire's gold arpeggio boxes around the orange and yellow strings'
    heads and its scarlet chord beside the low E; Hell's lava arpeggio beside the orange string;
