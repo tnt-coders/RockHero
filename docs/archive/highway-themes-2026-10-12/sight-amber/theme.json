@@ -1,0 +1,25 @@
+{
+  "name": "Sighting: Amber",
+  "inherits": "ice",
+  "colors": {
+    "beat_bar": "#4C3B00",
+    "fret_number_lit": "#D5BF85",
+    "inlay_tint": "#9E916F",
+    "fret_line": "#1F1E1A",
+    "capo_bar": "#D5CDB8",
+    "attack_line": "#F9F5EA",
+    "fret_line_lit": "#F9F5EA",
+    "strike_fretting": "#F9F5EA",
+    "full_mute_mark": "#F9F5EA",
+    "label_text": "#F9F5EA",
+    "fret_number_target": "#FFFFFF",
+    "strike_picking": "#C2A13D",
+    "backdrop": "#000000",
+    "capo_shade": "#000000B4",
+    "capo_bar_rim": "#000000",
+    "lit_lane": "#B58F0040",
+    "lit_lane_dotted": "#624D0040",
+    "lane_line": "#997D261F",
+    "lane_line_lit": "#997D26"
+  }
+}

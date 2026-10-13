@@ -1,0 +1,7 @@
+{
+  "name": "Sighting: Ice, opaque inlays",
+  "inherits": "ice",
+  "colors": {
+    "inlay_tint": "#8691B2"
+  }
+}

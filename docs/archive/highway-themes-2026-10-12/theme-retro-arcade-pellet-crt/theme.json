@@ -1,0 +1,42 @@
+{
+  "name": "Theme: Retro Arcade (power pellets), CRT 2px 40%",
+  "inherits": "ice",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#2121AE",
+    "attack_line": "#DEDEFF",
+    "lit_lane": "#2121FF49",
+    "lit_lane_dotted": "#2121AE49",
+    "lane_line": "#4747FF1F",
+    "lane_line_lit": "#4747FF",
+    "fret_line": "#212151",
+    "fret_line_lit": "#DEDEFF",
+    "fret_number_lit": "#B8B8FF",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#FFFFFF",
+    "strike_picking": "#FFB8FF",
+    "chord": "#FF47AE",
+    "arpeggio": "#00FFFF",
+    "full_mute_mark": "#FFFFFF",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#B8B8FF",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#FFB8AEE6",
+    "label_text": "#FFB8AE",
+    "strings": [
+      "#B847FF",
+      "#00FF00",
+      "#FFB851",
+      "#47B8FF",
+      "#FFFF00",
+      "#FF0000",
+      "#00B8AE",
+      "#B8B8AE"
+    ]
+  },
+  "look": {
+    "style": "crt",
+    "line_height": 2,
+    "scanlines": 0.4
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Theme: Ice, azure + indigo-purple",
+  "inherits": "ice",
+  "colors": {
+    "chord": "#00B8FF",
+    "arpeggio": "#8F4CFF"
+  }
+}

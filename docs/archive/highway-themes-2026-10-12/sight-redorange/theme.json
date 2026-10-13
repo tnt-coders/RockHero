@@ -1,0 +1,25 @@
+{
+  "name": "Sighting: Red-Orange",
+  "inherits": "ice",
+  "colors": {
+    "beat_bar": "#593026",
+    "fret_number_lit": "#F0AF9E",
+    "inlay_tint": "#AE887E",
+    "fret_line": "#211D1C",
+    "capo_bar": "#E1C7C1",
+    "attack_line": "#FFF2EE",
+    "fret_line_lit": "#FFF2EE",
+    "strike_fretting": "#FFF2EE",
+    "full_mute_mark": "#FFF2EE",
+    "label_text": "#FFF2EE",
+    "fret_number_target": "#FFFFFF",
+    "strike_picking": "#D09384",
+    "backdrop": "#000000",
+    "capo_shade": "#000000B4",
+    "capo_bar_rim": "#000000",
+    "lit_lane": "#F06E4D40",
+    "lit_lane_dotted": "#7E3A2940",
+    "lane_line": "#AA6F5F1F",
+    "lane_line_lit": "#AA6F5F"
+  }
+}

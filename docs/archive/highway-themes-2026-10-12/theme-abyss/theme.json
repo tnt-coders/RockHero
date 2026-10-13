@@ -1,0 +1,27 @@
+{
+  "name": "Theme: Abyss",
+  "inherits": "ice",
+  "colors": {
+    "backdrop": "#010910",
+    "beat_bar": "#0B3445",
+    "attack_line": "#C6FFF2",
+    "lit_lane": "#18D9C049",
+    "lit_lane_dotted": "#0B6A6E49",
+    "lane_line": "#2A8E991F",
+    "lane_line_lit": "#2A8E99",
+    "fret_line": "#0B1C26",
+    "fret_line_lit": "#BFFFF1",
+    "fret_number_lit": "#9FE6FF",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#E6FFF9",
+    "strike_picking": "#5FE0D0",
+    "chord": "#3AE8B4",
+    "arpeggio": "#B98CFF",
+    "full_mute_mark": "#D8FFF7",
+    "capo_shade": "#010910B4",
+    "capo_bar": "#A9D6DC",
+    "capo_bar_rim": "#010910",
+    "inlay_tint": "#2F7F8CE6",
+    "label_text": "#BFFFF1"
+  }
+}

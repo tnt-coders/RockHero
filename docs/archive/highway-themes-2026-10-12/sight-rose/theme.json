@@ -1,0 +1,25 @@
+{
+  "name": "Sighting: Rose",
+  "inherits": "ice",
+  "colors": {
+    "beat_bar": "#701034",
+    "fret_number_lit": "#EEACBA",
+    "inlay_tint": "#AE868E",
+    "fret_line": "#211D1E",
+    "capo_bar": "#E0C6CB",
+    "attack_line": "#FFF1F4",
+    "fret_line_lit": "#FFF1F4",
+    "strike_fretting": "#FFF1F4",
+    "full_mute_mark": "#FFF1F4",
+    "label_text": "#FFF1F4",
+    "fret_number_target": "#FFFFFF",
+    "strike_picking": "#F07998",
+    "backdrop": "#000000",
+    "capo_shade": "#000000B4",
+    "capo_bar_rim": "#000000",
+    "lit_lane": "#FF478445",
+    "lit_lane_dotted": "#8B264845",
+    "lane_line": "#BA5F761F",
+    "lane_line_lit": "#BA5F76"
+  }
+}

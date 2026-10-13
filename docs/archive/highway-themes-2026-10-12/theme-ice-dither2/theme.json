@@ -1,0 +1,8 @@
+{
+  "name": "Theme: Ice, dither x2",
+  "inherits": "ice",
+  "look": {
+    "style": "dither",
+    "scale": 2
+  }
+}

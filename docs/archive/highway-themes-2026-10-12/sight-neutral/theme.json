@@ -1,0 +1,25 @@
+{
+  "name": "Sighting: Neutral",
+  "inherits": "ice",
+  "colors": {
+    "beat_bar": "#3D3D3D",
+    "fret_number_lit": "#C1C1C1",
+    "inlay_tint": "#929292",
+    "fret_line": "#1E1E1E",
+    "capo_bar": "#CECECE",
+    "attack_line": "#F5F5F5",
+    "fret_line_lit": "#F5F5F5",
+    "strike_fretting": "#F5F5F5",
+    "full_mute_mark": "#F5F5F5",
+    "label_text": "#F5F5F5",
+    "fret_number_target": "#FFFFFF",
+    "strike_picking": "#A4A4A4",
+    "backdrop": "#000000",
+    "capo_shade": "#000000B4",
+    "capo_bar_rim": "#000000",
+    "lit_lane": "#99999940",
+    "lit_lane_dotted": "#4E4E4E40",
+    "lane_line": "#8080801F",
+    "lane_line_lit": "#808080"
+  }
+}
