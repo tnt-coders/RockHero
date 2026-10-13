@@ -1,11 +1,15 @@
 // The CRT present: carries the off-screen scene to the window as an arcade raster monitor shows
 // its picture, tuned so every note, lane and fret number stays as legible as on the plain board.
 //
-// - A fixed count of scan lines over the window's height, as a 15 kHz monitor shows about 240
-//   visible lines whatever the tube's size. Each line's color is a tent-weighted mean of the
-//   scene's rows within one line pitch of its center, so a small far note moving down the board
-//   crossfades from one line into the next as it moves, instead of sitting on a line and then
-//   hopping a whole pitch; columns keep the scene's full resolution, so text stays sharp.
+// - Scan lines a whole number of window pixels apart, about CRT_LINES of them over the window's
+//   height. That is twice a low-resolution arcade raster's 240, a medium-resolution monitor's
+//   count, which keeps the line texture while halving the vertical detail the lines cost far
+//   notes; and the whole-pixel spacing lands every line on the pixel grid alike, so no line reads
+//   softer than its neighbors and no beat pattern runs down the board.
+// - Each line's color is a tent-weighted mean of the scene's rows within one line pitch of its
+//   center, so a small far note moving down the board crossfades from one line into the next as
+//   it moves, instead of sitting on a line and then hopping a whole pitch; columns keep the
+//   scene's full resolution, so text stays sharp.
 // - Each line is drawn as a beam of Gaussian profile whose width grows with its brightness: dark
 //   and mid areas show the dark gaps between lines, while bright heads, labels and lit lines bloom
 //   until their gaps close. Every beam carries exactly its line's light, as a real beam's light
@@ -22,8 +26,9 @@
 
 SAMPLER2D(s_scene, 0);
 
-// Visible scan lines over the window's height.
-#define CRT_LINES 240.0
+// The scan lines the pitch aims for over the window's height; the pitch is the whole number of
+// window pixels nearest the height over this.
+#define CRT_LINES 540.0
 
 // The narrowest line pitch in window pixels: below two, the gaps alias into moire on a small
 // window.
@@ -54,13 +59,20 @@ vec3 linearScene(vec2 pixel)
     return pow(encoded, vec3_splat(CRT_GAMMA));
 }
 
+// The window row scan line `index` is centered on: a row's center, so the beam peaks on a whole
+// row and the rows between two lines fall symmetrically into the gap.
+float lineCenter(float index, float pitch)
+{
+    return index * pitch + floor(pitch * 0.5) + 0.5;
+}
+
 // The color of scan line `index` at column x: the rows within one pitch of its center, weighted
 // by a tent that falls from 1 at the center to 0 a pitch away. Neighboring lines' tents sum to 1
 // at every row, so each row's light is shared between the two lines around it in proportion to
 // its distance from each, and a moving note's light slides from line to line with it.
 vec3 lineColor(float index, float pitch, float x)
 {
-    float center = (index + 0.5) * pitch;
+    float center = lineCenter(index, pitch);
     float first = ceil(center - pitch - 0.5);
     int rows = int(floor(center + pitch - 0.5) - first) + 1;
     vec3 sum = vec3_splat(0.0);
@@ -86,12 +98,12 @@ vec3 beam(vec3 color, float pitches)
 
 void main()
 {
-    float pitch = max(u_viewRect.w / CRT_LINES, CRT_MIN_PITCH);
+    float pitch = max(floor(u_viewRect.w / CRT_LINES + 0.5), CRT_MIN_PITCH);
     float x = gl_FragCoord.x;
 
     // Line k is centered at k on this axis, so the fragment lies between line `previous` and the
     // next one, a fraction `offset` of a pitch past the former.
-    float position = gl_FragCoord.y / pitch - 0.5;
+    float position = (gl_FragCoord.y - lineCenter(0.0, pitch)) / pitch;
     float previous = floor(position);
     float offset = position - previous;
     vec3 previous_color = lineColor(previous, pitch, x);

@@ -105,12 +105,13 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    A theme that states `"crt": true` (Retro Arcade) changes one thing: the background and board
    render into `HighwaySceneTarget`, an off-screen 4x-multisampled target the size of the
    window, and the present carries it to the window through `fs_crt.sc`. That shader is an
-   arcade raster monitor: 240 scan lines over the window's height, each a tent-weighted mean of
-   the scene's rows within one line pitch, so a far note slides from line to line rather than
-   hopping; a beam per line that widens with brightness while carrying exactly its line's light,
-   so dark areas show the gaps, bright heads close them, and nothing pulses or dims; and a gentle
-   RGB stripe mask. Its tunables are `#define`s in the shader, and nothing in it moves or blurs
-   content horizontally, so the board reads as it does plain. The other render looks (pixel, dither, halftone, palette snap) stay withdrawn;
+   arcade raster monitor: about 540 scan lines over the window's height, a whole number of pixels
+   apart, each a tent-weighted mean of the scene's rows within one line pitch, so a far note
+   slides from line to line rather than hopping; a beam per line that widens with brightness
+   while carrying exactly its line's light, so dark areas show the gaps, bright heads close them,
+   and nothing pulses or dims; and a gentle RGB stripe mask. Its tunables are `#define`s in the
+   shader, and nothing in it moves or blurs content horizontally, so the board reads as it does
+   plain. The other render looks (pixel, dither, halftone, palette snap) stay withdrawn;
    `docs/plans/todo/intricate-highway-themes.md` names the commit that holds them.
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
