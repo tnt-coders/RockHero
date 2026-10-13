@@ -50,7 +50,7 @@ TEST_CASE("HighwaySettingsStore round-trips an update", "[core][highway-settings
         .view = HighwayViewPreferences{
             .mirrored = true,
             .invert_strings = true,
-            .show_note_targets = false,
+            .show_note_targets = true,
             .show_note_rotation = false,
             .show_arpeggio_brackets = false,
         },
@@ -98,7 +98,7 @@ TEST_CASE("HighwaySettingsStore resets only an unreadable setting", "[core][high
     writeRawSetting(shared, "highway.theme", "dusk");
     writeRawSetting(shared, "highway.mirrored", "sideways");
     writeRawSetting(shared, "highway.invertStrings", "1");
-    writeRawSetting(shared, "highway.showNoteTargets", "0");
+    writeRawSetting(shared, "highway.showNoteTargets", "1");
     writeRawSetting(shared, "highway.showNoteRotation", "yes");
     writeRawSetting(shared, "highway.showArpeggioBrackets", "0");
     const HighwaySettingsStore store{shared};
@@ -109,7 +109,7 @@ TEST_CASE("HighwaySettingsStore resets only an unreadable setting", "[core][high
     CHECK(settings.theme_id == std::optional<std::string>{"dusk"});
     CHECK(settings.view.mirrored == defaults.mirrored);
     CHECK(settings.view.invert_strings);
-    CHECK_FALSE(settings.view.show_note_targets);
+    CHECK(settings.view.show_note_targets);
     CHECK(settings.view.show_note_rotation == defaults.show_note_rotation);
     CHECK_FALSE(settings.view.show_arpeggio_brackets);
 }

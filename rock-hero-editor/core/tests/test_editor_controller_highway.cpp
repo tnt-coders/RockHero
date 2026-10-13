@@ -55,7 +55,7 @@ TEST_CASE("EditorController publishes the stored highway settings", "[core][edit
         .view = HighwayViewPreferences{
             .mirrored = true,
             .invert_strings = true,
-            .show_note_targets = false,
+            .show_note_targets = true,
             .show_note_rotation = false,
             .show_arpeggio_brackets = false,
         },
@@ -126,8 +126,8 @@ TEST_CASE("A palette pick pins and Theme's choice unpins", "[core][editor-contro
     CHECK(shownSettings(view).theme_id == std::optional<std::string>{"night"});
 }
 
-// Each reading aid turns off and back on by itself: the request sets the one named choice, which
-// is stored and shown, and every other choice stays as it was.
+// Each reading aid switches by itself: the request sets the one named choice, which is stored and
+// shown, and every other choice stays as it was.
 TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-controller]")
 {
     const ScopedSettingsFile settings_file{"controller_highway_view_flag.settings"};
@@ -141,10 +141,10 @@ TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-cont
     FakeEditorView view;
     controller.attachView(view);
 
-    const HighwayViewPreferences targets_off{
+    const HighwayViewPreferences targets_on{
         .mirrored = false,
         .invert_strings = false,
-        .show_note_targets = false,
+        .show_note_targets = true,
         .show_note_rotation = true,
         .show_arpeggio_brackets = true,
     };
@@ -156,14 +156,13 @@ TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-cont
         .show_arpeggio_brackets = false,
     };
 
-    controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_targets, false);
-    CHECK(shownSettings(view).view == targets_off);
+    controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_targets, true);
+    CHECK(shownSettings(view).view == targets_on);
     CHECK(store.read() == shownSettings(view));
 
     controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_rotation, false);
     controller.onHighwayViewFlagChangeRequested(
         &HighwayViewPreferences::show_arpeggio_brackets, false);
-    controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_targets, true);
     CHECK(shownSettings(view).view == only_targets);
     CHECK(store.read() == shownSettings(view));
 }

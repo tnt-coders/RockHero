@@ -38,7 +38,7 @@ string wears.
 - **Invert Strings** puts the lowest-pitched string at the bottom of the highway, the way tablature
   is written. Off by default: the lowest string sits on top.
 - **Note Targets** shows a hollow outline of each note where it will land on the hit line, which
-  grows to full size as the note arrives. On by default.
+  grows to full size as the note arrives. Off by default.
 - **Note Rotation** stands single notes upright as they approach and lays them flat as they land.
   With it off, notes travel flat the whole way. Chords never rotate either way. On by default.
 - **Arpeggio Brackets** marks an arpeggio's hand shape with a panel where the shape starts and a

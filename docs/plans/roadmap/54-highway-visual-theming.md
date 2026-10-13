@@ -660,7 +660,9 @@ Each carries a recommendation; none is decided until the user rules.
   way). Ice states `lane_line` as its lit color at alpha `0x1F`, today's 1/8 tier, so its look
   holds; the dim fret number derives from `lane_line_lit`. The tiers' timing stays a light law
   in code.
-- **54-Q21 — the note targets' default. Recast 2026-10-11:** the cue, renamed "Note Targets"
+- **54-Q21 — the note targets' default. RULED 2026-10-13: off by default** (user: "That is my
+  preference and this is my app"); the player turns them on in View > Highway Display.
+  **Recast 2026-10-11:** the cue, renamed "Note Targets"
   (user, after a naming review: "ring" was wrong about the shape and "anticipation" already means
   a timing in music), becomes a player toggle (plan 69), so the sighting below decides whether it
   starts on or off, not whether it exists. It is a hollow copy of the head, parked

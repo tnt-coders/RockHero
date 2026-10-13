@@ -53,8 +53,8 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    derived (the same hue, paled).
 2. **The rest of the ice look.** The "Sighting: <accent>" themes swap only the chrome accent
    (they keep ice's chord/arpeggio pair): decide whether ice reads too close to today's look. Ice
-   vs "Sighting: Ice, opaque inlays" decides the inlay opacity (`0xE6` or `0xFF`). 54-Q21: Note
-   Targets on or off by default (View > Highway Display); a flat bright band, rebakeable if hot.
+   vs "Sighting: Ice, opaque inlays" decides the inlay opacity (`0xE6` or `0xFF`). 54-Q21 is
+   ruled: Note Targets are off by default (View > Highway Display turns them on).
 3. **The box chord device and the color model in motion** (posts and fill ruled 2026-10-11):
    arpeggio boxes now wear the arpeggio color; held-shape rails wear the chord color; tapped
    chords wear the paled chord color (watch item: can the hands, and a tapped chord vs a tapped

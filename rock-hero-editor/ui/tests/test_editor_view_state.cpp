@@ -1545,7 +1545,8 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
     lane_counts[2].action();
     CHECK(controller.last_tab_minimum_displayed_strings == std::optional<int>{5});
 
-    // The view toggles, in the menu's order, under settings with only the rotation turned off.
+    // The view toggles, in the menu's order, under the default settings with the rotation also
+    // turned off.
     core::EditorViewState rotation_off;
     rotation_off.highway_settings.view.show_note_rotation = false;
     view.setState(rotation_off);
@@ -1554,7 +1555,7 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
     CHECK(toggles[0].text == "Invert Strings");
     CHECK_FALSE(toggles[0].isTicked);
     CHECK(toggles[1].text == "Note Targets");
-    CHECK(toggles[1].isTicked);
+    CHECK_FALSE(toggles[1].isTicked);
     CHECK(toggles[2].text == "Note Rotation");
     CHECK_FALSE(toggles[2].isTicked);
     CHECK(toggles[3].text == "Arpeggio Brackets");

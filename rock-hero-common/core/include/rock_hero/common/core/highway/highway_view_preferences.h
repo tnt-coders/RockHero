@@ -34,7 +34,7 @@ struct HighwayViewPreferences
     \brief True to draw note targets: a hollow copy of each head at its landing spot on the hit
     line, growing to full size as the note arrives.
     */
-    bool show_note_targets{true};
+    bool show_note_targets{false};
 
     /*!
     \brief True to roll single notes from upright to flat across their approach; false travels

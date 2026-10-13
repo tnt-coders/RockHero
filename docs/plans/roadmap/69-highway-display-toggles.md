@@ -12,7 +12,7 @@ others will not:
 
 | Toggle | What it draws today | Default |
 |---|---|---|
-| **Note targets** (renamed 2026-10-11 from "anticipation ring") | A hollow copy of the head parked at the hit line on the note's landing slot, growing to full size as the note arrives (`highway_renderer.cpp`, the "Note targets" block; field `show_note_targets`, key `highway.showNoteTargets`) | decided by 54-Q21's sighting |
+| **Note targets** (renamed 2026-10-11 from "anticipation ring") | A hollow copy of the head parked at the hit line on the note's landing slot, growing to full size as the note arrives (`highway_renderer.cpp`, the "Note targets" block; field `show_note_targets`, key `highway.showNoteTargets`) | off (54-Q21, ruled 2026-10-13) |
 | **Note rotation** | The rolling flip: single notes stand vertical as they enter the window and roll flat around their travel axis, landing flat before the hit line (the "Rolling flip" block); chords never roll | on |
 | **Arpeggio brackets** | The 3D bracket pair at an arpeggio span's start (atlas cells 8 and 9, `push_bracket`) | on |
 
@@ -68,7 +68,7 @@ never by the type name.
   (only the 2D lane reads `ShapeStringViewState::digit`); a 3D bracket states its stop by where it
   sits. So on the board A and B hide the same thing, and the question only bites if 3D ever gains
   the digit.
-- **69-Q3 — the ring's default.** Taken from 54-Q21's side-by-side sighting.
+- **69-Q3 — the ring's default. RULED 2026-10-13 by 54-Q21: off.**
 
 ## Phases
 
