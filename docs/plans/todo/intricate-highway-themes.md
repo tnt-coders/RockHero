@@ -11,14 +11,16 @@ look. It is not the old `crt` look: about 540 scan lines a whole number of pixel
 blurred far notes) instead of a band height in pixels, a brightness-dependent, light-preserving
 Gaussian beam over tent-filtered lines (a box per line made far notes hop line to line in the
 first sighting) instead of darkened bands with a 1:2:1 softening, a gentle RGB stripe mask, no
-tunables in the theme file, and no palette snap. Only the CRT renders off-screen; a plain theme draws to the backbuffer as
-before. Everything else below (pixel, dither, halftone, the snap, the archived themes) stays
+tunables in the theme file, and no palette snap. Only the CRT renders off-screen; a plain theme
+draws to the backbuffer as before. Everything else below (pixel, dither, halftone, the snap, the archived themes) stays
 deferred.
 
-**The standard for this kind of effect** (user, 2026-10-13: "captures the vibe VERY well") is
-commit `1473ab96`, tagged `crt-standard-2026-10-13`. Judge any later CRT change against it side
-by side: a sharper cut that loses its vibe is a regression. Its one open complaint was a general
-fuzziness, which the per-line sharpening (`CRT_SHARPEN`) that followed it addresses.
+**The standard for this kind of effect** is commit `df01b691`, tagged
+`crt-standard-2026-10-13` (user, 2026-10-13: "Let's stick with this"). The user first named
+`1473ab96` the standard ("captures the vibe VERY well"). Two refinements followed it: per-line
+sharpening (`CRT_SHARPEN`) for a general fuzziness, and deeper gaps on dim content
+(`CRT_BEAM_DARK` 12) once the finer lines had gone faint. Judge any later CRT change against the
+tag side by side: a sharper cut that loses its vibe is a regression.
 
 ## Where the work lives
 

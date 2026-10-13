@@ -35,6 +35,14 @@ questions, and **#270**'s batch remainder, #112's chip yield included.
 The queue is empty apart from #298's end-to-end marker grammar pass (release plan, Phase 6) and
 the highway theming sightings below.
 
+**Plan 54 is paused (2026-10-13).** Phases 1 to 4b have landed, along with the per-surface span
+colors (`8af156d8`). Retro Arcade's CRT look is ruled at `df01b691` (tag
+`crt-standard-2026-10-13`; its arpeggio is the violet `#A030FF`). A broken built-in other than
+Default is now dropped and logged instead of failing startup (`ac261eee`). The next theme step is
+"the actual symbols": Phase 5's head library and redrawn mark sheet, gated on the mark brief
+sign-off. One question is still the user's: should the non-colorblind built-ins lock their
+strings to Default's? The user leans no ("Users should be able to customize a lot").
+
 **Plan 54 (highway theming), owed by the user, in this order** (first do plan 70's file moves
 below, or both apps start without calibration, keymap and plugin list). Every comparison is a
 user theme picked from the editor's View > Highway Theme; the game draws the last pick at launch.
@@ -56,8 +64,9 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    **Phase 4b, in the 2D lane:** the chord and arpeggio span rails and the ruler's span chips wear
    the `tab` halves of the theme's `chord`/`arpeggio` roles (Default: the original blue `#4173DE`
    and purple `#9061C7`, its highway keeping `#5CD3F5` and `#A361FF`), every chip label white.
-   Sight each built-in's tab pair in the editor; all but Default's are first cuts (2026-10-13). The mark sheet split
-   (`3e5cc80d`) is zero visual change by construction; confirm the marks still draw.
+   Sight each built-in's tab pair in the editor; all but Default's are first cuts (2026-10-13).
+   The mark sheet split (`3e5cc80d`) is zero visual change by construction; confirm the marks
+   still draw.
 4. **The head fade (ruled 2026-10-11/12):** a head fades with its tail at the tail's rate; a note
    with no drawn tail fades from the strike within 0.25 s (or its own length); a held head ends
    its fade exactly as its hold releases; an exactly abutting repeat on the same stop keeps the
@@ -79,11 +88,10 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    Night Drive, Retro Arcade, and the four "Colorblind - …" themes, one per deficiency — under
    `rock-hero-common/ui/resources/themes/`; Signal, Ladder, Ember and Phosphor left the set at
    the user's 2026-10-12 re-cut and live in `9106c2ae`; the rest, and the render looks, are
-   archived in the commit `docs/plans/todo/intricate-highway-themes.md` names). Every
-   board is now near black, every hand window a quiet cue (about L* 8 over the board, down
-   from 14-16, its inlay lanes about L* 3.5) and every unlit lane line a faint tint (about L* 5) under the 2026-10-13 no-haze
-   ruling; sight Default's quieter window against
-   the old strength. Watch: Fire's gold arpeggio boxes around the orange and yellow strings'
+   archived in the commit `docs/plans/todo/intricate-highway-themes.md` names). Every board is
+   now near black, every hand window a quiet cue (about L* 8 over the board, down from 14-16, its
+   inlay lanes about L* 3.5) and every unlit lane line a faint tint (about L* 5) under the
+   2026-10-13 no-haze ruling; sight Default's quieter window against the old strength. Watch: Fire's gold arpeggio boxes around the orange and yellow strings'
    heads and its scarlet chord beside the low E; Hell's lava arpeggio beside the orange string;
    whether a window at L* 4 still locates the hand in motion.
 
