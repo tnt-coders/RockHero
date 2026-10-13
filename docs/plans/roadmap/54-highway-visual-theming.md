@@ -974,7 +974,7 @@ phase describes, the user's sighting and the sign-off remain; every other candid
 in the commit `docs/plans/todo/intricate-highway-themes.md` names.
 
 *Re-cut 2026-10-12 (user):* the default is now the `default` directory, named "Default" (the ice
-colors unchanged), beside four Element themes — Earth, Wind, Fire and Water, each toning the
+colors unchanged), beside four Element themes — Earth, Wind, Fire and Water (Water since removed), each toning the
 standard string families slightly toward its element, with a subtle hand-window light and dull,
 slightly tinted inlays — and Night Drive and Retro Arcade. Signal, Ladder, Ember and Phosphor
 left the built-ins (last in `9106c2ae`). The hand window's light is held to one strength: the
@@ -982,6 +982,14 @@ lane the light reveals (`lit_lane` over the backdrop at its alpha) composites to
 in every built-in, where Phosphor's green had reached 29; Retro Arcade's spans are a cobalt
 chord and a hot-pink arpeggio, since the grape that paired with cobalt elsewhere sat 12 from the
 purple string here.
+
+*Elements re-cut 2026-10-13 (user):* Water left the set. Fire is "from hell": an obsidian board
+(`#0A0507`) with blood-red ember lane lines, a deeper blood-red chord (`#B8001C`) and a hellfire
+orange arpeggio (`#FF7A00`, which clears the orange and red strings where an amber did not), its
+window an obsidian violet-grey. Earth is deep forest: a near-black green board, forest beat bars
+and window, a pine-green chord (`#2E9A5A`) and a bark-brown arpeggio (`#B07A48`). Wind is light
+and airy: a slate-blue board (`#16202C`, L* 12, the one built-in not on black) with pale washes,
+an aqua chord and a lavender arpeggio. Every window still lifts its board by about L* 14-16.
 
 *Colorblind set 2026-10-13 (user):* color-vision deficiency is not a criterion for the themes
 above; instead one built-in per type, named "Colorblind - Protanopia", "- Deuteranopia",

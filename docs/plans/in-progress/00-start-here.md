@@ -73,7 +73,7 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    was re-cut to the heads-only 256×128 sheet the split requires (the 256×320 original is backed
    up in `C:/__MAIN__/Coding/__scratch__/theming/classic-backup/`). Then the garish coverage
    fixture once in both products.
-8. **The shipped built-ins beyond Default** (Element - Earth, Wind, Fire and Water, Night
+8. **The shipped built-ins beyond Default** (Element - Earth, Wind and Fire, Night
    Drive, Retro Arcade, and the four "Colorblind - …" themes, one per deficiency — under `rock-hero-common/ui/resources/themes/`; Signal, Ladder, Ember
    and Phosphor left the set at the user's 2026-10-12 re-cut and live in `9106c2ae`; the rest,
    and the render looks, are archived in the commit `docs/plans/todo/intricate-highway-themes.md`
