@@ -2,7 +2,7 @@
   "name": "Element - Water",
   "inherits": "default",
   "colors": {
-    "backdrop": "#02080E",
+    "backdrop": "#000000",
     "beat_bar": "#0E4C70",
     "attack_line": "#D8FBFF",
     "lit_lane": "#28C0E013",

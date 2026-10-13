@@ -2,7 +2,7 @@
   "name": "Heaven",
   "inherits": "default",
   "colors": {
-    "backdrop": "#040A18",
+    "backdrop": "#000000",
     "beat_bar": "#6A5C34",
     "attack_line": "#FFF4D0",
     "lit_lane": "#FFF2D00C",

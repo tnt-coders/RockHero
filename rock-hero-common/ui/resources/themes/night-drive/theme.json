@@ -2,7 +2,7 @@
   "name": "Night Drive",
   "inherits": "default",
   "colors": {
-    "backdrop": "#0A0316",
+    "backdrop": "#000000",
     "beat_bar": "#3A1868",
     "attack_line": "#FF9BE6",
     "lit_lane": "#C84CB41B",

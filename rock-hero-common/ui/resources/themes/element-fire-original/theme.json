@@ -2,7 +2,7 @@
   "name": "Element - Fire - Original",
   "inherits": "default",
   "colors": {
-    "backdrop": "#0A0507",
+    "backdrop": "#000000",
     "beat_bar": "#5C0A08",
     "attack_line": "#FFD8B0",
     "lit_lane": "#7A6A7E52",

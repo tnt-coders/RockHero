@@ -2,7 +2,7 @@
   "name": "Hell",
   "inherits": "default",
   "colors": {
-    "backdrop": "#080608",
+    "backdrop": "#000000",
     "beat_bar": "#8A1406",
     "attack_line": "#FFD040",
     "lit_lane": "#5A506828",

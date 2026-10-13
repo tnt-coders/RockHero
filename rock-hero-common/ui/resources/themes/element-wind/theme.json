@@ -2,7 +2,7 @@
   "name": "Element - Wind",
   "inherits": "default",
   "colors": {
-    "backdrop": "#060A0E",
+    "backdrop": "#000000",
     "beat_bar": "#4A6470",
     "attack_line": "#F1F6F9",
     "lit_lane": "#C8E4F00E",

@@ -1026,9 +1026,10 @@ toward its element. A seventh, "Blacklight", revives the early "Colour Vector" v
 under a better name: UV-violet beat bars and lane lines on pure black, a white-hot attack line,
 Default's strings, a UV-violet chord `#7C68FF` and one fluorescent hot-pink accent on the
 arpeggio `#FF30A8` (a paler lilac/pink pair collapsed to 12.7 once the picking-hand derivation
-paled both). Two rulings bind every built-in except the Originals: **the board is near
-black** (L* 0-3; a lit or tinted board — Wind Original's slate at L* 12 — veils the notes'
-contrast), and **the hand window is a quiet cue, not a wash**: `lit_lane` over the backdrop
+paled both). Two rulings bind every built-in except the Originals: **the board is pure
+black** (`#000000` in EVERY built-in, the Originals included, by the user's "crisp clear black"
+ruling the same day; any tint or lift of the board — Wind Original's slate at L* 12 was the worst —
+veils the notes' contrast), and **the hand window is a quiet cue, not a wash**: `lit_lane` over the backdrop
 lifts it by about L* 4 (was 14-16; Default `#5978FF1D`, Night Drive `#C84CB41B`, Retro Arcade
 `#6E6EFF1D`, the Colorblind set through Default), unlit lane lines composite to about L* 5 over
 the board (color allowed only as that faint tint), lit lane lines sit near Default's L* 53

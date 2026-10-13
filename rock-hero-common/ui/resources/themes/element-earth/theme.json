@@ -2,7 +2,7 @@
   "name": "Element - Earth",
   "inherits": "default",
   "colors": {
-    "backdrop": "#080503",
+    "backdrop": "#000000",
     "beat_bar": "#5C3A12",
     "attack_line": "#F4DCA8",
     "lit_lane": "#D08C2816",
