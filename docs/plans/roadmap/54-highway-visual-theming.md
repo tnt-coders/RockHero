@@ -15,9 +15,11 @@ editor's theme and string-color pickers over plan 70's shared settings. Phase 4a
 (below) and still gates the art phases (54-Q5 to 54-Q22, each with a recommendation or a ruling).
 Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
-sighting"). **Phases 1 to 5 gate the first public release.** This
-revision replaces the 2026-08-02 plan (baseline `182faedb`): its mechanism survives, but its
-inventory was two months stale, and its goal changed from "make today's look one selectable
+sighting"). **Phases 1 to 5 gate the first public release.** **Sequencing 2026-10-12 (user):**
+the mark brief (54-Q8, with the harmonic pair and the IP review's per-mark findings) is
+definitively planned here, but it waits until span authoring and the chord-template work (plan
+60b, Phases 4 and 5) are done. This revision replaces the 2026-08-02 plan (baseline
+`182faedb`): its mechanism survives, but its inventory was two months stale, and its goal changed from "make today's look one selectable
 theme" to "make the look data, and ship RockHero's own looks in place of today's". Today's look
 survives only as the user's private theme (54-Q10).
 
@@ -406,12 +408,33 @@ kept locally, outside the tree. The user's picks from them:
 - **Pickers (54-Q18, 54-Q19):** string palette, head shape and inlay each default to "Theme's
   choice" and are pinned by picking a concrete entry. The game's theme preview shows the player's
   pins applied; the later theme editor's preview ignores them so an author sees their own choices.
-- **Harmonics (feeds 54-Q8):**
-  - the lean is a natural-harmonic diamond with an inner line, or a string-colored diamond with a
-    light inner border, plus a dark diamond printed on the ordinary head for the pinch;
-  - the ring over today's diamond reads as a cross-hair, which suits a precisely placed node, and
-    that quality is worth keeping in whatever replaces it;
-  - the 2D lane keeps its current harmonic drawing for now.
+- **Harmonics (feeds 54-Q8). Direction 2026-10-12 (user)**, confirming the 2026-10-09 lean. The
+  two harmonics become one designed pair, and the ring and the ellipse marks retire:
+  - **Natural:** the diamond node head alone (the edge-height diamond), with a hollow inner
+    diamond, a line or glow inset from its edge, and no mark over it. In the 2026-10-09 library
+    round this is option N4 (inner line) or N2 (hollow).
+  - **Pinch:** the ordinary head of the active library shape, with a dark diamond centered on it.
+    This is the round's "dark diamond" (picking-hand dark fill, light rim, 1.07 x string pitch
+    vertex to vertex, before 54-Q8 re-derives the size law).
+  - **One style:** the pinch's diamond and the natural's inner diamond are drawn by the same rule
+    (stroke, rim and proportion), so the two read as a pair. The polarity flips: a light inner
+    diamond on a diamond head for the natural, and a dark diamond on an ordinary head for the
+    pinch. This matches the hand-fill split, if 54-Q8 keeps it.
+  - **What the round measured, which the candidates must beat:**
+    - On a whole head, the white lift of a light fill clips to white on most strings. N1 and N2
+      lose string identity entirely (0.0 dE00) and N4 loses most of it (6.5, against today's
+      17.2). The inner diamond's lift is the knob, and it must keep the string readable.
+    - N4's 2-texel line is 0.4 px at the far end and merges into a lighter centre there, so the
+      inner diamond's stroke is sized for the far end, not the near.
+    - The dark-diamond pinch fits every library shape (99% on the head). Against a plain head it
+      reads only 25% / 22% distinct at mid / far distance, against today's pinch at 51% / 25%. The
+      candidates must close the mid-distance gap through size and rim contrast.
+  - The ring's cross-hair quality, which suits a precisely placed node, is worth keeping in the
+    inner diamond's construction where it costs nothing.
+  - **2D consequence (decided with the brief, not after):** the tab lane draws both harmonics as a
+    diamond head and marks the pinch with a bar. Since surfaces must not diverge, the brief rules
+    whether the tab lane adopts the same polarity pair. Until then, the 2D lane keeps its current
+    drawing.
 - **Later themes:** animated backdrops for the synthwave and arcade themes, and the render looks,
   are wanted after v1 (`docs/plans/todo/intricate-highway-themes.md`; backdrop art is COULD tier).
   Night Drive and Retro Arcade ship as color themes since 2026-10-12.
@@ -437,7 +460,8 @@ Each carries a recommendation; none is decided until the user rules.
   - the open-bar L posts lose their foot and keep the upright leg on both sides. **RULED
     2026-10-11 (user)** from the Phase 4a candidates (corner, upright, foot only, none): "looks
     real clean";
-  - the repeat X stays today's `chords.png` cells, tinted per theme;
+  - the repeat X stays today's `chords.png` cells, tinted per theme, until the 54-Q8 brief
+    redraws the X family; the repeat Xs then follow it (Phase 5's `chords.png` item);
   - the faint fill keeps its end-to-middle shading (**RULED 2026-10-11, user, over a flat fill**:
     it reads clearer and more transparent); its middle is derived from the box color
     (`boxFillMiddle`, "Derived in code, never roles"), so no role holds it.
@@ -477,6 +501,37 @@ Each carries a recommendation; none is decided until the user rules.
   ellipse. One mark set must fit every library shape (54-Q19). The Phase 0 measurements show that
   scaling today's wide marks (palm X, pinch, slap, pop, tap) down to fit the hexagon and emerald
   costs far-end contrast, so the redraw sizes those five for the narrowest library shape.
+
+  *IP review 2026-10-12 (risk analysis, not legal advice; records kept outside the tree).* The
+  shipped `resources/highway/marks.png` was never redesigned. The August re-bake re-rendered
+  Charter's shapes at a new size and symmetry, and Charter's shapes follow the inspiring game's
+  closely. Eight of twelve cells keep Charter's silhouette and internal construction. The pairings
+  are notation, and every one of them may stay. The risk lies in particular renderings:
+  - **Slap and pop: HIGH.** They are free-form drawings with no notation precedent, and they match
+    the inspiring game's in silhouette, proportion and fill treatment. They must be new RockHero
+    shapes. *User 2026-10-12:* S and P letters probably would not read as obviously, so the brief
+    designs new shapes. Starting points from that discussion (not decided):
+    - motion shapes, such as a flat impact bar for the thumb's strike down and an upward hook for
+      the finger's snap;
+    - one shared form varied between the two (never the triangle's flip, which legato owns);
+    - a bold S and P drawn as glyphs in the mark style.
+  - **Natural-harmonic bullseye and ellipse pinch: MED.** The bullseye's band radii equal the
+    inspiring game's within 0.03 of the radius. The harmonic direction in "Phase 0 direction"
+    retires both.
+  - **Mute X pair, V tap and `chords.png`'s repeat Xs: LOW each, MED as a family.** The X and the
+    V are familiar symbols. But the wide-dark / compact-light split in the same fill-and-outline
+    treatment, with square-cut tips, reproduces the inspiring game's encoding, and the repeat-box
+    Xs repeat it. The brief therefore keeps the pairings but sets RockHero's own tip and stroke
+    rule for the whole family, and either splits one axis differently or states why both splits
+    stay.
+  - **The size law** (1.07 x string pitch) was measured from the inspiring game's captures, as
+    commit `1333163f` records. The brief re-derives it from far-end legibility, as above. No
+    figure measured from reference images survives the redraw.
+  - **Legato triangle, arpeggio brackets, bend caret and pick slide: LOW or none.** Each is kept
+    as a pairing and redrawn in the family's style like every other mark.
+
+  The brief is written, and the candidates drawn, without reference images open. Until Phase 5
+  lands, nothing should describe the shipped marks as independently designed.
 - **54-Q9 — accent pairs.** The chrome hue family for each built-in, chosen clear of the six
   string hues; exact values by sighting. *Direction 2026-10-09:* one accent hue per built-in,
   deriving every chrome role by the vector construction's rule (lightness and chroma per role,
@@ -878,7 +933,9 @@ look. **Verification**: build, touched tests.
   tinted by `inlay_tint`; the theme's `inlay` key and the player's inlay setting, resolved and
   picked the same way.
 - **The art:** the redrawn fixed mark sheet (S3) from the mark brief, sized to fit every library
-  shape, and `chords.png` if the device changed its repeat cells. Every generator is committed.
+  shape; the harmonic pair as head-bake options (the natural's inner diamond on the node cell, the
+  pinch's diamond on the ordinary head; "Phase 0 direction"); and `chords.png`'s repeat Xs in the
+  brief's X-family rule. Every generator is committed.
 - **The default theme:** its `theme.json` (a built-in since Phase 2a) gains `head_shape` and
   `inlay`, and its final art replaces the interim cells.
 - **STOP: the theme rendered in motion in the game and the editor preview; user sign-off before
