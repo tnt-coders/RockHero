@@ -922,6 +922,20 @@ look. **Verification**: build, touched tests.
     polarity turning at screen luminance 0.342). `laneShapeInk`, its guardrail pair and its tests
     are deleted. Default's 2D chord is therefore its light sky-blue, not the old hand-tuned royal
     blue (a different hue, 263 against 220 in OKLCH, which no rule shared by every theme reaches).
+  - **OPEN 2026-10-13, to settle next session.** The user wants, under ONE rule for every theme:
+    the original hand-tuned 2D blue `#4173DE` and purple `#9061C7` for Classic (3D teal `#00D2D5`
+    / purple `#C040FF`) and Default; chip labels always white and readable; other themes
+    coordinated. Verbatim colors with black-or-white labels (today) fails the first two; the
+    retired fixed-luminance law fails the first and renames cyan/amber. The candidate on the table
+    is a **snapped 2D ink palette**: fixed inks, each the most saturated color of its hue at the
+    white-label luminance (Y about 0.186), the original blue and purple among them; a theme's span
+    color draws as the ink whose OKLCH hue range contains it, blue owning cyan through blue (about
+    175-270 degrees, so Classic's teal at 197 and Default's cyan at 220 land on the original blue);
+    a theme whose chord and arpeggio land on one ink is refused at load. Seven inks (red, orange,
+    gold, green, blue, purple, pink) or ten (plus teal, yellow, grey) — the count is free. Strings
+    stay verbatim: they carry no white text, the ink recipe would turn the yellow string olive, and
+    snapping would collapse the blue and teal strings and override palette pins. Not decided:
+    whether to adopt the snap at all, and the ink count.
 - **S3's sheet split** per 54-Q17 moves today's mark cells unchanged, which is zero visual change
   (verified byte-exact: the two files stacked decode to the old sheet's pixels). The private theme's `notes.png` is re-cut locally to the
   heads-only layout so it still passes the contract.
