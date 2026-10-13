@@ -3,5 +3,6 @@
 This section contains player-facing and creator-facing guidance for Rock Hero.
 
 - \subpage user_input_calibration
+- \subpage user_highway_view_options
 - \subpage user_difficulty_ratings
 
