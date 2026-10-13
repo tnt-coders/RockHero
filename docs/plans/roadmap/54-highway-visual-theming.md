@@ -15,6 +15,7 @@ editor's theme and string-color pickers over plan 70's shared settings. Phase 4a
 per-surface span colors (`8af156d8`), the shipped built-ins, Retro Arcade's CRT look (ruled at
 `df01b691`) and a broken non-default built-in being dropped rather than failing startup.
 **Paused 2026-10-13 (user)**; the next theme step is Phase 5's symbols, gated on the mark brief.
+Built-in themes keep their own string colors and never lock them to Default's (user, 2026-10-13).
 `docs/plans/in-progress/00-start-here.md` holds the owed sightings. **Phase 0 has a direction for
 the default look** (below) and still gates the art phases (54-Q5 to 54-Q22, each with a
 recommendation or a ruling). Phases 1 and 2a need only the role names, which this plan fixes. The

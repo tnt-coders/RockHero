@@ -15,12 +15,12 @@ tunables in the theme file, and no palette snap. Only the CRT renders off-screen
 draws to the backbuffer as before. Everything else below (pixel, dither, halftone, the snap,
 the archived themes) stays deferred.
 
-**The standard for this kind of effect** is commit `df01b691`, tagged
-`crt-standard-2026-10-13` (user, 2026-10-13: "Let's stick with this"). The user first named
+**The standard for this kind of effect** is commit `df01b691` (user, 2026-10-13: "Let's stick
+with this"; then "the current CRT look is the winner"). The user first named
 `1473ab96` the standard ("captures the vibe VERY well"). Two refinements followed it: per-line
 sharpening (`CRT_SHARPEN`) for a general fuzziness, and deeper gaps on dim content
-(`CRT_BEAM_DARK` 12) once the finer lines had gone faint. Judge any later CRT change against the
-tag side by side: a sharper cut that loses its vibe is a regression.
+(`CRT_BEAM_DARK` 12) once the finer lines had gone faint. Judge any later CRT change against that
+commit side by side: a sharper cut that loses its vibe is a regression.
 
 ## Where the work lives
 

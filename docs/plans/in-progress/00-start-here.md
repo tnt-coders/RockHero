@@ -36,12 +36,12 @@ The queue is empty apart from #298's end-to-end marker grammar pass (release pla
 the highway theming sightings below.
 
 **Plan 54 is paused (2026-10-13).** Phases 1 to 4b have landed, along with the per-surface span
-colors (`8af156d8`). Retro Arcade's CRT look is ruled at `df01b691` (tag
-`crt-standard-2026-10-13`; its arpeggio is the violet `#A030FF`). A broken built-in other than
-Default is now dropped and logged instead of failing startup (`ac261eee`). The next theme step is
-"the actual symbols": Phase 5's head library and redrawn mark sheet, gated on the mark brief
-sign-off. One question is still the user's: should the non-colorblind built-ins lock their
-strings to Default's? The user leans no ("Users should be able to customize a lot").
+colors (`8af156d8`). Retro Arcade's CRT look is ruled at `df01b691`, the standard for any later
+effect of its kind; its arpeggio is the violet `#A030FF`. A broken built-in other than Default is
+now dropped and logged instead of failing startup (`ac261eee`). Built-in themes keep their own
+string colors and never lock them to Default's (user, 2026-10-13). The next theme step is "the
+actual symbols": Phase 5's head library and redrawn mark sheet, gated on the mark brief sign-off,
+which waits for plan 60b's chord templates and grips.
 
 **Plan 54 (highway theming), owed by the user, in this order** (first do plan 70's file moves
 below, or both apps start without calibration, keymap and plugin list). Every comparison is a
