@@ -8,7 +8,8 @@ at the work so it can be taken up again without re-deriving it. Nothing here is 
 as authentic as an arcade monitor but clear and readable). It is a top-level `"crt": true` in
 `theme.json`, a theme's choice that inherits like any key, which answers step 1 below for this
 look. It is not the old `crt` look: 240 scan lines scaled to the window instead of a band
-height in pixels, a brightness-dependent Gaussian beam over row-averaged lines instead of
+height in pixels, a brightness-dependent, light-preserving Gaussian beam over tent-filtered
+lines (a box per line made far notes hop line to line in the first sighting) instead of
 darkened bands with a 1:2:1 softening, a gentle RGB stripe mask, no tunables in the theme file,
 and no palette snap. Only the CRT renders off-screen; a plain theme draws to the backbuffer as
 before. Everything else below (pixel, dither, halftone, the snap, the archived themes) stays
