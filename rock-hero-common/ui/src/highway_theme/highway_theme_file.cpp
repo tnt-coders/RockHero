@@ -37,6 +37,19 @@ constexpr std::string_view g_inherits_key = "inherits";
 constexpr std::string_view g_strings_key = "strings";
 constexpr std::string_view g_crt_key = "crt";
 
+// Each CRT monitor as `crt` names it.
+struct CrtName
+{
+    std::string_view name;
+    HighwayCrt crt;
+};
+constexpr std::array g_crt_names{
+    CrtName{.name = "off", .crt = HighwayCrt::Off},
+    CrtName{.name = "sharp", .crt = HighwayCrt::Sharp},
+    CrtName{.name = "sharp-256", .crt = HighwayCrt::Sharp256},
+    CrtName{.name = "vintage", .crt = HighwayCrt::Vintage},
+};
+
 // The keys the top level of a theme file may hold.
 constexpr std::array g_theme_keys{g_name_key, g_colors_key, g_inherits_key, g_crt_key};
 
@@ -126,24 +139,26 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return &*base;
 }
 
-// Reads whether the theme presents its board through the CRT look: its own `crt`, or else its
-// base's, so a theme inheriting a CRT theme keeps the look unless it states false.
-[[nodiscard]] std::expected<bool, HighwayThemeError> readCrt(
+// Reads the CRT monitor the theme presents its board through: its own `crt`, or else its base's, so
+// a theme inheriting a CRT theme keeps the monitor unless it states "off".
+[[nodiscard]] std::expected<HighwayCrt, HighwayThemeError> readCrt(
     const juce::var& document, const LoadedHighwayTheme* const base)
 {
     const juce::var& crt = Json::value(document, g_crt_key);
     if (crt.isVoid())
     {
-        return base != nullptr && base->crt;
+        return base != nullptr ? base->crt : HighwayCrt::Off;
     }
-    if (!crt.isBool())
+    const auto named = std::ranges::find(
+        g_crt_names, crt.isString() ? crt.toString().toStdString() : "", &CrtName::name);
+    if (named == g_crt_names.end())
     {
         return std::unexpected{HighwayThemeError{
             HighwayThemeErrorCode::MalformedJson,
-            "\"crt\" must be true or false",
+            "\"crt\" must be \"off\", \"sharp\", \"sharp-256\" or \"vintage\"",
         }};
     }
-    return static_cast<bool>(crt);
+    return named->crt;
 }
 
 // Every color the roles resolve to: the highway's roles, and the tab lane's span inks.
@@ -446,7 +461,7 @@ struct ResolvedRoles
             "\"name\" must be a non-blank string",
         }};
     }
-    const std::expected<bool, HighwayThemeError> crt = readCrt(*document, *base);
+    const std::expected<HighwayCrt, HighwayThemeError> crt = readCrt(*document, *base);
     if (!crt.has_value())
     {
         return std::unexpected{crt.error()};

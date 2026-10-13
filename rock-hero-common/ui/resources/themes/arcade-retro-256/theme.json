@@ -1,0 +1,28 @@
+{
+  "name": "Arcade - Retro 256",
+  "inherits": "default",
+  "crt": "sharp-256",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#1C1CA8",
+    "attack_line": "#FFFFFF",
+    "lit_lane": "#6E6EFF30",
+    "lit_lane_dotted": "#30309830",
+    "lane_line": "#5060FF40",
+    "lane_line_lit": "#7080FF",
+    "fret_line": "#14143C",
+    "fret_line_lit": "#FFFFFF",
+    "fret_number_lit": "#9EA8FF",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#FFFFFF",
+    "strike_picking": "#FFB8FF",
+    "chord": "#2E86FF",
+    "arpeggio": "#A030FF",
+    "full_mute_mark": "#FFFFFF",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#C8CCFF",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#B87A70E6",
+    "label_text": "#FFE600"
+  }
+}

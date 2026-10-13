@@ -524,7 +524,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
             loadShippedMarkSheet(),
             testing::fixtureHighwayTheme(),
             testing::fixtureStringColors(),
-            false);
+            HighwayCrt::Off);
         REQUIRE(renderer.has_value());
 
         // Encoding frames before any content is the state both products are in between device
@@ -591,14 +591,23 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // integrate nothing.
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, 0.0, 30);
 
-        // The CRT look is a theme part: turning it on renders the scene into the off-screen target
-        // the present carries to the window, a resize under it refits the target, and turning it
-        // off draws to the window again with every view re-bound there.
-        renderer->setTheme(testing::fixtureHighwayTheme(), testing::fixtureStringColors(), true);
+        // The CRT is a theme part: a monitor renders the scene into the off-screen target the
+        // present carries to the window, a resize under it refits the target, a color limit only
+        // changes the present's parameters, the vintage pixel board refits it as a mipmapped one,
+        // and turning it off draws to the window again with every view re-bound there.
+        renderer->setTheme(
+            testing::fixtureHighwayTheme(), testing::fixtureStringColors(), HighwayCrt::Sharp);
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
         device->resize(1001, 563);
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        renderer->setTheme(testing::fixtureHighwayTheme(), testing::fixtureStringColors(), false);
+        renderer->setTheme(
+            testing::fixtureHighwayTheme(), testing::fixtureStringColors(), HighwayCrt::Sharp256);
+        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
+        renderer->setTheme(
+            testing::fixtureHighwayTheme(), testing::fixtureStringColors(), HighwayCrt::Vintage);
+        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
+        renderer->setTheme(
+            testing::fixtureHighwayTheme(), testing::fixtureStringColors(), HighwayCrt::Off);
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
         device->resize(1280, 720);
 
@@ -672,7 +681,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         recolored.chord = 0xFFFF00FFU;
         StringColorPalette recolored_strings = testing::fixtureStringColors();
         recolored_strings.colors.front() = 0xFF40FF40U;
-        renderer->setTheme(recolored, recolored_strings, false);
+        renderer->setTheme(recolored, recolored_strings, HighwayCrt::Off);
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 30);
 
         // An arrangement with no chart at all: empty scene, no beats, no camera zones — the

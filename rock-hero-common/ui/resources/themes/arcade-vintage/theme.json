@@ -1,0 +1,30 @@
+{
+  "name": "Arcade - Vintage",
+  "inherits": "default",
+  "crt": "vintage",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#2424AA",
+    "attack_line": "#FFFFFF",
+    "lit_lane": "#6D6DFF30",
+    "lit_lane_dotted": "#2424AA30",
+    "lane_line": "#496DFF40",
+    "lane_line_lit": "#6D92FF",
+    "fret_line": "#242455",
+    "fret_line_lit": "#FFFFFF",
+    "fret_number_lit": "#92B6FF",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#FFFFFF",
+    "strike_picking": "#FFB6FF",
+    "chord": { "highway": "#2492FF", "tab": "#246DFF" },
+    "arpeggio": "#9224FF",
+    "full_mute_mark": "#FFFFFF",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#DBDBFF",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#B66D55E6",
+    "label_text": "#FFDB00",
+    "strings": ["#B624FF", "#49FF00", "#FF9200", "#24B6FF",
+                "#FFFF00", "#FF0000", "#00B6AA", "#B6B6AA"]
+  }
+}

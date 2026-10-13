@@ -1,7 +1,7 @@
 {
-  "name": "Retro Arcade",
+  "name": "Arcade - Retro",
   "inherits": "default",
-  "crt": true,
+  "crt": "sharp",
   "colors": {
     "backdrop": "#000000",
     "beat_bar": "#1C1CA8",
