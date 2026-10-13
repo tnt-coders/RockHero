@@ -73,13 +73,18 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    was re-cut to the heads-only 256×128 sheet the split requires (the 256×320 original is backed
    up in `C:/__MAIN__/Coding/__scratch__/theming/classic-backup/`). Then the garish coverage
    fixture once in both products.
-8. **The shipped built-ins beyond Default** (Element - Earth, Wind and Fire, Night
-   Drive, Retro Arcade, and the four "Colorblind - …" themes, one per deficiency — under `rock-hero-common/ui/resources/themes/`; Signal, Ladder, Ember
-   and Phosphor left the set at the user's 2026-10-12 re-cut and live in `9106c2ae`; the rest,
-   and the render looks, are archived in the commit `docs/plans/todo/intricate-highway-themes.md`
-   names). Watch: Retro Arcade's beat bars against the blue string's notes, and its cobalt chord
-   boxes beside that string's heads; Fire's crimson chord beside the low E's red and its amber
-   arpeggio beside the orange string; every hand window now lights at Default's strength.
+8. **The shipped built-ins beyond Default** (the showcase six — Element - Fire, Wind, Earth and
+   Water, Hell and Heaven — their four unsighted "Element - … - Original" baselines, Blacklight,
+   Night Drive, Retro Arcade, and the four "Colorblind - …" themes, one per deficiency — under
+   `rock-hero-common/ui/resources/themes/`; Signal, Ladder, Ember and Phosphor left the set at
+   the user's 2026-10-12 re-cut and live in `9106c2ae`; the rest, and the render looks, are
+   archived in the commit `docs/plans/todo/intricate-highway-themes.md` names). Every non-Original
+   board is now near black, every hand window a quiet cue (about L* 4 over the board, down
+   from 14-16) and every unlit lane line a faint tint (about L* 5) under the 2026-10-13 no-haze
+   ruling; sight the Originals against their replacements and Default's quieter window against
+   the old strength. Watch: Fire's gold arpeggio boxes around the orange and yellow strings'
+   heads and its scarlet chord beside the low E; Hell's lava arpeggio beside the orange string;
+   whether a window at L* 4 still locates the hand in motion.
 
 **Plan 70 Phase 3 (per-user data), owed by the user BEFORE the next run of either app**, all inside
 `%APPDATA%\Rock Hero\` (the apps now write only the new tree, so until this is done they start

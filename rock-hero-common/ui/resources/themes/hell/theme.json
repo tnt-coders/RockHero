@@ -1,0 +1,37 @@
+{
+  "name": "Hell",
+  "inherits": "default",
+  "colors": {
+    "backdrop": "#080608",
+    "beat_bar": "#8A1406",
+    "attack_line": "#FFD040",
+    "lit_lane": "#5A506828",
+    "lit_lane_dotted": "#40384828",
+    "lane_line": "#6A60701C",
+    "lane_line_lit": "#8C7C84",
+    "fret_line": "#181418",
+    "fret_line_lit": "#FFE090",
+    "fret_number_lit": "#FFA050",
+    "fret_number_target": "#FFF6DC",
+    "strike_fretting": "#FFF0C8",
+    "strike_picking": "#FF4A0A",
+    "chord": "#C8001E",
+    "arpeggio": "#FF7A00",
+    "full_mute_mark": "#FFE6B0",
+    "capo_shade": "#080608B4",
+    "capo_bar": "#E0A070",
+    "capo_bar_rim": "#080608",
+    "inlay_tint": "#4C4454E6",
+    "label_text": "#FFC040",
+    "strings": [
+      "#F040D0",
+      "#B8E048",
+      "#FFA030",
+      "#6AA0F0",
+      "#FFD810",
+      "#FF2A08",
+      "#2CB8A0",
+      "#C8A898"
+    ]
+  }
+}

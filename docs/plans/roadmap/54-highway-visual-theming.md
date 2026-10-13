@@ -990,6 +990,42 @@ window an obsidian violet-grey. Earth is deep forest: a near-black green board, 
 and window, a pine-green chord (`#2E9A5A`) and a bark-brown arpeggio (`#B07A48`). Wind is light
 and airy: a slate-blue board (`#16202C`, L* 12, the one built-in not on black) with pale washes,
 an aqua chord and a lavender arpeggio. Every window still lifts its board by about L* 14-16.
+That cut survives unsighted as the four "Element - … - Original" built-ins (Earth, Wind, Fire,
+and Water as of `87a0f35b`), kept verbatim as comparison baselines.
+
+*Showcase set and the no-haze rule, 2026-10-13 (user):* six immersive built-ins replace the
+Elements — "Element - Fire" (living flame: gold and amber lane lines, a white-hot attack line,
+a scarlet chord `#D81C1C` and a gold arpeggio `#FFB800`), "Element - Wind" (storm sky: stormcloud
+beat bars, a lightning-white attack line, silver lane lines, a pale-cyan chord `#90F0FF` and a
+rose-cloud arpeggio `#F8A8B8`), "Element - Earth" (deep underground: walnut beat bars, ochre
+lane lines, moss in the dotted lanes, a moss chord `#5A9A2E` and a terracotta arpeggio
+`#D06A2A`, amber mineral inlays), "Element - Water" (deep sea: oceanic beat bars, a caustic
+attack line, 470 nm bioluminescent cyan lane lines, a cobalt chord `#3D6CF5` and a
+phosphorescent mint arpeggio `#78F0C4`), "Hell" (fire and brimstone on obsidian: the board,
+window, lane lines and inlays a glassy grey-violet, the hellishness held to blood-red beat bars,
+a sulfur attack line, lit frets and labels, a blood-red chord `#C8001E` and a lava-orange
+arpeggio `#FF7A00` — a first cut with red lane lines and a lava window was "way too red", user)
+and "Heaven" (celestial light: soft-gold beat bars and lane lines on a faint
+midnight board, a lilac chord `#C8B0FF` and a halo-gold arpeggio `#FFC84A`). Fire and Hell, and
+Wind and Heaven, are distinct looks, not variants. Each tones the standard string families
+toward its element. A seventh, "Blacklight", revives the early "Colour Vector" violet direction
+under a better name: UV-violet beat bars and lane lines on pure black, a white-hot attack line,
+Default's strings, a UV-violet chord `#7C68FF` and one fluorescent hot-pink accent on the
+arpeggio `#FF30A8` (a paler lilac/pink pair collapsed to 12.7 once the picking-hand derivation
+paled both). Two rulings bind every built-in except the Originals: **the board is near
+black** (L* 0-3; a lit or tinted board — Wind Original's slate at L* 12 — veils the notes'
+contrast), and **the hand window is a quiet cue, not a wash**: `lit_lane` over the backdrop
+lifts it by about L* 4 (was 14-16; Default `#5978FF1D`, Night Drive `#C84CB41B`, Retro Arcade
+`#6E6EFF1D`, the Colorblind set through Default), unlit lane lines composite to about L* 5 over
+the board (color allowed only as that faint tint), lit lane lines sit near Default's L* 53
+(49-59), and inlays stay dull (L* 27-52 over the board). The user's words: the window glow and
+lane lines were "too in your face, which gets in the way of reading the charts"; when in doubt,
+quieter. The haze the user named — a theme that "feels like
+it has a haze that makes things less clear" — is any broad lift of the board; immersion is
+carried by the beat bars, attack line, lit fret lines, labels and string toning instead.
+Span-to-string distance is a mild consideration judged on a rendered sheet (a box frame around
+a head reads as a frame, never as a head), not a number: Fire's gold arpeggio sits 10.5 CIEDE2000
+from its orange string and reads fine.
 
 *Colorblind set 2026-10-13 (user):* color-vision deficiency is not a criterion for the themes
 above; instead one built-in per type, named "Colorblind - Protanopia", "- Deuteranopia",

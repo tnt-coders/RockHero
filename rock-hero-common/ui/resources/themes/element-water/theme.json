@@ -1,0 +1,37 @@
+{
+  "name": "Element - Water",
+  "inherits": "default",
+  "colors": {
+    "backdrop": "#02080E",
+    "beat_bar": "#0E4C70",
+    "attack_line": "#D8FBFF",
+    "lit_lane": "#28C0E013",
+    "lit_lane_dotted": "#1888B813",
+    "lane_line": "#2A96C013",
+    "lane_line_lit": "#2890B0",
+    "fret_line": "#0A2030",
+    "fret_line_lit": "#DCFCFF",
+    "fret_number_lit": "#90E6FF",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#F0FEFF",
+    "strike_picking": "#40D4F4",
+    "chord": "#3D6CF5",
+    "arpeggio": "#78F0C4",
+    "full_mute_mark": "#E0FBFF",
+    "capo_shade": "#02080EB4",
+    "capo_bar": "#B8DCE8",
+    "capo_bar_rim": "#02080E",
+    "inlay_tint": "#2E7A94E6",
+    "label_text": "#D0F4FF",
+    "strings": [
+      "#D050FF",
+      "#70F070",
+      "#FFA058",
+      "#58C8FF",
+      "#F0E838",
+      "#FF4030",
+      "#20D0C0",
+      "#B8CCD8"
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "Blacklight",
+  "inherits": "default",
+  "colors": {
+    "backdrop": "#000000",
+    "beat_bar": "#3B2F99",
+    "attack_line": "#F4F4FF",
+    "lit_lane": "#8277F11B",
+    "lit_lane_dotted": "#524B981B",
+    "lane_line": "#6A5CFF26",
+    "lane_line_lit": "#6A5CFF",
+    "fret_line": "#1A1640",
+    "fret_line_lit": "#F4F4FF",
+    "fret_number_lit": "#C9C2FF",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#F4F4FF",
+    "strike_picking": "#9C8CFF",
+    "chord": "#7C68FF",
+    "arpeggio": "#FF30A8",
+    "full_mute_mark": "#F4F4FF",
+    "capo_shade": "#000000B4",
+    "capo_bar": "#C9C2FF",
+    "capo_bar_rim": "#000000",
+    "inlay_tint": "#6A5CC0E6",
+    "label_text": "#F4F4FF",
+    "strings": [
+      "#E03CFF",
+      "#89F44E",
+      "#FF993E",
+      "#60BBFF",
+      "#FCE307",
+      "#FC1B00",
+      "#00C1AC",
+      "#C1C1C1"
+    ]
+  }
+}

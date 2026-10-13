@@ -1,0 +1,37 @@
+{
+  "name": "Heaven",
+  "inherits": "default",
+  "colors": {
+    "backdrop": "#040A18",
+    "beat_bar": "#6A5C34",
+    "attack_line": "#FFF4D0",
+    "lit_lane": "#FFF2D00C",
+    "lit_lane_dotted": "#FFD88A0C",
+    "lane_line": "#FFF0C808",
+    "lane_line_lit": "#9A8C68",
+    "fret_line": "#121E3A",
+    "fret_line_lit": "#FFF8E4",
+    "fret_number_lit": "#FFE6A0",
+    "fret_number_target": "#FFFFFF",
+    "strike_fretting": "#FFFFFF",
+    "strike_picking": "#FFD060",
+    "chord": "#C8B0FF",
+    "arpeggio": "#FFC84A",
+    "full_mute_mark": "#FFFFFF",
+    "capo_shade": "#040A18B4",
+    "capo_bar": "#F0E6CC",
+    "capo_bar_rim": "#040A18",
+    "inlay_tint": "#8A7A48E6",
+    "label_text": "#FFF4D8",
+    "strings": [
+      "#E070FF",
+      "#A8F880",
+      "#FF9A48",
+      "#88D0FF",
+      "#FFF060",
+      "#FF6A58",
+      "#58E0D0",
+      "#E0E6F0"
+    ]
+  }
+}

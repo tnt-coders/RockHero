@@ -251,7 +251,7 @@ TEST_CASE("A complete theme directory loads", "[ui][highway-theme]")
     CHECK(loaded->id == "night-drive-2");
     CHECK(loaded->name == "Default");
     CHECK(loaded->colors.backdrop == 0xFF000000U);
-    CHECK(loaded->colors.lit_lane == 0x495978FFU);
+    CHECK(loaded->colors.lit_lane == 0x1D5978FFU);
     CHECK(loaded->colors.inlay_tint == 0xE68691B2U);
     CHECK(loaded->palette.source_id == "night-drive-2");
     CHECK(loaded->palette.name == "Default");
