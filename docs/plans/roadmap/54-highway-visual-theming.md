@@ -535,6 +535,16 @@ Each carries a recommendation; none is decided until the user rules.
       the finger's snap;
     - one shared form varied between the two (never the triangle's flip, which legato owns);
     - a bold S and P drawn as glyphs in the mark style.
+
+    *Two candidate batches, 2026-10-13, all REJECTED by the user* ("NONE of them get the right
+    vibe"; sheets and cells in `C:/__MAIN__/Coding/__scratch__/marks-slap-pop/`). They covered S/P
+    letters, flat vs upright bars, one heavy bar vs two bars (in and past the head), pins, a J hook,
+    a trough vs a spiked line, pads, a lifted fingertip, and pressed-in vs raised shading. What
+    they measured still holds for the next round: letters were the least distinguishable pair at
+    distance; a stroke needs about 10 texels before the picking hand's dark core shows; the dead
+    note's X hides anything centered in the head narrower than it; and slap and pop both ride
+    the head's roll. The redraw is parked until the mark brief, which should start from the
+    user's description of the vibe rather than from shapes.
   - **Natural-harmonic bullseye and ellipse pinch: MED.** The bullseye's band radii equal the
     inspiring game's within 0.03 of the radius. The harmonic direction in "Phase 0 direction"
     retires both.
